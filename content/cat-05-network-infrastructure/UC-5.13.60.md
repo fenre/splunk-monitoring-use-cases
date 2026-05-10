@@ -176,5 +176,5 @@ index=catalyst sourcetype="cisco:dnac:devicehealth" (deviceType="*AP*" OR device
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Device Health endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [Cisco Catalyst 9100 Access Points — Data Sheet](https://www.cisco.com/c/en/us/products/wireless/catalyst-9100ax-access-points/datasheet-listing.html)

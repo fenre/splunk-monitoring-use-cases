@@ -610,10 +610,10 @@ Closing Step 5 checklist: twelve cases present with exact Case N — formatting,
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Change.action) AS last_change_action count AS change_events FROM datamodel=Change WHERE nodename=Change earliest=-4h@h latest=@h BY Change.user Change.object
+| tstats summariesonly=t latest(Change.action) AS last_change_action count AS change_events FROM datamodel=Change WHERE nodename=Change earliest=-4h@h latest=@h BY Change.user Change.object
 | rename Change.user AS change_actor Change.object AS change_obj
 | join type=left max=0 change_actor [
-| tstats summariesonly=true latest(Application_State.state) AS app_state FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS change_actor ]
 | table change_actor change_obj last_change_action change_events app_state
 ```

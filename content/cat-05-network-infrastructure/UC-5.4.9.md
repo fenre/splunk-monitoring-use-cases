@@ -25,7 +25,7 @@ Network operations teams analyze wireless client roaming quality across SSIDs, m
 
 ## Implementation
 
-Enable client roaming event logging on the WLC. Track roaming frequency per client. Investigate clients with >10 roams/hour — indicates poor RF design or sticky client behavior.
+1. Configure SC4S to receive Cisco WLC syslog. 2. The query uses transaction to group roam events per client_mac and counts roams per client. 3. If you are running Meraki MR instead: use sourcetype="meraki" type=events with type=association / type=disassociation, group by aid (Meraki association id) and look for clients seen across many APs in a short time (see UC-5.4.14 for the canonical Meraki SPL pattern). The Meraki syslog payload does not include the client MAC directly; correlation has to be done via the API-side Wireless Packet Loss by Device input or Meraki Dashboard.
 
 ## Detailed Implementation
 

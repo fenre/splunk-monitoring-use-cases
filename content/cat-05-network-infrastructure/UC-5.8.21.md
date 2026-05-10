@@ -46,7 +46,7 @@ If empty: webhooks may not be configured, or they're failing to deliver.
 
 **Primary search — Webhook delivery health:**
 ```spl
-index=meraki sourcetype="meraki:api:webhooklogs" earliest=-24h
+index=meraki sourcetype="meraki:webhooklogs:api" earliest=-24h
 | eval delivery_status=if(responseCode >= 200 AND responseCode < 300, "SUCCESS", "FAILED")
 | stats count as total count(eval(delivery_status="SUCCESS")) as success count(eval(delivery_status="FAILED")) as failed by url, networkName
 | eval success_rate=round(100*success/total, 1)
@@ -68,7 +68,7 @@ index=meraki sourcetype="meraki:webhook" earliest=-24h
 
 **Failed delivery error analysis:**
 ```spl
-index=meraki sourcetype="meraki:api:webhooklogs" responseCode >= 400 earliest=-24h
+index=meraki sourcetype="meraki:webhooklogs:api" responseCode >= 400 earliest=-24h
 | stats count by responseCode, url
 | eval error_type=case(responseCode=401, "Auth failure", responseCode=403, "Forbidden", responseCode=404, "Endpoint not found", responseCode=429, "Rate limited", responseCode >= 500, "Server error", 1==1, "Other")
 | sort -count
@@ -100,7 +100,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:webhook" (status="failure" OR status="error")
+index=meraki sourcetype="meraki:webhook" (status="failure" OR status="error")
 | stats count as failure_count, latest(error_message) as last_error by webhook_id, organization
 | where failure_count > 5
 ```

@@ -426,9 +426,9 @@ Closing narrative: this UC closes the gap between opaque node churn and actionab
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object count AS change_events FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.user
+| tstats summariesonly=t latest(Change.action) AS change_action latest(Change.object) AS change_object count AS change_events FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.user
 | join type=left max=0 change_object
-    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-24h@h latest=now BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-24h@h latest=now BY Application_State.dest
      | rename Application_State.dest AS change_object ]
 | where change_events>0 AND (like(lower(app_state),"%notready%") OR like(lower(app_info),"%repair%") OR like(lower(app_info),"%replace%"))
 | table Change.user change_object change_events change_action app_state app_info

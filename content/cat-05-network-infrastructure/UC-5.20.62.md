@@ -5,12 +5,12 @@ id: "5.20.62"
 title: "IPv6 Firewall Session Table Utilization and Connection Rate Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.62 · IPv6 Firewall Session Table Utilization and Connection Rate Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *The security gate at the building has a logbook that tracks everyone coming and going. IPv6 visitors have longer names that take up more space in the logbook, and the new system where visitors try both the old and new doors at the same time means double the entries. We watch how full the logbook is getting, because when it's completely full, no new visitors can enter — everyone gets turned away.*
 

@@ -5,14 +5,14 @@ id: "5.20.88"
 title: "VXLAN/EVPN IPv6 Underlay and Overlay Health Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.88 · VXLAN/EVPN IPv6 Underlay and Overlay Health Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
-*In a modern factory (data center), all the machines are connected by a sophisticated conveyor belt system (VXLAN/EVPN fabric). The conveyor system now uses the new address system (IPv6) for routing packages between sections. If the address system fails between any two sections, packages can't move. We monitor every connection in the conveyor system to make sure the new addresses are working correctly.*
+*In a modern factory (data center), all the machines are connected by a sophisticated conveyor belt system (VXLAN/EVPN fabric). The conveyor system now uses the new address system (IPv6) for routing packages between sections. If the address system fails between any two sections, packages can't move.*
 
 ---
 

@@ -25,12 +25,12 @@ Security operations teams detect active wireless attacks (deauth floods, evil tw
 
 ## Implementation
 
-Enable wireless IDS on the WLC/AP. Forward alerts to Splunk. Alert on deauth floods, rogue AP impersonation, and client spoofing events. Correlate with rogue AP detection.
+1. Configure SC4S to receive Cisco WLC syslog. 2. The query uses rex to extract Snort-style signature id, signature name, and attacker MAC from wIPS messages. 3. If you are running Meraki MR instead: enable the Air Marshal input (sourcetype=meraki:airmarshal) and filter on threat-related event types — Meraki MR does not have Snort-style wIPS signatures but Air Marshal covers rogue / spoof / containment events.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless IDS/IPS events from controllers or dedicated sensors. Sources: (1) Cisco Adaptive wIPS via WLC syslog (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal events (`sourcetype=meraki:events`), (3) Aruba WIDS/WIPS (`sourcetype=aruba:controller`).
+- Wireless IDS/IPS events from controllers or dedicated sensors. Sources: (1) Cisco Adaptive wIPS via WLC syslog (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS (`sourcetype=aruba:controller`).
 - Key fields: `alert_type` (deauth_flood, beacon_flood, evil_twin, rogue_ap, mitm, eapol_flood), `severity`, `src_mac` (attacker MAC), `target_mac`, `ap_name` (detecting AP), `channel`, `action` (alert/contain/block).
 - Wireless attacks include: (1) Deauthentication flood — forces all clients to disconnect and reconnect, (2) Beacon flood — overwhelms clients with fake SSIDs, (3) Evil twin — rogue AP mimicking corporate SSID, (4) EAPOL flood — targets the authentication process, (5) Man-in-the-middle — interception of client traffic.
 

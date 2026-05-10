@@ -304,7 +304,7 @@ Supplemental notes for long-term owners: when finance challenges ingest cost, co
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-24h latest=now BY All_Changes.object All_Changes.action | head 200
+| tstats summariesonly=t count FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-24h latest=now BY All_Changes.object All_Changes.action | head 200
 ```
 
 ## Visualization

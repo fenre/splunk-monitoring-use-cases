@@ -25,7 +25,7 @@ Network operations teams detect and classify RF interference sources (microwaves
 
 ## Implementation
 
-Forward AP/WLC syslog. Alert on DFS radar events. Track channel change frequency per AP.
+1. Configure SC4S to receive Cisco WLC syslog. 2. The query above counts radar / DFS / interference / channel-change events by AP and channel. 3. If you are running Meraki MR instead: configure a Meraki Dashboard alert profile for 'radar detected (DFS)' and 'high channel utilization' and ingest via the Splunk_TA_cisco_meraki Webhook Logs (HEC) input (sourcetype=meraki:webhook). Polled API does not expose continuous channel-utilization counters.
 
 ## Detailed Implementation
 

@@ -426,10 +426,10 @@ Case L — healthy control test: wide notAfter horizons beyond ninety days, cert
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Web.url) AS web_url latest(Web.status) AS web_status FROM datamodel=Web WHERE nodename=Web earliest=-24h@h latest=now BY Web.src
+| tstats summariesonly=t latest(Web.url) AS web_url latest(Web.status) AS web_status FROM datamodel=Web WHERE nodename=Web earliest=-24h@h latest=now BY Web.src
 | rename Web.src AS edge_src
 | join type=left max=0 edge_src [
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
 | rename Application_State.dest AS edge_src ]
 | where like(lower(app_info), "%openshift%") OR like(lower(web_url), "%apps%")
 | table edge_src web_url web_status app_state app_info

@@ -470,10 +470,10 @@ Closing Step 5 checklist: twelve cases present with exact Case N — formatting,
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Inventory.os) AS inv_os latest(Inventory.version) AS inv_ver count AS inv_ev FROM datamodel=Inventory WHERE nodename=Inventory earliest=-2h@h latest=@h BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.os) AS inv_os latest(Inventory.version) AS inv_ver count AS inv_ev FROM datamodel=Inventory WHERE nodename=Inventory earliest=-2h@h latest=@h BY Inventory.dest
 | rename Inventory.dest AS correl_host
 | join type=left max=0 correl_host [
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-2h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-2h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS correl_host ]
 | where like(lower(app_state), "degraded") OR like(lower(app_info), "daemonset") OR like(lower(inv_os), "linux")
 | table correl_host inv_os inv_ver app_state app_info inv_ev

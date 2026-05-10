@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Sometimes a big letter has to be torn into smaller pieces to fit through the mail slots. In IPv6, there are very strict rules about this: only the sender can tear up letters, the pieces can never overlap, and it should be very rare. We watch for someone trying to slip in letters with overlapping pieces — that trick was banned because burglars used it to sneak past the mail inspector. We also watch for someone flooding the mail room with thousands of torn-up letters to jam up the sorting system.*
+*Sometimes a big letter has to be torn into smaller pieces to fit through the mail slots. In IPv6, there are very strict rules about this: only the sender can tear up letters, the pieces can never overlap, and it should be very rare. We watch for someone trying to slip in letters with overlapping pieces — that trick was banned because burglars used it to sneak past the mail inspector.*
 
 ---
 

@@ -5,12 +5,12 @@ id: "5.20.96"
 title: "SD-WAN IPv6 Overlay and Underlay Health Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.96 · SD-WAN IPv6 Overlay and Underlay Health Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Our company uses a smart postal network (SD-WAN) that automatically chooses the best route for letters between offices. We need to make sure this smart network works for new-format addresses (IPv6) just as well as for old-format addresses (IPv4). We check every office to make sure they can send and receive new-format letters through the smart network.*
 

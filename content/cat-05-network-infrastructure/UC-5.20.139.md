@@ -5,12 +5,12 @@ id: "5.20.139"
 title: "IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.139 · IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Availability, Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Availability, Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Your router keeps a phone book of all the IPv6 addresses it knows about. An attacker can flood it with millions of fake lookups until the phone book is completely full and it can't look up any more real addresses. We watch the phone book's capacity and sound the alarm before it overflows.*
 

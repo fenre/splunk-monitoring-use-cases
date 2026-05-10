@@ -321,10 +321,10 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Performance.host) AS perf_host latest(Performance.metric_name) AS perf_metric latest(Performance.value) AS perf_val FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.dest
+| tstats summariesonly=t latest(Performance.host) AS perf_host latest(Performance.metric_name) AS perf_metric latest(Performance.value) AS perf_val FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.dest
 | rename Performance.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
      | rename Application_State.dest AS cim_dest ]
 | where like(lower(perf_metric), "%prometheus%") OR like(lower(app_info), "%openshift%monitoring%")
 | table cim_dest perf_host perf_metric perf_val app_state app_info

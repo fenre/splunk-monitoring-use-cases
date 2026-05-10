@@ -289,9 +289,9 @@ Closing checklist: five Step headers with em dashes; multisearch lists docker:st
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true sum(All_Traffic.bytes_out) AS bytes_out sum(All_Traffic.bytes_in) AS bytes_in FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-6h@h latest=now BY All_Traffic.src span=5m
+| tstats summariesonly=t sum(All_Traffic.bytes_out) AS bytes_out sum(All_Traffic.bytes_in) AS bytes_in FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-6h@h latest=now BY All_Traffic.src span=5m
 | rename All_Traffic.src AS host_id
-| append [ | tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_avg FROM datamodel=Performance WHERE nodename=Performance.HostPerformance earliest=-6h@h latest=now BY Performance.host span=5m
+| append [ | tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_avg FROM datamodel=Performance WHERE nodename=Performance.HostPerformance earliest=-6h@h latest=now BY Performance.host span=5m
 | rename Performance.host AS host_id ]
 | stats latest(bytes_out) AS bytes_out latest(cpu_avg) AS cpu_avg BY host_id
 ```

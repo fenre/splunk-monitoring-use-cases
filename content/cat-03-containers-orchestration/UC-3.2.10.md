@@ -425,10 +425,10 @@ Evidence pack: archive the paging clone results weekly with lookup commit identi
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS correl_host
 | join type=left correl_host [
-    | tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
+    | tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
     | rename Performance.host AS correl_host ]
 | where app_state!="running" OR avg_cpu_load>90
 ```

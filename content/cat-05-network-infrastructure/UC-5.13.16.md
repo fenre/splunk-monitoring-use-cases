@@ -169,5 +169,5 @@ index=catalyst sourcetype="cisco:dnac:networkhealth"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Network Health endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [Catalyst Center Assurance Overview — Cisco Documentation](https://www.cisco.com/c/en/us/td/docs/cloud-systems-management/network-automation-and-management/catalyst-center-assurance/assurance-overview.html)

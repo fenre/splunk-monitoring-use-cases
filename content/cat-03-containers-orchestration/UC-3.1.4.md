@@ -334,7 +334,7 @@ Closing checklist: monitoringType lists Performance and Capacity; splunkPillar O
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.mem_used_percent) AS avg_mem_pct max(Performance.mem_used_percent) AS peak_mem_pct FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-1h@h latest=@h BY Performance.host span=5m
+| tstats summariesonly=t avg(Performance.mem_used_percent) AS avg_mem_pct max(Performance.mem_used_percent) AS peak_mem_pct FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-1h@h latest=@h BY Performance.host span=5m
 | rename Performance.host AS host_id
 | where peak_mem_pct>88
 ```

@@ -380,7 +380,7 @@ Final reminder: Kubernetes-native estates should pair this UC with UC-3.2.x prob
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS st latest(Application_State.info) AS info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h latest=now BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS st latest(Application_State.info) AS info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h latest=now BY Application_State.dest Application_State.app
 | rename Application_State.dest AS host_id
 | where st!="running" OR like(lower(info),"%degrad%")
 ```

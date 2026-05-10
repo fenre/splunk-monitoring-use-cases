@@ -5,14 +5,14 @@ id: "5.20.44"
 title: "BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.44 · BGP IPv6 (MP-BGP AFI/SAFI 2/1) Session and Prefix Monitoring
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*The big highway routers that connect different parts of the internet share their road maps using BGP. For IPv6, they use a special section of BGP called 'IPv6 unicast.' If the connection between two highway routers drops, thousands of roads disappear from their maps instantly and traffic gets lost. We watch these connections very carefully — when one goes down, we sound the alarm immediately so the road engineers can fix it before the traffic jam gets too bad.*
+*The big highway routers that connect different parts of the internet share their road maps using BGP. For IPv6, they use a special section of BGP called 'IPv6 unicast.' If the connection between two highway routers drops, thousands of roads disappear from their maps instantly and traffic gets lost.*
 
 ---
 

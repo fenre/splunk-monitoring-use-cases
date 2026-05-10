@@ -5,12 +5,12 @@ id: "5.20.118"
 title: "IPv6 Bogon and Martian Address Filtering Verification"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.118 · IPv6 Bogon and Martian Address Filtering Verification
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *There are certain address ranges that should never appear on the public internet — they're like phone numbers reserved for movies (555-0100). We check our network borders to make sure nobody is sending mail using these fake addresses, because someone using a fake address is either making a mistake or trying something sneaky.*
 

@@ -576,10 +576,10 @@ Closing Step 5 checklist: twelve cases present with exact Case N — formatting,
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-8h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-8h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS cim_host Application_State.app AS cim_app
 | join type=left max=0 cim_host [
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu latest(Performance.mem_used_percent) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-8h@h latest=@h BY Performance.host
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu latest(Performance.mem_used_percent) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-8h@h latest=@h BY Performance.host
 | rename Performance.host AS cim_host ]
 | where len(cim_host)>0
 | table cim_host cim_app app_state app_info avg_cpu mem_used

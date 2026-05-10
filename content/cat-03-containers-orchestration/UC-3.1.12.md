@@ -354,7 +354,7 @@ index=oti_containers sourcetype="docker:inspect" earliest=-4h@h latest=now
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS st FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h latest=now BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS st FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h latest=now BY Application_State.dest Application_State.app
 | rename Application_State.dest AS host_id
 | where st!="running"
 ```

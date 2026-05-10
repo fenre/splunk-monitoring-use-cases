@@ -297,7 +297,7 @@ Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactl
 | fillnull value="unknown" expansion_allowed
 | fillnull value="unknown" storageclass
 | join type=left max=0 node
-    [| tstats summariesonly=true max(Performance.disk_usage) AS node_disk_peak_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+    [| tstats summariesonly=t max(Performance.disk_usage) AS node_disk_peak_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
       | rename Performance.host AS node ]
 | fields - node_disk_peak_pct
 | eval severity=case(
@@ -478,7 +478,7 @@ Long-term owners should rehearse handoffs to UC-3.2.25 when stakeholders only wa
 | fillnull value="unknown" expansion_allowed
 | fillnull value="unknown" storageclass
 | join type=left max=0 node
-    [| tstats summariesonly=true max(Performance.disk_usage) AS node_disk_peak_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+    [| tstats summariesonly=t max(Performance.disk_usage) AS node_disk_peak_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
       | rename Performance.host AS node ]
 | fields - node_disk_peak_pct
 | eval severity=case(
@@ -496,7 +496,7 @@ Long-term owners should rehearse handoffs to UC-3.2.25 when stakeholders only wa
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true max(Performance.disk_usage) AS peak_disk_pct latest(Performance.disk_usage) AS latest_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+| tstats summariesonly=t max(Performance.disk_usage) AS peak_disk_pct latest(Performance.disk_usage) AS latest_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
 | rename Performance.host AS kubelet_node
 | where peak_disk_pct>85
 ```

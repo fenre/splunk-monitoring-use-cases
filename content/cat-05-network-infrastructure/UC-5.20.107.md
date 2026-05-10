@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Modern phones and computers are smart — when they want to reach a website, they try both the old address (IPv4) and the new address (IPv6) at the same time and use whichever works faster. This means that if the new address system is broken, nobody notices because the old one still works. We monitor which address system is 'winning' to make sure the new one is working properly and not secretly broken.*
+*Modern phones and computers are smart — when they want to reach a website, they try both the old address (IPv4) and the new address (IPv6) at the same time and use whichever works faster. This means that if the new address system is broken, nobody notices because the old one still works.*
 
 ---
 

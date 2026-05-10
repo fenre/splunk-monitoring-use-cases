@@ -58,7 +58,7 @@ python3 scripts/generate_evidence_packs.py
 python3 scripts/generate_evidence_packs.py --check
 ```
 
-Last regenerated against catalogue version `8.0.0`.
+Last regenerated against catalogue version `8.1.0`.
 
 ## Related documentation
 

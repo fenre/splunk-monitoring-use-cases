@@ -455,10 +455,10 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+| tstats summariesonly=t latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
 | rename Change.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_load_pct max(Performance.mem_used) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-24h@h latest=now BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_load_pct max(Performance.mem_used) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-24h@h latest=now BY Performance.host
      | rename Performance.host AS cim_dest ]
 | where like(lower(change_object), "%clusterresourcequota%") OR like(lower(change_object), "%quota.openshift.io%")
 | table cim_dest change_action change_object change_user cpu_load_pct mem_used

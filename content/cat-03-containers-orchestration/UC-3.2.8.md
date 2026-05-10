@@ -236,7 +236,7 @@ Paste-and-run SPL (must match the spl JSON field exactly):
 | fillnull value=0 fsync_p99_ms commit_p99_ms peer_rtt_p99_ms leader_changes_5m raft_proposals_failed_5m
 | eval snapshot_save_p99_s=round(coalesce(snapshot_save_avg_s, 0), 3)
 | join type=left max=0 win_time
-    [| tstats summariesonly=false count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
+    [| tstats summariesonly=f count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
      | rename _time AS win_time ]
 | eval current_state=case(
     etcd_leader_present==0, "no_leader",
@@ -379,7 +379,7 @@ Supplemental engineering notes for long-term owners: keep scrape_interval aligne
 | fillnull value=0 fsync_p99_ms commit_p99_ms peer_rtt_p99_ms leader_changes_5m raft_proposals_failed_5m
 | eval snapshot_save_p99_s=round(coalesce(snapshot_save_avg_s, 0), 3)
 | join type=left max=0 win_time
-    [| tstats summariesonly=false count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
+    [| tstats summariesonly=f count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
      | rename _time AS win_time ]
 | eval current_state=case(
     etcd_leader_present==0, "no_leader",
@@ -410,9 +410,9 @@ Supplemental engineering notes for long-term owners: keep scrape_interval aligne
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_pct max(Performance.cpu_load_percent) AS peak_cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=15m
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_pct max(Performance.cpu_load_percent) AS peak_cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=15m
 | rename Performance.host AS etcd_node_host
-| join type=left max=0 etcd_node_host [| tstats summariesonly=true latest(Application_State.state) AS app_state FROM datamodel=Application_State WHERE nodename=Application_State earliest=-1h@h latest=@h BY Application_State.dest
+| join type=left max=0 etcd_node_host [| tstats summariesonly=t latest(Application_State.state) AS app_state FROM datamodel=Application_State WHERE nodename=Application_State earliest=-1h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS etcd_node_host ]
 | join type=left max=0 etcd_node_host [| search index=k8s_metrics sourcetype="prometheus:scrape:metrics" earliest=-1h@h latest=@h
   | eval etcd_node_host=lower(trim(toString(coalesce(instance, host, kubernetes_io_pod_name, ""))))

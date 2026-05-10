@@ -25,79 +25,68 @@ Security teams detect rogue DHCP servers and DHCP snooping violations on Meraki 
 
 ## Implementation
 
-Enable DHCP snooping on MS switches. Monitor syslog for violations.
+1. Configure SC4S for MS syslog and enable DHCP server response blocking in Meraki Dashboard -> Switch -> DHCP servers & ARP. 2. Use rex to extract the rogue DHCP server's MAC and the VLAN id. 3. Trigger an alert on every blocked DHCP response — these are real incidents and should be investigated immediately.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS DHCP snooping violation events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: DHCP snooping drops, unauthorized DHCP server detection.
-* DHCP snooping: validates DHCP messages on untrusted ports. Blocks rogue DHCP servers from assigning incorrect IP addresses. Meraki MS supports DHCP snooping with trusted ports configured for legitimate DHCP servers.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Meraki MS DHCP guard emits messages of the form 'Blocked DHCP server response from <mac> on VLAN <id>' as type=events when an unauthorised DHCP server is detected on the access switch..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Switch > DHCP server policy
-# Set policy: Block or Alert on rogue DHCP servers
-# Configure trusted DHCP server list
-# Syslog: enable Event log
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for MS syslog and enable DHCP server response blocking in Meraki Dashboard -> Switch -> DHCP servers & ARP. 2. Use rex to extract the rogue DHCP server's MAC and the VLAN id. 3. Trigger an alert on every blocked DHCP response — these are real incidents and should be investigated immediately.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-7d
-| where match(_raw, "(?i)DHCP.*snoop|rogue.*DHCP|unauthorized.*DHCP|DHCP.*block")
-| stats count by host
+index=meraki sourcetype="meraki" type=events "Blocked DHCP server response"
+    earliest=-24h
+| rex "Blocked DHCP server response from (?<server_mac>[0-9A-Fa-f:]+) on VLAN (?<vlan_id>\d+)"
+| stats count as block_count,
+        values(server_mac) as blocked_servers,
+        values(vlan_id) as vlans
+         by host
+| where block_count > 0
+| sort - block_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- DHCP snooping violation monitoring:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
-| where match(_raw, "(?i)DHCP.*snoop|rogue.*DHCP|unauthorized.*DHCP|DHCP.*block|DHCP.*drop|DHCP.*violation")
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
-| rex field=_raw "(?i)(?:MAC|mac).*?(?<rogue_mac>[0-9a-fA-F:]{12,17})"
-| eval violation_type=case(
-    match(_raw, "(?i)rogue.*server|unauthorized.*server"), "ROGUE_DHCP_SERVER",
-    match(_raw, "(?i)drop|block"), "DHCP_DROP",
-    1==1, "DHCP_VIOLATION")
-| stats count as violations dc(rogue_mac) as unique_rogues values(rogue_mac) as rogue_macs values(port_id) as ports by network_name, device, violation_type
-| eval severity=case(
-    violation_type="ROGUE_DHCP_SERVER", "CRITICAL -- rogue DHCP server detected",
-    violations > 10, "WARNING -- frequent DHCP snooping violations",
-    1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -violations
-```
+**DHCP Snooping Violations (Meraki MS)** — Security teams detect rogue DHCP servers and DHCP snooping violations on Meraki MS switches, preventing unauthorized DHCP responses that cause IP address conflicts and man-in-the-middle attacks.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > DHCP server policy -- check policy and trusted server list.
-(b) Dashboard: Network-wide > Event log -- filter for DHCP events.
-(c) Verify legitimate DHCP servers are in the trusted list.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Meraki MS DHCP guard emits messages of the form 'Blocked DHCP server response from <mac> on VLAN <id>' as type=events when an unauthorised DHCP server is detected on the access switch. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- DHCP Snooping"):
-* Row 1 -- Single-value: "DHCP violations (24h)", "Rogue DHCP servers".
-* Row 2 -- DHCP snooping violation table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (rogue DHCP server): investigate immediately.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where block_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Rogue DHCP server** -- Unauthorized device responding to DHCP requests. Identify MAC, trace to port. Disable port. Common culprits: misconfigured APs, small routers, VM hypervisors.
 
-* **Legitimate server blocked** -- Add to trusted DHCP server list in Dashboard. Verify MAC and IP match.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **DHCP snooping too aggressive** -- Review policy. Consider "Alert" mode before "Block" to identify false positives.
-
-**DHCPv6 Considerations:** MS DHCP snooping and trusted-port policies may apply differently to DHCPv6 traffic; confirm Dashboard settings cover both stacks where IPv6 is enabled. DHCPv6 (RFC 8415) is a fundamentally different protocol from DHCPv4, using UDP ports 546/547. Key differences: (1) DHCPv6 does NOT provide default gateway — that comes from Router Advertisements. (2) Message types differ: Solicit/Advertise/Request/Reply instead of Discover/Offer/Request/Ack. (3) DHCPv6 Prefix Delegation (DHCPv6-PD) enables subnet allocation to downstream routers. (4) Syslog patterns differ: look for 'DHCPv6' in messages, not just 'DHCP'. For comprehensive DHCPv6 monitoring, see the IPv6 subcategory (UC-5.20.10, UC-5.20.141).
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of violations; timeline of events; affected port details.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*DHCP*Snooping*"
-| stats count as violation_count by switch_name, port_id, server_ip
-| where violation_count > 0
+index=meraki sourcetype="meraki" type=events "Blocked DHCP server response"
+    earliest=-24h
+| rex "Blocked DHCP server response from (?<server_mac>[0-9A-Fa-f:]+) on VLAN (?<vlan_id>\d+)"
+| stats count as block_count,
+        values(server_mac) as blocked_servers,
+        values(vlan_id) as vlans
+         by host
+| where block_count > 0
+| sort - block_count
 ```
 
 ## Visualization

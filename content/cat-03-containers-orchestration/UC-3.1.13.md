@@ -325,7 +325,7 @@ Final reminder: Kubernetes pod restart use cases remain separate; do not retitle
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=5m
+| tstats summariesonly=t count FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=5m
 | rename Performance.host AS host
 | stats sum(count) AS perf_samples BY host
 | where perf_samples>0

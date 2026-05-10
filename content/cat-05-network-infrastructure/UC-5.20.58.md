@@ -5,12 +5,12 @@ id: "5.20.58"
 title: "Dual-Stack Parity Monitoring — IPv4 vs IPv6 Service Reachability"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.58 · Dual-Stack Parity Monitoring — IPv4 vs IPv6 Service Reachability
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *When we have both old roads and new roads going to the same places, we want them to be equally good. We check that the new road is just as fast and reliable as the old road. If the new road has potholes or takes twice as long, we need to fix it — otherwise why did we build it? This check tells us if our new road system (IPv6) is truly as good as the old one (IPv4).*
 

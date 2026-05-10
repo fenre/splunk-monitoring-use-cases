@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.20.28 · ICMPv6 Multicast Amplification Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Threat Detection &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Imagine someone writes a letter asking 'Are you there?' to every house in the neighbourhood, but puts your return address on the envelope. Every house sends their reply to you, flooding your mailbox with hundreds of letters you never asked for. We watch for this trick on the network — someone sending a message to 'everyone' with a fake return address to overwhelm the real recipient.*
 

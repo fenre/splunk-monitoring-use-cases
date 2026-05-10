@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Even if we didn't set up the new door system (IPv6) in our building, every room already has a small side door (link-local) that people can use to talk to their neighbours directly. We can't see this side-door traffic from the main security desk. So we put small cameras near each corridor to watch for someone going door-to-door through the building, which would indicate they're looking for something they shouldn't be finding.*
+*Even if we didn't set up the new door system (IPv6) in our building, every room already has a small side door (link-local) that people can use to talk to their neighbours directly. We can't see this side-door traffic from the main security desk.*
 
 ---
 

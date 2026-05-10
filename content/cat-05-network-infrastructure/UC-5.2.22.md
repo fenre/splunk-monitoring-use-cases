@@ -30,7 +30,7 @@ Enable AMP on MX appliance. Ingest malware detection events.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX Advanced Malware Protection (AMP) events via syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `file_hash`, `file_name`, `disposition` (clean/malicious/unknown), `action` (allow/block), `src`, `dest`, `file_type`.
+* Meraki MX Advanced Malware Protection (AMP) events via syslog. Data in `index=meraki` with `sourcetype=meraki`. Key fields: `file_hash`, `file_name`, `disposition` (clean/malicious/unknown), `action` (allow/block), `src`, `dest`, `file_type`.
 * Meraki AMP: MX appliances use Cisco AMP cloud file reputation to check downloaded files against a known threat database. Files are checked by SHA-256 hash. Retrospective alerts notify when a previously clean file is later reclassified as malicious.
 
 ### Step 1 — - Configure data collection
@@ -41,7 +41,7 @@ Enable AMP on MX appliance. Ingest malware detection events.
 ```
 Verify:
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
+index=meraki sourcetype="meraki" earliest=-24h
 | where match(_raw, "(?i)malware|amp|file.*reputation|file.*disposition|file.*hash")
 | stats count
 ```
@@ -50,7 +50,7 @@ index=meraki sourcetype="meraki:events" earliest=-24h
 
 **Primary search -- Malware detection and AMP events:**
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
+index=meraki sourcetype="meraki" earliest=-24h
 | where match(_raw, "(?i)malware|amp|file.*reputation|file.*block|malicious")
 | eval disposition=lower(coalesce(disposition, file_disposition))
 | eval file=coalesce(file_name, filename)
@@ -89,7 +89,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*malware*" OR signature="*AMP*")
+index=meraki sourcetype="meraki" type=security_event (signature="*malware*" OR signature="*AMP*")
 | stats count as malware_count by src, threat_name, file_name
 | where malware_count > 0
 | sort - malware_count

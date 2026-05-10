@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*When you use wireless internet on your phone, the router keeps sending announcement messages (RAs) that force your phone to wake up and listen. If these announcements come too often — like someone ringing your doorbell every 4 seconds — your phone battery drains fast. The standards say the router should only ring the doorbell about 7 times per hour. We check that all routers follow this rule on WiFi networks.*
+*When you use wireless internet on your phone, the router keeps sending announcement messages (RAs) that force your phone to wake up and listen. If these announcements come too often — like someone ringing your doorbell every 4 seconds — your phone battery drains fast. The standards say the router should only ring the doorbell about 7 times per hour.*
 
 ---
 

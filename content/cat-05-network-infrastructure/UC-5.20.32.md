@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.20.32 · SISF IP_THEFT and MAC_THEFT Detection
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Threat Detection &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *The network switch keeps a registry of which device owns which address, like a passport office. If someone tries to use a forged passport — claiming to be a device that is actually connected somewhere else — the switch catches them immediately and sounds an alarm. We monitor these identity theft alerts to catch imposters and protect legitimate devices.*
 

@@ -253,10 +253,10 @@ Case 10 — Air-gapped field teams import docker_engine_versions.csv quarterly w
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Inventory.os) AS inv_os FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=@h BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.os) AS inv_os FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=@h BY Inventory.dest
 | rename Inventory.dest AS host_id
 | join type=left max=0 host_id
-    [| tstats summariesonly=true values(Vulnerabilities.cve) AS vuln_cves FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-24h@h latest=@h BY Vulnerabilities.dest
+    [| tstats summariesonly=t values(Vulnerabilities.cve) AS vuln_cves FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-24h@h latest=@h BY Vulnerabilities.dest
      | rename Vulnerabilities.dest AS host_id ]
 | where len(host_id)>0
 ```

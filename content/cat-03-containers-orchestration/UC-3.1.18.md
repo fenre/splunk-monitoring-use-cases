@@ -403,7 +403,7 @@ Closing checklist: monitoringType Performance and Capacity; splunkPillar Observa
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(_time) AS last_seen FROM datamodel=Performance WHERE nodename=Performance.Performance earliest=-7d latest=now BY Performance.dest Performance.process
+| tstats summariesonly=t latest(_time) AS last_seen FROM datamodel=Performance WHERE nodename=Performance.All_Performance earliest=-7d latest=now BY Performance.dest Performance.process
 | rename Performance.dest AS repo Performance.process AS pipeline_hint
 ```
 

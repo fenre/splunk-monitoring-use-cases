@@ -5,12 +5,12 @@ id: "5.20.130"
 title: "IPv6 Cloud Provider Connectivity and Peering Health"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.130 · IPv6 Cloud Provider Connectivity and Peering Health
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Our company stores important files in remote warehouses (cloud providers like AWS and Azure). We need to make sure the roads using new-format addresses (IPv6) to these warehouses are working properly and not slower than the old roads (IPv4).*
 

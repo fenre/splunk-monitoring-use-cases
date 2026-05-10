@@ -439,7 +439,7 @@ Final reminder: this UC remains scoped to the engine-process axis. Do not retitl
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS engine_state latest(Application_State.info) AS engine_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="docker" OR Application_State.app="dockerd" OR Application_State.app="containerd") earliest=-1h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS engine_state latest(Application_State.info) AS engine_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="docker" OR Application_State.app="dockerd" OR Application_State.app="containerd") earliest=-1h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS host_id Application_State.app AS daemon_unit
 | where engine_state!="running" OR like(lower(engine_info), "%panic%") OR like(lower(engine_info), "%fatal%")
 ```

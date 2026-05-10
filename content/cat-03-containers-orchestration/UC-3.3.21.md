@@ -429,10 +429,10 @@ Closing checklist: multisearch lists rbac audit, snapshot drift, OAuth hygiene j
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+| tstats summariesonly=t latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
 | rename Change.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Authentication.user) AS auth_user latest(Authentication.action) AS auth_action FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.src
+    [| tstats summariesonly=t latest(Authentication.user) AS auth_user latest(Authentication.action) AS auth_action FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.src
      | rename Authentication.src AS cim_dest ]
 | where like(lower(change_object), "%clusterrole%") OR like(lower(change_object), "%clusterrolebinding%")
 | table cim_dest change_action change_object change_user auth_user auth_action

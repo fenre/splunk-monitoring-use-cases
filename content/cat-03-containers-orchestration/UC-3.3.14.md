@@ -465,10 +465,10 @@ Closing checklist: multisearch lists flow or event arms, HTTP error arms, promet
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Authentication.user) AS auth_user latest(Authentication.action) AS auth_action latest(Authentication.src) AS auth_src FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.dest
+| tstats summariesonly=t latest(Authentication.user) AS auth_user latest(Authentication.action) AS auth_action latest(Authentication.src) AS auth_src FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.dest
 | rename Authentication.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Change.action) AS chg_action latest(Change.object) AS chg_object latest(Change.user) AS chg_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+    [| tstats summariesonly=t latest(Change.action) AS chg_action latest(Change.object) AS chg_object latest(Change.user) AS chg_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
      | rename Change.dest AS cim_dest ]
 | where like(lower(chg_object), "%user.openshift.io%") OR like(lower(chg_object), "%oauth.openshift.io%") OR match(lower(auth_action), "failure|error")
 | table cim_dest auth_user auth_action auth_src chg_action chg_object chg_user

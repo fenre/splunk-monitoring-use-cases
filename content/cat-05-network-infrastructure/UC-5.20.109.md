@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Security, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*In our network, devices join 'interest groups' to receive specific types of messages — like subscribing to a newspaper. MLD is the protocol that manages these subscriptions for IPv6. If someone floods the subscription desk with thousands of fake subscriptions, it overwhelms the system and everyone's newspapers get mixed up. We watch the subscription desk to make sure it's not being overwhelmed or tricked.*
+*In our network, devices join 'interest groups' to receive specific types of messages — like subscribing to a newspaper. MLD is the protocol that manages these subscriptions for IPv6. If someone floods the subscription desk with thousands of fake subscriptions, it overwhelms the system and everyone's newspapers get mixed up.*
 
 ---
 

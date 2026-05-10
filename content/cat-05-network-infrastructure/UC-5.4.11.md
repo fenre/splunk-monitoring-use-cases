@@ -25,7 +25,7 @@ Network operations teams measure band steering effectiveness across SSIDs by tra
 
 ## Implementation
 
-Collect client association events with channel info. Calculate the ratio of 5 GHz vs 2.4 GHz clients per SSID. Target >70% on 5 GHz for dual-band capable clients.
+1. Configure SC4S to receive Cisco WLC syslog. 2. The query categorises clients by 2.4GHz vs 5GHz from the channel value in association events. 3. If you are running Meraki MR instead: enable the Webhook Logs (HEC) input in Splunk_TA_cisco_meraki and configure a 'client connection changed' alert in Meraki Dashboard. The webhook alertData.band field carries 2.4GHz / 5GHz / 6GHz (see UC-5.4.19 for the canonical Meraki SPL pattern). Polled Meraki TA does not expose per-client band information.
 
 ## Detailed Implementation
 

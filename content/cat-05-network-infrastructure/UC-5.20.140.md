@@ -5,12 +5,12 @@ id: "5.20.140"
 title: "IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.140 · IPv6 Flow Label Misuse and Covert Channel Detection (RFC 6437)
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Every IPv6 packet has a small label, like a shipping tag. It should be a random number for each conversation. If someone is writing secret messages on these tags instead of random numbers, they could be smuggling data out of the network. We check that these tags look properly random and flag any suspicious patterns.*
 

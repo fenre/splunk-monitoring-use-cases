@@ -175,5 +175,5 @@ index=catalyst sourcetype="cisco:dnac:clienthealth"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Client Health endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-overall-client-health)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
-- [Catalyst Center Client Health nested JSON — sample event](../../docs/guides/catalyst-center.md#sample-events)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
+- [Catalyst Center Client Health nested JSON — sample event](docs/guides/catalyst-center.md#sample-events)

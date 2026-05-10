@@ -5,12 +5,12 @@ id: "5.20.38"
 title: "ICMPv6 Packet Too Big — Path MTU Discovery Failure Detection"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.38 · ICMPv6 Packet Too Big — Path MTU Discovery Failure Detection
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *When a letter is too big for the mailbox, the postman sends it back with a note saying 'the mailbox is only this big — make the letter smaller.' If someone blocks those return notes, the sender keeps trying to cram the same big letter in and it never arrives. We watch for these 'letter too big' notes to make sure they are getting through, and for letters that keep getting stuck.*
 

@@ -354,9 +354,9 @@ Collector hygiene: cap cadvisor metric cardinality on shared CI executors via ho
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.disk_usage) AS avg_disk_pct max(Performance.disk_usage) AS peak_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host span=15m
+| tstats summariesonly=t avg(Performance.disk_usage) AS avg_disk_pct max(Performance.disk_usage) AS peak_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host span=15m
 | rename Performance.host AS host_id
-| append [| tstats summariesonly=true count FROM datamodel=Inventory WHERE nodename=Inventory.Instances earliest=-4h@h latest=now BY Inventory.dest]
+| append [| tstats summariesonly=t count FROM datamodel=Inventory WHERE nodename=Inventory.Instances earliest=-4h@h latest=now BY Inventory.dest]
 | stats latest(avg_disk_pct) AS avg_disk_pct latest(peak_disk_pct) AS peak_disk_pct BY host_id
 | where peak_disk_pct>80
 ```

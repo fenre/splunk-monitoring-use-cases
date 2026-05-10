@@ -25,107 +25,104 @@ Network operations teams proactively predict DHCP pool exhaustion dates across M
 
 ## Implementation
 
-Query appliance API for DHCP metrics by VLAN. Alert on >85% allocation.
+1. Configure Splunk Connect for Syslog (SC4S) to receive Meraki MX syslog over UDP/514 and forward to the meraki index. 2. In Meraki Dashboard enable syslog category 'Flows' and 'Events' (Network-wide -> General -> Reporting). 3. DHCP NAK and pool-exhaustion messages match type=events. 4. Also enable the Assurance Alerts input in Splunk_TA_cisco_meraki and create alert profiles in Meraki Dashboard for 'DHCP scope exhausted' and 'DHCP server failure'. 5. For proactive pool-size visibility you must scrape GET /networks/{networkId}/appliance/vlans (returns each VLAN's reservation/exclusion ranges) with a custom modular input — that endpoint is not yet polled by the TA.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Cisco Meraki event logs in `index=meraki` via Splunk_TA_cisco_meraki. This UC focuses specifically on DHCP pool exhaustion monitoring across Meraki-managed networks, complementing UC-5.6.13 with deeper pool analysis and address allocation tracking.
-- Meraki MX appliances serve DHCP for configured VLANs. Pool ranges are defined in Dashboard: Network > Addressing & VLANs. The MX logs DHCP events including leases, failures, and pool status.
-- Key difference from UC-5.6.13: this UC focuses on proactive capacity trending and allocation patterns, while UC-5.6.13 focuses on immediate failure detection. Use both together for comprehensive DHCP monitoring.
-- Build a `meraki_networks.csv` lookup: `network_id,network_name,site,region` for site-level aggregation.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side DHCP messages from the MX, plus Splunk_TA_cisco_meraki Assurance Alerts input (sourcetype=meraki:assurancealerts) for DHCP-related Dashboard alerts. NOTE: live DHCP pool size and remaining-lease counters are NOT exposed by either path; monitoring relies on NAK/exhaustion event detection..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify DHCP lease volume per network:
-```spl
-index=meraki "dhcp" earliest=-24h
-| stats count by host, event_type
-```
+1. Configure Splunk Connect for Syslog (SC4S) to receive Meraki MX syslog over UDP/514 and forward to the meraki index. 2. In Meraki Dashboard enable syslog category 'Flows' and 'Events' (Network-wide -> General -> Reporting). 3. DHCP NAK and pool-exhaustion messages match type=events. 4. Also enable the Assurance Alerts input in Splunk_TA_cisco_meraki and create alert profiles in Meraki Dashboard for 'DHCP scope exhausted' and 'DHCP server failure'. 5. For proactive pool-size visibility you mus…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Pool exhaustion risk by site/VLAN:**
 ```spl
-index=meraki "dhcp lease" earliest=-4h
-| rex field=_raw "(?i)client[\s:]+(?<client_mac>[0-9a-fA-F:.-]+)"
-| rex field=_raw "(?i)ip[\s:]+(?<client_ip>[\d.]+)"
-| rex field=_raw "(?i)vlan[\s:=]+(?<vlan>\d+)"
-| eval subnet=replace(client_ip, "\.\d+$", ".0/24")
-| stats dc(client_mac) as active_clients dc(client_ip) as used_ips by host, vlan, subnet
-| lookup meraki_dhcp_pools.csv subnet OUTPUT pool_size location
-| eval util_pct=if(isnotnull(pool_size), round(100*active_clients/pool_size, 1), null())
-| eval status=case(util_pct > 95, "EXHAUSTED", util_pct > 85, "CRITICAL", util_pct > 70, "WARNING", 1==1, "Healthy")
-| where util_pct > 70
-| sort -util_pct
+index=meraki sourcetype IN ("meraki","cisco:meraki") (type=events OR type=flows)
+    (DHCP_NACK OR DHCP_lease_alert OR pool_exhausted OR "no leases available")
+    earliest=-24h
+| stats count as nack_count,
+        values(message) as messages,
+        latest(_time) as last_seen
+         by host, network_name, pool, vlan
+| where nack_count > 0
+| sort - nack_count
+| append [
+    search index=meraki sourcetype="meraki:assurancealerts"
+        (title="*DHCP*" OR categoryType="appliance") earliest=-24h
+    | stats count by deviceSerial, networkName, title
+  ]
 ```
 
-**Allocation trend — growth prediction:**
+#### Understanding this SPL
+
+**DHCP Pool Exhaustion and Address Allocation Issues (Meraki)** — Network operations teams proactively predict DHCP pool exhaustion dates across Meraki-managed sites, enabling planned pool expansion before users are impacted by address unavailability.
+
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side DHCP messages from the MX, plus Splunk_TA_cisco_meraki Assurance Alerts input (sourcetype=meraki:assurancealerts) for DHCP-related Dashboard alerts. NOTE: live DHCP pool size and remaining-lease counters are NOT exposed by either path; monitoring relies on NAK/exhaustion event detection. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by host, network_name, pool, vlan** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where nack_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Appends rows from a subsearch with `append`.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki "dhcp lease" earliest=-30d
-| rex field=_raw "(?i)ip[\s:]+(?<client_ip>[\d.]+)"
-| eval subnet=replace(client_ip, "\.\d+$", ".0/24")
-| bin _time span=1d
-| stats dc(client_ip) as daily_leases by _time, subnet
-| eventstats first(daily_leases) AS initial latest(daily_leases) AS current by subnet
-| eval growth_rate=round((current - initial) / 30, 1)
-| lookup meraki_dhcp_pools.csv subnet OUTPUT pool_size
-| eval days_to_exhaustion=if(growth_rate > 0 AND isnotnull(pool_size), round((pool_size - current) / growth_rate, 0), null())
-| where isnotnull(days_to_exhaustion) AND days_to_exhaustion < 60
-| stats latest(current) as current_leases latest(growth_rate) as daily_growth latest(days_to_exhaustion) as days_to_exhaust by subnet
-| sort days_to_exhaust
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.DHCP
+  by DHCP.mac DHCP.ip DHCP.action span=1h
+| where count>0
+| sort -count
 ```
 
-#### Understanding this SPL: Projects when each pool will exhaust based on 30-day growth rate. If a pool is predicted to exhaust within 60 days, proactive action is needed: expand the pool, add a VLAN, or reduce lease times.
+Understanding this CIM / accelerated SPL
 
-**IP address conflict detection:**
-```spl
-index=meraki "dhcp" earliest=-4h
-| rex field=_raw "(?i)ip[\s:]+(?<client_ip>[\d.]+)"
-| rex field=_raw "(?i)client[\s:]+(?<client_mac>[0-9a-fA-F:.-]+)"
-| stats dc(client_mac) as mac_count values(client_mac) as macs by client_ip
-| where mac_count > 1
-| eval conflict="IP address ".client_ip." assigned to ".mac_count." different MACs"
-| sort -mac_count
-```
+**DHCP Pool Exhaustion and Address Allocation Issues (Meraki)** — Network operations teams proactively predict DHCP pool exhaustion dates across Meraki-managed sites, enabling planned pool expansion before users are impacted by address unavailability.
+
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side DHCP messages from the MX, plus Splunk_TA_cisco_meraki Assurance Alerts input (sourcetype=meraki:assurancealerts) for DHCP-related Dashboard alerts. NOTE: live DHCP pool size and remaining-lease counters are NOT exposed by either path; monitoring relies on NAK/exhaustion event detection. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
+
+**Pipeline walkthrough**
+
+- Uses `tstats` against accelerated summaries for data model `Network_Sessions.DHCP` — enable acceleration for that model.
+- Filters the current rows with `where count>0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
 
 ### Step 3 — Validate
-(a) Compare pool utilization with Meraki Dashboard: Network > Clients shows connected devices per VLAN.
-(b) Verify pool sizes in the lookup match Dashboard configuration.
-(c) Compare growth predictions with historical trends visible in Meraki Dashboard analytics.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — DHCP Pool Health"):
-- Row 1 — Single-value tiles: "Pools at risk", "Pools > 85%", "Predicted exhaustions (60d)", "IP conflicts".
-- Row 2 — Pool utilization table: subnet, location, active clients, pool size, utilization %, status.
-- Row 3 — Growth prediction table: subnet, current, daily growth, days to exhaustion.
-- Row 4 — IP conflict alerts.
-
-Alerting:
-- Critical (pool > 95%): immediate expansion needed — page site operations.
-- Warning (predicted exhaustion < 30 days): plan expansion.
-- Warning (IP address conflict detected): investigate — may cause connectivity issues.
-
-Runbook:
-1. **Pool approaching exhaustion**: In Meraki Dashboard, expand the DHCP pool range or add a secondary VLAN. Consider reducing lease time (shorter leases free addresses faster).
-2. **IP conflict**: Identify both devices using the conflicting IP. One may have a static IP within the DHCP range — reserve it in the Meraki DHCP configuration or move it outside the DHCP range.
-
-### Step 5 — Troubleshooting
-
-- **Pool size unknown** — The Meraki API can provide pool ranges: `GET /networks/{id}/vlans` returns DHCP settings including the address range. Calculate pool_size from the range and populate the lookup.
-
-- **Growth rate shows negative** — Device count decreased (seasonal, office moves). Negative growth is good but the prediction formula should handle it: `days_to_exhaustion` will be null for shrinking pools.
-
-- **NAT mode vs. Bridge mode** — In NAT mode, each MR AP has its own tiny DHCP pool (default /28 = 14 addresses). This exhausts quickly in dense environments. Monitor NAT-mode APs separately.
-
-**DHCPv6 Considerations:** Meraki pool-capacity searches here assume IPv4 lease patterns; extend monitoring if you rely on DHCPv6 or prefix delegation alongside IPv4 pools. DHCPv6 (RFC 8415) is a fundamentally different protocol from DHCPv4, using UDP ports 546/547. Key differences: (1) DHCPv6 does NOT provide default gateway — that comes from Router Advertisements. (2) Message types differ: Solicit/Advertise/Request/Reply instead of Discover/Offer/Request/Ack. (3) DHCPv6 Prefix Delegation (DHCPv6-PD) enables subnet allocation to downstream routers. (4) Syslog patterns differ: look for 'DHCPv6' in messages, not just 'DHCP'. For comprehensive DHCPv6 monitoring, see the IPv6 subcategory (UC-5.20.10, UC-5.20.141).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: DHCP pool gauge per VLAN; timeline of pool usage; alert dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" dhcp_pool=*
-| stats latest(addresses_available) as available_ips, latest(pool_size) as total_pool by vlan_id
-| eval allocation_pct=round((total_pool-available_ips)*100/total_pool, 2)
-| where allocation_pct > 85
+index=meraki sourcetype IN ("meraki","cisco:meraki") (type=events OR type=flows)
+    (DHCP_NACK OR DHCP_lease_alert OR pool_exhausted OR "no leases available")
+    earliest=-24h
+| stats count as nack_count,
+        values(message) as messages,
+        latest(_time) as last_seen
+         by host, network_name, pool, vlan
+| where nack_count > 0
+| sort - nack_count
+| append [
+    search index=meraki sourcetype="meraki:assurancealerts"
+        (title="*DHCP*" OR categoryType="appliance") earliest=-24h
+    | stats count by deviceSerial, networkName, title
+  ]
 ```
 
 ## CIM SPL

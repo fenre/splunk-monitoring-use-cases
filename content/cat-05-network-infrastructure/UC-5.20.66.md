@@ -5,14 +5,14 @@ id: "5.20.66"
 title: "IPv6 NetFlow/IPFIX Template Validation and Exporter Health"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.66 · IPv6 NetFlow/IPFIX Template Validation and Exporter Health
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Imagine we have security cameras (flow exporters) watching traffic going through our building. Some of the older cameras (NetFlow v5) can only see regular-sized visitors (IPv4) but cannot see visitors entering through the new taller doors (IPv6). We check which cameras can see both types of visitors, and which ones have a blind spot for the taller doors — because anyone who knows about the blind spot can walk right in without being recorded.*
+*Imagine we have security cameras (flow exporters) watching traffic going through our building. Some of the older cameras (NetFlow v5) can only see regular-sized visitors (IPv4) but cannot see visitors entering through the new taller doors (IPv6).*
 
 ---
 

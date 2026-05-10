@@ -79,7 +79,7 @@ Schedule as Alert: cron `*/15 * * * *`, time range `-1h@h to @h`, trigger on "Nu
 CIM / accelerated variant (preferred when the Performance datamodel is accelerated — typically 10–50× faster than raw):
 
 ```spl
-| tstats summariesonly=true
+| tstats summariesonly=t
     avg(Performance.cpu_load_percent) as avg_cpu
   from datamodel=Performance
   where nodename=Performance.CPU
@@ -158,7 +158,7 @@ index=os sourcetype=cpu host=* CPU="all"
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true
+| tstats summariesonly=t
     avg(Performance.cpu_load_percent) as avg_cpu
   from datamodel=Performance
   where nodename=Performance.CPU

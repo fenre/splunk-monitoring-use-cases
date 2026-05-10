@@ -5,14 +5,14 @@ id: "5.20.48"
 title: "IPv6 Default Route Presence and Redundancy Verification"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.48 · IPv6 Default Route Presence and Redundancy Verification
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Every router needs to know the main road out to the internet — that's the default route. If this road disappears, the router is lost and can't send anything to the outside world. We check every router to make sure it knows at least one road out, and preferably two in case one road is closed. In homes with both old phones and new phones, losing the new phone road is sneaky because the old phone still works — people just think the new phone is slow.*
+*Every router needs to know the main road out to the internet — that's the default route. If this road disappears, the router is lost and can't send anything to the outside world. We check every router to make sure it knows at least one road out, and preferably two in case one road is closed.*
 
 ---
 

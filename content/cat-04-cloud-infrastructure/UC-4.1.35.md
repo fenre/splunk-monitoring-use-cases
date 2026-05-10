@@ -79,7 +79,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/S3" metric_name="Replicatio
 
 ```spl
 | tstats `summariesonly` max(Performance.cpu_load_percent) as peak
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   by Performance.object Performance.host span=1h
 | where isnotnull(peak)
 | sort - peak

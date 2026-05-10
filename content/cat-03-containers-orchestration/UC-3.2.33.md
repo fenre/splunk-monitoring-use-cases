@@ -423,10 +423,10 @@ Closing checklist: five em-dash step headers appear exactly as required; Step 3 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count AS change_events latest(Change.action) AS last_change_action FROM datamodel=Change WHERE nodename=Change earliest=-4h@h latest=@h BY Change.user Change.object
+| tstats summariesonly=t count AS change_events latest(Change.action) AS last_change_action FROM datamodel=Change WHERE nodename=Change earliest=-4h@h latest=@h BY Change.user Change.object
 | rename Change.object AS change_obj
 | join type=left max=0 change_obj [
-    | tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest
+    | tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest
     | rename Application_State.dest AS change_obj ]
 | table Change.user change_obj change_events last_change_action app_state app_info
 ```

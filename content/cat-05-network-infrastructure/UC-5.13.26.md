@@ -186,5 +186,5 @@ index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Issues endpoint](https://developer.cisco.com/docs/catalyst-center/#!issues)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [Catalyst Center Site Topology API](https://developer.cisco.com/docs/catalyst-center/#!get-site-topology)

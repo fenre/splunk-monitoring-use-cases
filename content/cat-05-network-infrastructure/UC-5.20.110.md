@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Before you can visit a website, your computer needs to look up the address in a phone book (DNS). For the new address system (IPv6), it looks up a special type of entry called AAAA (quad-A). If this phone book lookup doesn't work for IPv6, your computer automatically falls back to the old address system without telling you. We monitor the phone book to make sure IPv6 lookups are working properly and not silently failing.*
+*Before you can visit a website, your computer needs to look up the address in a phone book (DNS). For the new address system (IPv6), it looks up a special type of entry called AAAA (quad-A). If this phone book lookup doesn't work for IPv6, your computer automatically falls back to the old address system without telling you.*
 
 ---
 

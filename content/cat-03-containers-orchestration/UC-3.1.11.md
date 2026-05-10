@@ -261,7 +261,7 @@ Closing checklist: monitoringType lists Performance and Capacity; splunkPillar O
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu max(Performance.cpu_load_percent) AS peak_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host span=15m
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu max(Performance.cpu_load_percent) AS peak_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host span=15m
 | rename Performance.host AS host_id
 | where peak_cpu>85
 ```

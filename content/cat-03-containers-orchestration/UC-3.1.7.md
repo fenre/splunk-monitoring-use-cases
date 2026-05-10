@@ -319,7 +319,7 @@ Closing: Step 5 lists twelve numbered cases; troubleshooting covers parser drift
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Inventory WHERE nodename=Inventory earliest=-4h@h latest=@h BY Inventory.dest span=15m
+| tstats summariesonly=t count FROM datamodel=Inventory WHERE nodename=Inventory earliest=-4h@h latest=@h BY Inventory.dest span=15m
 | rename Inventory.dest AS host_id
 ```
 

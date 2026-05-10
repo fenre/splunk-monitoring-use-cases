@@ -318,11 +318,11 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Change WHERE nodename=Change.All_Changes Change.vendor_product="Docker" earliest=-24h latest=now BY Change.dest Change.user Change.command
+| tstats summariesonly=t count FROM datamodel=Change WHERE nodename=Change.All_Changes Change.vendor_product="Docker" earliest=-24h latest=now BY Change.dest Change.user Change.command
 | rename Change.dest AS host_id Change.user AS change_user Change.command AS change_cmd
 | where like(lower(change_cmd), "%prune%")
 | appendcols maxout=200 [
-| tstats summariesonly=true latest(Inventory.os) AS inventory_os latest(Inventory.version) AS inventory_version FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem earliest=-24h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.os) AS inventory_os latest(Inventory.version) AS inventory_version FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem earliest=-24h latest=now BY Inventory.dest
 | rename Inventory.dest AS host_id ]
 ```
 

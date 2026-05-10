@@ -30,7 +30,7 @@ Ingest URL filtering events from MX syslog. Categorize by policy.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX content filtering logs via syslog or API. Data in `index=meraki` with `sourcetype=meraki:events` (syslog) or `sourcetype=meraki:api:contentfiltering`. Key fields: `url`, `category`, `action` (block/allow), `client_mac`, `client_ip`.
+* Meraki MX content filtering logs via syslog or API. Data in `index=meraki` with `sourcetype=meraki` (syslog) or `sourcetype=meraki`. Key fields: `url`, `category`, `action` (block/allow), `client_mac`, `client_ip`.
 * Meraki content filtering: MX appliances categorize web traffic and enforce per-category allow/block policies. Categories include: adult content, social networking, streaming media, gambling, etc. URL categories are provided by Meraki's cloud-based classification service.
 
 ### Step 1 — - Configure data collection
@@ -41,7 +41,7 @@ Syslog configuration:
 ```
 Verify:
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
+index=meraki sourcetype="meraki" earliest=-4h
 | where match(_raw, "(?i)content_filter|url.*block|category.*block|web.*filter")
 | stats count by host
 ```
@@ -50,7 +50,7 @@ index=meraki sourcetype="meraki:events" earliest=-4h
 
 **Primary search -- Content filtering and URL category blocks:**
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:contentfiltering") earliest=-4h
+index=meraki (sourcetype="meraki" OR sourcetype="meraki") earliest=-4h
 | where match(_raw, "(?i)content.filter.*block|url.*block|category.*deny|web.*filter.*block")
 | eval category=coalesce(category, url_category)
 | eval url=coalesce(url, request_url, dest_url)
@@ -88,7 +88,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=urls action="blocked"
+index=meraki sourcetype="meraki" type=urls action="blocked"
 | stats count as block_count by url_category, src
 | sort - block_count
 | head 20

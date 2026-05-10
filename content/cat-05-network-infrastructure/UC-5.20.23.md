@@ -5,12 +5,12 @@ id: "5.20.23"
 title: "Neighbor Solicitation Rate Limiting and NDP Exhaustion Defence"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.23 · Neighbor Solicitation Rate Limiting and NDP Exhaustion Defence
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
 *When a router needs to deliver a message to a device on its local network, it calls out 'Are you there?' and waits for an answer. An attacker can trick the router into calling out to millions of fake addresses, tying up its phone line until it cannot reach real devices. We monitor how many unanswered calls the router is making to catch this attack early.*
 

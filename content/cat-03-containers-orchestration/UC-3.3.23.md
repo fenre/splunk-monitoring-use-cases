@@ -513,10 +513,10 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Authentication.user) AS auth_user latest(Authentication.src) AS auth_src FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.dest
+| tstats summariesonly=t latest(Authentication.user) AS auth_user latest(Authentication.src) AS auth_src FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=now BY Authentication.dest
 | rename Authentication.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Change.action) AS chg_action latest(Change.object) AS chg_object latest(Change.user) AS chg_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+    [| tstats summariesonly=t latest(Change.action) AS chg_action latest(Change.object) AS chg_object latest(Change.user) AS chg_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
      | rename Change.dest AS cim_dest ]
 | where like(lower(chg_object), "%secret%") OR like(lower(chg_object), "%clusterrolebinding%") OR match(lower(auth_user), "system:serviceaccount")
 | table cim_dest auth_user auth_src chg_action chg_object chg_user

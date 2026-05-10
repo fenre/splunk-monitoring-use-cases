@@ -5,12 +5,12 @@ id: "5.20.60"
 title: "IPv6 Segment Routing (SRv6) SID Validation and Policy Health"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.60 · IPv6 Segment Routing (SRv6) SID Validation and Policy Health
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *SRv6 is like GPS navigation for network packets — each packet carries a list of turn-by-turn directions embedded in its address. We watch for directions that lead nowhere (invalid turns), navigation routes that go offline (GPS path unavailable), and route recalculations. If the GPS system fails, packets get lost and services break.*
 

@@ -142,7 +142,7 @@ Runbook (owner: Network Operations):
 
 ```spl
 | tstats `summariesonly` max(Performance.cpu_load_percent) as cpu_load
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   by Performance.host span=5m
 | where cpu_load > 80
 | sort -cpu_load

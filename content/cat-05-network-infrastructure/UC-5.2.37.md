@@ -25,77 +25,90 @@ Network engineers track Meraki Auto VPN path changes and tunnel switching to ide
 
 ## Implementation
 
-Monitor Auto VPN path optimization events. Alert on excessive changes.
+1. Configure SC4S for MX syslog and enable VPN logging in Meraki Dashboard. 2. Auto VPN tunnel state changes are emitted as type=events with structured type=vpn_connectivity_change fields. 3. Use rex to extract peer / peer_ident / connectivity. 4. Sustained flapping (path_change_count > 3 in 24h) usually indicates underlay quality issues; correlate with the API-side meraki:appliancesdwanstatistics input for the WAN-link metrics during the same window.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki Auto VPN path change events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:vpn`. Key fields: `vpn_peers`, `path`, `tunnel_status`.
-* Meraki Auto VPN: automatically creates IPsec VPN tunnels between MX devices in the same Meraki organization. SD-WAN path selection chooses the best uplink per peer based on latency, loss, and jitter. Path changes occur when one uplink degrades and traffic shifts to another.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for Auto VPN connectivity_change events as type=events with the structured 'type=vpn_connectivity_change vpn_type=... peer_contact=... peer_ident=... connectivity=...' payload, plus Splunk_TA_cisco_meraki Appliance VPN Stats input for tunnel performance context..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Security & SD-WAN > Site-to-site VPN
-# Type: Hub or Spoke
-# SD-WAN & traffic shaping > Uplink selection: Performance-based
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for MX syslog and enable VPN logging in Meraki Dashboard. 2. Auto VPN tunnel state changes are emitted as type=events with structured type=vpn_connectivity_change fields. 3. Use rex to extract peer / peer_ident / connectivity. 4. Sustained flapping (path_change_count > 3 in 24h) usually indicates underlay quality issues; correlate with the API-side meraki:appliancesdwanstatistics input for the WAN-link metrics during the same window.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-7d
-| where match(_raw, "(?i)vpn.*path|tunnel.*switch|uplink.*change|vpn.*route")
-| stats count by host
+index=meraki sourcetype="meraki" type=events
+    "type=vpn_connectivity_change"
+    earliest=-24h
+| rex "peer_contact='(?<peer>[\d\.:]+)'"
+| rex "peer_ident='(?<peer_ident>[a-f0-9]+)'"
+| rex "connectivity='(?<connectivity>true|false)'"
+| rex "vpn_type='(?<vpn_type>[\w\-]+)'"
+| stats count as path_change_count,
+        values(connectivity) as states,
+        latest(_time) as last_change
+         by host, peer, vpn_type
+| where path_change_count > 3
+| sort - path_change_count
+| append [
+    search index=meraki sourcetype="meraki:appliancesdwanstatistics" earliest=-24h
+    | stats avg(latencyMs) as avg_latency, avg(lossPercent) as avg_loss
+             by senderUplink, receiverUplink
+  ]
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Auto VPN path change tracking:**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-7d
-| where match(_raw, "(?i)vpn.*path|tunnel.*change|vpn.*route|uplink.*select")
-| eval device=coalesce(serial, host, deviceSerial)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| eval peer=coalesce(peerSerial, peer, vpn_peer)
-| lookup meraki_networks.csv serial AS peer OUTPUT network_name AS peer_name
-| eval path_info=coalesce(path, uplink, interface)
-| bin _time span=1h
-| stats count as path_changes dc(peer) as affected_peers values(peer_name) as peer_names by _time, network_name, device
-| eventstats avg(path_changes) as avg_changes stdev(path_changes) as stdev_changes by network_name
-| eval z_score=if(stdev_changes > 0, round((path_changes - avg_changes)/stdev_changes, 2), 0)
-| eval severity=case(
-    z_score > 3, "CRITICAL -- abnormal path instability (z-score > 3)",
-    path_changes > 20, "WARNING -- excessive VPN path changes",
-    path_changes > 5, "INFO -- moderate path switching",
-    1==1, "OK")
-| where severity != "OK"
-| sort severity, -path_changes
-```
+**Auto VPN Path Changes and Tunnel Switching (Meraki MX)** — Network engineers track Meraki Auto VPN path changes and tunnel switching to identify SD-WAN path instability and optimize uplink selection thresholds.
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > VPN status -- check tunnel states.
-(b) Correlate path changes with WAN quality (UC-5.2.33) degradation.
-(c) Verify SD-WAN uplink selection mode (load-balance vs performance-based).
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for Auto VPN connectivity_change events as type=events with the structured 'type=vpn_connectivity_change vpn_type=... peer_contact=... peer_ident=... connectivity=...' payload, plus Splunk_TA_cisco_meraki Appliance VPN Stats input for tunnel performance context. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Auto VPN Paths"):
-* Row 1 -- Single-value: "Path changes (24h)", "Affected peers", "Unstable sites".
-* Row 2 -- Path change frequency timechart.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (>50 path changes per hour): SD-WAN path flapping, investigate uplink quality.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host, peer, vpn_type** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where path_change_count > 3` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Appends rows from a subsearch with `append`.
 
-* **Excessive path switching** -- Uplink quality is oscillating near the failover threshold. Consider adjusting SD-WAN performance class thresholds or switching to load-balance mode.
 
-* **Path changes only affecting specific peers** -- Remote site may have unstable WAN. Check the peer's uplink quality metrics.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **No path changes despite WAN issues** -- Verify SD-WAN uplink selection is set to "Performance-based" not "Default uplink".
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Path change timeline; tunnel path change distribution; convergence analysis.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=vpn (signature="*Auto VPN*" OR signature="*path change*")
-| stats count as path_change_count by tunnel_id, new_path, old_path
+index=meraki sourcetype="meraki" type=events
+    "type=vpn_connectivity_change"
+    earliest=-24h
+| rex "peer_contact='(?<peer>[\d\.:]+)'"
+| rex "peer_ident='(?<peer_ident>[a-f0-9]+)'"
+| rex "connectivity='(?<connectivity>true|false)'"
+| rex "vpn_type='(?<vpn_type>[\w\-]+)'"
+| stats count as path_change_count,
+        values(connectivity) as states,
+        latest(_time) as last_change
+         by host, peer, vpn_type
 | where path_change_count > 3
+| sort - path_change_count
+| append [
+    search index=meraki sourcetype="meraki:appliancesdwanstatistics" earliest=-24h
+    | stats avg(latencyMs) as avg_latency, avg(lossPercent) as avg_loss
+             by senderUplink, receiverUplink
+  ]
 ```
 
 ## Visualization

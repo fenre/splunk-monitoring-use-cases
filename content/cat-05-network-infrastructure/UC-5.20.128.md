@@ -5,12 +5,12 @@ id: "5.20.128"
 title: "IPv6 BGP Route Leak Detection and Classification"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.128 · IPv6 BGP Route Leak Detection and Classification
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *A route leak is when a postal worker accidentally shares your mail route with the wrong postal network, so your letters take a detour through places they shouldn't go. We watch for these routing mistakes because they can cause delays or let someone peek at the letters.*
 

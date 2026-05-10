@@ -25,80 +25,76 @@ Network operations teams detect excessive wireless client roaming on Meraki MR n
 
 ## Implementation
 
-Track client handoff events between APs. Alert when a single client roams more than threshold in a 15-minute window.
+1. Configure SC4S for MR syslog. 2. Group by client_aid (which is a Meraki-issued association identifier persistent for a session). 3. Filter for clients seen on >3 APs with >20 association events in 24h — these are 'sticky-client' or band-steering loop candidates. 4. Identifying the underlying physical client: the client MAC isn't in the syslog payload directly; correlate with the API-side Wireless Packet Loss by Device input (meraki:wirelessdevicespacketlossbydevice) or the Meraki Dashboard -> Wireless -> Clients page.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki events showing client roaming between APs. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `client_mac`, `type` (association/disassociation/roaming), `ap_name`/`deviceName`, `ssid`, `rssi`.
-- Excessive roaming (client bouncing between APs) causes: session interruptions, increased authentication overhead, and poor user experience. Common causes: (1) overlapping AP coverage with similar signal strength — client can't decide which AP is better, (2) sticky clients — device holds onto weak AP instead of roaming, (3) AP power levels too high — creating co-channel interference.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR access-point syslog. Roaming = a client with high association/disassociation event count across multiple APs (host field). Each event carries aid (association id), vap, channel..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify roaming events:
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(type, "(?i)(assoc|roam)") AND isnotnull(client_mac)
-| stats count by type
-```
+1. Configure SC4S for MR syslog. 2. Group by client_aid (which is a Meraki-issued association identifier persistent for a session). 3. Filter for clients seen on >3 APs with >20 association events in 24h — these are 'sticky-client' or band-steering loop candidates. 4. Identifying the underlying physical client: the client MAC isn't in the syslog payload directly; correlate with the API-side Wireless Packet Loss by Device input (meraki:wirelessdevicespacketlossbydevice) or the Meraki Dashboard ->…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Excessive roaming detection:**
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(type, "(?i)(assoc|roam)")
-| eval ap_id=coalesce(ap_name, deviceName)
-| stats count as roam_events dc(ap_id) as aps_visited list(ap_id) as ap_sequence by client_mac, ssid
-| where roam_events > 15 AND aps_visited > 3
-| eval roam_pattern=case(roam_events > 50 AND aps_visited < 4, "PING_PONG", roam_events > 30, "EXCESSIVE", roam_events > 15, "FREQUENT", 1==1, "NORMAL")
-| eval issue_hint=case(roam_pattern="PING_PONG", "Client bouncing between 2-3 APs — overlapping coverage or power issue", roam_pattern="EXCESSIVE", "Highly mobile user or client driver issue", 1==1, "Monitor — may be a mobile user")
-| sort -roam_events
-| head 20
+index=meraki sourcetype="meraki" type=events
+    (type=association OR type=disassociation)
+    earliest=-24h
+| rex "aid='(?<client_aid>\d+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "channel='(?<channel>\d+)'"
+| stats count as event_count,
+        dc(host) as ap_count,
+        values(host) as ap_names
+         by client_aid
+| where event_count > 20 AND ap_count > 3
+| sort - event_count
 ```
 
-**AP-pair roaming analysis:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(type, "(?i)(assoc|roam)")
-| sort client_mac, _time
-| streamstats current=t window=1 last(ap_name) as prev_ap by client_mac
-| where isnotnull(prev_ap) AND ap_name != prev_ap
-| stats count as transitions by prev_ap, ap_name
-| where transitions > 10
-| sort -transitions
-```
+#### Understanding this SPL
+
+**Excessive Client Roaming Activity (Meraki MR)** — Network operations teams detect excessive wireless client roaming on Meraki MR networks, identifying ping-pong patterns between AP pairs to optimize RF design, power levels, and cell boundaries.
+
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR access-point syslog. Roaming = a client with high association/disassociation event count across multiple APs (host field). Each event carries aid (association id), vap, channel. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by client_aid** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where event_count > 20 AND ap_count > 3` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Walk between two APs repeatedly and verify the roaming events accumulate.
-(b) Compare with Meraki Dashboard: Wireless > Monitor > Clients > select a specific client > Event log.
-(c) Identify a known "problem client" and verify it appears in the excessive roaming list.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Client Roaming"):
-- Row 1 — Single-value tiles: "Ping-pong clients", "Excessive roamers", "Total roam events", "Average roams/client".
-- Row 2 — Excessive roaming clients table with pattern classification.
-- Row 3 — AP-pair roaming hotspots (which AP pairs have the most transitions).
-
-Alerting:
-- Warning (client with > 50 roams in 4 hours): ping-pong or driver issue — investigate.
-- Info (AP pair with > 30 transitions): RF boundary issue — consider power adjustment.
-
-### Step 5 — Troubleshooting
-
-- **Ping-pong between two APs** — Both APs are at similar signal strength in the overlap area. Reduce power on one AP, or adjust the client minimum RSSI threshold (Meraki: Wireless > Radio settings > Minimum bitrate).
-
-- **Specific client model roams excessively** — Some device drivers (especially older Windows) have aggressive roaming algorithms. Push driver updates or adjust roaming aggressiveness via MDM/GPO.
-
-- **Roaming spikes during specific hours** — May correlate with people moving between areas (meetings, lunch). This is normal behavior.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of heavy roamers; line chart of roaming frequency by client; network diagram showing roam paths.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Roaming*" OR signature="*handoff*")
-| stats count as roam_count by client_mac, ap_name
-| eventstats sum(roam_count) as total_roams by client_mac
-| where total_roams > 20
-| sort -total_roams
+index=meraki sourcetype="meraki" type=events
+    (type=association OR type=disassociation)
+    earliest=-24h
+| rex "aid='(?<client_aid>\d+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "channel='(?<channel>\d+)'"
+| stats count as event_count,
+        dc(host) as ap_count,
+        values(host) as ap_names
+         by client_aid
+| where event_count > 20 AND ap_count > 3
+| sort - event_count
 ```
 
 ## Visualization

@@ -396,10 +396,10 @@ Closing checklist: five plain em-dash step headers are present; Step 3 includes 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-1h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-1h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS correl_node
 | join type=left max=0 correl_node
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load max(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance earliest=-1h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load max(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance earliest=-1h@h latest=@h BY Performance.host
      | rename Performance.host AS correl_node ]
 | where like(lower(app_state),"%notready%") OR like(lower(app_info),"%not ready%") OR like(lower(app_info),"%node%unhealthy%") OR avg_cpu_load>95 OR mem_used_pct>95
 | table correl_node app_state app_info avg_cpu_load mem_used_pct

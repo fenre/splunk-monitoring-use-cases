@@ -25,12 +25,12 @@ Security operations teams detect unauthorized rogue access points with risk-base
 
 ## Implementation
 
-Forward WLC rogue detection events. Enable rogue detection policies. Alert on rogue APs, especially those broadcasting your corporate SSID.
+1. Configure SC4S to receive Cisco WLC syslog. 2. The query above surfaces rogue AP detections with detecting_ap, channel, and rogue_mac. 3. If you are running Meraki MR instead: enable the Air Marshal input (sourcetype=meraki:airmarshal) in Splunk_TA_cisco_meraki and filter on type=rogue_ssid_detected / type=ssid_spoofing_detected — both come with ssid, bssid, src, dst, channel, rssi fields.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless IDS/IPS or management platform reporting rogue AP detections. Sources: (1) Cisco WLC — CleanAir and rogue AP detection events (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal via API/events (`sourcetype=meraki:events`), (3) Aruba WIDS/WIPS events (`sourcetype=aruba:controller`).
+- Wireless IDS/IPS or management platform reporting rogue AP detections. Sources: (1) Cisco WLC — CleanAir and rogue AP detection events (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal via API/events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS events (`sourcetype=aruba:controller`).
 - Key fields: `rogue_mac` (MAC of detected rogue AP), `rogue_ssid` (SSID broadcast by rogue), `detecting_ap` (AP that detected it), `rssi` (signal strength — proximity indicator), `channel`, `classification` (rogue/friendly/contained), `is_on_wire` (detected on wired network — highest risk).
 - Build `authorized_aps.csv` lookup: `mac,ap_name,owner,status` for all known authorized APs. Any AP not in this lookup is potentially rogue.
 

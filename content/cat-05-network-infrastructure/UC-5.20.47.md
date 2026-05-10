@@ -5,14 +5,14 @@ id: "5.20.47"
 title: "IPv6 Route Redistribution Loop and Leak Prevention"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.47 · IPv6 Route Redistribution Loop and Leak Prevention
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Different parts of the network use different road-mapping systems. Sometimes they need to share their maps with each other — that's redistribution. The problem is, if you share everything without checking, you might share directions to your private driveway with the whole world, or create circular directions where cars go round and round forever. We check that every map-sharing point has a filter that blocks private addresses and prevents circular routes.*
+*Different parts of the network use different road-mapping systems. Sometimes they need to share their maps with each other — that's redistribution. The problem is, if you share everything without checking, you might share directions to your private driveway with the whole world, or create circular directions where cars go round and round forever.*
 
 ---
 

@@ -5,12 +5,12 @@ id: "5.20.17"
 title: "SLAAC M-bit/O-bit/A-bit Flag Consistency Monitoring"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.17 · SLAAC M-bit/O-bit/A-bit Flag Consistency Monitoring
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *When a device joins an IPv6 network, the router sends it instructions: 'Here is how you should get your address.' If two routers on the same network give different instructions — one says 'choose your own address' while the other says 'ask the address server' — devices get confused and some might not connect properly. We watch for these conflicting instructions.*
 

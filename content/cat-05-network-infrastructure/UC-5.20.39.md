@@ -5,14 +5,14 @@ id: "5.20.39"
 title: "ICMPv6 Error Message Rate Monitoring and Anomaly Detection"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.39 · ICMPv6 Error Message Rate Monitoring and Anomaly Detection
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*The network sends little error notes whenever something goes wrong — 'address not found', 'letter too big', 'went around in circles too many times', or 'I can't read this address.' We count these error notes and watch for sudden increases. A big spike in 'went around in circles' notes means the mail is going round and round between two post offices and never arriving. A spike in 'address not found' notes means a postal route was closed.*
+*The network sends little error notes whenever something goes wrong — 'address not found', 'letter too big', 'went around in circles too many times', or 'I can't read this address.' We count these error notes and watch for sudden increases. A big spike in 'went around in circles' notes means the mail is going round and round between two post offices and never arriving.*
 
 ---
 

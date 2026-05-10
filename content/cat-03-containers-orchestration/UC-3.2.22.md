@@ -388,7 +388,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-24h@h latest=now BY All_Changes.dest All_Changes.object All_Changes.action
+| tstats summariesonly=t count FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-24h@h latest=now BY All_Changes.dest All_Changes.object All_Changes.action
 | rename All_Changes.dest AS cluster All_Changes.object AS change_object All_Changes.action AS change_action
 | head 200
 ```

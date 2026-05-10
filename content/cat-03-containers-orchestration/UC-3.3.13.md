@@ -366,10 +366,10 @@ Closing checklist: multisearch lists import, tag staleness, registry operator, e
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Inventory.vendor_product) AS vendor_product latest(Inventory.version) AS inv_version FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.vendor_product) AS vendor_product latest(Inventory.version) AS inv_version FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS inv_dest
 | join type=left max=0 inv_dest
-    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
      | rename Application_State.dest AS inv_dest ]
 | where like(lower(vendor_product), "%openshift%") OR like(lower(app_info), "%image%registry%") OR like(lower(app_info), "%imagestream%")
 | table inv_dest vendor_product inv_version app_state app_info

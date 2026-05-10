@@ -456,7 +456,7 @@ Closing checklist: five plain-text step headers with em dashes; multisearch list
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Web WHERE nodename=Web earliest=-1h@h latest=@h BY Web.url Web.status span=5m
+| tstats summariesonly=t count FROM datamodel=Web WHERE nodename=Web earliest=-1h@h latest=@h BY Web.url Web.status span=5m
 | rename Web.url AS uri Web.status AS status
 | eval is_5xx=if(status>=500 AND status<600,1,0)
 | stats sum(is_5xx) AS five_xx count AS total BY uri

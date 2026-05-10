@@ -378,9 +378,9 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering collector s
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=@h BY Inventory.dest
+| tstats summariesonly=t count FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=@h BY Inventory.dest
 | rename Inventory.dest AS edge_node
-| appendcols [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS pull_host_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-24h@h latest=@h BY Performance.host
+| appendcols [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS pull_host_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-24h@h latest=@h BY Performance.host
 | rename Performance.host AS edge_node ]
 ```
 

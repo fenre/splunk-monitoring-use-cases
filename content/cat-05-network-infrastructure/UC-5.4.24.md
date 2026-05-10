@@ -25,79 +25,80 @@ Network operations teams track Meraki wireless bandwidth consumption by SSID and
 
 ## Implementation
 
-Pull health_score metric from MR devices API. Aggregate across network.
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki. 2. The TA polls GET /organizations/{orgId}/assurance/alerts hourly and emits one event per open alert with deviceType, deviceSerial, categoryType, title, severity, dismissedAt. 3. Filter to deviceType=wireless for AP-specific issues. 4. Meraki does not expose a numeric health score per AP via the API; counting open alerts and grading by severity is the closest workable approximation. 5. Pair with the Wireless Packet Loss by Device input for a continuous loss-based health metric.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki API providing per-SSID traffic shaping and group policy data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:wireless`. Key fields: `ssid`, `client_mac`, `bandwidth_limit`, `usage` (bytes), `group_policy`.
-- Meraki traffic shaping controls bandwidth per SSID, per client, and per application. It uses L7 firewall rules and traffic shaping rules to prioritize or throttle applications (e.g., prioritize VoIP, throttle video streaming on guest SSID).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts, hourly). Optional: Wireless Packet Loss by Device input for a numeric loss-based score..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify traffic data:
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
-| where isnotnull(ssid) AND isnotnull(usage)
-| stats sum(usage) as total_bytes dc(client_mac) as clients by ssid
-| eval total_GB=round(total_bytes/1073741824, 2)
-```
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki. 2. The TA polls GET /organizations/{orgId}/assurance/alerts hourly and emits one event per open alert with deviceType, deviceSerial, categoryType, title, severity, dismissedAt. 3. Filter to deviceType=wireless for AP-specific issues. 4. Meraki does not expose a numeric health score per AP via the API; counting open alerts and grading by severity is the closest workable approximation. 5. Pair with the Wireless Packet Loss by Device i…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Bandwidth consumption by SSID:**
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
-| where isnotnull(ssid) AND (isnotnull(usage) OR isnotnull(sent) OR isnotnull(recv))
-| eval bytes_total=coalesce(usage, sent + recv, 0)
-| stats sum(bytes_total) as total_bytes dc(client_mac) as client_count by ssid, network
-| eval total_GB=round(total_bytes/1073741824, 2)
-| eval avg_per_client_MB=round(total_bytes/(client_count*1048576), 1)
-| lookup meraki_networks.csv network OUTPUT site_name wan_bandwidth_mbps
-| eval wan_pct=if(isnotnull(wan_bandwidth_mbps), round(100*(total_bytes*8/1000000)/(wan_bandwidth_mbps*3600*4), 1), null())
-| sort -total_GB
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="wireless"
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity,
+        latest(dismissedAt) as dismissed_at
+         by deviceSerial, deviceName, networkName, categoryType
+| where isnull(dismissed_at)
+| eval health_band = case(
+    alert_count>=10 OR severity="critical", "Critical",
+    alert_count>=5 OR severity="warning", "Warning",
+    alert_count>0, "Informational",
+    1=1, "Healthy")
+| sort - alert_count
 ```
 
-**Top bandwidth consumers (per client):**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
-| where isnotnull(client_mac) AND (isnotnull(usage) OR isnotnull(sent))
-| eval bytes_total=coalesce(usage, sent + recv, 0)
-| stats sum(bytes_total) as total_bytes latest(ssid) as ssid latest(ap_name) as last_ap by client_mac
-| eval total_MB=round(total_bytes/1048576, 1)
-| where total_MB > 500
-| sort -total_bytes
-| head 20
-```
+#### Understanding this SPL
+
+**Wireless Health Score Trending (Meraki MR)** — Network operations teams track Meraki wireless bandwidth consumption by SSID and client, correlating usage with WAN capacity to detect bandwidth abuse and validate traffic shaping policy effectiveness.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts, hourly). Optional: Wireless Packet Loss by Device input for a numeric loss-based score. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:assurancealerts", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, networkName, categoryType** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where isnull(dismissed_at)` — typically the threshold or rule expression for this monitoring goal.
+- `eval` defines or adjusts **health_band** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Download a large file on the guest SSID and verify the bandwidth consumption appears.
-(b) Verify per-client bandwidth limits are being enforced by checking actual throughput vs configured limit.
-(c) Compare with Meraki Dashboard: Wireless > Clients > sort by Usage.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Bandwidth & Traffic Shaping"):
-- Row 1 — Single-value: "Total bandwidth (4h)", "Top SSID by usage", "Top client", "WAN utilization (estimated)".
-- Row 2 — Per-SSID bandwidth table with client count and WAN impact.
-- Row 3 — Top 20 bandwidth consumers (clients).
-
-Alerting:
-- Warning (single client > 2 GB in 4 hours on guest SSID): potential abuse — apply stricter group policy.
-- Info (WAN utilization estimate > 80%): wireless traffic consuming significant WAN bandwidth.
-
-### Step 5 — Troubleshooting
-
-- **Guest SSID consuming more bandwidth than corporate** — Guest users may be streaming video without traffic shaping restrictions. Apply per-client bandwidth limits in Meraki Dashboard: Wireless > Firewall & traffic shaping.
-
-- **Traffic shaping not effective** — Ensure L7 firewall rules are configured (Meraki: Wireless > Firewall & traffic shaping > L7 firewall rules). Common rules: throttle peer-to-peer, limit video streaming.
-
-- **WAN utilization high** — Consider enabling content caching or deploying a Meraki MX with SD-WAN traffic shaping at the WAN edge.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge of overall health; bar chart of individual AP health; trend sparkline; KPI dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MR
-| stats avg(health_score) as network_health, min(health_score) as worst_ap, count(eval(health_score<80)) as unhealthy_aps by network_id
-| eval health_status=if(network_health >= 85, "Healthy", if(network_health >= 70, "Degraded", "Critical"))
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="wireless"
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity,
+        latest(dismissedAt) as dismissed_at
+         by deviceSerial, deviceName, networkName, categoryType
+| where isnull(dismissed_at)
+| eval health_band = case(
+    alert_count>=10 OR severity="critical", "Critical",
+    alert_count>=5 OR severity="warning", "Warning",
+    alert_count>0, "Informational",
+    1=1, "Healthy")
+| sort - alert_count
 ```
 
 ## Visualization

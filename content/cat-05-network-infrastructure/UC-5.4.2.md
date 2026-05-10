@@ -25,12 +25,12 @@ Network operations teams classify wireless client association failures by root c
 
 ## Implementation
 
-Forward WLC/AP syslog. Correlate with RADIUS logs (ISE). Alert on spike in failures per SSID or AP.
+1. Configure SC4S to receive Cisco WLC (AireOS / Catalyst 9800) syslog. 2. The query above counts association/authentication failures by AP, SSID, and reason from the WLC syslog. 3. If you are running Meraki MR instead of WLC: use sourcetype="meraki" type=events with type=disassociation / type=8021x_eap_failure / type=wpa_deauth and extract reason / vap / identity via rex (see UC-5.4.12 for the canonical Meraki SPL pattern).
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless controller or cloud platform forwarding client association events to Splunk. Sources: (1) Cisco WLC syslog — `*DOT1X*`, `*ASSOC*` messages, (2) Meraki events (`sourcetype=meraki:events`) — association/disassociation events, (3) Aruba controller syslog — client authentication/association logs.
+- Wireless controller or cloud platform forwarding client association events to Splunk. Sources: (1) Cisco WLC syslog — `*DOT1X*`, `*ASSOC*` messages, (2) Meraki events (`sourcetype=meraki`) — association/disassociation events, (3) Aruba controller syslog — client authentication/association logs.
 - Data in `index=wireless` with platform-specific sourcetypes. Key fields: `client_mac`, `ap_name`, `ssid`, `reason_code` (802.11 deauthentication reason), `result` (success/failure), `auth_method` (WPA2-PSK, WPA3-Enterprise, 802.1X).
 - 802.11 association failures happen during: (1) initial connection (client fails to authenticate), (2) roaming (client fails to re-associate with new AP), (3) reauthentication (session timeout triggers re-auth). The reason code field identifies the specific failure cause.
 

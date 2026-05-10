@@ -5,12 +5,12 @@ id: "5.20.59"
 title: "MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.59 · MAP-E/MAP-T and DS-Lite IPv4-as-a-Service Health Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *As we switch from the old phone system (IPv4) to the new one (IPv6), we still need the old system to work for services that haven't switched yet. There's a special converter that lets new-system users call old-system numbers. We watch this converter to make sure it has enough phone lines and isn't dropping calls — because if it breaks, new-system users can't reach anyone on the old system.*
 

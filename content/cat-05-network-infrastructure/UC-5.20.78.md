@@ -5,14 +5,14 @@ id: "5.20.78"
 title: "IPv6 Logging and Monitoring Parity Audit"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.78 · IPv6 Logging and Monitoring Parity Audit
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*We have security cameras (monitoring) watching the old entrance (IPv4). Now we've added a new entrance (IPv6), and we need to make sure every camera and security measure that protects the old entrance also protects the new one. We check each security feature one by one: 'Does this camera also watch the new door? Does this alarm system also cover the new entrance?' We score ourselves on how many security features cover both entrances equally.*
+*We have security cameras (monitoring) watching the old entrance (IPv4). Now we've added a new entrance (IPv6), and we need to make sure every camera and security measure that protects the old entrance also protects the new one. We check each security feature one by one: 'Does this camera also watch the new door?*
 
 ---
 

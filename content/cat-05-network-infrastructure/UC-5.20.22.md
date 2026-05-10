@@ -5,12 +5,12 @@ id: "5.20.22"
 title: "Router Advertisement Rate Limiting Compliance"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.22 · Router Advertisement Rate Limiting Compliance
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *On a WiFi network, routers regularly announce themselves like someone yelling 'I'm the exit — follow me!' If they yell too often, it keeps waking up everyone's phones and drains their batteries. We check that routers announce themselves at a reasonable frequency so phones can sleep between announcements and save battery.*
 

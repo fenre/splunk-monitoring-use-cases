@@ -5,14 +5,14 @@ id: "5.20.101"
 title: "SOC 2 Trust Services Criteria — IPv6 Security Control Evidence Collection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.101 · SOC 2 Trust Services Criteria — IPv6 Security Control Evidence Collection
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*When accountants come to check that our computer systems are safe and well-managed (a SOC 2 audit), they want proof that we're protecting the network properly. We built a checklist that automatically gathers evidence showing that our security works just as well for the new address system (IPv6) as it does for the old one (IPv4). It's like preparing a folder of proof for the inspector before they arrive.*
+*When accountants come to check that our computer systems are safe and well-managed (a SOC 2 audit), they want proof that we're protecting the network properly. We built a checklist that automatically gathers evidence showing that our security works just as well for the new address system (IPv6) as it does for the old one (IPv4).*
 
 ---
 

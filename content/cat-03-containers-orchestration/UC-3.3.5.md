@@ -553,10 +553,10 @@ Version skew between exporters: OpenShift minor upgrades can rename status field
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
+| tstats summariesonly=t latest(Change.action) AS change_action latest(Change.object) AS change_object latest(Change.user) AS change_user FROM datamodel=Change WHERE nodename=Change earliest=-24h@h latest=now BY Change.dest
 | rename Change.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Inventory.vendor_product) AS vendor_product latest(Inventory.version) AS inv_version FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    [| tstats summariesonly=t latest(Inventory.vendor_product) AS vendor_product latest(Inventory.version) AS inv_version FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
      | rename Inventory.dest AS cim_dest ]
 | where like(lower(change_object), "%application%") OR like(lower(change_object), "%helm%") OR like(lower(change_object), "%gitops%") OR like(lower(vendor_product), "%openshift%")
 | table cim_dest change_action change_object change_user vendor_product inv_version

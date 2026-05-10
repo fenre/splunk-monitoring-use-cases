@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Compliance, Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Every phone number should have a name in the phone book — so when you see who called, you see a name instead of just digits. IPv6 addresses are really long numbers, and many of them are missing from the phone book. We check how many IPv6 addresses have their names registered, and flag the busiest ones that are missing — like having a phone number that calls everyone but nobody knows who it belongs to.*
+*Every phone number should have a name in the phone book — so when you see who called, you see a name instead of just digits. IPv6 addresses are really long numbers, and many of them are missing from the phone book.*
 
 ---
 

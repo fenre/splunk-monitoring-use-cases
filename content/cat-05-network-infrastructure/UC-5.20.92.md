@@ -5,12 +5,12 @@ id: "5.20.92"
 title: "PCI DSS 4.0 IPv6 Network Segmentation Validation"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.92 · PCI DSS 4.0 IPv6 Network Segmentation Validation
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Compliance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Compliance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Payment card data is stored in a secure vault (CDE) with strict access rules about who can enter. The old access rules (IPv4 firewall) work perfectly. But if the vault has a new entrance (IPv6) with no rules at all, anyone can walk in through the new door. We check that the new entrance has exactly the same locks and access rules as the old one.*
 

@@ -25,77 +25,82 @@ Wireless operations teams monitor Meraki MR access point fleet health across all
 
 ## Implementation
 
-Use API clients endpoint to retrieve device OS and type information. Aggregate across network.
+1. Enable the Webhook Logs (HEC) input and the 'client connection changed' alert profile in Meraki Dashboard. 2. The alertData payload contains client.os, client.manufacturer, deviceTypePrediction. 3. Use dc(client_mac) to count unique devices over the period. 4. For corporate/personal segmentation, enrich with a lookup against your MDM (Meraki Systems Manager, Jamf, Intune).
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki syslog or API events providing AP status and configuration change data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:devices`. Key fields: `type` (device status change), `status` (online/offline/alerting), `ap_name`/`serial`, `productType`, `networkId`, `lastReportedAt`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts enabled. Per-client OS/manufacturer detection is provided by Meraki's fingerprinting in the webhook payload only; not in the polled Dashboard API..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify AP status data:
-```spl
-index=meraki (sourcetype="meraki:api:devices" OR sourcetype="meraki:events") earliest=-4h
-| where productType="wireless" OR match(model, "^MR")
-| stats latest(status) as current_status latest(_time) as last_seen by ap_name, serial, network
-| eval hours_since=round((now() - last_seen)/3600, 1)
-```
+1. Enable the Webhook Logs (HEC) input and the 'client connection changed' alert profile in Meraki Dashboard. 2. The alertData payload contains client.os, client.manufacturer, deviceTypePrediction. 3. Use dc(client_mac) to count unique devices over the period. 4. For corporate/personal segmentation, enrich with a lookup against your MDM (Meraki Systems Manager, Jamf, Intune).
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — AP fleet health overview:**
 ```spl
-index=meraki (sourcetype="meraki:api:devices" OR sourcetype="meraki:events") earliest=-1h
-| where productType="wireless" OR match(model, "^MR")
-| stats latest(status) as current_status latest(_time) as last_seen latest(lanIp) as mgmt_ip latest(model) as model by ap_name, serial, network
-| eval hours_since=round((now() - last_seen)/3600, 1)
-| eval ap_state=case(current_status="online" AND hours_since < 0.5, "HEALTHY", current_status="alerting", "ALERTING", current_status="offline" OR hours_since > 1, "OFFLINE", 1==1, "UNKNOWN")
-| lookup meraki_networks.csv network OUTPUT site_name
-| stats count(eval(ap_state="HEALTHY")) as healthy count(eval(ap_state="OFFLINE")) as offline count(eval(ap_state="ALERTING")) as alerting count as total by site_name
-| eval health_pct=round(100*healthy/total, 1)
-| sort health_pct
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval client_os = coalesce('alertData.os', 'alertData.client.os', 'alertData.deviceTypePrediction')
+| eval client_manufacturer = 'alertData.client.manufacturer'
+| where isnotnull(client_mac)
+| stats dc(client_mac) as device_count
+         by client_os, client_manufacturer
+| eventstats sum(device_count) as total
+| eval pct = round(device_count*100/total, 1)
+| sort - device_count
 ```
 
-**AP uptime/downtime tracking:**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:devices") earliest=-7d
-| where (productType="wireless" OR match(model, "^MR")) AND match(type, "(?i)(up|down|online|offline)")
-| eval event=if(match(type, "(?i)(up|online)"), "UP", "DOWN")
-| stats count(eval(event="DOWN")) as outages earliest(_time) as first_seen latest(_time) as last_seen by ap_name, serial
-| eval monitoring_days=round((last_seen - first_seen)/86400, 1)
-| where outages > 0
-| sort -outages
-```
+#### Understanding this SPL
+
+**Client Device Type Distribution and Compliance (Meraki MR)** — Wireless operations teams monitor Meraki MR access point fleet health across all sites, tracking online/offline/alerting status to calculate site-level health percentages and detect outages.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts enabled. Per-client OS/manufacturer detection is provided by Meraki's fingerprinting in the webhook payload only; not in the polled Dashboard API. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `eval` defines or adjusts **client_mac** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **client_os** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **client_manufacturer** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnotnull(client_mac)` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by client_os, client_manufacturer** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
+- `eval` defines or adjusts **pct** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
 
 ### Step 3 — Validate
-(a) Unplug an AP (test environment) and verify it transitions to OFFLINE within 5-10 minutes.
-(b) Compare AP status with Meraki Dashboard: Organization > Monitor > Overview.
-(c) Verify all APs are accounted for by comparing the Splunk AP count with the Meraki inventory.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — AP Fleet Health"):
-- Row 1 — Single-value: "Total APs", "Online", "Offline", "Fleet Health %".
-- Row 2 — Per-site AP health summary.
-- Row 3 — AP outage history (7 days).
-
-Alerting:
-- Critical (site health < 80%): multiple APs down — possible site-wide issue.
-- Warning (AP offline > 1 hour): individual AP failure — dispatch tech.
-
-### Step 5 — Troubleshooting
-
-- **AP shows offline but physically powered** — Check PoE on the switch port, cable integrity, and AP LED status. In Meraki Dashboard: Wireless > Monitor > Access Points > select AP > Live tools > Ping.
-
-- **Many APs offline at same site** — Check upstream switch/PoE budget, UPS status, or network path to Meraki cloud.
-
-- **AP count doesn't match inventory** — Some APs may not be reporting to the API. Check licensing status in Meraki Dashboard.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart of device types; bar chart by OS; treemap of device distribution; trend sparklines.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as device_count by os_type, device_family
-| eval pct=round(device_count*100/sum(device_count), 2)
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval client_os = coalesce('alertData.os', 'alertData.client.os', 'alertData.deviceTypePrediction')
+| eval client_manufacturer = 'alertData.client.manufacturer'
+| where isnotnull(client_mac)
+| stats dc(client_mac) as device_count
+         by client_os, client_manufacturer
+| eventstats sum(device_count) as total
+| eval pct = round(device_count*100/total, 1)
 | sort - device_count
 ```
 

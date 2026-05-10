@@ -30,67 +30,77 @@ Extract application field from flow logs. Aggregate by app and category.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX application visibility data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:traffic` or `sourcetype=meraki:api:clients`. Key fields: `application`, `sent_kbps`, `recv_kbps`, `num_clients`, `network`.
-* Meraki application visibility: MX uses Layer 7 DPI to classify traffic by application (e.g., Zoom, Microsoft 365, YouTube, Salesforce). API endpoint: `/networks/{networkId}/traffic`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki (type=flows OR type=firewall) application=*`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# inputs.conf
-[meraki_traffic_analytics]
-interval = 900
-sourcetype = meraki:api:traffic
-index = meraki
-# API: GET /networks/{networkId}/traffic?timespan=900
-```
-Verify:
+### Step 1 — Configure data collection
+Extract application field from flow logs. Aggregate by app and category.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:traffic" earliest=-4h
-| stats sum(sent) as total_sent sum(recv) as total_recv by application
-| sort -total_sent | head 20
+index=meraki sourcetype="meraki" (type=flows OR type=firewall) application=*
+| stats sum(bytes) as app_bytes, count as flow_count by application, application_category
+| eval app_bandwidth_pct=round(app_bytes*100/sum(app_bytes), 2)
+| sort - app_bytes
+| head 20
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Application visibility trending:**
+**Application Visibility and Network Application Trending (Meraki MX)** — Operations teams trend Meraki MX application visibility data to identify bandwidth-dominant applications and track usage patterns for capacity planning and policy enforcement.
+
+Documented **Data sources**: `sourcetype=meraki (type=flows OR type=firewall) application=*`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by application, application_category** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **app_bandwidth_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Limits the number of rows with `head`.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki sourcetype="meraki:api:traffic" earliest=-24h
-| eval app=coalesce(application, app_name)
-| eval sent_mb=tonumber(sent)/1048576
-| eval recv_mb=tonumber(recv)/1048576
-| eval total_mb=sent_mb + recv_mb
-| eval clients=tonumber(numClients)
-| bin _time span=1h
-| stats sum(total_mb) as total_mb avg(clients) as avg_clients by _time, app
-| eventstats sum(total_mb) as hourly_total by _time
-| eval app_pct=round(100*total_mb/hourly_total, 1)
-| eval severity=case(app_pct > 30, "WARNING -- ".app." consuming >30% of bandwidth", total_mb > 1000 AND match(app, "(?i)youtube|netflix|tiktok|streaming"), "INFO -- high streaming bandwidth", 1==1, "OK")
-| where severity != "OK"
-| table _time, app, total_mb, app_pct, avg_clients, severity
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
+| eval bytes=bytes_in+bytes_out
+| sort -bytes
 ```
 
-### Step 3 — - Validate
-(a) Dashboard: Network-wide > Traffic analytics -- compare top applications.
-(b) Verify application classification accuracy for critical apps (Office 365, Zoom).
-(c) Compare bandwidth totals with WAN uplink utilization.
+Understanding this CIM / accelerated SPL
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Application Visibility"):
-* Row 1 -- Single-value: "Top application", "Total bandwidth (GB)", "Application categories".
-* Row 2 -- Application bandwidth timechart.
-* Row 3 -- Application distribution pie chart.
+**Application Visibility and Network Application Trending (Meraki MX)** — Operations teams trend Meraki MX application visibility data to identify bandwidth-dominant applications and track usage patterns for capacity planning and policy enforcement.
 
-### Step 5 — - Troubleshooting
+Documented **Data sources**: `sourcetype=meraki (type=flows OR type=firewall) application=*`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-* **Unknown/unclassified application** -- Application may use non-standard ports or encryption. Check: (1) Meraki DPI database version, (2) consider adding custom application rules.
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
-* **Critical app misclassified** -- Verify application classification in Dashboard. Custom applications can be defined for internal services.
+**Pipeline walkthrough**
 
-* **Streaming consuming excessive bandwidth** -- Apply traffic shaping (UC-5.2.24) to limit streaming categories. Prioritize business applications.
+- Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
+- `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: App bandwidth pie chart; top apps bar chart; bandwidth timeline by app.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=flow application=*
+index=meraki sourcetype="meraki" (type=flows OR type=firewall) application=*
 | stats sum(bytes) as app_bytes, count as flow_count by application, application_category
 | eval app_bandwidth_pct=round(app_bytes*100/sum(app_bytes), 2)
 | sort - app_bytes

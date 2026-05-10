@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*IPv6 works very differently from the old system. There are certain messages that IPv6 absolutely needs to function — like 'this letter is too big for the mailbox' or 'who is my neighbour?' If the security guard blocks ALL messages because some might be dangerous, the new system stops working entirely. We audit each security guard's checklist to make sure they know which IPv6 messages must be allowed through, giving each guard a grade — A for excellent, F for 'you're accidentally breaking everything.'*
+*IPv6 works very differently from the old system. There are certain messages that IPv6 absolutely needs to function — like 'this letter is too big for the mailbox' or 'who is my neighbour?' If the security guard blocks ALL messages because some might be dangerous, the new system stops working entirely.*
 
 ---
 

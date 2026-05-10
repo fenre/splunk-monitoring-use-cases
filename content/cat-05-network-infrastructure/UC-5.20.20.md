@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.20.20 · NDP Cache Anomalies and Poisoning Detection
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Threat Detection &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Imagine someone in your neighbourhood changes the name on your mailbox to redirect your mail to their house. They can read all your letters before forwarding them. We watch for this kind of identity switching on the network — if a device's 'name tag' suddenly changes to point to a different physical device, we sound the alarm.*
 

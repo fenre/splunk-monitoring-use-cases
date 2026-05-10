@@ -5,12 +5,12 @@ id: "5.20.46"
 title: "IS-IS IPv6 Multi-Topology Reachability Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.46 · IS-IS IPv6 Multi-Topology Reachability Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
 *IS-IS is another road-mapping system that big internet carriers use. It can keep separate road maps for IPv4 and IPv6 — like having one map for cars and another for bicycles. If the bicycle map gets a torn page but the car map is fine, only bicycle riders get lost. We watch both maps separately to make sure neither one has missing pages.*
 

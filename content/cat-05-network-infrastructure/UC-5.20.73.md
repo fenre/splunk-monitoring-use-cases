@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*In our building, the building manager (router) sends regular announcements telling everyone which exit to use and what the building rules are. If a stranger (attacker) stands in the hallway and starts making fake announcements — 'Use this new exit!' 'The address has changed!' — everyone follows the fake instructions, and the stranger can intercept all the mail and packages. We have guards (RA Guard) who check credentials before allowing anyone to make announcements, and we get an alarm whenever someone without credentials tries.*
+*In our building, the building manager (router) sends regular announcements telling everyone which exit to use and what the building rules are. If a stranger (attacker) stands in the hallway and starts making fake announcements — 'Use this new exit!' 'The address has changed!' — everyone follows the fake instructions, and the stranger can intercept all the mail and packages.*
 
 ---
 

@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Every time the security guard turns someone away at the door, they write it in a logbook. We read through this logbook to find patterns. Sometimes we discover the guard is accidentally blocking people who should be allowed in (like the postman who delivers important letters). Other times we find records of suspicious people who tried to sneak in. By reading the 'turned away' list carefully, we fix the guard's instructions and catch the intruders.*
+*Every time the security guard turns someone away at the door, they write it in a logbook. We read through this logbook to find patterns. Sometimes we discover the guard is accidentally blocking people who should be allowed in (like the postman who delivers important letters). Other times we find records of suspicious people who tried to sneak in.*
 
 ---
 

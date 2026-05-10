@@ -25,63 +25,71 @@ Operations teams detect Meraki MX NAT port exhaustion events, identifying when o
 
 ## Implementation
 
-Query appliance API for NAT pool metrics. Alert on >80% utilization.
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki and confirm Meraki alert profiles include 'NAT translation table near capacity' and 'connection table full'. 2. Configure SC4S to receive Meraki MX syslog (UDP/514) and forward the events sourcetype to Splunk; appliance NAT/connection-table syslog messages match type=events. 3. Pair the alert query above with a 'last 1h' real-time dashboard for branch operators.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX NAT logs via syslog or API. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: NAT translations, port exhaustion warnings.
-* Meraki MX uses PAT (Port Address Translation) by default. All internal traffic is NATed to the WAN IP. With many users and applications, the port pool (65K ports per WAN IP) can be exhausted.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts) and SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side NAT exhaustion messages. NOTE: the Meraki Dashboard API does NOT expose live NAT translation table counters; alert-driven monitoring is the only practical path..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-Verify NAT events:
+### Step 1 — Configure data collection
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki and confirm Meraki alert profiles include 'NAT translation table near capacity' and 'connection table full'. 2. Configure SC4S to receive Meraki MX syslog (UDP/514) and forward the events sourcetype to Splunk; appliance NAT/connection-table syslog messages match type=events. 3. Pair the alert query above with a 'last 1h' real-time dashboard for branch operators.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)NAT|port.*exhaust|translation|SNAT")
-| stats count by host
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="appliance"
+    (title="*NAT*" OR title="*port*" OR title="*translation*" OR categoryType="appliance")
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity,
+        latest(dismissedAt) as dismissed_at
+         by deviceSerial, networkName
+| where isnull(dismissed_at) AND alert_count > 0
+| sort - alert_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- NAT pool usage monitoring:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)NAT|port.*exhaust|translation.*fail|SNAT.*fail|no.*available.*port")
-| eval nat_event=case(match(_raw, "(?i)exhaust|no.*available|pool.*full"), "NAT_EXHAUSTED", match(_raw, "(?i)fail"), "NAT_FAILURE", match(_raw, "(?i)warning|threshold|high"), "NAT_WARNING", 1==1, "NAT_EVENT")
-| stats count as events latest(_time) as last_event by host, nat_event
-| eval severity=case(nat_event="NAT_EXHAUSTED", "CRITICAL -- NAT port exhaustion", nat_event="NAT_FAILURE" AND events > 50, "HIGH -- NAT failures", 1==1, "WARNING")
-| where severity != "WARNING" OR events > 10
-| sort severity, -events
-```
+**NAT Pool Usage and Exhaustion Alerts (Meraki MX)** — Operations teams detect Meraki MX NAT port exhaustion events, identifying when outbound connection capacity is reached and investigating top connection consumers.
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > Addressing & VLANs -- check WAN IP and NAT mode.
-(b) Monitor concurrent connections during peak hours.
-(c) Check if 1:1 NAT rules are consuming dedicated IPs.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts) and SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side NAT exhaustion messages. NOTE: the Meraki Dashboard API does NOT expose live NAT translation table counters; alert-driven monitoring is the only practical path. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- NAT Health"):
-* Row 1 -- Single-value: "NAT exhaustion events", "NAT failures".
-* Row 2 -- NAT event timeline.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. That sourcetype matches what this use case lists under Data sources.
 
-Alerting:
-* Critical (NAT exhaustion): outbound connections failing.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki:assurancealerts", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where isnull(dismissed_at) AND alert_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **NAT exhaustion** -- Too many concurrent outbound connections for available ports. Options: (1) configure additional WAN IPs for NAT, (2) identify and reduce connections from top users/applications, (3) check for infected hosts creating many outbound connections.
 
-* **NAT with multiple WAN uplinks** -- Meraki distributes NAT across uplinks. If one uplink has more capacity, ensure traffic distribution is balanced.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **1:1 NAT issues** -- 1:1 NAT maps an internal IP to a dedicated public IP. Verify no conflicts with port-forwarding rules.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" nat_pool_usage=*
-| stats max(nat_pool_usage) as peak_nat_usage, count by nat_pool_id
-| eval nat_capacity_pct=round(peak_nat_usage*100/254, 2)
-| where nat_capacity_pct > 80
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="appliance"
+    (title="*NAT*" OR title="*port*" OR title="*translation*" OR categoryType="appliance")
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity,
+        latest(dismissedAt) as dismissed_at
+         by deviceSerial, networkName
+| where isnull(dismissed_at) AND alert_count > 0
+| sort - alert_count
 ```
 
 ## Visualization

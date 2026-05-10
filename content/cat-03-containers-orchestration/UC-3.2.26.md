@@ -199,14 +199,14 @@ Paste-and-run SPL (must match the spl JSON field exactly):
 | eventstats median(backend_commit_p95_ms_peer) AS cluster_median_commit_p95 BY cluster win_time
 | eval commit_peer_skew_ratio=if(isnotnull(backend_commit_p95_ms_peer) AND coalesce(cluster_median_commit_p95,0)>0.0001, round(backend_commit_p95_ms_peer/cluster_median_commit_p95, 3), null())
 | eventstats min(has_leader_snap) AS cluster_min_has_leader BY cluster win_time
-| join type=left max=0 win_time [| tstats summariesonly=false count AS app_state_touch FROM datamodel=Application_State WHERE nodename=Application_State earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
+| join type=left max=0 win_time [| tstats summariesonly=f count AS app_state_touch FROM datamodel=Application_State WHERE nodename=Application_State earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
 | join type=left max=0 cluster [| inputlookup cluster_platform_routing.csv | eval cluster=lower(trim(toString(cluster))) | eval on_call_team=toString(coalesce(on_call_team, squad, platform_team, "platform_etcd")) | eval suppress_single_node_dev=tonumber(tostring(coalesce(suppress_single_node_dev, "0")), 10) | eval expected_etcd_voting_members=tonumber(tostring(coalesce(expected_etcd_voting_members, "")), 10) | fields cluster on_call_team suppress_single_node_dev expected_etcd_voting_members ]
 | fillnull value="platform_etcd" on_call_team
 | eval membership_drift=if(isnotnull(expected_etcd_voting_members) AND expected_etcd_voting_members>0 AND voting_members!=expected_etcd_voting_members, 1, 0)
 | eval operational_state=case(cluster_min_has_leader==0, "no_leader_view", quorum_margin<0, "quorum_lost", quorum_margin==0, "quorum_barely_met", membership_drift==1, "membership_drift", leader_changes_5m>=4, "leader_thrash", coalesce(proposal_backlog_ratio,0)>=50 OR coalesce(prop_pend,0)>=5000, "proposal_backlog_hot", coalesce(peer_rtt_p95_ms,0)>=800, "peer_partition_risk", coalesce(commit_peer_skew_ratio,0)>=2, "commit_skew_peer", coalesce(mvcc_db_gb,0)>=7, "mvcc_capacity_signal", true(), "nominal")
 | eval severity=case(cluster_min_has_leader==0 OR quorum_margin<0 OR operational_state=="quorum_lost", "down", quorum_margin<=1 OR operational_state=="leader_thrash" OR operational_state=="proposal_backlog_hot" OR membership_drift==1, "critical", operational_state=="peer_partition_risk" OR operational_state=="commit_skew_peer" OR unhealthy_voting_ct>=2, "high", operational_state=="mvcc_capacity_signal" OR leader_changes_5m>=2 OR prop_failed_5m>0 OR coalesce(peer_rtt_p95_ms,0)>=200, "medium", true(), "healthy")
 | where coalesce(suppress_single_node_dev,0)==0 OR severity IN ("down","critical")
-| join type=left max=0 win_time [| tstats summariesonly=false avg(Performance.cpu_load_percent) AS avg_host_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
+| join type=left max=0 win_time [| tstats summariesonly=f avg(Performance.cpu_load_percent) AS avg_host_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
 | table cluster etcd_member win_time voting_members healthy_voting quorum_margin leader_changes_5m peer_rtt_p95_ms commit_peer_skew_ratio proposal_backlog_ratio prop_failed_5m mvcc_db_gb is_learner operational_state severity on_call_team app_state_touch avg_host_load membership_drift
 ```
 
@@ -324,23 +324,23 @@ Supplemental owner notes: tune mvcc_warn_gb and rtt_warn_ms to your storage and 
 | eventstats median(backend_commit_p95_ms_peer) AS cluster_median_commit_p95 BY cluster win_time
 | eval commit_peer_skew_ratio=if(isnotnull(backend_commit_p95_ms_peer) AND coalesce(cluster_median_commit_p95,0)>0.0001, round(backend_commit_p95_ms_peer/cluster_median_commit_p95, 3), null())
 | eventstats min(has_leader_snap) AS cluster_min_has_leader BY cluster win_time
-| join type=left max=0 win_time [| tstats summariesonly=false count AS app_state_touch FROM datamodel=Application_State WHERE nodename=Application_State earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
+| join type=left max=0 win_time [| tstats summariesonly=f count AS app_state_touch FROM datamodel=Application_State WHERE nodename=Application_State earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
 | join type=left max=0 cluster [| inputlookup cluster_platform_routing.csv | eval cluster=lower(trim(toString(cluster))) | eval on_call_team=toString(coalesce(on_call_team, squad, platform_team, "platform_etcd")) | eval suppress_single_node_dev=tonumber(tostring(coalesce(suppress_single_node_dev, "0")), 10) | eval expected_etcd_voting_members=tonumber(tostring(coalesce(expected_etcd_voting_members, "")), 10) | fields cluster on_call_team suppress_single_node_dev expected_etcd_voting_members ]
 | fillnull value="platform_etcd" on_call_team
 | eval membership_drift=if(isnotnull(expected_etcd_voting_members) AND expected_etcd_voting_members>0 AND voting_members!=expected_etcd_voting_members, 1, 0)
 | eval operational_state=case(cluster_min_has_leader==0, "no_leader_view", quorum_margin<0, "quorum_lost", quorum_margin==0, "quorum_barely_met", membership_drift==1, "membership_drift", leader_changes_5m>=4, "leader_thrash", coalesce(proposal_backlog_ratio,0)>=50 OR coalesce(prop_pend,0)>=5000, "proposal_backlog_hot", coalesce(peer_rtt_p95_ms,0)>=800, "peer_partition_risk", coalesce(commit_peer_skew_ratio,0)>=2, "commit_skew_peer", coalesce(mvcc_db_gb,0)>=7, "mvcc_capacity_signal", true(), "nominal")
 | eval severity=case(cluster_min_has_leader==0 OR quorum_margin<0 OR operational_state=="quorum_lost", "down", quorum_margin<=1 OR operational_state=="leader_thrash" OR operational_state=="proposal_backlog_hot" OR membership_drift==1, "critical", operational_state=="peer_partition_risk" OR operational_state=="commit_skew_peer" OR unhealthy_voting_ct>=2, "high", operational_state=="mvcc_capacity_signal" OR leader_changes_5m>=2 OR prop_failed_5m>0 OR coalesce(peer_rtt_p95_ms,0)>=200, "medium", true(), "healthy")
 | where coalesce(suppress_single_node_dev,0)==0 OR severity IN ("down","critical")
-| join type=left max=0 win_time [| tstats summariesonly=false avg(Performance.cpu_load_percent) AS avg_host_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
+| join type=left max=0 win_time [| tstats summariesonly=f avg(Performance.cpu_load_percent) AS avg_host_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-30m@m latest=@m BY _time span=5m | rename _time AS win_time ]
 | table cluster etcd_member win_time voting_members healthy_voting quorum_margin leader_changes_5m peer_rtt_p95_ms commit_peer_skew_ratio proposal_backlog_ratio prop_failed_5m mvcc_db_gb is_learner operational_state severity on_call_team app_state_touch avg_host_load membership_drift
 ```
 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (like(Application_State.app, "%kube%") OR like(Application_State.app, "%etcd%")) earliest=-1h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (like(Application_State.app, "%kube%") OR like(Application_State.app, "%etcd%")) earliest=-1h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS ctrl_host
-| join type=left max=0 ctrl_host [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host | rename Performance.host AS ctrl_host ]
+| join type=left max=0 ctrl_host [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host | rename Performance.host AS ctrl_host ]
 | where like(lower(app_state), "%down%") OR like(lower(app_info), "%fail%") OR avg_cpu>=95
 | table ctrl_host app_state app_info avg_cpu
 ```

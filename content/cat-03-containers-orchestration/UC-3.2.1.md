@@ -319,10 +319,10 @@ Evidence pack: archive weekly CSV exports with lookup commit hash, burst thresho
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state count AS ev FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state count AS ev FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS k8s_node Application_State.app AS workload_key
 | join type=left k8s_node [
-    | tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_avg FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
+    | tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_avg FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
     | rename Performance.host AS k8s_node ]
 | where app_state!="running" OR cpu_avg>92
 ```

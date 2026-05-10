@@ -258,7 +258,7 @@ index=containers sourcetype="docker:service" earliest=-30m latest=now
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h latest=now BY State
+| tstats summariesonly=t count FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h latest=now BY State
 | where State!="running" AND State!="ok"
 ```
 

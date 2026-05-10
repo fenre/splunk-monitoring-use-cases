@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Platform &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Imagine a neighbourhood (VLAN) where everyone uses the old postal system (IPv4 only). But all the houses (computers) have mailboxes for both old and new post (IPv6 enabled by default). A burglar moves in and starts telling everyone 'I'm the new postman for the new postal system — send all your new post through me.' Suddenly, half the neighbourhood's letters go through the burglar instead of the real post office. We watch for anyone claiming to be a new postman in neighbourhoods that don't use the new postal system.*
+*Imagine a neighbourhood (VLAN) where everyone uses the old postal system (IPv4 only). But all the houses (computers) have mailboxes for both old and new post (IPv6 enabled by default).*
 
 ---
 

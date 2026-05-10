@@ -25,76 +25,77 @@ Wireless operations teams monitor Meraki MR per-AP channel utilization levels to
 
 ## Implementation
 
-Capture splash page interaction events from syslog. Track accepts vs. denies.
+1. Configure SC4S for MR syslog and enable the Access-point event log. 2. Each splash authentication emits one event per accepted client. 3. duration = the session timeout granted by the splash policy (in seconds); download/upload = the per-client throughput cap. 4. For redirect / dropped / abandoned splash attempts, configure a Meraki Dashboard alert profile on 'splash page redirect failure' and ingest via the Webhook Logs (HEC) input.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki providing per-AP channel utilization data. Data in `index=meraki` with `sourcetype=meraki:api:wireless` or `sourcetype=meraki:events`. Key fields: `ap_name`, `channel`, `band` (2.4 GHz / 5 GHz), `utilization` (percentage), `non_wifi_interference` (percentage from non-WiFi sources).
-- Channel utilization is the percentage of time the radio medium is busy. It includes: (1) WiFi transmissions from your APs and clients, (2) WiFi from neighboring networks (co-channel interference), (3) non-WiFi interference (microwaves, Bluetooth, cordless phones). When utilization exceeds 60-70%, clients experience increased contention, retransmissions, and throughput degradation.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR syslog. Splash page authentications appear as type=events with type=splash_auth and structured ip=, duration=, vap=, download=, upload= fields..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify channel data:
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(channel) OR isnotnull(utilization)
-| stats avg(utilization) as avg_util by ap_name, channel, band
-| sort -avg_util
-```
+1. Configure SC4S for MR syslog and enable the Access-point event log. 2. Each splash authentication emits one event per accepted client. 3. duration = the session timeout granted by the splash policy (in seconds); download/upload = the per-client throughput cap. 4. For redirect / dropped / abandoned splash attempts, configure a Meraki Dashboard alert profile on 'splash page redirect failure' and ingest via the Webhook Logs (HEC) input.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Channel utilization by AP:**
 ```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(utilization) OR isnotnull(channel)
-| stats avg(utilization) as avg_util max(utilization) as max_util avg(non_wifi_interference) as non_wifi dc(client_mac) as client_count by ap_name, channel, band
-| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor zone
-| eval util_status=case(avg_util > 80, "CRITICAL", avg_util > 60, "HIGH", avg_util > 40, "MODERATE", 1==1, "OK")
-| eval interference_note=if(non_wifi > 10, "Non-WiFi interference detected (".round(non_wifi,1)."%)", "Clean")
-| where util_status IN ("CRITICAL", "HIGH")
-| sort -avg_util
+index=meraki sourcetype="meraki" type=events type=splash_auth
+    earliest=-7d
+| rex "ip='(?<client_ip>[\d\.]+)"
+| rex "duration='(?<duration>\d+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "download='(?<download_bps>\d+)bps'"
+| rex "upload='(?<upload_bps>\d+)bps'"
+| stats count as auth_count,
+        avg(duration) as avg_session_secs,
+        sum(eval(download_bps + upload_bps)) as total_bps
+         by host, vap_id
+| sort - auth_count
 ```
 
-**Channel overlap detection:**
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(channel) AND band="2.4 GHz"
-| stats dc(ap_name) as aps_on_channel values(ap_name) as ap_list by channel
-| where aps_on_channel > 3
-| eval concern=if(aps_on_channel > 5, "Too many APs on same channel — co-channel interference", "Monitor")
-| sort -aps_on_channel
-```
+#### Understanding this SPL
+
+**Splash Page Engagement and Redirection Analytics (Meraki MR)** — Wireless operations teams monitor Meraki MR per-AP channel utilization levels to detect airtime congestion and non-WiFi interference, guiding channel planning and RF environment optimization.
+
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR syslog. Splash page authentications appear as type=events with type=splash_auth and structured ip=, duration=, vap=, download=, upload= fields. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host, vap_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Compare channel utilization with Meraki Dashboard: Wireless > Radio settings > RF spectrum.
-(b) Identify APs in high-density areas (conference rooms) and verify higher utilization.
-(c) During off-hours, verify utilization drops significantly (indicating it's client-driven, not interference).
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — RF Environment"):
-- Row 1 — Single-value: "APs with critical utilization", "Average 5 GHz utilization", "Average 2.4 GHz utilization", "Non-WiFi interference APs".
-- Row 2 — Per-AP channel utilization table with building/floor context.
-- Row 3 — Channel assignment heatmap (APs per channel).
-
-Alerting:
-- Warning (AP avg utilization > 70% for > 30 min): airtime congestion.
-- Info (non-WiFi interference > 15% on any AP): physical environment investigation needed.
-
-### Step 5 — Troubleshooting
-
-- **High utilization on 2.4 GHz, not 5 GHz** — 2.4 GHz has fewer channels and more interference. Enable band steering (Meraki: Wireless > Radio settings > Band selection) to push dual-band clients to 5 GHz.
-
-- **Non-WiFi interference** — Physical investigation needed. Common sources: microwave ovens (2.4 GHz ch 6-11), Bluetooth, wireless cameras, baby monitors. Meraki's "Spectrum analysis" (on supported models) can help identify the source.
-
-- **Co-channel interference between your own APs** — Too many APs on the same channel. Enable Meraki auto-channel assignment (Wireless > Radio settings > Channel planning: Auto).
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart of acceptance rates; funnel chart of splash interactions; time-series trending.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*Splash*"
-| stats count as redirect_count by result, ap_name
-| eval acceptance_rate=round(count*100/sum(count), 2)
+index=meraki sourcetype="meraki" type=events type=splash_auth
+    earliest=-7d
+| rex "ip='(?<client_ip>[\d\.]+)"
+| rex "duration='(?<duration>\d+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "download='(?<download_bps>\d+)bps'"
+| rex "upload='(?<upload_bps>\d+)bps'"
+| stats count as auth_count,
+        avg(duration) as avg_session_secs,
+        sum(eval(download_bps + upload_bps)) as total_bps
+         by host, vap_id
+| sort - auth_count
 ```
 
 ## Visualization

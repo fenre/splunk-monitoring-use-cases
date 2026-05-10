@@ -250,10 +250,10 @@ Paste-and-run SPL must match the spl JSON field exactly:
       | stats max(pilot_conv_sample) AS pilot_conv_sample max(pilot_xds_sample) AS pilot_xds_sample max(linkerd_tls_sample) AS linkerd_tls_sample BY cluster ]
 | fillnull value=0 pilot_conv_sample pilot_xds_sample linkerd_tls_sample
 | join type=left max=1 cluster [
-    | tstats summariesonly=true count AS cim_change_touch FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
+    | tstats summariesonly=t count AS cim_change_touch FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
     | rename All_Changes.dest AS cluster ]
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    | tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
     | rename Application_State.dest AS cluster ]
 | fillnull value=0 cim_change_touch
 | fillnull value="" cim_app_state
@@ -476,10 +476,10 @@ Closing checklist: five em-dash step headers present; Step 3 fenced SPL matches 
       | stats max(pilot_conv_sample) AS pilot_conv_sample max(pilot_xds_sample) AS pilot_xds_sample max(linkerd_tls_sample) AS linkerd_tls_sample BY cluster ]
 | fillnull value=0 pilot_conv_sample pilot_xds_sample linkerd_tls_sample
 | join type=left max=1 cluster [
-    | tstats summariesonly=true count AS cim_change_touch FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
+    | tstats summariesonly=t count AS cim_change_touch FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
     | rename All_Changes.dest AS cluster ]
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    | tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
     | rename Application_State.dest AS cluster ]
 | fillnull value=0 cim_change_touch
 | fillnull value="" cim_app_state
@@ -501,10 +501,10 @@ Closing checklist: five em-dash step headers present; Step 3 fenced SPL matches 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.info) AS app_state latest(Application_State.status) AS app_status FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.info) AS app_state latest(Application_State.status) AS app_status FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cluster
 | join type=left max=0 cluster [
-| tstats summariesonly=true count AS change_cnt FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-4h@h latest=@h BY All_Changes.dest
+| tstats summariesonly=t count AS change_cnt FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-4h@h latest=@h BY All_Changes.dest
 | rename All_Changes.dest AS cluster ]
 | table cluster app_state app_status change_cnt
 ```

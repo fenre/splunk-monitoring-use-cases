@@ -30,13 +30,13 @@ Ingest wireless client events from Meraki or WLC. Extract association and roam o
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki providing wireless QoS and voice/video performance data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:wireless`. Key fields: `ssid`, `client_mac`, `application` (voice/video apps), `latency` (ms), `jitter` (ms), `packet_loss` (%), `rssi`.
+- Meraki providing wireless QoS and voice/video performance data. Data in `index=meraki` with `sourcetype=meraki` or `sourcetype=meraki:accesspoints`. Key fields: `ssid`, `client_mac`, `application` (voice/video apps), `latency` (ms), `jitter` (ms), `packet_loss` (%), `rssi`.
 - Wireless QoS for voice and video requires: (1) WMM (Wi-Fi Multimedia) enabled — prioritizes voice (AC_VO) and video (AC_VI) traffic, (2) low latency (< 150 ms for voice, < 300 ms for video), (3) low jitter (< 30 ms), (4) low packet loss (< 1% for voice, < 5% for video), (5) sufficient signal strength (RSSI > -67 dBm for voice).
 
 ### Step 1 — Configure data collection
 Verify QoS/voice data:
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
+index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-4h
 | where isnotnull(latency) OR match(application, "(?i)(teams|zoom|webex|voice|sip|rtp)")
 | stats avg(latency) as avg_latency avg(jitter) as avg_jitter by ssid
 ```
@@ -45,7 +45,7 @@ index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") ea
 
 **Primary search — Voice/video QoS assessment:**
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-4h
+index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-4h
 | where match(application, "(?i)(teams|zoom|webex|meet|voice|sip|rtp|video.conf)") OR isnotnull(latency)
 | stats avg(latency) as avg_latency max(latency) as max_latency avg(jitter) as avg_jitter avg(packet_loss) as avg_loss avg(rssi) as avg_rssi dc(client_mac) as uc_users by ssid, ap_name
 | eval voice_quality=case(avg_latency > 150 OR avg_jitter > 30 OR avg_loss > 1, "POOR", avg_latency > 100 OR avg_jitter > 20 OR avg_loss > 0.5, "FAIR", 1==1, "GOOD")
@@ -56,7 +56,7 @@ index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") ea
 
 **UC application performance trending:**
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:wireless") earliest=-24h
+index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-24h
 | where match(application, "(?i)(teams|zoom|webex)") AND isnotnull(latency)
 | bin _time span=30m
 | stats avg(latency) as latency avg(jitter) as jitter dc(client_mac) as users by _time, application
@@ -89,7 +89,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=cisco_network sourcetype=meraki:wireless (event_type="association_failed" OR event_type="roam_failed")
+index=meraki sourcetype=meraki:accesspoints (event_type="association_failed" OR event_type="roam_failed")
 | bin _time span=15m
 | stats count by ap_serial, ssid, _time
 | where count > 20

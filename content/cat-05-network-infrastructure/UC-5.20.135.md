@@ -5,12 +5,12 @@ id: "5.20.135"
 title: "IPv6 Duplicate Address Detection (DAD) DoS Attack Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.135 · IPv6 Duplicate Address Detection (DAD) DoS Attack Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Before a device can use its new IPv6 address, it checks if anyone else already has the same address. An attacker can pretend to have EVERY address, so no new device can ever get an address — like someone at a hotel reception saying 'that room is taken' for every room, leaving all guests locked out. We watch for this trick and catch the impostor.*
 

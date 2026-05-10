@@ -307,7 +307,7 @@ Paste-and-run SPL must match the spl JSON field exactly:
 | fillnull value=1000 p99_budget_ms
 | fillnull value="platform_webhooks" owner_team
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | rename Application_State.dest AS cluster ]
 | eval budget_ms=coalesce(p99_budget_ms, 1000)
 | eval severity_tier=case(
@@ -580,7 +580,7 @@ Closing checklist: five em-dash step headers present exactly; Step 3 fenced SPL 
 | fillnull value=1000 p99_budget_ms
 | fillnull value="platform_webhooks" owner_team
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | rename Application_State.dest AS cluster ]
 | eval budget_ms=coalesce(p99_budget_ms, 1000)
 | eval severity_tier=case(
@@ -597,10 +597,10 @@ Closing checklist: five em-dash step headers present exactly; Step 3 fenced SPL 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_cluster
 | join type=left max=0 cim_cluster
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_cluster ]
 | table cim_cluster app_state app_info cpu_pct
 ```

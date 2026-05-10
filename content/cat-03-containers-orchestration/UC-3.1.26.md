@@ -351,7 +351,7 @@ Supplemental engineering depth for long-term owners: when rootless Docker change
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-1h@h latest=@h BY All_Traffic.dest All_Traffic.dest_port span=5m
+| tstats summariesonly=t count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-1h@h latest=@h BY All_Traffic.dest All_Traffic.dest_port span=5m
 | rename All_Traffic.dest AS registry_host All_Traffic.dest_port AS dest_port
 | where dest_port=443 OR dest_port=4443
 ```

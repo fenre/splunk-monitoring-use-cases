@@ -440,10 +440,10 @@ Case L — clean cluster control test with all certificates beyond ninety days a
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
 | rename Application_State.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Inventory.vendor_product) AS inv_prod latest(Inventory.version) AS inv_ver FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    [| tstats summariesonly=t latest(Inventory.vendor_product) AS inv_prod latest(Inventory.version) AS inv_ver FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
      | rename Inventory.dest AS cim_dest ]
 | where like(lower(app_info), "%openshift%") OR like(lower(inv_prod), "%openshift%")
 | table cim_dest app_state app_info inv_prod inv_ver

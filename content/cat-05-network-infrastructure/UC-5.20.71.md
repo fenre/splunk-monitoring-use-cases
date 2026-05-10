@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*In our old building (IPv4), there were only 254 rooms per floor, so a burglar could knock on every door quickly. In the new building (IPv6), each floor has billions of rooms, so knocking on every door is impossible. Instead, burglars use tricks — they look for rooms with numbers matching specific patterns (like all rooms ending in 1-100), or they shout in the corridor and note who opens their door. We watch for these specific burglar patterns.*
+*In our old building (IPv4), there were only 254 rooms per floor, so a burglar could knock on every door quickly. In the new building (IPv6), each floor has billions of rooms, so knocking on every door is impossible.*
 
 ---
 

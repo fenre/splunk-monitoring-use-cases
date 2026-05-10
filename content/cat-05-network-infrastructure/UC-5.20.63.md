@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*There are certain addresses in IPv6 that should never appear on the public internet — like test addresses, internal-only addresses, and addresses from systems that were shut down years ago. They're like fake IDs. We check every ID that comes through the front door, and if it's on the banned list, we know something is wrong — either someone is using a fake ID (an attacker) or someone accidentally brought their internal badge to the external entrance.*
+*There are certain addresses in IPv6 that should never appear on the public internet — like test addresses, internal-only addresses, and addresses from systems that were shut down years ago. They're like fake IDs.*
 
 ---
 

@@ -178,5 +178,5 @@ index=catalyst sourcetype="cisco:dnac:issue" status!="RESOLVED"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Issues endpoint](https://developer.cisco.com/docs/catalyst-center/#!issues)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [ITIL Problem Management — Recurring Incident Analysis](https://www.atlassian.com/itsm/problem-management)

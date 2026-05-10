@@ -25,73 +25,62 @@ Operations teams track Meraki MS per-port and total PoE power consumption, ident
 
 ## Implementation
 
-Pull poe_consumption metrics from MS device API. Aggregate by switch.
+1. Enable the Summary Top Switches by Energy Usage input (TA v3+, OAuth scope switch:telemetry:read). The TA polls GET /organizations/{orgId}/summary/top/switches/byEnergyUsage daily and emits the org's top 10 switches with usage.total (kWh) and usage.percentage. 2. For per-switch hourly history enable the Switch Power History input (TA v3.2+) which polls .../summary/switch/powerHistory and emits intervals[].usage.total. 3. Per-PoE-port wattage is not exposed; if you need it use the device-level webhook 'switch port poe overcurrent' or fall back to SNMP polling.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS PoE data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:switch:portstatus`. Key fields: `powerUsageInWh`, `portId`, `poeEnabled`.
-* Meraki MS PoE: dashboard provides per-port PoE consumption. API endpoint: `GET /devices/{serial}/switch/ports/statuses` includes `powerUsageInWh` per port. Switch models support 802.3af (15.4W), 802.3at (30W), or 802.3bt (60/90W).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Summary Top Switches by Energy Usage input (sourcetype=meraki:summarytopswitchesbyenergyusage, daily) and optionally the Switch Power History input (sourcetype=meraki:summaryswitchpowerhistory) for per-switch hourly trends..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Same API polling as UC-5.1.36
-# PoE data is included in port status response
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable the Summary Top Switches by Energy Usage input (TA v3+, OAuth scope switch:telemetry:read). The TA polls GET /organizations/{orgId}/summary/top/switches/byEnergyUsage daily and emits the org's top 10 switches with usage.total (kWh) and usage.percentage. 2. For per-switch hourly history enable the Switch Power History input (TA v3.2+) which polls .../summary/switch/powerHistory and emits intervals[].usage.total. 3. Per-PoE-port wattage is not exposed; if you need it use the device-level…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-4h
-| where isnotnull(powerUsageInWh) AND tonumber(powerUsageInWh) > 0
-| stats sum(powerUsageInWh) by host
+index=meraki sourcetype="meraki:summarytopswitchesbyenergyusage" earliest=-30d
+| stats latest(usage.total) as total_kwh, latest(usage.percentage) as pct_of_org
+         by serial, name, network.name, model
+| eval avg_watts = round(total_kwh*1000/(30*24), 1)
+| sort - total_kwh
+| head 20
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- PoE consumption tracking:**
-```spl
-index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-24h
-| eval port=coalesce(portId, port_id)
-| eval poe_wh=tonumber(coalesce(powerUsageInWh, poe_watts))
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| where isnotnull(poe_wh) AND poe_wh > 0
-| bin _time span=1h
-| stats sum(poe_wh) as total_wh dc(port) as powered_ports by _time, network_name, device
-| eval total_watts=round(total_wh, 1)
-| eval severity=case(
-    powered_ports > 40, "INFO -- high PoE port count (".powered_ports." ports)",
-    total_watts > 500, "WARNING -- high total PoE consumption",
-    1==1, "OK")
-| where severity != "OK"
-| table _time, network_name, device, powered_ports, total_watts, severity
-| sort severity, -total_watts
-```
+**Power over Ethernet (PoE) Consumption Tracking (Meraki MS)** — Operations teams track Meraki MS per-port and total PoE power consumption, identifying switches approaching PoE budget limits and planning capacity for powered device deployments.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports -- check PoE per port.
-(b) Dashboard: Network-wide > Summary -- check PoE budget.
-(c) Verify switch model PoE budget capacity.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Summary Top Switches by Energy Usage input (sourcetype=meraki:summarytopswitchesbyenergyusage, daily) and optionally the Switch Power History input (sourcetype=meraki:summaryswitchpowerhistory) for per-switch hourly trends. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- PoE Consumption"):
-* Row 1 -- Single-value: "Powered ports", "Total PoE (W)", "Highest port (W)".
-* Row 2 -- PoE consumption timechart.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:summarytopswitchesbyenergyusage. That sourcetype matches what this use case lists under Data sources.
 
-### Step 5 — - Troubleshooting
+**Pipeline walkthrough**
 
-* **PoE budget exceeded** -- Meraki auto-prioritizes ports. Lower-priority ports may lose power. Set port priority in Dashboard.
+- Scopes the data: index=meraki, sourcetype="meraki:summarytopswitchesbyenergyusage", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by serial, name, network.name, model** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **avg_watts** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Limits the number of rows with `head`.
 
-* **Device not receiving power** -- Check: (1) PoE enabled on port, (2) device supports PoE, (3) cable quality (PoE requires all 4 pairs for 802.3at/bt).
 
-* **Unexpected high consumption** -- Faulty PD can draw excessive power. Check per-port consumption in Dashboard.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge showing power utilization percentage; stacked bar of PoE by port; capacity dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS poe_consumption=*
-| stats sum(poe_consumption) as total_power_watts, avg(poe_consumption) as avg_power by switch_name
-| eval power_capacity_pct=round(total_power_watts*100/1000, 2)
-| where power_capacity_pct > 80
+index=meraki sourcetype="meraki:summarytopswitchesbyenergyusage" earliest=-30d
+| stats latest(usage.total) as total_kwh, latest(usage.percentage) as pct_of_org
+         by serial, name, network.name, model
+| eval avg_watts = round(total_kwh*1000/(30*24), 1)
+| sort - total_kwh
+| head 20
 ```
 
 ## Visualization

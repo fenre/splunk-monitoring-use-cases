@@ -25,72 +25,70 @@ Security teams analyze Meraki MS ACL deny events to validate access control poli
 
 ## Implementation
 
-Monitor ACL deny/block events from syslog. Track frequently blocked source/destinations.
+1. Configure SC4S for Meraki MX syslog. 2. In Meraki Dashboard enable Flows syslog category (Network-wide -> General -> Reporting). 3. Filter pattern=deny* to surface blocked flows. 4. The pattern field comes from the Meraki message body 'pattern: allow all' or 'pattern: deny <rule_name>'. 5. To map blocked traffic back to specific firewall rules, name your rules descriptively in Meraki Dashboard -> Security & SD-WAN -> Firewall.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS ACL hit events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: ACL deny hits, ACL permit hits (if logging enabled), Layer 3 switch ACL blocks.
-* Meraki MS ACLs: configured in Dashboard > Switch > Access policies or per-port ACLs. Layer 3 routing ACLs on L3 switches control inter-VLAN traffic.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX appliance flow logs (type=flows pre MX18.101, type=firewall MX18.101+). Each event carries src=, dst=, mac=, protocol=, sport=, dport=, pattern=allow/deny. NOTE: Meraki MS switch ACLs do NOT emit per-rule hit counters to syslog; this UC tracks denied flows at the MX boundary instead. For switch-side ACL visibility use Meraki Dashboard -> Switch -> Switch ACL hit counters (UI only)..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Switch > Access policies
-# Configure ACLs with logging
-# Syslog: enable Event log
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for Meraki MX syslog. 2. In Meraki Dashboard enable Flows syslog category (Network-wide -> General -> Reporting). 3. Filter pattern=deny* to surface blocked flows. 4. The pattern field comes from the Meraki message body 'pattern: allow all' or 'pattern: deny <rule_name>'. 5. To map blocked traffic back to specific firewall rules, name your rules descriptively in Meraki Dashboard -> Security & SD-WAN -> Firewall.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
-| where match(_raw, "(?i)ACL|access.*list|access.*control|denied.*by.*policy|blocked")
-| stats count by host
+index=meraki sourcetype="meraki" (type=flows OR type=firewall)
+    pattern="deny*"
+    earliest=-24h
+| rex "src=(?<src_ip>[\d\.]+)"
+| rex "dst=(?<dst_ip>[\d\.]+)"
+| rex "mac=(?<src_mac>[0-9A-Fa-f:]+)"
+| stats count as block_count by host, src_ip, dst_ip, src_mac
+| sort - block_count
+| head 50
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- ACL hits and block events:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)ACL|access.*list|access.*control|denied.*by.*policy|blocked")
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| eval src=coalesce(src, src_ip)
-| eval dst=coalesce(dest, dest_ip, dst)
-| eval action=if(match(_raw, "(?i)deny|block|drop"), "DENY", "PERMIT")
-| where action="DENY"
-| stats count as hits dc(src) as unique_sources dc(dst) as unique_targets by network_name, device
-| eval severity=case(
-    hits > 500, "WARNING -- high ACL deny rate",
-    unique_sources > 20, "INFO -- denies from many sources",
-    1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -hits
-```
+**Port Access Control List (ACL) Hits and Block Events (Meraki MS)** — Security teams analyze Meraki MS ACL deny events to validate access control policy effectiveness and detect scanning or unauthorized access attempts blocked at the switch layer.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Access policies -- check ACL rules.
-(b) Verify denied traffic is expected (security policy) vs unexpected (misconfiguration).
-(c) Check for legitimate traffic being blocked.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX appliance flow logs (type=flows pre MX18.101, type=firewall MX18.101+). Each event carries src=, dst=, mac=, protocol=, sport=, dport=, pattern=allow/deny. NOTE: Meraki MS switch ACLs do NOT emit per-rule hit counters to syslog; this UC tracks denied flows at the MX boundary instead. For switch-side ACL visibility use Meraki Dashboard -> Switch -> Switch ACL hit counters (UI only). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- ACL Events"):
-* Row 1 -- Single-value: "ACL denies (4h)", "Unique blocked sources".
-* Row 2 -- ACL deny event table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-### Step 5 — - Troubleshooting
+**Pipeline walkthrough**
 
-* **Legitimate traffic blocked** -- Review ACL rules. Add explicit permit before deny for required traffic flows.
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host, src_ip, dst_ip, src_mac** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Limits the number of rows with `head`.
 
-* **High deny rate from single source** -- Possible scanning or misconfigured application. Investigate source device.
 
-* **ACL not effective** -- Verify ACL is applied to correct port or VLAN interface. Check rule order (first match wins).
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of blocked traffic; timeline of ACL hits; top blocked addresses chart.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*ACL*" action="block"
-| stats count as block_count by switch_name, src_mac, dest_mac
+index=meraki sourcetype="meraki" (type=flows OR type=firewall)
+    pattern="deny*"
+    earliest=-24h
+| rex "src=(?<src_ip>[\d\.]+)"
+| rex "dst=(?<dst_ip>[\d\.]+)"
+| rex "mac=(?<src_mac>[0-9A-Fa-f:]+)"
+| stats count as block_count by host, src_ip, dst_ip, src_mac
 | sort - block_count
+| head 50
 ```
 
 ## Visualization

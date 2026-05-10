@@ -30,14 +30,14 @@ Poll SNMP sysDescr, sysName, sysLocation from all devices. Cross-reference with 
 ## Detailed Implementation
 
 ### Prerequisites
-- Network device inventory data from one or more sources: (1) Catalyst Center API via TA_cisco_catalyst (`sourcetype=cisco:dnac:device`), (2) Meraki Dashboard API via Splunk_TA_cisco_meraki (`sourcetype=meraki:api:devices`), (3) SNMP polling via SC4SNMP or custom scripts (`sourcetype=snmp:device`), (4) NetBox/CMDB exports via scripted inputs or CSV uploads.
+- Network device inventory data from one or more sources: (1) Catalyst Center API via TA_cisco_catalyst (`sourcetype=cisco:dnac:device`), (2) Meraki Dashboard API via Splunk_TA_cisco_meraki (`sourcetype=meraki:devices`), (3) SNMP polling via SC4SNMP or custom scripts (`sourcetype=snmp:device`), (4) NetBox/CMDB exports via scripted inputs or CSV uploads.
 - Data in `index=network` (or platform-specific indexes). Key fields vary by source: `hostname`, `managementIpAddress`/`lanIp`, `platformId`/`model`, `softwareVersion`/`firmware`, `serialNumber`/`serial`, `role`/`device_type`, `location`/`siteNameHierarchy`/`network`.
 - The goal is a unified device inventory across all management platforms. Build a `master_device_inventory.csv` lookup as the single source of truth: `serial,hostname,management_ip,model,vendor,software_version,site,role,purchase_date,warranty_expiry,owner`.
 
 ### Step 1 — Configure data collection
 Verify device inventory from each source:
 ```spl
-(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-1h
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:devices") OR (index=snmp sourcetype="snmp:device") earliest=-1h
 | stats count by sourcetype
 ```
 
@@ -45,13 +45,13 @@ Verify device inventory from each source:
 
 **Primary search — Unified device inventory:**
 ```spl
-(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
 | eval unified_hostname=coalesce(hostname, name, sysName)
 | eval unified_ip=coalesce(managementIpAddress, lanIp, src)
 | eval unified_model=coalesce(platformId, model, sysDescr)
 | eval unified_version=coalesce(softwareVersion, firmware, sw_version)
 | eval unified_serial=coalesce(serialNumber, serial, chassis_serial)
-| eval source_platform=case(sourcetype="cisco:dnac:device", "Catalyst Center", sourcetype="meraki:api:devices", "Meraki Dashboard", sourcetype="snmp:device", "SNMP Discovery", 1==1, "Other")
+| eval source_platform=case(sourcetype="cisco:dnac:device", "Catalyst Center", sourcetype="meraki:devices", "Meraki Dashboard", sourcetype="snmp:device", "SNMP Discovery", 1==1, "Other")
 | dedup unified_serial sortby -_time
 | lookup master_device_inventory.csv serial as unified_serial OUTPUT site role purchase_date warranty_expiry owner
 | eval in_cmdb=if(isnotnull(owner), "YES", "NO")
@@ -64,7 +64,7 @@ Verify device inventory from each source:
 
 **Rogue/unmanaged device detection:**
 ```spl
-(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:devices") OR (index=snmp sourcetype="snmp:device") earliest=-24h
 | eval unified_serial=coalesce(serialNumber, serial, chassis_serial)
 | dedup unified_serial
 | lookup master_device_inventory.csv serial as unified_serial OUTPUT owner
@@ -78,7 +78,7 @@ Verify device inventory from each source:
 
 **Inventory change detection (new devices):**
 ```spl
-(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:api:devices") earliest=-24h
+(index=catalyst sourcetype="cisco:dnac:device") OR (index=meraki sourcetype="meraki:devices") earliest=-24h
 | eval unified_serial=coalesce(serialNumber, serial)
 | dedup unified_serial
 | eval unified_hostname=coalesce(hostname, name)

@@ -25,95 +25,70 @@ Network operations teams monitor wireless channel utilization and interference l
 
 ## Implementation
 
-Poll Meraki RF statistics API or WLC SNMP. Track per-AP channel utilization. Alert when >60% (2.4GHz) or >50% (5GHz).
+1. In Splunk_TA_cisco_meraki configure the HEC token and the Webhook Logs (HEC) input. The TA will provision the receiver in Meraki Dashboard automatically (TA v3.2+). 2. In Meraki Dashboard go to Network-wide -> Alerts and enable the 'high channel utilization' and 'rogue access point detected' alert types pointing at the TA's webhook receiver. 3. The webhook payload arrives as JSON with alertType, alertData.*, deviceSerial, deviceName, networkName. 4. For continuous channel-utilization graphs you must scrape the Dashboard UI (RF Spectrum) or use a 3rd-party WiFi analyzer.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless controller or AP reporting RF channel utilization metrics. Sources: (1) Cisco WLC — Radio Resource Management (RRM) data via SNMP or syslog, (2) Meraki Dashboard API (`sourcetype=meraki:api:devices` or `meraki:api:wireless`) — per-radio channel utilization, (3) Aruba controller — ARM (Adaptive Radio Management) statistics.
-- Data in `index=wireless`. Key fields: `ap_name`, `radio_band` (2.4GHz/5GHz/6GHz), `channel`, `channel_utilization` (0-100%), `noise_floor` (dBm), `tx_utilization`, `rx_utilization`, `interference` (non-WiFi RF energy percentage).
-- Channel utilization above 60-70% causes noticeable performance degradation. Above 80%, users experience significant latency, packet loss, and retransmissions. The utilization is divided into: (1) Tx — time the AP spends transmitting, (2) Rx — time receiving from clients, (3) Interference — non-WiFi energy (microwave ovens, Bluetooth, etc.), (4) Other — neighboring APs on the same channel.
+- Install and configure the required add-on or app: Meraki API, WLC SNMP.
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) configured via TA v3.2+ with Meraki alert profile entries for 'high channel utilization', 'radar detected (DFS)', and 'rogue AP detected'. Per-AP per-channel utilization is NOT exposed by the polled Dashboard API..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify channel utilization data:
-```spl
-index=wireless earliest=-1h
-| where isnotnull(channel_utilization) OR match(_raw, "(?i)channel.util")
-| stats avg(channel_utilization) as avg_util by ap_name, radio_band
-| sort -avg_util
-| head 20
-```
+1. In Splunk_TA_cisco_meraki configure the HEC token and the Webhook Logs (HEC) input. The TA will provision the receiver in Meraki Dashboard automatically (TA v3.2+). 2. In Meraki Dashboard go to Network-wide -> Alerts and enable the 'high channel utilization' and 'rogue access point detected' alert types pointing at the TA's webhook receiver. 3. The webhook payload arrives as JSON with alertType, alertData.*, deviceSerial, deviceName, networkName. 4. For continuous channel-utilization graphs y…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Channel utilization hotspots:**
 ```spl
-index=wireless earliest=-1h
-| where isnotnull(channel_utilization)
-| stats avg(channel_utilization) as avg_util max(channel_utilization) as peak_util avg(interference) as avg_interference by ap_name, radio_band, channel
-| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor zone
-| eval status=case(avg_util > 80, "CRITICAL", avg_util > 60, "WARNING", avg_util > 40, "ELEVATED", 1==1, "OK")
-| eval interference_flag=if(avg_interference > 20, "HIGH_INTERFERENCE", "OK")
-| where status!="OK"
-| eval location=building." / ".floor." / ".zone
-| table ap_name, location, radio_band, channel, avg_util, peak_util, avg_interference, status, interference_flag
-| sort status, -avg_util
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    (alertType="utilization" OR alertType="rf_spectrum" OR alertTypeId="ap_radar_detected")
+    earliest=-24h
+| spath
+| stats count as event_count,
+        values(alertData.channel) as channels,
+        values(alertData.band) as bands
+         by deviceSerial, deviceName, networkName
+| where event_count > 0
+| sort - event_count
 ```
 
-#### Understanding this SPL: Channel utilization is the single most important metric for wireless capacity. High utilization means the airtime is saturated — adding more clients or bandwidth will degrade everyone's experience. The interference component is critical: if 30% of utilization is interference (non-WiFi), changing the channel or adding shielding is more effective than adding APs.
+#### Understanding this SPL
 
-**Utilization by building/floor:**
-```spl
-index=wireless earliest=-4h
-| where isnotnull(channel_utilization)
-| lookup wireless_ap_inventory.csv ap_name OUTPUT building floor
-| stats avg(channel_utilization) as avg_util dc(ap_name) as ap_count by building, floor, radio_band
-| eval status=case(avg_util > 70, "CONGESTED", avg_util > 50, "BUSY", 1==1, "OK")
-| where status!="OK"
-| sort status, -avg_util
-```
+**Channel Utilization** — Network operations teams monitor wireless channel utilization and interference levels per AP, band, and location to identify capacity bottlenecks, RF interference sources, and areas requiring additional access points or channel optimization.
 
-**Channel utilization trending:**
-```spl
-index=wireless earliest=-24h
-| where isnotnull(channel_utilization)
-| bin _time span=15m
-| lookup wireless_ap_inventory.csv ap_name OUTPUT building
-| stats avg(channel_utilization) as util by _time, building, radio_band
-| timechart span=15m avg(util) by building
-```
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) configured via TA v3.2+ with Meraki alert profile entries for 'high channel utilization', 'radar detected (DFS)', and 'rogue AP detected'. Per-AP per-channel utilization is NOT exposed by the polled Dashboard API. **App/TA** (typical add-on context): Meraki API, WLC SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where event_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Compare channel utilization in Splunk with the wireless controller's RF dashboard. Values should be within 5% variance.
-(b) Generate traffic (large file transfer over WiFi) and verify utilization increases on the corresponding AP/channel.
-(c) Verify the interference field: place a known interference source (microwave oven on 2.4GHz) near a test AP and confirm the interference metric increases.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Wireless — Channel Utilization"):
-- Row 1 — Single-value tiles: "APs > 80% utilization", "APs with high interference", "Average 5GHz utilization", "Average 2.4GHz utilization".
-- Row 2 — Utilization hotspot table: AP, location, band, channel, utilization, interference.
-- Row 3 — Building/floor utilization summary.
-- Row 4 — 24-hour utilization trending per building.
-
-Alerting:
-- Critical (AP > 80% utilization sustained 30 minutes): users experiencing degradation — add APs or offload clients.
-- Warning (AP > 60% utilization): approaching capacity — monitor.
-- Info (high interference detected): investigate RF environment for non-WiFi sources.
-
-### Step 5 — Troubleshooting
-
-- **High utilization on 2.4GHz but not 5GHz** — 2.4GHz has fewer non-overlapping channels (1, 6, 11) and more interference sources. Enable band steering (UC-5.4.11/19) to move capable clients to 5GHz.
-
-- **High utilization from interference, not WiFi traffic** — Non-WiFi sources (microwaves, Bluetooth, baby monitors) create interference. Use a spectrum analyzer to identify the source. Consider moving to 5GHz or 6GHz.
-
-- **Utilization data not available** — SNMP polling for RF metrics may not be configured. For Cisco WLC: enable RRM monitoring. For Meraki: RF data is included in the API. For Aruba: enable ARM statistics export.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (APs by utilization), Table, Line chart (trending).
 
 ## SPL
 
 ```spl
-index=network sourcetype="meraki:api"
-| stats avg(channel_utilization) as util_pct by ap_name, channel, band
-| where util_pct > 60 | sort -util_pct
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    (alertType="utilization" OR alertType="rf_spectrum" OR alertTypeId="ap_radar_detected")
+    earliest=-24h
+| spath
+| stats count as event_count,
+        values(alertData.channel) as channels,
+        values(alertData.band) as bands
+         by deviceSerial, deviceName, networkName
+| where event_count > 0
+| sort - event_count
 ```
 
 ## Visualization

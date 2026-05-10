@@ -401,10 +401,10 @@ Closing checklist: multisearch lists eight arms; coalesce() ladders apply across
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Performance.cpu_load_percent) AS cpu latest(Performance.mem_used) AS mem FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.host
+| tstats summariesonly=t latest(Performance.cpu_load_percent) AS cpu latest(Performance.mem_used) AS mem FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.host
 | rename Performance.host AS perf_host
 | join type=left max=0 perf_host
-    [| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
      | rename Application_State.dest AS perf_host ]
 | where like(lower(app_info), "%openshift%") OR like(lower(app_info), "%etcd%")
 | table perf_host cpu mem app_state app_info

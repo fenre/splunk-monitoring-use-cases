@@ -155,5 +155,5 @@ index=catalyst sourcetype="cisco:dnac:client" connectionType="WIRELESS"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Client Detail endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-client-detail)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [Cisco Wireless Design — RF Coverage and Signal Requirements](https://www.cisco.com/c/en/us/solutions/design-zone/networking-design-guides/campus-wired-wireless.html)

@@ -5,12 +5,12 @@ id: "5.20.19"
 title: "NDP Cache Size Trending and Capacity Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.19 · NDP Cache Size Trending and Capacity Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Capacity &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Capacity &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Each router keeps a contact list of all the IPv6 devices it can talk to directly — like a phone book for the local neighbourhood. If this phone book gets too full, the router cannot add new contacts and new devices cannot connect to the network. We watch how full each phone book is getting and warn before it overflows.*
 

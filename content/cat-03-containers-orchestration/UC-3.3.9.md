@@ -423,10 +423,10 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Performance.cpu_load_percent) AS cpu_load latest(Performance.mem_used) AS mem_used FROM datamodel=Performance WHERE nodename=Performance earliest=-2h@h latest=now BY Performance.host
+| tstats summariesonly=t latest(Performance.cpu_load_percent) AS cpu_load latest(Performance.mem_used) AS mem_used FROM datamodel=Performance WHERE nodename=Performance earliest=-2h@h latest=now BY Performance.host
 | rename Performance.host AS perf_host
 | join type=left max=0 perf_host
-    [| tstats summariesonly=true latest(Web.status) AS web_status latest(Web.url) AS web_url FROM datamodel=Web WHERE nodename=Web earliest=-2h@h latest=now BY Web.src
+    [| tstats summariesonly=t latest(Web.status) AS web_status latest(Web.url) AS web_url FROM datamodel=Web WHERE nodename=Web earliest=-2h@h latest=now BY Web.src
      | rename Web.src AS perf_host ]
 | where like(lower(web_url), "%apps%") OR like(lower(perf_host), "%router%")
 | table perf_host cpu_load mem_used web_status web_url

@@ -325,7 +325,7 @@ Supplemental engineering notes for long-term owners: when migrating to rootless 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Endpoint WHERE nodename=Endpoint.Processes (Processes.process="dockerd" OR Processes.process_path="*/dockerd") BY Processes.dest Processes.process earliest=-24h latest=now
+| tstats summariesonly=t count FROM datamodel=Endpoint WHERE nodename=Endpoint.Processes (Processes.process="dockerd" OR Processes.process_path="*/dockerd") BY Processes.dest Processes.process earliest=-24h latest=now
 | rename Processes.dest AS host | head 200
 ```
 

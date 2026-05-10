@@ -156,7 +156,7 @@ Fenced SPL for runbooks must match the spl JSON field aside from newline normali
 `comment("UC-3.2.30 Kubernetes init container lifecycle failures (pre-main-container gate). Tunables: indexes k8s_metrics k8s; sourcetypes prometheus:scrape:metrics kube:objects:metrics; lookups k8s_workload_routing.csv k8s_namespace_tier.csv; init_stuck_minutes_prod=5; init_stuck_minutes_default=8; earliest=-4h@m latest=now")`
 | eval join_key="uc3230"
 | join type=left join_key [
-    | tstats summariesonly=true count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=now
+    | tstats summariesonly=t count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=now
     | eval join_key="uc3230" ]
 | fields - join_key perf_correlation_tick
 | eval init_stuck_minutes_prod=5
@@ -370,7 +370,7 @@ FinOps note: long init durations can extend node occupancy during rollouts; atta
 `comment("UC-3.2.30 Kubernetes init container lifecycle failures (pre-main-container gate). Tunables: indexes k8s_metrics k8s; sourcetypes prometheus:scrape:metrics kube:objects:metrics; lookups k8s_workload_routing.csv k8s_namespace_tier.csv; init_stuck_minutes_prod=5; init_stuck_minutes_default=8; earliest=-4h@m latest=now")`
 | eval join_key="uc3230"
 | join type=left join_key [
-    | tstats summariesonly=true count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=now
+    | tstats summariesonly=t count AS perf_correlation_tick FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=now
     | eval join_key="uc3230" ]
 | fields - join_key perf_correlation_tick
 | eval init_stuck_minutes_prod=5
@@ -487,10 +487,10 @@ FinOps note: long init durations can extend node occupancy during rollouts; atta
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state count AS app_ticks FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state count AS app_ticks FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS correl_host Application_State.app AS correl_app
 | join type=left max=0 correl_host [
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load avg(Performance.mem_used_percent) AS avg_mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-4h@h latest=@h BY Performance.host
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load avg(Performance.mem_used_percent) AS avg_mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-4h@h latest=@h BY Performance.host
 | rename Performance.host AS correl_host ]
 | table correl_host correl_app app_state avg_cpu_load avg_mem_used app_ticks
 ```

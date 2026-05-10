@@ -10,7 +10,7 @@ splunkPillar: "Security"
 
 # UC-5.20.21 · Router Advertisement Anomaly Detection
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Threat Detection &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *On an IPv6 network, a special announcement called a 'Router Advertisement' tells all devices where the exit to the internet is, like a sign saying 'This way out.' If someone puts up a fake sign pointing to their own house instead, they can intercept everyone's traffic. We watch for any fake signs that appear and immediately alert the security team.*
 

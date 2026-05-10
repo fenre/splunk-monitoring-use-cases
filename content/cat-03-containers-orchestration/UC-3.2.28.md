@@ -343,10 +343,10 @@ Closing checklist: five em-dash step headers are present; Step 3 includes a fenc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_node
 | join type=left max=0 cim_node
-    [| tstats summariesonly=true avg(Performance.mem_used_percent) AS mem_used_pct avg(Performance.cpu_load_percent) AS cpu_load_pct max(Performance.disk_usage) AS disk_usage_pct FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.mem_used_percent) AS mem_used_pct avg(Performance.cpu_load_percent) AS cpu_load_pct max(Performance.disk_usage) AS disk_usage_pct FROM datamodel=Performance WHERE nodename=Performance earliest=-4h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_node ]
 | where like(lower(app_state),"%memory%pressure%") OR like(lower(app_info),"%disk%pressure%") OR like(lower(app_info),"%pid%pressure%") OR like(lower(app_info),"%network%unavailable%") OR mem_used_pct>92 OR disk_usage_pct>92
 | table cim_node app_state app_info mem_used_pct cpu_load_pct disk_usage_pct

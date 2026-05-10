@@ -30,7 +30,7 @@ Ingest URL logs with GeoIP enrichment. Track blocks by geography.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX geo-blocking events. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `country`, `action` (block), `src_ip`, `dest_ip`.
+* Meraki MX geo-blocking events. Data in `index=meraki` with `sourcetype=meraki`. Key fields: `country`, `action` (block), `src_ip`, `dest_ip`.
 * Meraki geo-blocking: MX can block inbound and outbound traffic based on source/destination country. Configured in Dashboard > Security & SD-WAN > Firewall > Layer 3. Uses Meraki's GeoIP database for classification.
 
 ### Step 1 — - Configure data collection
@@ -41,7 +41,7 @@ Ingest URL logs with GeoIP enrichment. Track blocks by geography.
 ```
 Verify:
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
+index=meraki sourcetype="meraki" earliest=-4h
 | where match(_raw, "(?i)geo.*block|country.*block|country.*deny")
 | stats count by host
 ```
@@ -50,7 +50,7 @@ index=meraki sourcetype="meraki:events" earliest=-4h
 
 **Primary search -- Geo-blocking event tracking:**
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
+index=meraki sourcetype="meraki" earliest=-4h
 | where match(pattern, "(?i)deny") OR match(action, "(?i)block|deny")
 | eval src=coalesce(src, src_ip)
 | eval dst=coalesce(dest, dest_ip, dst)
@@ -83,7 +83,7 @@ Dashboard ("Meraki MX -- Geo-Blocking"):
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=urls action="blocked"
+index=meraki sourcetype="meraki" type=urls action="blocked"
 | lookup geo_ip.csv dest OUTPUTNEW country, city
 | stats count as block_count by country
 | sort - block_count

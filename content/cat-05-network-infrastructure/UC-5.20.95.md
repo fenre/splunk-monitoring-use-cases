@@ -5,12 +5,12 @@ id: "5.20.95"
 title: "IPv6 IPsec/IKEv2 VPN Tunnel Health and Cipher Compliance"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.95 · IPv6 IPsec/IKEv2 VPN Tunnel Health and Cipher Compliance
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Our secret tunnels (VPN) between offices use the new address system (IPv6). We check that each tunnel is up and running, that the locks on the tunnel (encryption) are the strongest available, and that the key-changing process (rekey) works smoothly. If a tunnel goes down or uses a weak lock, we get an alert immediately.*
 

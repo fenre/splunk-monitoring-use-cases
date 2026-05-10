@@ -445,10 +445,10 @@ Closing checklist: five step headers use em dash punctuation as contracted; Step
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-12h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-12h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_host
 | join type=left max=0 cim_host [
-| tstats summariesonly=true count AS change_hits FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-12h@h latest=now
+| tstats summariesonly=t count AS change_hits FROM datamodel=Change WHERE nodename=Change.All_Changes earliest=-12h@h latest=now
 | eval cim_host="fleet_aggregate"
 ]
 | table cim_host app_state app_info change_hits

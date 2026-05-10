@@ -313,7 +313,7 @@ Collector hygiene: cap docker:overlay2_du cardinality on shared CI executors via
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.disk_usage) AS avg_disk_pct max(Performance.disk_usage) AS peak_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=@h BY Performance.host span=15m
+| tstats summariesonly=t avg(Performance.disk_usage) AS avg_disk_pct max(Performance.disk_usage) AS peak_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=@h BY Performance.host span=15m
 | rename Performance.host AS host_id
 | where peak_disk_pct>85
 ```

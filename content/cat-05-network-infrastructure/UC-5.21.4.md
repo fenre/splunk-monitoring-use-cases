@@ -5,12 +5,12 @@ id: "5.21.4"
 title: "NTP Authentication Failures on Network Devices"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.21.4 · NTP Authentication Failures on Network Devices
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We watch for someone trying to trick our network equipment into using a fake clock. Just like you would not let a stranger reset all the clocks in your house, we make sure our devices only accept time updates from trusted sources. If someone unauthorized tries, we catch it right away.*
 

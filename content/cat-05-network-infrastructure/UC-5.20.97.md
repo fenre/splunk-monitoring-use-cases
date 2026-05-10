@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Platform &middot; **Type:** Availability, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Some tiny devices at home — like smart light bulbs and door sensors — talk to each other through a special mesh network, like neighbors passing notes. These devices only understand the new address format (IPv6). There's one special device (the border router) that acts like a translator between this mesh network and your home internet. We monitor that translator to make sure all the tiny devices can still talk to the rest of the world.*
+*Some tiny devices at home — like smart light bulbs and door sensors — talk to each other through a special mesh network, like neighbors passing notes. These devices only understand the new address format (IPv6). There's one special device (the border router) that acts like a translator between this mesh network and your home internet.*
 
 ---
 

@@ -25,78 +25,81 @@ Operations teams monitor Meraki MG SIM card status across slots, detecting deact
 
 ## Implementation
 
-Query MG API for SIM status and plan expiry. Alert before expiration.
+1. Enable Devices, Devices Availabilities, and Assurance Alerts inputs in Splunk_TA_cisco_meraki. 2. The base inventory comes from meraki:devices (serial, model, firmware, lanIp, network). 3. Online/offline state comes from meraki:devicesavailabilities. 4. Cellular-specific events (SIM lost, registration failure, APN errors) appear in meraki:assurancealerts with deviceType=cellularGateway. 5. For raw SIM inventory and plan expiry data, integrate with your carrier billing portal (AT&T Control Center, Verizon ThingSpace) — those APIs are out of scope for the Meraki TA.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MG SIM status data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:cellular:sim` or `sourcetype=meraki:api:device:status`. Key fields: `sim.slot`, `sim.status`, `sim.iccid`, `sim.carrier`, `sim.apn`.
-* Meraki MG supports dual SIM for carrier redundancy. SIM issues (deactivated, expired, data exhausted) cause connectivity loss. Monitoring SIM status ensures cellular failover readiness.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices, Devices Availabilities, and Assurance Alerts inputs. NOTE: SIM card status, ICCID, IMSI, plan expiry, and active carrier are NOT exposed by the Meraki Dashboard API. The closest signal available is the Assurance Alerts feed which fires on cellular registration loss, SIM swap, and APN failure..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-[meraki_mg_sim]
-interval = 3600
-sourcetype = meraki:api:cellular:sim
-index = meraki
-# API: GET /devices/{serial}/cellular/sims
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable Devices, Devices Availabilities, and Assurance Alerts inputs in Splunk_TA_cisco_meraki. 2. The base inventory comes from meraki:devices (serial, model, firmware, lanIp, network). 3. Online/offline state comes from meraki:devicesavailabilities. 4. Cellular-specific events (SIM lost, registration failure, APN errors) appear in meraki:assurancealerts with deviceType=cellularGateway. 5. For raw SIM inventory and plan expiry data, integrate with your carrier billing portal (AT&T Control Cen…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:cellular:sim" earliest=-7d
-| stats latest(sim_status) by host, sim_slot
+index=meraki sourcetype="meraki:devices" productType="cellularGateway"
+| stats latest(serial) as serial, latest(model) as model, latest(firmware) as firmware,
+        latest(lanIp) as lan_ip, latest(network.name) as network_name
+         by name
+| join type=left serial [
+    search index=meraki sourcetype="meraki:devicesavailabilities" productType="cellularGateway"
+    | stats latest(status) as status, latest(_time) as last_seen by serial
+  ]
+| join type=left serial [
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
+    | stats values(title) as open_alerts, count as alert_count by deviceSerial
+    | rename deviceSerial as serial
+  ]
+| eval status = coalesce(status, "unknown")
+| sort - alert_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- SIM status and plan monitoring:**
-```spl
-index=meraki sourcetype="meraki:api:cellular:sim" earliest=-7d
-| eval device=coalesce(serial, host)
-| eval slot=coalesce(sim_slot, slot)
-| eval sim_status=coalesce(sim_status, status)
-| eval iccid=coalesce(sim_iccid, iccid)
-| eval carrier=coalesce(sim_carrier, carrier, provider)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| dedup device, slot sortby -_time
-| eval severity=case(
-    match(sim_status, "(?i)not.*detect|absent|empty"), "WARNING -- SIM ".slot.": not detected",
-    match(sim_status, "(?i)deactivat|suspend|disabled"), "CRITICAL -- SIM ".slot.": deactivated/suspended",
-    match(sim_status, "(?i)error|fail"), "CRITICAL -- SIM ".slot.": error state",
-    match(sim_status, "(?i)active|ready|connected"), "OK",
-    1==1, "INFO -- SIM ".slot.": ".sim_status)
-| where severity != "OK"
-| table network_name, device, site_name, slot, sim_status, carrier, iccid, severity
-| sort severity
-```
+**SIM Status and Plan Monitoring (Meraki MG)** — Operations teams monitor Meraki MG SIM card status across slots, detecting deactivated, suspended, or error-state SIMs that compromise cellular WAN redundancy.
 
-### Step 3 — - Validate
-(a) Dashboard: Cellular gateway > SIM management -- check SIM status.
-(b) Verify SIM ICCID matches carrier records.
-(c) Contact carrier to verify plan is active and data cap not reached.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices, Devices Availabilities, and Assurance Alerts inputs. NOTE: SIM card status, ICCID, IMSI, plan expiry, and active carrier are NOT exposed by the Meraki Dashboard API. The closest signal available is the Assurance Alerts feed which fires on cellular registration loss, SIM swap, and APN failure. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MG -- SIM Status"):
-* Row 1 -- Single-value: "Active SIMs", "Problem SIMs".
-* Row 2 -- SIM status table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devices. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
 
-Alert: Critical (SIM deactivated or error): cellular connectivity at risk.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki:devices". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.
+- Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.
+- `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **SIM not detected** -- Check: (1) SIM inserted correctly, (2) SIM orientation, (3) SIM tray not damaged, (4) SIM card not physically damaged. Re-seat SIM.
 
-* **SIM deactivated** -- Carrier may have deactivated due to: non-payment, suspicious activity, or data plan expiry. Contact carrier with ICCID to resolve.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Dual SIM failover not working** -- Verify secondary SIM is configured as failover in Dashboard. Check SIM carrier compatibility with MG model. Ensure APN is configured correctly.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: SIM status table; plan expiry countdown; renewal alert dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MG
-| stats latest(sim_status) as sim_status, latest(plan_expiry) as expiry_date by gateway_id, sim_id
-| eval days_until_expire=round((strptime(plan_expiry, "%Y-%m-%d")-now())/86400, 0)
-| where sim_status != "active" OR days_until_expire < 30
+index=meraki sourcetype="meraki:devices" productType="cellularGateway"
+| stats latest(serial) as serial, latest(model) as model, latest(firmware) as firmware,
+        latest(lanIp) as lan_ip, latest(network.name) as network_name
+         by name
+| join type=left serial [
+    search index=meraki sourcetype="meraki:devicesavailabilities" productType="cellularGateway"
+    | stats latest(status) as status, latest(_time) as last_seen by serial
+  ]
+| join type=left serial [
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
+    | stats values(title) as open_alerts, count as alert_count by deviceSerial
+    | rename deviceSerial as serial
+  ]
+| eval status = coalesce(status, "unknown")
+| sort - alert_count
 ```
 
 ## Visualization

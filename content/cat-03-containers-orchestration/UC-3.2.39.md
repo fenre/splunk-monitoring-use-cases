@@ -346,10 +346,10 @@ Closing checklist: five step headers use em dashes exactly; Step 3 includes fenc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_host
 | join type=left max=0 cim_host
-    [| tstats summariesonly=true count AS alert_events FROM datamodel=Alerts WHERE nodename=Alerts earliest=-4h@h latest=@h BY Alerts.signature Alerts.severity
+    [| tstats summariesonly=t count AS alert_events FROM datamodel=Alerts WHERE nodename=Alerts earliest=-4h@h latest=@h BY Alerts.signature Alerts.severity
      | stats sum(alert_events) AS alert_events BY Alerts.signature
      | eval cim_host="fleet_aggregate"
      | fields cim_host alert_events ]

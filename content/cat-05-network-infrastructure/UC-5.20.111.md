@@ -5,14 +5,14 @@ id: "5.20.111"
 title: "IPv6 Prefix Hijack and Route Origin Validation (RPKI/ROA)"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.111 · IPv6 Prefix Hijack and Route Origin Validation (RPKI/ROA)
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Every organisation's set of addresses (like a block of house numbers) is supposed to be announced only by the organisation that owns them. A hijacker is someone who announces your house numbers as their own, so letters meant for you go to them instead. We have a system (RPKI) that acts like a property deed — it proves who really owns each block of addresses. We watch for anyone trying to claim our addresses, and we verify the deeds for addresses we receive.*
+*Every organisation's set of addresses (like a block of house numbers) is supposed to be announced only by the organisation that owns them. A hijacker is someone who announces your house numbers as their own, so letters meant for you go to them instead. We have a system (RPKI) that acts like a property deed — it proves who really owns each block of addresses.*
 
 ---
 

@@ -25,77 +25,68 @@ Security teams detect MAC flooding attacks and bridge table exhaustion on Meraki
 
 ## Implementation
 
-Monitor MAC-related syslog events. Alert on suspicious patterns.
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki (TA v3+, hourly polling of GET /organizations/{orgId}/assurance/alerts). 2. Filter to deviceType=switch with MAC/flood/storm keywords. 3. For deeper inspection use Meraki Dashboard -> Switch -> Switches -> [select switch] -> Tools -> MAC table to see live entries; the MAC table size is not exposed via API.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS MAC table data. Data in `index=meraki` with syslog events or API data. Key events: MAC flooding indicators, bridge table overflow.
-* MAC flooding: an attack or misconfiguration that fills the switch CAM table with fake MAC addresses. Once full, the switch floods unicast frames to all ports (hub behavior), enabling traffic sniffing.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts). NOTE: Meraki MS switches do NOT emit per-port MAC flooding or bridge-table-exhaustion events to syslog. The closest signal is the Assurance Alerts feed which fires on switch performance issues..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Syslog: enable Event log
-# Monitor for MAC table related events
-# Port security helps mitigate MAC flooding
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki (TA v3+, hourly polling of GET /organizations/{orgId}/assurance/alerts). 2. Filter to deviceType=switch with MAC/flood/storm keywords. 3. For deeper inspection use Meraki Dashboard -> Switch -> Switches -> [select switch] -> Tools -> MAC table to see live entries; the MAC table size is not exposed via API.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
-| where match(_raw, "(?i)MAC.*flood|bridge.*table|CAM.*table|mac.*limit|mac.*learn")
-| stats count by host
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="switch"
+    (title="*MAC*" OR title="*flood*" OR title="*storm*"
+     OR categoryType="performance")
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity
+         by deviceSerial, deviceName, networkName
+| sort - alert_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- MAC flooding and table exhaustion indicators:**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:switch:portstatus") earliest=-4h
-| where match(_raw, "(?i)MAC.*flood|bridge.*table|mac.*limit|excessive.*mac|mac.*learn.*fail")
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
-| eval event_type=case(
-    match(_raw, "(?i)flood"), "MAC_FLOOD",
-    match(_raw, "(?i)table.*full|exhaustion"), "TABLE_FULL",
-    match(_raw, "(?i)limit|excessive"), "MAC_LIMIT_EXCEEDED",
-    1==1, "MAC_EVENT")
-| stats count as events values(port_id) as affected_ports by network_name, device, event_type
-| eval severity=case(
-    event_type="TABLE_FULL", "CRITICAL -- MAC table exhaustion",
-    event_type="MAC_FLOOD", "CRITICAL -- MAC flooding detected",
-    events > 10, "WARNING -- excessive MAC events",
-    1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -events
-```
+**MAC Flooding and Bridge Table Exhaustion (Meraki MS)** — Security teams detect MAC flooding attacks and bridge table exhaustion on Meraki MS switches, identifying ports generating excessive MAC addresses that compromise network segmentation.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports -- check per-port client count.
-(b) Check for ports with abnormally high MAC count.
-(c) Verify port security policies are applied.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts). NOTE: Meraki MS switches do NOT emit per-port MAC flooding or bridge-table-exhaustion events to syslog. The closest signal is the Assurance Alerts feed which fires on switch performance issues. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- MAC Table"):
-* Row 1 -- Single-value: "MAC flooding events", "Table exhaustion events".
-* Row 2 -- MAC event table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (MAC flooding or table exhaustion): security investigation.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki:assurancealerts", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **MAC flooding attack** -- Identify the port with excessive MACs. Disable the port. Apply MAC limit per port in access policy.
 
-* **Legitimate high MAC count** -- Virtualization (many VMs on one port) or hub connected. Use trunk port with proper VLAN configuration.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Prevention** -- Set MAC limit per port in Dashboard access policy. Enable dynamic ARP inspection.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of affected switches/ports; time-series of flood events; alert dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*MAC*" OR signature="*flood*")
-| stats count as flood_count by switch_name, port_id
-| where flood_count > 50
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="switch"
+    (title="*MAC*" OR title="*flood*" OR title="*storm*"
+     OR categoryType="performance")
+    earliest=-24h
+| stats count as alert_count,
+        values(title) as alert_titles,
+        latest(severity) as severity
+         by deviceSerial, deviceName, networkName
+| sort - alert_count
 ```
 
 ## Visualization

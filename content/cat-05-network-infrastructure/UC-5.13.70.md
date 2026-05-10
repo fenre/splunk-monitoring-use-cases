@@ -26,114 +26,82 @@ Many organizations use Catalyst Center for campus and Meraki for branches. Compa
 
 ## Implementation
 
-Deploy **Cisco Catalyst Add-on (7538)** for `cisco:dnac:networkhealth` on `index=catalyst` and **Cisco Meraki Add-on (5580)** for organization API data as `sourcetype=meraki:api` (commonly `index=cisco_network` or your org standard).
-
-1. **Meraki API:** In the Meraki TA, add an org API key and enable the inputs that produce device/network health and status (health or summary endpoints per TA version).
-2. **Field names:** The SPL uses `health_score` and `status` on Meraki events — if your field names differ (`uplinkStatus`, `device status`), map them with `eval` before `stats`.
-3. **Time sync:** `appendcols` is row-aligned; for production, bin `_time` on both sides to the same span (e.g. 5m) or use a **join** on discrete `_time` buckets.
-4. **Thresholds:** Adjust `15` to match the noise floor for your environment.
+1. Confirm the Cisco DNA Center add-on is ingesting cisco:dnac:networkhealth with healthScore. 2. Enable Devices Availabilities and Assurance Alerts inputs in Splunk_TA_cisco_meraki. 3. The composed branch_health = availability% - (open_alerts * 0.5). 4. combined_health is the average of the two. Tune weights to your reporting preference and present in a single executive dashboard.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- UC-5.13.16 (Network Health Score Overview) and UC-5.13.1 (Device Health) must be operational for the Catalyst Center campus health dimension.
-- **Meraki Dashboard API integration** must be configured separately — either via the Cisco Meraki Add-on for Splunk or a custom REST API input polling `GET /api/v1/organizations/{orgId}/networks/{networkId}/health`. Meraki data typically lands in `index=meraki` with sourcetypes like `meraki:api:networks` or `meraki:api:devices`.
-- **Join field**: the correlation between Catalyst Center and Meraki is based on site/location matching — there is no shared device ID. You need a `site_to_meraki_network` lookup that maps Catalyst Center `siteId` to Meraki `networkId` or `networkName`. This lookup is manually curated because Catalyst Center and Meraki have independent site hierarchies.
-- This is a **run-tier** cross-product UC that requires both Catalyst Center AND Meraki data flowing in Splunk. It provides the unified site health view that neither platform can produce alone.
+- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Cisco DNA Center for Splunk app (sourcetype=cisco:dnac:networkhealth) for the campus side, plus Splunk_TA_cisco_meraki Devices Availabilities + Assurance Alerts inputs for the Meraki branch side. NOTE: Meraki does not expose a single numeric 'branch health score'; this UC composes one from device availability % and open-alert count..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Catalyst Center: same `networkhealth` and `devicehealth` inputs as UC-5.13.1/UC-5.13.16.
+1. Confirm the Cisco DNA Center add-on is ingesting cisco:dnac:networkhealth with healthScore. 2. Enable Devices Availabilities and Assurance Alerts inputs in Splunk_TA_cisco_meraki. 3. The composed branch_health = availability% - (open_alerts * 0.5). 4. combined_health is the average of the two. Tune weights to your reporting preference and present in a single executive dashboard.
 
-Meraki: configure the Meraki integration to poll network health data. The Meraki Dashboard API provides:
-- `GET /api/v1/networks/{networkId}/health/alerts` — health alerts per network
-- `GET /api/v1/organizations/{orgId}/devices/statuses` — device online/offline status
-- `GET /api/v1/organizations/{orgId}/uplinks/statuses` — WAN uplink health
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-Ensure both data sources are indexed and searchable:
 ```spl
-index=catalyst sourcetype="cisco:dnac:devicehealth" earliest=-1h | stats count as catalyst_events
-| appendcols [search index=meraki earliest=-1h | stats count as meraki_events]
+index=catalyst sourcetype="cisco:dnac:networkhealth"
+| stats latest(healthScore) as campus_health by _time
+| appendcols [
+    search index=meraki sourcetype="meraki:devicesavailabilities" earliest=-1h
+    | stats sum(eval(if(status="online",1,0))) as online,
+            count as total
+    | eval branch_availability = round(online*100/total, 1)
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:assurancealerts" earliest=-24h
+    | stats count as branch_open_alerts
+  ]
+| eval branch_health = round(branch_availability - (branch_open_alerts*0.5), 1)
+| eval combined_health = round((campus_health + branch_health) / 2, 1)
+| table _time, campus_health, branch_availability, branch_open_alerts, branch_health, combined_health
 ```
 
-Build the site-to-network mapping lookup:
-```
-siteId,siteName,meraki_networkId,meraki_networkName
-a1b2c3-uuid,Branch-NYC,N_12345,NYC-Branch-Meraki
-d4e5f6-uuid,Branch-LON,N_67890,LON-Branch-Meraki
-```
-Upload as `lookups/site_to_meraki_network.csv`.
+#### Understanding this SPL
 
-### Step 2 — Create the search and report
-```spl
-index=catalyst sourcetype="cisco:dnac:devicehealth"
-| stats avg(overallHealth) as catalyst_health dc(deviceName) as catalyst_devices by siteId
-| lookup site_to_meraki_network siteId OUTPUT meraki_networkId, meraki_networkName
-| where isnotnull(meraki_networkId)
-| join type=left meraki_networkId
-    [search index=meraki sourcetype="meraki:api:*"
-     | stats avg(health_score) as meraki_health dc(serial) as meraki_devices by networkId
-     | rename networkId as meraki_networkId]
-| eval combined_health=round((catalyst_health*0.5 + coalesce(meraki_health,catalyst_health)*0.5),1)
-| lookup catalyst_site_lookup siteId OUTPUT siteName
-| table siteName, catalyst_health, catalyst_devices, meraki_health, meraki_devices, combined_health
-| sort combined_health
-```
+**Catalyst Center + Meraki Branch Network Health** — Many organizations use Catalyst Center for campus and Meraki for branches. Comparing both reveals whether network problems are campus-specific, branch-specific, or universal.
 
-Why a combined health score: sites with both Catalyst Center-managed campus infrastructure AND Meraki cloud-managed branches need a unified health view. A site where the Catalyst Center campus scores 90 but the Meraki branch scores 40 has a problem that neither platform shows in isolation. The 50/50 weighting is a starting point — adjust based on which infrastructure carries more user traffic at each site.
+Documented **Data sources**: Cisco DNA Center for Splunk app (sourcetype=cisco:dnac:networkhealth) for the campus side, plus Splunk_TA_cisco_meraki Devices Availabilities + Assurance Alerts inputs for the Meraki branch side. NOTE: Meraki does not expose a single numeric 'branch health score'; this UC composes one from device availability % and open-alert count. **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-Why `join type=left`: keeps sites that have Catalyst Center data even if Meraki data is missing (the Catalyst Center campus may not have a corresponding Meraki network). `coalesce(meraki_health, catalyst_health)` falls back to Catalyst-only health when Meraki data is absent.
+The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:networkhealth. That sourcetype matches what this use case lists under Data sources.
 
-Why the lookup-based correlation: Catalyst Center and Meraki have completely independent device inventories, site hierarchies, and health scoring algorithms. There is no automatic join key — the `site_to_meraki_network` lookup is the bridge, curated by the network architecture team who knows which physical locations have both Catalyst and Meraki infrastructure.
+**Pipeline walkthrough**
 
-Schedule: weekly (cron `0 7 * * 1`), output to the Multi-Domain dashboard.
+- Scopes the data: index=catalyst, sourcetype="cisco:dnac:networkhealth". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Adds columns from a subsearch with `appendcols`.
+- Adds columns from a subsearch with `appendcols`.
+- `eval` defines or adjusts **branch_health** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **combined_health** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Pipeline stage (see **Catalyst Center + Meraki Branch Network Health**): table _time, campus_health, branch_availability, branch_open_alerts, branch_health, combined_health
+
 
 ### Step 3 — Validate
-(a) Pick a site that has both Catalyst and Meraki infrastructure. Verify `catalyst_health` matches UC-5.13.1 for that site and `meraki_health` matches the Meraki Dashboard health view for the corresponding network.
-
-(b) Confirm the `site_to_meraki_network` lookup correctly maps physical locations. A mismatch here produces misleading combined health scores.
-
-(c) Check for sites with Catalyst data but no Meraki data (expected for campus-only sites) and vice versa. The `join type=left` should handle both gracefully.
-
-(d) Compare the combined health ranking with each individual platform's ranking. Sites that rank poorly on both dimensions are the highest-priority remediation targets.
-
-(e) Vendor UI parity: open both **Catalyst Center > Assurance > Health** and **Meraki Dashboard > Network-wide > Clients** for the same site. The individual scores should correlate with the Splunk values.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-- Multi-domain dashboard: unified site health table showing both Catalyst and Meraki dimensions side by side.
-- The sites with the lowest `combined_health` are the priority targets for cross-domain investigation.
-- When `catalyst_health` is high but `meraki_health` is low: the problem is in the Meraki branch (WAN uplink, AP, switch). Investigate in the Meraki Dashboard.
-- When `catalyst_health` is low but `meraki_health` is high: the problem is in the Catalyst campus infrastructure. Investigate with UC-5.13.1.
-- When both are low: systemic site-level issue (power, ISP, building infrastructure). Contact facilities.
-
-Runbook (owner: Network Architecture):
-1. Review the weekly multi-domain health table.
-2. For sites with low combined health: determine which platform is contributing to the degradation.
-3. Route Catalyst issues to the campus network team; route Meraki issues to the cloud-managed network team.
-4. For sites with both platforms degraded: investigate shared infrastructure (ISP link, DNS, DHCP).
-5. Track combined health month-over-month for capacity planning.
-
-### Step 5 — Troubleshooting
-
-- **No Meraki data** — the Meraki integration is not configured. Set up the Meraki Add-on or custom REST input.
-
-- **`site_to_meraki_network` lookup is empty** — create it manually by mapping physical locations to Meraki network IDs.
-
-- **Join produces no results** — the `meraki_networkId` field name may differ. Check `| head 1` on both data sources for the exact field names.
-
-- **Combined health seems wrong** — check the individual scores. If `catalyst_health=90` and `meraki_health=0`, the combined=45. Verify that `meraki_health=0` is real (total Meraki outage) vs a data issue.
-
-- **Meraki health scoring differs from Catalyst** — expected. Meraki and Catalyst Center use different algorithms to compute health. The combined score is an approximation, not an exact metric. Use it for relative ranking, not absolute thresholds.
-
-- **Want to add SD-WAN or ThousandEyes** — extend the pattern: add another `join` or `appendcols` with the additional data source. See UC-5.13.69 (SD-WAN) and UC-5.13.71 (ThousandEyes) for those specific correlations.
-
-- **Site-to-network mapping changes** — update the lookup when new sites are added or Meraki networks are reorganised. Schedule a quarterly review of the lookup accuracy.
-
-- **Performance** — the `join` command can be expensive with large datasets. Pre-aggregate each data source to one row per site before joining.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Dual-axis line: campus_health vs branch_health; table when `abs(campus_vs_branch) > 15`; optional single value for `offline_branches` with a threshold.
 
 ## SPL
 
 ```spl
-index=catalyst sourcetype="cisco:dnac:networkhealth" | stats latest(healthScore) as campus_health by _time | appendcols [search index=cisco_network sourcetype="meraki:api" | stats avg(health_score) as branch_health count(eval(status="offline")) as offline_branches by _time] | eval campus_vs_branch=campus_health-branch_health | where abs(campus_vs_branch) > 15 | table _time campus_health branch_health offline_branches campus_vs_branch
+index=catalyst sourcetype="cisco:dnac:networkhealth"
+| stats latest(healthScore) as campus_health by _time
+| appendcols [
+    search index=meraki sourcetype="meraki:devicesavailabilities" earliest=-1h
+    | stats sum(eval(if(status="online",1,0))) as online,
+            count as total
+    | eval branch_availability = round(online*100/total, 1)
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:assurancealerts" earliest=-24h
+    | stats count as branch_open_alerts
+  ]
+| eval branch_health = round(branch_availability - (branch_open_alerts*0.5), 1)
+| eval combined_health = round((campus_health + branch_health) / 2, 1)
+| table _time, campus_health, branch_availability, branch_open_alerts, branch_health, combined_health
 ```
 
 ## Visualization

@@ -233,7 +233,7 @@ Fenced SPL must match the spl JSON field exactly:
 | fillnull value="platform_core" owner_team
 | fillnull value="kubernetes.io/kubelet-serving" signer_profile
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(_time) AS inventory_fresh_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    | tstats summariesonly=t latest(_time) AS inventory_fresh_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
     | rename Inventory.dest AS cluster ]
 | eval severity=case(
     expect_auto_rotation=0, "info_manual_rotation_cluster",
@@ -277,7 +277,7 @@ search = | savedsearch uc_3_2_42_kubelet_csr_renewal_pipeline | where like(sever
 
 cimSpl points dashboards at Inventory summaries for node fleet coverage audits:
 
-| tstats summariesonly=true latest(_time) AS inv_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(_time) AS inv_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS cluster_key
 | where like(cluster_key,"%prod%")
 | sort - inv_ts
@@ -435,7 +435,7 @@ Closing checklist: five em-dash step headers present, Step 3 fence mirrors spl J
 | fillnull value="platform_core" owner_team
 | fillnull value="kubernetes.io/kubelet-serving" signer_profile
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(_time) AS inventory_fresh_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    | tstats summariesonly=t latest(_time) AS inventory_fresh_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
     | rename Inventory.dest AS cluster ]
 | eval severity=case(
     expect_auto_rotation=0, "info_manual_rotation_cluster",
@@ -463,9 +463,9 @@ Closing checklist: five em-dash step headers present, Step 3 fence mirrors spl J
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(_time) AS inv_latest FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(_time) AS inv_latest FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS cluster_inventory_key
-| join type=left max=0 cluster_inventory_key [| tstats summariesonly=true count FROM datamodel=Change WHERE nodename=Change All_Changes.status=success earliest=-24h@h latest=now BY Change.object_category]
+| join type=left max=0 cluster_inventory_key [| tstats summariesonly=t count FROM datamodel=Change WHERE nodename=Change All_Changes.status=success earliest=-24h@h latest=now BY Change.object_category]
 | where len(cluster_inventory_key)>0
 | sort - inv_latest
 ```

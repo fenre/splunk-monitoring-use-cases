@@ -414,7 +414,7 @@ Supplemental notes: when rootless Docker becomes default, verify auid attributio
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Endpoint WHERE nodename=Endpoint.Processes (Processes.process="docker" OR Processes.process_path="*/docker") earliest=-24h latest=now BY Processes.dest Processes.user Processes.process Processes.process_id
+| tstats summariesonly=t count FROM datamodel=Endpoint WHERE nodename=Endpoint.Processes (Processes.process="docker" OR Processes.process_path="*/docker") earliest=-24h latest=now BY Processes.dest Processes.user Processes.process Processes.process_id
 | rename Processes.dest AS host_id Processes.user AS exec_user
 | where like(lower(Processes.process), "%docker%")
 ```

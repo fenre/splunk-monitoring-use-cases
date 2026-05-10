@@ -83,7 +83,7 @@ index=netflow earliest=-1h
 
 **CIM-accelerated variant (recommended for large environments):**
 ```spl
-| tstats summariesonly=true sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out from datamodel=Network_Traffic.All_Traffic by All_Traffic.src All_Traffic.dest span=1h
+| tstats summariesonly=t sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out from datamodel=Network_Traffic.All_Traffic by All_Traffic.src All_Traffic.dest span=1h
 | eval total_bytes=bytes_in+bytes_out
 | sort -total_bytes
 | head 20

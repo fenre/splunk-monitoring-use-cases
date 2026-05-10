@@ -227,7 +227,7 @@ Fenced SPL must match the spl JSON field exactly:
 | eval not_after=strftime(not_after_epoch, "%Y-%m-%dT%H:%M:%SZ")
 | eval days_to_expiry=if(isnotnull(not_after_epoch) AND not_after_epoch>0, round((not_after_epoch - now()) / 86400, 2), null())
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    | tstats summariesonly=t latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
     | rename Inventory.dest AS cluster ]
 | eval rotation_overdue=if(isnotnull(days_to_expiry) AND days_to_expiry<=0 AND rotation_in_flight=0, 1, 0)
 | eval issuer_ok=if(len(expected_issuer_regex)==0 OR len(issuer_full)==0 OR match(lower(issuer_full), lower(expected_issuer_regex)), 1, 0)
@@ -447,7 +447,7 @@ Closing checklist: five plain em-dash step headers present, Step 3 fence matches
 | eval not_after=strftime(not_after_epoch, "%Y-%m-%dT%H:%M:%SZ")
 | eval days_to_expiry=if(isnotnull(not_after_epoch) AND not_after_epoch>0, round((not_after_epoch - now()) / 86400, 2), null())
 | join type=left max=1 cluster [
-    | tstats summariesonly=true latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+    | tstats summariesonly=t latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
     | rename Inventory.dest AS cluster ]
 | eval rotation_overdue=if(isnotnull(days_to_expiry) AND days_to_expiry<=0 AND rotation_in_flight=0, 1, 0)
 | eval issuer_ok=if(len(expected_issuer_regex)==0 OR len(issuer_full)==0 OR match(lower(issuer_full), lower(expected_issuer_regex)), 1, 0)
@@ -477,11 +477,11 @@ Closing checklist: five plain em-dash step headers present, Step 3 fence matches
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(_time) AS inventory_projection_ts FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS cluster_key
 | eval cluster_key=lower(trim(toString(cluster_key)))
 | join type=left max=0 cluster_key [
-| tstats summariesonly=true latest(Inventory.os) AS inventory_os latest(Inventory.vendor_product) AS inventory_product FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.os) AS inventory_os latest(Inventory.vendor_product) AS inventory_product FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS cluster_key
 | eval cluster_key=lower(trim(toString(cluster_key))) ]
 | where len(cluster_key)>1

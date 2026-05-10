@@ -5,12 +5,12 @@ id: "5.20.50"
 title: "VRRPv3/HSRPv3 IPv6 Gateway Redundancy Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.50 · VRRPv3/HSRPv3 IPv6 Gateway Redundancy Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *The main router that serves as the front door of each floor needs a backup. If the main door breaks, the backup door opens instantly. We watch for these door switches — each one means something went wrong with the main door. If the doors keep swapping back and forth rapidly, something is seriously wrong. And the worst situation is when both doors are closed and nobody can get out.*
 

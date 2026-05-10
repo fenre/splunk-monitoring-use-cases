@@ -428,10 +428,10 @@ Closing checklist: multisearch lists operator, config, ovnkube, events, egress, 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest
 | rename Application_State.dest AS cim_dest
 | join type=left max=0 cim_dest
-    [| tstats summariesonly=true latest(Network_Traffic.action) AS nt_action latest(Network_Traffic.src) AS nt_src latest(Network_Traffic.dest) AS nt_dest FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-24h@h latest=now BY Network_Traffic.dest
+    [| tstats summariesonly=t latest(Network_Traffic.action) AS nt_action latest(Network_Traffic.src) AS nt_src latest(Network_Traffic.dest) AS nt_dest FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-24h@h latest=now BY Network_Traffic.dest
      | rename Network_Traffic.dest AS cim_dest ]
 | where like(lower(app_info), "%openshift%") OR like(lower(app_info), "%ovn%") OR match(lower(nt_action), "blocked|allowed|unknown")
 | table cim_dest app_state app_info nt_action nt_src nt_dest

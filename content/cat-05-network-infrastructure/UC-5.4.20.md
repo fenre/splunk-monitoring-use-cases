@@ -25,79 +25,76 @@ Wireless operations teams audit Meraki MR access point firmware versions across 
 
 ## Implementation
 
-Ingest 802.1X and RADIUS-related syslog events. Correlate with RADIUS server logs.
+1. Configure SC4S for MR syslog. 2. The 802.1X identity (typically a username, service principal, or computer account) is in the identity= field. 3. Threshold >5 failures per identity per VAP indicates either a legitimate auth issue (expired password, wrong RADIUS shared secret, wrong supplicant cert) or a credential-stuffing attempt. 4. For RADIUS-side context, ingest the RADIUS server log (e.g. ISE, NPS) and correlate on the username.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki Dashboard API providing firmware version data via device inventory endpoint. Data in `index=meraki` with `sourcetype=meraki:api:devices` or `sourcetype=meraki:api:firmware`. Key fields: `model`, `firmware` (version string, e.g., "MR 30.7"), `serial`, `ap_name`, `network`, `status`.
-- Firmware consistency is essential for predictable wireless behavior. Mixed firmware versions across a site can cause: (1) inconsistent roaming behavior (802.11r/k/v support varies by version), (2) feature discrepancies, (3) security vulnerabilities on older versions.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR syslog. 802.1X EAP failures appear as type=events with type=8021x_eap_failure / 8021x_deauth and the user identity in the identity= field..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify firmware data:
-```spl
-index=meraki (sourcetype="meraki:api:devices" OR sourcetype="meraki:api:firmware") earliest=-4h
-| where productType="wireless" OR match(model, "^MR")
-| stats latest(firmware) as firmware by ap_name, model, serial, network
-| stats count by firmware, model
-```
+1. Configure SC4S for MR syslog. 2. The 802.1X identity (typically a username, service principal, or computer account) is in the identity= field. 3. Threshold >5 failures per identity per VAP indicates either a legitimate auth issue (expired password, wrong RADIUS shared secret, wrong supplicant cert) or a credential-stuffing attempt. 4. For RADIUS-side context, ingest the RADIUS server log (e.g. ISE, NPS) and correlate on the username.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Firmware compliance audit:**
 ```spl
-index=meraki (sourcetype="meraki:api:devices" OR sourcetype="meraki:api:firmware") earliest=-4h
-| where productType="wireless" OR match(model, "^MR")
-| stats latest(firmware) as firmware latest(status) as status by ap_name, model, serial, network
-| lookup meraki_networks.csv network OUTPUT site_name
-| eventstats count as total_aps dc(firmware) as firmware_versions latest(firmware) as latest_fw by model
-| eval is_latest=if(firmware=latest_fw, "Yes", "No")
-| eval compliance=case(firmware_versions=1, "COMPLIANT", is_latest="Yes", "UP_TO_DATE", 1==1, "OUTDATED")
-| stats count(eval(compliance="OUTDATED")) as outdated count(eval(compliance="UP_TO_DATE")) as current count as total dc(firmware) as versions by model
-| eval compliance_pct=round(100*current/total, 1)
-| sort compliance_pct
+index=meraki sourcetype="meraki" type=events
+    (type=8021x_eap_failure OR type=8021x_deauth OR type=wpa_deauth)
+    earliest=-24h
+| rex "identity='(?<client_identity>[^\']+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "aid='(?<client_aid>\d+)'"
+| stats count as auth_failures,
+        values(type) as failure_types,
+        values(host) as aps_involved
+         by client_identity, vap_id
+| where auth_failures > 5
+| sort - auth_failures
 ```
 
-**Per-site firmware version spread:**
-```spl
-index=meraki (sourcetype="meraki:api:devices" OR sourcetype="meraki:api:firmware") earliest=-4h
-| where productType="wireless" OR match(model, "^MR")
-| stats latest(firmware) as firmware by ap_name, model, network
-| lookup meraki_networks.csv network OUTPUT site_name
-| chart count by site_name firmware
-```
+#### Understanding this SPL
+
+**802.1X Authentication Failures and RADIUS Issues (Meraki MR)** — Wireless operations teams audit Meraki MR access point firmware versions across all sites and models, tracking compliance percentage and identifying outdated APs that need upgrade scheduling.
+
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR syslog. 802.1X EAP failures appear as type=events with type=8021x_eap_failure / 8021x_deauth and the user identity in the identity= field. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by client_identity, vap_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where auth_failures > 5` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Compare firmware versions with Meraki Dashboard: Organization > Monitor > Firmware upgrades.
-(b) Identify any AP running a version more than 2 major releases behind.
-(c) Verify that "latest firmware" determination matches the Meraki recommended release.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Firmware Compliance"):
-- Row 1 — Single-value: "Total APs", "Compliant %", "Outdated APs", "Firmware versions in use".
-- Row 2 — Per-model firmware compliance table.
-- Row 3 — Per-site firmware version heatmap.
-
-Alerting:
-- Warning (compliance < 90% for any model): schedule firmware window.
-- Info (monthly): firmware compliance report.
-
-### Step 5 — Troubleshooting
-
-- **Firmware upgrade stuck** — Meraki upgrades happen automatically during the configured maintenance window. Check the upgrade schedule in Meraki Dashboard: Organization > Firmware upgrades.
-
-- **Can't determine latest firmware** — The `eventstats latest(firmware)` approach uses the most common recent version. For authoritative latest versions, use the Meraki API `/organizations/{orgId}/firmware/upgrades` endpoint.
-
-- **AP reverted firmware** — Some APs may have been cloned or replaced with old stock. Check the serial number against procurement records.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failing clients; time-series of auth failures; client-level detail dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*802.1X*" OR signature="*Radius*" OR signature="*authentication*")
-| stats count as auth_failures by client_mac, ap_name, signature
-| eventstats sum(auth_failures) as total_failures by client_mac
-| where total_failures > 10
-| sort -total_failures
+index=meraki sourcetype="meraki" type=events
+    (type=8021x_eap_failure OR type=8021x_deauth OR type=wpa_deauth)
+    earliest=-24h
+| rex "identity='(?<client_identity>[^\']+)'"
+| rex "vap='(?<vap_id>\d+)'"
+| rex "aid='(?<client_aid>\d+)'"
+| stats count as auth_failures,
+        values(type) as failure_types,
+        values(host) as aps_involved
+         by client_identity, vap_id
+| where auth_failures > 5
+| sort - auth_failures
 ```
 
 ## Visualization

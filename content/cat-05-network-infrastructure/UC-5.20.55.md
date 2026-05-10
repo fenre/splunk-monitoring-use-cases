@@ -5,12 +5,12 @@ id: "5.20.55"
 title: "DNS Resolver IPv6 Transport Health (Do53/DoT/DoH over IPv6)"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.55 · DNS Resolver IPv6 Transport Health (Do53/DoT/DoH over IPv6)
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Our phone book lookup service needs to call other phone book services around the world to find answers. It can call them using the old phone system (IPv4) or the new phone system (IPv6). We compare how often calls on each system fail. If the new phone system is dropping more calls than the old one, there's a problem with our new phone line to the outside world.*
 

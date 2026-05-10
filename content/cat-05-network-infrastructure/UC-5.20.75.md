@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Before moving into a new apartment (getting an IPv6 address), you knock on the door and ask 'Is anyone already living here?' If no one answers, you move in. But what if a troublemaker in the hallway always shouts 'Yes, someone's here!' every time anyone knocks? Nobody can ever move in. We watch for this pattern — when many different apartments are all reported as 'occupied' by the same troublemaker, we know they're lying and we kick them out.*
+*Before moving into a new apartment (getting an IPv6 address), you knock on the door and ask 'Is anyone already living here?' If no one answers, you move in. But what if a troublemaker in the hallway always shouts 'Yes, someone's here!' every time anyone knocks? Nobody can ever move in.*
 
 ---
 

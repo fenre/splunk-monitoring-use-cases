@@ -25,79 +25,81 @@ Wireless security teams audit Meraki SSID configurations across all sites agains
 
 ## Implementation
 
-Extract connection_duration from clients API. Aggregate by SSID and time of day.
+1. Enable the Webhook Logs (HEC) input and the Meraki Dashboard alert profile 'client connection changed'. 2. Use the SPL transaction command to pair connect and disconnect events on the same client MAC; the duration field is the session length in seconds. 3. Tune maxspan to your typical session length (24h is generous; reduce to 4h for retail/guest WLAN). 4. Persistent disconnects under 60 seconds suggest band-steering loops or sticky-client problems — investigate the involved AP.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki providing SSID availability and configuration data. Data in `index=meraki` with `sourcetype=meraki:api:wireless` or `sourcetype=meraki:events`. Key fields: `ssid`, `enabled` (true/false), `authMode` (open, psk, 8021x-radius, 8021x-meraki), `encryptionMode`, `bandSelection`, `perClientBandwidthLimitUp`, `perClientBandwidthLimitDown`, `network`.
-- SSID configuration auditing ensures: (1) security policies are consistently applied across sites (e.g., WPA3 on corporate SSID), (2) unauthorized SSIDs are not enabled, (3) bandwidth limits and traffic shaping are consistent, (4) VLAN assignments are correct.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. The TA's polled inputs do not return per-client connect/disconnect timestamps..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify SSID configuration data:
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:api:ssids") earliest=-4h
-| where isnotnull(ssid) AND isnotnull(authMode)
-| stats latest(authMode) as auth latest(encryptionMode) as encryption latest(enabled) as enabled by ssid, network
-```
+1. Enable the Webhook Logs (HEC) input and the Meraki Dashboard alert profile 'client connection changed'. 2. Use the SPL transaction command to pair connect and disconnect events on the same client MAC; the duration field is the session length in seconds. 3. Tune maxspan to your typical session length (24h is generous; reduce to 4h for retail/guest WLAN). 4. Persistent disconnects under 60 seconds suggest band-steering loops or sticky-client problems — investigate the involved AP.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — SSID configuration compliance audit:**
 ```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:api:ssids") earliest=-4h
-| where isnotnull(ssid) AND isnotnull(authMode)
-| stats latest(authMode) as authMode latest(encryptionMode) as encryption latest(enabled) as enabled latest(bandSelection) as band latest(perClientBandwidthLimitUp) as bw_up latest(perClientBandwidthLimitDown) as bw_down by ssid, network
-| lookup meraki_networks.csv network OUTPUT site_name
-| lookup ssid_policy.csv ssid OUTPUT required_auth required_encryption required_band
-| eval auth_compliant=if(authMode=required_auth OR isnull(required_auth), "Yes", "No")
-| eval encryption_compliant=if(encryption=required_encryption OR isnull(required_encryption), "Yes", "No")
-| eval policy_violations=mvappend(if(auth_compliant="No", "Auth: expected ".required_auth." got ".authMode, null()), if(encryption_compliant="No", "Encryption: expected ".required_encryption." got ".encryption, null()))
-| where isnotnull(policy_violations)
-| table ssid, site_name, authMode, encryption, band, policy_violations
-| sort ssid
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    (alertType="client_connectivity" OR alertTypeId="client_connection_changed")
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval connect_state = 'alertData.status'
+| where isnotnull(client_mac)
+| transaction client_mac startswith=eval(connect_state="connected") endswith=eval(connect_state="disconnected") maxspan=24h
+| eval session_minutes = round(duration/60, 1)
+| stats avg(session_minutes) as avg_session_min,
+        median(session_minutes) as median_session_min,
+        max(session_minutes) as max_session_min,
+        count as session_count
+         by deviceName, networkName
 ```
 
-**Unauthorized SSID detection:**
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:api:ssids") earliest=-4h
-| where enabled="true" OR enabled=1
-| stats values(network) as networks dc(network) as site_count by ssid, authMode
-| lookup authorized_ssids.csv ssid OUTPUT authorized
-| where isnull(authorized) OR authorized != "yes"
-| table ssid, authMode, site_count, networks
-```
+#### Understanding this SPL
+
+**Connection Duration and Session Quality (Meraki MR)** — Wireless security teams audit Meraki SSID configurations across all sites against corporate security policies, detecting unauthorized SSIDs, authentication downgrades, and encryption misconfigurations.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. The TA's polled inputs do not return per-client connect/disconnect timestamps. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `eval` defines or adjusts **client_mac** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **connect_state** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnotnull(client_mac)` — typically the threshold or rule expression for this monitoring goal.
+- Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory.
+- `eval` defines or adjusts **session_minutes** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `stats` rolls up events into metrics; results are split **by deviceName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+
 
 ### Step 3 — Validate
-(a) Compare SSID configurations with Meraki Dashboard: Wireless > SSIDs.
-(b) Intentionally misconfigure an SSID's auth mode in a test network and verify the compliance check catches it.
-(c) Verify that the policy lookup contains the correct expected configurations for all corporate SSIDs.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — SSID Compliance"):
-- Row 1 — Single-value: "SSIDs audited", "Policy violations", "Unauthorized SSIDs", "Sites non-compliant".
-- Row 2 — SSID policy violation details.
-- Row 3 — Unauthorized SSID alerts.
-
-Alerting:
-- High (corporate SSID with auth mode != 8021x-radius): security policy violation.
-- Warning (unauthorized SSID enabled): investigate.
-- Info (weekly): SSID compliance audit report.
-
-### Step 5 — Troubleshooting
-
-- **Policy lookup not matching** — Ensure `ssid_policy.csv` has exact SSID name matches. Meraki SSID names are case-sensitive.
-
-- **SSID shows different auth across sites** — This indicates inconsistent configuration. Use Meraki templates (Configuration templates) to enforce consistent SSID settings across all networks.
-
-- **Many "unauthorized" SSIDs** — These may be legitimate SSIDs not in the authorized list. Update `authorized_ssids.csv` to include all approved SSIDs.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Histogram of session durations; time-of-day heatmap; SSID comparison chart.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" connection_duration=*
-| stats avg(connection_duration) as avg_session_time, min(connection_duration) as min_session, max(connection_duration) as max_session by ssid
-| eval session_quality=if(avg_session_time > 3600, "Stable", "Short")
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    (alertType="client_connectivity" OR alertTypeId="client_connection_changed")
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval connect_state = 'alertData.status'
+| where isnotnull(client_mac)
+| transaction client_mac startswith=eval(connect_state="connected") endswith=eval(connect_state="disconnected") maxspan=24h
+| eval session_minutes = round(duration/60, 1)
+| stats avg(session_minutes) as avg_session_min,
+        median(session_minutes) as median_session_min,
+        max(session_minutes) as max_session_min,
+        count as session_count
+         by deviceName, networkName
 ```
 
 ## Visualization

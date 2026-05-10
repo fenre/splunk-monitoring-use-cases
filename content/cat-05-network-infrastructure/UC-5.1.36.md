@@ -25,81 +25,71 @@ Operations teams monitor Meraki MS switch port utilization and congestion, ident
 
 ## Implementation
 
-Query MS switch device API for port utilization metrics. Alert on sustained >80% utilization.
+1. In Splunk_TA_cisco_meraki, enable the Switch Ports Overview input. The TA polls GET /organizations/{orgId}/switch/ports/overview daily and writes one event per network with counts.byStatus.{active,inactive,disconnected}, counts.byMedia.{wired,wireless} and counts.byLinkSpeed.{10mbps,100mbps,1Gbps,10Gbps}. 2. Per-port utilization counters are NOT exposed by the Dashboard API; for live per-port flap detection enable the Webhook Logs (HEC) input and configure a Meraki alert profile that triggers on 'switch port status changed'. 3. Tune the 80% in-use threshold to your capacity policy.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS switch port utilization data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:switch:ports` or `sourcetype=meraki:api:switch:portstatus`. Key fields: `portId`, `usageInKb`, `status`, `speed`, `duplex`.
-* Meraki Dashboard API: `GET /devices/{serial}/switch/ports/statuses` returns per-port traffic, status, speed/duplex, and PoE. Polling interval should be 5 minutes for real-time visibility.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Switch Ports Overview input (sourcetype=meraki:switchportsoverview, daily, OAuth scope switch:telemetry:read). Optional: configure the Webhook Logs (HEC) input + Meraki Dashboard alerts on port_status_changed for near-real-time per-port flap detection (sourcetype=meraki:webhook)..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# inputs.conf
-[meraki_switch_ports]
-interval = 300
-sourcetype = meraki:api:switch:portstatus
-index = meraki
-# API: GET /devices/{serial}/switch/ports/statuses
-```
-Verify:
+### Step 1 — Configure data collection
+1. In Splunk_TA_cisco_meraki, enable the Switch Ports Overview input. The TA polls GET /organizations/{orgId}/switch/ports/overview daily and writes one event per network with counts.byStatus.{active,inactive,disconnected}, counts.byMedia.{wired,wireless} and counts.byLinkSpeed.{10mbps,100mbps,1Gbps,10Gbps}. 2. Per-port utilization counters are NOT exposed by the Dashboard API; for live per-port flap detection enable the Webhook Logs (HEC) input and configure a Meraki alert profile that triggers…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-1h
-| stats count by host, portId
+index=meraki sourcetype="meraki:switchportsoverview" earliest=-24h
+| stats latest(counts.byStatus.active) as active_ports,
+        latest(counts.byStatus.inactive) as inactive_ports,
+        latest(counts.byStatus.disconnected) as disconnected_ports,
+        latest(counts.byMedia.wired) as wired_ports
+         by network.id, network.name
+| eval total_ports = active_ports + inactive_ports + disconnected_ports
+| eval pct_in_use = round(active_ports*100/total_ports, 1)
+| where pct_in_use > 80
+| sort - pct_in_use
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Port utilization and congestion alerts:**
-```spl
-index=meraki sourcetype="meraki:api:switch:portstatus" earliest=-4h
-| eval port=coalesce(portId, port_id)
-| eval speed_mbps=case(match(speed, "(?i)10 G"), 10000, match(speed, "(?i)1 G"), 1000, match(speed, "(?i)100 M"), 100, 1==1, 1000)
-| eval sent_kbps=tonumber(coalesce(usageInKb.sent, sent_kbps, sent))/300
-| eval recv_kbps=tonumber(coalesce(usageInKb.recv, recv_kbps, recv))/300
-| eval total_kbps=sent_kbps + recv_kbps
-| eval total_mbps=round(total_kbps/1024, 2)
-| eval util_pct=round(100*total_mbps/speed_mbps, 1)
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| bin _time span=5m
-| stats avg(util_pct) as avg_util max(util_pct) as max_util avg(total_mbps) as avg_mbps by _time, network_name, device, port
-| eval severity=case(
-    max_util > 90, "CRITICAL -- port ".port." near saturation (".max_util."%)",
-    max_util > 75, "WARNING -- port ".port." high utilization",
-    1==1, "OK")
-| where severity != "OK"
-| table _time, network_name, device, port, avg_mbps, avg_util, max_util, severity
-| sort severity, -max_util
-```
+**Port Utilization and Congestion Alerts (Meraki MS)** — Operations teams monitor Meraki MS switch port utilization and congestion, identifying saturated ports that require link aggregation or capacity upgrades.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports -- check per-port utilization graphs.
-(b) Compare with Dashboard live tools: cable test, packet capture.
-(c) Verify port speed/duplex negotiation is correct.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Switch Ports Overview input (sourcetype=meraki:switchportsoverview, daily, OAuth scope switch:telemetry:read). Optional: configure the Webhook Logs (HEC) input + Meraki Dashboard alerts on port_status_changed for near-real-time per-port flap detection (sourcetype=meraki:webhook). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- Port Utilization"):
-* Row 1 -- Single-value: "Ports > 75% utilization", "Peak port utilization (%)".
-* Row 2 -- Port utilization timechart.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:switchportsoverview. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (port >90% sustained): trunk upgrade or traffic optimization needed.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki:switchportsoverview", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by network.id, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **total_ports** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **pct_in_use** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where pct_in_use > 80` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Uplink port congested** -- Insufficient bandwidth between switches. Consider: link aggregation, upgrading to 10G uplink, or traffic optimization.
 
-* **Access port high utilization** -- Single device consuming excessive bandwidth. Check connected device type and activity. Apply traffic shaping if needed.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Port speed mismatch** -- Verify negotiated speed matches expected. Dashboard: Switch ports > port details.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of congested ports; timeline showing peak congestion; port utilization heatmap.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" device_type=MS
-| stats avg(port_utilization) as avg_util, max(port_utilization) as max_util by switch_name, port_id
-| where max_util > 80
-| sort - max_util
+index=meraki sourcetype="meraki:switchportsoverview" earliest=-24h
+| stats latest(counts.byStatus.active) as active_ports,
+        latest(counts.byStatus.inactive) as inactive_ports,
+        latest(counts.byStatus.disconnected) as disconnected_ports,
+        latest(counts.byMedia.wired) as wired_ports
+         by network.id, network.name
+| eval total_ports = active_ports + inactive_ports + disconnected_ports
+| eval pct_in_use = round(active_ports*100/total_ports, 1)
+| where pct_in_use > 80
+| sort - pct_in_use
 ```
 
 ## Visualization

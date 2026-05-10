@@ -5,12 +5,12 @@ id: "5.20.18"
 title: "/64 per Host Prefix Assignment Tracking"
 status: "verified"
 criticality: "low"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.18 · /64 per Host Prefix Assignment Tracking
 
-> **Criticality:** Low &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Low &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Configuration, Compliance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Instead of giving each device one address on a shared street, we give each device its own private driveway — a whole block of addresses just for them. We keep track of who received which block, so we always know which driveway belongs to whom.*
 

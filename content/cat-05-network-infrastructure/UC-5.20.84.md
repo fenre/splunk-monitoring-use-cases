@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Platform &middot; **Type:** Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*The post office (router) has a limited number of workers (CPU). We set up a queue management system (CoPP) that limits how many letters of each type the workers have to process. But the new postal system (IPv6) has letter types that didn't exist before. If we didn't add those new types to the queue system, either those letters get thrown away (breaking IPv6) or they flood the workers (denial of service).*
+*The post office (router) has a limited number of workers (CPU). We set up a queue management system (CoPP) that limits how many letters of each type the workers have to process. But the new postal system (IPv6) has letter types that didn't exist before.*
 
 ---
 

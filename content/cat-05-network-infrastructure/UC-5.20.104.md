@@ -5,14 +5,14 @@ id: "5.20.104"
 title: "IPv6 Remotely Triggered Black Hole (RTBH) Activation and Effectiveness Monitoring"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.104 · IPv6 Remotely Triggered Black Hole (RTBH) Activation and Effectiveness Monitoring
 
-> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*When someone is flooding our mailbox with millions of junk letters (a DDoS attack), we tell all the post offices in the area to throw away any letters addressed to our mailbox. This stops the flood, but it also means we can't receive any real letters until we tell the post offices to start delivering again. We watch carefully to make sure we only block letters to the exact mailbox being attacked (not the whole building), and that we remember to turn the block off when the attack is over.*
+*When someone is flooding our mailbox with millions of junk letters (a DDoS attack), we tell all the post offices in the area to throw away any letters addressed to our mailbox. This stops the flood, but it also means we can't receive any real letters until we tell the post offices to start delivering again.*
 
 ---
 

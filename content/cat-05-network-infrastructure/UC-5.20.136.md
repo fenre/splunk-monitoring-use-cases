@@ -5,12 +5,12 @@ id: "5.20.136"
 title: "IPv6 NDP Redirect Message Abuse Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.136 · IPv6 NDP Redirect Message Abuse Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Normally, the post office tells you 'there's a closer mailbox for that destination.' But a bad actor can forge these redirect notices to make your letters go through their hands first. We watch for suspicious redirect notices, especially from people who aren't real post office workers.*
 

@@ -87,7 +87,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/SQS" (metric_name="Approxim
 
 ```spl
 | tstats `summariesonly` max(Performance.cpu_load_percent) as peak
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   by Performance.object Performance.host span=1h
 | where isnotnull(peak)
 | sort - peak

@@ -5,12 +5,12 @@ id: "5.20.26"
 title: "DAD Proxy Event Tracking"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.26 · DAD Proxy Event Tracking
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Configuration, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Configuration, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *When a new device joins the network, it calls out 'Is anyone using address 42?' to make sure the address is free. If two devices are on different floors and cannot hear each other, the building's switchboard relays the call for them. We track when the switchboard has to step in to prevent two devices from accidentally using the same address.*
 

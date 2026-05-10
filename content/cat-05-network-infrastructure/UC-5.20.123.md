@@ -5,12 +5,12 @@ id: "5.20.123"
 title: "IPv6 Flow Label Usage and Abuse Detection (RFC 6437)"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.123 · IPv6 Flow Label Usage and Abuse Detection (RFC 6437)
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Every IPv6 letter has a small coloured sticker (flow label) that helps the post office sort it quickly without opening it. We check that all letters have proper stickers and that nobody is using the stickers to secretly communicate or to trick the sorting machine into sending their letters through a preferred route.*
 

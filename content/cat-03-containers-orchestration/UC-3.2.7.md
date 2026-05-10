@@ -598,13 +598,13 @@ Closing checklist: multisearch lists four metric arms; coalesce normalizes clust
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS svc_state latest(Application_State.info) AS svc_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-1h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS svc_state latest(Application_State.info) AS svc_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-1h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS cim_host Application_State.app AS cim_app
 | join type=left max=0 cim_host
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_host ]
 | join type=left max=0 cim_host
-    [| tstats summariesonly=true max(Performance.mem_free) AS mem_free_mb FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-1h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t max(Performance.mem_free) AS mem_free_mb FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-1h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_host ]
 | where like(lower(svc_state), "%down%") OR like(lower(svc_state), "%fail%") OR like(lower(svc_info), "%unhealthy%") OR avg_cpu_load>92
 | table cim_host cim_app svc_state svc_info avg_cpu_load mem_free_mb

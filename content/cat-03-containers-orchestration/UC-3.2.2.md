@@ -282,7 +282,7 @@ Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactl
     pending_soak_min>=8, "medium",
     true(), "low")
 | where severity IN ("critical","high","medium") AND (pending_soak_min>=8 OR len(fs_message)>40)
-| appendcols [| tstats summariesonly=true avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
+| appendcols [| tstats summariesonly=t avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
 | table cluster namespace pod pending_soak_min cluster_peak_pending scheduler_pending_pods scheduler_unschedulable_pods scheduler_schedule_attempts_total failure_class fs_message workload_tier owner_team severity cim_mem_fleet_avg fs_event_time sched_lane
 | sort - severity +cluster +namespace +pod
 ```
@@ -451,7 +451,7 @@ Closing narrative: this UC closes the gap between generic Pending noise and acti
     pending_soak_min>=8, "medium",
     true(), "low")
 | where severity IN ("critical","high","medium") AND (pending_soak_min>=8 OR len(fs_message)>40)
-| appendcols [| tstats summariesonly=true avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
+| appendcols [| tstats summariesonly=t avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
 | table cluster namespace pod pending_soak_min cluster_peak_pending scheduler_pending_pods scheduler_unschedulable_pods scheduler_schedule_attempts_total failure_class fs_message workload_tier owner_team severity cim_mem_fleet_avg fs_event_time sched_lane
 | sort - severity +cluster +namespace +pod
 ```
@@ -459,9 +459,9 @@ Closing narrative: this UC closes the gap between generic Pending noise and acti
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_host
-| join type=left max=0 cim_host [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_load_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host | rename Performance.host AS cim_host ]
+| join type=left max=0 cim_host [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_load_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host | rename Performance.host AS cim_host ]
 | table cim_host app_state app_info cpu_load_pct
 ```
 

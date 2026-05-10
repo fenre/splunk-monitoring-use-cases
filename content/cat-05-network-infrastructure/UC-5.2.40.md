@@ -25,100 +25,113 @@ NOC teams monitor Meraki MX site-to-site and client VPN tunnel status, detecting
 
 ## Implementation
 
-Poll Meraki API for VPN tunnel status or ingest MX syslog for tunnel events. Alert when any tunnel is down. Track failover events for active/standby links.
+1. Enable both Appliance VPN Statuses and Appliance VPN Stats inputs in Splunk_TA_cisco_meraki. 2. The Statuses input returns one event per network with an uplinks[] array containing {interface, status, ip, publicIp, gateway} per WAN port and a vpnPeers[] array of remote MX statuses. 3. The Stats input returns per-pair statistics with senderUplink, receiverUplink, latencyMs, jitterMs, lossPercent, mosScore. 4. Tune thresholds (>5% loss, >500ms latency, >50ms jitter) to your SLA. 5. For live tunnel-down events, configure a Meraki alert profile on 'site to site VPN connectivity change' and ingest via the Webhook Logs (HEC) input.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX VPN tunnel status data. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:vpn`. Key fields: `vpn_type` (site-to-site, client), `tunnel_status`, `peer_serial`, `peer_network`.
-* Meraki Auto VPN: creates full-mesh or hub-spoke IPsec tunnels between MX devices. Client VPN: AnyConnect or L2TP/IPsec for remote users. Dashboard > Security & SD-WAN > Site-to-site VPN and Client VPN.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API.
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily, OAuth scope sdwan:telemetry:read) and Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics, daily). Both polled from /organizations/{orgId}/appliance/vpn/statuses and /vpn/stats..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Security & SD-WAN > Site-to-site VPN
-# Type: Hub, Spoke, or Off (per network)
-# Client VPN: Security & SD-WAN > Client VPN > Enabled
-# API polling: GET /networks/{networkId}/appliance/vpn/statuses
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable both Appliance VPN Statuses and Appliance VPN Stats inputs in Splunk_TA_cisco_meraki. 2. The Statuses input returns one event per network with an uplinks[] array containing {interface, status, ip, publicIp, gateway} per WAN port and a vpnPeers[] array of remote MX statuses. 3. The Stats input returns per-pair statistics with senderUplink, receiverUplink, latencyMs, jitterMs, lossPercent, mosScore. 4. Tune thresholds (>5% loss, >500ms latency, >50ms jitter) to your SLA. 5. For live tunn…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
-| where match(_raw, "(?i)vpn|tunnel|ipsec")
-| stats count by sourcetype, host
+index=meraki sourcetype="meraki:appliancesdwanstatuses" earliest=-1h
+| spath path=uplinks{} output=uplink_arr
+| mvexpand uplink_arr
+| spath input=uplink_arr
+| stats latest(status) as state,
+        latest(ip) as uplink_ip,
+        latest(publicIp) as public_ip,
+        latest(gateway) as gateway
+         by networkId, networkName, interface
+| where state != "active" AND state != "ready"
+| append [
+    search index=meraki sourcetype="meraki:appliancesdwanstatistics" earliest=-1h
+    | stats avg(latencyMs) as avg_latency, avg(lossPercent) as avg_loss,
+            avg(jitterMs) as avg_jitter, last(receiverUplink) as receiver_uplink
+             by networkId, networkName, senderUplink
+    | where avg_loss>5 OR avg_latency>500 OR avg_jitter>50
+  ]
+| sort networkName
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- VPN tunnel status and health:**
+**Meraki VPN Tunnel and Failover Health** — NOC teams monitor Meraki MX site-to-site and client VPN tunnel status, detecting tunnel failures and flapping to maintain inter-site connectivity and remote user access.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily, OAuth scope sdwan:telemetry:read) and Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics, daily). Both polled from /organizations/{orgId}/appliance/vpn/statuses and /vpn/stats. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:appliancesdwanstatuses. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:appliancesdwanstatuses", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `stats` rolls up events into metrics; results are split **by networkId, networkName, interface** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where state != "active" AND state != "ready"` — typically the threshold or rule expression for this monitoring goal.
+- Appends rows from a subsearch with `append`.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
-| eval device=coalesce(serial, host, deviceSerial)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name AS local_network, site_name AS local_site
-| eval peer=coalesce(peerSerial, peer, peer_serial)
-| lookup meraki_networks.csv serial AS peer OUTPUT network_name AS peer_network
-| eval tunnel_type=case(match(_raw, "(?i)site.?to.?site|s2s|auto.?vpn"), "Site-to-Site", match(_raw, "(?i)client|anyconnect|l2tp|remote"), "Client VPN", 1==1, "Unknown")
-| eval status=case(
-    match(_raw, "(?i)up|established|connected|online"), "UP",
-    match(_raw, "(?i)down|disconnected|failed|offline|lost"), "DOWN",
-    match(_raw, "(?i)negotiat|establish|connect"), "NEGOTIATING",
-    1==1, "UNKNOWN")
-| sort device, peer, _time
-| dedup device, peer sortby -_time
-| eval severity=case(
-    status="DOWN" AND tunnel_type="Site-to-Site", "CRITICAL -- site-to-site VPN tunnel down",
-    status="DOWN" AND tunnel_type="Client VPN", "WARNING -- client VPN disconnected",
-    status="NEGOTIATING", "INFO -- tunnel re-establishing",
-    1==1, "OK")
-| where severity != "OK"
-| table local_network, local_site, peer_network, tunnel_type, status, _time, severity
-| sort severity
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
+| sort -count
 ```
 
-**Secondary search -- VPN tunnel flapping (up/down cycling):**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:vpn") earliest=-24h
-| where match(_raw, "(?i)vpn|tunnel|ipsec")
-| eval device=coalesce(serial, host, deviceSerial)
-| eval peer=coalesce(peerSerial, peer)
-| eval status=if(match(_raw, "(?i)up|established|connected"), "UP", "DOWN")
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| bin _time span=1h
-| stats count as state_changes dc(eval(status)) as unique_states by _time, device, network_name, peer
-| where state_changes > 4
-| eval severity="WARNING -- VPN tunnel flapping (".state_changes." state changes/hour)"
-| sort -state_changes
-```
+Understanding this CIM / accelerated SPL
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > VPN status -- verify tunnel states match.
-(b) Test: temporarily disable VPN on a spoke and verify DOWN event.
-(c) Compare with uplink failover events (UC-5.2.34) for correlation.
+**Meraki VPN Tunnel and Failover Health** — NOC teams monitor Meraki MX site-to-site and client VPN tunnel status, detecting tunnel failures and flapping to maintain inter-site connectivity and remote user access.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- VPN Tunnel Health"):
-* Row 1 -- Single-value: "Tunnels DOWN", "Tunnels UP", "Flapping tunnels".
-* Row 2 -- VPN tunnel status table (all tunnels with current state).
-* Row 3 -- Tunnel state change timeline.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily, OAuth scope sdwan:telemetry:read) and Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics, daily). Both polled from /organizations/{orgId}/appliance/vpn/statuses and /vpn/stats. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), Meraki dashboard API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-Alerting:
-* Critical (site-to-site tunnel DOWN > 5 minutes): page NOC.
-* Warning (tunnel flapping > 4 state changes/hour): investigate WAN stability.
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
-### Step 5 — - Troubleshooting
+**Pipeline walkthrough**
 
-* **Tunnel won't establish** -- Check: (1) both MX devices are online, (2) uplink IPs are reachable, (3) firewall allows UDP 500 and 4500 (IKE/IPsec), (4) NAT-T is functioning.
+- Uses `tstats` against accelerated summaries for data model `Network_Sessions.All_Sessions` — enable acceleration for that model.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Tunnel flapping** -- Often caused by underlying WAN instability. Correlate with WAN quality (UC-5.2.33) and uplink failover (UC-5.2.34). Consider adjusting DPD (Dead Peer Detection) timers.
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
 
-* **Client VPN disconnections** -- Check AnyConnect or L2TP client configuration. Verify authentication (RADIUS/Meraki auth). Check concurrent user limits on MX model.
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (tunnel, state), Table (down tunnels), Timeline (failover events).
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" vpn_tunnel=*
-| stats latest(tunnel_state) as state, latest(peer_ip) as peer by device_serial, tunnel_id
-| where state != "up"
-| table device_serial tunnel_id peer state _time
+index=meraki sourcetype="meraki:appliancesdwanstatuses" earliest=-1h
+| spath path=uplinks{} output=uplink_arr
+| mvexpand uplink_arr
+| spath input=uplink_arr
+| stats latest(status) as state,
+        latest(ip) as uplink_ip,
+        latest(publicIp) as public_ip,
+        latest(gateway) as gateway
+         by networkId, networkName, interface
+| where state != "active" AND state != "ready"
+| append [
+    search index=meraki sourcetype="meraki:appliancesdwanstatistics" earliest=-1h
+    | stats avg(latencyMs) as avg_latency, avg(lossPercent) as avg_loss,
+            avg(jitterMs) as avg_jitter, last(receiverUplink) as receiver_uplink
+             by networkId, networkName, senderUplink
+    | where avg_loss>5 OR avg_latency>500 OR avg_jitter>50
+  ]
+| sort networkName
 ```
 
 ## CIM SPL

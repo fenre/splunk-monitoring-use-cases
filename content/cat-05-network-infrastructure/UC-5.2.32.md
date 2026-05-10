@@ -30,67 +30,77 @@ Correlate flows with IP-to-department mapping. Aggregate by app and dept.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX application and client traffic data from API. Data in `index=meraki` with `sourcetype=meraki:api:traffic` or `sourcetype=meraki:api:clients`. Enrichment: `department_mapping.csv` lookup (client_mac or IP to department/team).
-* Per-department bandwidth analysis requires client identification (via VLAN, subnet, or client metadata) mapped to organizational units.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki type=flow`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-Create department mapping:
-```
-# department_mapping.csv
-# vlan_id, subnet, department, cost_center
-# 10, 10.10.10.0/24, Engineering, CC-1001
-# 20, 10.10.20.0/24, Marketing, CC-2001
-```
-Verify:
+### Step 1 — Configure data collection
+Correlate flows with IP-to-department mapping. Aggregate by app and dept.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:traffic" earliest=-4h
-| eval app=coalesce(application, app_name)
-| stats sum(sent) sum(recv) by app
-| sort -sum(sent) | head 10
+index=meraki sourcetype="meraki" (type=flows OR type=firewall)
+| lookup department_by_ip.csv src OUTPUTNEW department
+| stats sum(sent_bytes) as upload_mb, sum(received_bytes) as download_mb by application, department
+| eval total_mb=upload_mb+download_mb
+| sort -total_mb
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Bandwidth by application and department:**
+**Bandwidth by Application and Department (Meraki MX)** — Operations teams break down Meraki MX bandwidth consumption by application and organizational department, enabling cost allocation and policy enforcement per business unit.
+
+Documented **Data sources**: `sourcetype=meraki type=flow`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
+- `stats` rolls up events into metrics; results are split **by application, department** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **total_mb** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki (sourcetype="meraki:api:traffic" OR sourcetype="meraki:api:clients") earliest=-24h
-| eval app=coalesce(application, app_name)
-| eval client=coalesce(ip, client_ip)
-| eval sent_mb=tonumber(sent)/1048576
-| eval recv_mb=tonumber(recv)/1048576
-| eval total_mb=sent_mb + recv_mb
-| rex field=client "^(?<subnet>\d+\.\d+\.\d+)\.\d+$"
-| lookup department_mapping.csv subnet OUTPUT department, cost_center
-| eval dept=coalesce(department, "Unknown")
-| stats sum(total_mb) as total_mb dc(client) as unique_clients by dept, app
-| eventstats sum(total_mb) as dept_total by dept
-| eval app_pct=round(100*total_mb/dept_total, 1)
-| where total_mb > 100
-| sort dept, -total_mb
+| tstats `summariesonly` sum(All_Traffic.bytes_in) as bytes_in sum(All_Traffic.bytes_out) as bytes_out
+  from datamodel=Network_Traffic.All_Traffic
+  by All_Traffic.src All_Traffic.dest All_Traffic.app span=1h
+| eval bytes=bytes_in+bytes_out
+| sort -bytes
 ```
 
-### Step 3 — - Validate
-(a) Verify department mapping covers all VLANs/subnets.
-(b) Compare with Dashboard network traffic analytics.
-(c) Cross-reference with department headcount for per-user bandwidth.
+Understanding this CIM / accelerated SPL
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Bandwidth by Department"):
-* Row 1 -- Single-value: "Total bandwidth (GB)", "Top department", "Top application".
-* Row 2 -- Department bandwidth breakdown.
+**Bandwidth by Application and Department (Meraki MX)** — Operations teams break down Meraki MX bandwidth consumption by application and organizational department, enabling cost allocation and policy enforcement per business unit.
 
-### Step 5 — - Troubleshooting
+Documented **Data sources**: `sourcetype=meraki type=flow`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-* **Unknown department** -- Client subnet not in lookup. Update `department_mapping.csv` with all VLANs.
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
-* **Unexpected high bandwidth in department** -- Investigate: (1) specific users/devices, (2) application type (legitimate large transfer vs streaming), (3) time of day pattern.
+**Pipeline walkthrough**
 
-* **Shared VLAN across departments** -- Map at finer granularity (per-IP or per-MAC) or use Meraki group policies for department tagging.
+- Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.
+- `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar of bandwidth by dept/app; heatmap of app usage per dept.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=flow
+index=meraki sourcetype="meraki" (type=flows OR type=firewall)
 | lookup department_by_ip.csv src OUTPUTNEW department
 | stats sum(sent_bytes) as upload_mb, sum(received_bytes) as download_mb by application, department
 | eval total_mb=upload_mb+download_mb

@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*DNSSEC is like a wax seal on a letter — it proves the letter hasn't been tampered with. When looking up new-style (IPv6) addresses, the sealed letters are bigger and sometimes get damaged in transit. If the seal is broken, the phone book service refuses to give you the address for safety — it can't be sure the address is genuine. We count how many seals are coming in broken, because each broken seal means someone can't reach their destination.*
+*DNSSEC is like a wax seal on a letter — it proves the letter hasn't been tampered with. When looking up new-style (IPv6) addresses, the sealed letters are bigger and sometimes get damaged in transit. If the seal is broken, the phone book service refuses to give you the address for safety — it can't be sure the address is genuine.*
 
 ---
 

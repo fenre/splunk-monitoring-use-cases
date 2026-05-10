@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Platform &middot; **Type:** Compliance &middot; **Wave:** Run &middot; **Status:** Verified
 
-*In Europe, your new postal address (IPv6) is considered personal information — like your name or phone number. Some addresses even contain your house ID number (MAC address from EUI-64). The privacy law (GDPR) says we can't keep personal addresses in our records forever and must handle them carefully. We check all our record books (logs) to make sure we're following the privacy rules for the new addresses.*
+*In Europe, your new postal address (IPv6) is considered personal information — like your name or phone number. Some addresses even contain your house ID number (MAC address from EUI-64). The privacy law (GDPR) says we can't keep personal addresses in our records forever and must handle them carefully.*
 
 ---
 

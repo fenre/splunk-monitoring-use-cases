@@ -5,12 +5,12 @@ id: "5.20.24"
 title: "NDP Cache State Distribution Trending"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.24 · NDP Cache State Distribution Trending
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Every router keeps a list of its neighbours and whether they are currently at home (REACHABLE), recently seen but maybe out (STALE), or called but never answered (INCOMPLETE). We watch the balance of these categories — if too many neighbours are listed as 'never answered,' something is wrong, either the neighbours are gone or someone is sending fake calls to overwhelm the router.*
 

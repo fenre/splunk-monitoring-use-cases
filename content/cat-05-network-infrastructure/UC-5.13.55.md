@@ -175,5 +175,5 @@ index=catalyst sourcetype="cisco:dnac:device"
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Intent API — Network Device endpoint](https://developer.cisco.com/docs/catalyst-center/#!get-device-list)
-- [Catalyst Center Integration Guide (this repo)](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
 - [Cisco IOS-XE Release Notes and Lifecycle](https://www.cisco.com/c/en/us/support/ios-nx-os-software/ios-xe-17/products-release-notes-list.html)

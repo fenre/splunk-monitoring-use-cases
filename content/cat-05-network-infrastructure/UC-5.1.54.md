@@ -25,77 +25,74 @@ Operations teams monitor Meraki MG carrier connection health including connectio
 
 ## Implementation
 
-Monitor carrier connection and network events. Alert on issues.
+1. Configure SC4S for Meraki appliance syslog and enable the Appliance event log. 2. Use rex to extract the cellular state from the message. 3. Enable the Assurance Alerts input for cellularGateway-specific alerts (registration loss, SIM swap, APN failure). 4. For RSSI / data-plan / carrier visibility, integrate with the carrier portal API (AT&T Control Center, Verizon ThingSpace) — the Meraki TA does not expose those fields.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MG carrier connection health data from Dashboard API. Data in `index=meraki` with `sourcetype=meraki:api:cellular:signal` or `sourcetype=meraki:api:uplinks`. Key fields: `connectionType` (LTE/5G/3G), `provider`, `apn`, `latencyMs`, `lossPct`.
-* Meraki MG connects to cellular carriers via configured APNs. Carrier network performance (latency, loss) directly impacts WAN quality. Connection type downgrades (LTE→3G) indicate signal issues.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for syslog from MX/MG cellular uplinks (Cellular connection up/down messages) and Splunk_TA_cisco_meraki Assurance Alerts input for cellular-specific alerts. NOTE: carrier name, RSSI, data plan usage and SIM status are NOT in syslog; the Dashboard API does not expose them either..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Same API as UC-5.1.52 plus uplink performance
-# GET /devices/{serial}/cellular/sims
-# GET /organizations/{orgId}/devices/uplinksLossAndLatency
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for Meraki appliance syslog and enable the Appliance event log. 2. Use rex to extract the cellular state from the message. 3. Enable the Assurance Alerts input for cellularGateway-specific alerts (registration loss, SIM swap, APN failure). 4. For RSSI / data-plan / carrier visibility, integrate with the carrier portal API (AT&T Control Center, Verizon ThingSpace) — the Meraki TA does not expose those fields.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:api:cellular:signal" earliest=-4h
-| stats latest(connectionType) latest(provider) by host
+index=meraki sourcetype="meraki" type=events
+    ("Cellular" OR "cellular" OR "carrier" OR "LTE" OR "5G")
+    earliest=-24h
+| rex "Cellular connection (?<state>up|down)"
+| stats count as event_count,
+        values(state) as states
+         by host
+| sort - event_count
+| append [
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
+    | stats count as alert_count, values(title) as alerts by deviceSerial, networkName
+  ]
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Carrier connection health:**
-```spl
-index=meraki (sourcetype="meraki:api:cellular:signal" OR sourcetype="meraki:api:uplinkstats") earliest=-4h
-| eval device=coalesce(serial, host)
-| eval conn_type=coalesce(connectionType, connection_type)
-| eval carrier=coalesce(provider, carrier, network_provider)
-| eval latency=tonumber(coalesce(latencyMs, latency))
-| eval loss=tonumber(coalesce(lossPct, loss))
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| bin _time span=15m
-| stats latest(conn_type) as connection avg(latency) as avg_latency avg(loss) as avg_loss by _time, network_name, device, carrier
-| eval avg_latency=round(avg_latency, 1)
-| eval avg_loss=round(avg_loss, 2)
-| eval severity=case(
-    match(connection, "(?i)3G|2G|EDGE|GPRS"), "WARNING -- degraded cellular connection type: ".connection,
-    avg_loss > 5 OR avg_latency > 200, "WARNING -- poor carrier network performance",
-    avg_loss > 2 OR avg_latency > 100, "INFO -- moderate carrier latency/loss",
-    1==1, "OK")
-| where severity != "OK"
-| table _time, network_name, device, carrier, connection, avg_latency, avg_loss, severity
-| sort severity
-```
+**Carrier Connection Health and Network Performance (Meraki MG)** — Operations teams monitor Meraki MG carrier connection health including connection type, latency, and loss to detect carrier network degradation and connection downgrades affecting WAN performance.
 
-### Step 3 — - Validate
-(a) Dashboard: Cellular gateway > Overview -- check connection type and carrier.
-(b) Compare with carrier SLA for the plan level.
-(c) Monitor connection type changes over time.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for syslog from MX/MG cellular uplinks (Cellular connection up/down messages) and Splunk_TA_cisco_meraki Assurance Alerts input for cellular-specific alerts. NOTE: carrier name, RSSI, data plan usage and SIM status are NOT in syslog; the Dashboard API does not expose them either. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MG -- Carrier Health"):
-* Row 1 -- Single-value: "Connection type", "Carrier", "Avg latency (ms)".
-* Row 2 -- Carrier performance timechart (latency, loss).
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Warning (connection downgrade to 3G or high latency): carrier issue.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Appends rows from a subsearch with `append`.
 
-* **Connection type downgrade** -- Signal quality insufficient for LTE/5G. Check antenna and placement (UC-5.1.52). May need carrier investigation.
 
-* **High carrier latency** -- Carrier network congestion. Compare with signal quality -- if signal is strong but latency is high, the issue is in the carrier core network. Contact carrier.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Frequent carrier disconnections** -- Check SIM status (UC-5.1.55). May indicate SIM or account issue with carrier.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Carrier health timeline; connection error table; network performance gauge.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cellular*" OR signature="*carrier*")
-| stats count as event_count by event_type, carrier_name
-| where event_type="connection_error" OR event_type="network_error"
+index=meraki sourcetype="meraki" type=events
+    ("Cellular" OR "cellular" OR "carrier" OR "LTE" OR "5G")
+    earliest=-24h
+| rex "Cellular connection (?<state>up|down)"
+| stats count as event_count,
+        values(state) as states
+         by host
+| sort - event_count
+| append [
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
+    | stats count as alert_count, values(title) as alerts by deviceSerial, networkName
+  ]
 ```
 
 ## Visualization

@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*IPv6 letters can have extra pages stapled on — instructions for the postman, routing directions, or security seals. Most legitimate letters have zero or one extra page. If we see a letter with eight extra pages of instructions, someone is probably trying to confuse the postman into delivering something they shouldn't. We also watch for letters with old, cancelled routing instructions that were banned 15 years ago — anyone still using them is up to no good.*
+*IPv6 letters can have extra pages stapled on — instructions for the postman, routing directions, or security seals. Most legitimate letters have zero or one extra page. If we see a letter with eight extra pages of instructions, someone is probably trying to confuse the postman into delivering something they shouldn't.*
 
 ---
 

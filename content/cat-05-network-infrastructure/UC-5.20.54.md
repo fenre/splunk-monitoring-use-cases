@@ -5,14 +5,14 @@ id: "5.20.54"
 title: "Dual-Stack Happy Eyeballs Connection Timing and Fallback Monitoring"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.54 · Dual-Stack Happy Eyeballs Connection Timing and Fallback Monitoring
 
-> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Performance, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Performance, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Modern devices are smart — when they want to visit a website, they try both the new road (IPv6) and the old road (IPv4) at the same time, and take whichever one connects first. If the new road is broken, they silently switch to the old road with barely a pause. We measure how often devices actually use the new road versus the old road. If the new road usage is dropping, it means the new road has a problem that nobody has noticed yet because the old road keeps working.*
+*Modern devices are smart — when they want to visit a website, they try both the new road (IPv6) and the old road (IPv4) at the same time, and take whichever one connects first. If the new road is broken, they silently switch to the old road with barely a pause. We measure how often devices actually use the new road versus the old road.*
 
 ---
 

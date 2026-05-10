@@ -262,7 +262,7 @@ Fenced SPL for runbooks must match the spl JSON field byte-for-byte:
 | eval lookup_match=if(isnotnull(lookup_cluster) AND (lookup_cluster="*" OR lookup_cluster=cluster_row), 1, 0)
 | eval trusted_suppress=if(lookup_match=1 AND trusted_suppress_raw=1, 1, 0)
 | join type=left max=1 actor [
-    | tstats summariesonly=true count AS auth_model_events_24h FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
+    | tstats summariesonly=t count AS auth_model_events_24h FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
     | rename Authentication.user AS actor ]
 | fillnull value=0 auth_model_events_24h trusted_suppress trusted_suppress_raw lookup_match
 | eval prod_namespace=if(match(lower(ns), "(?i)prod|production|tier0|mission|prd-"), 1, 0)
@@ -305,7 +305,7 @@ search = | savedsearch uc_3_2_12_rbac_anomalies | where severity IN ("critical",
 cimSpl for CIM Authentication overlays when you normalize privileged kubectl sessions into the Authentication model (paste from the cimSpl JSON field, not the primary spl field):
 
 ```text
-| tstats summariesonly=true count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
+| tstats summariesonly=t count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
 | rename Authentication.user AS actor | head 200
 ```
 
@@ -463,7 +463,7 @@ Closing checklist: five em-dash step headers present; Step 3 fenced SPL matches 
 | eval lookup_match=if(isnotnull(lookup_cluster) AND (lookup_cluster="*" OR lookup_cluster=cluster_row), 1, 0)
 | eval trusted_suppress=if(lookup_match=1 AND trusted_suppress_raw=1, 1, 0)
 | join type=left max=1 actor [
-    | tstats summariesonly=true count AS auth_model_events_24h FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
+    | tstats summariesonly=t count AS auth_model_events_24h FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
     | rename Authentication.user AS actor ]
 | fillnull value=0 auth_model_events_24h trusted_suppress trusted_suppress_raw lookup_match
 | eval prod_namespace=if(match(lower(ns), "(?i)prod|production|tier0|mission|prd-"), 1, 0)
@@ -489,7 +489,7 @@ Closing checklist: five em-dash step headers present; Step 3 fenced SPL matches 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
+| tstats summariesonly=t count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
 | rename Authentication.user AS actor
 | head 200
 ```

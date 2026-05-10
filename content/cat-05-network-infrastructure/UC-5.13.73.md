@@ -26,106 +26,91 @@ Executives need one view of network health, not four consoles. This dashboard co
 
 ## Implementation
 
-1. **7538 (Catalyst, SD-WAN, optional Cyber Vision):** Configure Catalyst Center + vManage per UC-5.13.1 / UC-5.13.16 / UC-5.13.69.
-2. **5580 (Meraki):** Org API to `meraki:api` in `index=cisco_network` (UC-5.13.70).
-3. **7719 (ThousandEyes):** OTel stream + **`stream_index`** macro for agent-to-server tests (UC-5.13.71).
-4. **Composite:** The `coalesce` terms avoid null WAN/branch in partial deployments; replace with 0 or separate panels if you need strict math.
-5. **Dashboard:** Dashboard Studio (or Simple XML) with one row per domain + headline single values for `overall_health` and `te_latency_ms`.
+1. Verify all three source pipelines are populated: cisco:dnac:networkhealth (campus), cisco:sdwan:* (WAN), and meraki:devicesavailabilities + meraki:assurancealerts (branch). 2. Compose the Meraki branch_health from availability % minus a 0.3 weight per open alert. 3. enterprise_health is the simple average of campus / WAN / branch. 4. Render as a single-value tile per tier plus a combined gauge.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- UC-5.13.1 (Device Health), UC-5.13.9 (Client Health), UC-5.13.16 (Network Health), UC-5.13.21 (Issue Summary), UC-5.13.28 (Compliance) must ALL be operational — this executive dashboard pulls KPIs from every Catalyst Center data feed.
-- For cross-product panels: UC-5.13.68 (ISE), UC-5.13.69 (SD-WAN), UC-5.13.70 (Meraki), UC-5.13.71 (ThousandEyes) add value but are not required. Include them only if those integrations are deployed.
-- This UC doesn't introduce new data collection — it's a pure presentation layer that combines KPIs from other UCs into a single executive view. All data feeds must already be flowing.
-- Splunk Dashboard Studio is recommended for the visual design. Classic Simple XML works but Dashboard Studio's grid layout, conditional formatting, and dynamic options produce a better executive presentation.
-- Create a `network_exec` Splunk role with `srchIndexesAllowed = catalyst` and read-only access. Executives should see the dashboard but not modify searches.
+- Install and configure the required add-on or app: `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco ThousandEyes App for Splunk` (Splunkbase 7719) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Cisco DNA Center add-on (sourcetype=cisco:dnac:networkhealth), Cisco SD-WAN add-on (sourcetype=cisco:sdwan:*), and Splunk_TA_cisco_meraki Devices Availabilities + Assurance Alerts inputs. The Meraki branch tier composes a synthetic health score from availability % minus (open_alerts * 0.3)..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-No new data collection. This UC aggregates KPIs from existing feeds. Verify all required sourcetypes are producing events:
+1. Verify all three source pipelines are populated: cisco:dnac:networkhealth (campus), cisco:sdwan:* (WAN), and meraki:devicesavailabilities + meraki:assurancealerts (branch). 2. Compose the Meraki branch_health from availability % minus a 0.3 weight per open alert. 3. enterprise_health is the simple average of campus / WAN / branch. 4. Render as a single-value tile per tier plus a combined gauge.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=catalyst earliest=-1h
-| stats count by sourcetype
-| sort -count
+index=catalyst sourcetype="cisco:dnac:networkhealth"
+| stats latest(healthScore) as campus_health
+| appendcols [
+    search index=sdwan sourcetype="cisco:sdwan:*"
+    | stats latest(health_score) as wan_health
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:devicesavailabilities" earliest=-1h
+    | stats sum(eval(if(status="online",1,0))) as online,
+            count as total
+    | eval branch_health = round(online*100/total, 1)
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:assurancealerts" earliest=-24h
+    | stats count as branch_alerts
+  ]
+| eval branch_health = round(branch_health - (branch_alerts*0.3), 1)
+| eval enterprise_health = round((campus_health + wan_health + branch_health) / 3, 1)
+| table campus_health, wan_health, branch_health, branch_alerts, enterprise_health
 ```
-Required sourcetypes: `cisco:dnac:devicehealth`, `cisco:dnac:clienthealth`, `cisco:dnac:networkhealth`, `cisco:dnac:issue`, `cisco:dnac:compliance`, `cisco:dnac:securityadvisory`. All should show non-zero event counts.
 
-### Step 2 — Create the dashboard
-The executive dashboard is a **composed view** using base searches from other UCs. Each panel runs a search from the corresponding UC's SPL.
+#### Understanding this SPL
 
-Dashboard layout (Dashboard Studio recommended):
+**Multi-Domain Network Health Executive Dashboard** — Executives need one view of network health, not four consoles. This dashboard combines all Cisco network domains into a single composite health score.
 
-**Row 1 — Hero KPIs (single-value tiles):**
-- Network Health Score (from UC-5.13.16): `index=catalyst sourcetype="cisco:dnac:networkhealth" | where healthScore > 0 | stats latest(healthScore) as score`
-- Device Fleet Health (from UC-5.13.1): `index=catalyst sourcetype="cisco:dnac:devicehealth" | stats count(eval(overallHealth<50)) as unhealthy dc(deviceName) as total | eval healthy_pct=round((total-unhealthy)*100/total,1)`
-- Client Experience (from UC-5.13.9): healthy client percentage from the clienthealth summary
-- Active P1/P2 Issues (from UC-5.13.23): `index=catalyst sourcetype="cisco:dnac:issue" (priority="P1" OR priority="P2") status!="RESOLVED" | stats dc(issueId) as critical_issues`
-- Compliance Rate (from UC-5.13.28): `index=catalyst sourcetype="cisco:dnac:compliance" | where complianceStatus IN ("COMPLIANT","NON_COMPLIANT") | stats count(eval(complianceStatus="COMPLIANT")) as ok count as total | eval pct=round(ok*100/total,1)`
-- CRITICAL PSIRTs (from UC-5.13.34): `index=catalyst sourcetype="cisco:dnac:securityadvisory" severity="CRITICAL" | where deviceCount > 0 | stats dc(advisoryId) as critical_advisories`
+Documented **Data sources**: Cisco DNA Center add-on (sourcetype=cisco:dnac:networkhealth), Cisco SD-WAN add-on (sourcetype=cisco:sdwan:*), and Splunk_TA_cisco_meraki Devices Availabilities + Assurance Alerts inputs. The Meraki branch tier composes a synthetic health score from availability % minus (open_alerts * 0.3). **App/TA** (typical add-on context): `Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco ThousandEyes App for Splunk` (Splunkbase 7719) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-**Row 2 — Trending (7-day sparklines or timecharts):**
-- Network health score trend (UC-5.13.17)
-- Issue count trend (UC-5.13.22)
-- Compliance percentage trend (UC-5.13.30)
+The first pipeline stage scopes events using **index**: catalyst; **sourcetype**: cisco:dnac:networkhealth. That sourcetype matches what this use case lists under Data sources.
 
-**Row 3 — Top Issues (tables):**
-- Top 5 unhealthiest devices (UC-5.13.1 sorted by health, head 5)
-- Top 5 worst sites (UC-5.13.5 or UC-5.13.19)
-- Top 5 active P1/P2 issues (UC-5.13.23)
+**Pipeline walkthrough**
 
-**Row 4 — Cross-product (optional, if integrations are deployed):**
-- ISE auth failure correlation (UC-5.13.68)
-- ThousandEyes path quality (UC-5.13.71)
-- Meraki branch health (UC-5.13.70)
+- Scopes the data: index=catalyst, sourcetype="cisco:dnac:networkhealth". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
+- Adds columns from a subsearch with `appendcols`.
+- Adds columns from a subsearch with `appendcols`.
+- Adds columns from a subsearch with `appendcols`.
+- `eval` defines or adjusts **branch_health** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **enterprise_health** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Pipeline stage (see **Multi-Domain Network Health Executive Dashboard**): table campus_health, wan_health, branch_health, branch_alerts, enterprise_health
 
-Each panel uses a base search from the referenced UC. Use Dashboard Studio's chain searches to share the `index=catalyst` base filter across panels for performance.
-
-Time picker: default "Last 24 hours" with presets for "Last 4 hours" (incident) and "Last 7 days" (weekly review).
-
-Why a composed dashboard rather than a standalone search: the executive dashboard doesn't need its own SPL — it draws from the KPIs already validated in individual UCs. This ensures the numbers are consistent: the "unhealthy devices" count on the exec dashboard matches what the NOC sees in UC-5.13.1 because they use the same search logic.
 
 ### Step 3 — Validate
-(a) Open each panel and verify the number matches the corresponding UC's output. The Network Health Score should match UC-5.13.16. The P1/P2 count should match UC-5.13.23. Any discrepancy means the panel's search logic diverged from the source UC.
-
-(b) Check all panels load within 30 seconds. If any panel is slow, add `earliest=-20m` to narrow the time range for that panel (sacrifice history for speed on the exec dashboard).
-
-(c) Present the dashboard to a non-technical executive. Ask: "Do you understand what each number means and whether it's good or bad?" If not, improve the colour thresholds and labels.
-
-(d) Compare with **Catalyst Center > Assurance > Health** landing page. The executive dashboard should tell a similar story but with Splunk's advantages: longer history, cross-product correlation, and compliance/PSIRT dimensions that Catalyst Center's landing page doesn't prominently feature.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-- **CIO weekly review**: the executive dashboard is the first slide in the weekly technology review. The CIO looks at Row 1 KPIs for 30 seconds and knows whether the network is healthy.
-- **Board reporting**: export Row 1 + Row 2 as a quarterly PDF. The trending sparklines show quarter-over-quarter improvement.
-- **Incident commander**: during a major incident, this dashboard provides the multi-domain view that no individual UC offers alone. It answers "how bad is it across all dimensions?"
-- **New employee onboarding**: this dashboard is the first thing a new network engineer should see — it gives them the full picture of the network's current state.
-
-Runbook (owner: Network Operations Lead):
-1. Daily morning: glance at Row 1 KPIs. All green → no action. Any red → drill into the corresponding UC.
-2. Weekly: review Row 2 trending. All stable or improving → no action. Degrading trend → identify the UC that shows the root cause.
-3. During incidents: use this dashboard for the status update to management. "Network health is at 72, down from 90. 15 devices are unhealthy, concentrated at Building C. Client health is at 65% healthy. 3 P1 issues are active."
-
-### Step 5 — Troubleshooting
-
-- **Panels show "No results"** — the corresponding data feed isn't flowing. Check `| stats count by sourcetype` for the missing sourcetype.
-
-- **Dashboard is slow to load** — too many panels querying long time ranges. Solutions: (a) use base searches with chain searches to share the index scan; (b) narrow individual panel time ranges; (c) use accelerated data models where available.
-
-- **Numbers don't match individual UCs** — the panel search logic has diverged. Copy the exact SPL from the source UC to ensure consistency.
-
-- **Cross-product panels show no data** — those integrations (ISE, ThousandEyes, Meraki) aren't deployed. Hide the panels or show "Integration not configured" placeholder text.
-
-- **Executives want different metrics** — this is the most common request. Add/remove panels based on what the CIO actually looks at. The dashboard should reflect THEIR priorities, not the engineering team's.
-
-- **Want to add non-Catalyst-Center metrics** — the exec dashboard can include panels from any Splunk index. Add server health (cat-1), cloud health (cat-4), or security posture (cat-10) panels for a true multi-domain view.
-
-- **Colour thresholds feel wrong** — adjust based on your network's steady state. If network health is typically 92, set green ≥ 85, yellow 70–85, red < 70. If it's typically 80, use green ≥ 75, yellow 60–75, red < 60.
-
-- **PDF export looks different from the dashboard** — Dashboard Studio PDF rendering has limitations. Test the export before sending to the CIO.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Executive row: large single values for campus_health, wan_health, branch_health, te_latency_ms, overall_health; treemap of domain status; link-out drilldowns to UC-5.13.68–5.13.72 panel searches.
 
 ## SPL
 
 ```spl
-index=catalyst sourcetype="cisco:dnac:networkhealth" | stats latest(healthScore) as campus_health | appendcols [search index=sdwan sourcetype="cisco:sdwan:*" | stats latest(health_score) as wan_health] | appendcols [search index=cisco_network sourcetype="meraki:api" | stats avg(health_score) as branch_health] | appendcols [search `stream_index` thousandeyes.test.type="agent-to-server" | stats avg(network.latency) as te_latency_s | eval te_latency_ms=round(te_latency_s*1000,1)] | eval overall_health=round((campus_health+coalesce(wan_health,campus_health)+coalesce(branch_health,campus_health))/3,1) | table campus_health wan_health branch_health te_latency_ms overall_health
+index=catalyst sourcetype="cisco:dnac:networkhealth"
+| stats latest(healthScore) as campus_health
+| appendcols [
+    search index=sdwan sourcetype="cisco:sdwan:*"
+    | stats latest(health_score) as wan_health
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:devicesavailabilities" earliest=-1h
+    | stats sum(eval(if(status="online",1,0))) as online,
+            count as total
+    | eval branch_health = round(online*100/total, 1)
+  ]
+| appendcols [
+    search index=meraki sourcetype="meraki:assurancealerts" earliest=-24h
+    | stats count as branch_alerts
+  ]
+| eval branch_health = round(branch_health - (branch_alerts*0.3), 1)
+| eval enterprise_health = round((campus_health + wan_health + branch_health) / 3, 1)
+| table campus_health, wan_health, branch_health, branch_alerts, enterprise_health
 ```
 
 ## Visualization

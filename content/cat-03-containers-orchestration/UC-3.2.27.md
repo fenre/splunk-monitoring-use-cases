@@ -273,7 +273,7 @@ Fenced SPL for runbooks must match the spl JSON field byte-for-byte:
 | eval now_epoch=now()
 | eval grace_active=if(grace_until_epoch>0 AND now_epoch<grace_until_epoch, 1, 0)
 | join type=left max=1 cluster [
-    | tstats summariesonly=true count AS cim_change_adjacent FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
+    | tstats summariesonly=t count AS cim_change_adjacent FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
     | rename All_Changes.dest AS cluster ]
 | fillnull value=0 cim_change_adjacent
 | eval cluster=lower(trim(toString(cluster)))
@@ -489,7 +489,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 | eval now_epoch=now()
 | eval grace_active=if(grace_until_epoch>0 AND now_epoch<grace_until_epoch, 1, 0)
 | join type=left max=1 cluster [
-    | tstats summariesonly=true count AS cim_change_adjacent FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
+    | tstats summariesonly=t count AS cim_change_adjacent FROM datamodel=Change WHERE nodename=Change.All_Changes All_Changes.dest=* earliest=-4h@h latest=@h BY All_Changes.dest
     | rename All_Changes.dest AS cluster ]
 | fillnull value=0 cim_change_adjacent
 | eval cluster=lower(trim(toString(cluster)))
@@ -523,7 +523,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-4h@h latest=@h BY Network_Traffic.dest
+| tstats summariesonly=t count FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-4h@h latest=@h BY Network_Traffic.dest
 | rename Network_Traffic.dest AS cluster_hint
 | head 50
 ```

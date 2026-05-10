@@ -293,7 +293,7 @@ Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactl
 | eval sc_headroom_pct=if(isnotnull(sc_sum_cap) AND sc_sum_cap>0, round(100*(1-sc_sum_used/sc_sum_cap), 3), null())
 | eventstats max(gb_per_day) AS ns_top_burn_gb_per_day BY cluster namespace
 | join type=left max=0 kubelet_node
-    [| tstats summariesonly=true max(Performance.disk_usage) AS node_disk_pressure_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+    [| tstats summariesonly=t max(Performance.disk_usage) AS node_disk_pressure_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
       | rename Performance.host AS kubelet_node ]
 | eval iops_capacity_curve=case(used_pct>=95 AND node_disk_pressure_pct>=88, "write_amp_hot_nearfull", used_pct>=90 AND gb_per_day>=2, "highburn_nearfull", used_pct>=90 AND isnotnull(node_disk_pressure_pct) AND node_disk_pressure_pct>=80, "disk_pressure_nearfull", used_pct>=80 AND gb_per_day>=1, "rising_burn", true(), "nominal")
 | eval severity=case(sla_rpo8h_critical=1 AND lower(criticality)="gold", "critical_sla_rpo8h_gold", sla_rpo8h_critical=1, "high_sla_rpo8h", isnotnull(inode_days_to_full) AND inode_days_to_full<=1, "critical_inode_eta", isnotnull(days_to_99) AND days_to_99<=1, "critical_fill_24h", isnotnull(days_to_99) AND days_to_99<=3, "high_fill_72h", isnotnull(days_to_99) AND days_to_99<=7, "elevated_fill_7d", used_pct>=92, "high_water", used_pct>=85, "warning", true(), "info")
@@ -509,7 +509,7 @@ Long-term owners should rehearse FinOps conversations when sc_headroom_pct trend
 | eval sc_headroom_pct=if(isnotnull(sc_sum_cap) AND sc_sum_cap>0, round(100*(1-sc_sum_used/sc_sum_cap), 3), null())
 | eventstats max(gb_per_day) AS ns_top_burn_gb_per_day BY cluster namespace
 | join type=left max=0 kubelet_node
-    [| tstats summariesonly=true max(Performance.disk_usage) AS node_disk_pressure_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+    [| tstats summariesonly=t max(Performance.disk_usage) AS node_disk_pressure_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
       | rename Performance.host AS kubelet_node ]
 | eval iops_capacity_curve=case(used_pct>=95 AND node_disk_pressure_pct>=88, "write_amp_hot_nearfull", used_pct>=90 AND gb_per_day>=2, "highburn_nearfull", used_pct>=90 AND isnotnull(node_disk_pressure_pct) AND node_disk_pressure_pct>=80, "disk_pressure_nearfull", used_pct>=80 AND gb_per_day>=1, "rising_burn", true(), "nominal")
 | eval severity=case(sla_rpo8h_critical=1 AND lower(criticality)="gold", "critical_sla_rpo8h_gold", sla_rpo8h_critical=1, "high_sla_rpo8h", isnotnull(inode_days_to_full) AND inode_days_to_full<=1, "critical_inode_eta", isnotnull(days_to_99) AND days_to_99<=1, "critical_fill_24h", isnotnull(days_to_99) AND days_to_99<=3, "high_fill_72h", isnotnull(days_to_99) AND days_to_99<=7, "elevated_fill_7d", used_pct>=92, "high_water", used_pct>=85, "warning", true(), "info")
@@ -521,9 +521,9 @@ Long-term owners should rehearse FinOps conversations when sc_headroom_pct trend
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Inventory.vendor_product) AS inv_product count AS inv_events FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.vendor_product) AS inv_product count AS inv_events FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS inventory_dest
-| join type=left max=0 inventory_dest [| tstats summariesonly=true max(Performance.disk_usage) AS peak_disk_pct avg(Performance.disk_usage) AS avg_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
+| join type=left max=0 inventory_dest [| tstats summariesonly=t max(Performance.disk_usage) AS peak_disk_pct avg(Performance.disk_usage) AS avg_disk_pct FROM datamodel=Performance WHERE nodename=Performance.Storage earliest=-4h@h latest=now BY Performance.host
 | rename Performance.host AS inventory_dest ]
 | where inv_events>0
 | table inventory_dest inv_product peak_disk_pct avg_disk_pct

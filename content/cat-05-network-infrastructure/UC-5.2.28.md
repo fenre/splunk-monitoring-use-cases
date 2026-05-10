@@ -25,70 +25,72 @@ Operations teams monitor Meraki MX BGP peering state transitions and route stabi
 
 ## Implementation
 
-Monitor BGP event syslog. Alert on neighbor state changes.
+1. Enable the Appliance VPN Statuses input in Splunk_TA_cisco_meraki. 2. Each event carries a vpnPeers[] array of {peerNetworkId, peerNetworkName, reachability, usage.{sent,received}}. 3. Trigger an alert when reachability transitions away from 'reachable'. 4. For BGP-specific telemetry deploy a Cisco Catalyst SD-WAN or vManage integration; Meraki MX is not a BGP speaker.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX BGP peering events via syslog or API. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: BGP peer state changes (Established/Active/Idle/OpenConfirm), route advertisements, route withdrawals.
-* BGP on Meraki MX: used for dynamic routing with upstream ISPs or data center interconnects. Available on MX with concentrator mode or data center MX. BGP peer flapping causes routing instability.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses). NOTE: Meraki MX does NOT speak BGP (it uses Auto VPN / SD-WAN dynamic path selection instead). This UC has been pivoted to monitor Auto VPN peer reachability — the closest semantically-equivalent control. For real BGP monitoring on the Cisco WAN tier, use cat-5.x BGP UCs that target IOS XE / SD-WAN / NSO sourcetypes..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Dashboard > Security & SD-WAN > Addressing & VLANs > Routing > BGP
-# Configure BGP AS number and peers
-# Syslog > Roles: Event log
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable the Appliance VPN Statuses input in Splunk_TA_cisco_meraki. 2. Each event carries a vpnPeers[] array of {peerNetworkId, peerNetworkName, reachability, usage.{sent,received}}. 3. Trigger an alert when reachability transitions away from 'reachable'. 4. For BGP-specific telemetry deploy a Cisco Catalyst SD-WAN or vManage integration; Meraki MX is not a BGP speaker.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-7d
-| where match(_raw, "(?i)bgp|peer.*(state|change|up|down)|route.*(adverti|withdraw|received)")
-| stats count by host
+index=meraki sourcetype="meraki:appliancesdwanstatuses" earliest=-1h
+| spath path=vpnPeers{} output=peer_arr
+| mvexpand peer_arr
+| spath input=peer_arr
+| stats latest(reachability) as reachability,
+        latest(usage.sent) as bytes_sent,
+        latest(usage.received) as bytes_received
+         by networkId, networkName, peerNetworkId, peerNetworkName
+| where reachability != "reachable"
+| sort networkName
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- BGP peering status and route stability:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-7d
-| where match(_raw, "(?i)bgp")
-| eval bgp_event=case(match(_raw, "(?i)established|peer.*up"), "PEER_UP", match(_raw, "(?i)idle|down|peer.*down|notification"), "PEER_DOWN", match(_raw, "(?i)active|openconfirm|opensent|connect"), "NEGOTIATING", match(_raw, "(?i)route.*withdraw|route.*removed"), "ROUTE_WITHDRAWN", match(_raw, "(?i)route.*adverti|route.*received"), "ROUTE_RECEIVED", 1==1, "BGP_EVENT")
-| rex "peer\s+(?<peer_ip>[0-9.]+)"
-| rex "AS\s*(?<peer_asn>\d+)"
-| stats count as events latest(_time) as last_event by host, bgp_event, peer_ip, peer_asn
-| eval severity=case(bgp_event="PEER_DOWN", "CRITICAL -- BGP peer down", bgp_event="ROUTE_WITHDRAWN" AND events > 10, "HIGH -- route instability", bgp_event="NEGOTIATING" AND events > 20, "WARNING -- peer flapping", 1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -events
-```
+**BGP Peering Status and Route Stability (Meraki MX)** — Operations teams monitor Meraki MX BGP peering state transitions and route stability, detecting peer failures and flapping that cause routing disruptions.
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > Routing > BGP -- check peer status.
-(b) Verify BGP routes: Dashboard shows received and advertised routes.
-(c) Compare with ISP/partner BGP peer status.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses). NOTE: Meraki MX does NOT speak BGP (it uses Auto VPN / SD-WAN dynamic path selection instead). This UC has been pivoted to monitor Auto VPN peer reachability — the closest semantically-equivalent control. For real BGP monitoring on the Cisco WAN tier, use cat-5.x BGP UCs that target IOS XE / SD-WAN / NSO sourcetypes. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- BGP"):
-* Row 1 -- Single-value: "BGP peers down", "Route withdrawals", "Flapping peers".
-* Row 2 -- BGP event timeline.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:appliancesdwanstatuses. That sourcetype matches what this use case lists under Data sources.
 
-Alerting:
-* Critical (BGP peer down): routing to/from ISP lost.
-* Warning (> 20 state changes for single peer in 7d): peer flapping.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki:appliancesdwanstatuses", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `stats` rolls up events into metrics; results are split **by networkId, networkName, peerNetworkId, peerNetworkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where reachability != "reachable"` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **BGP peer down** -- Check: (1) WAN link connectivity, (2) BGP peer IP reachability (ping), (3) ISP-side BGP configuration, (4) BGP timers (hold time/keepalive).
 
-* **Peer flapping** -- Rapidly going up/down. Check: (1) WAN link stability, (2) BGP hold timer too aggressive (increase to 90s), (3) ISP-side issue, (4) MTU issues on BGP TCP session.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Routes withdrawn** -- ISP may be withdrawing routes due to: (1) maintenance, (2) prefix filter change, (3) BGP community changes. Verify with ISP.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: BGP peer status table; route change timeline; peering stability gauge.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event signature="*BGP*" (signature="*neighbor*" OR signature="*route*")
-| stats count as bgp_event_count by bgp_neighbor, event_type
-| where bgp_event_count > 5
+index=meraki sourcetype="meraki:appliancesdwanstatuses" earliest=-1h
+| spath path=vpnPeers{} output=peer_arr
+| mvexpand peer_arr
+| spath input=peer_arr
+| stats latest(reachability) as reachability,
+        latest(usage.sent) as bytes_sent,
+        latest(usage.received) as bytes_received
+         by networkId, networkName, peerNetworkId, peerNetworkName
+| where reachability != "reachable"
+| sort networkName
 ```
 
 ## Visualization

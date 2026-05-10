@@ -5,12 +5,12 @@ id: "5.20.51"
 title: "DNS AAAA Record Query Ratio and IPv6 Resolution Health"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.51 · DNS AAAA Record Query Ratio and IPv6 Resolution Health
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *When you type a website name, the computer needs to look up both the old-style address (IPv4, like a phone number) and the new-style address (IPv6, like a longer phone number). We count how often the computer asks for each type. If it stops asking for new-style addresses, something is wrong with the new phone system — even though the old phone still works fine.*
 

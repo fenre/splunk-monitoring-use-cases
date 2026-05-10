@@ -446,10 +446,10 @@ Closing checklist: five step headers use em dash punctuation as contracted; Step
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-2h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-2h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS correl_host
 | join type=left max=0 correl_host [
-    | tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load avg(Performance.mem_used_percent) AS avg_mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-2h@h latest=@h BY Performance.host
+    | tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load avg(Performance.mem_used_percent) AS avg_mem_used FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-2h@h latest=@h BY Performance.host
     | rename Performance.host AS correl_host ]
 | where app_state!="running" OR avg_cpu_load>92 OR avg_mem_used>95
 | table correl_host app_state avg_cpu_load avg_mem_used state_events

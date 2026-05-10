@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*The network is always chattering — devices asking 'are you there?' and replying 'yes, I'm here', routers announcing themselves, and groups of devices joining conversations. We listen to this chatter and notice when it suddenly changes — like if one device starts screaming 'are you there?' a million times at everyone, or if someone starts going door-to-door asking every single address if anyone lives there.*
+*The network is always chattering — devices asking 'are you there?' and replying 'yes, I'm here', routers announcing themselves, and groups of devices joining conversations.*
 
 ---
 

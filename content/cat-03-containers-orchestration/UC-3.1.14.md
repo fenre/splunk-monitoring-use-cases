@@ -351,7 +351,7 @@ Supplemental engineering notes for long-term owners: when migrating to rootless 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-1h@h latest=@h BY All_Traffic.dest All_Traffic.transport All_Traffic.dest_port span=5m
+| tstats summariesonly=t count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic earliest=-1h@h latest=@h BY All_Traffic.dest All_Traffic.transport All_Traffic.dest_port span=5m
 | rename All_Traffic.dest AS host_id All_Traffic.transport AS transport All_Traffic.dest_port AS dest_port
 | where (transport="udp" AND dest_port=4789) OR (transport="tcp" AND dest_port=7946) OR (transport="udp" AND dest_port=7946)
 ```

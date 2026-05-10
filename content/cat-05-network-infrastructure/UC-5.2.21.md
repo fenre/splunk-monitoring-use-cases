@@ -30,70 +30,77 @@ Ingest IDS/IPS alert events from MX appliance. Enrich with threat intelligence.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX IDS/IPS events via syslog or API. Data in `index=meraki` with `sourcetype=meraki:events` (syslog). Key fields: `signature`, `priority` (1=high, 2=medium, 3=low), `action` (block/alert), `src`, `dest`, `protocol`.
-* Meraki MX uses Snort-based IDS/IPS (Sourcefire). In "Prevention" mode, MX blocks threats. In "Detection" mode, threats are logged but not blocked. Ruleset modes: Connectivity, Balanced, Security (increasing strictness).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki type=ids_alert`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Dashboard > Security & SD-WAN > Threat protection
-# Mode: Prevention (recommended)
-# Ruleset: Balanced or Security
-# Syslog > Roles: IDS alerts
-```
-Verify:
+### Step 1 — Configure data collection
+Ingest IDS/IPS alert events from MX appliance. Enrich with threat intelligence.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)ids.*alert|intrusion|snort|signature|threat.*detect")
-| stats count by host
+index=meraki sourcetype="meraki" type=ids-alerts
+| stats count as alert_count by signature, priority, src, dest
+| eval severity=case(priority=1, "Critical", priority=2, "High", priority=3, "Medium", 1=1, "Low")
+| where priority <= 2
+| sort - alert_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- IDS/IPS alert analysis with threat scoring:**
+**IDS/IPS Alert Analysis and Threat Scoring (Meraki MX)** — Security teams analyze Meraki MX IDS/IPS alerts with threat scoring, prioritizing high-priority detection-only alerts where threats are logged but not blocked.
+
+Documented **Data sources**: `sourcetype=meraki type=ids_alert`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by signature, priority, src, dest** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where priority <= 2` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)ids.*alert|intrusion|snort|signature")
-| eval signature=coalesce(signature, message, alert_name)
-| eval priority=tonumber(coalesce(priority, severity))
-| eval act=lower(coalesce(action, disposition))
-| eval src=coalesce(src, src_ip, srcaddr)
-| eval dst=coalesce(dest, dest_ip, dstaddr)
-| eval threat_score=case(priority=1, 10, priority=2, 5, priority=3, 2, 1==1, 1)
-| eval is_blocked=if(match(act, "(?i)block|drop|prevent"), 1, 0)
-| stats count as alerts sum(threat_score) as total_score sum(is_blocked) as blocked dc(src) as unique_sources dc(dst) as unique_targets by signature, priority
-| eval detection_only=alerts - blocked
-| eval severity=case(priority=1 AND detection_only > 0, "CRITICAL -- high-priority threat NOT blocked", priority=1, "HIGH -- high-priority threat (blocked)", total_score > 100, "WARNING -- high aggregate threat score", 1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -total_score
+| tstats `summariesonly` count
+  from datamodel=Intrusion_Detection.IDS_Attacks
+  by IDS_Attacks.signature IDS_Attacks.severity IDS_Attacks.src IDS_Attacks.dest span=1h
+| where count>0
+| sort -count
 ```
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > Threat protection -- check IDS events.
-(b) Trigger a test signature (EICAR through HTTP) and verify the alert.
-(c) Verify mode: if "Detection", alerts are logged but traffic is NOT blocked.
+Understanding this CIM / accelerated SPL
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- IDS/IPS"):
-* Row 1 -- Single-value: "High-priority alerts", "Total alerts", "Detection-only alerts", "Threat score".
-* Row 2 -- Alert breakdown by priority and action.
-* Row 3 -- Top threat signatures.
+**IDS/IPS Alert Analysis and Threat Scoring (Meraki MX)** — Security teams analyze Meraki MX IDS/IPS alerts with threat scoring, prioritizing high-priority detection-only alerts where threats are logged but not blocked.
 
-Alerting:
-* Critical (high-priority alert not blocked): IPS in detection mode for this threat.
-* High (high-priority alert blocked): threat detected and prevented.
+Documented **Data sources**: `sourcetype=meraki type=ids_alert`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 5 — - Troubleshooting
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
-* **Alerts in detection mode** -- Switch to "Prevention" mode in Dashboard > Security & SD-WAN > Threat protection. Note: this may block false positives.
+**Pipeline walkthrough**
 
-* **High false positive rate** -- Adjust ruleset from "Security" to "Balanced" or "Connectivity". Whitelist specific signatures for known safe traffic.
+- Uses `tstats` against accelerated summaries for data model `Intrusion_Detection.IDS_Attacks` — enable acceleration for that model.
+- Filters the current rows with `where count>0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **No IDS alerts** -- Check: (1) Threat protection is enabled, (2) mode is not set to "Off", (3) syslog is configured with IDS role, (4) traffic is flowing through the MX.
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert timeline; severity breakdown pie chart; alert detail table; threat map.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=ids_alert
+index=meraki sourcetype="meraki" type=ids-alerts
 | stats count as alert_count by signature, priority, src, dest
 | eval severity=case(priority=1, "Critical", priority=2, "High", priority=3, "Medium", 1=1, "Low")
 | where priority <= 2

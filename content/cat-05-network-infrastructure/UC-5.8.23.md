@@ -25,79 +25,70 @@ Network operations teams maintain indexed Meraki configuration backups in Splunk
 
 ## Implementation
 
-Periodically backup organization configurations. Track backup history.
+1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. Filter audit entries for configuration export / template backup activity. 3. The query identifies organizations or networks where no backup-related admin action has happened in the last 30 days. 4. For an automated backup, run a scheduled script that calls GET /networks/{networkId}/appliance/firewall/l3FirewallRules, /wireless/ssids, /switch/accessPolicies etc. and stores the output in version control. The Audit input gives you visibility into manual exports performed via the Meraki Dashboard UI.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki Dashboard configuration export capability. The Meraki API allows exporting network and organization configurations programmatically via: `GET /networks/{networkId}` (network settings), `GET /networks/{networkId}/devices` (device configs), `GET /organizations/{orgId}` (org settings).
-- A scheduled script or TA input exports Meraki configurations and indexes them in Splunk. Data in `index=meraki_config` (or `index=meraki`) with `sourcetype=meraki:config:backup`. Key fields: `networkId`, `networkName`, `config_hash`, `config_section` (ssid, firewall, vlan, vpn), `backup_time`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily). NOTE: the Meraki Dashboard does not provide a native 'config backup' API endpoint; backups are typically performed by exporting GET /networks/{networkId}/configTemplates and per-product config endpoints via a custom script. The audit log records when an admin performs these actions..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify config backup data:
-```spl
-index=meraki_config sourcetype="meraki:config:backup" earliest=-7d
-| stats count latest(_time) as last_backup by networkName, config_section
-| eval hours_since_backup=round((now() - last_backup)/3600, 1)
-| sort -hours_since_backup
-```
+1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. Filter audit entries for configuration export / template backup activity. 3. The query identifies organizations or networks where no backup-related admin action has happened in the last 30 days. 4. For an automated backup, run a scheduled script that calls GET /networks/{networkId}/appliance/firewall/l3FirewallRules, /wireless/ssids, /switch/accessPolicies etc. and stores the output in version control. The Audit input gives you visibility i…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Configuration backup status:**
 ```spl
-index=meraki_config sourcetype="meraki:config:backup" earliest=-30d
-| stats latest(_time) as last_backup count as backup_count dc(config_hash) as unique_configs by networkName, config_section
-| eval hours_since=round((now() - last_backup)/3600, 1)
-| eval days_since=round(hours_since/24, 1)
-| eval backup_status=case(hours_since > 168, "OVERDUE_WEEK", hours_since > 48, "OVERDUE", 1==1, "CURRENT")
-| eval config_changes=unique_configs - 1
-| where backup_status!="CURRENT" OR config_changes > 5
-| sort backup_status, -config_changes
+index=meraki sourcetype="meraki:audit" earliest=-30d
+    (page="Backup" OR label="*backup*" OR action="*backup*"
+     OR page="Configuration sync" OR label="*export*")
+| stats latest(_time) as last_action,
+        values(adminName) as performed_by,
+        values(label) as actions
+         by organizationName, networkName
+| eval days_since_last = round((now() - last_action)/86400, 0)
+| where isnull(last_action) OR days_since_last > 30
+| sort - days_since_last
 ```
 
-#### Understanding this SPL: Meraki configs live in the cloud, but having a Splunk-indexed backup provides: (1) audit trail of all config changes over time, (2) disaster recovery — if the Meraki org is compromised or accidentally modified, you have a known-good baseline, (3) compliance evidence. The `config_hash` change count reveals configuration drift frequency.
+#### Understanding this SPL
 
-**Configuration drift detection:**
-```spl
-index=meraki_config sourcetype="meraki:config:backup" earliest=-7d
-| sort networkName, config_section, _time
-| streamstats current=t window=2 earliest(config_hash) as prev_hash by networkName, config_section
-| where config_hash != prev_hash AND isnotnull(prev_hash)
-| table _time, networkName, config_section, prev_hash, config_hash
-| sort -_time
-```
+**Dashboard Configuration and Export Backup (Meraki)** — Network operations teams maintain indexed Meraki configuration backups in Splunk for disaster recovery, audit compliance, and configuration drift detection across all networks and configuration sections.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily). NOTE: the Meraki Dashboard does not provide a native 'config backup' API endpoint; backups are typically performed by exporting GET /networks/{networkId}/configTemplates and per-product config endpoints via a custom script. The audit log records when an admin performs these actions. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:audit. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:audit", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by organizationName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **days_since_last** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnull(last_action) OR days_since_last > 30` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Trigger a config backup and verify it appears in Splunk with the correct network and section.
-(b) Make a config change in Meraki Dashboard and verify the next backup shows a different config_hash.
-(c) Verify backup coverage: all production networks should have recent backups.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki Config Backup"):
-- Row 1 — Single-value tiles: "Networks backed up", "Overdue backups", "Config changes (7d)", "Last backup run".
-- Row 2 — Backup status table: network, section, last backup, days since, status.
-- Row 3 — Configuration change timeline.
-
-Alerting:
-- Warning (backup overdue > 7 days): backup system may have failed.
-- Info (config hash changed): configuration modified since last backup.
-
-### Step 5 — Troubleshooting
-
-- **Backup script fails** — Check API key permissions (read access to networks), API rate limits, and network connectivity to the Meraki cloud API.
-
-- **Config hash always changes** — Some Meraki config elements include timestamps or dynamic values. Strip volatile fields before hashing for stable drift detection.
-
-- **Missing networks in backups** — The backup script may only process networks explicitly listed. Use the organization networks API (`GET /organizations/{orgId}/networks`) to discover all networks dynamically.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Last backup timestamp by org; backup recency gauge; backup history timeline.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" backup_timestamp=*
-| stats latest(backup_timestamp) as last_backup, count as backup_count by organization
-| eval backup_age_days=round((now()-strptime(backup_timestamp, "%Y-%m-%d"))/86400, 0)
-| where backup_age_days > 7
+index=meraki sourcetype="meraki:audit" earliest=-30d
+    (page="Backup" OR label="*backup*" OR action="*backup*"
+     OR page="Configuration sync" OR label="*export*")
+| stats latest(_time) as last_action,
+        values(adminName) as performed_by,
+        values(label) as actions
+         by organizationName, networkName
+| eval days_since_last = round((now() - last_action)/86400, 0)
+| where isnull(last_action) OR days_since_last > 30
+| sort - days_since_last
 ```
 
 ## Visualization

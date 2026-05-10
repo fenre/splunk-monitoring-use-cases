@@ -25,77 +25,82 @@ Network operations teams monitor Meraki Dashboard API error rates and response c
 
 ## Implementation
 
-Log API responses with status codes. Alert on error rate threshold.
+1. Enable both API Requests History and API Requests Response Codes inputs in Splunk_TA_cisco_meraki (TA v3+). 2. The History input emits one event per individual API call with host, path (e.g. '/organizations/.../devices'), method, responseCode, sourceIp, userAgent, ts. 3. The Response Codes input gives aggregated counts per (responseCode, interval). 4. Threshold 4xx/5xx error rate >5% per endpoint to surface broken integrations or rate-limit hits (responseCode 429). 5. For client-side root-cause, the userAgent field reveals which integration (e.g. 'curl', 'python-meraki', 'TA-meraki/3.x') is misbehaving.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki Dashboard API error monitoring via TA internal logs and custom API health checks. The Meraki API returns standard HTTP status codes: 200 (success), 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 429 (rate limited), 500 (server error).
-- Data sources: (1) `index=_internal` for TA HTTP response errors, (2) `index=meraki sourcetype=meraki:api:audit` for custom API monitoring scripts, (3) Meraki Dashboard: Organization > API & Webhooks > API Usage for reference.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): API Requests History input (sourcetype=meraki:apirequestshistory, daily, TA v3+) for per-request log and API Requests Response Codes input (sourcetype=meraki:apirequestsresponsecodes, daily) for hourly response-code histograms..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify API error visibility:
-```spl
-index=_internal sourcetype=splunkd "meraki" ("error" OR "failed" OR "4[0-9][0-9]" OR "5[0-9][0-9]") earliest=-24h
-| stats count by log_level
-```
+1. Enable both API Requests History and API Requests Response Codes inputs in Splunk_TA_cisco_meraki (TA v3+). 2. The History input emits one event per individual API call with host, path (e.g. '/organizations/.../devices'), method, responseCode, sourceIp, userAgent, ts. 3. The Response Codes input gives aggregated counts per (responseCode, interval). 4. Threshold 4xx/5xx error rate >5% per endpoint to surface broken integrations or rate-limit hits (responseCode 429). 5. For client-side root-cau…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — API error rate by endpoint:**
 ```spl
-index=_internal sourcetype=splunkd "meraki" earliest=-4h
-| rex "(?:status|response|http)[_=:\s]*(?P<http_status>\d{3})"
-| rex "(?:endpoint|url|path)[_=:\s]*(?P<api_endpoint>[^\s,"]+)"
-| where isnotnull(http_status) AND http_status >= 400
-| eval error_category=case(http_status="401" OR http_status="403", "AUTH_ERROR", http_status="404", "NOT_FOUND", http_status="429", "RATE_LIMITED", http_status >= "500", "SERVER_ERROR", 1==1, "CLIENT_ERROR")
-| stats count as errors by http_status, error_category, api_endpoint
-| sort -errors
+index=meraki sourcetype="meraki:apirequestshistory" earliest=-1h
+| where responseCode >= 400
+| stats count as error_count,
+        values(responseCode) as response_codes,
+        values(method) as http_methods
+         by path, organizationId
+| sort - error_count
+| append [
+    search index=meraki sourcetype="meraki:apirequestsresponsecodes" earliest=-24h
+    | spath path=counts{} output=counts_arr
+    | mvexpand counts_arr
+    | spath input=counts_arr
+    | where code >= 400
+    | stats sum(count) as response_count by code, organizationId
+    | sort - response_count
+  ]
 ```
 
-#### Understanding this SPL: API errors indicate different failure modes: 401/403 = credential or permission issue (data collection stops); 404 = endpoint changed (API version mismatch); 429 = rate limiting (data delayed); 500+ = Meraki cloud issue (temporary or sustained). Each requires a different remediation approach.
+#### Understanding this SPL
 
-**API health trending:**
-```spl
-index=_internal sourcetype=splunkd "meraki" earliest=-24h
-| rex "(?:status|response|http)[_=:\s]*(?P<http_status>\d{3})"
-| where isnotnull(http_status)
-| eval is_error=if(http_status >= 400, 1, 0)
-| bin _time span=1h
-| stats count as total_calls sum(is_error) as error_calls by _time
-| eval error_rate_pct=round(100*error_calls/total_calls, 1)
-```
+**API Error Rate and Endpoint Health (Meraki)** — Network operations teams monitor Meraki Dashboard API error rates and response codes to detect credential failures, rate limiting, and cloud infrastructure issues that disrupt data collection.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): API Requests History input (sourcetype=meraki:apirequestshistory, daily, TA v3+) for per-request log and API Requests Response Codes input (sourcetype=meraki:apirequestsresponsecodes, daily) for hourly response-code histograms. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:apirequestshistory. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:apirequestshistory", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Filters the current rows with `where responseCode >= 400` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by path, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Appends rows from a subsearch with `append`.
+
 
 ### Step 3 — Validate
-(a) Intentionally use an invalid API key and verify 401 errors appear in Splunk.
-(b) Compare API usage statistics with Meraki Dashboard: Organization > API & Webhooks.
-(c) During a Meraki cloud maintenance window, verify 5xx errors are captured.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki API Health"):
-- Row 1 — Single-value tiles: "API error rate %", "Auth errors", "Rate limit events", "Server errors".
-- Row 2 — Error breakdown by status code and endpoint.
-- Row 3 — API health trending (error rate % over 24h).
-
-Alerting:
-- Critical (401/403 errors sustained > 15 minutes): data collection stopped — credential issue.
-- Warning (error rate > 5%): API issues impacting data quality.
-
-### Step 5 — Troubleshooting
-
-- **Sustained 401 errors** — API key was revoked, expired, or the admin account was deactivated. Generate a new API key in Meraki Dashboard and update the TA configuration.
-
-- **Intermittent 500 errors** — Meraki cloud infrastructure issue. Check status.meraki.com for ongoing incidents. These typically self-resolve.
-
-- **429 errors increasing** — Too many API consumers sharing the rate limit. See UC-5.8.11 for detailed rate limit troubleshooting.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: API error timeline; endpoint error breakdown; error rate gauge.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api:*" (http_status_code=4* OR http_status_code=5*)
-| stats count as error_count, values(http_status_code) as status_codes by endpoint, method
-| eval error_rate=round(error_count*100/total_requests, 2)
-| where error_rate > 5
+index=meraki sourcetype="meraki:apirequestshistory" earliest=-1h
+| where responseCode >= 400
+| stats count as error_count,
+        values(responseCode) as response_codes,
+        values(method) as http_methods
+         by path, organizationId
+| sort - error_count
+| append [
+    search index=meraki sourcetype="meraki:apirequestsresponsecodes" earliest=-24h
+    | spath path=counts{} output=counts_arr
+    | mvexpand counts_arr
+    | spath input=counts_arr
+    | where code >= 400
+    | stats sum(count) as response_count by code, organizationId
+    | sort - response_count
+  ]
 ```
 
 ## Visualization

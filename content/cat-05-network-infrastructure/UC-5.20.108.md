@@ -5,12 +5,12 @@ id: "5.20.108"
 title: "Segment Routing over IPv6 (SRv6) Security and Anomaly Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.108 · Segment Routing over IPv6 (SRv6) Security and Anomaly Detection
 
-> **Criticality:** High &middot; **Difficulty:** Expert &middot; **Pillar:** ES &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Expert &middot; **Pillar:** Security &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *In our network, we've built smart roads (SRv6) where the address on a letter also contains driving directions — telling each post office exactly where to forward it next. We watch to make sure nobody from outside our postal system is sending letters with fake driving directions that would reroute mail through the wrong post offices, where it could be read or tampered with.*
 

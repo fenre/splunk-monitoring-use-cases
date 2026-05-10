@@ -412,9 +412,9 @@ Closing checklist: five plain-text step headers with em dashes are present; Step
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Alerts WHERE nodename=Alerts earliest=-1h@h latest=now BY Alerts.signature Alerts.dest
+| tstats summariesonly=t count FROM datamodel=Alerts WHERE nodename=Alerts earliest=-1h@h latest=now BY Alerts.signature Alerts.dest
 | rename Alerts.dest AS host
-| append [ | tstats summariesonly=true count FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-1h@h latest=now BY Network_Traffic.dest_ip Network_Traffic.src_ip ]
+| append [ | tstats summariesonly=t count FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-1h@h latest=now BY Network_Traffic.dest_ip Network_Traffic.src_ip ]
 | head 400
 ```
 

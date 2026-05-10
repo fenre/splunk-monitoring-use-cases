@@ -348,7 +348,7 @@ Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactl
     pending_soak_min>=10, "medium",
     true(), "low")
 | where severity IN ("critical","high","medium") AND (pending_soak_min>=10 OR len(evt_reason)>0 OR len(evt_msg)>0)
-| appendcols [ | tstats summariesonly=true avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
+| appendcols [ | tstats summariesonly=t avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
 | table cluster namespace pvc storageclass provisioner volume_binding_mode requested_storage_bytes pending_soak_min cluster_peak_pending evt_reason evt_msg workload_tier owner_team severity cim_mem_fleet_avg
 | sort - severity +cluster +namespace +pvc
 ```
@@ -494,7 +494,7 @@ Closing checklist: five step headers use plain em dashes as mandated; Step 3 fen
     pending_soak_min>=10, "medium",
     true(), "low")
 | where severity IN ("critical","high","medium") AND (pending_soak_min>=10 OR len(evt_reason)>0 OR len(evt_msg)>0)
-| appendcols [ | tstats summariesonly=true avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
+| appendcols [ | tstats summariesonly=t avg(Performance.mem_used_percent) AS cim_mem_fleet_avg FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-2h@h latest=now | head 1 ]
 | table cluster namespace pvc storageclass provisioner volume_binding_mode requested_storage_bytes pending_soak_min cluster_peak_pending evt_reason evt_msg workload_tier owner_team severity cim_mem_fleet_avg
 | sort - severity +cluster +namespace +pvc
 ```
@@ -502,9 +502,9 @@ Closing checklist: five step headers use plain em dashes as mandated; Step 3 fen
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Inventory.vendor_product) AS inv_product count AS inv_events FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
+| tstats summariesonly=t latest(Inventory.vendor_product) AS inv_product count AS inv_events FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest
 | rename Inventory.dest AS inventory_dest
-| join type=left max=0 inventory_dest [| tstats summariesonly=true avg(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-4h@h latest=now BY Performance.host
+| join type=left max=0 inventory_dest [| tstats summariesonly=t avg(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-4h@h latest=now BY Performance.host
 | rename Performance.host AS inventory_dest ]
 | where inv_events>0
 ```

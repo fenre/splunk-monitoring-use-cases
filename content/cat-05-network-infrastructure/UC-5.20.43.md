@@ -5,12 +5,12 @@ id: "5.20.43"
 title: "OSPFv3 Adjacency Monitoring and IPv6 Routing Stability"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.43 · OSPFv3 Adjacency Monitoring and IPv6 Routing Stability
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *The routers that carry IPv6 traffic need to be good neighbours — they constantly check on each other to share road maps. If a neighbour stops responding, the others have to quickly reroute traffic around the gap. We watch for these 'neighbour down' events because they mean some roads are suddenly closed and traffic might be taking a longer detour — or worse, getting lost.*
 

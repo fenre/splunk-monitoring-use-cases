@@ -213,10 +213,10 @@ Paste-and-run SPL must match the spl JSON field exactly:
 | fillnull value=0 budget_qps
 | fillnull value="platform_api" owner_team
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | rename Application_State.dest AS cluster ]
 | join type=left max=0 win_time
-    [| tstats summariesonly=false count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
+    [| tstats summariesonly=f count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
       | rename _time AS win_time ]
 | fillnull value="" cim_app_state
 | fillnull value=0 cim_perf_events
@@ -375,10 +375,10 @@ Closing checklist: five em-dash step headers are present exactly; Step 3 contain
 | fillnull value=0 budget_qps
 | fillnull value="platform_api" owner_team
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.info) AS cim_app_state FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | rename Application_State.dest AS cluster ]
 | join type=left max=0 win_time
-    [| tstats summariesonly=false count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
+    [| tstats summariesonly=f count AS cim_perf_events FROM datamodel=Performance WHERE nodename=Performance earliest=-30m@m latest=@m BY _time span=5m
       | rename _time AS win_time ]
 | fillnull value="" cim_app_state
 | fillnull value=0 cim_perf_events
@@ -395,10 +395,10 @@ Closing checklist: five em-dash step headers are present exactly; Step 3 contain
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app,"%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_cluster
 | join type=left max=0 cim_cluster
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_cluster ]
 | table cim_cluster app_state app_info cpu_pct
 ```

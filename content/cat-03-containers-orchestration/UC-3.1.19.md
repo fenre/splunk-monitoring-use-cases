@@ -306,7 +306,7 @@ Forensic and capacity idioms worth internalizing: json-file rotation that never 
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="docker" OR Application_State.app="dockerd") earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="docker" OR Application_State.app="dockerd") earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS host_id
 | where like(lower(app_info), "%log%") OR like(lower(app_info), "%driver%")
 ```

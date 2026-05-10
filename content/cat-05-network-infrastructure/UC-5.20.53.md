@@ -5,12 +5,12 @@ id: "5.20.53"
 title: "DNS64/NAT64 Translation Health and Dependency Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.53 · DNS64/NAT64 Translation Health and Dependency Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ITSI &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Some new-phone-only users need to call old-phone-only numbers. There's a special translator in the middle that converts the call between the two systems. We watch this translator to make sure it's handling all the calls properly — if it gets overloaded or breaks, people on the new phone system suddenly can't reach anyone on the old system.*
 

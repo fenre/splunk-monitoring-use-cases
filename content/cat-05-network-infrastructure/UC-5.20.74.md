@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Our building directory has space for a certain number of names. If someone keeps sending letters to fake apartment numbers that don't exist, the building manager has to look up each one — 'Does this person live here? No? Does THIS person live here? No?' — until the directory fills up with all these 'looking for...' entries. Eventually, when a real letter arrives, the building manager says 'sorry, my directory is full, I can't look up anyone new.' We watch the directory to see if it's filling up with fake lookups.*
+*Our building directory has space for a certain number of names. If someone keeps sending letters to fake apartment numbers that don't exist, the building manager has to look up each one — 'Does this person live here? No? Does THIS person live here? No?' — until the directory fills up with all these 'looking for...' entries.*
 
 ---
 

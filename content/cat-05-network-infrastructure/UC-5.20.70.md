@@ -5,14 +5,14 @@ id: "5.20.70"
 title: "IPv6 Traffic Class / DSCP Marking Parity Monitoring"
 status: "verified"
 criticality: "low"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.70 · IPv6 Traffic Class / DSCP Marking Parity Monitoring
 
-> **Criticality:** Low &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Performance &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Low &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Performance &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*In our building, important visitors (like doctors and emergency workers) get priority elevator access — they get to skip the queue. But when we added the new IPv6 entrance, we forgot to put up the 'priority visitors' signs. So important visitors entering through the new door have to wait in the regular queue while the same visitors entering through the old door (IPv4) still get priority. We check both doors to make sure the priority system works equally.*
+*In our building, important visitors (like doctors and emergency workers) get priority elevator access — they get to skip the queue. But when we added the new IPv6 entrance, we forgot to put up the 'priority visitors' signs. So important visitors entering through the new door have to wait in the regular queue while the same visitors entering through the old door (IPv4) still get priority.*
 
 ---
 

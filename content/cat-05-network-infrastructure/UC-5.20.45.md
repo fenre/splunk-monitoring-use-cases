@@ -5,14 +5,14 @@ id: "5.20.45"
 title: "IPv6 Routing Table Size and Prefix Churn Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.45 · IPv6 Routing Table Size and Prefix Churn Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Performance, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Every router keeps a big address book of how to reach every part of the IPv6 internet. This address book keeps growing as more networks connect. But the router's memory for this book has a limit — like a filing cabinet that can only hold so many folders. We watch how full the filing cabinet is and predict when it will be completely full, so we can get a bigger cabinet before files start falling on the floor.*
+*Every router keeps a big address book of how to reach every part of the IPv6 internet. This address book keeps growing as more networks connect. But the router's memory for this book has a limit — like a filing cabinet that can only hold so many folders.*
 
 ---
 

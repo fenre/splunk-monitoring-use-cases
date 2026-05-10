@@ -5,14 +5,14 @@ id: "5.20.98"
 title: "IPv6 Fragment Reassembly Timeout and Evasion Attack Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.98 · IPv6 Fragment Reassembly Timeout and Evasion Attack Detection
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Imagine someone sends you a large birthday card by cutting it into several pieces and mailing each piece separately. Normally, you put the pieces back together to read the card. But a burglar might send confusing, overlapping pieces to trick your mail sorter into letting something bad through. We watch for these suspicious cut-up messages on our network, because on the new address system (IPv6), cutting up messages is very unusual and often means someone is trying something sneaky.*
+*Imagine someone sends you a large birthday card by cutting it into several pieces and mailing each piece separately. Normally, you put the pieces back together to read the card. But a burglar might send confusing, overlapping pieces to trick your mail sorter into letting something bad through.*
 
 ---
 

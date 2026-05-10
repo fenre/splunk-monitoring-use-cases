@@ -30,76 +30,71 @@ Monitor VPN tunnel state from syslog and API. Alert on status != "up".
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX VPN logs via Meraki Dashboard API or syslog. Data in `index=meraki` with `sourcetype=meraki:api:vpnstatus` (API) or `sourcetype=meraki:events` (syslog). Key fields: `networkId`, `peer_name`, `peer_type` (site-to-site/third-party), `vpn_status` (online/offline/negotiating), `latency_ms`, `loss_percent`, `jitter_ms`.
-* Install `Splunk_TA_cisco_meraki` and configure Meraki Dashboard API polling for VPN status endpoint: `/organizations/{orgId}/appliance/vpn/statuses`.
-* Create `meraki_networks.csv` lookup: `networkId`, `network_name`, `site`, `criticality`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki type=vpn sourcetype=meraki:devices`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-API polling input:
-```
-# inputs.conf
-[meraki_vpn_status]
-interval = 300
-sourcetype = meraki:api:vpnstatus
-index = meraki
-```
-Syslog from MX:
-```
-# Meraki Dashboard > Network-wide > General > Reporting > Syslog servers
-# Add Splunk syslog IP, port 514, roles: VPN
-```
-Verify:
+### Step 1 — Configure data collection
+Monitor VPN tunnel state from syslog and API. Alert on status != "up".
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki (sourcetype="meraki:api:vpnstatus" OR sourcetype="meraki:events") earliest=-4h
-| where match(_raw, "(?i)vpn|tunnel|ipsec")
-| stats count by sourcetype
+index=meraki sourcetype="meraki" type=events (vpn_connectivity_change OR "vpn") 
+| stats latest(status) as tunnel_status, latest(last_changed) as status_change_time by tunnel_id, remote_site
+| where tunnel_status="down" OR tunnel_status="unstable"
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- VPN tunnel status and path monitoring:**
+**VPN Tunnel Status and Path Monitoring (Meraki MX)** — Operations teams monitor Meraki MX Auto VPN and third-party tunnel status with path quality metrics (latency, loss, jitter), detecting site connectivity failures.
+
+Documented **Data sources**: `sourcetype=meraki type=vpn sourcetype=meraki:devices`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by tunnel_id, remote_site** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where tunnel_status="down" OR tunnel_status="unstable"` — typically the threshold or rule expression for this monitoring goal.
+
+Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):
+
 ```spl
-index=meraki sourcetype="meraki:api:vpnstatus" earliest=-4h
-| eval vpn_status=lower(coalesce(vpn_status, reachability))
-| eval peer=coalesce(peer_name, peerNetworkId)
-| lookup meraki_networks.csv networkId OUTPUT network_name, site, criticality
-| eval latency=tonumber(latency_ms)
-| eval loss=tonumber(loss_percent)
-| eval jitter=tonumber(jitter_ms)
-| stats latest(vpn_status) as status latest(latency) as latency_ms latest(loss) as loss_pct latest(jitter) as jitter_ms latest(_time) as last_check by network_name, peer, site, criticality
-| eval quality=case(loss_pct > 5 OR latency_ms > 200 OR jitter_ms > 50, "DEGRADED", status="offline", "DOWN", 1==1, "HEALTHY")
-| eval severity=case(status="offline" AND criticality="high", "CRITICAL -- high-criticality tunnel DOWN", status="offline", "HIGH -- tunnel offline", quality="DEGRADED", "WARNING -- degraded performance (loss=".loss_pct."%, lat=".latency_ms."ms, jitter=".jitter_ms."ms)", 1==1, "OK")
-| where severity != "OK"
-| sort severity
+| tstats `summariesonly` count
+  from datamodel=Network_Sessions.All_Sessions
+  by All_Sessions.user All_Sessions.src All_Sessions.dest All_Sessions.action span=1h
+| sort -count
 ```
 
-### Step 3 — - Validate
-(a) Meraki Dashboard: Security & SD-WAN > VPN Status -- compare online/offline tunnels.
-(b) Verify per-tunnel latency/loss/jitter values match dashboard.
-(c) Disconnect a test tunnel and verify status change appears in Splunk.
+Understanding this CIM / accelerated SPL
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- VPN Health"):
-* Row 1 -- Single-value: "Tunnels DOWN", "Degraded tunnels", "Total tunnels".
-* Row 2 -- VPN tunnel status table with quality metrics.
-* Row 3 -- Latency/loss trending timechart.
+**VPN Tunnel Status and Path Monitoring (Meraki MX)** — Operations teams monitor Meraki MX Auto VPN and third-party tunnel status with path quality metrics (latency, loss, jitter), detecting site connectivity failures.
 
-Alerting:
-* Critical (high-criticality tunnel offline > 5 min): site connectivity lost.
-* Warning (loss > 5% or latency > 200ms): degraded performance.
+Documented **Data sources**: `sourcetype=meraki type=vpn sourcetype=meraki:devices`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 5 — - Troubleshooting
+This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
-* **Tunnel offline** -- Check: (1) WAN uplink status at both sites, (2) MX appliance power/connectivity, (3) ISP outage. Meraki Dashboard > Monitor > Appliance status.
+**Pipeline walkthrough**
 
-* **High latency/loss** -- Check: (1) WAN uplink saturation, (2) ISP path issue, (3) traffic shaping bandwidth limits. Use Meraki "WAN Health" page for uplink performance.
+- Uses `tstats` against accelerated summaries for data model `Network_Sessions.All_Sessions` — enable acceleration for that model.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Tunnel negotiating but not establishing** -- IKE/IPSec mismatch with third-party VPN peer. Check: pre-shared key, Phase 1/2 settings. Meraki auto-VPN tunnels should establish automatically.
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
+
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: VPN tunnel status matrix; site connectivity map; tunnel health sparklines.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=vpn
+index=meraki sourcetype="meraki" type=events (vpn_connectivity_change OR "vpn") 
 | stats latest(status) as tunnel_status, latest(last_changed) as status_change_time by tunnel_id, remote_site
 | where tunnel_status="down" OR tunnel_status="unstable"
 ```

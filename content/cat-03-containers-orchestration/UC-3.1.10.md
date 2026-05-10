@@ -302,7 +302,7 @@ Closing governance notes for platform steering committees: tie epss_weighted_sco
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-24h latest=now BY Vulnerabilities.signature Vulnerabilities.dest
+| tstats summariesonly=t count FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-24h latest=now BY Vulnerabilities.signature Vulnerabilities.dest
 | rename Vulnerabilities.dest AS image_name
 ```
 

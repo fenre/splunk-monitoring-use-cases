@@ -25,76 +25,78 @@ Wireless operations teams monitor Meraki guest SSID splash page (captive portal)
 
 ## Implementation
 
-Query clients API to get current band distribution. Compare against expected ratio for band steering policy.
+1. Enable the Webhook Logs (HEC) input and configure 'client connection changed' alerts in Meraki Dashboard. 2. Each association event includes alertData.band (2.4GHz / 5GHz / 6GHz). 3. Calculate the share of clients on each band; if 5GHz/6GHz share is below ~70% on dual-band capable APs, review band-steering configuration in Meraki Dashboard -> Wireless -> Radio settings. 4. For per-AP band steering effectiveness, group by deviceSerial in addition to band.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki events providing splash page (captive portal) authentication data. Data in `index=meraki` with `sourcetype=meraki:events`. Key fields: `type` (splash), `client_mac`, `ap_name`, `ssid`, `identity` (user/email), `status` (success/failure).
-- Splash pages are Meraki's captive portal feature for guest SSIDs. Authentication methods include: click-through, sign-on (email), RADIUS, Active Directory, SMS verification, social login (Facebook/Google).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. The polled Dashboard API does not break down clients by band; webhook payloads include alertData.band on association events..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify splash events:
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(type, "(?i)splash")
-| stats count by type, ssid
-```
+1. Enable the Webhook Logs (HEC) input and configure 'client connection changed' alerts in Meraki Dashboard. 2. Each association event includes alertData.band (2.4GHz / 5GHz / 6GHz). 3. Calculate the share of clients on each band; if 5GHz/6GHz share is below ~70% on dual-band capable APs, review band-steering configuration in Meraki Dashboard -> Wireless -> Radio settings. 4. For per-AP band steering effectiveness, group by deviceSerial in addition to band.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Splash page success/failure analysis:**
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
-| where match(type, "(?i)splash")
-| eval splash_result=case(match(type, "(?i)success") OR match(status, "(?i)success"), "SUCCESS", match(type, "(?i)fail") OR match(status, "(?i)fail"), "FAILURE", match(type, "(?i)timeout"), "TIMEOUT", 1==1, "OTHER")
-| stats count(eval(splash_result="SUCCESS")) as successes count(eval(splash_result="FAILURE")) as failures count(eval(splash_result="TIMEOUT")) as timeouts dc(client_mac) as unique_guests by ssid, ap_name
-| eval total=successes + failures + timeouts
-| eval success_rate=if(total > 0, round(100*successes/total, 1), "N/A")
-| where failures > 5 OR timeouts > 5 OR success_rate < 80
-| eval issue=case(timeouts > failures, "Splash page load timeout — check DNS/firewall", failures > 10, "Authentication backend issue", success_rate < 80, "Low success rate", 1==1, "Monitor")
-| sort -failures
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval band = coalesce('alertData.band', 'alertData.rf.band')
+| where isnotnull(client_mac) AND isnotnull(band)
+| stats dc(client_mac) as client_count by band
+| eventstats sum(client_count) as total
+| eval band_share_pct = round(client_count*100/total, 1)
+| sort - client_count
 ```
 
-**Guest usage trending:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-7d
-| where match(type, "(?i)splash") AND (match(type, "(?i)success") OR match(status, "(?i)success"))
-| bin _time span=1d
-| stats dc(client_mac) as unique_guests by _time, ssid
-| timechart span=1d sum(unique_guests) by ssid
-```
+#### Understanding this SPL
+
+**Band Steering Effectiveness Assessment (Meraki MR)** — Wireless operations teams monitor Meraki guest SSID splash page (captive portal) authentication success rates, detecting backend failures, timeouts, and configuration issues impacting guest WiFi access.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. The polled Dashboard API does not break down clients by band; webhook payloads include alertData.band on association events. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `eval` defines or adjusts **client_mac** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **band** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnotnull(client_mac) AND isnotnull(band)` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by band** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.
+- `eval` defines or adjusts **band_share_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
+Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
+
 
 ### Step 3 — Validate
-(a) Connect to the guest SSID and complete the splash page flow. Verify the event appears in Splunk.
-(b) Compare guest counts with Meraki Dashboard: Wireless > Splash page > Analytics.
-(c) Test a failure scenario (enter wrong credentials on a RADIUS splash) and verify it's captured.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Guest WiFi"):
-- Row 1 — Single-value: "Guest logins today", "Success rate", "Failures", "Unique guests (7d)".
-- Row 2 — Per-SSID splash page health table.
-- Row 3 — Daily guest usage trending.
-
-Alerting:
-- Warning (splash success rate < 70% in 1 hour): captive portal issue.
-- Info (daily): guest WiFi usage report.
-
-### Step 5 — Troubleshooting
-
-- **Splash page timeouts** — The splash page is hosted by Meraki cloud. Check: (1) DNS resolution to Meraki splash domain, (2) firewall rules — UDP/TCP 53 (DNS) and TCP 443 must be allowed before authentication, (3) walled garden configuration in Meraki Dashboard.
-
-- **All failures are on one SSID** — Check the splash page configuration for that SSID: Wireless > SSIDs > Splash page. Verify RADIUS server or AD integration settings.
-
-- **Social login not working** — Third-party OAuth endpoints must be in the walled garden. Check Meraki's documentation for required URLs.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge showing 5GHz percentage; pie chart of band distribution; trend line showing steering progress.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| stats count as client_count by band
-| eval band_ratio=round(client_count*100/sum(client_count), 2)
-| fields band, client_count, band_ratio
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-24h
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval band = coalesce('alertData.band', 'alertData.rf.band')
+| where isnotnull(client_mac) AND isnotnull(band)
+| stats dc(client_mac) as client_count by band
+| eventstats sum(client_count) as total
+| eval band_share_pct = round(client_count*100/total, 1)
+| sort - client_count
 ```
 
 ## Visualization

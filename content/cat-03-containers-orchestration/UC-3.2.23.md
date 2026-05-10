@@ -233,7 +233,7 @@ Fenced SPL for runbooks must match the spl JSON field byte-for-byte:
 | eval allowlist_expired=if(allowlist_expiry_epoch>0 AND now_e>allowlist_expiry_epoch, 1, 0)
 | eval breakglass_tracked=if(len(trim(approved_change_ticket))>0 AND allowlist_expired=0, 1, 0)
 | join type=left max=1 actor [
-    | tstats summariesonly=true count AS auth_model_touches FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
+    | tstats summariesonly=t count AS auth_model_touches FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
     | rename Authentication.user AS actor ]
 | fillnull value=0 auth_model_touches
 | eventstats count AS lane_volume_24h BY cluster, signal_lane
@@ -412,7 +412,7 @@ Closing checklist: five em-dash step headers are present exactly as required; St
 | eval allowlist_expired=if(allowlist_expiry_epoch>0 AND now_e>allowlist_expiry_epoch, 1, 0)
 | eval breakglass_tracked=if(len(trim(approved_change_ticket))>0 AND allowlist_expired=0, 1, 0)
 | join type=left max=1 actor [
-    | tstats summariesonly=true count AS auth_model_touches FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
+    | tstats summariesonly=t count AS auth_model_touches FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user
     | rename Authentication.user AS actor ]
 | fillnull value=0 auth_model_touches
 | eventstats count AS lane_volume_24h BY cluster, signal_lane
@@ -432,7 +432,7 @@ Closing checklist: five em-dash step headers are present exactly as required; St
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
+| tstats summariesonly=t count FROM datamodel=Authentication WHERE nodename=Authentication earliest=-24h@h latest=@h BY Authentication.user Authentication.action
 | rename Authentication.user AS actor
 | head 200
 ```

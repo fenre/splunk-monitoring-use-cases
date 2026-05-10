@@ -25,86 +25,69 @@ Network operations teams audit Meraki administrator activity for compliance, det
 
 ## Implementation
 
-Enable admin audit logging. Ingest login and action events.
+1. Enable the Audit input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/configurationChanges daily (configurable to as low as 6 minutes) and emits one event per admin action with adminName, page, label, action, networkName, ssidNumber, ts, and the JSON oldValue / newValue. 2. Group by adminName for per-admin activity dashboards. 3. For privileged-admin / orphaned-admin detection, lookup adminName against your IDM and flag orphans.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki Dashboard API providing admin activity logs via the organization change log endpoint. Data in `index=meraki` with `sourcetype=meraki:api:changelog` or `sourcetype=meraki:events`. The Meraki Change Log API (`GET /organizations/{orgId}/actionBatches` and `GET /organizations/{orgId}/configurationChanges`) returns all admin actions.
-- Key fields: `adminName`/`adminEmail`, `networkName`, `ts` (timestamp), `page` (Meraki Dashboard page), `label` (action description), `oldValue`, `newValue`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily polling of GET /organizations/{orgId}/configurationChanges, OAuth scope dashboard:general:config:read). NOTE: admin activity is NOT in Meraki syslog — it is only available via the Audit input..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify admin activity log:
-```spl
-index=meraki (sourcetype="meraki:api:changelog" OR sourcetype="meraki:events") earliest=-24h
-| stats count by adminName, page
-| sort -count
-```
+1. Enable the Audit input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/configurationChanges daily (configurable to as low as 6 minutes) and emits one event per admin action with adminName, page, label, action, networkName, ssidNumber, ts, and the JSON oldValue / newValue. 2. Group by adminName for per-admin activity dashboards. 3. For privileged-admin / orphaned-admin detection, lookup adminName against your IDM and flag orphans.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Admin activity audit:**
 ```spl
-index=meraki (sourcetype="meraki:api:changelog" OR sourcetype="meraki:events") earliest=-24h
-| eval admin=coalesce(adminName, adminEmail)
-| stats count as actions dc(networkName) as networks_touched dc(page) as pages_touched values(page) as activity_areas first(_time) as first_action latest(_time) as last_action by admin
-| eval active_hours=round((last_action - first_action)/3600, 1)
-| sort -actions
+index=meraki sourcetype="meraki:audit" earliest=-7d
+| stats count as admin_action_count,
+        values(action) as actions,
+        values(page) as pages,
+        values(label) as targets,
+        earliest(_time) as first_action,
+        latest(_time) as last_action
+         by adminName, organizationName
+| where admin_action_count > 0
+| sort - admin_action_count
 ```
 
-#### Understanding this SPL: The Meraki change log captures every configuration change made through the dashboard or API. This provides complete audit visibility: who changed what, when, and what the old/new values were. Tracking actions per admin helps identify: (1) rogue changes (unauthorized admin), (2) bulk errors (admin making many changes quickly — possible mistake), (3) automation activity (API key making systematic changes).
+#### Understanding this SPL
 
-**Sensitive configuration changes:**
-```spl
-index=meraki (sourcetype="meraki:api:changelog" OR sourcetype="meraki:events") earliest=-24h
-| where match(page, "(?i)(firewall|security|vpn|admin|saml|snmp|syslog|api)")
-| eval admin=coalesce(adminName, adminEmail)
-| table _time, admin, networkName, page, label, oldValue, newValue
-| sort -_time
-```
+**Admin Activity Logging and Access Control Audit (Meraki)** — Network operations teams audit Meraki administrator activity for compliance, detecting sensitive configuration changes, after-hours modifications, and unauthorized admin actions across all networks and organizations.
 
-**After-hours admin activity:**
-```spl
-index=meraki (sourcetype="meraki:api:changelog" OR sourcetype="meraki:events") earliest=-7d
-| eval hour=strftime(_time, "%H")
-| eval is_after_hours=if(hour < 7 OR hour > 19, 1, 0)
-| where is_after_hours=1
-| eval admin=coalesce(adminName, adminEmail)
-| stats count as after_hours_actions by admin, networkName
-| sort -after_hours_actions
-```
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily polling of GET /organizations/{orgId}/configurationChanges, OAuth scope dashboard:general:config:read). NOTE: admin activity is NOT in Meraki syslog — it is only available via the Audit input. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:audit. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:audit", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by adminName, organizationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where admin_action_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Make a configuration change in Meraki Dashboard and verify it appears in Splunk within minutes.
-(b) Compare admin activity in Splunk with Meraki Dashboard: Organization > Change log.
-(c) Verify all admin accounts are accounted for in the activity audit.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki Admin Activity"):
-- Row 1 — Single-value tiles: "Active admins (24h)", "Total changes", "Security changes", "After-hours changes".
-- Row 2 — Admin activity table: admin, actions, networks touched, activity areas.
-- Row 3 — Sensitive change log: firewall, VPN, admin, security changes with old/new values.
-- Row 4 — After-hours activity: admin, network, change count.
-
-Alerting:
-- High (security-related change outside change window): investigate immediately.
-- Warning (after-hours admin activity > 5 changes): verify legitimacy.
-- Info (new admin account activity): first-time admin making changes.
-
-### Step 5 — Troubleshooting
-
-- **Change log data gaps** — The Meraki change log API has pagination limits. Ensure the TA polls frequently enough to capture all changes. Increase polling frequency for large organizations.
-
-- **adminName shows as email** — Some Meraki API versions return email instead of display name. Use both fields with `coalesce`.
-
-- **API-driven changes show generic admin** — Changes made via API show the API key owner, not the script that invoked it. Tag API keys with descriptive names in Meraki Dashboard.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Admin activity timeline; action type breakdown; user activity detail table.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*admin*" OR signature="*login*")
-| stats count as admin_action_count by admin_user, action_type, timestamp
+index=meraki sourcetype="meraki:audit" earliest=-7d
+| stats count as admin_action_count,
+        values(action) as actions,
+        values(page) as pages,
+        values(label) as targets,
+        earliest(_time) as first_action,
+        latest(_time) as last_action
+         by adminName, organizationName
 | where admin_action_count > 0
+| sort - admin_action_count
 ```
 
 ## Visualization

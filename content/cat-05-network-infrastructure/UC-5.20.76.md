@@ -12,7 +12,7 @@ splunkPillar: "Security"
 
 > **Criticality:** Medium &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*When sending a large package, the delivery service may come back and say 'Your package is too big for the tunnel on the route — make it smaller.' If a trickster sends this message falsely, you'll start wrapping everything in tiny packages, making your deliveries very slow even though the route is actually fine. We watch for false 'make it smaller' messages, especially ones claiming impossibly small sizes.*
+*When sending a large package, the delivery service may come back and say 'Your package is too big for the tunnel on the route — make it smaller.' If a trickster sends this message falsely, you'll start wrapping everything in tiny packages, making your deliveries very slow even though the route is actually fine.*
 
 ---
 

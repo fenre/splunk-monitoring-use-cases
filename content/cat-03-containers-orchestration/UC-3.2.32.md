@@ -228,7 +228,7 @@ Paste-and-run SPL for alerts and dashboards must match the spl JSON field exactl
       | eval criticality=lower(trim(toString(coalesce(criticality, tier, "silver"))))
       | fields cluster namespace owner_team on_call_team app_id criticality quota_policy_notes ]
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.state) AS plat_state latest(Application_State.info) AS plat_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS plat_state latest(Application_State.info) AS plat_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | eval cluster=lower(trim(toString(Application_State.dest)))
       | fields cluster plat_state plat_info ]
 | fillnull value="unknown_owner" owner_team
@@ -372,7 +372,7 @@ Long-term owners should rehearse FinOps cadence when forecast_hit_7d becomes rou
       | eval criticality=lower(trim(toString(coalesce(criticality, tier, "silver"))))
       | fields cluster namespace owner_team on_call_team app_id criticality quota_policy_notes ]
 | join type=left max=0 cluster
-    [| tstats summariesonly=true latest(Application_State.state) AS plat_state latest(Application_State.info) AS plat_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+    [| tstats summariesonly=t latest(Application_State.state) AS plat_state latest(Application_State.info) AS plat_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
       | eval cluster=lower(trim(toString(Application_State.dest)))
       | fields cluster plat_state plat_info ]
 | fillnull value="unknown_owner" owner_team
@@ -399,10 +399,10 @@ Long-term owners should rehearse FinOps cadence when forecast_hit_7d becomes rou
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
+| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app="kubernetes" OR Application_State.app="k8s" OR like(Application_State.app, "%kube%")) earliest=-4h@h latest=@h BY Application_State.dest
 | rename Application_State.dest AS cim_host
 | join type=left max=0 cim_host
-    [| tstats summariesonly=true avg(Performance.cpu_load_percent) AS cpu_load_pct avg(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-4h@h latest=@h BY Performance.host
+    [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_load_pct avg(Performance.mem_used_percent) AS mem_used_pct FROM datamodel=Performance WHERE nodename=Performance.CPU OR nodename=Performance.Memory earliest=-4h@h latest=@h BY Performance.host
      | rename Performance.host AS cim_host ]
 | table cim_host app_state app_info cpu_load_pct mem_used_pct
 ```

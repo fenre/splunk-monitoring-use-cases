@@ -76,7 +76,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/NATGateway"
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   by Performance.object Performance.app span=1h
 | sort -count
 ```

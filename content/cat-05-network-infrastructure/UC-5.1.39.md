@@ -25,77 +25,75 @@ Security teams detect Meraki MS port security violations and rogue device connec
 
 ## Implementation
 
-Monitor port security violation events from syslog. Create alert for each unique violation.
+1. Configure SC4S for Meraki MS syslog and enable Switch event log in Meraki Dashboard. 2. Filter on 802.1X failure events and DHCP guard blocks — the two real syslog signals analogous to IOS port-security violations. 3. The TA-meraki (Splunkbase #3018) extracts the type=, port=, identity= fields directly from the structured key=value payload. 4. For sticky-MAC behaviour, use Meraki Dashboard -> Switch -> Access policies (port-based dot1x) instead — there is no Cisco IOS-style port-security on Meraki.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS port security events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: port security violations, sticky MAC, unknown MAC blocked.
-* Meraki MS port security: configured per-port via Dashboard. Options: sticky MAC learning, MAC allow-list, and MAC limit per port. Violations generate syslog events and can auto-disable the port.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. NOTE: Meraki MS does NOT have classic IOS-style 'port-security' (sticky MAC, max-mac, violation modes); the closest Meraki signals are 802.1X authentication failures (type=8021x_eap_failure / 8021x_deauth) and 'Blocked DHCP server response from <mac> on VLAN <id>' messages emitted by the DHCP guard feature..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Switch > Access policies
-# Configure access policies with MAC allow-lists
-# Per-port: Configure access policy assignment
-# Syslog: enable Event log
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for Meraki MS syslog and enable Switch event log in Meraki Dashboard. 2. Filter on 802.1X failure events and DHCP guard blocks — the two real syslog signals analogous to IOS port-security violations. 3. The TA-meraki (Splunkbase #3018) extracts the type=, port=, identity= fields directly from the structured key=value payload. 4. For sticky-MAC behaviour, use Meraki Dashboard -> Switch -> Access policies (port-based dot1x) instead — there is no Cisco IOS-style port-security on M…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-7d
-| where match(_raw, "(?i)port.*security|MAC.*violation|rogue|unauthorized|802\.1X|radius.*reject")
-| stats count by host
+index=meraki sourcetype="meraki" type=events
+    (type=8021x_eap_failure OR type=8021x_deauth
+     OR "Blocked DHCP server response"
+     OR "MAC flooding" OR "unauthorized")
+    earliest=-24h
+| rex "port[=\']?(?<port_id>[\d]+)"
+| rex "(?<violation_type>8021x_eap_failure|8021x_deauth|Blocked DHCP|unauthorized)"
+| stats count as violation_count,
+        values(violation_type) as types,
+        values(identity) as identities
+         by host, port_id
+| where violation_count > 0
+| sort - violation_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Port security violations and rogue device detection:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-24h
-| where match(_raw, "(?i)port.*security|MAC.*violation|rogue|unauthorized|blocked.*mac|802\.1X.*fail|radius.*reject|access.*denied")
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| rex field=_raw "(?i)(?:MAC|mac).*?(?<violating_mac>[0-9a-fA-F:]{12,17})"
-| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
-| eval violation_type=case(
-    match(_raw, "(?i)rogue|unknown"), "ROGUE_DEVICE",
-    match(_raw, "(?i)802\.1X.*fail|radius.*reject"), "AUTH_FAILURE",
-    match(_raw, "(?i)MAC.*violation|security.*violat"), "MAC_VIOLATION",
-    1==1, "PORT_SECURITY")
-| stats count as violations dc(violating_mac) as unique_macs values(violating_mac) as macs values(port_id) as ports by network_name, device, violation_type
-| eval severity=case(
-    violation_type="ROGUE_DEVICE", "CRITICAL -- rogue device detected",
-    violations > 20, "WARNING -- frequent ".violation_type." events",
-    1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -violations
-```
+**Port Security Violations and Rogue Device Detection (Meraki MS)** — Security teams detect Meraki MS port security violations and rogue device connections, identifying unauthorized devices and 802.1X authentication failures on secure switch ports.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports -- check port status and connected clients.
-(b) Dashboard: Network-wide > Clients -- identify the device by MAC address.
-(c) Verify access policy configuration on the port.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. NOTE: Meraki MS does NOT have classic IOS-style 'port-security' (sticky MAC, max-mac, violation modes); the closest Meraki signals are 802.1X authentication failures (type=8021x_eap_failure / 8021x_deauth) and 'Blocked DHCP server response from <mac> on VLAN <id>' messages emitted by the DHCP guard feature. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- Port Security"):
-* Row 1 -- Single-value: "Security violations (24h)", "Rogue devices", "Auth failures".
-* Row 2 -- Port security violation table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (rogue device on secure port): investigate immediately.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host, port_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where violation_count > 0` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Rogue device detected** -- Identify MAC, check against inventory. If unauthorized, disable port. Investigate physical location.
 
-* **Frequent auth failures** -- Check RADIUS server connectivity and credentials. Verify supplicant configuration on the client device.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Legitimate device blocked** -- Add MAC to allow-list or update access policy. Ensure RADIUS server has the correct user/device entry.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of violations; timeline of events; network detail with affected ports.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*Port Security*" OR signature="*Unauthorized*")
-| stats count as violation_count by switch_name, port_id, mac_address
+index=meraki sourcetype="meraki" type=events
+    (type=8021x_eap_failure OR type=8021x_deauth
+     OR "Blocked DHCP server response"
+     OR "MAC flooding" OR "unauthorized")
+    earliest=-24h
+| rex "port[=\']?(?<port_id>[\d]+)"
+| rex "(?<violation_type>8021x_eap_failure|8021x_deauth|Blocked DHCP|unauthorized)"
+| stats count as violation_count,
+        values(violation_type) as types,
+        values(identity) as identities
+         by host, port_id
 | where violation_count > 0
 | sort - violation_count
 ```

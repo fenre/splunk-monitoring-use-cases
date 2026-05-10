@@ -5,12 +5,12 @@ id: "5.20.34"
 title: "IPv6 Destination Guard Event Tracking"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.34 · IPv6 Destination Guard Event Tracking
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Security, Availability &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Instead of the router calling out 'Are you there?' to every address someone tries to reach — which can overwhelm it — we tell it to only call known residents. If someone tries to send a package to a non-existent address, the router simply discards it instead of wasting time looking for a resident who does not exist.*
 

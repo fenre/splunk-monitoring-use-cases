@@ -474,7 +474,7 @@ Supplemental notes for long-term owners: when IPv6 clusters dual-stack, verify i
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Network_Resolution WHERE nodename=All_Resolution earliest=-1h@h latest=@h BY All_Resolution.reply_code All_Resolution.dest span=5m
+| tstats summariesonly=t count FROM datamodel=Network_Resolution WHERE nodename=All_Resolution earliest=-1h@h latest=@h BY All_Resolution.reply_code All_Resolution.dest span=5m
 | rename All_Resolution.reply_code AS reply_code All_Resolution.dest AS dest
 | eval fam=upper(trim(toString(reply_code)))
 | stats sum(eval(if(fam=="SERVFAIL",count,0))) AS servfail_events sum(count) AS total_events BY dest _time

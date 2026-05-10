@@ -12,7 +12,7 @@ splunkPillar: "Platform"
 
 > **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Platform &middot; **Type:** Availability, Performance &middot; **Wave:** Run &middot; **Status:** Verified
 
-*When someone using only the new address system (IPv6) wants to talk to someone who only understands the old address system (IPv4), they need a translator in the middle — like an interpreter at the United Nations. We monitor this interpreter to make sure they're not overwhelmed with too many conversations at once, that they're translating correctly, and that they have enough old addresses to assign to the new-address speakers.*
+*When someone using only the new address system (IPv6) wants to talk to someone who only understands the old address system (IPv4), they need a translator in the middle — like an interpreter at the United Nations.*
 
 ---
 

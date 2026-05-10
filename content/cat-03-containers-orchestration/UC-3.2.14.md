@@ -518,7 +518,7 @@ When finance questions spend on authenticated Hub plans, attach registry_failed_
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
+| tstats summariesonly=t latest(Application_State.state) AS app_state count AS state_events FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app
 | rename Application_State.dest AS correl_host Application_State.app AS correl_app
 | where app_state!="running" OR state_events>0
 ```

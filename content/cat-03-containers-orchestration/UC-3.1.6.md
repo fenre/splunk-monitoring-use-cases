@@ -460,7 +460,7 @@ Supplemental engineering notes for long-term owners: when rootless Docker become
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Endpoint.Processes WHERE nodename=Endpoint.Processes (Processes.process="dockerd" OR Processes.process="docker" OR Processes.process_path="*/dockerd") earliest=-24h latest=now BY Processes.dest Processes.process
+| tstats summariesonly=t count FROM datamodel=Endpoint.Processes WHERE nodename=Endpoint.Processes (Processes.process="dockerd" OR Processes.process="docker" OR Processes.process_path="*/dockerd") earliest=-24h latest=now BY Processes.dest Processes.process
 | rename Processes.dest AS host | head 200
 ```
 

@@ -30,71 +30,51 @@ Create threat intelligence lookup table. Correlate with network events.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX threat/IDS events enriched with threat intelligence. Data in `index=meraki` with `sourcetype=meraki:events`. Additional enrichment: threat intelligence lookups (`threat_intel_ioc.csv`), TAXII/STIX feeds, or Splunk Enterprise Security threat intelligence framework.
-* IoC matching: correlate firewall observed IPs/domains against known Indicators of Compromise from threat feeds (OSINT, commercial, ISAC).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: `sourcetype=meraki type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts`.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-Create or obtain threat intelligence lookup:
-```
-# threat_intel_ioc.csv columns:
-# ioc_value, ioc_type (ip/domain/url/hash), threat_name, confidence, source, last_updated
-```
-Verify:
+### Step 1 — Configure data collection
+Create threat intelligence lookup table. Correlate with network events.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| eval dst=coalesce(dest, dest_ip, dst)
-| lookup threat_intel_ioc.csv ioc_value AS dst OUTPUT threat_name, confidence
-| where isnotnull(threat_name)
-| stats count by threat_name
+index=meraki sourcetype="meraki" (type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts)
+| lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity
+| where threat_severity="high" OR threat_severity="critical"
+| stats count as hit_count by src, dest, threat_name
+| sort - hit_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Threat intelligence IoC correlation:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| eval src=coalesce(src, src_ip)
-| eval dst=coalesce(dest, dest_ip, dst)
-| eval domain=coalesce(dest_hostname, dest_domain, dns_query)
-| lookup threat_intel_ioc.csv ioc_value AS dst OUTPUT threat_name AS dst_threat, confidence AS dst_confidence, source AS intel_source
-| lookup threat_intel_ioc.csv ioc_value AS domain OUTPUT threat_name AS domain_threat, confidence AS domain_confidence
-| eval threat=coalesce(dst_threat, domain_threat)
-| eval conf=coalesce(dst_confidence, domain_confidence)
-| where isnotnull(threat)
-| eval act=lower(coalesce(action, pattern))
-| eval blocked=if(match(act, "(?i)deny|block|drop"), "YES", "NO")
-| stats count as hits dc(src) as affected_hosts values(src) as internal_hosts by threat, conf, blocked, intel_source
-| eval severity=case(blocked="NO" AND conf="high", "CRITICAL -- high-confidence IoC NOT blocked", blocked="NO", "HIGH -- IoC match, traffic not blocked", blocked="YES" AND conf="high", "WARNING -- high-confidence IoC blocked", 1==1, "INFO")
-| where severity != "INFO"
-| sort severity, -hits
-```
+**Threat Intelligence Correlation and IoC Matching (Meraki MX)** — Security teams correlate Meraki MX firewall traffic against threat intelligence IoC feeds, prioritizing unblocked connections to high-confidence indicators of compromise.
 
-### Step 3 — - Validate
-(a) Add a known test IoC to the lookup and verify it matches traffic.
-(b) Cross-reference matches with external threat intelligence platforms.
-(c) Verify lookup freshness: `| inputlookup threat_intel_ioc.csv | stats max(last_updated) as freshness`.
+Documented **Data sources**: `sourcetype=meraki type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Threat Intel Correlation"):
-* Row 1 -- Single-value: "IoC matches", "Unblocked IoC matches", "Affected hosts".
-* Row 2 -- IoC match table with blocking status.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alerting:
-* Critical (high-confidence IoC not blocked): immediate investigation.
-* Warning (IoC match blocked): confirmed threat successfully blocked.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
+- Filters the current rows with `where threat_severity="high" OR threat_severity="critical"` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by src, dest, threat_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **False positive IoC match** -- Validate with multiple threat intelligence sources. Remove from lookup if false positive confirmed. Document the exclusion.
 
-* **Stale threat intelligence** -- Update feeds regularly (daily minimum). Remove IoCs older than 90 days unless confirmed active. Check `last_updated` field.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **IoC matched but traffic is legitimate** -- CDN/shared hosting IPs may appear in threat feeds. Check: ASN, reverse DNS, and threat context before blocking.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: IoC match timeline; threat severity breakdown; affected hosts table.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" (type=security_event OR type=urls OR type=flow)
+index=meraki sourcetype="meraki" (type=security_event OR type=urls OR type=flows OR type=firewall OR type=ids-alerts)
 | lookup threat_intelligence_list src as src OUTPUTNEW threat_name, threat_severity
 | where threat_severity="high" OR threat_severity="critical"
 | stats count as hit_count by src, dest, threat_name

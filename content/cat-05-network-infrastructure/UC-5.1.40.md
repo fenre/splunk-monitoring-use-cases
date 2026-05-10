@@ -25,75 +25,73 @@ NOC teams detect Meraki MS switch interface up/down events and link flapping, en
 
 ## Implementation
 
-Track interface up/down state changes over 24 hours. Alert on flapping (>2 changes/hour).
+1. Configure SC4S for MS syslog. 2. Use rex to extract port_id, from_state, to_state from the standard port-status-change message. 3. Compute flap_rate per hour; > 1/h sustained over a day usually indicates cabling, transceiver, or negotiation issues. 4. Pair with the Meraki Dashboard 'switch port status changed' webhook alert profile (ingested via Splunk_TA_cisco_meraki Webhook Logs input) for live notification.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS interface up/down events from syslog. Data in `index=meraki` with `sourcetype=meraki:events`. Key events: port up, port down, link flapping.
-* Meraki MS logs port status changes via syslog. Link flapping (rapid up/down cycling) indicates cable issues, SFP problems, or auto-negotiation failures.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Port up/down events appear as type=events with message body 'port 3 status changed from 100fdx to down' / 'from down to 100fdx'. host field carries the switch name (e.g. MS220_8P)..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Network-wide > General > Reporting
-# Syslog: enable Event log (includes port status changes)
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for MS syslog. 2. Use rex to extract port_id, from_state, to_state from the standard port-status-change message. 3. Compute flap_rate per hour; > 1/h sustained over a day usually indicates cabling, transceiver, or negotiation issues. 4. Pair with the Meraki Dashboard 'switch port status changed' webhook alert profile (ingested via Splunk_TA_cisco_meraki Webhook Logs input) for live notification.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)port.*up|port.*down|link.*up|link.*down|connected|disconnected")
-| stats count by host
+index=meraki sourcetype="meraki" type=events "port" "status changed"
+    earliest=-24h
+| rex "port (?<port_id>\d+) status changed from (?<from_state>[\w\.]+) to (?<to_state>[\w\.]+)"
+| stats count as event_count,
+        dc(eval(if(to_state="down",1,null()))) as down_events,
+        values(from_state) as from_states,
+        values(to_state) as to_states
+         by host, port_id
+| eval flap_rate = round(event_count/24, 2)
+| where flap_rate > 1
+| sort - flap_rate
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Interface up/down and link flapping:**
-```spl
-index=meraki sourcetype="meraki:events" earliest=-4h
-| where match(_raw, "(?i)port.*up|port.*down|link.*up|link.*down|connected|disconnected|flap")
-| eval device=coalesce(serial, host)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| rex field=_raw "(?i)(?:port|Port)\s+(?<port_id>\d+)"
-| eval state=if(match(_raw, "(?i)down|disconnect"), "DOWN", "UP")
-| sort device, port_id, _time
-| stats count as events count(eval(state="DOWN")) as downs count(eval(state="UP")) as ups latest(state) as current by device, network_name, port_id
-| eval flapping=if(events > 4, "YES", "NO")
-| eval severity=case(
-    current="DOWN" AND flapping="YES", "CRITICAL -- port ".port_id." DOWN and flapping",
-    current="DOWN", "WARNING -- port ".port_id." DOWN",
-    flapping="YES", "WARNING -- port ".port_id." flapping",
-    1==1, "OK")
-| where severity != "OK"
-| sort severity, -events
-```
+**Switch Interface Up/Down Events and Link Flapping (Meraki MS)** — NOC teams detect Meraki MS switch interface up/down events and link flapping, enabling rapid identification of cable failures and unstable links affecting downstream connectivity.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports -- check port status and connected device.
-(b) Dashboard: Live tools > Cable test -- test cable on affected port.
-(c) Check port configuration and connected device.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Port up/down events appear as type=events with message body 'port 3 status changed from 100fdx to down' / 'from down to 100fdx'. host field carries the switch name (e.g. MS220_8P). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- Port Status"):
-* Row 1 -- Single-value: "Ports DOWN", "Flapping ports".
-* Row 2 -- Port status event timeline.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (uplink port DOWN): connectivity impact to downstream devices.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- `stats` rolls up events into metrics; results are split **by host, port_id** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **flap_rate** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where flap_rate > 1` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Port flapping** -- Run cable test from Dashboard. Replace patch cable. Check SFP module.
 
-* **Port DOWN after change** -- Verify VLAN assignment, access policy, and PoE settings.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Uplink DOWN** -- Check upstream switch port status. Verify SFP compatibility.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time-series showing flap events; table of affected ports; link state history.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*link*" OR signature="*Interface*" OR signature="*up*" OR signature="*down*")
-| stats count as event_count by switch_name, port_id
-| eval flap_rate=round(event_count/24, 2)
-| where flap_rate > 2
+index=meraki sourcetype="meraki" type=events "port" "status changed"
+    earliest=-24h
+| rex "port (?<port_id>\d+) status changed from (?<from_state>[\w\.]+) to (?<to_state>[\w\.]+)"
+| stats count as event_count,
+        dc(eval(if(to_state="down",1,null()))) as down_events,
+        values(from_state) as from_states,
+        values(to_state) as to_states
+         by host, port_id
+| eval flap_rate = round(event_count/24, 2)
+| where flap_rate > 1
+| sort - flap_rate
 ```
 
 ## Visualization

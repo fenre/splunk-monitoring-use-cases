@@ -163,5 +163,5 @@ Bar chart of event_count by `eventType`, treemap or pivot by `eventCategory` and
 
 - [Splunkbase app 7538](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center API docs](https://developer.cisco.com/docs/catalyst-center/)
-- [Catalyst Center Integration Guide](../../docs/guides/catalyst-center.md)
+- [Catalyst Center Integration Guide](docs/guides/catalyst-center.md)
 - [Catalyst Center Event Management API — Cisco DevNet](https://developer.cisco.com/docs/catalyst-center/#!get-notifications)

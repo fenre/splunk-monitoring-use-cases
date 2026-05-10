@@ -66,7 +66,7 @@ Optional CIM / accelerated variant (same use case, normalized fields via Common 
 
 ```spl
 | tstats `summariesonly` max(Performance.cpu_load_percent) as load_proxy
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   where match(Performance.object, "(?i)dbinstance|RDS|aws/rds")
   by Performance.object span=1h
 | sort - load_proxy
@@ -82,7 +82,7 @@ This **CIM or accelerated** block uses normalized field names and/or `tstats` ov
 
 **Pipeline walkthrough**
 
-- Uses `tstats` against accelerated summaries for data model `Performance.Performance` (mapped DB host or instance metrics) — enable acceleration for that model.
+- Uses `tstats` against accelerated summaries for data model `Performance.All_Performance` (mapped DB host or instance metrics) — enable acceleration for that model.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.
@@ -107,7 +107,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/RDS" metric_name="DBLoad" s
 
 ```spl
 | tstats `summariesonly` max(Performance.cpu_load_percent) as load_proxy
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   where match(Performance.object, "(?i)dbinstance|RDS|aws/rds")
   by Performance.object span=1h
 | sort - load_proxy

@@ -5,14 +5,14 @@ id: "5.20.102"
 title: "CISA TIC 3.0 IPv6 Trust Zone and Telemetry Compliance"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.102 · CISA TIC 3.0 IPv6 Trust Zone and Telemetry Compliance
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*The government's cybersecurity agency (CISA) has rules about how all government networks must be secured. They've set up checkpoints (like security gates) at the boundaries of different network areas. We need to make sure these security gates work just as well for new-format addresses (IPv6) as they do for old-format addresses (IPv4). This tool checks each security gate to make sure nothing is slipping through unchecked.*
+*The government's cybersecurity agency (CISA) has rules about how all government networks must be secured. They've set up checkpoints (like security gates) at the boundaries of different network areas. We need to make sure these security gates work just as well for new-format addresses (IPv6) as they do for old-format addresses (IPv4).*
 
 ---
 

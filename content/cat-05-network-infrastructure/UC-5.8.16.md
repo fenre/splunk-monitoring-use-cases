@@ -30,13 +30,13 @@ Ingest webhook alerts. Track volume and types over time.
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki alert data from Dashboard API (`sourcetype=meraki:api:alerts`) and/or syslog (`sourcetype=meraki:events`). Key fields: `alertType`, `alertLevel` (informational/warning/critical), `network`, `deviceSerial`, `deviceName`, `alertData`.
+- Meraki alert data from Dashboard API (`sourcetype=meraki:assurancealerts`) and/or syslog (`sourcetype=meraki`). Key fields: `alertType`, `alertLevel` (informational/warning/critical), `network`, `deviceSerial`, `deviceName`, `alertData`.
 - Meraki generates alerts for: device offline, uplink failure, VPN connectivity loss, rogue AP detection, firmware updates, port status changes, and many more. High-volume environments can generate hundreds of alerts per hour, leading to alert fatigue.
 
 ### Step 1 — Configure data collection
 Verify alert data:
 ```spl
-index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earliest=-24h
+index=meraki (sourcetype="meraki:assurancealerts" OR sourcetype="meraki") earliest=-24h
 | stats count by alertType, alertLevel
 | sort -count
 ```
@@ -45,7 +45,7 @@ index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earl
 
 **Primary search — Alert volume trending with fatigue analysis:**
 ```spl
-index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earliest=-7d
+index=meraki (sourcetype="meraki:assurancealerts" OR sourcetype="meraki") earliest=-7d
 | bin _time span=1h
 | stats count as alerts dc(alertType) as alert_types dc(deviceSerial) as devices by _time
 | eventstats avg(alerts) as avg_hourly stdev(alerts) as std_hourly
@@ -58,7 +58,7 @@ index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earl
 
 **Top noisy alert types:**
 ```spl
-index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earliest=-7d
+index=meraki (sourcetype="meraki:assurancealerts" OR sourcetype="meraki") earliest=-7d
 | stats count as total dc(deviceSerial) as devices first(_time) as first_seen latest(_time) as last_seen by alertType, alertLevel
 | eval daily_avg=round(total/7, 1)
 | eval signal_to_noise=case(alertLevel="critical" AND daily_avg > 50, "NOISY_CRITICAL", alertLevel="warning" AND daily_avg > 100, "NOISY_WARNING", alertLevel="informational" AND daily_avg > 200, "EXCESSIVE_INFO", 1==1, "ACCEPTABLE")
@@ -68,7 +68,7 @@ index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") earl
 
 **Alert-to-incident ratio:**
 ```spl
-index=meraki (sourcetype="meraki:api:alerts" OR sourcetype="meraki:events") alertLevel="critical" earliest=-30d
+index=meraki (sourcetype="meraki:assurancealerts" OR sourcetype="meraki") alertLevel="critical" earliest=-30d
 | bin _time span=1d
 | stats count as critical_alerts by _time
 | eventstats avg(critical_alerts) as avg_daily_critical
@@ -103,7 +103,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:webhook"
+index=meraki sourcetype="meraki:webhook"
 | timechart count as alert_count by alert_type
 | eval alert_ratio=alert_count/sum(alert_count)
 ```

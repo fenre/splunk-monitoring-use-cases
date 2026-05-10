@@ -25,75 +25,87 @@ NOC teams track Meraki MX uplink failover events and measure recovery time to as
 
 ## Implementation
 
-Monitor failover and recovery events from syslog. Calculate recovery MTTR.
+1. Configure SC4S for MX syslog and enable Appliance event log. 2. Use rex to extract the failover target and cellular state. 3. The 'failover to cellular' + subsequent 'Cellular connection up' pair indicates a successful WAN-to-LTE failover. 4. For continuous uplink quality context combine with the API-side Devices Uplinks Loss and Latency input.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX uplink status change events. Data in `index=meraki` with `sourcetype=meraki:events` or `sourcetype=meraki:api:uplinks`. Key fields: `interface` (wan1, wan2, cellular), `status` (active, failed, ready), `failedAt`, `recoveredAt`.
-* Meraki Dashboard > Security & SD-WAN > SD-WAN & traffic shaping > Uplink selection controls failover behavior. Events logged when primary WAN fails and traffic shifts to secondary.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX syslog. Uplink failover events use type=events with message bodies 'failover to wan1', 'failover to cellular', 'Cellular connection up', 'Cellular connection down'..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Meraki Dashboard > Network-wide > General > Reporting
-# Enable: Syslog > Flows, Events, IDS Alerts
-# Meraki syslog category: uplink change events
-```
-Verify:
+### Step 1 — Configure data collection
+1. Configure SC4S for MX syslog and enable Appliance event log. 2. Use rex to extract the failover target and cellular state. 3. The 'failover to cellular' + subsequent 'Cellular connection up' pair indicates a successful WAN-to-LTE failover. 4. For continuous uplink quality context combine with the API-side Devices Uplinks Loss and Latency input.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-7d
-| search "uplink" OR "failover" OR "wan" "down" OR "active"
-| stats count by host
+index=meraki sourcetype="meraki" type=events
+    ("failover" OR "uplink" OR "Cellular connection")
+    earliest=-7d
+| rex "failover to (?<target>wan\d|cellular)"
+| rex "Cellular connection (?<cellular_state>up|down)"
+| eval failover_event = if(isnotnull(target),"failover_to_"+target, null())
+| eval cellular_event = if(isnotnull(cellular_state),"cellular_"+cellular_state, null())
+| eval event_type = coalesce(failover_event, cellular_event)
+| where isnotnull(event_type)
+| stats count as event_count,
+        values(event_type) as event_types,
+        earliest(_time) as first_seen,
+        latest(_time) as last_seen
+         by host
+| eval span_hours = round((last_seen - first_seen)/3600, 1)
+| sort - event_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Uplink failover event tracking:**
-```spl
-index=meraki (sourcetype="meraki:events" OR sourcetype="meraki:api:uplinks") earliest=-7d
-| where match(_raw, "(?i)failover|uplink.*change|wan.*down|wan.*up|connectivity.*change")
-| eval device=coalesce(serial, host, deviceSerial)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name, site_name
-| eval uplink=coalesce(interface, uplink)
-| eval status=coalesce(status, if(match(_raw, "(?i)down|fail|lost"), "FAILED", if(match(_raw, "(?i)up|recover|active"), "RECOVERED", "CHANGE")))
-| sort _time
-| streamstats current=f last(_time) as prev_time last(status) as prev_status by device
-| eval recovery_time_sec=if(status="RECOVERED" AND prev_status="FAILED", _time - prev_time, null())
-| eval recovery_min=round(recovery_time_sec/60, 1)
-| stats count as events count(eval(status="FAILED")) as failures count(eval(status="RECOVERED")) as recoveries avg(recovery_min) as avg_recovery_min max(recovery_min) as max_recovery_min by device, network_name, uplink
-| eval avg_recovery_min=round(avg_recovery_min, 1)
-| eval severity=case(failures > 5, "CRITICAL -- frequent failovers (flapping)", avg_recovery_min > 30, "WARNING -- slow recovery time", failures > 0, "INFO -- failover occurred", 1==1, "OK")
-| where severity != "OK"
-| sort severity, -failures
-```
+**Internet Uplink Failover Events and Recovery Time (Meraki MX)** — NOC teams track Meraki MX uplink failover events and measure recovery time to assess high-availability effectiveness and identify flapping circuits requiring ISP escalation.
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > Uplink status -- verify failover history.
-(b) Check ISP circuit SLA against recovery times.
-(c) Correlate with WAN quality degradation (UC-5.2.33) preceding failover.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX syslog. Uplink failover events use type=events with message bodies 'failover to wan1', 'failover to cellular', 'Cellular connection up', 'Cellular connection down'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Uplink Failover"):
-* Row 1 -- Single-value: "Failover events (7d)", "Avg recovery (min)", "Sites affected".
-* Row 2 -- Failover timeline.
-* Row 3 -- Recovery time distribution.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-Alert: Critical (>5 failovers in 4 hours for same device): investigate ISP/circuit flapping.
+**Pipeline walkthrough**
 
-### Step 5 — - Troubleshooting
+- Scopes the data: index=meraki, sourcetype="meraki", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts fields with `rex` (regular expression).
+- Extracts fields with `rex` (regular expression).
+- `eval` defines or adjusts **failover_event** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **cellular_event** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **event_type** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnotnull(event_type)` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **span_hours** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Rapid failover flapping** -- ISP circuit unstable. Check: physical layer (cable/optics), ISP status page, circuit monitoring. Consider increasing failover threshold timers.
 
-* **No recovery event after failure** -- Secondary uplink may also be down. Check warm spare status (UC-5.2.36) and cellular backup (UC-5.2.35).
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
-* **Long recovery time** -- Failover path may have DNS caching, VPN re-establishment, or BGP convergence delays. Check SD-WAN settings.
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Failover timeline; recovery time gauge; uplink failure cause pie chart.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*failover*" OR signature="*recovery*")
-| stats count as failover_count, latest(recovery_time) as recovery_duration by uplink_id, failure_reason
-| where failover_count > 0
+index=meraki sourcetype="meraki" type=events
+    ("failover" OR "uplink" OR "Cellular connection")
+    earliest=-7d
+| rex "failover to (?<target>wan\d|cellular)"
+| rex "Cellular connection (?<cellular_state>up|down)"
+| eval failover_event = if(isnotnull(target),"failover_to_"+target, null())
+| eval cellular_event = if(isnotnull(cellular_state),"cellular_"+cellular_state, null())
+| eval event_type = coalesce(failover_event, cellular_event)
+| where isnotnull(event_type)
+| stats count as event_count,
+        values(event_type) as event_types,
+        earliest(_time) as first_seen,
+        latest(_time) as last_seen
+         by host
+| eval span_hours = round((last_seen - first_seen)/3600, 1)
+| sort - event_count
 ```
 
 ## Visualization

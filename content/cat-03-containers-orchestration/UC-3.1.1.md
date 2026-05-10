@@ -263,7 +263,7 @@ Closing checklist: confirm prerequisiteUseCases is empty, confirm monitoringType
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=15m
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=15m
 | rename Performance.host AS host
 | where avg_cpu_load>85
 ```

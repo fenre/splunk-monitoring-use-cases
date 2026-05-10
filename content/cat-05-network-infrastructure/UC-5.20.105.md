@@ -5,14 +5,14 @@ id: "5.20.105"
 title: "IPv6 Extension Header Chain Anomaly and Evasion Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.105 · IPv6 Extension Header Chain Anomaly and Evasion Detection
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
-*Letters on the new address system (IPv6) can have extra instruction sheets attached to them — like 'read this first' or 'forward this to someone else'. Most normal letters have one or two instruction sheets at most. Burglars sometimes attach many confusing instruction sheets to trick the mail sorter into letting something bad through or to overwhelm the sorter so it stops working. We watch for letters with too many or suspicious instruction sheets.*
+*Letters on the new address system (IPv6) can have extra instruction sheets attached to them — like 'read this first' or 'forward this to someone else'. Most normal letters have one or two instruction sheets at most. Burglars sometimes attach many confusing instruction sheets to trick the mail sorter into letting something bad through or to overwhelm the sorter so it stops working.*
 
 ---
 

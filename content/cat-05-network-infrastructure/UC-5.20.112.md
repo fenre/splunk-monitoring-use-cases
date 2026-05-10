@@ -5,14 +5,14 @@ id: "5.20.112"
 title: "IPv6 Address Scan and Reconnaissance Detection (RFC 7707)"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.112 · IPv6 Address Scan and Reconnaissance Detection (RFC 7707)
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*The new address system (IPv6) gives every network neighbourhood trillions of possible house numbers, so a burglar can't just try every door. Instead, they try clever patterns — like houses numbered 1, 2, 3 (low-byte), or houses with funny numbers like DEAD and BEEF (wordlist). We watch for someone methodically trying these patterns, which tells us a burglar is casing the neighbourhood before attempting a break-in.*
+*The new address system (IPv6) gives every network neighbourhood trillions of possible house numbers, so a burglar can't just try every door. Instead, they try clever patterns — like houses numbered 1, 2, 3 (low-byte), or houses with funny numbers like DEAD and BEEF (wordlist).*
 
 ---
 

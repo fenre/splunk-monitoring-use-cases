@@ -5,14 +5,14 @@ id: "5.20.27"
 title: "MLD Snooping Health and Group Membership Monitoring"
 status: "verified"
 criticality: "medium"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.27 · MLD Snooping Health and Group Membership Monitoring
 
-> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Availability, Configuration &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Medium &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Availability, Configuration &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*IPv6 devices communicate using group messages — like a public address system where only people in the right room hear the announcement. A special system on the network switches makes sure these announcements only go to the rooms where someone is listening. If this system breaks, the announcements either go nowhere (and devices cannot connect) or go everywhere (wasting energy). We check that this announcement-routing system is healthy.*
+*IPv6 devices communicate using group messages — like a public address system where only people in the right room hear the announcement. A special system on the network switches makes sure these announcements only go to the rooms where someone is listening. If this system breaks, the announcements either go nowhere (and devices cannot connect) or go everywhere (wasting energy).*
 
 ---
 

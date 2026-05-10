@@ -25,77 +25,65 @@ Network operations teams rank Meraki SSID performance across all sites using a c
 
 ## Implementation
 
-Aggregate client connection metrics by SSID. Compare average connection duration, client count, and signal strength.
+1. Enable the Wireless Packet Loss by Device input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/wireless/devices/packetLoss/byDevice daily and emits one event per AP with downstream.{lossPercentage,total} and upstream.* fields. 2. Aggregate per network for a coarse 'wireless health' indicator. 3. Per-SSID metrics need either webhook ingestion (client_connection_changed) with alertData.ssid grouping, or a custom modular input that calls GET /networks/{networkId}/wireless/ssids/.../latencyStats.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki API providing per-SSID performance metrics. Data in `index=meraki` with `sourcetype=meraki:api:wireless` or `sourcetype=meraki:events`. Key fields: `ssid`, `client_count`, `throughput` (avg client throughput), `latency`, `rssi`, `success_rate` (connection success rate).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Wireless Packet Loss by Device input (sourcetype=meraki:wirelessdevicespacketlossbydevice, TA v3+, OAuth scope wireless:telemetry:read). NOTE: per-SSID throughput, retry rate, and connection time are NOT exposed by the polled API; for those, use webhooks or the per-network wireless health endpoints (not currently in the TA)..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify per-SSID data:
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(ssid)
-| stats count dc(client_mac) as clients by ssid
-```
+1. Enable the Wireless Packet Loss by Device input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/wireless/devices/packetLoss/byDevice daily and emits one event per AP with downstream.{lossPercentage,total} and upstream.* fields. 2. Aggregate per network for a coarse 'wireless health' indicator. 3. Per-SSID metrics need either webhook ingestion (client_connection_changed) with alertData.ssid grouping, or a custom modular input that calls GET /networks/{networkId}/wireless/ssi…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — SSID performance ranking:**
 ```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(ssid)
-| stats dc(client_mac) as client_count avg(rssi) as avg_rssi avg(latency) as avg_latency count(eval(match(type, "(?i)fail"))) as failures count as total_events by ssid, network
-| eval success_rate=round(100*(total_events - failures)/total_events, 1)
-| eval performance_score=round((success_rate * 0.4) + (min(100, max(0, (avg_rssi + 90) * 3)) * 0.3) + (min(100, max(0, 100 - avg_latency)) * 0.3), 1)
-| lookup meraki_networks.csv network OUTPUT site_name
-| eval ranking=case(performance_score > 85, "A", performance_score > 70, "B", performance_score > 55, "C", 1==1, "D")
-| sort -performance_score
+index=meraki sourcetype="meraki:wirelessdevicespacketlossbydevice" earliest=-24h
+| stats avg(downstream.lossPercentage) as avg_dl_loss,
+        avg(upstream.lossPercentage) as avg_ul_loss,
+        avg(downstream.total) as avg_dl_packets,
+        avg(upstream.total) as avg_ul_packets
+         by serial, name, network.name
+| eval health_score = round(100 - ((avg_dl_loss + avg_ul_loss) / 2), 1)
+| sort health_score
 ```
 
-#### Understanding this SPL: The composite performance score combines success rate (40%), signal quality (30%), and latency (30%) into a single ranking per SSID. This enables management reporting: "Corporate WiFi scores A at HQ but C at the Chicago branch." The ranking highlights which SSIDs at which sites need attention.
+#### Understanding this SPL
 
-**SSID trending (weekly):**
-```spl
-index=meraki (sourcetype="meraki:api:wireless" OR sourcetype="meraki:events") earliest=-7d
-| where isnotnull(ssid)
-| bin _time span=1d
-| stats dc(client_mac) as clients count(eval(match(type, "(?i)fail"))) as failures count as events by _time, ssid
-| eval daily_success=round(100*(events - failures)/events, 1)
-| timechart span=1d avg(daily_success) by ssid
-```
+**SSID Performance Ranking and Trend Analysis (Meraki MR)** — Network operations teams rank Meraki SSID performance across all sites using a composite score (success rate, signal quality, latency), enabling cross-site comparison and targeted wireless optimization.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Wireless Packet Loss by Device input (sourcetype=meraki:wirelessdevicespacketlossbydevice, TA v3+, OAuth scope wireless:telemetry:read). NOTE: per-SSID throughput, retry rate, and connection time are NOT exposed by the polled API; for those, use webhooks or the per-network wireless health endpoints (not currently in the TA). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:wirelessdevicespacketlossbydevice. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:wirelessdevicespacketlossbydevice", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by serial, name, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **health_score** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Compare SSID client counts with Meraki Dashboard: Wireless > Monitor > SSIDs.
-(b) Verify the performance score reflects the actual user experience at different sites.
-(c) Test by degrading one SSID (reduce power on its APs) and verify the score drops.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — SSID Performance"):
-- Row 1 — Single-value: "Best SSID score", "Worst SSID score", "Total SSIDs", "SSIDs rated D".
-- Row 2 — SSID ranking table: SSID, network/site, clients, success rate, avg RSSI, latency, score, rating.
-- Row 3 — Weekly SSID success rate trending.
-
-Alerting:
-- Warning (SSID score drops below C at a Tier1 site): investigate.
-- Info (weekly): SSID performance report for all sites.
-
-### Step 5 — Troubleshooting
-
-- **Corporate SSID scores well at HQ but poorly at branches** — Branches may have fewer APs, different RF environments, or RADIUS connectivity issues. Compare per-site metrics.
-
-- **Guest SSID always scores low** — Guest SSIDs often have bandwidth limits, captive portals (add latency), and lower priority QoS. This may be by design.
-
-- **Score fluctuates daily** — Likely corresponds to occupancy patterns. Score drops during peak hours when more clients compete for airtime.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart comparing SSID performance; sparklines for trend; scorecard showing top/bottom performers.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api"
-| stats avg(connection_duration) as avg_duration, count as client_count, avg(rssi) as avg_rssi by ssid
-| eval performance_score=round((avg_rssi+100)*client_count/100, 2)
-| sort - performance_score
+index=meraki sourcetype="meraki:wirelessdevicespacketlossbydevice" earliest=-24h
+| stats avg(downstream.lossPercentage) as avg_dl_loss,
+        avg(upstream.lossPercentage) as avg_ul_loss,
+        avg(downstream.total) as avg_dl_packets,
+        avg(upstream.total) as avg_ul_packets
+         by serial, name, network.name
+| eval health_score = round(100 - ((avg_dl_loss + avg_ul_loss) / 2), 1)
+| sort health_score
 ```
 
 ## Visualization

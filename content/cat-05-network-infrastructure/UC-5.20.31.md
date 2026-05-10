@@ -5,12 +5,12 @@ id: "5.20.31"
 title: "SISF Binding Table Health and PAK_DROP Event Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ITSI"
+splunkPillar: "IT Operations"
 ---
 
 # UC-5.20.31 · SISF Binding Table Health and PAK_DROP Event Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ITSI &middot; **Type:** Security, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** IT Operations &middot; **Type:** Security, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *The security system at each network switch keeps a list of who is allowed to be where. When it blocks someone — either because they are genuinely suspicious or because the list is full — it writes a report. We read every report to make sure the security system is blocking real threats and not accidentally locking out legitimate users.*
 

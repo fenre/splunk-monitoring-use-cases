@@ -277,7 +277,7 @@ When finance questions spend on extra blob storage, translate disk_fill_pct tren
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true count FROM datamodel=Web WHERE nodename=Web earliest=-1h@h latest=@h BY Web.url Web.status span=5m
+| tstats summariesonly=t count FROM datamodel=Web WHERE nodename=Web earliest=-1h@h latest=@h BY Web.url Web.status span=5m
 | rename Web.url AS uri Web.status AS status
 ```
 

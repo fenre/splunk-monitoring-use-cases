@@ -82,7 +82,7 @@ index=aws sourcetype="aws:cloudwatch" namespace="AWS/ApiGateway" (metric_name="5
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Performance.Performance
+  from datamodel=Performance.All_Performance
   by Performance.object Performance.app span=1h
 | sort -count
 ```

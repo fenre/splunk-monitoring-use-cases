@@ -379,7 +379,7 @@ FinOps dashboards can divide scanner CPU seconds by digest count to show cost pe
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true latest(_time) AS last_seen FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-7d latest=now BY Vulnerabilities.dest Vulnerabilities.signature
+| tstats summariesonly=t latest(_time) AS last_seen FROM datamodel=Vulnerabilities WHERE nodename=Vulnerabilities earliest=-7d latest=now BY Vulnerabilities.dest Vulnerabilities.signature
 | rename Vulnerabilities.dest AS image_key
 ```
 

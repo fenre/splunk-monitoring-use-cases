@@ -5,12 +5,12 @@ id: "5.1.65"
 title: "NDP Cache Anomalies and Poisoning Detection"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.1.65 · NDP Cache Anomalies and Poisoning Detection
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *We watch for someone pretending to be another device on our IPv6 network, like an impostor answering to your neighbor's name to intercept their mail. When a device's network identity suddenly moves to a different location, our switches catch the change and alert us before any data is stolen.*
 

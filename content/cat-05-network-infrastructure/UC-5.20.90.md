@@ -5,12 +5,12 @@ id: "5.20.90"
 title: "IPv6 IDS/IPS Signature Coverage Audit"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.90 · IPv6 IDS/IPS Signature Coverage Audit
 
-> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Advanced &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Our security cameras (IDS/IPS) are great at recognising burglars using the old entrance (IPv4). But the new entrance (IPv6) has different types of break-in methods that the cameras might not recognise. We check how many new break-in methods the cameras can spot, and add recognition training for any they're missing.*
 

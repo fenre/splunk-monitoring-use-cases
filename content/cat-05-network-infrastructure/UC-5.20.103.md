@@ -5,12 +5,12 @@ id: "5.20.103"
 title: "HIPAA §164.312 IPv6 Technical Safeguard Verification"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.103 · HIPAA §164.312 IPv6 Technical Safeguard Verification
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Compliance, Security &middot; **Wave:** Run &middot; **Status:** Verified
 
 *Hospitals have strict rules about protecting patient records (HIPAA). When the hospital network uses the new address system (IPv6), we need to make sure patient records are still just as protected as before — encrypted when sent, tracked for who accessed them, and locked behind proper security gates. We check all of this automatically so no patient data is exposed through an unprotected IPv6 path.*
 

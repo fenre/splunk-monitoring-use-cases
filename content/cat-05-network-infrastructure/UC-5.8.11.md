@@ -25,82 +25,72 @@ Network operations teams monitor Meraki Dashboard API rate limit events and retr
 
 ## Implementation
 
-Log all API calls with timestamps. Monitor call rate by endpoint.
+1. Enable the API Requests Overview input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/apiRequests/overview and emits aggregated counters (counts.success, counts.error, counts.total) per interval. 2. The Meraki Dashboard API enforces a per-organization rate limit of 10 requests per second; alert when call_rate_per_min approaches 540 (9 rps sustained). 3. For per-API-key drill-down, also enable the API Requests History input which gives per-call detail including the userAgent so you can identify which integration is generating the load.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki Dashboard API rate limit monitoring. The Meraki API enforces rate limits: 10 requests per second per organization (can burst higher with API v1.1+). The TA's API calls count against this limit, as do any other API consumers (scripts, integrations, third-party tools).
-- Data source: TA internal logs in `index=_internal` and/or custom API response monitoring. When the TA receives HTTP 429 (Too Many Requests), it logs retry events. Additionally, monitor Meraki API response headers: `X-RateLimit-Remaining`, `X-RateLimit-Limit`, `X-RateLimit-Reset`.
-- If you have custom scripts calling the Meraki API, forward their logs to Splunk with rate limit tracking. Data in `index=meraki` (or `_internal`) with fields: `api_endpoint`, `http_status`, `rate_limit_remaining`, `retry_count`.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): API Requests Overview input (sourcetype=meraki:apirequestsoverview, daily, TA v3+, OAuth scope dashboard:general:telemetry:read). For per-request granularity also enable the API Requests History input (sourcetype=meraki:apirequestshistory) which carries host, path, method, responseCode, sourceIp, userAgent, ts..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify API rate limit data:
-```spl
-index=_internal sourcetype=splunkd "meraki" ("429" OR "rate" OR "retry" OR "throttle") earliest=-24h
-| stats count by log_level, message
-```
+1. Enable the API Requests Overview input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/apiRequests/overview and emits aggregated counters (counts.success, counts.error, counts.total) per interval. 2. The Meraki Dashboard API enforces a per-organization rate limit of 10 requests per second; alert when call_rate_per_min approaches 540 (9 rps sustained). 3. For per-API-key drill-down, also enable the API Requests History input which gives per-call detail including the userAgen…
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — API rate limit events and retries:**
 ```spl
-index=_internal sourcetype=splunkd "meraki" ("429" OR "rate_limit" OR "retry") earliest=-4h
-| rex "(?i)(?:429|rate.?limit|throttl|retry).*?(?:endpoint|url)[=:]\s*(?P<api_endpoint>[^\s,]+)"
-| rex "(?i)retry.*?(?P<retry_count>\d+)"
-| bin _time span=5m
-| stats count as rate_events sum(retry_count) as total_retries by _time
-| eval severity=case(rate_events > 20, "CRITICAL", rate_events > 5, "WARNING", 1==1, "INFO")
-| where severity!="INFO"
+index=meraki sourcetype="meraki:apirequestsoverview" earliest=-1h
+| spath
+| stats sum(counts.success) as success_calls,
+        sum(counts.error) as error_calls,
+        sum(counts.total) as total_calls
+         by interval, organizationId
+| eval call_rate_per_min = round(total_calls/(60), 1)
+| eval error_pct = round(error_calls*100/total_calls, 2)
+| where call_rate_per_min > 9 OR error_pct > 5
+| sort - call_rate_per_min
 ```
 
-#### Understanding this SPL: Meraki API rate limiting causes the TA to retry requests, which delays data collection. If rate limits are sustained, the TA may skip data collection cycles entirely, creating monitoring gaps. The most common cause is multiple API consumers (TA + custom scripts + third-party tools) sharing the same organization's rate limit budget.
+#### Understanding this SPL
 
-**API call volume trending:**
-```spl
-index=_internal sourcetype=splunkd "meraki" "api" earliest=-24h
-| bin _time span=1h
-| stats count as api_calls by _time
-| eval calls_per_second=round(api_calls/3600, 2)
-```
+**API Call Rate Monitoring and Rate Limit Alerts (Meraki)** — Network operations teams monitor Meraki Dashboard API rate limit events and retry patterns to prevent data collection disruptions, identify competing API consumers, and maintain reliable monitoring data flow.
 
-**Custom API consumer tracking (if applicable):**
-```spl
-index=meraki sourcetype="meraki:api:audit" earliest=-24h
-| stats count as calls dc(api_endpoint) as endpoints by caller_ip, user_agent
-| sort -calls
-```
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): API Requests Overview input (sourcetype=meraki:apirequestsoverview, daily, TA v3+, OAuth scope dashboard:general:telemetry:read). For per-request granularity also enable the API Requests History input (sourcetype=meraki:apirequestshistory) which carries host, path, method, responseCode, sourceIp, userAgent, ts. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:apirequestsoverview. That sourcetype matches what this use case lists under Data sources.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype="meraki:apirequestsoverview", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `stats` rolls up events into metrics; results are split **by interval, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **call_rate_per_min** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **error_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where call_rate_per_min > 9 OR error_pct > 5` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Intentionally make rapid API calls to the Meraki API and verify 429 responses appear in Splunk.
-(b) Check Meraki Dashboard: Organization > API & Webhooks > API Usage. Compare API call counts.
-(c) Verify all API consumers are identified in the tracking search.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki API Health"):
-- Row 1 — Single-value tiles: "Rate limit events (4h)", "Total retries", "API calls/sec (avg)", "API consumers".
-- Row 2 — Rate limit event timeline.
-- Row 3 — API consumer breakdown: caller IP, user agent, call volume.
-
-Alerting:
-- Critical (rate limit events > 20 per 5 minutes): data collection disrupted — reduce API consumers.
-- Warning (rate limit events > 5 per 5 minutes): approaching sustained rate limiting.
-
-### Step 5 — Troubleshooting
-
-- **Constant rate limiting** — Identify all API consumers: the Splunk TA, custom scripts, third-party integrations (Zabbix, PRTG, etc.). Coordinate API usage or use Meraki's Action Batches for bulk operations.
-
-- **Rate limiting only during specific hours** — A scheduled script may be making bulk API calls. Stagger API-consuming jobs to spread load.
-
-- **TA data stops but no 429 errors** — The TA may have hit a different error (401 unauthorized, 403 forbidden, 500 server error). Check `_internal` for all Meraki-related errors, not just rate limits.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: API call timeline; rate limit gauge; endpoint usage breakdown.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api:*"
-| timechart count as api_calls by source, endpoint
-| eval call_rate=api_calls/60
-| where call_rate > 9
+index=meraki sourcetype="meraki:apirequestsoverview" earliest=-1h
+| spath
+| stats sum(counts.success) as success_calls,
+        sum(counts.error) as error_calls,
+        sum(counts.total) as total_calls
+         by interval, organizationId
+| eval call_rate_per_min = round(total_calls/(60), 1)
+| eval error_pct = round(error_calls*100/total_calls, 2)
+| where call_rate_per_min > 9 OR error_pct > 5
+| sort - call_rate_per_min
 ```
 
 ## Visualization

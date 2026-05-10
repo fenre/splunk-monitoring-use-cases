@@ -5,12 +5,12 @@ id: "5.20.106"
 title: "IPv6 GRE and IP-in-IP Tunnel Detection and Security Monitoring"
 status: "verified"
 criticality: "high"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.106 · IPv6 GRE and IP-in-IP Tunnel Detection and Security Monitoring
 
-> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** High &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security &middot; **Wave:** Walk &middot; **Status:** Verified
 
 *Sometimes people hide letters inside other letters — a new-format address (IPv6) letter inside an old-format (IPv4) envelope. Our security guards check the outer envelope but might not notice the hidden letter inside. We watch for these 'letters inside letters' to make sure nobody is sneaking things past our security guards through these hidden channels.*
 

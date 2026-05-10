@@ -5,14 +5,14 @@ id: "5.20.113"
 title: "IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection"
 status: "verified"
 criticality: "critical"
-splunkPillar: "ES"
+splunkPillar: "Security"
 ---
 
 # UC-5.20.113 · IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection
 
-> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** ES &middot; **Type:** Security, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
+> **Criticality:** Critical &middot; **Difficulty:** Intermediate &middot; **Pillar:** Security &middot; **Type:** Security, Availability &middot; **Wave:** Walk &middot; **Status:** Verified
 
-*Every router keeps a phone book of devices on its network so it can deliver messages. An attacker can flood the router with fake phone numbers for devices that don't exist, filling up the phone book until there's no room for real devices. When the real devices aren't in the phone book anymore, they can't receive any messages. We watch the phone book for signs that someone is stuffing it with fake entries.*
+*Every router keeps a phone book of devices on its network so it can deliver messages. An attacker can flood the router with fake phone numbers for devices that don't exist, filling up the phone book until there's no room for real devices. When the real devices aren't in the phone book anymore, they can't receive any messages.*
 
 ---
 

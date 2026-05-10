@@ -25,76 +25,67 @@ Facilities teams monitor Meraki MT environmental sensor data (temperature, humid
 
 ## Implementation
 
-Filter clients API results for guest SSIDs. Track concurrent count over time.
+1. Enable the Webhook Logs (HEC) input and the 'client connection changed' alert profile in Meraki Dashboard. 2. Filter on SSID names containing 'guest' (adjust to your naming convention). 3. dc(client_mac) per hour gives concurrent guest users. 4. For top-talker bandwidth on the guest SSID, use the Summary Top Clients by Usage input (meraki:summarytopclientsbyusage) and join on client.mac.
 
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki providing environmental sensor data from MR-capable sensors. Data in `index=meraki` with `sourcetype=meraki:api:sensor` or `sourcetype=meraki:events`. Key fields: `metric` (temperature, humidity, tvoc, pm2.5, noise, co2), `value`, `sensor_serial`, `network`.
-- Meraki MT sensors (MT10 for temperature/humidity, MT12 for water leak detection, MT14 for temperature/humidity/indoor air quality, MT15 for indoor air quality, MT20 for door open/close, MT30 for button/automation) can report environmental conditions that affect wireless performance. High temperature in an IDF closet can cause AP overheating; humidity can cause corrosion.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. SSID name is in alertData.ssid on the webhook payload..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify sensor data:
-```spl
-index=meraki (sourcetype="meraki:api:sensor" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(metric) AND isnotnull(value)
-| stats latest(value) as current_value by metric, sensor_serial, network
-```
+1. Enable the Webhook Logs (HEC) input and the 'client connection changed' alert profile in Meraki Dashboard. 2. Filter on SSID names containing 'guest' (adjust to your naming convention). 3. dc(client_mac) per hour gives concurrent guest users. 4. For top-talker bandwidth on the guest SSID, use the Summary Top Clients by Usage input (meraki:summarytopclientsbyusage) and join on client.mac.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Environmental anomaly detection:**
 ```spl
-index=meraki (sourcetype="meraki:api:sensor" OR sourcetype="meraki:events") earliest=-4h
-| where isnotnull(metric) AND isnotnull(value)
-| lookup meraki_sensors.csv sensor_serial OUTPUT location sensor_name threshold_high threshold_low
-| eval alert_status=case(value > threshold_high, "HIGH_ALERT", value < threshold_low, "LOW_ALERT", 1==1, "NORMAL")
-| where alert_status != "NORMAL"
-| eval concern=case(metric="temperature" AND value > threshold_high, "Overheating — risk of equipment damage", metric="humidity" AND value > threshold_high, "High humidity — risk of condensation/corrosion", metric="tvoc" AND value > threshold_high, "Poor air quality — occupant health concern", metric="pm2.5" AND value > threshold_high, "High particulate matter", 1==1, "Threshold exceeded")
-| table sensor_name, location, metric, value, threshold_high, threshold_low, alert_status, concern
-| sort alert_status, -value
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-7d
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval ssid = coalesce('alertData.ssid', 'alertData.ssidName')
+| where isnotnull(client_mac) AND like(lower(ssid), "%guest%")
+| timechart span=1h dc(client_mac) as guest_clients by ssid limit=10
 ```
 
-**Environmental trending:**
-```spl
-index=meraki (sourcetype="meraki:api:sensor" OR sourcetype="meraki:events") earliest=-24h
-| where metric="temperature" AND isnotnull(value)
-| bin _time span=15m
-| lookup meraki_sensors.csv sensor_serial OUTPUT location
-| stats avg(value) as avg_temp by _time, location
-| timechart span=15m avg(avg_temp) by location
-```
+#### Understanding this SPL
+
+**Guest Network Access Patterns and Usage (Meraki MR)** — Facilities teams monitor Meraki MT environmental sensor data (temperature, humidity, air quality) at wireless infrastructure locations, detecting IDF overheating and environmental conditions that degrade equipment.
+
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Webhook receiver (sourcetype=meraki:webhook) with 'client connection changed' alerts. SSID name is in alertData.ssid on the webhook payload. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Extracts structured paths (JSON/XML) with `spath`.
+- `eval` defines or adjusts **client_mac** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **ssid** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where isnotnull(client_mac) AND like(lower(ssid), "%guest%")` — typically the threshold or rule expression for this monitoring goal.
+- `timechart` plots the metric over time using **span=1h** buckets with a separate series **by ssid limit=10** — ideal for trending and alerting on this use case.
+
 
 ### Step 3 — Validate
-(a) Check current sensor readings against physical thermometer/hygrometer.
-(b) Open an IDF closet door and verify temperature change is reflected.
-(c) Compare with Meraki Dashboard: Environmental > Sensors.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Environmental Monitoring"):
-- Row 1 — Single-value: "Active alerts", "Average temperature", "Average humidity", "Air quality index".
-- Row 2 — Environmental alert table with sensor location and concern.
-- Row 3 — Temperature trending by location.
-
-Alerting:
-- Critical (IDF/server room temperature > 35°C): equipment overheating — immediate action.
-- Warning (humidity > 80%): condensation risk.
-- Info (air quality index > threshold): ventilation review.
-
-### Step 5 — Troubleshooting
-
-- **Sensor not reporting** — Check battery level (MT sensors are battery-powered with multi-year life). Verify the sensor is within BLE range of an MR AP (gateway). Check Meraki Dashboard: Sensors > Monitor.
-
-- **Temperature spikes** — Check HVAC status, UPS heat output, and equipment density. IDF closets with insufficient cooling are a common problem.
-
-- **Data gaps** — MT sensors report periodically (not continuously). Default reporting interval is 5-10 minutes. Gaps longer than 30 minutes indicate connectivity issues.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Time-series of guest users; daily/weekly heatmap; trend dashboard.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki:api" ssid="guest"
-| stats count as guest_users by _time
-| timechart avg(guest_users) as avg_concurrent_guests
+index=meraki sourcetype IN ("meraki:webhook","meraki:webhooklogs:api")
+    alertType="client_connectivity"
+    earliest=-7d
+| spath
+| eval client_mac = coalesce('alertData.clientMac', 'alertData.client.mac')
+| eval ssid = coalesce('alertData.ssid', 'alertData.ssidName')
+| where isnotnull(client_mac) AND like(lower(ssid), "%guest%")
+| timechart span=1h dc(client_mac) as guest_clients by ssid limit=10
 ```
 
 ## Visualization

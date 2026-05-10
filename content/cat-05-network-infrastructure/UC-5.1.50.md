@@ -25,77 +25,91 @@ Operations teams run and analyze Meraki MS cable test diagnostics (TDR), identif
 
 ## Implementation
 
-Periodically run cable tests on switch ports. Ingest results into syslog.
+1. Enable both Assurance Alerts and Switch Ports Transceivers Readings History inputs in Splunk_TA_cisco_meraki. 2. The Transceivers input polls GET /organizations/{orgId}/switch/ports/transceivers/readings/history/bySwitch and returns intervals[] of {ts, temperature.celsius, power.{transmit,receive}.dbm, voltage.volts, currentBias.milliamps}. 3. Alert on rx power below -20 dBm or transceiver temperature above 70 °C. 4. For the interactive cable diagnostics (open/short/length) use Meraki Dashboard -> Switch -> Switches -> [serial] -> Tools -> Cable test.
 
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MS cable test and port diagnostic data. Data in `index=meraki` from Dashboard API live tools. Key API: `POST /devices/{serial}/liveTools/cableTest` and results from `GET /devices/{serial}/liveTools/cableTest/{cableTestId}`.
-* Meraki Dashboard live tools: cable test performs time-domain reflectometry (TDR) to check cable quality, length, and pair status. Results indicate: OK, open (broken), short (wires touching), or impedance mismatch.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input + Switch Ports Transceivers Readings History by Switch input (sourcetype=meraki:portstransceiversreadingshistorybyswitch, TA v3.2+, OAuth scope switch:telemetry:read). NOTE: The Meraki Dashboard 'Cable Test' tool result is NOT delivered via syslog or as a polled API — it is only available interactively in the Dashboard UI..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Scripted input to run periodic cable tests on critical ports
-[script:///opt/splunk/etc/apps/meraki_mon/bin/cable_test.py]
-interval = 86400
-sourcetype = meraki:cabletest
-index = meraki
-# Runs cable test API on configured critical ports
-```
-Verify:
+### Step 1 — Configure data collection
+1. Enable both Assurance Alerts and Switch Ports Transceivers Readings History inputs in Splunk_TA_cisco_meraki. 2. The Transceivers input polls GET /organizations/{orgId}/switch/ports/transceivers/readings/history/bySwitch and returns intervals[] of {ts, temperature.celsius, power.{transmit,receive}.dbm, voltage.volts, currentBias.milliamps}. 3. Alert on rx power below -20 dBm or transceiver temperature above 70 °C. 4. For the interactive cable diagnostics (open/short/length) use Meraki Dashboa…
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki:cabletest" earliest=-7d
-| stats count by host, port
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="switch"
+    (title="*cable*" OR title="*physical*" OR title="*transceiver*"
+     OR title="*SFP*")
+    earliest=-7d
+| stats count as alert_count,
+        values(title) as cable_alerts,
+        latest(severity) as severity
+         by deviceSerial, deviceName, networkName
+| sort - alert_count
+| append [
+    search index=meraki sourcetype="meraki:portstransceiversreadingshistorybyswitch" earliest=-7d
+    | spath path=intervals{} output=interval_arr
+    | mvexpand interval_arr
+    | spath input=interval_arr
+    | stats avg(temperature.celsius) as avg_temp_c,
+            min(power.transmit.dbm) as min_tx_dbm,
+            min(power.receive.dbm) as min_rx_dbm
+             by serial, portId
+    | where min_rx_dbm < -20 OR avg_temp_c > 70
+  ]
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Cable test results and port diagnostics:**
-```spl
-index=meraki sourcetype="meraki:cabletest" earliest=-7d
-| eval device=coalesce(serial, host)
-| eval port=coalesce(portId, port_id)
-| lookup meraki_networks.csv serial AS device OUTPUT network_name
-| eval cable_status=coalesce(status, result)
-| eval pair_statuses=coalesce(pairs, pair_status)
-| eval cable_length=tonumber(coalesce(lengthMeters, length))
-| eval is_ok=if(match(cable_status, "(?i)ok|good|pass"), "YES", "NO")
-| where is_ok="NO"
-| eval issue=case(
-    match(cable_status, "(?i)open"), "OPEN -- cable break detected",
-    match(cable_status, "(?i)short"), "SHORT -- wire pairs shorted",
-    match(cable_status, "(?i)impedance|mismatch"), "IMPEDANCE MISMATCH",
-    match(cable_status, "(?i)crosstalk"), "CROSSTALK -- interference between pairs",
-    1==1, "CABLE ISSUE: ".cable_status)
-| table network_name, device, port, issue, cable_length, _time
-| eval severity="WARNING -- cable issue on port ".port.": ".issue
-| sort network_name, device, port
-```
+**Cable Test Results and Port Diagnostics (Meraki MS)** — Operations teams run and analyze Meraki MS cable test diagnostics (TDR), identifying cable breaks, shorts, and impedance mismatches causing port connectivity issues.
 
-### Step 3 — - Validate
-(a) Dashboard: Switch > Switch ports > Live tools > Cable test -- run on-demand test.
-(b) Physical inspection of the cable and connectors.
-(c) Compare cable length reported vs expected.
+Documented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input + Switch Ports Transceivers Readings History by Switch input (sourcetype=meraki:portstransceiversreadingshistorybyswitch, TA v3.2+, OAuth scope switch:telemetry:read). NOTE: The Meraki Dashboard 'Cable Test' tool result is NOT delivered via syslog or as a polled API — it is only available interactively in the Dashboard UI. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MS -- Cable Diagnostics"):
-* Row 1 -- Single-value: "Cable issues detected", "Ports tested".
-* Row 2 -- Cable test results table.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
 
-### Step 5 — - Troubleshooting
+**Pipeline walkthrough**
 
-* **Open cable** -- Break in the cable. Replace the patch cable. Check cable length reported to estimate break location.
+- Scopes the data: index=meraki, sourcetype="meraki:assurancealerts", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+- Appends rows from a subsearch with `append`.
 
-* **Short** -- Wires touching inside the cable. Usually indicates damaged RJ-45 termination. Re-terminate or replace cable.
 
-* **Impedance mismatch** -- Mixing cable categories (Cat5e/Cat6/Cat6a) or bad connector. Replace cable with consistent category throughout.
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failed cable tests; port detail with diagnostic results; failure timeline.
 
 ## SPL
 
 ```spl
-index=cisco_network sourcetype="meraki" type=security_event (signature="*cable*" OR signature="*diagnostic*")
-| stats count as test_count by switch_name, port_id, test_result
-| where test_result="FAIL"
+index=meraki sourcetype="meraki:assurancealerts"
+    deviceType="switch"
+    (title="*cable*" OR title="*physical*" OR title="*transceiver*"
+     OR title="*SFP*")
+    earliest=-7d
+| stats count as alert_count,
+        values(title) as cable_alerts,
+        latest(severity) as severity
+         by deviceSerial, deviceName, networkName
+| sort - alert_count
+| append [
+    search index=meraki sourcetype="meraki:portstransceiversreadingshistorybyswitch" earliest=-7d
+    | spath path=intervals{} output=interval_arr
+    | mvexpand interval_arr
+    | spath input=interval_arr
+    | stats avg(temperature.celsius) as avg_temp_c,
+            min(power.transmit.dbm) as min_tx_dbm,
+            min(power.receive.dbm) as min_rx_dbm
+             by serial, portId
+    | where min_rx_dbm < -20 OR avg_temp_c > 70
+  ]
 ```
 
 ## Visualization

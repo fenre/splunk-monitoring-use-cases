@@ -311,7 +311,7 @@ Supplemental engineering notes for long-term owners: when rootless Docker delega
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=true avg(Performance.cpu_load_percent) AS avg_cpu_load max(Performance.cpu_load_percent) AS peak_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=5m
+| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu_load max(Performance.cpu_load_percent) AS peak_cpu_load FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-1h@h latest=@h BY Performance.host span=5m
 | rename Performance.host AS host_id
 | where peak_cpu_load>88
 ```

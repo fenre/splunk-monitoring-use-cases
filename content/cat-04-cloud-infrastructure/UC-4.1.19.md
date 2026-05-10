@@ -79,7 +79,7 @@ index=aws sourcetype="aws:waf" action="BLOCK"
 
 ```spl
 | tstats `summariesonly` count
-  from datamodel=Web.proxy
+  from datamodel=Web.Web
   where (Web.status >= 400 OR like(Web.status, "5%") OR like(Web.status, "403"))
   by Web.src Web.url Web.status span=1h
 | sort -count
