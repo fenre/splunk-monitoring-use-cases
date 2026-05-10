@@ -54,18 +54,18 @@ Use cases were chosen for **domain coverage**, alignment with [content/INDEX.md]
 
 ## The ten use cases
 
-| # | UC ID | Title | Catalog file | Why datagen-friendly |
+| # | UC ID | Title | Catalog sidecar | Why datagen-friendly |
 |---|--------|--------|----------------|----------------------|
-| 1 | **UC-1.1.23** | Kernel Core Dump Generation | [cat-01-server-compute.md](../../use-cases/cat-01-server-compute.md) | Linux **syslog** / kernel narrative |
-| 2 | **UC-5.1.4** | BGP Peer State Changes | [cat-05-network-infrastructure.md](../../use-cases/cat-05-network-infrastructure.md) | **Network syslog** |
-| 3 | **UC-8.1.1** | HTTP Error Rate Monitoring | [cat-08-application-infrastructure.md](../../use-cases/cat-08-application-infrastructure.md) | **Apache**-style access log |
-| 4 | **UC-9.1.3** | Privileged Group Membership Changes | [cat-09-identity-access-management.md](../../use-cases/cat-09-identity-access-management.md) | **JSON** (pseudo–Windows Security) |
-| 5 | **UC-4.1.8** | GuardDuty Finding Ingestion | [cat-04-cloud-infrastructure.md](../../use-cases/cat-04-cloud-infrastructure.md) | **JSON** (AWS-style finding) |
-| 6 | **UC-3.2.1** | Pod Restart Rate | [cat-03-containers-orchestration.md](../../use-cases/cat-03-containers-orchestration.md) | **Kubernetes**-style JSON |
-| 7 | **UC-10.3.5** | Endpoint Isolation Events | [cat-10-security-infrastructure.md](../../use-cases/cat-10-security-infrastructure.md) | **EDR JSON** |
-| 8 | **UC-13.1.1** | Indexer Queue Fill Ratio | [cat-13-observability-monitoring-stack.md](../../use-cases/cat-13-observability-monitoring-stack.md) | **Metrics JSON** (demo; not real `_internal`) |
-| 9 | **UC-14.2.2** | Process Variable Anomalies | [cat-14-iot-operational-technology-ot.md](../../use-cases/cat-14-iot-operational-technology-ot.md) | **OT** tag/value JSON |
-| 10 | **UC-22.1.1** | GDPR PII Detection in Application Log Data | [cat-22-regulatory-compliance.md](../../use-cases/cat-22-regulatory-compliance.md) | App JSON with **fake** PII only |
+| 1 | **UC-1.1.23** | Kernel Core Dump Generation | [UC-1.1.23.json](../../content/cat-01-server-compute/UC-1.1.23.json) | [Linux](linux-servers.md) **syslog** / kernel narrative |
+| 2 | **UC-5.1.4** | BGP Peer State Changes | [UC-5.1.4.json](../../content/cat-05-network-infrastructure/UC-5.1.4.json) | **Network syslog** |
+| 3 | **UC-8.1.1** | HTTP Error Rate Monitoring | [UC-8.1.1.json](../../content/cat-08-application-infrastructure/UC-8.1.1.json) | **[Apache](web-servers.md)**-style access log |
+| 4 | **UC-9.1.3** | Privileged Group Membership Changes | [UC-9.1.3.json](../../content/cat-09-identity-access-management/UC-9.1.3.json) | **JSON** (pseudo–Windows Security) |
+| 5 | **UC-4.1.8** | GuardDuty Finding Ingestion | [UC-4.1.8.json](../../content/cat-04-cloud-infrastructure/UC-4.1.8.json) | **JSON** ([AWS](aws.md)-style finding) |
+| 6 | **UC-3.2.1** | Pod Restart Rate | [UC-3.2.1.json](../../content/cat-03-containers-orchestration/UC-3.2.1.json) | **[Kubernetes](kubernetes.md)**-style JSON |
+| 7 | **UC-10.3.5** | Endpoint Isolation Events | [UC-10.3.5.json](../../content/cat-10-security-infrastructure/UC-10.3.5.json) | **EDR JSON** |
+| 8 | **UC-13.1.1** | Indexer Queue Fill Ratio | [UC-13.1.1.json](../../content/cat-13-observability-monitoring-stack/UC-13.1.1.json) | **Metrics JSON** (demo; not real `_internal`) |
+| 9 | **UC-14.2.2** | Process Variable Anomalies | [UC-14.2.2.json](../../content/cat-14-iot-operational-technology-ot/UC-14.2.2.json) | **OT** tag/value JSON |
+| 10 | **UC-22.1.1** | GDPR PII Detection in Application Log Data | [UC-22.1.1.json](../../content/cat-22-regulatory-compliance/UC-22.1.1.json) | App JSON with **fake** PII only |
 
 ---
 
@@ -201,7 +201,7 @@ shared workshop environment, or a CI-driven pipeline test.
 
 - **Use case:** Air-gapped or offline lab; conference booth.
 - **Components:** Cribl Edge worker + Splunk Enterprise single-server trial,
-  both in Docker Compose or single VM.
+  both in [Docker](container-platforms-docker-openshift.md) Compose or single VM.
 - **Volume:** 10-100 EPS per UC, scaled with worker resources.
 - **Setup time:** 2-4 hours (initial); rebuild < 30 min from snapshot.
 - **Risk:** Single point of failure; trial license expiry.
@@ -218,7 +218,7 @@ shared workshop environment, or a CI-driven pipeline test.
 ### Variant 4 — CI pipeline test (GitHub Actions + ephemeral Splunk container)
 
 - **Use case:** Validate dashboard XML / SPL changes on every PR.
-- **Components:** GitHub Actions workflow + ephemeral Splunk container +
+- **Components:** [GitHub Actions](../ci-architecture.md) workflow + ephemeral Splunk container +
   generate_manifest_samples.py + curl to HEC + dashboard health check.
 - **Volume:** Burst of 1k-10k events for 30s, then teardown.
 - **Setup time:** 4-8 hours initial; runs automatically on PR.

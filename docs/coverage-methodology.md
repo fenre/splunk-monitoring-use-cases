@@ -26,10 +26,10 @@ in isolation.
 
 | Source                                   | Role                                                                                        |
 |------------------------------------------|---------------------------------------------------------------------------------------------|
-| `use-cases/cat-*/uc-*.json`              | Every UC's `compliance[]` array: tuples of (regulation, version, clause, mode, assurance). |
+| `content/cat-*/UC-*.json`                | Every UC's `compliance[]` array: tuples of (regulation, version, clause, mode, assurance). |
 | `data/regulations.json`                  | Multi-version framework catalogue: `commonClauses[].priorityWeight` is the denominator.    |
 | `data/provenance/ingest-manifest.json`   | SHA-256 provenance of upstream crosswalks used for reconciliation.                         |
-| `data/crosswalks/olir/*.normalised.json` | Authoritative capability ↔ ATT&CK mappings used as a sanity check.                         |
+| `data/crosswalks/olir/*.normalised.json` | Authoritative capability ↔ [ATT&CK](mitre-attack-mapping.md) mappings used as a sanity check.                         |
 
 The numerator for any metric is derived only from `compliance[]`
 entries with `status != "draft"` (see § 7). The denominator is fixed
@@ -404,3 +404,9 @@ record, for every run:
 Dashboards tracking compliance health should expose the first two
 prominently; `baseline.unused` should be wired into the Phase 3.1
 cleanup scoreboard.
+
+For the operator-level "how do I capture / refresh / shrink the baseline"
+runbook, see [`docs/baselines-howto.md`](baselines-howto.md). For the
+catalogue-level inventory of clauses we *don't* yet cover (and how that
+inventory is regenerated), see
+[`docs/content-gap-analysis.md`](content-gap-analysis.md).

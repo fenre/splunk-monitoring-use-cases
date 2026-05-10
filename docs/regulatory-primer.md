@@ -99,7 +99,7 @@ specific regular expression (`clauseGrammar`) so free-text values like
 
 ### Regulation priority weights
 
-`priorityWeight` is a per-clause weight applied by the coverage methodology.
+`priorityWeight` is a per-clause weight applied by the [coverage methodology](coverage-methodology.md).
 Interpretation:
 
 - `1.0` — **High** priority. Clause is widely cited, appears in the majority of
@@ -155,7 +155,7 @@ alerting thresholds, HEC token rotation evidence, acknowledgement-mode
 confirmation, and cross-cluster replication attestation.
 
 **Where to look in the catalogue:**
-[`use-cases/cat-22-regulatory-compliance.md` §22.35](../use-cases/cat-22-regulatory-compliance.md)
+[`content/cat-22-regulatory-compliance/` §22.35](../content/cat-22-regulatory-compliance/)
 (UC-22.35.1 through UC-22.35.5) · `api/v1/compliance/ucs/22.35.1.json` ff.
 
 ### 3.2 22.36 — Data subject rights fulfillment
@@ -240,7 +240,7 @@ Art.33 (international transfer); APPI Art.24 (cross-border transfer).
 **What the catalogue delivers:** real-time destination-country detection on
 cloud data flows, Schrems-II-aware DPIA refresh alerting, SCC-version
 verification at connection-establishment time, TIA (transfer impact
-assessment) evidence packs, adequacy-decision age tracking, model-contractual-
+assessment) [evidence packs](evidence-packs/README.md), adequacy-decision age tracking, model-contractual-
 clauses-to-country mapping attestation.
 
 **Where to look in the catalogue:**
@@ -376,7 +376,7 @@ discovered on a documented cadence, prioritised against a documented rubric,
 patched within documented SLAs, and that exceptions (waivers) have a
 documented compensating control and sunset date?
 
-**Why it matters:** vulnerability management is where compliance meets
+**Why it matters:** [vulnerability management](guides/vulnerability-management.md) is where compliance meets
 live threat intelligence. Regulators increasingly expect CVSS-aware and
 EPSS-aware prioritisation, so a vulnerability-management programme that
 treats all CVEs equally will be flagged even if patch-latency metrics are
@@ -392,7 +392,7 @@ assessment); HIPAA Security §164.308(a)(1)(ii)(A) (risk analysis).
 
 **What the catalogue delivers:** CVSS + EPSS combined prioritisation
 dashboards, patch-latency percentile tracking per asset class, waiver-age
-reporting with compensating-control attestation, SBOM-driven dependency
+reporting with compensating-control attestation, [SBOM](license-inventory.md)-driven dependency
 scanning, zero-day emergency patching workflow attestation.
 
 **Where to look in the catalogue:**
@@ -406,7 +406,7 @@ reviewed on cadence, and monitored continuously for the relevant risk
 indicators?
 
 **Why it matters:** SolarWinds, Kaseya, Log4j, MOVEit, and the broader
-2023-2025 enforcement of supply-chain-focused rules (NIS2, DORA, SEC
+2023-2025 enforcement of [supply-chain](signed-provenance.md)-focused rules (NIS2, DORA, SEC
 four-day rule, EU CRA) have elevated third-party risk from a procurement
 checklist to a primary auditable control domain. Regulators now treat
 third-party failure as if it were first-party failure, except for
@@ -418,10 +418,10 @@ security); DORA Art.28 – 30 (ICT third-party risk management); SOX ITGC
 providers), 12.9 (due diligence); ISO 27001:2022 A.5.19 – 5.23 (supplier
 relationships); NIST 800-53 SR-2 (supply chain risk management plan);
 HIPAA Security §164.308(b) (business associate contracts); SOC 2 CC9.2
-(vendor management); CMMC SA.L2-3.4.x (supply-chain protection).
+(vendor management); CMMC SA.L2-3.4.x ([supply-chain](signed-provenance.md) protection).
 
 **What the catalogue delivers:** continuous vendor-risk-score ingestion,
-SBOM-to-vendor cross-reference, vendor-access expiry automation,
+[SBOM](license-inventory.md)-to-vendor cross-reference, vendor-access expiry automation,
 contract-renewal-triggered risk-review workflows, subprocessor discovery,
 external-attack-surface-management (EASM) correlation with owned third
 parties.
@@ -752,7 +752,7 @@ detection, encryption of ePHI at rest and in transit, minimum-necessary
 rule enforcement, workforce-termination access revocation, and
 breach-risk-assessment artefact generation.
 
-**Cisco ISE evidence.** For workforce access to ePHI-bearing systems,
+**[Cisco ISE](guides/cisco-ise.md) evidence.** For workforce access to ePHI-bearing systems,
 Cisco ISE provides the §164.308(a)(4) information-access-management
 record (Active-Directory-driven authorisation policies attested by
 [UC-17.1.29](../content/cat-17-network-security-zero-trust/UC-17.1.29.json)),
@@ -1058,6 +1058,21 @@ NAD vendor risk) package this for ENISA-aligned evidence submission.
 
 **Where to look:** §22.2 · `api/v1/compliance/regulations/nis2.json`.
 
+**Methodology and self-validation.** The end-to-end methodology that
+governs how the catalogue maps to NIS2 (clause selection, evidence
+modes, assurance levels, gap-detection) lives in
+[`docs/nis2-monitoring-methodology.md`](nis2-monitoring-methodology.md).
+A standalone, customer-facing self-validation worksheet that an
+obligated entity can run before an external auditor visits is at
+[`docs/nis2-self-validation.md`](nis2-self-validation.md). The
+machine-readable provenance (which authoritative source clause-by-clause
+text was sourced from, and the SHA-256 of every drift-detected page) is
+in [`docs/research/nis2-source-map.md`](research/nis2-source-map.md).
+For the ENISA / external-review packaging, see
+[`docs/nis2-external-review-pack.md`](nis2-external-review-pack.md), and
+the cross-firm benchmark of the catalogue's coverage is in
+[`docs/nis2-maturity-benchmark.md`](nis2-maturity-benchmark.md).
+
 ### 4.11 DORA — Digital Operational Resilience Act (EU) · `T1`
 
 **Regulation:** Regulation (EU) 2022/2554 (*DORA*), adopted 14 Dec 2022,
@@ -1304,7 +1319,7 @@ derivative-aware form. **P** indicates parent; **D** indicates derivative
 | HIPAA Privacy | US | 14 Apr 2003 | independent (sectoral — healthcare) | HHS OCR |
 
 All of these are covered in `data/regulations.json`; derivative propagation
-is applied automatically by the build pipeline.
+is applied automatically by the [build pipeline](build-artefacts-reference.md).
 
 ---
 
@@ -1325,7 +1340,7 @@ of clauses the catalogue targets for coverage measurement. Smaller than
 the full clause set; chosen for real-world audit relevance.
 
 **Derivative regulation** — a regulation whose substance is materially
-inherited from a parent regulation. The build pipeline propagates
+inherited from a parent regulation. The [build pipeline](build-artefacts-reference.md) propagates
 parent-clause coverage to derivatives via the `derivesFrom` graph.
 
 **DSR** — Data Subject Request (GDPR terminology; synonymous with

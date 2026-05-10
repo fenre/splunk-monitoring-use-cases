@@ -23,7 +23,7 @@ an auditor for the cited regulation?
 ### 1.1 Content that triggers SME review
 
 A PR triggers the Phase 5.2 SME-review gate when **any** of the
-following are true for a UC sidecar under `use-cases/cat-*/uc-*.json`:
+following are true for a UC sidecar under `content/cat-*/UC-*.json`:
 
 - The UC is **new** and carries `compliance[].assurance == "full"`
   against at least one **tier-1 regulation** (GDPR, UK GDPR, PCI DSS,
@@ -47,7 +47,7 @@ following are true for a UC sidecar under `use-cases/cat-*/uc-*.json`:
 ### 1.2 Content that does **not** trigger SME review
 
 - New UCs that only claim `partial` or `contributing` assurance on
-  tier-1 regulations (peer review is sufficient for those).
+  tier-1 regulations ([peer review](peer-review-guide.md) is sufficient for those).
 - Tier-2/tier-3 regulation-only UCs (CCPA, nFADP, LGPD, APPI, PIPEDA,
   POPIA, AU Privacy, KVKK, NIST 800-171, FedRAMP, NIST SSDF,
   IEC 62443, NERC CIP, TISAX, CSA CCM, SWIFT CSCF, etc.).
@@ -60,7 +60,7 @@ following are true for a UC sidecar under `use-cases/cat-*/uc-*.json`:
   changes.
 - Build-pipeline changes, generator code, CI configuration, scorecard
   CSS, `non-technical-view.js`, `docs/regulatory-primer.md` (the last
-  is covered by legal review).
+  is covered by [legal review](legal-review-guide.md)).
 - Mini-category UCs (22.35–22.49) that carry `contributing` assurance
   against tier-1 regulations (peer review covers the SPL hygiene, and
   legal review covers the clause accuracy; no fixture-replay SME
@@ -100,9 +100,9 @@ signoff.
 
 | `reviewerRole`          | Who it means                                                   | Typical content                                                                 |
 | ----------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `splunk-engineer`       | Professional-services or customer-success Splunk engineer.     | SPL correctness against the authoring data source; AppInspect-friendly constructs; field-extraction prerequisites. |
+| `splunk-engineer`       | Professional-services or customer-success Splunk engineer.     | SPL correctness against the authoring data source; [AppInspect](splunk-cloud-compat.md)-friendly constructs; field-extraction prerequisites. |
 | `regulatory-auditor`    | Qualified auditor holding a recognised credential.             | Auditor-evidence acceptability; retention / redaction posture; mapping of the SPL output to the cited clause. |
-| `security-architect`    | Enterprise security architect with detection-engineering depth. | Detection logic robustness, false-positive posture, cross-UC correlation, ATT&CK coverage. |
+| `security-architect`    | Enterprise security architect with detection-engineering depth. | Detection logic robustness, false-positive posture, cross-UC correlation, [ATT&CK](mitre-attack-mapping.md) coverage. |
 | `industry-sme`          | Industry-specific expert.                                       | Domain-specific realism (e.g. clinician for HIPAA, controller for SOX/ITGC, power-system engineer for NERC CIP). |
 | `internal-review-board` | Multi-member internal panel.                                    | Scope where no single SME covers the full rubric; the panel records one consolidated signoff with individual roles in `notes`. |
 
@@ -189,7 +189,7 @@ regulation's deployment context?
   that does not correspond to a published vendor integration is a
   red flag.
 - Where the UC cites a vendor TA (e.g. `TA-meraki`), the SME
-  confirms the TA's CIM fields and version pins are realistic for
+  confirms the TA's [CIM](cim-and-data-models.md) fields and version pins are realistic for
   the current Splunkbase release.
 - Where the UC cites CIM-only fields (`Authentication`,
   `Change`, `Endpoint`), the SME confirms the CIM data model is
@@ -232,7 +232,7 @@ lookup.
 regulation's audit expectations?
 
 **How to check.** The SME walks the UC's `evidence` field (and the
-regulation's evidence pack under `docs/evidence-packs/<reg>.md`) and
+regulation's [evidence pack](evidence-packs/README.md) under `docs/evidence-packs/<reg>.md`) and
 confirms each of the following is addressed:
 
 1. **Retention.** The UC's SPL returns events within the retention
@@ -471,7 +471,7 @@ The final commit must pass **all three** gates before merge.
 - `docs/regulatory-change-watch.md` — Phase 5.3 regulatory
   change-watch gate. SME reviewers should confirm that any regulation
   cited in `scope.regulations` has a fresh `lastCheckedAt`.
-- `docs/signed-provenance.md` — Phase 5.4 signed provenance ledger.
+- `docs/signed-provenance.md` — Phase 5.4 [signed provenance](signed-provenance.md) ledger.
   Every SME-reviewed `(UC, clause, mode, assurance)` tuple is hashed
   into a cryptographically verifiable merkle-root ledger; the
   reviewer's signoff PR number is snapshotted into the ledger entry's

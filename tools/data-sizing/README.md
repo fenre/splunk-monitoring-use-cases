@@ -3,7 +3,7 @@
 Static, single-page web app that helps a Splunk practitioner build a
 back-of-the-envelope sizing estimate for an ingest workload. It lives
 under `tools/` so it ships with the catalogue but is independent of the
-use-case content under `use-cases/`.
+use-case content under `content/cat-*/UC-*.json`.
 
 ## What it does
 

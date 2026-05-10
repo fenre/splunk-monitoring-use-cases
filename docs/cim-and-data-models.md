@@ -84,4 +84,26 @@ For **index-time SPL** examples (outside `tstats` / `from datamodel`), this cata
 
 Vendor-specific paths (e.g. `connection.src_ip` in JSON) are often **`eval`/`rename`d** to `src`/`dest` in the SPL block. **Data model** paths in `tstats` use dataset prefixes, e.g. `All_Traffic.src`, `All_Traffic.dest` (not `*_ip`).
 
-The helper script `scripts/normalize_cim_fields.py` can re-apply bulk `src_ip`/`dest_ip` → `src`/`dest` renames on `use-cases/cat-*.md` when needed; always review **BY** clauses for duplicate `All_Traffic.dest` lines after replacing `dest_ip`.
+When applying bulk `src_ip`/`dest_ip` → `src`/`dest` renames across the
+catalogue, edit the affected `content/cat-*/UC-*.json` sidecars
+directly (the legacy bulk-rename script `scripts/normalize_cim_fields.py`
+was removed in v8.2.0 along with the markdown corpus it operated on).
+Always review **BY** clauses for duplicate `All_Traffic.dest` lines
+after replacing `dest_ip`.
+
+## Companion docs
+
+* [`docs/cim-models-inventory.md`](cim-models-inventory.md) —
+  per-data-model UC inventory (which UCs cover Authentication, Web,
+  Network_Traffic, etc.) and Splunk_SA_CIM acceleration config tips.
+* [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md) — how
+  CIM-normalised data feeds the MITRE ATT&CK technique mappings used
+  by [`docs/guides/security-monitoring.md`](guides/security-monitoring.md).
+* [`docs/guides/siem-soar.md`](guides/siem-soar.md) — Enterprise
+  Security and SOAR rely on CIM compliance for cross-source detection.
+* [`docs/guides/splunk-itsi.md`](guides/splunk-itsi.md) — ITSI KPI
+  base searches typically run against accelerated CIM data models.
+* [`docs/use-case-fields.md`](use-case-fields.md) — how the
+  `cimModels` and `cimSpl` fields are populated in each UC sidecar.
+* [`docs/catalog-schema.md`](catalog-schema.md) — abbreviated keys
+  (`a` = `cimModels`, `qs` = `cimSpl`).
