@@ -4,9 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "use-cases/**"
       - "content/**"
-      - "build.py"
       - "Makefile"
       - "openapi.yaml"
       - "non-technical-view.js"
@@ -43,9 +41,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "use-cases/**"
       - "content/**"
-      - "build.py"
       - "Makefile"
       - "openapi.yaml"
       - "non-technical-view.js"
@@ -142,6 +138,14 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the
         # ``python -m splunk_uc`` dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-uc-structure --full
+
+      - name: Legacy use-cases/ guard (v8.2.0 retirement)
+        # The legacy ``use-cases/cat-*.md`` corpus was retired in
+        # v8.2.0 (see docs/migration-status.md). This guard hard-fails
+        # if the directory is recreated or if a non-allowlisted
+        # tracked file gains a fresh ``use-cases/`` path reference,
+        # so the dual-content mess can't reappear by accident.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-no-use-cases-dir --check
 
       - name: SPL grammar linter
         # Flags invalid SPL patterns that the hallucination audit can't
@@ -342,36 +346,6 @@ jobs:
             exit 1
           fi
 
-      - name: Phase 2.2 mini-category generator regeneration check
-        # Phase 2.2 deliverable. scripts/generate_phase2_mini_categories.py
-        # is the single source of truth for the cat-22.35 - 22.49
-        # cross-regulation mini-categories: it reads
-        # data/mini-categories/phase2.2.json and emits matching markdown
-        # blocks (inside the <!-- PHASE-2.2 BEGIN --> / <!-- PHASE-2.2 END -->
-        # fence in use-cases/cat-22-regulatory-compliance.md) plus per-UC
-        # JSON sidecars under use-cases/cat-22/.  --check regenerates the
-        # outputs and diffs against the committed tree so any drift
-        # (hand-edited markdown, stale sidecar, missing new UC, etc.)
-        # fails CI.
-        # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-phase2-mini-categories --check
-
-      - name: Phase 2.3 per-regulation content-fill generator regeneration check
-        # Phase 2.3 deliverable. scripts/generate_phase2_3_per_regulation.py
-        # is the single source of truth for the 45 per-regulation content
-        # fill UCs that close the remaining clause gaps for the thinnest
-        # tier-1 frameworks (DORA, ISO/IEC 27001:2022, SOC 2 2017 TSC,
-        # PCI-DSS v4.0, SOX-ITGC PCAOB AS 2201): it reads
-        # data/per-regulation/phase2.3.json and emits matching markdown
-        # blocks (inside the <!-- PHASE-2.3 BEGIN --> / <!-- PHASE-2.3 END -->
-        # fence in use-cases/cat-22-regulatory-compliance.md) plus per-UC
-        # JSON sidecars under use-cases/cat-22/.  --check regenerates the
-        # outputs and diffs against the committed tree so any drift
-        # (hand-edited markdown, stale sidecar, missing new UC, UC missing
-        # from authoring source, etc.) fails CI.
-        # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-phase2-3-per-regulation --check
-
       - name: Phase 3.1 clause-level backfill generator regeneration check
         # Phase 3.1 deliverable. scripts/generate_phase3_1_backfill.py is
         # the single source of truth for the clause-level backfill that
@@ -390,19 +364,20 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-1-backfill --check
 
       - name: Phase 3.2 cross-cutting compliance generator regeneration check
-        # Phase 3.2 deliverable. scripts/generate_phase3_2_cross_cutting.py
-        # is the single source of truth for the multi-regulation clause-level
-        # tags applied to existing UCs *outside* cat-22.  The generator reads
+        # Phase 3.2 deliverable. The generator
+        # ``src/splunk_uc/generators/phase3_2_cross_cutting.py`` is the single
+        # source of truth for the multi-regulation clause-level tags applied
+        # to existing UCs *outside* cat-22.  It reads
         # data/per-regulation/phase3.2.json (the hand-curated manifest that
         # maps 53 cross-cutting UCs to 182 tier-1/tier-2 clauses across 14
-        # categories) and idempotently writes minimal JSON sidecars at
-        # use-cases/cat-NN/uc-<id>.json that contain only the compliance[]
-        # entries — it never touches markdown and never authors SPL.  --check
-        # regenerates the sidecars into memory and diffs against the committed
-        # tree so drift (hand-edited sidecar, stale clause, forgotten
-        # regeneration, manifest entry pointing at a non-existent UC, or a
-        # uc_id starting with "22." which belongs to another generator)
-        # all fail CI.
+        # categories) and idempotently appends compliance[] entries to the
+        # existing JSON sidecars under content/cat-*/UC-*.json (JSON SSOT) —
+        # it never authors SPL and never creates new sidecars.  --check
+        # regenerates the sidecars into memory and diffs against the
+        # committed tree so drift (hand-edited sidecar, stale clause,
+        # forgotten regeneration, manifest entry pointing at a non-existent
+        # UC, or a uc_id starting with "22." which belongs to another
+        # generator) all fail CI.
         # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-2-cross-cutting --check
 
@@ -429,32 +404,16 @@ jobs:
         # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-3-derivatives --check
 
-      - name: Phase C tier-2 gap-closure regeneration check
-        # Phase C of the regulation-coverage gap plan.
-        # scripts/author_phase_c_ucs.py is the single source of truth for the
-        # 23 tier-2 gap-closure UCs (uc-22.50.1.json .. uc-22.50.23.json) and
-        # the matching ``<!-- PHASE-C BEGIN -->`` / ``<!-- PHASE-C END -->``
-        # block in use-cases/cat-22-regulatory-compliance.md.  --check
-        # re-renders the JSON and markdown into memory and exits non-zero
-        # when either has drifted from the SPECS table inside the script.
-        # The generator is intentionally non-destructive on JSON sidecars
-        # so SME-uplift work in ``status``/``assurance`` is preserved
-        # between Phase E runs (the JSON-drift check therefore only fires
-        # when a wholly new sidecar is missing, never on field edits).
-        run: python3 scripts/author_phase_c_ucs.py --check
-
       - name: Equipment-tags regeneration check (sidecar equipment[] / equipmentModels[])
         # ``generate-equipment-tags`` is the single source of truth for the
         # ``equipment[]`` and ``equipmentModels[]`` fields on every
-        # ``use-cases/cat-*/uc-*.json`` sidecar. It reads the EQUIPMENT
-        # registry from build.py (via scripts/equipment_lib.py) and
-        # substring-matches each UC's narrative (``app``, ``dataSources``,
+        # ``content/cat-*/UC-*.json`` sidecar (JSON SSOT). It reads the
+        # EQUIPMENT registry from build.py (via scripts/equipment_lib.py)
+        # and substring-matches each UC's narrative (``app``, ``dataSources``,
         # ``spl``, ``implementation``, ``description``) to produce a
         # deterministic, schema-valid equipment tag set. ``build.py`` then
         # uses those fields as the authoritative source when populating
-        # the compact ``e`` / ``em`` fields in catalog.json (falling back
-        # to the legacy substring match on the markdown ``App/TA:`` line
-        # only for UCs without a sidecar — cats 1-21 and 23 today).
+        # the compact ``e`` / ``em`` fields in catalog.json.
         # --check regenerates the tags into memory and diffs against
         # disk, so a forgotten regeneration, a hand-edited sidecar, or
         # an equipment-table rename without a regeneration all fail CI.
@@ -573,7 +532,7 @@ jobs:
       # below covers the remaining splunk-apps/ tree end-to-end.
 
       - name: Splunk UC Recommender generator regeneration check
-        # scripts/generate_recommender_app.py is the single source of
+        # The ``generate-recommender-app`` verb is the single source of
         # truth for splunk-apps/splunk-uc-recommender/. --check
         # regenerates the tree into a tempdir and diffs it against the
         # committed tree, so a forgotten regeneration (or any
@@ -581,7 +540,10 @@ jobs:
         # CI before the app is shipped to operators. (The companion
         # splunk-uc-recommender-ta tree was deleted in v8.0.0; the
         # recommender app is now standalone.)
-        run: python3 scripts/generate_recommender_app.py --check
+        # P6 (scripts taxonomy, 2026-05-10): routed through the dispatcher.
+        # The legacy ``python3 scripts/generate_recommender_app.py``
+        # invocation continues to work via the compatibility shim.
+        run: PYTHONPATH=src python3 -m splunk_uc generate-recommender-app --check
 
       - name: Recommender frontend unit tests
         # Node --test runs tests/recommender/match.test.mjs which
@@ -626,9 +588,10 @@ jobs:
         # data/evidence-pack-extras.json (auditor-facing metadata:
         # retention, roles, authoritative guidance, common deficiencies,
         # testing approach, reporting cadence, penalty structure), the
-        # UC sidecars in use-cases/cat-*/uc-*.json (compliance entries
-        # and evidence fields), and reports/compliance-gaps.json (the
-        # pre-computed per-clause coverage rollup).  It emits 12 auditor
+        # UC sidecars under content/cat-*/UC-*.json (JSON SSOT —
+        # compliance entries and evidence fields), and
+        # reports/compliance-gaps.json (the pre-computed per-clause
+        # coverage rollup).  It emits 12 auditor
         # packs (the 11 tier-1 regulations + UK GDPR derivative), a
         # README, and a machine-readable index with deterministic
         # serialisation.  --check regenerates the tree into memory and
@@ -888,9 +851,16 @@ jobs:
           exit $FAIL
 
       - name: Build check (catalog regeneration)
+        # Verifies that the committed derivative artefacts match what the
+        # build pipeline regenerates from the SSOT under content/. The
+        # legacy root-level artefacts (catalog.json / llms*.txt /
+        # sitemap.xml / api/*.json) were retired in v8.2.0 (commit
+        # faffd68e4) — they now live only in dist/ as build outputs and
+        # are not committed to git, so they no longer participate in
+        # the freshness diff.
         run: |
           python3 tools/build/build.py --out dist
-          CHANGED=$(git diff --name-only -- catalog.json llms.txt llm.txt llms-full.txt sitemap.xml 'api/*.json' provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
+          CHANGED=$(git diff --name-only -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
           if [ -n "$CHANGED" ]; then
             echo "::error::Generated files are out of date — run 'make build' and commit: $CHANGED"
             exit 1

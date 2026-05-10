@@ -30,9 +30,11 @@ Please fill in the sections below. Delete anything that doesn't apply.
 <!-- Confirm the things that automated CI cannot. -->
 
 - [ ] Ran `make build` locally and committed regenerated artefacts as required by CI
-      (`dist/` mirror files if your branch tracks them, plus any root-level
-      `catalog.json`, `api/*.json`, `llms*.txt`, `sitemap.xml`, etc., listed in
-      `.github/workflows/validate.yml`).
+      (the freshness check in `.github/workflows/validate.yml` verifies
+      `provenance.json`, `provenance.js`, `docs/provenance-coverage.md`,
+      `scorecard.json`, `docs/scorecard.md`; the legacy root-level
+      `catalog.json`, `data.js`, `llms*.txt`, `sitemap.xml` were retired
+      in v8.2.0 and are now build-only outputs under `dist/`).
 - [ ] Ran `make audit-structure` (or `python3 -m splunk_uc audit-uc-structure --full`).
 - [ ] SPL examples have been eyeballed for syntax errors.
 - [ ] If adding a new **Splunkbase app reference**, the `Splunkbase #NNNN`
