@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""
-Parse all use case headings from use-cases/cat-*.md and emit manifest-all.json
-with uc_id, title, source file, category number, and default log_family from
-config/uc_to_log_family.json.
+"""Emit ``manifest-all.json`` from the JSON SSOT (``content/cat-*/UC-*.json``).
 
-Usage:
+Walks the SSOT sidecars and produces a flat manifest of all use cases with
+``uc_id``, ``title``, source-file pointer, category number, and the default
+``log_family`` from ``config/uc_to_log_family.json``.
+
+Usage::
+
   python3 scripts/parse_uc_catalog.py --output eventgen_data/manifest-all.json
-
   python3 scripts/parse_uc_catalog.py  # writes to stdout
 
-Excludes: cat-00-preamble.md
+The legacy ``use-cases/cat-*.md`` markdown corpus has been retired; this
+script now reads exclusively from ``content/`` (the SSOT).
 """
 
 from __future__ import annotations
@@ -18,19 +20,18 @@ import argparse
 import json
 import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 
-UC_HEADING = re.compile(r"^#{3,4}\s+UC-(\d+\.\d+\.\d+)\s*[·•]\s*(.+)$")
-CAT_FILE = re.compile(r"^cat-(\d+)-.+\.md$")
+CAT_DIR = re.compile(r"^cat-(\d+)-.+$")
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def category_from_filename(name: str) -> int | None:
-    m = CAT_FILE.match(name)
+def category_from_dirname(name: str) -> int | None:
+    m = CAT_DIR.match(name)
     if not m:
         return None
     return int(m.group(1))
@@ -42,31 +43,32 @@ def load_family_map(path: Path) -> dict[str, str]:
     return data.get("category_to_family", {})
 
 
-def parse_uc_file(path: Path, category: int, default_family: str) -> list[dict]:
-    out: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        m = UC_HEADING.match(line.strip())
-        if not m:
-            continue
-        uc_id, title = m.group(1), m.group(2).strip()
-        out.append(
-            {
-                "uc_id": uc_id,
-                "title": title,
-                "catalog_category": category,
-                "source_file": str(path.relative_to(repo_root())),
-                "log_family": default_family,
-            }
-        )
-    return out
+def parse_uc_sidecar(path: Path, category: int, default_family: str) -> dict | None:
+    try:
+        with path.open(encoding="utf-8") as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    uc_id = payload.get("id") or path.stem.removeprefix("UC-")
+    title = payload.get("title") or ""
+    return {
+        "uc_id": uc_id,
+        "title": title.strip(),
+        "catalog_category": category,
+        "source_file": str(path.relative_to(repo_root())),
+        "log_family": default_family,
+    }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build manifest-all.json from cat-*.md")
+    parser = argparse.ArgumentParser(
+        description="Build manifest-all.json from content/cat-*/UC-*.json (JSON SSOT)."
+    )
     parser.add_argument(
-        "--use-cases-dir",
+        "--content-dir",
         type=Path,
-        default=repo_root() / "use-cases",
+        default=repo_root() / "content",
+        help="Path to the SSOT content directory (default: <repo>/content).",
     )
     parser.add_argument(
         "--config",
@@ -84,21 +86,23 @@ def main() -> int:
     family_map = load_family_map(args.config)
     all_rows: list[dict] = []
 
-    for md in sorted(args.use_cases_dir.glob("cat-*.md")):
-        if md.name == "cat-00-preamble.md":
+    for cat_dir in sorted(args.content_dir.iterdir()):
+        if not cat_dir.is_dir():
             continue
-        cat = category_from_filename(md.name)
+        cat = category_from_dirname(cat_dir.name)
         if cat is None:
             continue
-        key = str(cat)
-        default_family = family_map.get(key, "web")
-        all_rows.extend(parse_uc_file(md, cat, default_family))
+        default_family = family_map.get(str(cat), "web")
+        for sidecar in sorted(cat_dir.glob("UC-*.json")):
+            row = parse_uc_sidecar(sidecar, cat, default_family)
+            if row is not None:
+                all_rows.append(row)
 
     all_rows.sort(key=lambda r: r["uc_id"])
 
     manifest = {
-        "description": "Auto-generated list of all use cases from UC headings in use-cases/cat-*.md",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "description": "Auto-generated list of all use cases from content/cat-*/UC-*.json (JSON SSOT)",
+        "generated_at": datetime.now(UTC).isoformat(),
         "uc_count": len(all_rows),
         "use_cases": all_rows,
     }
@@ -108,8 +112,7 @@ def main() -> int:
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text, encoding="utf-8")
-
-    if not args.output:
+    else:
         sys.stdout.write(text)
 
     if args.check and len(all_rows) < 1:

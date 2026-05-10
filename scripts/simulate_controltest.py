@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """simulate_controltest.py - Phase 4.5d ATT&CK simulation gate.
 
-Walks every UC sidecar under ``use-cases/cat-*/uc-*.json``, inspects each
-``controlTest`` block, and produces a deterministic, auditor-readable
-simulation report at ``reports/attack-simulation.json``.
+Walks every UC sidecar under ``content/cat-*/UC-*.json`` (JSON SSOT),
+inspects each ``controlTest`` block, and produces a deterministic,
+auditor-readable simulation report at ``reports/attack-simulation.json``.
 
 Because we cannot run real Splunk SPL in CI (there is no indexer, and
 shipping a Splunk Cloud tenant just for the test would leak secrets and
@@ -75,7 +75,7 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 REPORT_PATH = REPO / "reports" / "attack-simulation.json"
 CROSSWALK_DIR = REPO / "data" / "crosswalks" / "attack"
 CROSSWALK_FILES = (
@@ -145,8 +145,7 @@ def _load_known_techniques() -> set[str]:
                 known.add(attack_id)
     if not known:
         raise RuntimeError(
-            "MITRE ATT&CK crosswalks loaded but 0 techniques found; "
-            "dataset is corrupt."
+            "MITRE ATT&CK crosswalks loaded but 0 techniques found; dataset is corrupt."
         )
     return known
 
@@ -184,9 +183,7 @@ def _collect_uc_technique_refs(uc: dict) -> list[str]:
     return sorted(i for i in ids if i)
 
 
-def _validate_technique_ids(
-    refs: list[str], known: set[str]
-) -> tuple[list[str], list[str]]:
+def _validate_technique_ids(refs: list[str], known: set[str]) -> tuple[list[str], list[str]]:
     """Return ``(bad_format, unknown)`` buckets for the UC's ATT&CK
     references.  ``bad_format`` entries fail the regex; ``unknown``
     entries pass the regex but are absent from the MITRE crosswalk.
@@ -259,8 +256,7 @@ def _check_polarity(fixture: dict, shape: str | None) -> list[str]:
     nc = fixture.get("negativeCase") or {}
     if isinstance(pc, dict) and pc.get("expectedFire") is False:
         issues.append(
-            "positiveCase.expectedFire=false — polarity inversion "
-            "(positive case must fire the UC)."
+            "positiveCase.expectedFire=false — polarity inversion (positive case must fire the UC)."
         )
     if isinstance(nc, dict) and nc.get("expectedFire") is True:
         issues.append(
@@ -270,9 +266,7 @@ def _check_polarity(fixture: dict, shape: str | None) -> list[str]:
     return issues
 
 
-def _coherence_check(
-    events: list[dict], literals: dict[str, set[str]]
-) -> list[str]:
+def _coherence_check(events: list[dict], literals: dict[str, set[str]]) -> list[str]:
     """Return human-readable warnings where the SPL's ``index=`` /
     ``source=`` / ``sourcetype=`` literals do not appear anywhere in
     the positive fixture's events.
@@ -292,15 +286,14 @@ def _coherence_check(
         declared = {lit for lit in literals.get(field, set()) if "*" not in lit}
         if not declared:
             continue
-        observed = {
-            str(e.get(field)) for e in events if field in e and e.get(field)
-        }
+        observed = {str(e.get(field)) for e in events if field in e and e.get(field)}
         if not observed:
             # Fixture does not surface that field at all — silent.
             continue
         if declared.isdisjoint(observed):
             warnings.append(
-                f"SPL references {field}=" + ", ".join(sorted(declared))
+                f"SPL references {field}="
+                + ", ".join(sorted(declared))
                 + f" but positive fixture events only carry {field}="
                 + ", ".join(sorted(observed))
             )
@@ -313,7 +306,7 @@ def _coherence_check(
 
 
 def _iter_uc_sidecars() -> list[Path]:
-    return sorted(USE_CASES.glob("cat-*/uc-*.json"))
+    return sorted(CONTENT.glob("cat-*/UC-*.json"))
 
 
 def _collect_records(known_techniques: set[str]) -> tuple[list[dict], dict]:
@@ -348,7 +341,7 @@ def _collect_records(known_techniques: set[str]) -> tuple[list[dict], dict]:
             continue
 
         summary["total_ucs_examined"] += 1
-        uc_id = uc.get("id") or sidecar.stem.removeprefix("uc-")
+        uc_id = uc.get("id") or sidecar.stem.removeprefix("UC-")
         control_test = uc.get("controlTest")
         if not isinstance(control_test, dict):
             # No controlTest block → not a simulation candidate.
@@ -388,8 +381,7 @@ def _collect_records(known_techniques: set[str]) -> tuple[list[dict], dict]:
                     polarity_issues = _check_polarity(fixture, fixture_shape)
                 elif fixture is not None:
                     fixture_status_note = (
-                        f"fixture top-level is {type(fixture).__name__}, "
-                        f"expected object"
+                        f"fixture top-level is {type(fixture).__name__}, expected object"
                     )
             else:
                 fixture_status_note = "fixture file not found on disk"
@@ -409,9 +401,7 @@ def _collect_records(known_techniques: set[str]) -> tuple[list[dict], dict]:
             # Populated fixture — run the coherence heuristic.
             literals = _extract_spl_literals(uc.get("spl", ""))
             coherence_warnings = _coherence_check(pos_events, literals)
-            status = (
-                STATUS_HEURISTIC_MISMATCH if coherence_warnings else STATUS_SIMULATED
-            )
+            status = STATUS_HEURISTIC_MISMATCH if coherence_warnings else STATUS_SIMULATED
 
         summary["statuses"][status] = summary["statuses"].get(status, 0) + 1
         if status in HARD_FAIL_STATUSES:
@@ -444,9 +434,7 @@ def _collect_records(known_techniques: set[str]) -> tuple[list[dict], dict]:
         )
 
     summary["hard_failures"] = hard_failures
-    summary["distinct_attack_techniques"] = sorted(
-        summary["distinct_attack_techniques"]
-    )
+    summary["distinct_attack_techniques"] = sorted(summary["distinct_attack_techniques"])
     records.sort(key=lambda r: (r["uc_id"], r["sidecar"]))
     return records, summary
 
@@ -487,9 +475,7 @@ def _print_human_summary(records: list[dict], summary: dict) -> None:
     hard_recs = [
         r
         for r in records
-        if r["status"] in HARD_FAIL_STATUSES
-        or r["bad_technique_format"]
-        or r["unknown_techniques"]
+        if r["status"] in HARD_FAIL_STATUSES or r["bad_technique_format"] or r["unknown_techniques"]
     ]
     if hard_recs:
         print()
@@ -505,9 +491,7 @@ def _print_human_summary(records: list[dict], summary: dict) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Phase 4.5d ATT&CK simulation gate."
-    )
+    parser = argparse.ArgumentParser(description="Phase 4.5d ATT&CK simulation gate.")
     parser.add_argument(
         "--check",
         action="store_true",

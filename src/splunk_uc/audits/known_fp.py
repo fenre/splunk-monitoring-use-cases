@@ -1,44 +1,31 @@
 #!/usr/bin/env python3
-"""Audit ``Known false positives:`` fields for import/parsing artefacts.
+"""Audit ``knownFalsePositives`` fields for import/parsing artefacts.
 
-Checks performed
-----------------
-1. ``known-fp-pipe-stub`` (HIGH) - the literal ``|`` character as the
-   FP value. This is an ESCU/YAML import artefact where a YAML block
-   scalar indicator (``known_false_positives: |``) collapsed to a
-   single pipe when the body was stripped. It carries no information
-   and actively misleads readers.
-2. ``known-fp-empty`` (MED) - the label is present but the value is
+Walks the JSON SSOT (``content/cat-*/UC-*.json``) and surfaces three
+classes of issue:
+
+1. ``known-fp-pipe-stub`` (HIGH) — the literal ``|`` character as the
+   value. ESCU/YAML import artefact where a YAML block scalar indicator
+   (``known_false_positives: |``) collapsed to a single pipe when the
+   body was stripped.
+2. ``known-fp-empty`` (MED) — the field is present but the value is
    empty.
-3. ``known-fp-placeholder`` (LOW) - the value is a short filler token
-   like ``-``, ``.``, ``TBD``, ``TODO``, or ``None`` (which in the
-   Known-FP context is ambiguous - prefer
-   ``N/A (no documented false positives)`` or a real description).
+3. ``known-fp-placeholder`` (LOW) — the value is a short filler token
+   like ``-``, ``.``, ``TBD``, ``TODO``, or ``None``.
+
+Pre-v8.2.0 this walked ``use-cases/cat-*.md``.
 """
 
 from __future__ import annotations
 
 import argparse
-import pathlib
-import re
 import sys
 from collections import Counter
-from collections.abc import Iterable
 from typing import NamedTuple
 
-# parents[3] resolves: known_fp.py -> audits/ -> splunk_uc/ -> src/ ->
-# repo root. The legacy ``parent.parent`` chain assumed a one-level
-# depth and is now wrong by three.
-REPO = pathlib.Path(__file__).resolve().parents[3]
-USE_CASES = REPO / "use-cases"
+from splunk_uc.audits._uc_walk import get_text_field, iter_uc_sidecars
 
-RE_UC_HEAD = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\s*·\s*(.*)$", re.MULTILINE)
-RE_FP_LINE = re.compile(
-    r"^-[ \t]*\*\*Known false positives:\*\*[ \t]*(?P<body>[^\n]*)$",
-    re.MULTILINE,
-)
-
-PLACEHOLDER_VALUES = {"-", ".", "…", "tbd", "todo", "fixme", "xxx"}
+PLACEHOLDER_VALUES = {"-", ".", "...", "tbd", "todo", "fixme", "xxx", "none"}
 
 
 class Finding(NamedTuple):
@@ -50,24 +37,15 @@ class Finding(NamedTuple):
     snippet: str = ""
 
 
-def _iter_uc_blocks(text: str) -> Iterable[tuple[str, str]]:
-    matches = list(RE_UC_HEAD.finditer(text))
-    for i, m in enumerate(matches):
-        uc_id = m.group(1)
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        yield uc_id, text[start:end]
-
-
 def _classify(value: str) -> tuple[str, str, str]:
     """Return ``(severity, kind, message)`` for the FP value, or
-    ``("", "", "")`` if the value is considered acceptable."""
+    ``("", "", "")`` if the value is acceptable."""
     stripped = value.strip()
     if stripped == "|":
         return (
             "HIGH",
             "known-fp-pipe-stub",
-            "`Known false positives:` holds a literal `|` - a YAML-import"
+            "`knownFalsePositives` holds a literal `|` - a YAML-import"
             " artefact. Replace with a real description or"
             " `N/A (no documented false positives)`.",
         )
@@ -75,46 +53,23 @@ def _classify(value: str) -> tuple[str, str, str]:
         return (
             "MED",
             "known-fp-empty",
-            "`Known false positives:` label present but value is blank."
-            " Add a real description or"
+            "`knownFalsePositives` is blank. Add a real description or"
             " `N/A (no documented false positives)`.",
         )
     if stripped.lower() in PLACEHOLDER_VALUES:
         return (
             "LOW",
             "known-fp-placeholder",
-            f"`Known false positives:` uses a placeholder value ({stripped!r})."
+            f"`knownFalsePositives` uses a placeholder value ({stripped!r})."
             " Replace with a real description or"
             " `N/A (no documented false positives)`.",
         )
     return "", "", ""
 
 
-def audit_file(path: pathlib.Path) -> list[Finding]:
-    text = path.read_text(encoding="utf-8")
-    findings: list[Finding] = []
-    for uc_id, body in _iter_uc_blocks(text):
-        m = RE_FP_LINE.search(body)
-        if not m:
-            continue
-        sev, kind, msg = _classify(m.group("body"))
-        if sev:
-            findings.append(
-                Finding(
-                    severity=sev,
-                    kind=kind,
-                    uc_id=uc_id,
-                    file=path.name,
-                    message=msg,
-                    snippet=m.group("body"),
-                )
-            )
-    return findings
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=("Audit Known false positives fields across use-cases/cat-*.md.")
+        description="Audit knownFalsePositives across the JSON SSOT.",
     )
     parser.add_argument(
         "--check",
@@ -124,14 +79,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     all_findings: list[Finding] = []
-    files = sorted(USE_CASES.glob("cat-*.md"))
-    for md in files:
-        all_findings.extend(audit_file(md))
+    sidecar_count = 0
+    for path, payload in iter_uc_sidecars():
+        sidecar_count += 1
+        # `knownFalsePositives` is OPTIONAL in the schema; only audit
+        # when the key is actually present so we don't raise a
+        # known-fp-empty against UCs that simply omit the field.
+        if "knownFalsePositives" not in payload:
+            continue
+        value = get_text_field(payload, "knownFalsePositives")
+        sev, kind, msg = _classify(value)
+        if sev:
+            all_findings.append(
+                Finding(
+                    severity=sev,
+                    kind=kind,
+                    uc_id=f"UC-{payload.get('id', '<unknown>')}",
+                    file=path.name,
+                    message=msg,
+                    snippet=value,
+                )
+            )
 
     print("=" * 72)
-    print("Known false positives audit (use-cases/cat-*.md)")
+    print("knownFalsePositives audit (content/cat-*/UC-*.json)")
     print("=" * 72)
-    print(f"Files scanned: {len(files)}")
+    print(f"Sidecars scanned: {sidecar_count}")
     by_sev = Counter(f.severity for f in all_findings)
     print("Findings by severity: " + ", ".join(f"{k}={v}" for k, v in sorted(by_sev.items())))
     by_kind = Counter(f.kind for f in all_findings)

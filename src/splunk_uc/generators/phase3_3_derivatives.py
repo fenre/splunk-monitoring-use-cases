@@ -77,7 +77,7 @@ Safety & determinism
 * No network I/O. No code execution. Only stdlib JSON parsing
   (codeguard-0-input-validation-injection, codeguard-0-xml-and-serialization
   — we do not parse XML).
-* All writes are under repo-relative use-cases/cat-NN/ directories
+* All writes are under repo-relative content/cat-NN-*/ directories
   (codeguard-0-file-handling-and-uploads).
 * No secrets, no credentials, no hardcoded tokens
   (codeguard-1-hardcoded-credentials).
@@ -103,7 +103,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-USE_CASES_DIR = REPO_ROOT / "use-cases"
+CONTENT_DIR = REPO_ROOT / "content"
 REGULATIONS_PATH = REPO_ROOT / "data" / "regulations.json"
 
 # Canonical sidecar field order. Mirrors Phase 3.2 / 3.1 / 2.2 generators
@@ -584,7 +584,7 @@ def _process(check_only: bool) -> int:
     total_derived = 0
     sidecars_touched = 0
 
-    sidecar_paths = sorted(USE_CASES_DIR.glob("cat-*/uc-*.json"), key=_uc_sort_key)
+    sidecar_paths = sorted(CONTENT_DIR.glob("cat-*/UC-*.json"), key=_uc_sort_key)
 
     for path in sidecar_paths:
         try:

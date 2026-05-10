@@ -1,34 +1,38 @@
 #!/usr/bin/env python3
-"""Audit ``non-technical-view.js`` against ``use-cases/cat-*.md``.
+"""Audit ``non-technical-view.js`` against the JSON SSOT (``content/cat-*/``).
 
 Cross-checks plain-language coverage in ``non-technical-view.js`` versus
 the technical UC corpus:
 
-(a) Every UC ID referenced from JS exists in some ``cat-*.md`` file.
-(b) Every category file ``cat-NN-*.md`` has a top-level entry in JS.
-(c) Every ``## X.Y`` subcategory in markdown has at least one
+(a) Every UC ID referenced from JS exists in some ``content/cat-*/UC-*.json``
+    sidecar.
+(b) Every category folder ``content/cat-NN-*/`` has a top-level entry in JS.
+(c) Every subcategory derived from any UC's ``X.Y.Z`` id has at least one
     representative UC (id prefix ``X.Y.``) in the matching JS area.
-(d) Every JS top-level numeric category key has a matching markdown file.
+(d) Every JS top-level numeric category key has a matching content folder.
+
+Pre-v8.2.0 this audit walked the legacy monolithic markdown corpus
+(``use-cases/cat-*.md``) for category and subcategory derivation. That
+corpus is gone; the JSON SSOT is now the only source.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 # parents[3] resolves: non_technical_sync.py -> audits/ -> splunk_uc/ ->
-# src/ -> repo root. The legacy ``parent.parent`` chain assumed a
-# one-level depth and is now wrong by three.
+# src/ -> repo root.
 REPO = Path(__file__).resolve().parents[3]
 JS_PATH = REPO / "non-technical-view.js"
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 
-RE_UC_HEADER = re.compile(r"^###\s+UC-(\d+)\.(\d+)\.(\d+)\b", re.MULTILINE)
-RE_SUBCAT = re.compile(r"^##\s+(\d+)\.(\d+)\s", re.MULTILINE)
 RE_ID = re.compile(r'id:\s*"(\d+)\.(\d+)\.(\d+)"')
+RE_CAT_DIR = re.compile(r"^cat-(\d{2})-")
 
 
 def extract_top_level_string_keys(js_text: str) -> list[str]:
@@ -123,11 +127,51 @@ def parse_js_category_blocks(js_text: str) -> dict[str, str]:
     return blocks
 
 
+def collect_ssot_categories() -> tuple[dict[int, Path], dict[int, set[str]], dict[int, set[str]]]:
+    """Walk ``content/cat-NN-*/`` and return:
+
+    * ``cat_dir_by_num``  — category number → folder Path
+    * ``ssot_uc_by_cat``  — category number → set of full UC ids ``X.Y.Z``
+    * ``ssot_subcats_by_cat`` — category number → set of subcategory keys ``X.Y``
+    """
+    cat_dir_by_num: dict[int, Path] = {}
+    ssot_uc_by_cat: dict[int, set[str]] = defaultdict(set)
+    ssot_subcats_by_cat: dict[int, set[str]] = defaultdict(set)
+
+    for d in sorted(CONTENT.glob("cat-*")):
+        if not d.is_dir():
+            continue
+        m = RE_CAT_DIR.match(d.name)
+        if not m:
+            continue
+        cat_num = int(m.group(1))
+        if cat_num == 0:
+            continue
+        cat_dir_by_num[cat_num] = d
+
+        for uc_path in sorted(d.glob("UC-*.json")):
+            try:
+                with uc_path.open(encoding="utf-8") as fh:
+                    uc = json.load(fh)
+            except (json.JSONDecodeError, OSError):
+                continue
+            uc_id = str(uc.get("id", "")).strip()
+            if not re.match(r"^\d+\.\d+\.\d+$", uc_id):
+                continue
+            x, y, _z = uc_id.split(".")
+            if int(x) != cat_num:
+                continue
+            ssot_uc_by_cat[cat_num].add(uc_id)
+            ssot_subcats_by_cat[cat_num].add(f"{x}.{y}")
+
+    return cat_dir_by_num, ssot_uc_by_cat, ssot_subcats_by_cat
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Audit non-technical-view.js category/subcategory/UC coverage "
-            "against use-cases/cat-*.md."
+            "against the JSON SSOT (content/cat-*/UC-*.json)."
         )
     )
     parser.parse_args(argv)
@@ -150,68 +194,49 @@ def main(argv: list[str] | None = None) -> int:
             x, y = m.group(1), m.group(2)
             js_subcats_by_cat[ck].add(f"{x}.{y}")
 
-    md_files = sorted(USE_CASES.glob("cat-*.md"))
-    md_by_cat: dict[int, Path] = {}
-
-    for p in md_files:
-        rm = re.match(r"^cat-(\d{2})-.+\.md$", p.name)
-        if rm:
-            num = int(rm.group(1))
-            if num != 0:
-                md_by_cat[num] = p
-
-    md_uc_by_cat: dict[int, set[str]] = defaultdict(set)
-    md_subcats_by_cat: dict[int, set[str]] = defaultdict(set)
-
-    for cat_num, path in sorted(md_by_cat.items()):
-        text = path.read_text(encoding="utf-8")
-        for a, b, c in RE_UC_HEADER.findall(text):
-            uid = f"{a}.{b}.{c}"
-            md_uc_by_cat[cat_num].add(uid)
-        for a, b in RE_SUBCAT.findall(text):
-            if int(a) != cat_num:
-                continue
-            md_subcats_by_cat[cat_num].add(f"{a}.{b}")
+    cat_dir_by_num, ssot_uc_by_cat, ssot_subcats_by_cat = collect_ssot_categories()
 
     issues: list[str] = []
 
-    md_all_ucs: set[str] = set()
-    for s in md_uc_by_cat.values():
-        md_all_ucs |= s
+    ssot_all_ucs: set[str] = set()
+    for s in ssot_uc_by_cat.values():
+        ssot_all_ucs |= s
 
     for uid in sorted(js_uc_ids):
-        if uid not in md_all_ucs:
+        if uid not in ssot_all_ucs:
             issues.append(
-                f"(a) JS references UC id {uid!r} but no matching ### UC-{uid} "
-                f"header was found in any cat-*.md file."
+                f"(a) JS references UC id {uid!r} but no matching "
+                f"content/cat-*/UC-{uid}.json sidecar exists."
             )
 
-    for cat_num in sorted(md_by_cat.keys()):
+    for cat_num in sorted(cat_dir_by_num.keys()):
         key = str(cat_num)
         if key not in cat_keys_js:
             issues.append(
-                f"(b) Markdown category file {md_by_cat[cat_num].name} "
+                f"(b) Content folder {cat_dir_by_num[cat_num].name} "
                 f"(category {cat_num}) has no top-level entry "
                 f'"{key}" in non-technical-view.js.'
             )
 
-    for cat_num in sorted(md_by_cat.keys()):
+    for cat_num in sorted(cat_dir_by_num.keys()):
         key = str(cat_num)
         js_subs = js_subcats_by_cat.get(key, set())
-        for xy in sorted(md_subcats_by_cat[cat_num]):
+        for xy in sorted(ssot_subcats_by_cat[cat_num]):
             if xy not in js_subs:
                 issues.append(
-                    f"(c) Markdown has subcategory ## {xy} in {md_by_cat[cat_num].name} "
-                    f'but non-technical-view.js category "{key}" has no `id` under '
-                    f'`areas` with prefix "{xy}." (no representative UC for this subcategory).'
+                    f"(c) JSON SSOT has subcategory {xy} in "
+                    f"{cat_dir_by_num[cat_num].name} but "
+                    f'non-technical-view.js category "{key}" has no `id` under '
+                    f'`areas` with prefix "{xy}." (no representative UC for this '
+                    "subcategory)."
                 )
 
-    md_cat_nums = set(md_by_cat.keys())
+    ssot_cat_nums = set(cat_dir_by_num.keys())
     for key in sorted(cat_keys_js, key=lambda x: int(x)):
-        if key.isdigit() and int(key) not in md_cat_nums:
+        if key.isdigit() and int(key) not in ssot_cat_nums:
             issues.append(
                 f'(d) non-technical-view.js has category "{key}" but there is no '
-                f"matching use-cases/cat-{int(key):02d}-*.md file."
+                f"matching content/cat-{int(key):02d}-*/ folder."
             )
 
     for k in cat_keys_js:
@@ -220,11 +245,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"(extra) Category key {k!r} listed but block not extracted (parser bug?)."
             )
 
-    print("=== non-technical-view.js vs use-cases/cat-*.md audit ===\n")
+    print("=== non-technical-view.js vs content/cat-*/ JSON SSOT audit ===\n")
     print(f"JS categories (numeric keys): {len([k for k in cat_keys_js if k.isdigit()])}")
     print(f"JS UC id references: {len(js_uc_ids)}")
-    print(f"Markdown category files (cat-NN): {len(md_by_cat)}")
-    print(f"Markdown UC headers total (unique): {len(md_all_ucs)}\n")
+    print(f"SSOT category folders (cat-NN-*): {len(cat_dir_by_num)}")
+    print(f"SSOT UC sidecars total (unique): {len(ssot_all_ucs)}\n")
 
     if not issues:
         print("No issues found.")

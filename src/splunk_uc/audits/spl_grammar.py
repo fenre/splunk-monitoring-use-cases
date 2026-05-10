@@ -1,50 +1,48 @@
 #!/usr/bin/env python3
-"""Audit SPL grammar in use-cases/cat-*.md for patterns that don't parse or execute.
+"""Audit SPL grammar in the JSON SSOT for patterns that don't parse or execute.
 
-Covers patterns that `audit_spl_hallucinations.py` misses because they are
-syntactically well-formed by command name but semantically or contextually broken:
+Walks every ``content/cat-*/UC-*.json`` sidecar and inspects the ``spl``,
+``cimSpl``, ``rbaSpl`` and ``mvSpl`` fields for problems that the
+``audit-spl-hallucinations`` audit misses because they are syntactically
+well-formed by command name but semantically or contextually broken:
 
-1. `stats ... span=...`  — `span=` is only valid on `bin`/`timechart`/`tstats` context,
-   not on `stats`.  Detects it even when embedded deep in a pipeline.
-2. Leading `|` at the very start of a code fence (not valid as a standalone
-   search — must have a generating command or be inside a subsearch).
-3. Multiple top-level `index=` / `search index=` commands glued together with
-   `| comment("...")` — these are multi-search artefacts, not one search.
-4. `case(<literal-with-asterisk>, ...)` where the asterisk is being treated as
+1. ``stats ... span=...``  — ``span=`` is only valid on ``bin``/``timechart``/``tstats``
+   context, not on ``stats``.  Detects it even when embedded deep in a pipeline.
+2. Leading ``|`` at the very start of an SPL field value (not valid as a
+   standalone search — must have a generating command or be inside a subsearch).
+3. Multiple top-level ``index=`` / ``search index=`` commands glued together
+   with ``| comment("...")`` — these are multi-search artefacts, not one search.
+4. ``case(<literal-with-asterisk>, ...)`` where the asterisk is being treated as
    a literal string but the author clearly intended a wildcard match (use
-   `match()`/`like()` instead).
-5. Invalid `streamstats current=` / `streamstats reset_after=` flags — Splunk
-   supports `current=t/f`, `reset_after=<predicate>` but common errors include
-   `current=` with a duration value.
+   ``match()``/``like()`` instead).
+5. ``where`` after ``timechart`` referencing fields that the timechart
+   aggregation dropped.
 
 Each finding includes severity, UC id, pattern category, and a short snippet.
 
-Usage:
-    python scripts/audit_spl_grammar.py            # human report
-    python scripts/audit_spl_grammar.py --check    # non-zero exit on any HIGH finding
-    python scripts/audit_spl_grammar.py --json     # machine-readable
+Pre-v8.2.0 this audit walked the legacy ``use-cases/cat-*.md`` markdown
+corpus. That corpus has been deleted; the JSON SSOT is the only place
+SPL lives now.
 
-Intended to be wired into .github/workflows/validate.yml.
+Usage:
+    python -m splunk_uc audit-spl-grammar           # human report
+    python -m splunk_uc audit-spl-grammar --check   # non-zero exit on HIGH+
+    python -m splunk_uc audit-spl-grammar --json    # machine-readable
 """
 
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
 import re
 import sys
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-USE_CASES = os.path.join(REPO_ROOT, "use-cases", "cat-*.md")
+from splunk_uc.audits._uc_walk import iter_uc_sidecars
 
-RE_UC_HEAD = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\s*·\s*(.*)$", re.MULTILINE)
-RE_SPL_FENCE = re.compile(r"```spl\n(.*?)\n```", re.DOTALL)
+# Fields under ``content/cat-*/UC-*.json`` that may contain SPL.
+_SPL_FIELDS = ("spl", "cimSpl", "rbaSpl", "mvSpl")
 
 
 @dataclass
@@ -55,26 +53,17 @@ class Finding:
     category: str
     message: str
     snippet: str = ""
+    field: str = ""
 
     def human(self) -> str:
-        s = f"[{self.severity}] [{self.category}] {self.uc_id} ({os.path.basename(self.file)}): {self.message}"
+        loc = f"{self.uc_id} ({os.path.basename(self.file)}"
+        if self.field:
+            loc += f":{self.field}"
+        loc += ")"
+        s = f"[{self.severity}] [{self.category}] {loc}: {self.message}"
         if self.snippet:
             s += f"\n        snippet: {self.snippet.strip()[:140]}"
         return s
-
-
-def _iter_uc_blocks(text: str) -> Iterable[tuple[str, str, int, int]]:
-    matches = list(RE_UC_HEAD.finditer(text))
-    for i, m in enumerate(matches):
-        uc_id = m.group(1)
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        yield uc_id, text[start:end], start, end
-
-
-def _iter_spl_blocks(body: str) -> Iterable[str]:
-    for m in RE_SPL_FENCE.finditer(body):
-        yield m.group(1)
 
 
 def _strip_comments(spl: str) -> str:
@@ -593,106 +582,29 @@ def check_where_after_timechart(uc_id: str, file: str, spl: str) -> list[Finding
     return findings
 
 
-def audit_spl_block(uc_id: str, file: str, spl: str) -> list[Finding]:
+def audit_spl_block(uc_id: str, file: str, spl: str, field: str = "") -> list[Finding]:
     out: list[Finding] = []
-    out.extend(check_stats_span(uc_id, file, spl))
-    out.extend(check_leading_pipe(uc_id, file, spl))
-    out.extend(check_multi_search_glue(uc_id, file, spl))
-    out.extend(check_case_wildcard(uc_id, file, spl))
-    out.extend(check_where_after_timechart(uc_id, file, spl))
+    for finding in (
+        *check_stats_span(uc_id, file, spl),
+        *check_leading_pipe(uc_id, file, spl),
+        *check_multi_search_glue(uc_id, file, spl),
+        *check_case_wildcard(uc_id, file, spl),
+        *check_where_after_timechart(uc_id, file, spl),
+    ):
+        finding.field = field
+        out.append(finding)
     return out
 
 
-def audit_file(path: str) -> list[Finding]:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
+def audit_uc_payload(file: str, payload: dict[str, object]) -> list[Finding]:
+    """Audit every SPL field on one UC sidecar."""
     findings: list[Finding] = []
-    for uc_id, body, _s, _e in _iter_uc_blocks(text):
-        for spl in _iter_spl_blocks(body):
-            findings.extend(audit_spl_block(uc_id, path, spl))
+    uc_id = f"UC-{payload.get('id', '<unknown>')}"
+    for field in _SPL_FIELDS:
+        v = payload.get(field)
+        if isinstance(v, str) and v.strip():
+            findings.extend(audit_spl_block(uc_id, file, v, field=field))
     return findings
-
-
-# ----- Auto-fixers ---------------------------------------------------------
-
-_FIX_STATS_SPAN_RE = re.compile(
-    r"(\|\s*(?:si)?stats\b[^|\n]*?\bby\b[^|\n]*?)\b_time\s+span\s*=\s*([A-Za-z0-9]+)\b",
-    re.IGNORECASE,
-)
-
-
-def fix_stats_span_in_spl(spl: str) -> tuple[str, int]:
-    """Rewrite `| stats ... by ... _time span=X` to `| bin _time span=X | stats ... by ... _time`.
-
-    Handles:
-      * inline `_time span=1h`
-      * trailing `_time span=1h` (as last token of `by` clause)
-
-    Leaves the order of other `by` fields intact.  Returns (new_spl, n_fixed).
-    """
-    fixes = 0
-
-    def _replace(m: re.Match[str]) -> str:
-        nonlocal fixes
-        fixes += 1
-        pre = m.group(1).rstrip()
-        span_val = m.group(2)
-        # Ensure the `by` clause still includes `_time` at the end with no span.
-        if pre.endswith(","):
-            pre = pre[:-1].rstrip()
-        new_pre = pre + ", _time" if not pre.endswith("_time") else pre
-        # Re-order so `bin` runs BEFORE the stats
-        # Strip the opening `| ` so we can re-prefix it
-        no_leading_pipe = new_pre.lstrip().lstrip("|").lstrip()
-        return f"| bin _time span={span_val}\n| {no_leading_pipe}"
-
-    new = _FIX_STATS_SPAN_RE.sub(_replace, spl)
-    return new, fixes
-
-
-_FIX_STATS_SPAN_INLINE_RE = re.compile(
-    # `by field1, field2, _time span=X` where `_time` appears somewhere in the middle
-    r"(\|\s*(?:si)?stats\b[^|\n]*?\bby\b[^|\n]*?)_time\s+span\s*=\s*([A-Za-z0-9]+)",
-    re.IGNORECASE,
-)
-
-
-def fix_spl_block(spl: str) -> tuple[str, int]:
-    """Apply all in-place SPL fixes; return (new_spl, total_fixes)."""
-    total = 0
-    new, n = fix_stats_span_in_spl(spl)
-    total += n
-    return new, total
-
-
-def fix_file(path: str, dry_run: bool = False) -> tuple[int, list[str]]:
-    """Apply fixes to a file.  Returns (n_fixed, summary_lines)."""
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    new_text = text
-    n_fixed = 0
-    summary: list[str] = []
-    # Walk through code fences and apply fixes to each SPL block
-    pos = 0
-    out_parts: list[str] = []
-    for m in RE_SPL_FENCE.finditer(text):
-        pre = text[pos : m.start()]
-        inner = m.group(1)
-        new_inner, n = fix_spl_block(inner)
-        out_parts.append(pre)
-        out_parts.append("```spl\n" + new_inner + "\n```")
-        if n > 0:
-            n_fixed += n
-        pos = m.end()
-    out_parts.append(text[pos:])
-    new_text = "".join(out_parts)
-    if n_fixed > 0 and not dry_run:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new_text)
-        summary.append(f"  {os.path.basename(path):60s}  +{n_fixed} fixes")
-    elif n_fixed > 0 and dry_run:
-        summary.append(f"  {os.path.basename(path):60s}  would fix {n_fixed}")
-    return n_fixed, summary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -705,45 +617,21 @@ def main(argv: list[str] | None = None) -> int:
         default="MED",
         help="Minimum severity to surface in the exit code (default: MED)",
     )
-    ap.add_argument(
-        "--fix",
-        action="store_true",
-        help="Apply mechanical fixes (stats-span-invalid). Writes files in place.",
-    )
-    ap.add_argument(
-        "--fix-dry-run",
-        action="store_true",
-        help="Report what --fix would change but do not write files",
-    )
     args = ap.parse_args(argv)
 
-    paths = sorted(glob.glob(USE_CASES))
-
-    if args.fix or args.fix_dry_run:
-        print("Applying mechanical fixes (stats-span-invalid)...")
-        total = 0
-        summaries: list[str] = []
-        for p in paths:
-            n, s = fix_file(p, dry_run=args.fix_dry_run)
-            total += n
-            summaries.extend(s)
-        if summaries:
-            print("\n".join(summaries))
-        action = "WOULD FIX" if args.fix_dry_run else "FIXED"
-        print(f"\n{action} {total} stats-span issues across {len(summaries)} files")
-        return 0
-
     all_findings: list[Finding] = []
-    for p in paths:
-        all_findings.extend(audit_file(p))
+    sidecar_count = 0
+    for path, payload in iter_uc_sidecars():
+        sidecar_count += 1
+        all_findings.extend(audit_uc_payload(str(path), payload))
 
     if args.json:
         print(json.dumps([asdict(f) for f in all_findings], indent=2))
     else:
         print("=" * 72)
-        print("SPL grammar audit (use-cases/cat-*.md)")
+        print("SPL grammar audit (content/cat-*/UC-*.json)")
         print("=" * 72)
-        print(f"Files scanned: {len(paths)}")
+        print(f"Sidecars scanned: {sidecar_count}")
         counts: dict[str, int] = {}
         for f in all_findings:
             counts[f.severity] = counts.get(f.severity, 0) + 1

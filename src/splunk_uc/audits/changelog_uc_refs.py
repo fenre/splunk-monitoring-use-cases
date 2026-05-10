@@ -2,27 +2,28 @@
 """
 Repository quality checks:
 1) CHANGELOG.md version headers, duplicates, dates, ordering
-2) UC cross-references in use-cases/cat-*.md vs ### UC-X.Y.Z definitions
+2) Every ``UC-X.Y.Z`` reference in CHANGELOG.md resolves to a real
+   sidecar in the JSON SSOT (``content/cat-*/UC-*.json``).
+
+Pre-v8.2.0 the UC corpus was the legacy ``use-cases/cat-*.md`` markdown.
+That corpus is gone; the JSON SSOT is the only place UC IDs live.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-# parents[3] resolves: changelog_uc_refs.py -> audits/ -> splunk_uc/ ->
-# src/ -> repo root. The legacy ``parent.parent`` chain assumed a
-# one-level depth and is now wrong by three.
 REPO = Path(__file__).resolve().parents[3]
 CHANGELOG = REPO / "CHANGELOG.md"
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 
 HEADER_RE = re.compile(r"^## \[(?P<ver>[^\]]+)\]\s*-\s*(?P<rest>.+?)\s*$")
-UC_HEADER_RE = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\b")
 UC_REF_RE = re.compile(r"\b(UC-\d+\.\d+\.\d+)\b")
 
 
@@ -116,33 +117,39 @@ def validate_changelog(entries: list[ChangelogEntry]) -> list[str]:
 
 
 def collect_uc_definitions() -> tuple[set[str], list[str]]:
+    """Return the union of UC IDs (``UC-X.Y.Z``) defined under ``content/``.
+
+    The JSON SSOT enforces filename-id consistency in ``audit-uc-ids``;
+    here we just gather the set so the changelog cross-reference check
+    has a target.
+    """
     valid: set[str] = set()
     issues: list[str] = []
-    paths = sorted(USE_CASES.glob("cat-*.md"))
-    for p in paths:
-        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
-            m = UC_HEADER_RE.match(line.strip())
-            if m:
-                uc_id = m.group(1)
-                if uc_id in valid:
-                    issues.append(
-                        f"Duplicate UC definition {uc_id}: {p.name}:{i} (also defined earlier)"
-                    )
-                valid.add(uc_id)
+    for path in sorted(CONTENT.glob("cat-*/UC-*.json")):
+        try:
+            with path.open(encoding="utf-8") as fh:
+                payload = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            issues.append(f"{path.relative_to(REPO)}: failed to parse ({exc})")
+            continue
+        uc_id = str(payload.get("id", "")).strip()
+        if uc_id and re.match(r"^\d+\.\d+\.\d+$", uc_id):
+            valid.add(f"UC-{uc_id}")
     return valid, issues
 
 
 def validate_uc_refs(valid: set[str]) -> list[str]:
+    """Check every UC-X.Y.Z reference in CHANGELOG.md resolves."""
     issues: list[str] = []
-    paths = sorted(USE_CASES.glob("cat-*.md"))
-    for p in paths:
-        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
-            for m in UC_REF_RE.finditer(line):
-                uc_id = m.group(1)
-                if uc_id not in valid:
-                    issues.append(
-                        f"Broken UC cross-reference {uc_id}: {p.name}:{i}: {line.strip()[:240]}"
-                    )
+    if not CHANGELOG.is_file():
+        return issues
+    for i, line in enumerate(CHANGELOG.read_text(encoding="utf-8").splitlines(), start=1):
+        for m in UC_REF_RE.finditer(line):
+            uc_id = m.group(1)
+            if uc_id not in valid:
+                issues.append(
+                    f"Broken UC cross-reference {uc_id}: CHANGELOG.md:{i}: {line.strip()[:240]}"
+                )
     return issues
 
 
@@ -169,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     print("=== UC catalog summary ===")
-    print(f"Unique UC IDs from ### headers: {len(valid_ucs)}")
+    print(f"Unique UC IDs from content/cat-*/UC-*.json: {len(valid_ucs)}")
     print()
 
     print(f"=== ALL ISSUES ({len(all_issues)}) ===")

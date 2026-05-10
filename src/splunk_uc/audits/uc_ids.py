@@ -1,81 +1,93 @@
 #!/usr/bin/env python3
-"""Audit UC-* IDs in use-cases/cat-*.md for duplicates, gaps, wrong category, order."""
+"""Audit UC-* IDs in the JSON SSOT for duplicates, gaps, wrong category, order.
+
+Pre-v8.2.0 this audit walked ``use-cases/cat-*.md`` and parsed ``### UC-X.Y.Z``
+headers. The legacy markdown corpus is gone; the JSON SSOT
+(``content/cat-*/UC-*.json``) is now the only source.
+"""
 
 from __future__ import annotations
 
 import argparse
-import glob
+import json
 import os
 import re
 import sys
 from collections import Counter, defaultdict
 from itertools import pairwise
+from pathlib import Path
 
-# parents[3] resolves: uc_ids.py -> audits/ -> splunk_uc/ -> src/ ->
-# repo root. The legacy ``parent.parent`` chain assumed a one-level
-# depth and is now wrong by three.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)),
-        ),
-    ),
-)
-USE_CASES_DIR = os.path.join(REPO_ROOT, "use-cases")
-UC_HEADER = re.compile(r"### UC-(\d+)\.(\d+)\.(\d+)")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONTENT = REPO_ROOT / "content"
+
 FILENAME_CAT = re.compile(r"cat-(\d+)-")
+ID_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
-def extract_file_category(path: str) -> int | None:
-    m = FILENAME_CAT.search(path)
+def extract_dir_category(dirname: str) -> int | None:
+    m = FILENAME_CAT.search(dirname)
     if not m:
         return None
     return int(m.group(1))
 
 
-def audit_file(filepath: str) -> list[str]:
+def audit_category(cat_dir: Path) -> list[str]:
+    """Walk a single cat-NN-*/ folder and validate every UC sidecar."""
     issues: list[str] = []
-    expected_cat = extract_file_category(filepath)
-    with open(filepath, encoding="utf-8") as fh:
-        text = fh.read()
-
-    matches = list(UC_HEADER.finditer(text))
-    if not matches:
+    expected_cat = extract_dir_category(cat_dir.name)
+    if expected_cat is None:
         return issues
 
-    ordered: list[tuple[str, int, int, int]] = []
-    for m in matches:
+    ordered: list[tuple[str, int, int, int, str]] = []
+    for uc_path in sorted(cat_dir.glob("UC-*.json")):
+        try:
+            with uc_path.open(encoding="utf-8") as fh:
+                payload = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            issues.append(f"{uc_path.name}: failed to parse ({exc})")
+            continue
+        uc_id = str(payload.get("id", "")).strip()
+        if not uc_id:
+            issues.append(f"{uc_path.name}: missing or empty `id` field")
+            continue
+        m = ID_PATTERN.match(uc_id)
+        if not m:
+            issues.append(f"{uc_path.name}: id {uc_id!r} does not match X.Y.Z grammar")
+            continue
         x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
         full = f"UC-{x}.{y}.{z}"
-        ordered.append((full, x, y, z))
+        # Filename invariant: UC-<id>.json
+        expected_fname = f"UC-{uc_id}.json"
+        if uc_path.name != expected_fname:
+            issues.append(f"{uc_path.name}: filename does not match id ({expected_fname!r})")
+        ordered.append((full, x, y, z, uc_path.name))
 
+    # Duplicates within this category folder
     counts = Counter(t[0] for t in ordered)
     for uid, c in sorted(counts.items()):
         if c > 1:
-            issues.append(f"Duplicate UC ID: {uid} appears {c} times")
+            issues.append(f"Duplicate UC ID inside {cat_dir.name}: {uid} appears {c} times")
 
-    if expected_cat is not None:
-        for full, x, _y, _z in ordered:
-            if x != expected_cat:
-                issues.append(
-                    f"Wrong category: {full} has X={x} but file is cat-{expected_cat:02d}-*"
-                )
+    # Wrong-category check (X must equal cat folder number)
+    for full, x, _y, _z, _fn in ordered:
+        if x != expected_cat:
+            issues.append(
+                f"Wrong category: {full} has X={x} but folder is cat-{expected_cat:02d}-*"
+            )
 
+    # Per-subcategory ordering and gaps
     by_sub: dict[tuple[int, int], list[tuple[str, int]]] = defaultdict(list)
-    for full, x, y, z in ordered:
+    for full, x, y, z, _fn in ordered:
         by_sub[(x, y)].append((full, z))
 
     for x, y in sorted(by_sub.keys()):
         seq = by_sub[(x, y)]
-        zs_in_order = [z for _, z in seq]
-
-        for i in range(1, len(zs_in_order)):
-            if zs_in_order[i] <= zs_in_order[i - 1]:
-                issues.append(
-                    f"Out-of-order within subcategory UC-{x}.{y}.*: "
-                    f"{seq[i - 1][0]} (Z={zs_in_order[i - 1]}) then "
-                    f"{seq[i][0]} (Z={zs_in_order[i]}) - Z does not increase"
-                )
+        # Sort by Z so we can audit ordering and find gaps without
+        # depending on filesystem sort order — JSON sidecars don't have
+        # an intrinsic order in the filesystem the way `### UC-` blocks
+        # in a single markdown file did.
+        seq_sorted = sorted(seq, key=lambda x: x[1])
+        zs_in_order = [z for _, z in seq_sorted]
 
         z_set = sorted(set(zs_in_order))
         for a, b in pairwise(z_set):
@@ -85,13 +97,21 @@ def audit_file(filepath: str) -> list[str]:
                     f"Gap in Z for UC-{x}.{y}.*: between Z={a} and Z={b}, missing {missing}"
                 )
 
+        # Duplicate Z (same id appearing twice with the same Z)
+        duplicate_z = [z for z, count in Counter(zs_in_order).items() if count > 1]
+        for dup_z in sorted(duplicate_z):
+            issues.append(
+                f"Duplicate Z in subcategory UC-{x}.{y}.*: Z={dup_z} appears more than once"
+            )
+
     return issues
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit UC-* IDs in use-cases/cat-*.md for duplicates, gaps, wrong category, and order."
+            "Audit UC-* IDs in content/cat-*/UC-*.json for duplicates, gaps, "
+            "wrong category, filename mismatch."
         )
     )
     parser.add_argument(
@@ -102,12 +122,35 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     warn_only = args.warn_gaps
 
-    paths = sorted(glob.glob(f"{USE_CASES_DIR}/cat-*.md"))
+    cat_dirs = sorted(p for p in CONTENT.iterdir() if p.is_dir() and p.name.startswith("cat-"))
+
     all_issues: dict[str, list[str]] = {}
-    for p in paths:
-        issues = audit_file(p)
+
+    # Cross-category global uniqueness — UC IDs must be unique repo-wide,
+    # not just within a single category folder.
+    global_ids: dict[str, list[str]] = defaultdict(list)
+    for cd in cat_dirs:
+        for uc_path in sorted(cd.glob("UC-*.json")):
+            try:
+                with uc_path.open(encoding="utf-8") as fh:
+                    payload = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                continue
+            uc_id = str(payload.get("id", "")).strip()
+            if uc_id:
+                global_ids[uc_id].append(os.path.relpath(uc_path, REPO_ROOT))
+
+    cross_dups: list[str] = []
+    for uid, locations in sorted(global_ids.items()):
+        if len(locations) > 1:
+            cross_dups.append(f"UC id {uid!r} appears in multiple sidecars: {', '.join(locations)}")
+    if cross_dups:
+        all_issues["__cross_category__"] = cross_dups
+
+    for cd in cat_dirs:
+        issues = audit_category(cd)
         if issues:
-            all_issues[p] = issues
+            all_issues[str(cd.relative_to(REPO_ROOT))] = issues
 
     if not all_issues:
         print("No issues found.")
@@ -120,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in all_issues[p]:
             print(f"  - {line}")
 
-    print(f"\n---\nTotal files with issues: {len(all_issues)}")
+    print(f"\n---\nTotal categories with issues: {len(all_issues)}")
     total = sum(len(v) for v in all_issues.values())
     print(f"Total issue lines: {total}")
 

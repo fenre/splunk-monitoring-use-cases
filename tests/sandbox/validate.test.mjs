@@ -6,15 +6,15 @@
 //
 //   1. The report exists, parses as JSON, and has the expected
 //      top-level shape (records array + summary object).
-//   2. Every UC sidecar in use-cases/cat-*/uc-*.json that declares a
+//   2. Every UC sidecar in content/cat-*/UC-*.json that declares a
 //      ``controlTest.fixtureRef`` is represented by exactly one
 //      record in the report.  If the Python validator ever silently
 //      drops a UC, this test fails.
 //   3. The summary counts match the records (sanity check for the
 //      Python aggregation logic).
 //   4. The report is byte-identical after
-//      ``scripts/audit_sandbox_validation.py --check``.  This is the
-//      CI determinism guard for the gate itself.
+//      ``python -m splunk_uc audit-sandbox-validation --check``.
+//      This is the CI determinism guard for the gate itself.
 //
 // Run with:
 //     node --test tests/sandbox/validate.test.mjs
@@ -22,6 +22,11 @@
 // A prerequisite is that ``reports/sandbox-validation.json`` has been
 // regenerated recently (the validate.yml workflow does this as part of
 // the Phase 4.5 QA gate).
+//
+// Pre-v8.2.0 this test walked the legacy ``use-cases/cat-*/uc-*.json``
+// sidecar tree. That corpus was retired in v8.2.0 (see
+// docs/migration-status.md) and the JSON SSOT now lives under
+// ``content/cat-NN-<slug>/UC-X.Y.Z.json``.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +38,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO = path.resolve(__dirname, '..', '..');
 const REPORT_PATH = path.join(REPO, 'reports', 'sandbox-validation.json');
-const USE_CASES_DIR = path.join(REPO, 'use-cases');
+const CONTENT_DIR = path.join(REPO, 'content');
 
 const ALLOWED_STATUSES = new Set([
   'populated',
@@ -45,21 +50,21 @@ const ALLOWED_STATUSES = new Set([
   'no-fixture',
 ]);
 
-// Enumerate every UC sidecar under use-cases/cat-N/uc-N.M.P.json and
-// return a Map<ucId, {sidecar, fixtureRef|null, hasFullAssurance}>.
+// Enumerate every UC sidecar under content/cat-NN-<slug>/UC-X.Y.Z.json
+// and return a Map<ucId, {sidecar, fixtureRef|null, hasFullAssurance}>.
 // Used to cross-check the Python validator did not miss anything.
 function collectUCSidecars() {
   const results = new Map();
   const catDirs = fs
-    .readdirSync(USE_CASES_DIR)
+    .readdirSync(CONTENT_DIR)
     .filter((d) => d.startsWith('cat-'))
-    .map((d) => path.join(USE_CASES_DIR, d))
+    .map((d) => path.join(CONTENT_DIR, d))
     .filter((d) => fs.statSync(d).isDirectory());
 
   for (const catDir of catDirs) {
     const files = fs
       .readdirSync(catDir)
-      .filter((f) => f.startsWith('uc-') && f.endsWith('.json'));
+      .filter((f) => f.startsWith('UC-') && f.endsWith('.json'));
     for (const file of files) {
       const fullPath = path.join(catDir, file);
       let data;
@@ -68,7 +73,9 @@ function collectUCSidecars() {
       } catch {
         continue; // broken sidecars are caught by audit_compliance_mappings
       }
-      const ucId = data.id || file.replace(/^uc-/, '').replace(/\.json$/, '');
+      const ucId =
+        data.id ||
+        file.replace(/^UC-/, '').replace(/\.json$/, '');
       const ct = data.controlTest || {};
       const fixtureRef = ct.fixtureRef || null;
       const compliance = Array.isArray(data.compliance) ? data.compliance : [];
@@ -91,7 +98,7 @@ function collectUCSidecars() {
 test('sandbox-validation.json has the expected top-level shape', () => {
   assert.ok(
     fs.existsSync(REPORT_PATH),
-    `reports/sandbox-validation.json not found - run \`python3 scripts/audit_sandbox_validation.py\` first`,
+    `reports/sandbox-validation.json not found - run \`python -m splunk_uc audit-sandbox-validation\` first`,
   );
   const raw = fs.readFileSync(REPORT_PATH, 'utf8');
   const payload = JSON.parse(raw);

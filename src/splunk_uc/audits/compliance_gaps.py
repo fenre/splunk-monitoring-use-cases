@@ -63,11 +63,9 @@ from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 REGS_PATH = REPO_ROOT / "data" / "regulations.json"
-# v7.0 moved UC sidecars from ``use-cases/cat-*/uc-*.json`` to
-# ``content/cat-*/UC-*.json``.  The gap auditor must follow the new layout
-# or else report 0% coverage for every regulation (the sister
-# ``scripts/audit_compliance_mappings.py`` audit already walks
-# ``content/cat-*/UC-*.json`` — keep the two in sync).
+# UC sidecars live under ``content/cat-*/UC-*.json`` (the JSON SSOT).
+# The constant name stays ``USE_CASES_DIR`` to minimise diff noise across
+# downstream call sites.
 USE_CASES_DIR = REPO_ROOT / "content"
 REPORT_JSON = REPO_ROOT / "reports" / "compliance-gaps.json"
 REPORT_MD = REPO_ROOT / "docs" / "compliance-gaps.md"

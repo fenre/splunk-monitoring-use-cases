@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
-"""Audit SPL blocks in use-cases/cat-*.md for likely hallucinations.
+"""Audit SPL blocks in the JSON SSOT (``content/cat-*/UC-*.json``).
+
+The legacy monolithic markdown corpus (``use-cases/cat-*.md``) was retired
+in v8.2.0 — the JSON sidecars under ``content/`` are now the single source
+of truth and the only thing this audit walks.
 
 Checks:
 1. CIM datamodel.dataset references against the real Splunk CIM 6.x catalog.
 2. Use of non-existent Splunk search / eval / stats commands.
 3. Malformed tstats (missing FROM, unqualified by fields, etc.).
-4. Invalid MITRE ATT&CK technique IDs (basic shape check).
-5. Auto-generated CIM SPL blocks using fields not in the declared dataset.
-6. Common typos (datamodel=Performace, eval strftime with no time, etc.).
+4. Auto-generated CIM SPL blocks using fields not in the declared dataset.
+5. Common typos (datamodel=Performace, eval strftime with no time, etc.).
+6. Fabricated field names that look plausible but do not exist for the
+   declared sourcetype (``signature`` on Meraki cellular events,
+   ``data_usage_mb``, ``event_type`` from imaginary product taxonomies).
+   Catch added in v8.2.0 after a real-world miss on UC-5.2.35 where my
+   earlier "fix" had cleaned the JSON SSOT but left a hallucinated SPL
+   in the legacy markdown corpus that LLMs were being pointed at.
 """
 
 import glob
+import json as _json
 import os
 import re
 import sys
@@ -19,12 +29,7 @@ from collections import defaultdict
 REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-USE_CASES_DIR = os.path.join(REPO_ROOT, "use-cases")
 CONTENT_DIR = os.path.join(REPO_ROOT, "content")
-
-UC_HEADER = re.compile(r"^### UC-(\d+\.\d+\.\d+)\b.*$", re.MULTILINE)
-SPL_FENCE = re.compile(r"```spl\n(.*?)\n```", re.DOTALL)
-CIM_SPL_MARKER = re.compile(r"^- \*\*CIM SPL[^*]*\*\*\s*$", re.MULTILINE)
 
 # Splunk CIM 6.x datamodels and their datasets
 # Reference: https://docs.splunk.com/Documentation/CIM/latest/User/Overview
@@ -83,7 +88,6 @@ CIM_DATASETS: dict[str, set[str]] = {
         "Filesystem",
         "Services",
         "Registry",
-        # Windows-specific additions
     },
     "Event_Signatures": {"Signatures"},
     "Interprocess_Messaging": {"All_Interprocess_Messaging"},
@@ -297,8 +301,6 @@ VALID_COMMANDS: set[str] = {
     # Common add-on-provided macros/commands
     "runshellscript",
     "createrss",
-    # ES-specific (savedsearch already listed above; preserved here as a
-    # documentation marker for ES-related detections)
     # Documentation/convention: `comment` macro for inline SPL annotations.
     "comment",
     # Splunk Machine Learning Toolkit (MLTK) commands
@@ -315,149 +317,6 @@ VALID_COMMANDS: set[str] = {
     "cyberchef",
 }
 
-# Valid eval function names (partial - common ones)
-# Reference: https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/EvalFunctions
-VALID_EVAL_FUNCS: set[str] = {
-    "abs",
-    "acos",
-    "acosh",
-    "asin",
-    "asinh",
-    "atan",
-    "atan2",
-    "atanh",
-    "case",
-    "ceiling",
-    "ceil",
-    "cidrmatch",
-    "coalesce",
-    "commands",
-    "cos",
-    "cosh",
-    "exact",
-    "exp",
-    "floor",
-    "hypot",
-    "if",
-    "in",
-    "isbool",
-    "isint",
-    "isnotnull",
-    "isnull",
-    "isnum",
-    "isstr",
-    "json_array",
-    "json_array_to_mv",
-    "json_extract",
-    "json_extract_exact",
-    "json_keys",
-    "json_object",
-    "json_valid",
-    "len",
-    "like",
-    "ln",
-    "log",
-    "lookup",
-    "lower",
-    "ltrim",
-    "match",
-    "max",
-    "md5",
-    "min",
-    "mvappend",
-    "mvcount",
-    "mvdedup",
-    "mvfilter",
-    "mvfind",
-    "mvindex",
-    "mvjoin",
-    "mvmap",
-    "mvrange",
-    "mvsort",
-    "mvzip",
-    "now",
-    "null",
-    "nullif",
-    "pi",
-    "pow",
-    "printf",
-    "random",
-    "relative_time",
-    "replace",
-    "round",
-    "rtrim",
-    "searchmatch",
-    "sha1",
-    "sha256",
-    "sha512",
-    "sigfig",
-    "sin",
-    "sinh",
-    "spath",
-    "split",
-    "sqrt",
-    "strftime",
-    "strptime",
-    "substr",
-    "tan",
-    "tanh",
-    "time",
-    "tonumber",
-    "tostring",
-    "trim",
-    "typeof",
-    "upper",
-    "urldecode",
-    "urlencode",
-    "validate",
-    "cluster",
-    "true",
-    "false",
-    # `relative_time` already listed above; preserved here as a
-    # documentation marker for "custom but common" usage.
-}
-
-# Valid stats functions
-VALID_STATS_FUNCS: set[str] = {
-    "avg",
-    "mean",
-    "count",
-    "dc",
-    "distinct_count",
-    "earliest",
-    "eval",
-    "estdc",
-    "estdc_error",
-    "exactperc",
-    "first",
-    "last",
-    "latest",
-    "list",
-    "max",
-    "median",
-    "min",
-    "mode",
-    "p",
-    "perc",
-    "percentile",
-    "range",
-    "rate",
-    "stdev",
-    "stdevp",
-    "sum",
-    "sumsq",
-    "upperperc",
-    "values",
-    "var",
-    "varp",
-    "per_day",
-    "per_hour",
-    "per_minute",
-    "per_second",
-    # tstats-specific
-    "prestats",
-}
-
 # Bad patterns we know about
 BAD_COMMAND_PATTERNS = [
     (re.compile(r"\bdatamodel=Performace\b"), "Typo: datamodel=Performace -> Performance"),
@@ -470,6 +329,52 @@ BAD_COMMAND_PATTERNS = [
     ),
     (re.compile(r"\bsummariesonly=true\b", re.IGNORECASE), "Use summariesonly=t (not 'true')"),
     (re.compile(r"\bsummariesonly=false\b", re.IGNORECASE), "Use summariesonly=f (not 'false')"),
+]
+
+# Known fabricated field/index/sourcetype patterns by sourcetype family.
+# Each entry is (regex, message) and fires only when the SPL's index/sourcetype
+# matches the family. This is a deliberately small allow-list — we only flag
+# patterns that have been observed in real catalog drift, never speculative
+# guesses about what "looks fishy". Adding a new entry requires a citation
+# back to the Splunkbase / vendor documentation that contradicts it.
+#
+# Origin: UC-5.2.35 ships a "Cellular Modem Failover" SPL whose author had
+# combined an IDS schema (`signature`, `event_type`) with imaginary fields
+# (`data_usage_mb`) on a Meraki cellular sourcetype. None of those fields
+# exist in either Splunk_TA_cisco_meraki or SC4S Meraki vendor packs.
+KNOWN_HALLUCINATED_FIELDS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"\bindex=cisco_network\b.*?\bsourcetype=\"?meraki\b", re.DOTALL),
+        "index=cisco_network with sourcetype=meraki — Meraki TA's default index "
+        "is `meraki` (Splunkbase 5580); SC4S vendor pack writes to whatever the "
+        "operator configures in sc4s.conf, never to a literal `cisco_network`",
+    ),
+    (
+        re.compile(r"\bsourcetype=\"?meraki\"?\s+type=security_event\b"),
+        "Meraki syslog has no `type=security_event` — real types are `flows`, "
+        "`urls`, `ids-alerts`, `events`, `airmarshal_events`, `ip_flow_start`, etc. "
+        "See `Splunk_TA_cisco_meraki/default/props.conf` REPORT-meraki_type",
+    ),
+    (
+        re.compile(r"\bsourcetype=\"?meraki\"?[^|]*?\bsignature=\"\*[Cc]ellular\*\""),
+        "`signature=*cellular*` on Meraki — `signature` is an IDS/IPS payload "
+        "field on `meraki` sourcetype `type=ids-alerts`, not on cellular events. "
+        "Meraki cellular up/down transitions surface as `type=events` text",
+    ),
+    (
+        re.compile(r"\bsourcetype=\"?meraki[^\"]*\"?[^|]*?\bdata_usage_mb\b"),
+        "`data_usage_mb` is not a field emitted by any Splunk_TA_cisco_meraki "
+        "input or by SC4S's Meraki vendor pack — usage totals are exposed via "
+        "`meraki:summarytopdevicesbyusage` with `usage.total` (KB)",
+    ),
+    (
+        re.compile(
+            r"\bsourcetype=\"?meraki[^\"]*\"?[^|]*?\bevent_type=\"(connection|network)_error\""
+        ),
+        "`event_type=connection_error` / `network_error` are fabricated values "
+        "— Meraki TA exposes operational status via `meraki:devices.status` and "
+        "`meraki:network:events.event_type`, neither of which uses those codes",
+    ),
 ]
 
 
@@ -493,15 +398,6 @@ def check_in_with_wildcards_in_where_eval(spl: str) -> list[tuple[str, str]]:
                 )
             )
     return findings
-
-
-# MITRE T-code pattern (T1234 or T1234.001)
-MITRE_PATTERN = re.compile(r"\bT(\d{4})(?:\.(\d{3}))?\b")
-# Known invalid patterns: T with wrong digit count, missing dot, etc.
-MITRE_INVALID_PATTERNS = [
-    re.compile(r"\bT\d{1,3}\b(?!\.)"),  # T123 (too few)
-    re.compile(r"\bT\d{5,}\b"),  # T12345+ (too many)
-]
 
 
 class Finding:
@@ -531,7 +427,6 @@ def strip_comments(spl: str) -> str:
     that commonly appear as leading segments (e.g. `| `es_notable` | ...`).
     """
 
-    # Iteratively remove `comment(...)` with balanced quotes
     def _remove_balanced(text: str, open_tok: str, close_tok: str) -> str:
         out: list[str] = []
         i = 0
@@ -542,7 +437,6 @@ def strip_comments(spl: str) -> str:
                 out.append(text[i:])
                 break
             out.append(text[i:idx])
-            # Scan for matching close, respecting quotes
             j = idx + len(open_tok)
             depth = 1
             in_dq = False
@@ -630,13 +524,24 @@ def check_bad_patterns(spl: str) -> list[tuple[str, str]]:
     return findings
 
 
+def check_known_hallucinated_fields(spl: str) -> list[tuple[str, str]]:
+    """Flag SPL that uses field/index/sourcetype combinations known to be wrong.
+
+    Each pattern in ``KNOWN_HALLUCINATED_FIELDS`` is paired with the citation
+    that disproves it; this is the gate that would have caught UC-5.2.35
+    on the JSON SSOT side before it shipped.
+    """
+    findings: list[tuple[str, str]] = []
+    for pat, msg in KNOWN_HALLUCINATED_FIELDS:
+        if pat.search(spl):
+            findings.append(("hallucinated_field", msg))
+    return findings
+
+
 _DASHBOARD_TOKEN_RE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_.:]*(?:\|[A-Za-z_]+)?\$")
 
 
 def _mask_tokens(spl: str) -> str:
-    """Replace dashboard tokens `$foo|mod$` with a placeholder so splitters
-    don't treat the internal `|` as a pipe separator.
-    """
     return _DASHBOARD_TOKEN_RE.sub(lambda m: "X" * len(m.group(0)), spl)
 
 
@@ -647,10 +552,6 @@ def split_spl_pipes(spl: str) -> list[str]:
     - it is outside of double or single quotes
     - it is at parenthesis depth 0
     - it is at bracket depth 0
-
-    Back-tick strings (macros like `comment(...)` via `macro`) are treated as
-    atomic and never split internally.  Dashboard tokens like `$foo|s$` are
-    masked out beforehand so their internal `|` is ignored.
     """
     spl = _mask_tokens(spl)
     segs: list[str] = []
@@ -767,88 +668,20 @@ def check_unknown_commands(spl: str) -> list[tuple[str, str]]:
     return findings
 
 
-def extract_eval_funcs_used(spl: str) -> list[str]:
-    """Return lowercase eval-ish function names invoked in the SPL (best-effort).
-
-    Matches patterns like `eval x=foo(...)`, `where foo(...)`, or inline func
-    calls following `,` or `=` in eval/where clauses.
-    """
-    funcs: list[str] = []
-    # Scan eval/where segments only to avoid picking up stats functions.
-    segs = re.split(r"\n?\|\s*", spl)
-    for seg in segs:
-        s = seg.strip()
-        low = s.lower()
-        if not low.startswith(("eval ", "where ", "foreach ")):
-            continue
-        for m in re.finditer(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(", s):
-            name = m.group(1).lower()
-            # Skip Splunk SPL commands that can legitimately appear in eval args
-            if name in {"if", "case", "match", "coalesce", "in"}:
-                funcs.append(name)
-                continue
-            funcs.append(name)
-    return funcs
-
-
-def check_mitre_ids(mitre_line: str) -> list[tuple[str, str]]:
-    findings: list[tuple[str, str]] = []
-    for pat in MITRE_INVALID_PATTERNS:
-        for m in pat.finditer(mitre_line):
-            findings.append(("mitre", f"Malformed MITRE ID: {m.group(0)!r}"))
-    return findings
-
-
-def split_uc_blocks(text: str) -> list[tuple[str, str]]:
-    """Split markdown into (uc_id, body) tuples."""
-    parts: list[tuple[str, str]] = []
-    matches = list(UC_HEADER.finditer(text))
-    for i, m in enumerate(matches):
-        uc_id = m.group(1)
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        parts.append((uc_id, text[start:end]))
-    return parts
-
-
-def extract_spl_blocks_with_labels(body: str) -> list[tuple[str, str]]:
-    """Return list of (label, spl_text). Label is 'SPL' or 'CIM SPL' based on preceding marker."""
-    out: list[tuple[str, str]] = []
-    # Find all ```spl blocks and figure out which marker precedes them.
-    for m in SPL_FENCE.finditer(body):
-        start = m.start()
-        pre = body[:start]
-        # Find last "- **SPL...**:" or "- **CIM SPL:**" before this block
-        labels = list(re.finditer(r"^- \*\*(CIM SPL[^*]*|SPL[^*]*)\*\*", pre, flags=re.MULTILINE))
-        if labels:
-            lab = labels[-1].group(1).strip()
-            if lab.upper().startswith("CIM SPL"):
-                out.append(("CIM SPL", m.group(1)))
-            else:
-                out.append(("SPL", m.group(1)))
-        else:
-            out.append(("UNKNOWN", m.group(1)))
-    return out
-
-
 def audit_json_file(filepath: str) -> list[Finding]:
     """Audit a single JSON SSOT sidecar (``content/cat-*/UC-*.json``).
 
-    Mirrors the markdown ``audit_file`` but reads structured fields directly:
     ``spl`` (primary SPL) is treated as the ``[SPL]`` block, ``cimSpl`` as the
-    ``[CIM SPL]`` block. The same checks (tstats, bad-patterns,
-    in-with-wildcards, unknown-commands) are then applied without re-walking
-    markdown — the JSON SSOT does not embed code fences.
+    ``[CIM SPL]`` block. Both are passed through the tstats / bad-patterns /
+    in-with-wildcards / unknown-commands / known-hallucinated-fields checks.
     """
-    import json as _json
     findings: list[Finding] = []
     fname = os.path.basename(filepath)
     try:
         with open(filepath, encoding="utf-8") as fh:
             uc = _json.load(fh)
     except Exception as exc:
-        findings.append(Finding(fname, fname, "ERROR", "parse",
-                                f"cannot parse JSON: {exc}", ""))
+        findings.append(Finding(fname, fname, "ERROR", "parse", f"cannot parse JSON: {exc}", ""))
         return findings
     uc_id = str(uc.get("id", fname))
 
@@ -859,131 +692,47 @@ def audit_json_file(filepath: str) -> list[Finding]:
         spl_clean = strip_comments(spl)
         first_line = spl.splitlines()[0] if spl else ""
         for cat, msg in check_tstats(spl_clean):
-            findings.append(Finding(fname, uc_id, "HIGH", cat,
-                                    f"[{label}] {msg}", first_line))
+            findings.append(Finding(fname, uc_id, "HIGH", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_bad_patterns(spl_clean):
-            findings.append(Finding(fname, uc_id, "MED", cat,
-                                    f"[{label}] {msg}", first_line))
+            findings.append(Finding(fname, uc_id, "MED", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_in_with_wildcards_in_where_eval(spl_clean):
-            findings.append(Finding(fname, uc_id, "MED", cat,
-                                    f"[{label}] {msg}", first_line))
+            findings.append(Finding(fname, uc_id, "MED", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_unknown_commands(spl_clean):
-            findings.append(Finding(fname, uc_id, "HIGH", cat,
-                                    f"[{label}] {msg}", first_line))
-    return findings
-
-
-def audit_file(filepath: str) -> list[Finding]:
-    findings: list[Finding] = []
-    text = open(filepath, encoding="utf-8").read()
-    fname = os.path.basename(filepath)
-
-    for uc_id, body in split_uc_blocks(text):
-        # Check MITRE line
-        for mm in re.finditer(r"^- \*\*MITRE ATT&CK:\*\*\s*(.*)$", body, flags=re.MULTILINE):
-            for cat, msg in check_mitre_ids(mm.group(1)):
-                findings.append(Finding(fname, uc_id, "LOW", cat, msg, mm.group(1)))
-
-        # Check each SPL block
-        for label, spl in extract_spl_blocks_with_labels(body):
-            spl_clean = strip_comments(spl)
-            for cat, msg in check_tstats(spl_clean):
-                findings.append(
-                    Finding(
-                        fname,
-                        uc_id,
-                        "HIGH",
-                        cat,
-                        f"[{label}] {msg}",
-                        spl.splitlines()[0] if spl else "",
-                    )
-                )
-            for cat, msg in check_bad_patterns(spl_clean):
-                findings.append(
-                    Finding(
-                        fname,
-                        uc_id,
-                        "MED",
-                        cat,
-                        f"[{label}] {msg}",
-                        spl.splitlines()[0] if spl else "",
-                    )
-                )
-            for cat, msg in check_in_with_wildcards_in_where_eval(spl_clean):
-                findings.append(
-                    Finding(
-                        fname,
-                        uc_id,
-                        "MED",
-                        cat,
-                        f"[{label}] {msg}",
-                        spl.splitlines()[0] if spl else "",
-                    )
-                )
-            for cat, msg in check_unknown_commands(spl_clean):
-                findings.append(
-                    Finding(
-                        fname,
-                        uc_id,
-                        "HIGH",
-                        cat,
-                        f"[{label}] {msg}",
-                        spl.splitlines()[0] if spl else "",
-                    )
-                )
-
+            findings.append(Finding(fname, uc_id, "HIGH", cat, f"[{label}] {msg}", first_line))
+        for cat, msg in check_known_hallucinated_fields(spl_clean):
+            findings.append(Finding(fname, uc_id, "HIGH", cat, f"[{label}] {msg}", first_line))
     return findings
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Audit SPL hallucinations across both source-of-truth corpora.
+    """Audit SPL hallucinations across the JSON SSOT corpus.
 
-    The JSON SSOT (``content/cat-*/UC-*.json``) is the production catalog
-    consumed by the build pipeline — it has 7,677 UCs vs the legacy markdown
-    corpus's 6,565. Both are scanned by default; pass ``--legacy-only`` to
-    restrict to the historic markdown view (useful while comparing against
-    pre-SSOT baselines).
+    Returns non-zero when any finding is emitted so CI can gate on it.
     """
     import argparse
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--legacy-only", action="store_true",
-                        help="scan only use-cases/cat-*.md (legacy markdown corpus)")
-    parser.add_argument("--ssot-only", action="store_true",
-                        help="scan only content/cat-*/UC-*.json (JSON SSOT)")
-    args = parser.parse_args(argv)
 
-    md_files = sorted(glob.glob(os.path.join(USE_CASES_DIR, "cat-*.md")))
+    parser = argparse.ArgumentParser(description=__doc__)
+    # No positional / flag args today; argparse keeps the surface stable for
+    # future expansion (e.g. --category, --severity-min) without breaking CI.
+    parser.parse_args(argv)
+
     json_files = sorted(glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json")))
 
     all_findings: list[Finding] = []
-    md_scanned = 0
-    json_scanned = 0
-    if not args.ssot_only:
-        for fp in md_files:
-            all_findings.extend(audit_file(fp))
-            md_scanned += 1
-    if not args.legacy_only:
-        for fp in json_files:
-            all_findings.extend(audit_json_file(fp))
-            json_scanned += 1
+    for fp in json_files:
+        all_findings.extend(audit_json_file(fp))
 
     by_cat: dict[str, list[Finding]] = defaultdict(list)
     for finding in all_findings:
         by_cat[finding.category].append(finding)
 
-    if md_scanned and json_scanned:
-        print(f"Scanned {md_scanned} legacy markdown files + {json_scanned} JSON SSOT files")
-    elif json_scanned:
-        print(f"Scanned {json_scanned} JSON SSOT files")
-    else:
-        print(f"Scanned {md_scanned} files")
+    print(f"Scanned {len(json_files)} JSON SSOT files")
     print(f"Total findings: {len(all_findings)}")
     print()
     for cat in sorted(by_cat.keys()):
         print(f"  {cat}: {len(by_cat[cat])}")
     print()
 
-    # Print detailed findings grouped by category
     for cat in sorted(by_cat.keys()):
         print(f"\n=== {cat} ({len(by_cat[cat])}) ===")
         for finding in by_cat[cat]:

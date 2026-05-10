@@ -5,19 +5,16 @@ This module owns the **read** side of the build. Every subsequent
 in parallel CI jobs without re-reading the filesystem.
 
 The single loader walks ``content/cat-NN-slug/UC-X.Y.Z.json`` — the
-per-UC canonical files emitted by ``migrate_to_per_uc.py`` and validated
-against ``schemas/uc.schema.json``. JSON keys are converted back to the
-v6 short-key form on the way out so downstream renderers (``render_api``,
-``render_html``, ``templates/uc.py`` …) keep working without knowing the
-on-disk shape changed.
+per-UC canonical files validated against ``schemas/uc.schema.json``.
+JSON keys are converted back to the v6 short-key form on the way out so
+downstream renderers (``render_api``, ``render_html``,
+``templates/uc.py`` …) keep working without knowing the on-disk shape.
 
 Repo-overhaul plan §P1 step 5a (2026-05-08): the legacy
-``SPLUNK_UC_LOADER=legacy`` markdown loader was deleted. It survived
-through P1 step 1–4 only as a parity reference and was never the
-default; nothing in CI invoked it. The repository-root ``build.py``
-remains until P1 step 7 closes the cimModels backfill and the
-project-root ``catalog.json`` / ``data.js`` / ``llms*.txt`` stop being
-authoritative — at which point P1 step 5b deletes ``build.py`` itself.
+``SPLUNK_UC_LOADER=legacy`` markdown loader was deleted. The legacy
+``use-cases/cat-*.md`` corpus itself was retired in v8.2.0 and the
+root-level ``build.py`` is now a thin shim that delegates to
+``tools/build/build.py``.
 
 The Catalog object is intentionally minimal — it carries the same shape
 the v6 site uses (see docs/catalog-schema.md):
@@ -38,9 +35,10 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Optional, Tuple
+from typing import Any
 
 # Repo-overhaul plan §P1 step 1: ``tools.build.enrichment`` is the canonical
 # source for EQUIPMENT, CAT_GROUPS, SPLUNK_APPS, and every helper this loader
@@ -80,15 +78,18 @@ def _get_uc_schema(project_root: Path) -> dict[str, Any] | None:
     _UC_SCHEMA_LOADED = True
     schema_path = project_root / "schemas" / "uc.schema.json"
     if not schema_path.exists():
-        print(f"WARNING: UC schema not found at {schema_path}; "
-              f"skipping validation", file=sys.stderr)
+        print(
+            f"WARNING: UC schema not found at {schema_path}; skipping validation", file=sys.stderr
+        )
         return None
     try:
         with schema_path.open(encoding="utf-8") as f:
             _UC_SCHEMA = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"WARNING: could not load UC schema {schema_path}: {exc}; "
-              f"skipping validation", file=sys.stderr)
+        print(
+            f"WARNING: could not load UC schema {schema_path}: {exc}; skipping validation",
+            file=sys.stderr,
+        )
     return _UC_SCHEMA
 
 
@@ -173,15 +174,11 @@ class Catalog:
 
     @property
     def uc_count(self) -> int:
-        return sum(
-            len(sub.get("u", []))
-            for cat in self.categories
-            for sub in cat.get("s", [])
-        )
+        return sum(len(sub.get("u", [])) for cat in self.categories for sub in cat.get("s", []))
 
     def iter_ucs(
         self,
-    ) -> Iterator[Tuple[CatalogCategory, CatalogSubcategory, CatalogUC]]:
+    ) -> Iterator[tuple[CatalogCategory, CatalogSubcategory, CatalogUC]]:
         """Iterate every (cat, sub, uc) triple in declared order.
 
         Returns the wire-format TypedDicts (``CatalogCategory`` /
@@ -196,14 +193,14 @@ class Catalog:
                 for uc in sub.get("u", []):
                     yield cat, sub, uc  # type: ignore[misc]
 
-    def uc_by_id(self, uc_id: str) -> Optional[CatalogUC]:
+    def uc_by_id(self, uc_id: str) -> CatalogUC | None:
         for _cat, _sub, uc in self.iter_ucs():
             if uc.get("i") == uc_id:
                 return uc
         return None
 
 
-def empty(project_root: Optional[Path] = None) -> Catalog:
+def empty(project_root: Path | None = None) -> Catalog:
     """Return an empty Catalog (used when stages run with --only)."""
     return Catalog(project_root=project_root or Path.cwd())
 
@@ -225,6 +222,7 @@ def load(project_root: Path, *, reproducible: bool = False) -> Catalog:
 # Category loaders
 # ---------------------------------------------------------------------------
 
+
 def _load_categories(cat: Catalog, project_root: Path, *, reproducible: bool) -> None:
     """Walk ``content/`` and populate ``cat.categories``.
 
@@ -238,9 +236,7 @@ def _load_categories(cat: Catalog, project_root: Path, *, reproducible: bool) ->
     _load_categories_from_content(cat, project_root, reproducible=reproducible)
 
 
-def _load_categories_from_content(
-    cat: Catalog, project_root: Path, *, reproducible: bool
-) -> None:
+def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproducible: bool) -> None:
     """Walk content/cat-NN-slug/ → emit short-key category records.
 
     Behaviour parity with ``_load_categories_from_legacy``:
@@ -260,12 +256,14 @@ def _load_categories_from_content(
         # Defensive: never explode in CI when the migration hasn't run.
         return
     cat_dirs = sorted(d for d in content_dir.iterdir() if d.is_dir())
-    # Post-processor source: enrichment is the SSOT (P1 step 1). We still
-    # mutate UC_DIR so ``_load_sidecar_equipment_cache`` (which reads
-    # equipment sidecars from ``use-cases/`` as a fallback) sees the right
-    # path under test fixtures with a moved project root.
+    # Post-processor source: enrichment reads UC payloads from the JSON
+    # SSOT (``content/cat-*/UC-*.json``). The legacy ``use-cases/``
+    # markdown corpus was retired in v8.2.0; the equipment-sidecar
+    # fallback that used to read from there has been removed. We still
+    # keep the alias ``legacy`` in scope because ``_post_process_category``
+    # consumes a handful of helper functions that live in the
+    # ``enrichment`` module.
     legacy = _enrichment
-    legacy.UC_DIR = str(project_root / "use-cases")  # equipment sidecars still live there until cleanup
     cat.files = []
     for cat_dir in cat_dirs:
         meta_path = cat_dir / "_category.json"
@@ -290,8 +288,23 @@ def _load_categories_from_content(
             "n": meta.get("name", ""),
             "s": [],
         }
-        if meta.get("src"):
-            cat.files.append(meta["src"])
+        # ``cat.files`` historically held legacy markdown basenames
+        # (``cat-NN-<slug>.md``). Post-v8.2.0 the JSON SSOT directory
+        # *is* the source of truth, so we now populate ``cat.files``
+        # with the SSOT directory name (``cat-NN-<slug>``). Downstream
+        # writers (e.g. ``write_llms_txt``) have been updated to emit
+        # links into ``content/<slug>/`` instead of ``use-cases/<file>``.
+        slug = meta.get("slug") or cat_dir.name
+        if slug:
+            cat.files.append(slug)
+            # ``record["src"]`` is what the SPA's
+            # ``githubIssueUrlForEntry`` reads to build per-UC GitHub
+            # source-file links. Pre-v8.2.0 it was the legacy markdown
+            # basename (``cat-NN-<slug>.md``); now it is the SSOT
+            # directory name (``cat-NN-<slug>``). The SPA has been
+            # updated to interpret the bare slug as a directory under
+            # ``content/`` and link straight at the per-UC sidecar.
+            record["src"] = slug
 
         # Build subcategory shells in the order ``_category.json``
         # advertises them. A handful of legacy categories (notably
@@ -379,9 +392,29 @@ def _load_categories_from_content(
 # UC dict. We mirror them so downstream code calling ``uc.get("v")``
 # (no default) continues to get ``""`` instead of ``None``.
 _LEGACY_STRING_DEFAULTS = (
-    "c", "f", "v", "t", "d", "q", "m", "z",
-    "kfp", "refs", "dtype", "sdomain", "reqf", "md", "script",
-    "premium", "hw", "dma", "schema", "status", "reviewed", "sver", "rby",
+    "c",
+    "f",
+    "v",
+    "t",
+    "d",
+    "q",
+    "m",
+    "z",
+    "kfp",
+    "refs",
+    "dtype",
+    "sdomain",
+    "reqf",
+    "md",
+    "script",
+    "premium",
+    "hw",
+    "dma",
+    "schema",
+    "status",
+    "reviewed",
+    "sver",
+    "rby",
     "ge",  # grandmaExplanation — plain-language summary for non-technical view
 )
 _LEGACY_LIST_DEFAULTS = ("mitre",)
@@ -389,7 +422,7 @@ _LEGACY_LIST_DEFAULTS = ("mitre",)
 
 def _legacy_default_uc() -> dict[str, Any]:
     """Return the same UC skeleton ``parse_category_file`` initialises."""
-    out: dict[str, Any] = {key: "" for key in _LEGACY_STRING_DEFAULTS}
+    out: dict[str, Any] = dict.fromkeys(_LEGACY_STRING_DEFAULTS, "")
     for key in _LEGACY_LIST_DEFAULTS:
         out[key] = []
     return out
@@ -606,8 +639,14 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
             reg = entry.get("regulation")
             ver = entry.get("version")
             clause = entry.get("clause")
-            if not (isinstance(reg, str) and reg and isinstance(ver, str) and ver
-                    and isinstance(clause, str) and clause):
+            if not (
+                isinstance(reg, str)
+                and reg
+                and isinstance(ver, str)
+                and ver
+                and isinstance(clause, str)
+                and clause
+            ):
                 continue
             row: dict[str, Any] = {
                 "r": reg.strip(),
@@ -641,6 +680,7 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
 # Post-processor (shared by both loaders)
 # ---------------------------------------------------------------------------
 
+
 def _post_process_category(record: dict[str, Any], legacy) -> None:
     """Re-run the v6 build.py post-processor block on a category record.
 
@@ -656,17 +696,12 @@ def _post_process_category(record: dict[str, Any], legacy) -> None:
                 uc["escu_rba"] = legacy._escu_is_rba(uc)
                 uc["md"] = legacy.generate_escu_detailed_impl(uc)
                 m_text = (uc.get("m") or "").lower()
-                if (
-                    m_text.startswith(legacy.ESCU_GENERIC_IMPL_PREFIX)
-                    or not m_text.strip()
-                ):
+                if m_text.startswith(legacy.ESCU_GENERIC_IMPL_PREFIX) or not m_text.strip():
                     uc["m"] = legacy.generate_escu_short_impl(uc)
             elif not (uc.get("md") or "").strip():
                 uc["md"] = legacy.generate_detailed_impl(uc)
 
-            sidecar_eq, sidecar_models = legacy._sidecar_equipment_tags(
-                cat_id, uc.get("i")
-            )
+            sidecar_eq, sidecar_models = legacy._sidecar_equipment_tags(cat_id, uc.get("i"))
             if sidecar_eq is not None:
                 uc["e"] = sidecar_eq
                 uc["em"] = sidecar_models
@@ -739,6 +774,7 @@ _QS_SECTION_PATTERNS = [
 
 def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
     """Return (tier, depth_score, gaps) for a legacy-keyed UC dict."""
+
     def _present(key: str) -> bool:
         v = uc.get(key)
         if v is None:
@@ -767,14 +803,25 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
     if silver and isinstance(md_text, str):
         if sections_matched < 3:
             silver = False
-            gaps.append("detailedImplementation needs at least 3 named sections (has %d)" % sections_matched)
+            gaps.append(
+                "detailedImplementation needs at least 3 named sections (has %d)" % sections_matched
+            )
         if len(md_text) < 200:
             silver = False
-            gaps.append("detailedImplementation is too short for Silver (%d chars, need 200+)" % len(md_text))
+            gaps.append(
+                "detailedImplementation is too short for Silver (%d chars, need 200+)"
+                % len(md_text)
+            )
     if silver_missing:
         for k in silver_missing:
-            _FIELD_LABELS = {"mtype": "monitoring type", "md": "detailed implementation",
-                             "refs": "references", "e": "equipment", "ge": "plain-language explanation", "wv": "wave"}
+            _FIELD_LABELS = {
+                "mtype": "monitoring type",
+                "md": "detailed implementation",
+                "refs": "references",
+                "e": "equipment",
+                "ge": "plain-language explanation",
+                "wv": "wave",
+            }
             gaps.append("add %s for Silver tier" % _FIELD_LABELS.get(k, k))
     if silver:
         depth = 50
@@ -785,10 +832,15 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
     if gold and isinstance(md_text, str):
         if sections_matched < 4:
             gold = False
-            gaps.append("detailedImplementation needs at least 4 named sections for Gold (has %d)" % sections_matched)
+            gaps.append(
+                "detailedImplementation needs at least 4 named sections for Gold (has %d)"
+                % sections_matched
+            )
         if len(md_text) < 500:
             gold = False
-            gaps.append("detailedImplementation is too short for Gold (%d chars, need 500+)" % len(md_text))
+            gaps.append(
+                "detailedImplementation is too short for Gold (%d chars, need 500+)" % len(md_text)
+            )
         refs = uc.get("refs", "")
         if isinstance(refs, str):
             ref_count = len([u for u in refs.split("),") if u.strip()])
@@ -818,7 +870,9 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
             depth += 5
             has_specificity_bonus = True
         elif specificity < 2 and len(md_text) > 300:
-            gaps.append("implementation lacks product-specific terms (sourcetypes, API paths, field names)")
+            gaps.append(
+                "implementation lacks product-specific terms (sourcetypes, API paths, field names)"
+            )
 
         sentences = [s.strip() for s in re.split(r"[.!?\n]", md_text) if len(s.strip()) > 15]
         if sentences:
@@ -828,21 +882,27 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
                 gaps.append("implementation is >50%% generic boilerplate")
 
         md_lower = md_text.lower()
-        has_vendor_ui = bool(re.search(
-            r"vendor\s+(?:ui|dashboard|console|portal|gui)|compare\s+(?:to|with|against)\s+(?:the\s+)?(?:vendor|native)|"
-            r"(?:assurance|dashboard|portal|console)\s*(?:>|›|→|page)|cross.?reference|verify\s+(?:in|against)\s+(?:the\s+)?(?:vendor|native)",
-            md_lower))
+        has_vendor_ui = bool(
+            re.search(
+                r"vendor\s+(?:ui|dashboard|console|portal|gui)|compare\s+(?:to|with|against)\s+(?:the\s+)?(?:vendor|native)|"
+                r"(?:assurance|dashboard|portal|console)\s*(?:>|›|→|page)|cross.?reference|verify\s+(?:in|against)\s+(?:the\s+)?(?:vendor|native)",
+                md_lower,
+            )
+        )
         if has_vendor_ui:
             depth += 5
         elif gold:
             gaps.append("validation step should reference vendor UI for comparison")
 
-        has_troubleshooting = bool(re.search(
-            r"(?:no\s+events?\s+appear|events?\s+(?:are\s+)?missing|data\s+(?:is\s+)?not\s+(?:arriving|flowing|appearing))|"
-            r"(?:permission\s+denied|access\s+denied|unauthorized|403|401)|"
-            r"(?:timeout|connection\s+refused|unreachable|dns\s+resolution)|"
-            r"(?:check\s+(?:that|whether|if)\s+the\s+(?:input|modular\s+input|scripted\s+input))",
-            md_lower))
+        has_troubleshooting = bool(
+            re.search(
+                r"(?:no\s+events?\s+appear|events?\s+(?:are\s+)?missing|data\s+(?:is\s+)?not\s+(?:arriving|flowing|appearing))|"
+                r"(?:permission\s+denied|access\s+denied|unauthorized|403|401)|"
+                r"(?:timeout|connection\s+refused|unreachable|dns\s+resolution)|"
+                r"(?:check\s+(?:that|whether|if)\s+the\s+(?:input|modular\s+input|scripted\s+input))",
+                md_lower,
+            )
+        )
         if has_troubleshooting:
             depth += 5
         elif gold or silver:
@@ -874,14 +934,21 @@ def _inject_quality_scores(record: dict[str, Any]) -> None:
 # Cat-meta loaders
 # ---------------------------------------------------------------------------
 
+
 def _load_cat_meta(cat: Catalog, project_root: Path) -> None:
     if cat.loader == _LOADER_CONTENT:
         _load_cat_meta_from_content(cat, project_root)
-    else:
-        # Legacy path uses the SSOT enrichment module (P1 step 1).
-        _enrichment.UC_DIR = str(project_root / "use-cases")
-        cat_meta, _starters = _enrichment.parse_index_metadata()
-        cat.cat_meta = cat_meta
+        return
+    # Legacy markdown-only path is no longer reachable: the
+    # ``use-cases/`` corpus was retired in v8.2.0 and the build now
+    # always selects the SSOT (content/) loader. We keep this branch as
+    # an explicit error so any future regression that re-enables the
+    # legacy loader fails loudly instead of silently falling back to
+    # the deleted markdown tree.
+    raise RuntimeError(
+        "Legacy markdown loader is no longer supported; build must run with "
+        "the JSON SSOT (content/) loader.",
+    )
 
 
 def _load_cat_meta_from_content(cat: Catalog, project_root: Path) -> None:
@@ -981,6 +1048,7 @@ def _load_facets(cat: Catalog) -> None:
 # ---------------------------------------------------------------------------
 # Diagnostics helpers (used by tests / CLI)
 # ---------------------------------------------------------------------------
+
 
 def loader_kind() -> str:
     """Public read of the active loader kind. Test-friendly."""

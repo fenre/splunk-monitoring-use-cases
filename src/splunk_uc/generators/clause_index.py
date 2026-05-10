@@ -210,12 +210,7 @@ def _uc_sort_key(uc: Mapping[str, Any]) -> tuple[int, int, int]:
 
 
 def load_ucs() -> list[dict[str, Any]]:
-    """Load every UC sidecar.
-
-    Uses ``content/cat-*/UC-*.json`` — the current on-disk location. The
-    older ``use-cases/cat-*/uc-*.json`` path is legacy and empty; it is
-    intentionally not consulted here.
-    """
+    """Load every UC sidecar from the JSON SSOT (``content/cat-*/UC-*.json``)."""
     ucs: list[dict[str, Any]] = []
     for path in sorted(REPO_ROOT.glob(UC_GLOB)):
         try:

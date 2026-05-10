@@ -18,15 +18,12 @@ import heapq
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
 from collections import Counter
-from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-UC_DIR = os.path.join(PROJECT_ROOT, "use-cases")
 CONTENT_DIR = os.path.join(PROJECT_ROOT, "content")
 
 SITE_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
@@ -34,17 +31,25 @@ RAW_GITHUB_URL = "https://raw.githubusercontent.com/fenre/splunk-monitoring-use-
 
 # Emoji → value mappings
 CRITICALITY_MAP = {
-    "🔴 critical": "critical", "critical": "critical",
-    "🟠 high": "high", "high": "high",
-    "🟡 medium": "medium", "medium": "medium",
-    "🟢 low": "low", "low": "low",
+    "🔴 critical": "critical",
+    "critical": "critical",
+    "🟠 high": "high",
+    "high": "high",
+    "🟡 medium": "medium",
+    "medium": "medium",
+    "🟢 low": "low",
+    "low": "low",
 }
 
 DIFFICULTY_MAP = {
-    "🟢 beginner": "beginner", "beginner": "beginner",
-    "🔵 intermediate": "intermediate", "intermediate": "intermediate",
-    "🟠 advanced": "advanced", "advanced": "advanced",
-    "🔴 expert": "expert", "expert": "expert",
+    "🟢 beginner": "beginner",
+    "beginner": "beginner",
+    "🔵 intermediate": "intermediate",
+    "intermediate": "intermediate",
+    "🟠 advanced": "advanced",
+    "advanced": "advanced",
+    "🔴 expert": "expert",
+    "expert": "expert",
 }
 
 # Implementation-order wave tier. Emoji variants are tolerated so that
@@ -55,9 +60,12 @@ DIFFICULTY_MAP = {
 # Value "walk"   = builds on one or two crawl UCs in the same category.
 # Value "run"    = depends on multiple crawls/walks, often cross-category.
 WAVE_MAP = {
-    "🐢 crawl": "crawl", "crawl": "crawl",
-    "🚶 walk": "walk", "walk": "walk",
-    "🏃 run": "run", "run": "run",
+    "🐢 crawl": "crawl",
+    "crawl": "crawl",
+    "🚶 walk": "walk",
+    "walk": "walk",
+    "🏃 run": "run",
+    "run": "run",
 }
 
 
@@ -68,13 +76,13 @@ WAVE_MAP = {
 _PREREQ_UC_RE = re.compile(r"UC-(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)")
 
 CAT_GROUPS = {
-    "infra":      [1, 2, 5, 6, 15, 18, 19],
-    "security":   [9, 10, 17],
-    "cloud":      [3, 4, 20],
-    "app":        [7, 8, 11, 12, 13, 14, 16],
-    "industry":   [21],
+    "infra": [1, 2, 5, 6, 15, 18, 19],
+    "security": [9, 10, 17],
+    "cloud": [3, 4, 20],
+    "app": [7, 8, 11, 12, 13, 14, 16],
+    "industry": [21],
     "compliance": [22],
-    "business":   [23],
+    "business": [23],
 }
 
 # Splunk two-pillar strategy: Security / Observability
@@ -82,15 +90,51 @@ CAT_GROUPS = {
 PILLAR_SECURITY_CATS = {9, 10, 17}
 # Title keywords that indicate a security-relevant use case (matched case-insensitively)
 PILLAR_SECURITY_WORDS = [
-    "attack", "malware", "threat", "vulnerability", "exploit", "breach",
-    "intrusion", "phishing", "ransomware", "unauthorized", "suspicious",
-    "abuse", "brute force", "privilege escalation", "ddos", "exfiltration",
-    "credential", "compromise", "trojan", "botnet", "backdoor", "rootkit",
-    "spyware", "injection", "evasion", "lateral movement", "reconnaissance",
-    "command and control", "c2", "data theft", "fraud", "tampering",
-    "insider threat", "rogue", "anomalous login", "impossible travel",
-    "kerberoasting", "golden ticket", "pass-the-hash", "mimikatz",
-    "zero day", "apt", "nation-state", "wiper", "ransomware",
+    "attack",
+    "malware",
+    "threat",
+    "vulnerability",
+    "exploit",
+    "breach",
+    "intrusion",
+    "phishing",
+    "ransomware",
+    "unauthorized",
+    "suspicious",
+    "abuse",
+    "brute force",
+    "privilege escalation",
+    "ddos",
+    "exfiltration",
+    "credential",
+    "compromise",
+    "trojan",
+    "botnet",
+    "backdoor",
+    "rootkit",
+    "spyware",
+    "injection",
+    "evasion",
+    "lateral movement",
+    "reconnaissance",
+    "command and control",
+    "c2",
+    "data theft",
+    "fraud",
+    "tampering",
+    "insider threat",
+    "rogue",
+    "anomalous login",
+    "impossible travel",
+    "kerberoasting",
+    "golden ticket",
+    "pass-the-hash",
+    "mimikatz",
+    "zero day",
+    "apt",
+    "nation-state",
+    "wiper",
+    "ransomware",
 ]
 # Monitoring type values that indicate observability
 PILLAR_OBS_MTYPES = {"performance", "availability", "capacity", "fault", "configuration"}
@@ -118,6 +162,7 @@ def _atomic_write(path, content, encoding="utf-8"):
             pass
         raise
 
+
 # Equipment (IT assets) → TA patterns. Used to filter use cases by "what equipment do you have?"
 # Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
 # Matching is case-insensitive substring: pattern.lower() in app_ta_field.lower()
@@ -126,7 +171,6 @@ EQUIPMENT = [
     {"id": "linux", "label": "Linux / Unix servers", "tas": ["Splunk_TA_nix"]},
     {"id": "windows", "label": "Windows servers & workstations", "tas": ["Splunk_TA_windows"]},
     {"id": "macos", "label": "macOS", "tas": ["macOS", "Splunk UF for macOS"]},
-
     # ── Virtualization ─────────────────────────────────────────────────────
     {
         "id": "vmware",
@@ -136,14 +180,25 @@ EQUIPMENT = [
             {"id": "vsphere", "label": "vSphere", "tas": ["vSphere", "vsphere"]},
             {"id": "esxi", "label": "ESXi", "tas": ["ESXi", "esxi"]},
             {"id": "vcenter", "label": "vCenter", "tas": ["vCenter", "vcenter"]},
-            {"id": "ta_vmware", "label": "Splunk TA for VMware", "tas": ["Splunk_TA_vmware", "TA-vmware"]},
+            {
+                "id": "ta_vmware",
+                "label": "Splunk TA for VMware",
+                "tas": ["Splunk_TA_vmware", "TA-vmware"],
+            },
         ],
     },
-    {"id": "hyperv", "label": "Microsoft Hyper-V", "tas": ["Hyper-V", "hyperv", "HyperV", "Perfmon:HyperV"]},
+    {
+        "id": "hyperv",
+        "label": "Microsoft Hyper-V",
+        "tas": ["Hyper-V", "hyperv", "HyperV", "Perfmon:HyperV"],
+    },
     {"id": "proxmox", "label": "Proxmox VE", "tas": ["Proxmox", "proxmox"]},
-    {"id": "ovirt", "label": "oVirt / Red Hat Virtualization", "tas": ["oVirt", "ovirt", "RHV", "rhv"]},
+    {
+        "id": "ovirt",
+        "label": "oVirt / Red Hat Virtualization",
+        "tas": ["oVirt", "ovirt", "RHV", "rhv"],
+    },
     {"id": "openstack", "label": "OpenStack", "tas": ["OpenStack", "openstack"]},
-
     # ── HCI & Converged ────────────────────────────────────────────────────
     {
         "id": "nutanix",
@@ -155,53 +210,172 @@ EQUIPMENT = [
         ],
     },
     {"id": "vxrail", "label": "Dell VxRail", "tas": ["VxRail", "vxrail"]},
-
     # ── Cloud Providers ────────────────────────────────────────────────────
-    {"id": "aws", "label": "Amazon Web Services (AWS)", "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"]},
-    {"id": "azure", "label": "Microsoft Azure", "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"]},
-    {"id": "gcp", "label": "Google Cloud Platform (GCP)", "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"]},
-
+    {
+        "id": "aws",
+        "label": "Amazon Web Services (AWS)",
+        "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"],
+    },
+    {
+        "id": "azure",
+        "label": "Microsoft Azure",
+        "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"],
+    },
+    {
+        "id": "gcp",
+        "label": "Google Cloud Platform (GCP)",
+        "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"],
+    },
     # ── Containers & Orchestration ─────────────────────────────────────────
     {
         "id": "kubernetes",
         "label": "Kubernetes",
-        "tas": ["Kubernetes", "Splunk Connect for Kubernetes", "SCK", "kube-state-metrics", "kubelet"],
+        "tas": [
+            "Kubernetes",
+            "Splunk Connect for Kubernetes",
+            "SCK",
+            "kube-state-metrics",
+            "kubelet",
+        ],
         "models": [
-            {"id": "k8s", "label": "Kubernetes clusters", "tas": ["Kubernetes", "kube-state-metrics", "kubelet"]},
+            {
+                "id": "k8s",
+                "label": "Kubernetes clusters",
+                "tas": ["Kubernetes", "kube-state-metrics", "kubelet"],
+            },
             {"id": "openshift", "label": "OpenShift", "tas": ["OpenShift", "openshift"]},
             {"id": "helm", "label": "Helm", "tas": ["Helm", "helm"]},
         ],
     },
     {"id": "docker", "label": "Docker", "tas": ["Docker", "docker", "Splunk Connect for Docker"]},
     {"id": "argocd", "label": "ArgoCD", "tas": ["ArgoCD", "argocd", "Argo CD"]},
-
     # ── Network Infrastructure ─────────────────────────────────────────────
     {
         "id": "cisco",
         "label": "Cisco",
-        "tas": ["Splunk_TA_cisco", "Cisco", "cisco-firepower", "cisco-asa", "cisco-ios", "cisco-ise",
-                "cisco_meraki", "Meraki", "cisco:ucs", "cisco:aci", "cisco:sdwan", "cisco:ucm",
-                "cisco:wlc", "Webex", "TA-cisco_ios", "Cisco Catalyst Add-on", "Cisco Meraki Add-on",
-                "Cisco Secure Firewall", "ThousandEyes", "Cisco ThousandEyes App",
-                "Cisco Intersight Add-on", "cisco:intersight", "Cisco DC Networking",
-                "cisco:mds", "cisco:nexus", "cisco:ndfc"],
+        "tas": [
+            "Splunk_TA_cisco",
+            "Cisco",
+            "cisco-firepower",
+            "cisco-asa",
+            "cisco-ios",
+            "cisco-ise",
+            "cisco_meraki",
+            "Meraki",
+            "cisco:ucs",
+            "cisco:aci",
+            "cisco:sdwan",
+            "cisco:ucm",
+            "cisco:wlc",
+            "Webex",
+            "TA-cisco_ios",
+            "Cisco Catalyst Add-on",
+            "Cisco Meraki Add-on",
+            "Cisco Secure Firewall",
+            "ThousandEyes",
+            "Cisco ThousandEyes App",
+            "Cisco Intersight Add-on",
+            "cisco:intersight",
+            "Cisco DC Networking",
+            "cisco:mds",
+            "cisco:nexus",
+            "cisco:ndfc",
+        ],
         "models": [
-            {"id": "firepower", "label": "Cisco Firepower / Secure Firewall", "tas": ["Cisco Firepower", "cisco-firepower", "cisco:firepower", "Cisco Secure Firewall"]},
-            {"id": "asa", "label": "Cisco ASA", "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa", "cisco:asa"]},
-            {"id": "ios", "label": "Cisco IOS / Catalyst / ISR / ASR", "tas": ["TA-cisco_ios", "Cisco IOS", "cisco-ios", "cisco:ios"]},
-            {"id": "ise", "label": "Cisco ISE", "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise", "cisco:ise"]},
-            {"id": "meraki", "label": "Cisco Meraki", "tas": ["Cisco Meraki Add-on", "Cisco Meraki", "Meraki", "cisco_meraki", "meraki"]},
-            {"id": "ucs", "label": "Cisco UCS", "tas": ["Splunk_TA_cisco-ucs", "Cisco UCS", "cisco:ucs", "UCS Manager"]},
-            {"id": "intersight", "label": "Cisco Intersight", "tas": ["Cisco Intersight Add-on", "cisco:intersight", "Intersight"]},
-            {"id": "aci", "label": "Cisco ACI", "tas": ["cisco:aci", "Cisco ACI", "ACI", "APIC", "TA_cisco-ACI"]},
-            {"id": "nexus", "label": "Cisco Nexus / NDFC / MDS", "tas": ["cisco:nexus", "cisco:mds", "cisco:ndfc", "Cisco DC Networking", "NDFC", "NX-OS"]},
-            {"id": "sdwan", "label": "Cisco SD-WAN / vManage", "tas": ["cisco:sdwan", "Cisco SD-WAN", "vManage", "Catalyst SD-WAN"]},
-            {"id": "catalyst_center", "label": "Cisco Catalyst Center", "tas": ["Cisco Catalyst Add-on", "cisco:dnac", "Catalyst Center", "DNA Center", "DNAC"]},
-            {"id": "wlc", "label": "Cisco WLC / Catalyst 9800", "tas": ["cisco:wlc", "Cisco WLC", "WLC"]},
-            {"id": "ucm", "label": "Cisco UCM / Unified Communications", "tas": ["cisco:ucm", "Cisco UCM", "UCM CDR", "CUCM"]},
+            {
+                "id": "firepower",
+                "label": "Cisco Firepower / Secure Firewall",
+                "tas": [
+                    "Cisco Firepower",
+                    "cisco-firepower",
+                    "cisco:firepower",
+                    "Cisco Secure Firewall",
+                ],
+            },
+            {
+                "id": "asa",
+                "label": "Cisco ASA",
+                "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa", "cisco:asa"],
+            },
+            {
+                "id": "ios",
+                "label": "Cisco IOS / Catalyst / ISR / ASR",
+                "tas": ["TA-cisco_ios", "Cisco IOS", "cisco-ios", "cisco:ios"],
+            },
+            {
+                "id": "ise",
+                "label": "Cisco ISE",
+                "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise", "cisco:ise"],
+            },
+            {
+                "id": "meraki",
+                "label": "Cisco Meraki",
+                "tas": ["Cisco Meraki Add-on", "Cisco Meraki", "Meraki", "cisco_meraki", "meraki"],
+            },
+            {
+                "id": "ucs",
+                "label": "Cisco UCS",
+                "tas": ["Splunk_TA_cisco-ucs", "Cisco UCS", "cisco:ucs", "UCS Manager"],
+            },
+            {
+                "id": "intersight",
+                "label": "Cisco Intersight",
+                "tas": ["Cisco Intersight Add-on", "cisco:intersight", "Intersight"],
+            },
+            {
+                "id": "aci",
+                "label": "Cisco ACI",
+                "tas": ["cisco:aci", "Cisco ACI", "ACI", "APIC", "TA_cisco-ACI"],
+            },
+            {
+                "id": "nexus",
+                "label": "Cisco Nexus / NDFC / MDS",
+                "tas": [
+                    "cisco:nexus",
+                    "cisco:mds",
+                    "cisco:ndfc",
+                    "Cisco DC Networking",
+                    "NDFC",
+                    "NX-OS",
+                ],
+            },
+            {
+                "id": "sdwan",
+                "label": "Cisco SD-WAN / vManage",
+                "tas": ["cisco:sdwan", "Cisco SD-WAN", "vManage", "Catalyst SD-WAN"],
+            },
+            {
+                "id": "catalyst_center",
+                "label": "Cisco Catalyst Center",
+                "tas": [
+                    "Cisco Catalyst Add-on",
+                    "cisco:dnac",
+                    "Catalyst Center",
+                    "DNA Center",
+                    "DNAC",
+                ],
+            },
+            {
+                "id": "wlc",
+                "label": "Cisco WLC / Catalyst 9800",
+                "tas": ["cisco:wlc", "Cisco WLC", "WLC"],
+            },
+            {
+                "id": "ucm",
+                "label": "Cisco UCM / Unified Communications",
+                "tas": ["cisco:ucm", "Cisco UCM", "UCM CDR", "CUCM"],
+            },
             {"id": "webex", "label": "Cisco Webex", "tas": ["Webex", "webex", "ta_cisco_webex"]},
-            {"id": "spaces", "label": "Cisco Spaces", "tas": ["Cisco Spaces", "cisco:spaces", "cisco_spaces", "Spaces Add-On"]},
-            {"id": "thousandeyes", "label": "Cisco ThousandEyes", "tas": ["ThousandEyes", "thousandeyes", "Cisco ThousandEyes App"]},
+            {
+                "id": "spaces",
+                "label": "Cisco Spaces",
+                "tas": ["Cisco Spaces", "cisco:spaces", "cisco_spaces", "Spaces Add-On"],
+            },
+            {
+                "id": "thousandeyes",
+                "label": "Cisco ThousandEyes",
+                "tas": ["ThousandEyes", "thousandeyes", "Cisco ThousandEyes App"],
+            },
         ],
     },
     {
@@ -209,8 +383,16 @@ EQUIPMENT = [
         "label": "Palo Alto Networks",
         "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],
         "models": [
-            {"id": "pan_firewall", "label": "Palo Alto Firewall / PAN-OS", "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"]},
-            {"id": "globalprotect", "label": "GlobalProtect", "tas": ["GlobalProtect", "globalprotect"]},
+            {
+                "id": "pan_firewall",
+                "label": "Palo Alto Firewall / PAN-OS",
+                "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"],
+            },
+            {
+                "id": "globalprotect",
+                "label": "GlobalProtect",
+                "tas": ["GlobalProtect", "globalprotect"],
+            },
             {"id": "prisma", "label": "Prisma Access", "tas": ["Prisma", "prisma"]},
         ],
     },
@@ -219,8 +401,16 @@ EQUIPMENT = [
         "label": "Fortinet",
         "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
         "models": [
-            {"id": "fortigate", "label": "FortiGate", "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"]},
-            {"id": "fortianalyzer", "label": "FortiAnalyzer", "tas": ["FortiAnalyzer", "fortianalyzer"]},
+            {
+                "id": "fortigate",
+                "label": "FortiGate",
+                "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+            },
+            {
+                "id": "fortianalyzer",
+                "label": "FortiAnalyzer",
+                "tas": ["FortiAnalyzer", "fortianalyzer"],
+            },
         ],
     },
     {
@@ -228,23 +418,83 @@ EQUIPMENT = [
         "label": "F5",
         "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP", "f5-bigip"],
         "models": [
-            {"id": "bigip", "label": "F5 BIG-IP", "tas": ["Splunk_TA_f5-bigip", "BIG-IP", "f5-bigip", "bigip"]},
+            {
+                "id": "bigip",
+                "label": "F5 BIG-IP",
+                "tas": ["Splunk_TA_f5-bigip", "BIG-IP", "f5-bigip", "bigip"],
+            },
             {"id": "asm", "label": "F5 ASM", "tas": ["ASM", "f5-bigip (ASM)"]},
         ],
     },
     {
         "id": "citrix",
         "label": "Citrix",
-        "tas": ["Splunk_TA_citrix-netscaler", "citrix", "NetScaler", "uberAgent", "uberAgent UXM",
-                "TA-XD7-Broker", "TA-XD7-VDA", "citrix:broker", "citrix:vda", "citrix:netscaler",
-                "Citrix Monitor Service", "citrix:pvs", "citrix:cloudconnector"],
+        "tas": [
+            "Splunk_TA_citrix-netscaler",
+            "citrix",
+            "NetScaler",
+            "uberAgent",
+            "uberAgent UXM",
+            "TA-XD7-Broker",
+            "TA-XD7-VDA",
+            "citrix:broker",
+            "citrix:vda",
+            "citrix:netscaler",
+            "Citrix Monitor Service",
+            "citrix:pvs",
+            "citrix:cloudconnector",
+        ],
         "models": [
-            {"id": "netscaler", "label": "Citrix NetScaler / ADC", "tas": ["Splunk_TA_citrix-netscaler", "citrix:netscaler", "NetScaler", "netscaler", "Citrix ADC", "NITRO API"]},
-            {"id": "cvad", "label": "Citrix Virtual Apps & Desktops", "tas": ["TA-XD7-Broker", "TA-XD7-VDA", "citrix:broker", "citrix:vda", "CVAD", "XenDesktop", "XenApp", "Citrix Monitor Service"]},
-            {"id": "uberagent", "label": "uberAgent (Citrix)", "tas": ["uberAgent", "uberAgent UXM", "uberAgent ESA", "uberAgent:Session", "uberAgent:Logon", "uberAgent:Application", "uberAgent:Process", "uberAgent:Browser", "uberAgent:CitrixSite", "uberAgent:CitrixADC", "uberAgent:ESA"]},
+            {
+                "id": "netscaler",
+                "label": "Citrix NetScaler / ADC",
+                "tas": [
+                    "Splunk_TA_citrix-netscaler",
+                    "citrix:netscaler",
+                    "NetScaler",
+                    "netscaler",
+                    "Citrix ADC",
+                    "NITRO API",
+                ],
+            },
+            {
+                "id": "cvad",
+                "label": "Citrix Virtual Apps & Desktops",
+                "tas": [
+                    "TA-XD7-Broker",
+                    "TA-XD7-VDA",
+                    "citrix:broker",
+                    "citrix:vda",
+                    "CVAD",
+                    "XenDesktop",
+                    "XenApp",
+                    "Citrix Monitor Service",
+                ],
+            },
+            {
+                "id": "uberagent",
+                "label": "uberAgent (Citrix)",
+                "tas": [
+                    "uberAgent",
+                    "uberAgent UXM",
+                    "uberAgent ESA",
+                    "uberAgent:Session",
+                    "uberAgent:Logon",
+                    "uberAgent:Application",
+                    "uberAgent:Process",
+                    "uberAgent:Browser",
+                    "uberAgent:CitrixSite",
+                    "uberAgent:CitrixADC",
+                    "uberAgent:ESA",
+                ],
+            },
         ],
     },
-    {"id": "checkpoint", "label": "Check Point", "tas": ["Check Point", "checkpoint", "CheckPoint", "cp_log"]},
+    {
+        "id": "checkpoint",
+        "label": "Check Point",
+        "tas": ["Check Point", "checkpoint", "CheckPoint", "cp_log"],
+    },
     {"id": "nsx", "label": "VMware NSX", "tas": ["NSX", "nsx", "vmware_nsx_addon", "NSX-T"]},
     {
         "id": "infoblox",
@@ -272,18 +522,25 @@ EQUIPMENT = [
             {"id": "generic", "label": "SNMP (generic)", "tas": ["SNMP", "snmp"]},
             {"id": "pdu", "label": "PDU / power", "tas": ["PDU", "PDU-MIB", "pdu"]},
             {"id": "ups", "label": "UPS", "tas": ["UPS", "UPS-MIB", "ups"]},
-            {"id": "apc", "label": "APC / Schneider Electric", "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"]},
+            {
+                "id": "apc",
+                "label": "APC / Schneider Electric",
+                "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"],
+            },
         ],
     },
     {"id": "syslog", "label": "Syslog (generic)", "tas": ["Splunk_TA_syslog", "Syslog", "syslog"]},
-
     # ── Web Servers & Reverse Proxies ──────────────────────────────────────
     {
         "id": "apache",
         "label": "Apache HTTP Server",
         "tas": ["Splunk_TA_apache", "apache"],
         "models": [
-            {"id": "httpd", "label": "Apache httpd", "tas": ["Splunk_TA_apache", "apache", "httpd"]},
+            {
+                "id": "httpd",
+                "label": "Apache httpd",
+                "tas": ["Splunk_TA_apache", "apache", "httpd"],
+            },
         ],
     },
     {
@@ -295,34 +552,43 @@ EQUIPMENT = [
             {"id": "plus", "label": "NGINX Plus", "tas": ["NGINX Plus", "nginx plus"]},
         ],
     },
-    {"id": "iis", "label": "Microsoft IIS", "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"]},
+    {
+        "id": "iis",
+        "label": "Microsoft IIS",
+        "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"],
+    },
     {"id": "haproxy", "label": "HAProxy", "tas": ["HAProxy", "haproxy"]},
     {"id": "traefik", "label": "Traefik", "tas": ["Traefik", "traefik"]},
-
     # ── Application Servers ────────────────────────────────────────────────
     {"id": "tomcat", "label": "Apache Tomcat", "tas": ["Tomcat", "tomcat", "Catalina"]},
     {"id": "jboss", "label": "WildFly / JBoss", "tas": ["WildFly", "JBoss", "wildfly", "jboss"]},
     {"id": "phpfpm", "label": "PHP-FPM", "tas": ["PHP-FPM", "php-fpm", "phpfpm"]},
-
     # ── Caching & Proxy ────────────────────────────────────────────────────
     {"id": "varnish", "label": "Varnish Cache", "tas": ["Varnish", "varnish"]},
     {"id": "squid", "label": "Squid Proxy", "tas": ["Squid", "squid"]},
     {"id": "memcached", "label": "Memcached", "tas": ["Memcached", "memcached"]},
     {"id": "envoy", "label": "Envoy Proxy", "tas": ["Envoy", "envoy"]},
-
     # ── Databases ──────────────────────────────────────────────────────────
     {
         "id": "db_connect",
         "label": "Splunk DB Connect",
         "tas": ["DB Connect", "splunk_app_db_connect"],
     },
-    {"id": "mssql", "label": "Microsoft SQL Server", "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"]},
+    {
+        "id": "mssql",
+        "label": "Microsoft SQL Server",
+        "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"],
+    },
     {
         "id": "oracle",
         "label": "Oracle Database",
         "tas": ["Splunk_TA_oracle", "Oracle"],
         "models": [
-            {"id": "oracle_db", "label": "Oracle Database", "tas": ["Oracle", "oracle", "tablespace"]},
+            {
+                "id": "oracle_db",
+                "label": "Oracle Database",
+                "tas": ["Oracle", "oracle", "tablespace"],
+            },
         ],
     },
     {
@@ -334,7 +600,11 @@ EQUIPMENT = [
             {"id": "pgbouncer", "label": "PgBouncer", "tas": ["PgBouncer", "pgbouncer"]},
         ],
     },
-    {"id": "mysql", "label": "MySQL / MariaDB", "tas": ["MySQL", "mysql", "MariaDB", "mariadb", "InnoDB"]},
+    {
+        "id": "mysql",
+        "label": "MySQL / MariaDB",
+        "tas": ["MySQL", "mysql", "MariaDB", "mariadb", "InnoDB"],
+    },
     {
         "id": "mongodb",
         "label": "MongoDB",
@@ -350,20 +620,26 @@ EQUIPMENT = [
         "label": "Elasticsearch / OpenSearch",
         "tas": ["Elasticsearch", "elasticsearch", "ES REST API", "OpenSearch"],
         "models": [
-            {"id": "es", "label": "Elasticsearch", "tas": ["Elasticsearch", "elasticsearch", "ES REST API"]},
+            {
+                "id": "es",
+                "label": "Elasticsearch",
+                "tas": ["Elasticsearch", "elasticsearch", "ES REST API"],
+            },
             {"id": "opensearch", "label": "OpenSearch", "tas": ["OpenSearch", "opensearch"]},
         ],
     },
     {"id": "clickhouse", "label": "ClickHouse", "tas": ["ClickHouse", "clickhouse"]},
     {"id": "cassandra", "label": "Apache Cassandra", "tas": ["Cassandra", "cassandra", "nodetool"]},
     {"id": "snowflake", "label": "Snowflake", "tas": ["Snowflake", "snowflake"]},
-
     # ── Message Queues & Streaming ─────────────────────────────────────────
-    {"id": "kafka", "label": "Apache Kafka", "tas": ["TA-kafka", "Kafka", "kafka", "Splunk Connect for Kafka"]},
+    {
+        "id": "kafka",
+        "label": "Apache Kafka",
+        "tas": ["TA-kafka", "Kafka", "kafka", "Splunk Connect for Kafka"],
+    },
     {"id": "rabbitmq", "label": "RabbitMQ", "tas": ["RabbitMQ", "rabbitmq"]},
     {"id": "activemq", "label": "Apache ActiveMQ", "tas": ["ActiveMQ", "activemq"]},
     {"id": "zookeeper", "label": "Apache ZooKeeper", "tas": ["ZooKeeper", "zookeeper"]},
-
     # ── HashiCorp ──────────────────────────────────────────────────────────
     {
         "id": "hashicorp",
@@ -376,56 +652,200 @@ EQUIPMENT = [
             {"id": "terraform", "label": "Terraform", "tas": ["Terraform", "terraform"]},
         ],
     },
-
     # ── Storage ────────────────────────────────────────────────────────────
     {"id": "netapp", "label": "NetApp", "tas": ["TA-netapp_ontap", "NetApp", "netapp", "ONTAP"]},
-    {"id": "pure_storage", "label": "Pure Storage", "tas": ["Pure Storage", "FlashArray", "FlashBlade"]},
-    {"id": "dell_emc", "label": "Dell EMC Storage", "tas": ["Dell EMC", "Isilon", "PowerStore", "Unity", "EqualLogic"]},
-    {"id": "truenas", "label": "TrueNAS / FreeNAS", "tas": ["TrueNAS", "truenas", "FreeNAS", "freenas"]},
+    {
+        "id": "pure_storage",
+        "label": "Pure Storage",
+        "tas": ["Pure Storage", "FlashArray", "FlashBlade"],
+    },
+    {
+        "id": "dell_emc",
+        "label": "Dell EMC Storage",
+        "tas": ["Dell EMC", "Isilon", "PowerStore", "Unity", "EqualLogic"],
+    },
+    {
+        "id": "truenas",
+        "label": "TrueNAS / FreeNAS",
+        "tas": ["TrueNAS", "truenas", "FreeNAS", "freenas"],
+    },
     {"id": "ceph", "label": "Ceph", "tas": ["Ceph", "ceph"]},
-
     # ── Backup & Data Protection ───────────────────────────────────────────
     {"id": "veeam", "label": "Veeam", "tas": ["Veeam", "veeam"]},
     {"id": "commvault", "label": "Commvault", "tas": ["Commvault", "commvault"]},
-
     # ── Identity & Access ──────────────────────────────────────────────────
     {"id": "okta", "label": "Okta", "tas": ["Splunk_TA_okta", "okta"]},
     {"id": "cyberark", "label": "CyberArk", "tas": ["Splunk_TA_cyberark", "CyberArk", "cyberark"]},
     {"id": "beyondtrust", "label": "BeyondTrust", "tas": ["BeyondTrust", "beyondtrust"]},
-
+    # ── Certificate Lifecycle / PKI ────────────────────────────────────────
+    # Patterns are intentionally narrow: only product/service identifiers and
+    # specific cert-lifecycle phrases. Generic terms like "openssl", "x509",
+    # "OCSP", "certutil", and any TA name are excluded because they appear
+    # in unrelated TLS-hardening, LOLBin, and generic Windows UCs.
+    {
+        "id": "cert_pki",
+        "label": "Certificate Lifecycle / PKI",
+        "tas": [
+            "AD CS",
+            "ADCS",
+            "Active Directory Certificate Services",
+            "WinEventLog:CertificateServices",
+            "Vault PKI",
+            "vault pki",
+            "Venafi",
+            "venafi",
+            "Sectigo",
+            "sectigo",
+            "DigiCert",
+            "digicert",
+            "EJBCA",
+            "ejbca",
+            "Let's Encrypt",
+            "letsencrypt",
+            "acme:event",
+            "ACME challenge",
+            "ACME client",
+            "ACME issuance",
+            "ACME renewal",
+            "Certificate Transparency",
+            "ct:log",
+            "cert_inventory",
+            "cert expiry",
+            "PKI lifecycle",
+            "pki audit",
+            "aws:acm",
+            "AWS ACM",
+            "Azure Key Vault Cert",
+            "azure:keyvault:cert",
+            "google:gcp:certificateauthorityservice",
+            "GCP Certificate Authority",
+        ],
+        "models": [
+            {
+                "id": "adcs",
+                "label": "Microsoft AD CS",
+                "tas": [
+                    "AD CS",
+                    "ADCS",
+                    "Active Directory Certificate Services",
+                    "WinEventLog:CertificateServices",
+                ],
+            },
+            {"id": "vault_pki", "label": "HashiCorp Vault PKI", "tas": ["Vault PKI", "vault pki"]},
+            {"id": "ejbca", "label": "EJBCA", "tas": ["EJBCA", "ejbca"]},
+            {"id": "venafi", "label": "Venafi TLS Protect", "tas": ["Venafi", "venafi"]},
+            {
+                "id": "sectigo",
+                "label": "Sectigo Certificate Manager",
+                "tas": ["Sectigo", "sectigo"],
+            },
+            {
+                "id": "letsencrypt",
+                "label": "Let's Encrypt / ACME",
+                "tas": [
+                    "Let's Encrypt",
+                    "letsencrypt",
+                    "acme:event",
+                    "ACME challenge",
+                    "ACME client",
+                    "ACME issuance",
+                    "ACME renewal",
+                ],
+            },
+            {
+                "id": "ct_logs",
+                "label": "Certificate Transparency logs",
+                "tas": ["Certificate Transparency", "ct:log"],
+            },
+            {"id": "aws_acm", "label": "AWS Certificate Manager", "tas": ["aws:acm", "AWS ACM"]},
+            {
+                "id": "azure_keyvault_cert",
+                "label": "Azure Key Vault Certificates",
+                "tas": ["Azure Key Vault Cert", "azure:keyvault:cert"],
+            },
+            {
+                "id": "gcp_cas",
+                "label": "GCP Certificate Authority Service",
+                "tas": ["google:gcp:certificateauthorityservice", "GCP Certificate Authority"],
+            },
+        ],
+    },
     # ── Microsoft Ecosystem ────────────────────────────────────────────────
-    {"id": "m365", "label": "Microsoft 365 / Entra ID", "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365", "Entra", "M365", "microsoft-cloudservices"]},
-    {"id": "exchange", "label": "Microsoft Exchange", "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"]},
-    {"id": "sharepoint", "label": "Microsoft SharePoint", "tas": ["SharePoint", "sharepoint", "SPOSite"]},
-
+    {
+        "id": "m365",
+        "label": "Microsoft 365 / Entra ID",
+        "tas": [
+            "Splunk_TA_MS_O365",
+            "MS_O365",
+            "Office 365",
+            "Entra",
+            "M365",
+            "microsoft-cloudservices",
+        ],
+    },
+    {
+        "id": "exchange",
+        "label": "Microsoft Exchange",
+        "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"],
+    },
+    {
+        "id": "sharepoint",
+        "label": "Microsoft SharePoint",
+        "tas": ["SharePoint", "sharepoint", "SPOSite"],
+    },
     # ── Security Platforms ─────────────────────────────────────────────────
-    {"id": "security_essentials", "label": "Splunk Security Essentials (ESCU)", "tas": ["Security Essentials", "ESCU"]},
-    {"id": "crowdstrike", "label": "CrowdStrike Falcon", "tas": ["CrowdStrike", "crowdstrike", "Falcon"]},
-    {"id": "defender", "label": "Microsoft Defender", "tas": ["Microsoft Defender", "Defender for"]},
+    {
+        "id": "security_essentials",
+        "label": "Splunk Security Essentials (ESCU)",
+        "tas": ["Security Essentials", "ESCU"],
+    },
+    {
+        "id": "crowdstrike",
+        "label": "CrowdStrike Falcon",
+        "tas": ["CrowdStrike", "crowdstrike", "Falcon"],
+    },
+    {
+        "id": "defender",
+        "label": "Microsoft Defender",
+        "tas": ["Microsoft Defender", "Defender for"],
+    },
     {"id": "tenable", "label": "Tenable / Nessus", "tas": ["Tenable", "tenable", "Nessus"]},
     {"id": "qualys", "label": "Qualys", "tas": ["Qualys", "qualys"]},
-    {"id": "proofpoint", "label": "Proofpoint", "tas": ["Proofpoint", "proofpoint", "TA-proofpoint"]},
-    {"id": "suricata", "label": "Suricata / Snort (IDS/IPS)", "tas": ["Suricata", "suricata", "TA-suricata", "Snort", "snort"]},
+    {
+        "id": "proofpoint",
+        "label": "Proofpoint",
+        "tas": ["Proofpoint", "proofpoint", "TA-proofpoint"],
+    },
+    {
+        "id": "suricata",
+        "label": "Suricata / Snort (IDS/IPS)",
+        "tas": ["Suricata", "suricata", "TA-suricata", "Snort", "snort"],
+    },
     {"id": "zscaler", "label": "Zscaler", "tas": ["Zscaler", "zscaler"]},
     {"id": "netskope", "label": "Netskope", "tas": ["Netskope", "netskope"]},
-
     {"id": "cloudflare", "label": "Cloudflare", "tas": ["Cloudflare", "cloudflare"]},
     {"id": "guardicore", "label": "Akamai Guardicore", "tas": ["Guardicore", "guardicore"]},
-    {"id": "broadcom_symantec", "label": "Broadcom / Symantec SSE", "tas": ["Symantec", "symantec", "Broadcom", "bluecoat", "Blue Coat"]},
+    {
+        "id": "broadcom_symantec",
+        "label": "Broadcom / Symantec SSE",
+        "tas": ["Symantec", "symantec", "Broadcom", "bluecoat", "Blue Coat"],
+    },
     {"id": "forcepoint", "label": "Forcepoint ONE", "tas": ["Forcepoint", "forcepoint"]},
     {"id": "sonicwall", "label": "SonicWall", "tas": ["SonicWall", "sonicwall", "dell:sonicwall"]},
-
     # ── DevOps & CI/CD ─────────────────────────────────────────────────────
     {"id": "jenkins", "label": "Jenkins", "tas": ["Jenkins", "jenkins"]},
     {"id": "github", "label": "GitHub", "tas": ["GitHub", "github"]},
     {"id": "gitlab", "label": "GitLab", "tas": ["GitLab", "gitlab"]},
     {"id": "ansible", "label": "Ansible", "tas": ["Ansible", "ansible"]},
     {"id": "controlm", "label": "Control-M", "tas": ["Control-M", "control-m"]},
-
     # ── Monitoring & Observability ─────────────────────────────────────────
     {"id": "itsi", "label": "Splunk ITSI", "tas": ["ITSI", "Splunk ITSI"]},
     {"id": "stream", "label": "Splunk Stream", "tas": ["Splunk Stream", "Splunk App for Stream"]},
-    {"id": "opentelemetry", "label": "OpenTelemetry", "tas": ["OpenTelemetry", "OTel Collector", "Splunk_TA_otel", "otelcol"]},
+    {
+        "id": "opentelemetry",
+        "label": "OpenTelemetry",
+        "tas": ["OpenTelemetry", "OTel Collector", "Splunk_TA_otel", "otelcol"],
+    },
     {"id": "prometheus", "label": "Prometheus", "tas": ["Prometheus", "prometheus"]},
     {"id": "grafana", "label": "Grafana", "tas": ["Grafana", "grafana"]},
     {
@@ -433,27 +853,44 @@ EQUIPMENT = [
         "label": "Log Pipeline (Fluentd / Fluent Bit)",
         "tas": ["Fluentd", "fluentd", "Fluent Bit", "fluent bit"],
     },
-
     # ── ITSM & Incident Management ─────────────────────────────────────────
     {"id": "servicenow", "label": "ServiceNow", "tas": ["Splunk_TA_snow", "snow", "ServiceNow"]},
     {"id": "jira", "label": "Atlassian Jira", "tas": ["Jira", "jira"]},
-    {"id": "pagerduty", "label": "PagerDuty / Opsgenie", "tas": ["PagerDuty", "pagerduty", "Opsgenie", "opsgenie"]},
-
+    {
+        "id": "pagerduty",
+        "label": "PagerDuty / Opsgenie",
+        "tas": ["PagerDuty", "pagerduty", "Opsgenie", "opsgenie"],
+    },
     # ── IoT & Operational Technology ───────────────────────────────────────
     {"id": "edge_hub", "label": "Splunk Edge Hub", "tas": ["Splunk Edge Hub", "Edge Hub"]},
     {"id": "modbus", "label": "Modbus (TCP/RTU)", "tas": ["Modbus", "modbus"]},
     {"id": "opcua", "label": "OPC-UA", "tas": ["OPC-UA", "opc-ua", "OPC UA", "opcua"]},
     {"id": "mqtt", "label": "MQTT", "tas": ["MQTT", "mqtt", "Mosquitto", "HiveMQ"]},
     {"id": "aranet", "label": "Aranet Sensors", "tas": ["Aranet", "aranet"]},
-
     # ── Telephony & UC ─────────────────────────────────────────────────────
-    {"id": "asterisk", "label": "Asterisk / FreePBX", "tas": ["Asterisk", "asterisk", "FreePBX", "freepbx", "AMI"]},
-
+    {
+        "id": "asterisk",
+        "label": "Asterisk / FreePBX",
+        "tas": ["Asterisk", "asterisk", "FreePBX", "freepbx", "AMI"],
+    },
     # ── Hardware / BMC ─────────────────────────────────────────────────────
     {
         "id": "hardware_bmc",
         "label": "Hardware / BMC",
-        "tas": ["ipmitool", "iDRAC", "iLO", "smartctl", "storcli", "megacli", "BMC", "edac-util", "ssacli", "dmidecode", "perccli", "hpssacli"],
+        "tas": [
+            "ipmitool",
+            "iDRAC",
+            "iLO",
+            "smartctl",
+            "storcli",
+            "megacli",
+            "BMC",
+            "edac-util",
+            "ssacli",
+            "dmidecode",
+            "perccli",
+            "hpssacli",
+        ],
         "models": [
             {"id": "idrac", "label": "Dell iDRAC", "tas": ["iDRAC", "idrac"]},
             {"id": "ilo", "label": "HPE iLO", "tas": ["iLO", "ilo"]},
@@ -467,208 +904,375 @@ EQUIPMENT = [
             {"id": "dmidecode", "label": "System info (dmidecode)", "tas": ["dmidecode"]},
         ],
     },
-
     # ── Data Center Physical ───────────────────────────────────────────────
-    {"id": "apc_dc", "label": "APC / Schneider Electric", "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"]},
+    {
+        "id": "apc_dc",
+        "label": "APC / Schneider Electric",
+        "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"],
+    },
     {"id": "cctv", "label": "CCTV / IP Cameras", "tas": ["NVR", "ONVIF", "Hikvision", "CCTV"]},
 ]
 
 # Splunk Apps with pre-built dashboards (companion apps for TAs).
 # Matched by substring against the UC's App/TA field, same as equipment matching.
 SPLUNK_APPS = [
-    {"name": "IT Essentials Work", "id": 5403,
-     "url": "https://splunkbase.splunk.com/app/5403",
-     "screenshots": [],
-     "tas": ["Splunk_TA_nix", "Splunk_TA_windows"],
-     "desc": "Modern dashboards for server performance, capacity planning and alerting across Unix/Linux and Windows",
-     "predecessor": [
-         {"name": "Splunk App for Unix and Linux", "id": 273, "url": "https://splunkbase.splunk.com/app/273"},
-         {"name": "Splunk App for Windows Infrastructure", "id": 1680, "url": "https://splunkbase.splunk.com/app/1680"}
-     ]},
-    {"name": "Microsoft Azure App for Splunk", "id": 4882,
-     "url": "https://splunkbase.splunk.com/app/4882",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/d55080b0-6d4d-11ec-baf2-ce06eb58cb63.jpeg", "https://cdn.splunkbase.splunk.com/media/public/screenshots/d7147ff0-6d4d-11ec-9e53-3e3d9b7eaa58.jpeg"],
-     "tas": ["Splunk_TA_microsoft-cloudservices", "Azure Monitor", "Azure Activity"],
-     "desc": "Dashboards for Azure VMs, Metrics, Storage, Security Monitoring, Billing"},
-    {"name": "Microsoft 365 App for Splunk", "id": 3786,
-     "url": "https://splunkbase.splunk.com/app/3786",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/47862910-b938-11ec-bed4-4a49cc3b8a38.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/4aa6a7a0-b938-11ec-a542-32c4f9dd13a0.jpeg"],
-     "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365"],
-     "desc": "Dashboards for Azure AD, Defender 365, Exchange, SharePoint, Teams, Power BI"},
-    {"name": "App for Cisco Network Data", "id": 1352,
-     "url": "https://splunkbase.splunk.com/app/1352",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/47590b50-3981-11ed-807b-8e625ade07cf.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/4dc530fe-3981-11ed-b76f-8ad1f2b29da5.png"],
-     "tas": ["TA-cisco_ios", "cisco-ios", "cisco:ios"],
-     "desc": "Dashboards and data models for Cisco Switches, Routers, WLAN Controllers"},
-    {"name": "Cisco Security Cloud", "id": 7404,
-     "url": "https://splunkbase.splunk.com/app/7404",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/37673b17-99fd-4dc1-a5f6-81b9cd15cab7.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/c8eb0ce4-f7bd-412d-950c-63c8c20da0a7.png"],
-     "tas": ["cisco-firepower", "cisco-asa", "cisco-ise", "Cisco Secure Firewall", "Cisco Secure Endpoint"],
-     "desc": "Modular dashboards and health checks for Cisco Secure Firewall, Duo, Endpoint"},
-    {"name": "Cisco ThousandEyes App for Splunk", "id": 7719,
-     "url": "https://splunkbase.splunk.com/app/7719",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/1e95cd84-404f-438c-8446-0426643c49a2.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/8e5ba70f-d63f-48af-9d03-cb837f61db45.png"],
-     "tas": ["ThousandEyes", "Cisco ThousandEyes"],
-     "desc": "Pre-built dashboards for ThousandEyes agent tests, events, and activity logs"},
-    {"name": "uberAgent UXM — Digital Employee Experience", "id": 1448,
-     "url": "https://splunkbase.splunk.com/app/1448",
-     "screenshots": [],
-     "tas": ["uberAgent", "uberAgent UXM", "uberAgent ESA", "uberAgent:Session", "uberAgent:Logon", "uberAgent:Application", "uberAgent:Process", "uberAgent:Browser", "uberAgent:CitrixSite", "uberAgent:CitrixADC", "uberAgent:ESA"],
-     "desc": "Citrix uberAgent endpoint monitoring — session performance, logon analysis, application health, browser metrics, and security analytics for Citrix CVAD and Windows"},
-    {"name": "Cisco DC Networking Application for Splunk", "id": 7777,
-     "url": "https://splunkbase.splunk.com/app/7777",
-     "screenshots": [],
-     "tas": ["Cisco DC Networking", "cisco:aci", "cisco:nexus", "cisco:ndfc", "cisco:mds", "APIC", "NDFC", "NX-OS"],
-     "desc": "Dashboards and analytics for Cisco ACI, Nexus, NDFC, and MDS data center networking"},
-    {"name": "Fortinet FortiGate App for Splunk", "id": 2800,
-     "url": "https://splunkbase.splunk.com/app/2800",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/aa2b4e52-3252-11e5-84c5-02e61222c923.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/480c26fe-3254-11e5-a6ef-063854888a19.png"],
-     "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
-     "desc": "Threat visualizations and analytics for FortiGate firewall and UTM data"},
-    {"name": "Splunk App for Palo Alto Networks", "id": 7505,
-     "url": "https://splunkbase.splunk.com/app/7505",
-     "screenshots": [],
-     "tas": ["Splunk_TA_paloalto", "Palo Alto"],
-     "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data",
-     "predecessor": [
-         {"name": "Palo Alto Networks App for Splunk", "id": 491, "url": "https://splunkbase.splunk.com/app/491"}
-     ]},
-    {"name": "Veeam App for Splunk", "id": 7312,
-     "url": "https://splunkbase.splunk.com/app/7312",
-     "screenshots": ["https://cdn.splunkbase.splunk.com/media/public/screenshots/033805d0-fe3c-11ee-a32e-be99bb517a22.png", "https://cdn.splunkbase.splunk.com/media/public/screenshots/0a08b346-fe3c-11ee-9b85-7afc4dbed252.png"],
-     "tas": ["Veeam", "veeam"],
-     "desc": "Monitoring and security dashboards for Veeam Backup job statuses and events"},
-    {"name": "Zscaler Splunk App", "id": 3866,
-     "url": "https://splunkbase.splunk.com/app/3866",
-     "screenshots": [],
-     "tas": ["Zscaler", "zscaler"],
-     "desc": "Dashboards for Zscaler web usage, threat intelligence, DLP, and remote access"},
-    {"name": "Netskope App for Splunk", "id": 6042,
-     "url": "https://splunkbase.splunk.com/app/6042",
-     "screenshots": [],
-     "tas": ["Netskope", "netskope"],
-     "desc": "Dashboards for Netskope cloud security, DLP, threat protection, and CASB events"},
-    {"name": "Check Point App for Splunk", "id": 4293,
-     "url": "https://splunkbase.splunk.com/app/4293",
-     "screenshots": [],
-     "tas": ["Check Point", "checkpoint", "cp_log"],
-     "desc": "Threat analysis and reporting for Check Point networks, cloud, endpoints, and SASE"},
-    {"name": "Cloudflare App for Splunk", "id": 4501,
-     "url": "https://splunkbase.splunk.com/app/4501",
-     "screenshots": [],
-     "tas": ["Cloudflare", "cloudflare"],
-     "desc": "Dashboards for Cloudflare performance, security, Zero Trust, and DNS analytics"},
-    {"name": "Akamai Guardicore Add-on for Splunk", "id": 7426,
-     "url": "https://splunkbase.splunk.com/app/7426",
-     "screenshots": [],
-     "tas": ["Guardicore", "guardicore"],
-     "desc": "Microsegmentation data from Akamai Guardicore Centra for asset protection and compliance"},
-    {"name": "Forcepoint Insights SIEM App", "id": 8053,
-     "url": "https://splunkbase.splunk.com/app/8053",
-     "screenshots": [],
-     "tas": ["Forcepoint", "forcepoint"],
-     "desc": "Centralized visibility into Forcepoint ONE SSE logs with prebuilt dashboards"},
-    {"name": "Splunk App for Jenkins", "id": 3332,
-     "url": "https://splunkbase.splunk.com/app/3332",
-     "screenshots": [],
-     "tas": ["Jenkins", "jenkins"],
-     "desc": "Dashboards for Jenkins job and build status, console logs, test results"},
-    {"name": "Splunk Add-on for F5 BIG-IP", "id": 2680,
-     "url": "https://splunkbase.splunk.com/app/2680",
-     "screenshots": [],
-     "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP"],
-     "desc": "Collects network traffic, system logs and performance metrics from F5 BIG-IP"},
-    {"name": "Splunk Add-on for ServiceNow", "id": 1928,
-     "url": "https://splunkbase.splunk.com/app/1928",
-     "screenshots": [],
-     "tas": ["Splunk_TA_snow", "ServiceNow"],
-     "desc": "Collects ServiceNow incidents, events, change and CMDB data via REST APIs"},
+    {
+        "name": "IT Essentials Work",
+        "id": 5403,
+        "url": "https://splunkbase.splunk.com/app/5403",
+        "screenshots": [],
+        "tas": ["Splunk_TA_nix", "Splunk_TA_windows"],
+        "desc": "Modern dashboards for server performance, capacity planning and alerting across Unix/Linux and Windows",
+        "predecessor": [
+            {
+                "name": "Splunk App for Unix and Linux",
+                "id": 273,
+                "url": "https://splunkbase.splunk.com/app/273",
+            },
+            {
+                "name": "Splunk App for Windows Infrastructure",
+                "id": 1680,
+                "url": "https://splunkbase.splunk.com/app/1680",
+            },
+        ],
+    },
+    {
+        "name": "Microsoft Azure App for Splunk",
+        "id": 4882,
+        "url": "https://splunkbase.splunk.com/app/4882",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/d55080b0-6d4d-11ec-baf2-ce06eb58cb63.jpeg",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/d7147ff0-6d4d-11ec-9e53-3e3d9b7eaa58.jpeg",
+        ],
+        "tas": ["Splunk_TA_microsoft-cloudservices", "Azure Monitor", "Azure Activity"],
+        "desc": "Dashboards for Azure VMs, Metrics, Storage, Security Monitoring, Billing",
+    },
+    {
+        "name": "Microsoft 365 App for Splunk",
+        "id": 3786,
+        "url": "https://splunkbase.splunk.com/app/3786",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/47862910-b938-11ec-bed4-4a49cc3b8a38.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/4aa6a7a0-b938-11ec-a542-32c4f9dd13a0.jpeg",
+        ],
+        "tas": ["Splunk_TA_MS_O365", "MS_O365", "Office 365"],
+        "desc": "Dashboards for Azure AD, Defender 365, Exchange, SharePoint, Teams, Power BI",
+    },
+    {
+        "name": "App for Cisco Network Data",
+        "id": 1352,
+        "url": "https://splunkbase.splunk.com/app/1352",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/47590b50-3981-11ed-807b-8e625ade07cf.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/4dc530fe-3981-11ed-b76f-8ad1f2b29da5.png",
+        ],
+        "tas": ["TA-cisco_ios", "cisco-ios", "cisco:ios"],
+        "desc": "Dashboards and data models for Cisco Switches, Routers, WLAN Controllers",
+    },
+    {
+        "name": "Cisco Security Cloud",
+        "id": 7404,
+        "url": "https://splunkbase.splunk.com/app/7404",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/37673b17-99fd-4dc1-a5f6-81b9cd15cab7.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/c8eb0ce4-f7bd-412d-950c-63c8c20da0a7.png",
+        ],
+        "tas": [
+            "cisco-firepower",
+            "cisco-asa",
+            "cisco-ise",
+            "Cisco Secure Firewall",
+            "Cisco Secure Endpoint",
+        ],
+        "desc": "Modular dashboards and health checks for Cisco Secure Firewall, Duo, Endpoint",
+    },
+    {
+        "name": "Cisco ThousandEyes App for Splunk",
+        "id": 7719,
+        "url": "https://splunkbase.splunk.com/app/7719",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/1e95cd84-404f-438c-8446-0426643c49a2.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/8e5ba70f-d63f-48af-9d03-cb837f61db45.png",
+        ],
+        "tas": ["ThousandEyes", "Cisco ThousandEyes"],
+        "desc": "Pre-built dashboards for ThousandEyes agent tests, events, and activity logs",
+    },
+    {
+        "name": "uberAgent UXM — Digital Employee Experience",
+        "id": 1448,
+        "url": "https://splunkbase.splunk.com/app/1448",
+        "screenshots": [],
+        "tas": [
+            "uberAgent",
+            "uberAgent UXM",
+            "uberAgent ESA",
+            "uberAgent:Session",
+            "uberAgent:Logon",
+            "uberAgent:Application",
+            "uberAgent:Process",
+            "uberAgent:Browser",
+            "uberAgent:CitrixSite",
+            "uberAgent:CitrixADC",
+            "uberAgent:ESA",
+        ],
+        "desc": "Citrix uberAgent endpoint monitoring — session performance, logon analysis, application health, browser metrics, and security analytics for Citrix CVAD and Windows",
+    },
+    {
+        "name": "Cisco DC Networking Application for Splunk",
+        "id": 7777,
+        "url": "https://splunkbase.splunk.com/app/7777",
+        "screenshots": [],
+        "tas": [
+            "Cisco DC Networking",
+            "cisco:aci",
+            "cisco:nexus",
+            "cisco:ndfc",
+            "cisco:mds",
+            "APIC",
+            "NDFC",
+            "NX-OS",
+        ],
+        "desc": "Dashboards and analytics for Cisco ACI, Nexus, NDFC, and MDS data center networking",
+    },
+    {
+        "name": "Fortinet FortiGate App for Splunk",
+        "id": 2800,
+        "url": "https://splunkbase.splunk.com/app/2800",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/aa2b4e52-3252-11e5-84c5-02e61222c923.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/480c26fe-3254-11e5-a6ef-063854888a19.png",
+        ],
+        "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+        "desc": "Threat visualizations and analytics for FortiGate firewall and UTM data",
+    },
+    {
+        "name": "Splunk App for Palo Alto Networks",
+        "id": 7505,
+        "url": "https://splunkbase.splunk.com/app/7505",
+        "screenshots": [],
+        "tas": ["Splunk_TA_paloalto", "Palo Alto"],
+        "desc": "Dashboards for Palo Alto firewall traffic, threat, and GlobalProtect data",
+        "predecessor": [
+            {
+                "name": "Palo Alto Networks App for Splunk",
+                "id": 491,
+                "url": "https://splunkbase.splunk.com/app/491",
+            }
+        ],
+    },
+    {
+        "name": "Veeam App for Splunk",
+        "id": 7312,
+        "url": "https://splunkbase.splunk.com/app/7312",
+        "screenshots": [
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/033805d0-fe3c-11ee-a32e-be99bb517a22.png",
+            "https://cdn.splunkbase.splunk.com/media/public/screenshots/0a08b346-fe3c-11ee-9b85-7afc4dbed252.png",
+        ],
+        "tas": ["Veeam", "veeam"],
+        "desc": "Monitoring and security dashboards for Veeam Backup job statuses and events",
+    },
+    {
+        "name": "Zscaler Splunk App",
+        "id": 3866,
+        "url": "https://splunkbase.splunk.com/app/3866",
+        "screenshots": [],
+        "tas": ["Zscaler", "zscaler"],
+        "desc": "Dashboards for Zscaler web usage, threat intelligence, DLP, and remote access",
+    },
+    {
+        "name": "Netskope App for Splunk",
+        "id": 6042,
+        "url": "https://splunkbase.splunk.com/app/6042",
+        "screenshots": [],
+        "tas": ["Netskope", "netskope"],
+        "desc": "Dashboards for Netskope cloud security, DLP, threat protection, and CASB events",
+    },
+    {
+        "name": "Check Point App for Splunk",
+        "id": 4293,
+        "url": "https://splunkbase.splunk.com/app/4293",
+        "screenshots": [],
+        "tas": ["Check Point", "checkpoint", "cp_log"],
+        "desc": "Threat analysis and reporting for Check Point networks, cloud, endpoints, and SASE",
+    },
+    {
+        "name": "Cloudflare App for Splunk",
+        "id": 4501,
+        "url": "https://splunkbase.splunk.com/app/4501",
+        "screenshots": [],
+        "tas": ["Cloudflare", "cloudflare"],
+        "desc": "Dashboards for Cloudflare performance, security, Zero Trust, and DNS analytics",
+    },
+    {
+        "name": "Akamai Guardicore Add-on for Splunk",
+        "id": 7426,
+        "url": "https://splunkbase.splunk.com/app/7426",
+        "screenshots": [],
+        "tas": ["Guardicore", "guardicore"],
+        "desc": "Microsegmentation data from Akamai Guardicore Centra for asset protection and compliance",
+    },
+    {
+        "name": "Forcepoint Insights SIEM App",
+        "id": 8053,
+        "url": "https://splunkbase.splunk.com/app/8053",
+        "screenshots": [],
+        "tas": ["Forcepoint", "forcepoint"],
+        "desc": "Centralized visibility into Forcepoint ONE SSE logs with prebuilt dashboards",
+    },
+    {
+        "name": "Splunk App for Jenkins",
+        "id": 3332,
+        "url": "https://splunkbase.splunk.com/app/3332",
+        "screenshots": [],
+        "tas": ["Jenkins", "jenkins"],
+        "desc": "Dashboards for Jenkins job and build status, console logs, test results",
+    },
+    {
+        "name": "Splunk Add-on for F5 BIG-IP",
+        "id": 2680,
+        "url": "https://splunkbase.splunk.com/app/2680",
+        "screenshots": [],
+        "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP"],
+        "desc": "Collects network traffic, system logs and performance metrics from F5 BIG-IP",
+    },
+    {
+        "name": "Splunk Add-on for ServiceNow",
+        "id": 1928,
+        "url": "https://splunkbase.splunk.com/app/1928",
+        "screenshots": [],
+        "tas": ["Splunk_TA_snow", "ServiceNow"],
+        "desc": "Collects ServiceNow incidents, events, change and CMDB data via REST APIs",
+    },
 ]
 
 # Known Splunkbase Technology Add-ons (TAs) — matched against uc["t"] to add direct links.
 # Only entries whose Splunkbase URLs have been verified (HTTP 200) are included.
 SPLUNK_TAS = [
-    {"name": "Splunk Add-on for Unix and Linux", "id": 833,
-     "tas": ["Splunk_TA_nix"]},
-    {"name": "Splunk Add-on for Microsoft Windows", "id": 742,
-     "tas": ["Splunk_TA_windows"]},
-    {"name": "Splunk Add-on for AWS", "id": 1876,
-     "tas": ["Splunk_TA_aws"]},
-    {"name": "Splunk Add-on for Microsoft Cloud Services", "id": 3110,
-     "tas": ["Splunk_TA_microsoft-cloudservices"]},
-    {"name": "Splunk Add-on for Microsoft Office 365", "id": 4055,
-     "tas": ["Splunk_TA_MS_O365", "MS_O365"]},
-    {"name": "Splunk Add-on for Google Cloud Platform", "id": 3088,
-     "tas": ["Splunk_TA_google-cloudplatform"]},
-    {"name": "Splunk Add-on for Google Workspace", "id": 5556,
-     "tas": ["Splunk_TA_GoogleWorkspace"]},
-    {"name": "Splunk Add-on for VMware", "id": 3258,
-     "tas": ["Splunk_TA_vmware", "TA-vmware"]},
-    {"name": "Palo Alto Networks Add-on for Splunk", "id": 2757,
-     "tas": ["Splunk_TA_paloalto"]},
-    {"name": "Splunk Add-on for Fortinet FortiGate", "id": 2846,
-     "tas": ["Splunk_TA_fortinet", "TA-fortinet_fortigate"]},
-    {"name": "Splunk Add-on for Checkpoint", "id": 3435,
-     "tas": ["Splunk_TA_checkpoint"]},
-    {"name": "Splunk Add-on for ServiceNow", "id": 1767,
-     "tas": ["Splunk_TA_snow"]},
-    {"name": "Zscaler Add-on for Splunk", "id": 3865,
-     "tas": ["Splunk_TA_zscaler", "Zscaler"]},
-    {"name": "Netskope Add-on for Splunk", "id": 3808,
-     "tas": ["Netskope Add-on for Splunk", "netskope"]},
-    {"name": "Symantec WSS Add-on for Splunk", "id": 3856,
-     "tas": ["Symantec WSS", "symantec"]},
-    {"name": "SonicWall SMA 1000 TA for Splunk", "id": 6670,
-     "tas": ["SonicWall SMA", "dell:sonicwall"]},
-    {"name": "Cisco Meraki Add-on for Splunk", "id": 5580,
-     "tas": ["Cisco Meraki", "Splunkbase 5580"]},
-    {"name": "Splunk Add-on for Citrix NetScaler", "id": 2770,
-     "tas": ["Splunk_TA_citrix-netscaler", "citrix:netscaler", "NetScaler", "Citrix ADC"]},
-    {"name": "Cisco Intersight Add-on for Splunk", "id": 7828,
-     "tas": ["Cisco Intersight Add-on", "cisco:intersight", "Intersight"]},
-    {"name": "Splunk Add-on for Cisco ASA", "id": 1621,
-     "tas": ["cisco-asa", "Cisco ASA"]},
-    {"name": "Splunk Add-on for Cisco ISE", "id": 1843,
-     "tas": ["Splunk_TA_cisco-ise", "cisco-ise"]},
-    {"name": "Splunk Add-on for Cisco IOS", "id": 1467,
-     "tas": ["TA-cisco_ios"]},
-    {"name": "Okta Identity Cloud Add-on for Splunk", "id": 4412,
-     "tas": ["Splunk_TA_okta"]},
-    {"name": "Splunk Add-on for Nessus", "id": 2804,
-     "tas": ["Splunk_TA_nessus"]},
-    {"name": "OT Security Add-on for Splunk", "id": 5151,
-     "tas": ["OT Security Add-on", "Splunkbase 5151"]},
-    {"name": "Nozomi Networks Universal Add-on", "id": 6905,
-     "url": "https://splunkbase.splunk.com/app/6905",
-     "screenshots": [],
-     "tas": ["Nozomi Networks Universal Add-on", "Splunkbase 6905", "nozomi"],
-     "desc": "Retrieves data from Nozomi Guardian sensors, CMC, and Vantage for OT/ICS cybersecurity and operational visibility",
-     "predecessor": [
-         {"name": "Nozomi Networks Sensor Add-on", "id": 5316, "url": "https://splunkbase.splunk.com/app/5316"}
-     ]},
-    {"name": "CCX Extensions for Nozomi Networks", "id": 6796,
-     "url": "https://splunkbase.splunk.com/app/6796",
-     "screenshots": [],
-     "tas": ["CCX Extensions for Nozomi", "Splunkbase 6796"],
-     "desc": "CIM-compliant field mappings for Nozomi Networks sourcetypes (Alerts, IDS, Network Traffic, Inventory)"},
-    {"name": "TA for Zeek", "id": 5466,
-     "tas": ["Splunkbase 5466", "TA for Zeek"]},
-    {"name": "CrowdStrike Falcon Event Streams TA", "id": 5082,
-     "tas": ["TA-crowdstrike-falcon"]},
-    {"name": "Splunk Add-on for Carbon Black", "id": 4679,
-     "tas": ["Splunk_TA_vmware_carbonblack"]},
-    {"name": "TA for Tanium", "id": 6076,
-     "tas": ["Splunk_TA_tanium"]},
+    {"name": "Splunk Add-on for Unix and Linux", "id": 833, "tas": ["Splunk_TA_nix"]},
+    {"name": "Splunk Add-on for Microsoft Windows", "id": 742, "tas": ["Splunk_TA_windows"]},
+    {"name": "Splunk Add-on for AWS", "id": 1876, "tas": ["Splunk_TA_aws"]},
+    {
+        "name": "Splunk Add-on for Microsoft Cloud Services",
+        "id": 3110,
+        "tas": ["Splunk_TA_microsoft-cloudservices"],
+    },
+    {
+        "name": "Splunk Add-on for Microsoft Office 365",
+        "id": 4055,
+        "tas": ["Splunk_TA_MS_O365", "MS_O365"],
+    },
+    {
+        "name": "Splunk Add-on for Google Cloud Platform",
+        "id": 3088,
+        "tas": ["Splunk_TA_google-cloudplatform"],
+    },
+    {
+        "name": "Splunk Add-on for Google Workspace",
+        "id": 5556,
+        "tas": ["Splunk_TA_GoogleWorkspace"],
+    },
+    {"name": "Splunk Add-on for VMware", "id": 3258, "tas": ["Splunk_TA_vmware", "TA-vmware"]},
+    {"name": "Palo Alto Networks Add-on for Splunk", "id": 2757, "tas": ["Splunk_TA_paloalto"]},
+    {
+        "name": "Splunk Add-on for Fortinet FortiGate",
+        "id": 2846,
+        "tas": ["Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+    },
+    {"name": "Splunk Add-on for Checkpoint", "id": 3435, "tas": ["Splunk_TA_checkpoint"]},
+    {"name": "Splunk Add-on for ServiceNow", "id": 1767, "tas": ["Splunk_TA_snow"]},
+    {"name": "Zscaler Add-on for Splunk", "id": 3865, "tas": ["Splunk_TA_zscaler", "Zscaler"]},
+    {
+        "name": "Netskope Add-on for Splunk",
+        "id": 3808,
+        "tas": ["Netskope Add-on for Splunk", "netskope"],
+    },
+    {"name": "Symantec WSS Add-on for Splunk", "id": 3856, "tas": ["Symantec WSS", "symantec"]},
+    {
+        "name": "SonicWall SMA 1000 TA for Splunk",
+        "id": 6670,
+        "tas": ["SonicWall SMA", "dell:sonicwall"],
+    },
+    {
+        "name": "Cisco Meraki Add-on for Splunk",
+        "id": 5580,
+        "tas": ["Cisco Meraki", "Splunkbase 5580"],
+    },
+    {
+        "name": "Splunk Add-on for Citrix NetScaler",
+        "id": 2770,
+        "tas": ["Splunk_TA_citrix-netscaler", "citrix:netscaler", "NetScaler", "Citrix ADC"],
+    },
+    {
+        "name": "Cisco Intersight Add-on for Splunk",
+        "id": 7828,
+        "tas": ["Cisco Intersight Add-on", "cisco:intersight", "Intersight"],
+    },
+    {"name": "Splunk Add-on for Cisco ASA", "id": 1621, "tas": ["cisco-asa", "Cisco ASA"]},
+    {
+        "name": "Splunk Add-on for Cisco ISE",
+        "id": 1843,
+        "tas": ["Splunk_TA_cisco-ise", "cisco-ise"],
+    },
+    {"name": "Splunk Add-on for Cisco IOS", "id": 1467, "tas": ["TA-cisco_ios"]},
+    {"name": "Okta Identity Cloud Add-on for Splunk", "id": 4412, "tas": ["Splunk_TA_okta"]},
+    {"name": "Splunk Add-on for Nessus", "id": 2804, "tas": ["Splunk_TA_nessus"]},
+    {
+        "name": "OT Security Add-on for Splunk",
+        "id": 5151,
+        "tas": ["OT Security Add-on", "Splunkbase 5151"],
+    },
+    {
+        "name": "Nozomi Networks Universal Add-on",
+        "id": 6905,
+        "url": "https://splunkbase.splunk.com/app/6905",
+        "screenshots": [],
+        "tas": ["Nozomi Networks Universal Add-on", "Splunkbase 6905", "nozomi"],
+        "desc": "Retrieves data from Nozomi Guardian sensors, CMC, and Vantage for OT/ICS cybersecurity and operational visibility",
+        "predecessor": [
+            {
+                "name": "Nozomi Networks Sensor Add-on",
+                "id": 5316,
+                "url": "https://splunkbase.splunk.com/app/5316",
+            }
+        ],
+    },
+    {
+        "name": "CCX Extensions for Nozomi Networks",
+        "id": 6796,
+        "url": "https://splunkbase.splunk.com/app/6796",
+        "screenshots": [],
+        "tas": ["CCX Extensions for Nozomi", "Splunkbase 6796"],
+        "desc": "CIM-compliant field mappings for Nozomi Networks sourcetypes (Alerts, IDS, Network Traffic, Inventory)",
+    },
+    {"name": "TA for Zeek", "id": 5466, "tas": ["Splunkbase 5466", "TA for Zeek"]},
+    {"name": "CrowdStrike Falcon Event Streams TA", "id": 5082, "tas": ["TA-crowdstrike-falcon"]},
+    {"name": "Splunk Add-on for Carbon Black", "id": 4679, "tas": ["Splunk_TA_vmware_carbonblack"]},
+    {"name": "TA for Tanium", "id": 6076, "tas": ["Splunk_TA_tanium"]},
 ]
 
 # Link to the common implementation guide (apps, inputs.conf, Splunk directory)
 IMPLEMENTATION_GUIDE_LINK = "docs/implementation-guide.md"
 
 REGULATION_LABELS = [
-    "GDPR", "CCPA", "NIS2", "DORA", "PCI DSS", "HIPAA", "SOX",
-    "NERC CIP", "ISO 27001", "NIST CSF", "NIST 800-53", "SOC 2",
-    "MiFID II", "FedRAMP", "CMMC", "FISMA", "CJIS",
+    "GDPR",
+    "CCPA",
+    "NIS2",
+    "DORA",
+    "PCI DSS",
+    "HIPAA",
+    "SOX",
+    "NERC CIP",
+    "ISO 27001",
+    "NIST CSF",
+    "NIST 800-53",
+    "SOC 2",
+    "MiFID II",
+    "FedRAMP",
+    "CMMC",
+    "FISMA",
+    "CJIS",
 ]
+
 
 def assign_regulations(uc, cat_id, sub_id):
     """Auto-assign regulation tags based on title/subcategory heuristics.
@@ -724,9 +1328,16 @@ def assign_regulations(uc, cat_id, sub_id):
             auto.add("SOC 2")
 
     # Tier 2: keyword-based
-    for kw in ("pii", "data masking", "data retention", "data subject",
-               "personal data", "anonymization", "pseudonymization",
-               "data protection"):
+    for kw in (
+        "pii",
+        "data masking",
+        "data retention",
+        "data subject",
+        "personal data",
+        "anonymization",
+        "pseudonymization",
+        "data protection",
+    ):
         if kw in title:
             auto.add("GDPR")
             auto.add("CCPA")
@@ -849,17 +1460,30 @@ ESCU_METHODOLOGY_TYPES = {"ttp", "anomaly", "hunting", "baseline", "correlation"
 
 # Detection types from ESCU that represent entity/risk_object_type rather than methodology
 ESCU_ENTITY_LABELS = {
-    "system": "host or system", "user": "user account",
-    "process_name": "process", "process": "process",
-    "parent_process_name": "parent process", "parent_process": "parent process",
-    "ip_address": "IP address", "file_name": "file", "file_path": "file path",
-    "file_hash": "file hash", "url": "URL", "domain": "domain",
-    "http_user_agent": "HTTP user agent", "signature": "detection signature",
-    "email_subject": "email", "email_address": "email address",
-    "service": "service", "registry_path": "registry key",
-    "registry_value_text": "registry value", "registry_value_name": "registry value",
-    "command": "command", "certificate_serial": "certificate",
-    "other": "entity", "operational metrics": "operational metric",
+    "system": "host or system",
+    "user": "user account",
+    "process_name": "process",
+    "process": "process",
+    "parent_process_name": "parent process",
+    "parent_process": "parent process",
+    "ip_address": "IP address",
+    "file_name": "file",
+    "file_path": "file path",
+    "file_hash": "file hash",
+    "url": "URL",
+    "domain": "domain",
+    "http_user_agent": "HTTP user agent",
+    "signature": "detection signature",
+    "email_subject": "email",
+    "email_address": "email address",
+    "service": "service",
+    "registry_path": "registry key",
+    "registry_value_text": "registry value",
+    "registry_value_name": "registry value",
+    "command": "command",
+    "certificate_serial": "certificate",
+    "other": "entity",
+    "operational metrics": "operational metric",
 }
 
 
@@ -963,7 +1587,10 @@ def generate_escu_detailed_impl(uc):
     }
     method_desc = method_descs.get(methodology, "a %s detection" % methodology)
 
-    intro = '"%s" is %s, sourced from the Splunk Enterprise Security Content Update (ESCU).' % (name, method_desc)
+    intro = '"%s" is %s, sourced from the Splunk Enterprise Security Content Update (ESCU).' % (
+        name,
+        method_desc,
+    )
 
     if is_rba and methodology not in ("Hunting", "Baseline"):
         if entity_label:
@@ -971,7 +1598,8 @@ def generate_escu_detailed_impl(uc):
                 " It operates within the Risk-Based Alerting (RBA) framework, attributing risk to %s entities."
                 " Rather than generating standalone alerts, each firing contributes a risk score to the identified"
                 " entity \u2014 Notable Events are created only when cumulative risk exceeds the configured threshold,"
-                " significantly reducing alert fatigue while preserving detection coverage." % entity_label
+                " significantly reducing alert fatigue while preserving detection coverage."
+                % entity_label
             )
         else:
             intro += (
@@ -1005,7 +1633,9 @@ def generate_escu_detailed_impl(uc):
     # ---- Prerequisites ----
     lines.append("Prerequisites")
     lines.append("")
-    lines.append("\u2022 Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.")
+    lines.append(
+        "\u2022 Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date."
+    )
     lines.append(
         "\u2022 Data sources: %s. Must be ingested into Splunk and normalized to the Common Information Model (CIM)"
         " via the appropriate Technology Add-on." % data_sources
@@ -1028,8 +1658,11 @@ def generate_escu_detailed_impl(uc):
             "access": "Verify access control and authorization logs are ingested and the Authentication data model is accelerated.",
             "audit": "Ensure audit trail data is ingested with proper timestamp parsing and CIM field mappings.",
         }
-        desc = domain_prereqs.get(sdomain.lower(),
-                                  "Ensure data relevant to the %s security domain is ingested and CIM-normalized." % sdomain)
+        desc = domain_prereqs.get(
+            sdomain.lower(),
+            "Ensure data relevant to the %s security domain is ingested and CIM-normalized."
+            % sdomain,
+        )
         lines.append("\u2022 Security domain (%s): %s" % (sdomain, desc))
 
     if mitre:
@@ -1045,7 +1678,9 @@ def generate_escu_detailed_impl(uc):
     lines.append("")
 
     if methodology == "Hunting":
-        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append(
+            "1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management."
+        )
         lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
         lines.append(
             "3. Hunting detections are typically left disabled for automated scheduling."
@@ -1060,7 +1695,9 @@ def generate_escu_detailed_impl(uc):
             " or initiate your incident response workflow."
         )
     elif methodology == "Baseline":
-        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append(
+            "1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management."
+        )
         lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
         lines.append(
             "3. Enable the Baseline detection and allow it to run for at least 14 days"
@@ -1075,8 +1712,12 @@ def generate_escu_detailed_impl(uc):
             " Focus on ensuring consistent data ingestion during the baseline period."
         )
     elif is_rba:
-        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
-        lines.append('2. Search for "%s" or filter by Analytic Story to locate the detection.' % name)
+        lines.append(
+            "1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management."
+        )
+        lines.append(
+            '2. Search for "%s" or filter by Analytic Story to locate the detection.' % name
+        )
         lines.append(
             "3. Review the detection\u2019s configuration: scheduling interval, risk score weight,"
             " and risk message template. The default risk score reflects the detection\u2019s relative"
@@ -1097,7 +1738,9 @@ def generate_escu_detailed_impl(uc):
             " triage watchlist, or triggering a SOAR playbook for high-confidence detections."
         )
     else:
-        lines.append("1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management.")
+        lines.append(
+            "1. In Enterprise Security, navigate to Configure \u2192 Content \u2192 Content Management."
+        )
         lines.append('2. Search for "%s" or filter by Analytic Story.' % name)
         lines.append(
             "3. Review the detection configuration \u2014 verify the scheduling interval and"
@@ -1232,11 +1875,13 @@ def generate_escu_detailed_impl(uc):
                     " Verify against the user\u2019s role and recent access requests."
                 ),
             }
-            lines.append(domain_investigation.get(
-                sdomain.lower() if sdomain else "",
-                "3. Pivot to the Asset Investigator or Identity Investigator to review the entity\u2019s"
-                " full activity timeline and correlate with threat intelligence and other security events."
-            ))
+            lines.append(
+                domain_investigation.get(
+                    sdomain.lower() if sdomain else "",
+                    "3. Pivot to the Asset Investigator or Identity Investigator to review the entity\u2019s"
+                    " full activity timeline and correlate with threat intelligence and other security events.",
+                )
+            )
 
             lines.append(
                 "4. Assess the full scope: check for related risk events from the same Analytic Story"
@@ -1508,9 +2153,9 @@ def _load_sidecar_equipment_cache():
     empty-tuple entry so callers can distinguish "sidecar says no equipment"
     from "no sidecar exists".
 
-    Primary source is ``content/cat-*/UC-*.json``; ``use-cases/**/uc-*.json``
-    fills missing ids and triggers stderr warnings when equipment is only
-    authored under ``use-cases/``.
+    The JSON SSOT (``content/cat-*/UC-*.json``) is the only source. The
+    legacy ``use-cases/**/uc-*.json`` fallback was removed in v8.2.0
+    when the markdown corpus was retired.
 
     Cached for the life of the build. Called from build_index(), not at
     module load, so tests that import build.py don't pay the I/O cost.
@@ -1519,7 +2164,6 @@ def _load_sidecar_equipment_cache():
     if _SIDECAR_EQUIPMENT_CACHE is not None:
         return _SIDECAR_EQUIPMENT_CACHE
     cache = {}
-    content_tree_present = os.path.isdir(CONTENT_DIR)
 
     def _equipment_pair_from_dict(
         side: dict,
@@ -1535,16 +2179,13 @@ def _load_sidecar_equipment_cache():
             equipment_models = []
         return uc_id, (list(equipment), list(equipment_models))
 
-    # 1) Primary: content/cat-*/UC-*.json
     if os.path.isdir(CONTENT_DIR):
-        content_paths = sorted(
-            glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json"))
-        )
+        content_paths = sorted(glob.glob(os.path.join(CONTENT_DIR, "cat-*", "UC-*.json")))
         for path in content_paths:
             try:
-                with open(path, "r", encoding="utf-8") as fh:
+                with open(path, encoding="utf-8") as fh:
                     side = json.load(fh)
-            except (IOError, ValueError) as exc:
+            except (OSError, ValueError) as exc:
                 print(f"  WARN  skipping malformed content sidecar {path}: {exc}")
                 continue
             if not isinstance(side, dict):
@@ -1554,46 +2195,6 @@ def _load_sidecar_equipment_cache():
                 continue
             uc_id, pair = parsed
             cache[uc_id] = pair
-
-    # 2) Fallback + drift detection: use-cases/**/uc-*.json
-    if os.path.isdir(UC_DIR):
-        for root, _dirs, files in os.walk(UC_DIR):
-            for fname in files:
-                if not fname.startswith("uc-") or not fname.endswith(".json"):
-                    continue
-                path = os.path.join(root, fname)
-                try:
-                    with open(path, "r", encoding="utf-8") as fh:
-                        side = json.load(fh)
-                except (IOError, ValueError) as exc:
-                    print(f"  WARN  skipping malformed sidecar {path}: {exc}")
-                    continue
-                if not isinstance(side, dict):
-                    continue
-                parsed = _equipment_pair_from_dict(side)
-                if parsed is None:
-                    continue
-                uc_id, (equipment, equipment_models) = parsed
-                use_cases_has = bool(equipment) or bool(equipment_models)
-                if uc_id not in cache:
-                    cache[uc_id] = (equipment, equipment_models)
-                    if content_tree_present and use_cases_has:
-                        print(
-                            f"  WARN  equipment drift: UC {uc_id} has equipment "
-                            f"data in use-cases ({path}) but no matching entry "
-                            f"in content/cat-*/UC-*.json; using use-cases as fallback.",
-                            file=sys.stderr,
-                        )
-                    continue
-                ceq, cmodels = cache[uc_id]
-                content_has = bool(ceq) or bool(cmodels)
-                if content_tree_present and use_cases_has and not content_has:
-                    print(
-                        f"  WARN  equipment drift: UC {uc_id} has equipment data "
-                        f"in use-cases ({path}) but not in content/; canonical "
-                        f"content sidecar should carry equipment[] / equipmentModels[].",
-                        file=sys.stderr,
-                    )
 
     _SIDECAR_EQUIPMENT_CACHE = cache
     return cache
@@ -1676,9 +2277,9 @@ def _populate_content_sidecar_caches():
                 continue
             path = os.path.join(root, fname)
             try:
-                with open(path, "r", encoding="utf-8") as fh:
+                with open(path, encoding="utf-8") as fh:
                     side = json.load(fh)
-            except (IOError, ValueError) as exc:
+            except (OSError, ValueError) as exc:
                 print(f"  WARN  skipping malformed sidecar {path}: {exc}")
                 continue
             if not isinstance(side, dict):
@@ -1702,9 +2303,14 @@ def _populate_content_sidecar_caches():
                         reg = entry.get("regulation")
                         ver = entry.get("version")
                         clause = entry.get("clause")
-                        if not (isinstance(reg, str) and reg
-                                and isinstance(ver, str) and ver
-                                and isinstance(clause, str) and clause):
+                        if not (
+                            isinstance(reg, str)
+                            and reg
+                            and isinstance(ver, str)
+                            and ver
+                            and isinstance(clause, str)
+                            and clause
+                        ):
                             continue
                         row = {
                             "r": reg.strip(),
@@ -1738,11 +2344,7 @@ def _populate_content_sidecar_caches():
                     entry["kfp"] = kfp.strip()
                 mitre = side.get("mitreAttack")
                 if isinstance(mitre, list) and mitre:
-                    entry["mitre"] = [
-                        str(m).strip()
-                        for m in mitre
-                        if str(m).strip()
-                    ]
+                    entry["mitre"] = [str(m).strip() for m in mitre if str(m).strip()]
                 reviewed = side.get("lastReviewed")
                 if isinstance(reviewed, str) and reviewed.strip():
                     entry["reviewed"] = reviewed.strip()
@@ -2105,7 +2707,9 @@ def _spl_explain_intro(spl, ctx, cim_variant=False):
         if bits:
             cross = "The first pipeline stage scopes events using " + "; ".join(bits) + "."
             if ds and terms["sourcetypes"]:
-                matched = [s for s in terms["sourcetypes"] if _data_sources_mention_sourcetype(ds, s)]
+                matched = [
+                    s for s in terms["sourcetypes"] if _data_sources_mention_sourcetype(ds, s)
+                ]
                 if matched:
                     cross += (
                         " That sourcetype matches what this use case lists under Data sources."
@@ -2210,18 +2814,26 @@ def _explain_one_spl_stage(stage, stage_index=0, ctx=None):
     if low.startswith("top"):
         by_c = _extract_by_clause(st)
         if by_c:
-            return "`top` lists the most common values, **by %s**, for quick hotspot analysis." % by_c
+            return (
+                "`top` lists the most common values, **by %s**, for quick hotspot analysis." % by_c
+            )
         return "`top` shows the most frequent field values (limit with an explicit `limit=` if needed)."
     if low.startswith("rare"):
         by_c = _extract_by_clause(st)
         if by_c:
-            return "`rare` surfaces the least common values, **by %s** — helpful for outliers tied to this scenario." % by_c
+            return (
+                "`rare` surfaces the least common values, **by %s** — helpful for outliers tied to this scenario."
+                % by_c
+            )
         return "Shows the least frequent field values with `rare`."
     if low.startswith("eval"):
         ev = re.search(r"eval\s+([^=]+)=", st, re.I)
         if ev:
             fld = ev.group(1).strip().split()[0]
-            return "`eval` defines or adjusts **%s** — often to normalize units, derive a ratio, or prepare for thresholds." % fld
+            return (
+                "`eval` defines or adjusts **%s** — often to normalize units, derive a ratio, or prepare for thresholds."
+                % fld
+            )
         return "Computes or normalizes fields using `eval` (ratios, coalesce, string prep)."
     if low.startswith("where"):
         wm = re.search(r"^\s*where\s+(.+)$", st, re.I | re.S)
@@ -2318,7 +2930,9 @@ def _explain_one_spl_stage(stage, stage_index=0, ctx=None):
             return line
         return "Filters the initial event set (index, sourcetype, host, time, tags, etc.)."
     if st.startswith("["):
-        return "Uses a bracketed subsearch `[ ... ]` whose results constrain or feed the outer search."
+        return (
+            "Uses a bracketed subsearch `[ ... ]` whose results constrain or feed the outer search."
+        )
     # Fallback: short preview
     one = " ".join(st.split())
     if len(one) > 140:
@@ -2353,7 +2967,9 @@ def explain_spl_pipeline(spl, max_bullets=24, uc=None, cim_variant=False):
             bullets.append(line)
     if not bullets:
         return ""
-    title_heading = "Understanding this CIM / accelerated SPL" if cim_variant else "Understanding this SPL"
+    title_heading = (
+        "Understanding this CIM / accelerated SPL" if cim_variant else "Understanding this SPL"
+    )
     out = [title_heading, ""]
     intro = _spl_explain_intro(spl, ctx, cim_variant=cim_variant) if ctx else ""
     if intro:
@@ -2376,12 +2992,19 @@ def generate_detailed_impl(uc):
     qs = (uc.get("qs") or "").strip()
     script = (uc.get("script") or "").strip()
     # First 2–3 sentences of implementation for Step 1 (cap length)
-    m_lead = m[:500] + ("…" if len(m) > 500 else "") if m else "Configure inputs and permissions as needed for your environment."
+    m_lead = (
+        m[:500] + ("…" if len(m) > 500 else "")
+        if m
+        else "Configure inputs and permissions as needed for your environment."
+    )
     lines = [
         "Prerequisites",
         "• Install and configure the required add-on or app: " + (t or "see App/TA above") + ".",
-        "• Ensure the following data sources are available: " + (d or "see Data Sources above") + ".",
-        "• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: " + IMPLEMENTATION_GUIDE_LINK,
+        "• Ensure the following data sources are available: "
+        + (d or "see Data Sources above")
+        + ".",
+        "• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: "
+        + IMPLEMENTATION_GUIDE_LINK,
         "",
         "Step 1 — Configure data collection",
         m_lead,
@@ -2389,7 +3012,9 @@ def generate_detailed_impl(uc):
         "Step 2 — Create the search and alert",
     ]
     if q:
-        lines.append("Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):")
+        lines.append(
+            "Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):"
+        )
         lines.append("")
         lines.append("```spl")
         lines.append(q)
@@ -2400,7 +3025,9 @@ def generate_detailed_impl(uc):
             lines.append(expl)
             lines.append("")
         if qs:
-            lines.append("Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):")
+            lines.append(
+                "Optional CIM / accelerated variant (same use case, normalized fields via Common Information Model):"
+            )
             lines.append("")
             lines.append("```spl")
             lines.append(qs)
@@ -2421,58 +3048,72 @@ def generate_detailed_impl(uc):
             )
             lines.append("")
     else:
-        lines.append("Run the SPL query from the SPL Query section above in Search. Save as a report or alert. Adjust the time range and threshold as needed. If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model.")
-    lines.extend([
-        "",
-        "Step 3 — Validate",
-        "Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.",
-        "",
-        "Step 4 — Operationalize",
-        "Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. " + (("Consider visualizations: " + z) if z else "Use the Visualization section above for suggested panels."),
-    ])
+        lines.append(
+            "Run the SPL query from the SPL Query section above in Search. Save as a report or alert. Adjust the time range and threshold as needed. If the use case includes a tstats/CIM query, enable Data Model Acceleration for the relevant data model."
+        )
+    lines.extend(
+        [
+            "",
+            "Step 3 — Validate",
+            "Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.",
+            "",
+            "Step 4 — Operationalize",
+            "Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. "
+            + (
+                ("Consider visualizations: " + z)
+                if z
+                else "Use the Visualization section above for suggested panels."
+            ),
+        ]
+    )
     # Scripted input: use explicit script if present; else add generic example when use case mentions scripted input
     d_m_lower = (d + " " + m).lower()
     if script:
-        lines.extend([
-            "",
-            "Scripted input example",
-            "Use the script below in a scripted input (see Implementation guide for inputs.conf). Ensure the script is executable and the path in inputs.conf matches your app location:",
-            "",
-            "```bash",
-            script,
-            "```",
-        ])
+        lines.extend(
+            [
+                "",
+                "Scripted input example",
+                "Use the script below in a scripted input (see Implementation guide for inputs.conf). Ensure the script is executable and the path in inputs.conf matches your app location:",
+                "",
+                "```bash",
+                script,
+                "```",
+            ]
+        )
     elif "scripted" in d_m_lower:
-        lines.extend([
-            "",
-            "Scripted input (generic example)",
-            "This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:",
-            "",
-            "```ini",
-            "[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]",
-            "interval = 300",
-            "sourcetype = your_sourcetype",
-            "index = main",
-            "disabled = 0",
-            "```",
-            "",
-            "The script should print one event per line (e.g. key=value). Example minimal script (bash):",
-            "",
-            "```bash",
-            "#!/usr/bin/env bash",
-            "# Output metrics or events, one per line",
-            "echo \"metric=value timestamp=$(date +%s)\"",
-            "```",
-            "",
-            "For full details (paths, scheduling, permissions), see the Implementation guide: " + IMPLEMENTATION_GUIDE_LINK,
-        ])
+        lines.extend(
+            [
+                "",
+                "Scripted input (generic example)",
+                "This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:",
+                "",
+                "```ini",
+                "[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]",
+                "interval = 300",
+                "sourcetype = your_sourcetype",
+                "index = main",
+                "disabled = 0",
+                "```",
+                "",
+                "The script should print one event per line (e.g. key=value). Example minimal script (bash):",
+                "",
+                "```bash",
+                "#!/usr/bin/env bash",
+                "# Output metrics or events, one per line",
+                'echo "metric=value timestamp=$(date +%s)"',
+                "```",
+                "",
+                "For full details (paths, scheduling, permissions), see the Implementation guide: "
+                + IMPLEMENTATION_GUIDE_LINK,
+            ]
+        )
     return "\n".join(lines)
 
 
 def parse_category_file(filepath):
     """Parse a single cat-*.md file into a category dict."""
     basename = os.path.basename(filepath)
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         content = f.read()
 
     lines = content.split("\n")
@@ -2513,7 +3154,9 @@ def parse_category_file(filepath):
         if m:
             category["i"] = int(m.group(1))
             category["n"] = m.group(2).strip()
-            category["src"] = basename  # e.g. cat-10-security-infrastructure.md — for GitHub source links
+            category["src"] = (
+                basename  # e.g. cat-10-security-infrastructure.md — for GitHub source links
+            )
             i += 1
             continue
 
@@ -2545,29 +3188,29 @@ def parse_category_file(filepath):
                 "q": "",
                 "m": "",
                 "z": "",
-                "kfp": "",   # known false positives (SSE)
+                "kfp": "",  # known false positives (SSE)
                 "refs": "",  # references (URLs, comma-separated)
-                "mitre": [], # MITRE ATT&CK IDs
-                "dtype": "", # detection type: TTP, Anomaly, Baseline, Hunting, Correlation
-                "sdomain": "", # security domain: endpoint, network, threat, identity, etc.
-                "reqf": "",   # required fields for the search
-                "md": "",    # detailed implementation (expandable); parsed or generated
+                "mitre": [],  # MITRE ATT&CK IDs
+                "dtype": "",  # detection type: TTP, Anomaly, Baseline, Hunting, Correlation
+                "sdomain": "",  # security domain: endpoint, network, threat, identity, etc.
+                "reqf": "",  # required fields for the search
+                "md": "",  # detailed implementation (expandable); parsed or generated
                 "script": "",  # optional script example (scripted input)
                 "premium": "",  # Premium Apps (ES, ITSI, SOAR, etc.) when required
-                "hw": "",       # Equipment Models — specific hardware models (searchable)
-                "dma": "",    # data model acceleration note (e.g. "Enable for Performance, Network_Traffic")
-                "schema": "", # schema context: CIM, OCSF, or e.g. "OCSF: authentication"
-                "status": "",   # quality status: verified | community | draft (v5.1+)
-                "reviewed": "", # last reviewed date, YYYY-MM-DD (v5.1+)
-                "sver": "",     # Splunk versions, e.g. "9.2+" or "Cloud" (v5.1+)
-                "rby": "",      # Reviewer handle or "N/A" (v5.1+)
-                "ge": "",       # grandmaExplanation — plain-language non-technical summary (v7.x+)
+                "hw": "",  # Equipment Models — specific hardware models (searchable)
+                "dma": "",  # data model acceleration note (e.g. "Enable for Performance, Network_Traffic")
+                "schema": "",  # schema context: CIM, OCSF, or e.g. "OCSF: authentication"
+                "status": "",  # quality status: verified | community | draft (v5.1+)
+                "reviewed": "",  # last reviewed date, YYYY-MM-DD (v5.1+)
+                "sver": "",  # Splunk versions, e.g. "9.2+" or "Cloud" (v5.1+)
+                "rby": "",  # Reviewer handle or "N/A" (v5.1+)
+                "ge": "",  # grandmaExplanation — plain-language non-technical summary (v7.x+)
             }
             if current_sub is not None:
                 current_sub["u"].append(current_uc)
             else:
                 orphan_ucs.append(
-                    f"{filepath}:{i+1}: UC-{current_uc['i']} appears before any subcategory heading — use case will be lost"
+                    f"{filepath}:{i + 1}: UC-{current_uc['i']} appears before any subcategory heading — use case will be lost"
                 )
             last_field = None
             i += 1
@@ -2639,8 +3282,12 @@ def parse_category_file(filepath):
                     i += 1
                     while i < len(lines):
                         next_stripped = lines[i].strip()
-                        if (next_stripped.startswith("- **") or next_stripped.startswith("###") or
-                                next_stripped == "---" or next_stripped.startswith("```")):
+                        if (
+                            next_stripped.startswith("- **")
+                            or next_stripped.startswith("###")
+                            or next_stripped == "---"
+                            or next_stripped.startswith("```")
+                        ):
                             break
                         if next_stripped:
                             current_uc["md"] += "\n" + next_stripped
@@ -2741,20 +3388,15 @@ def parse_category_file(filepath):
             elif not (uc.get("md") or "").strip():
                 uc["md"] = generate_detailed_impl(uc)
 
-            # Equipment tagging: the per-UC sidecar under
-            # use-cases/cat-<n>/uc-<id>.json is the source of truth when
-            # present because scripts/generate_equipment_tags.py computes
+            # Equipment tagging: the per-UC SSOT sidecar at
+            # content/cat-<n>-<slug>/UC-<id>.json is the source of truth
+            # when present because the equipment-tags generator computes
             # `equipment[]` / `equipmentModels[]` from the full narrative
             # (app + dataSources + spl + implementation), not just the
-            # curated `app` field build.py has access to. For cat-22's 1,287
-            # regulatory UCs this closes a ~33% false-negative gap where
-            # equipment like Azure AD, OPC UA, Modbus, and ServiceNow lived
-            # only in the SPL. Fall back to the legacy substring match on
-            # the markdown `App/TA:` field for UCs without a sidecar (every
-            # category other than 22 today). See docs/equipment-table.md.
-            sidecar_eq, sidecar_models = _sidecar_equipment_tags(
-                cat_id, uc.get("i")
-            )
+            # curated `app` field. For UCs without a sidecar (legacy
+            # holdouts) we fall back to the substring match on the
+            # `App/TA:` field. See docs/equipment-table.md.
+            sidecar_eq, sidecar_models = _sidecar_equipment_tags(cat_id, uc.get("i"))
             if sidecar_eq is not None:
                 uc["e"] = sidecar_eq
                 uc["em"] = sidecar_models
@@ -2839,10 +3481,10 @@ def parse_index_metadata():
         print("  WARNING: INDEX.md not found — no CAT_META or CAT_STARTERS")
         return {}, {}
 
-    with open(index_path, "r", encoding="utf-8") as f:
+    with open(index_path, encoding="utf-8") as f:
         content = f.read()
 
-    cat_meta = {}   # {cat_id_str: {icon, desc}}
+    cat_meta = {}  # {cat_id_str: {icon, desc}}
     cat_starters = {}  # {cat_id_str: [{i, n, c, sc}, ...]}
 
     current_cat = None
@@ -2917,119 +3559,188 @@ FILTER_DTYPE_ALLOW = {"TTP", "Anomaly", "Hunting", "Baseline", "Correlation", "O
 
 # ── Hierarchical data-source grouping ────────────────────────────────
 DS_GROUPS = [
-    ("Windows Event Logs", [
-        re.compile(r"^Windows Event Log\b", re.I),
-        re.compile(r"^WinEventLog:", re.I),
-        re.compile(r"^NTLM Operational\b", re.I),
-    ]),
-    ("Sysmon", [
-        re.compile(r"^Sysmon\b", re.I),
-    ]),
-    ("PowerShell", [
-        re.compile(r"^Powershell\b", re.I),
-    ]),
-    ("Linux & Unix", [
-        re.compile(r"^Linux Audit", re.I),
-        re.compile(r"^linux_", re.I),
-        re.compile(r"^(proc|vmstat|cpu|memory|sys|dmesg|osquery|net|df)$", re.I),
-    ]),
-    ("CrowdStrike", [
-        re.compile(r"^CrowdStrike\b", re.I),
-    ]),
-    ("EDR & Endpoint", [
-        re.compile(r"^EDR$", re.I),
-        re.compile(r"^Cisco Isovalent", re.I),
-    ]),
-    ("Cisco", [
-        re.compile(r"^Cisco\b", re.I),
-        re.compile(r"^cisco:", re.I),
-        re.compile(r"^meraki:", re.I),
-        re.compile(r"^APIC\b", re.I),
-    ]),
-    ("AWS", [
-        re.compile(r"^AWS\b", re.I),
-        re.compile(r"^aws:", re.I),
-        re.compile(r"^ASL AWS\b", re.I),
-    ]),
-    ("Azure & Entra ID", [
-        re.compile(r"^Azure\b", re.I),
-        re.compile(r"^azure:", re.I),
-    ]),
-    ("Microsoft 365", [
-        re.compile(r"^Office 365\b", re.I),
-        re.compile(r"^O365\b", re.I),
-        re.compile(r"^M365\b", re.I),
-    ]),
-    ("Google Workspace", [
-        re.compile(r"^Google\b", re.I),
-        re.compile(r"^G Suite\b", re.I),
-    ]),
-    ("VMware", [
-        re.compile(r"^VMware\b", re.I),
-        re.compile(r"^VMWare\b", re.I),
-        re.compile(r"^vmware:", re.I),
-        re.compile(r"^ESXi\b", re.I),
-    ]),
-    ("Kubernetes", [
-        re.compile(r"^Kubernetes\b", re.I),
-        re.compile(r"^kube:", re.I),
-        re.compile(r"^argocd:", re.I),
-    ]),
-    ("Palo Alto", [
-        re.compile(r"^Palo Alto\b", re.I),
-        re.compile(r"^pan:", re.I),
-    ]),
-    ("Network & Syslog", [
-        re.compile(r"^syslog$", re.I),
-        re.compile(r"^netflow$", re.I),
-        re.compile(r"^firewall$", re.I),
-        re.compile(r"^Suricata$", re.I),
-        re.compile(r"^(IDS|IPS|VPN)$", re.I),
-        re.compile(r"^SNMP", re.I),
-        re.compile(r"^snmp:", re.I),
-        re.compile(r"^stream:", re.I),
-        re.compile(r"^infoblox:", re.I),
-        re.compile(r"^DNS\b", re.I),
-        re.compile(r"^Firewall traffic", re.I),
-    ]),
-    ("ThousandEyes", [
-        re.compile(r"^ThousandEyes\b", re.I),
-        re.compile(r"^index=thousandeyes", re.I),
-    ]),
-    ("Okta & Duo", [
-        re.compile(r"^Okta", re.I),
-        re.compile(r"^Cisco Duo\b", re.I),
-        re.compile(r"^PingID$", re.I),
-    ]),
-    ("GitHub", [
-        re.compile(r"^GitHub\b", re.I),
-    ]),
-    ("ServiceNow", [
-        re.compile(r"^snow:", re.I),
-        re.compile(r"^CMDB$", re.I),
-    ]),
-    ("Edge Hub & OT", [
-        re.compile(r"^edge_hub", re.I),
-        re.compile(r"^index=edge-hub", re.I),
-    ]),
-    ("Splunk Platform", [
-        re.compile(r"^license:", re.I),
-        re.compile(r"^itsi_", re.I),
-        re.compile(r"^index=_internal", re.I),
-    ]),
-    ("Web & Proxy", [
-        re.compile(r"^WAF$", re.I),
-        re.compile(r"^proxy$", re.I),
-        re.compile(r"^Nginx\b", re.I),
-        re.compile(r"^IIS$", re.I),
-        re.compile(r"^Splunk Stream HTTP", re.I),
-        re.compile(r"^DLP$", re.I),
-    ]),
-    ("AI & LLM", [
-        re.compile(r"^Ollama\b", re.I),
-        re.compile(r"^openai:", re.I),
-        re.compile(r"^MCP\b", re.I),
-    ]),
+    (
+        "Windows Event Logs",
+        [
+            re.compile(r"^Windows Event Log\b", re.I),
+            re.compile(r"^WinEventLog:", re.I),
+            re.compile(r"^NTLM Operational\b", re.I),
+        ],
+    ),
+    (
+        "Sysmon",
+        [
+            re.compile(r"^Sysmon\b", re.I),
+        ],
+    ),
+    (
+        "PowerShell",
+        [
+            re.compile(r"^Powershell\b", re.I),
+        ],
+    ),
+    (
+        "Linux & Unix",
+        [
+            re.compile(r"^Linux Audit", re.I),
+            re.compile(r"^linux_", re.I),
+            re.compile(r"^(proc|vmstat|cpu|memory|sys|dmesg|osquery|net|df)$", re.I),
+        ],
+    ),
+    (
+        "CrowdStrike",
+        [
+            re.compile(r"^CrowdStrike\b", re.I),
+        ],
+    ),
+    (
+        "EDR & Endpoint",
+        [
+            re.compile(r"^EDR$", re.I),
+            re.compile(r"^Cisco Isovalent", re.I),
+        ],
+    ),
+    (
+        "Cisco",
+        [
+            re.compile(r"^Cisco\b", re.I),
+            re.compile(r"^cisco:", re.I),
+            re.compile(r"^meraki:", re.I),
+            re.compile(r"^APIC\b", re.I),
+        ],
+    ),
+    (
+        "AWS",
+        [
+            re.compile(r"^AWS\b", re.I),
+            re.compile(r"^aws:", re.I),
+            re.compile(r"^ASL AWS\b", re.I),
+        ],
+    ),
+    (
+        "Azure & Entra ID",
+        [
+            re.compile(r"^Azure\b", re.I),
+            re.compile(r"^azure:", re.I),
+        ],
+    ),
+    (
+        "Microsoft 365",
+        [
+            re.compile(r"^Office 365\b", re.I),
+            re.compile(r"^O365\b", re.I),
+            re.compile(r"^M365\b", re.I),
+        ],
+    ),
+    (
+        "Google Workspace",
+        [
+            re.compile(r"^Google\b", re.I),
+            re.compile(r"^G Suite\b", re.I),
+        ],
+    ),
+    (
+        "VMware",
+        [
+            re.compile(r"^VMware\b", re.I),
+            re.compile(r"^VMWare\b", re.I),
+            re.compile(r"^vmware:", re.I),
+            re.compile(r"^ESXi\b", re.I),
+        ],
+    ),
+    (
+        "Kubernetes",
+        [
+            re.compile(r"^Kubernetes\b", re.I),
+            re.compile(r"^kube:", re.I),
+            re.compile(r"^argocd:", re.I),
+        ],
+    ),
+    (
+        "Palo Alto",
+        [
+            re.compile(r"^Palo Alto\b", re.I),
+            re.compile(r"^pan:", re.I),
+        ],
+    ),
+    (
+        "Network & Syslog",
+        [
+            re.compile(r"^syslog$", re.I),
+            re.compile(r"^netflow$", re.I),
+            re.compile(r"^firewall$", re.I),
+            re.compile(r"^Suricata$", re.I),
+            re.compile(r"^(IDS|IPS|VPN)$", re.I),
+            re.compile(r"^SNMP", re.I),
+            re.compile(r"^snmp:", re.I),
+            re.compile(r"^stream:", re.I),
+            re.compile(r"^infoblox:", re.I),
+            re.compile(r"^DNS\b", re.I),
+            re.compile(r"^Firewall traffic", re.I),
+        ],
+    ),
+    (
+        "ThousandEyes",
+        [
+            re.compile(r"^ThousandEyes\b", re.I),
+            re.compile(r"^index=thousandeyes", re.I),
+        ],
+    ),
+    (
+        "Okta & Duo",
+        [
+            re.compile(r"^Okta", re.I),
+            re.compile(r"^Cisco Duo\b", re.I),
+            re.compile(r"^PingID$", re.I),
+        ],
+    ),
+    (
+        "GitHub",
+        [
+            re.compile(r"^GitHub\b", re.I),
+        ],
+    ),
+    (
+        "ServiceNow",
+        [
+            re.compile(r"^snow:", re.I),
+            re.compile(r"^CMDB$", re.I),
+        ],
+    ),
+    (
+        "Edge Hub & OT",
+        [
+            re.compile(r"^edge_hub", re.I),
+            re.compile(r"^index=edge-hub", re.I),
+        ],
+    ),
+    (
+        "Splunk Platform",
+        [
+            re.compile(r"^license:", re.I),
+            re.compile(r"^itsi_", re.I),
+            re.compile(r"^index=_internal", re.I),
+        ],
+    ),
+    (
+        "Web & Proxy",
+        [
+            re.compile(r"^WAF$", re.I),
+            re.compile(r"^proxy$", re.I),
+            re.compile(r"^Nginx\b", re.I),
+            re.compile(r"^IIS$", re.I),
+            re.compile(r"^Splunk Stream HTTP", re.I),
+            re.compile(r"^DLP$", re.I),
+        ],
+    ),
+    (
+        "AI & LLM",
+        [
+            re.compile(r"^Ollama\b", re.I),
+            re.compile(r"^openai:", re.I),
+            re.compile(r"^MCP\b", re.I),
+        ],
+    ),
 ]
 
 _DS_GARBAGE = re.compile(
@@ -3057,8 +3768,8 @@ def extract_filter_facets(data):
     sapp_map = {}
     industries = set()
     mitres = set()
-    datasources = {}   # name → count
-    ds_uc_groups = {}   # group_name → set of UC IDs (for deduped count)
+    datasources = {}  # name → count
+    ds_uc_groups = {}  # group_name → set of UC IDs (for deduped count)
 
     for group_name, _ in DS_GROUPS:
         ds_uc_groups[group_name] = set()
@@ -3089,9 +3800,11 @@ def extract_filter_facets(data):
                         tok = tok.strip().strip("`")
                         if not tok or len(tok) < 3:
                             continue
-                        clean = re.sub(
-                            r"^sourcetype\s*=\s*", "", tok, flags=re.IGNORECASE
-                        ).strip('"').strip("'")
+                        clean = (
+                            re.sub(r"^sourcetype\s*=\s*", "", tok, flags=re.IGNORECASE)
+                            .strip('"')
+                            .strip("'")
+                        )
                         if not clean or _DS_GARBAGE.match(clean):
                             continue
                         datasources[clean] = datasources.get(clean, 0) + 1
@@ -3114,17 +3827,21 @@ def extract_filter_facets(data):
     ds_groups_out = []
     for group_name, _ in DS_GROUPS:
         if group_name in grouped:
-            ds_groups_out.append({
-                "name": group_name,
-                "total": len(ds_uc_groups.get(group_name, set())),
-                "sources": grouped[group_name],
-            })
+            ds_groups_out.append(
+                {
+                    "name": group_name,
+                    "total": len(ds_uc_groups.get(group_name, set())),
+                    "sources": grouped[group_name],
+                }
+            )
     if "__other__" in grouped:
-        ds_groups_out.append({
-            "name": "Other",
-            "total": len(grouped["__other__"]),
-            "sources": grouped["__other__"],
-        })
+        ds_groups_out.append(
+            {
+                "name": "Other",
+                "total": len(grouped["__other__"]),
+                "sources": grouped["__other__"],
+            }
+        )
 
     return {
         "dtype": sorted(dtypes),
@@ -3138,11 +3855,23 @@ def extract_filter_facets(data):
 
 
 MITRE_TACTIC_ORDER = [
-    "reconnaissance", "resource-development", "initial-access", "execution",
-    "persistence", "privilege-escalation", "defense-evasion", "credential-access",
-    "discovery", "lateral-movement", "collection", "command-and-control",
-    "exfiltration", "impact",
-    "evasion", "inhibit-response-function", "impair-process-control",
+    "reconnaissance",
+    "resource-development",
+    "initial-access",
+    "execution",
+    "persistence",
+    "privilege-escalation",
+    "defense-evasion",
+    "credential-access",
+    "discovery",
+    "lateral-movement",
+    "collection",
+    "command-and-control",
+    "exfiltration",
+    "impact",
+    "evasion",
+    "inhibit-response-function",
+    "impair-process-control",
 ]
 
 MITRE_TACTIC_LABELS = {
@@ -3197,7 +3926,13 @@ def _mitre_by_tactic(technique_ids):
         result.append({"tactic": tactic, "label": label, "techniques": items})
 
     if ungrouped:
-        result.append({"tactic": "_other", "label": "Other", "techniques": sorted(ungrouped, key=lambda x: x["id"])})
+        result.append(
+            {
+                "tactic": "_other",
+                "label": "Other",
+                "techniques": sorted(ungrouped, key=lambda x: x["id"]),
+            }
+        )
 
     return result
 
@@ -3236,13 +3971,28 @@ def write_data_js(data, cat_meta, output_path, recently_added=None, roadmap=None
     return size_kb
 
 
-def _cat_file_for_id(cat_id, files):
-    """Return the basename of the category file matching cat_id (int)."""
+def _cat_slug_for_id(cat_id, files):
+    """Return the SSOT directory slug for ``cat_id`` (e.g. ``cat-22-regulatory-compliance``).
+
+    The legacy markdown twin used to live at
+    ``use-cases/<slug>.md``; post-v8.2.0 ``files`` is populated with the
+    SSOT directory name (slug) by ``parse_content.py`` and writers emit
+    links into ``content/<slug>/`` instead.
+    """
     prefix = f"cat-{cat_id:02d}-"
     for f in files:
-        if os.path.basename(f).startswith(prefix):
-            return os.path.basename(f)
+        name = os.path.basename(f)
+        if name.endswith(".md"):
+            name = name[: -len(".md")]
+        if name.startswith(prefix):
+            return name
     return None
+
+
+# Backwards compatibility alias retained for any out-of-tree callers /
+# experimental scripts that still import the old name. New call sites
+# should use :func:`_cat_slug_for_id`.
+_cat_file_for_id = _cat_slug_for_id
 
 
 def write_llms_txt(data, cat_meta, files, total_uc):
@@ -3250,10 +4000,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
     lines = [
         "# Splunk Infrastructure Monitoring Use Cases",
         "",
-        "> A curated catalog of {uc_count}+ IT infrastructure monitoring use cases for Splunk, "
-        "organized across {cat_count} technology domains. Each use case includes criticality, "
+        f"> A curated catalog of {total_uc}+ IT infrastructure monitoring use cases for Splunk, "
+        f"organized across {len(data)} technology domains. Each use case includes criticality, "
         "SPL queries, CIM data model mappings, implementation guidance, equipment tagging, "
-        "and visualization recommendations.".format(uc_count=total_uc, cat_count=len(data)),
+        "and visualization recommendations.",
         "",
         "This repository provides ready-to-use Splunk monitoring content for servers, "
         "virtualization, cloud, containers, networking, security, databases, IoT/OT, "
@@ -3264,26 +4014,25 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "non-browser clients. Use the files listed below for AI/LLM access — they are "
         "all static plain-text or JSON, no JavaScript required.",
         "",
-        "For a complete listing of all {uc_count}+ individual use cases (ID, title, "
-        "criticality), see the full index: {base}/llms-full.txt".format(
-            uc_count=total_uc, base=SITE_BASE_URL),
+        f"For a complete listing of all {total_uc}+ individual use cases (ID, title, "
+        f"criticality), see the full index: {SITE_BASE_URL}/llms-full.txt",
         "",
         "## Docs",
         "",
-        "- [AGENTS.md]({base}/AGENTS.md): AI agent entrypoint — schemas, field maps, "
-        "MCP tools, build commands, and Cursor rules".format(base=SITE_BASE_URL),
-        "- [Catalog JSON]({base}/catalog.json): Machine-readable JSON catalog of all use cases "
-        "(structured data with abbreviated field keys; includes inline _field_map)".format(base=SITE_BASE_URL),
-        "- [Catalog Schema]({base}/docs/catalog-schema.md): Field reference for catalog.json — "
-        "explains every key and how to query the data".format(base=SITE_BASE_URL),
-        "- [Category Index]({base}/content/INDEX.md): Category overview with descriptions, "
-        "icons, and quick-start picks".format(base=SITE_BASE_URL),
-        "- [Implementation Guide]({base}/docs/implementation-guide.md): How to deploy use cases — "
-        "apps, inputs.conf, indexes".format(base=SITE_BASE_URL),
-        "- [CIM and Data Models]({base}/docs/cim-and-data-models.md): CIM mapping reference "
-        "and data model acceleration guidance".format(base=SITE_BASE_URL),
-        "- [Use Case Fields]({base}/docs/use-case-fields.md): Explanation of every field in "
-        "the use case markdown format".format(base=SITE_BASE_URL),
+        f"- [AGENTS.md]({SITE_BASE_URL}/AGENTS.md): AI agent entrypoint — schemas, field maps, "
+        "MCP tools, build commands, and Cursor rules",
+        f"- [Catalog JSON]({SITE_BASE_URL}/catalog.json): Machine-readable JSON catalog of all use cases "
+        "(structured data with abbreviated field keys; includes inline _field_map)",
+        f"- [Catalog Schema]({SITE_BASE_URL}/docs/catalog-schema.md): Field reference for catalog.json — "
+        "explains every key and how to query the data",
+        f"- [Category Index]({SITE_BASE_URL}/content/INDEX.md): Category overview with descriptions, "
+        "icons, and quick-start picks",
+        f"- [Implementation Guide]({SITE_BASE_URL}/docs/implementation-guide.md): How to deploy use cases — "
+        "apps, inputs.conf, indexes",
+        f"- [CIM and Data Models]({SITE_BASE_URL}/docs/cim-and-data-models.md): CIM mapping reference "
+        "and data model acceleration guidance",
+        f"- [Use Case Fields]({SITE_BASE_URL}/docs/use-case-fields.md): Explanation of every field in "
+        "the use case markdown format",
         "",
         "## Categories",
         "",
@@ -3292,75 +4041,75 @@ def write_llms_txt(data, cat_meta, files, total_uc):
     for cat in data:
         cat_id = cat["i"]
         cat_name = cat["n"]
-        cat_file = _cat_file_for_id(cat_id, files)
+        cat_slug = _cat_slug_for_id(cat_id, files)
         meta = cat_meta.get(str(cat_id), {})
         desc = meta.get("desc", "")
         uc_count = sum(len(s.get("u", [])) for s in cat.get("s", []))
-        if cat_file:
-            line = "- [{name}]({base}/use-cases/{file}): {desc} ({count} use cases)".format(
-                name=cat_name, base=SITE_BASE_URL, file=cat_file,
-                desc=desc, count=uc_count)
+        if cat_slug:
+            line = f"- [{cat_name}]({SITE_BASE_URL}/content/{cat_slug}/): {desc} ({uc_count} use cases)"
         else:
-            line = "- {name}: {desc} ({count} use cases)".format(
-                name=cat_name, desc=desc, count=uc_count)
+            line = f"- {cat_name}: {desc} ({uc_count} use cases)"
         lines.append(line)
 
-    lines.extend([
-        "",
-        "## Raw GitHub Access",
-        "",
-        "If the GitHub Pages URLs above are blocked by your fetch policy, use these "
-        "raw.githubusercontent.com URLs instead (identical content):",
-        "",
-        "- [llms-full.txt]({raw}/llms-full.txt): Complete use case index".format(raw=RAW_GITHUB_URL),
-        "- [catalog.json]({raw}/catalog.json): Full JSON catalog".format(raw=RAW_GITHUB_URL),
-        "- [catalog-schema.md]({raw}/docs/catalog-schema.md): Schema reference".format(raw=RAW_GITHUB_URL),
-        "",
-        "Per-category files (raw GitHub):",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Raw GitHub Access",
+            "",
+            "If the GitHub Pages URLs above are blocked by your fetch policy, use these "
+            "raw.githubusercontent.com URLs instead (identical content):",
+            "",
+            f"- [llms-full.txt]({RAW_GITHUB_URL}/llms-full.txt): Complete use case index",
+            f"- [catalog.json]({RAW_GITHUB_URL}/catalog.json): Full JSON catalog",
+            f"- [catalog-schema.md]({RAW_GITHUB_URL}/docs/catalog-schema.md): Schema reference",
+            "",
+            "Per-category SSOT directories (raw GitHub — browse all UC sidecars):",
+            "",
+        ]
+    )
 
     for cat in data:
         cat_id = cat["i"]
         cat_name = cat["n"]
-        cat_file = _cat_file_for_id(cat_id, files)
-        if cat_file:
-            lines.append("- [{name}]({raw}/use-cases/{file})".format(
-                name=cat_name, raw=RAW_GITHUB_URL, file=cat_file))
+        cat_slug = _cat_slug_for_id(cat_id, files)
+        if cat_slug:
+            lines.append(f"- [{cat_name}]({RAW_GITHUB_URL}/content/{cat_slug}/_category.json)")
 
-    lines.extend([
-        "",
-        "## Steering Directives",
-        "",
-        "When using content from this catalog, follow these Splunk best practices:",
-        "",
-        "- Prefer `tstats` with data model acceleration over raw `search` for "
-        "high-volume environments. Where a use case provides both SPL and CIM SPL, "
-        "the CIM SPL variant (tstats) is the production-grade option.",
-        "- Prefer `stats` over `transaction` for performance. Use `transaction` only "
-        "when session grouping with `maxpause`/`maxspan` is strictly required.",
-        "- Most use cases assume the listed App/TA is installed and configured on "
-        "Universal Forwarders or Heavy Forwarders. Check the App/TA field before "
-        "adapting a query.",
-        "- Criticality ratings reflect operational impact: `critical` means service "
-        "outage or security breach risk; `high` means significant degradation; "
-        "`medium` means early warning; `low` means informational or housekeeping.",
-        "- Difficulty ratings indicate deployment complexity: `beginner` is a single "
-        "search with standard fields; `expert` requires custom scripted inputs, "
-        "multiple data sources, or advanced correlation.",
-        "- SPL queries are starting points. Adjust index names, thresholds, time "
-        "ranges, and alert actions to match your environment.",
-        "- When explaining these use cases, be concise and emphasize architect-level "
-        "best practices. Link to the specific UC-ID (e.g. UC-1.1.1) for traceability.",
-        "",
-        "## Optional",
-        "",
-        "- [Equipment Table]({base}/docs/equipment-table.md): Equipment/technology filter "
-        "definitions and TA matching patterns".format(base=SITE_BASE_URL),
-        "- [Splunk Apps Comparison]({base}/docs/splunk-apps-use-cases-comparison.md): "
-        "How this catalog compares to other Splunk content sources".format(base=SITE_BASE_URL),
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Steering Directives",
+            "",
+            "When using content from this catalog, follow these Splunk best practices:",
+            "",
+            "- Prefer `tstats` with data model acceleration over raw `search` for "
+            "high-volume environments. Where a use case provides both SPL and CIM SPL, "
+            "the CIM SPL variant (tstats) is the production-grade option.",
+            "- Prefer `stats` over `transaction` for performance. Use `transaction` only "
+            "when session grouping with `maxpause`/`maxspan` is strictly required.",
+            "- Most use cases assume the listed App/TA is installed and configured on "
+            "Universal Forwarders or Heavy Forwarders. Check the App/TA field before "
+            "adapting a query.",
+            "- Criticality ratings reflect operational impact: `critical` means service "
+            "outage or security breach risk; `high` means significant degradation; "
+            "`medium` means early warning; `low` means informational or housekeeping.",
+            "- Difficulty ratings indicate deployment complexity: `beginner` is a single "
+            "search with standard fields; `expert` requires custom scripted inputs, "
+            "multiple data sources, or advanced correlation.",
+            "- SPL queries are starting points. Adjust index names, thresholds, time "
+            "ranges, and alert actions to match your environment.",
+            "- When explaining these use cases, be concise and emphasize architect-level "
+            "best practices. Link to the specific UC-ID (e.g. UC-1.1.1) for traceability.",
+            "",
+            "## Optional",
+            "",
+            f"- [Equipment Table]({SITE_BASE_URL}/docs/equipment-table.md): Equipment/technology filter "
+            "definitions and TA matching patterns",
+            f"- [Splunk Apps Comparison]({SITE_BASE_URL}/docs/splunk-apps-use-cases-comparison.md): "
+            "How this catalog compares to other Splunk content sources",
+            "",
+        ]
+    )
 
     with open(OUTPUT_LLMS_TXT, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
@@ -3374,30 +4123,32 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
     lines = [
         "# Splunk Infrastructure Monitoring Use Cases — Full Index",
         "",
-        "> Complete listing of all {uc_count}+ IT infrastructure monitoring use cases for Splunk "
-        "across {cat_count} technology domains. Each entry shows the use case ID, title, and "
-        "criticality. For full SPL queries and implementation details, see the per-category "
-        "markdown files linked below.".format(uc_count=total_uc, cat_count=len(data)),
+        f"> Complete listing of all {total_uc}+ IT infrastructure monitoring use cases for Splunk "
+        f"across {len(data)} technology domains. Each entry shows the use case ID, title, and "
+        "criticality. For full SPL queries and implementation details, see the per-UC JSON "
+        "sidecars and per-UC markdown twins linked below.",
         "",
         "For a concise category-level overview with descriptions, steering directives, "
-        "and documentation links, see: {base}/llms.txt".format(base=SITE_BASE_URL),
+        f"and documentation links, see: {SITE_BASE_URL}/llms.txt",
         "",
-        "Machine-readable catalog (JSON): {base}/catalog.json".format(base=SITE_BASE_URL),
-        "Raw GitHub catalog (JSON): {raw}/catalog.json".format(raw=RAW_GITHUB_URL),
-        "Schema reference: {base}/docs/catalog-schema.md".format(base=SITE_BASE_URL),
-        "Interactive dashboard (JavaScript SPA): {base}/".format(base=SITE_BASE_URL),
+        f"Machine-readable catalog (JSON): {SITE_BASE_URL}/catalog.json",
+        f"Raw GitHub catalog (JSON): {RAW_GITHUB_URL}/catalog.json",
+        f"Schema reference: {SITE_BASE_URL}/docs/catalog-schema.md",
+        f"Interactive dashboard (JavaScript SPA): {SITE_BASE_URL}/",
+        f"Per-UC twins (one URL per UC): {SITE_BASE_URL}/uc/UC-X.Y.Z/uc.md (markdown), "
+        f"{SITE_BASE_URL}/uc/UC-X.Y.Z/index.json (JSON), {SITE_BASE_URL}/uc/UC-X.Y.Z/ (HTML).",
         "",
     ]
 
     for cat in data:
         cat_id = cat["i"]
         cat_name = cat["n"]
-        cat_file = _cat_file_for_id(cat_id, files)
+        cat_slug = _cat_slug_for_id(cat_id, files)
         meta = cat_meta.get(str(cat_id), {})
         desc = meta.get("desc", "")
         quick = meta.get("quick", "")
 
-        lines.append("## {id}. {name}".format(id=cat_id, name=cat_name))
+        lines.append(f"## {cat_id}. {cat_name}")
         lines.append("")
         if desc:
             lines.append(desc)
@@ -3405,11 +4156,9 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
         if quick:
             lines.append("**Quick tip:** " + quick)
             lines.append("")
-        if cat_file:
-            lines.append("Full details: {base}/use-cases/{file}".format(
-                base=SITE_BASE_URL, file=cat_file))
-            lines.append("Raw GitHub: {raw}/use-cases/{file}".format(
-                raw=RAW_GITHUB_URL, file=cat_file))
+        if cat_slug:
+            lines.append(f"Full details: {SITE_BASE_URL}/content/{cat_slug}/")
+            lines.append(f"Raw GitHub: {RAW_GITHUB_URL}/content/{cat_slug}/_category.json")
             lines.append("")
 
         for sub in cat.get("s", []):
@@ -3417,11 +4166,14 @@ def write_llms_full_txt(data, cat_meta, files, total_uc):
             lines.append("")
             for uc in sub.get("u", []):
                 crit = uc.get("c", "")
-                crit_label = " [{c}]".format(c=crit) if crit else ""
+                crit_label = f" [{crit}]" if crit else ""
                 regs = uc.get("regs", [])
                 regs_label = " [" + ", ".join(regs) + "]" if regs else ""
-                lines.append("- UC-{id} · {name}{crit}{regs}".format(
-                    id=uc["i"], name=uc["n"], crit=crit_label, regs=regs_label))
+                lines.append(
+                    "- UC-{id} · {name}{crit}{regs}".format(
+                        id=uc["i"], name=uc["n"], crit=crit_label, regs=regs_label
+                    )
+                )
             lines.append("")
 
     with open(OUTPUT_LLMS_FULL_TXT, "w", encoding="utf-8") as f:
@@ -3481,8 +4233,10 @@ def validate_non_technical(data):
         for br in sorted(bad_refs):
             print(f"  ERROR non-technical-view.js references unknown UC {br}")
 
-    print(f"  Non-technical view: {len(nt_cat_keys)} categories, "
-          f"{len(nt_uc_refs)} UC refs, {errors} errors, {warnings} warnings")
+    print(
+        f"  Non-technical view: {len(nt_cat_keys)} categories, "
+        f"{len(nt_uc_refs)} UC refs, {errors} errors, {warnings} warnings"
+    )
 
     return errors
 
@@ -3572,14 +4326,12 @@ def validate_prerequisites(data):
                 for dep in pre:
                     if dep == uc_full_id:
                         errors.append(
-                            "self-reference: {0} lists itself in Prerequisite UCs".format(uc_full_id)
+                            f"self-reference: {uc_full_id} lists itself in Prerequisite UCs"
                         )
                         continue
                     if dep not in index:
                         errors.append(
-                            "unknown prerequisite: {0} references {1} which does not exist".format(
-                                uc_full_id, dep
-                            )
+                            f"unknown prerequisite: {uc_full_id} references {dep} which does not exist"
                         )
                         continue
                     src_wave = uc.get("wv")
@@ -3589,16 +4341,14 @@ def validate_prerequisites(data):
                         dep_rank = _WAVE_RANK.get(dep_wave)
                         if src_rank is not None and dep_rank is not None and dep_rank > src_rank:
                             warnings.append(
-                                "wave monotonicity: {0} (wave={1}) depends on {2} (wave={3}) — a lower tier cannot depend on a higher one".format(
-                                    uc_full_id, src_wave, dep, dep_wave
-                                )
+                                f"wave monotonicity: {uc_full_id} (wave={src_wave}) depends on {dep} (wave={dep_wave}) — a lower tier cannot depend on a higher one"
                             )
 
     # Kahn's algorithm for cycle detection.
     # Edge direction: prereq -> dependant, i.e. if A declares pre=[B]
     # then B must complete before A, so edge B -> A.
     adj = {uid: set() for uid in index}
-    indeg = {uid: 0 for uid in index}
+    indeg = dict.fromkeys(index, 0)
     for uid, uc in index.items():
         for dep in uc.get("pre") or []:
             if dep in index:
@@ -3640,13 +4390,13 @@ def validate_prerequisites(data):
     )
 
     for w in sorted(warnings):
-        print("  WARN  {0}".format(w))
+        print(f"  WARN  {w}")
 
     if errors:
         for e in sorted(errors):
-            print("  ERROR {0}".format(e), file=sys.stderr)
+            print(f"  ERROR {e}", file=sys.stderr)
         print(
-            "Prerequisite validation failed with {0} error(s).".format(len(errors)),
+            f"Prerequisite validation failed with {len(errors)} error(s).",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -3668,7 +4418,9 @@ def _extract_cycle(index, residual):
 
         def dfs(node):
             for nxt in sorted(
-                dep for dep in (index[node].get("pre") or []) if dep in index and dep in residual_set
+                dep
+                for dep in (index[node].get("pre") or [])
+                if dep in index and dep in residual_set
             ):
                 edge = (node, nxt)
                 if edge in visited_edges:
@@ -3732,4 +4484,3 @@ def _uc_sort_key(dotted):
         except ValueError:
             parts.append(10**9)
     return tuple(parts)
-

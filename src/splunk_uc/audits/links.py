@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Manual audit: check http(s) URLs on - **References:** lines in use-cases/cat-*.md."""
+"""Audit ``references[].url`` URLs across the JSON SSOT.
+
+Pre-v8.2.0 this audit walked References lines in
+``use-cases/cat-*.md``. The legacy markdown corpus has been deleted;
+references now live in the ``references`` array on every UC sidecar
+under ``content/cat-*/UC-*.json``.
+"""
 
 from __future__ import annotations
 
@@ -13,11 +19,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlsplit
 
-# parents[3] resolves: links.py -> audits/ -> splunk_uc/ -> src/ ->
-# repo root. The legacy ``parent.parent`` chain assumed a one-level
-# depth and is now wrong by three.
+from splunk_uc.audits._uc_walk import iter_uc_sidecars
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-REFERENCES_LINE = re.compile(r"^\s*-\s*\*\*References:\*\*\s*(.*)$")
 URL_PATTERN = re.compile(r"https?://[^\s,<>]+")
 BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -79,22 +83,49 @@ def normalize_url(raw: str) -> str:
 
 
 def collect_urls() -> dict[str, list[str]]:
-    """Map URL -> list of 'file:line' locations (for reporting)."""
+    """Map URL -> list of UC locations (for reporting).
+
+    Walks every UC sidecar in the JSON SSOT and harvests URLs from:
+
+    * ``references[].url`` (canonical)
+    * any ``http(s)://`` URL embedded in the prose fields
+      ``description``, ``value``, ``implementation``,
+      ``detailedImplementation``, ``dataSources``, ``app``.
+    """
     url_sources: dict[str, list[str]] = {}
-    md_dir = REPO_ROOT / "use-cases"
-    for path in sorted(md_dir.glob("cat-*.md")):
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for lineno, line in enumerate(lines, start=1):
-            m = REFERENCES_LINE.match(line)
-            if not m:
-                continue
-            tail = m.group(1)
-            for raw in URL_PATTERN.findall(tail):
-                url = normalize_url(raw)
-                if not url.startswith(("http://", "https://")):
+    prose_fields = (
+        "description",
+        "value",
+        "implementation",
+        "detailedImplementation",
+        "dataSources",
+        "app",
+    )
+    for path, payload in iter_uc_sidecars():
+        rel = path.relative_to(REPO_ROOT)
+        uc_id = f"UC-{payload.get('id', '<unknown>')}"
+        loc = f"{rel} ({uc_id})"
+
+        refs = payload.get("references")
+        if isinstance(refs, list):
+            for entry in refs:
+                if not isinstance(entry, dict):
                     continue
-                loc = f"{path.relative_to(REPO_ROOT)}:{lineno}"
-                url_sources.setdefault(url, []).append(loc)
+                url = entry.get("url")
+                if isinstance(url, str):
+                    url = normalize_url(url.strip())
+                    if url.startswith(("http://", "https://")):
+                        url_sources.setdefault(url, []).append(loc)
+
+        for field in prose_fields:
+            v = payload.get(field)
+            if not isinstance(v, str):
+                continue
+            for raw in URL_PATTERN.findall(v):
+                url = normalize_url(raw)
+                if url.startswith(("http://", "https://")):
+                    url_sources.setdefault(url, []).append(loc)
+
     return url_sources
 
 
@@ -168,7 +199,10 @@ def check_url(url: str) -> tuple[bool, str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Audit http(s) links on References lines in use-cases/cat-*.md.",
+        description=(
+            "Audit http(s) URLs in references[].url and prose fields "
+            "across content/cat-*/UC-*.json."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -181,7 +215,10 @@ def main(argv: list[str] | None = None) -> int:
     all_urls = sorted(url_sources.keys())
 
     if not all_urls:
-        print("No URLs found on - **References:** lines.", file=sys.stderr)
+        print(
+            "No URLs found on references[].url or in UC prose.",
+            file=sys.stderr,
+        )
         return 0
 
     ignore_patterns = load_ignore_patterns()

@@ -110,10 +110,16 @@ TIER_1_EXCLUDES = (
 # Tier 2: the auditing + content-validation CLIs that run in
 # ``audits-content`` and ``audits-build``. Anything matching
 # ``scripts/audit_*.py`` plus the explicit additions below.
+#
+# P6 (scripts taxonomy, 2026-05-10): ``scripts/generate_recommender_app.py``
+# was relocated to ``src/splunk_uc/generators/recommender_app.py`` (Tier 2
+# batch 5). The shim that remains under ``scripts/`` is short enough that
+# tier-2 ratcheting on it is meaningless; coverage now follows the
+# implementation under ``src/splunk_uc/`` (covered by the dispatcher
+# tests + dedicated package tests as they are added).
 TIER_2_INCLUDES = (
     re.compile(r"^scripts/audit_.*\.py$"),
     re.compile(r"^scripts/equipment_lib\.py$"),
-    re.compile(r"^scripts/generate_recommender_app\.py$"),
     re.compile(r"^scripts/build_es\.py$"),
     re.compile(r"^scripts/build_ta\.py$"),
 )

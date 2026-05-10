@@ -1,35 +1,25 @@
 #!/usr/bin/env python3
-"""Audit Splunkbase app ID references in the use-case catalog.
+"""Audit Splunkbase app ID references across the JSON SSOT.
 
-Extracts every reference of the form ``splunkbase.splunk.com/app/<NUM>`` from
-all markdown files under ``use-cases/`` and reports:
+Extracts every reference of the form ``splunkbase.splunk.com/app/<NUM>``
+and ``Splunkbase #<NUM>`` from the prose fields of every UC sidecar
+under ``content/cat-*/UC-*.json`` and reports:
 
 1. Total unique IDs and their reference counts.
-2. Surrounding "context" name (best-effort preceding 80 chars) per reference.
+2. Surrounding "context" name (best-effort preceding 80 chars).
 3. IDs that appear with multiple distinct surrounding names.
 
-It does NOT modify any files. Use the output to drive manual cleanup.
+Informational only; does not modify files.
 """
 
 from __future__ import annotations
 
 import argparse
-import glob
-import os
 import re
 import sys
 from collections import Counter, defaultdict
 
-# parents[3] resolves: splunkbase_ids.py -> audits/ -> splunk_uc/ ->
-# src/ -> repo root. The legacy two-level dirname chain is now wrong by
-# three.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)),
-        ),
-    ),
-)
+from splunk_uc.audits._uc_walk import iter_uc_sidecars
 
 URL_RE = re.compile(
     r"(?:\[(?P<md_name>[^\]]{1,80})\]\()?"
@@ -52,36 +42,33 @@ NEARBY_NAME_RE = re.compile(
     re.VERBOSE,
 )
 
+# Fields known to mention vendor TAs / Splunkbase apps.
+SCAN_FIELDS = (
+    "app",
+    "dataSources",
+    "implementation",
+    "detailedImplementation",
+    "description",
+    "value",
+)
 
-def walk_files() -> list[str]:
-    return sorted(glob.glob(os.path.join(REPO_ROOT, "use-cases", "cat-*.md")))
 
-
-def extract_refs(path: str) -> list[tuple[str, str, str]]:
-    """Return list of ``(app_id, app_name, source_file)``. ``app_name`` is best-effort."""
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+def _extract_refs(uc_id: str, text: str) -> list[tuple[str, str, str]]:
+    """Return list of ``(app_id, app_name, source)`` tuples."""
     out: list[tuple[str, str, str]] = []
     seen_spans: list[tuple[int, int]] = []
     for m in URL_RE.finditer(text):
         aid = m.group("id")
         md_name = m.group("md_name")
-        name: str
         if md_name and len(md_name) < 80 and "{" not in md_name:
             name = md_name.strip()
         else:
             window = text[max(0, m.start() - 120) : m.start()]
-            # Take the last name match in the lookback window (closest to
-            # the URL). ``finditer`` doesn't expose ``[-1]`` directly so we
-            # materialise the matches.
             nearby_matches = list(NEARBY_NAME_RE.finditer(window))
             nm = nearby_matches[-1] if nearby_matches else None
-            if nm is not None:
-                name = nm.group("name").strip()
-            else:
-                name = "<unknown>"
+            name = nm.group("name").strip() if nm is not None else "<unknown>"
         name = re.sub(r"\s+", " ", name).rstrip(".,:;")
-        out.append((aid, name, os.path.basename(path)))
+        out.append((aid, name, uc_id))
         seen_spans.append((m.start(), m.end()))
 
     for m in SPLUNKBASE_INLINE_RE.finditer(text):
@@ -90,34 +77,38 @@ def extract_refs(path: str) -> list[tuple[str, str, str]]:
             continue
         aid = m.group("id")
         window = text[max(0, m.start() - 160) : m.start()]
-        # Same "closest preceding TA name" semantics as above.
         nearby_matches = list(NEARBY_NAME_RE.finditer(window))
         nm = nearby_matches[-1] if nearby_matches else None
         name = nm.group("name").strip() if nm is not None else "<unknown>"
         name = re.sub(r"\s+", " ", name).rstrip(".,:;")
-        out.append((aid, name, os.path.basename(path)))
+        out.append((aid, name, uc_id))
     return out
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit Splunkbase app ID references across use-cases/cat-*.md. "
+            "Audit Splunkbase app ID references across content/cat-*/UC-*.json. "
             "Informational only; does not modify files."
         )
     )
     parser.parse_args(argv)
 
-    files = walk_files()
     refs: list[tuple[str, str, str]] = []
-    for f in files:
-        refs.extend(extract_refs(f))
+    sidecar_count = 0
+    for path, payload in iter_uc_sidecars():
+        sidecar_count += 1
+        uc_id = f"UC-{payload.get('id', '<unknown>')}"
+        for field in SCAN_FIELDS:
+            v = payload.get(field)
+            if isinstance(v, str) and v:
+                refs.extend(_extract_refs(uc_id, v))
 
     by_id: dict[str, Counter[str]] = defaultdict(Counter)
     for aid, name, _src in refs:
         by_id[aid][name] += 1
 
-    print(f"Scanned {len(files)} markdown files")
+    print(f"Scanned {sidecar_count} JSON sidecars")
     print(f"Splunkbase references: {len(refs)}")
     print(f"Unique app IDs: {len(by_id)}")
     print()

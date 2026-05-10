@@ -32,7 +32,7 @@ CI guardrail for the SME-review framework introduced in Phase 5.2
        ``negativeSilent=false`` implies ``checks.splCorrectness`` is
        ``'fail'``.  A silent mismatch is reported as an error.
     *  Every UC ID in ``scope.ucs`` maps to a real sidecar on disk
-       (``use-cases/cat-NN/uc-<id>.json``).
+       (``content/cat-NN-<slug>/UC-<id>.json``).
     *  Every fixture path in ``scope.fixtures`` resolves to a real
        file under ``sample-data/``.
     *  Every evidence-pack path in ``scope.evidencePacks`` resolves
@@ -76,7 +76,7 @@ except ImportError as err:  # pragma: no cover - local ergonomics only
 REPO = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = REPO / "schemas" / "sme-review-signoff.schema.json"
 DATA_PATH = REPO / "data" / "provenance" / "sme-signoffs.json"
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 SAMPLE_DATA = REPO / "sample-data"
 EVIDENCE_PACKS = REPO / "docs" / "evidence-packs"
 
@@ -107,31 +107,24 @@ def _validate_schema(data: dict[str, Any]) -> list[str]:
 
 
 def _uc_sidecar_path(uc_id: str) -> Path | None:
-    """Return the expected sidecar path for a UC id, or ``None`` if the
-    id does not parse.
+    """Return the expected JSON SSOT sidecar path for a UC id.
 
-    The historical ``use-cases/`` layout uses zero-padded category
-    directories for single-digit categories (``cat-01`` … ``cat-09``)
-    and un-padded for two-digit (``cat-10`` upwards).  Resolve against
-    whichever variant actually exists on disk.
+    Sidecars live at ``content/cat-NN-<slug>/UC-<id>.json``. The slug
+    is part of the directory name and isn't derivable from the UC id,
+    so we glob for the actual file.
     """
     m = _UC_ID_RE.match(uc_id)
     if not m:
         return None
-    cat = m.group("cat")
-    filename = f"uc-{uc_id}.json"
-    # Prefer the padded variant when the category is single-digit AND
-    # the file exists there; fall back to the un-padded form otherwise.
-    candidates: list[Path] = []
-    if len(cat) == 1:
-        candidates.append(USE_CASES / f"cat-0{cat}" / filename)
-    candidates.append(USE_CASES / f"cat-{cat}" / filename)
-    for cand in candidates:
-        if cand.is_file():
-            return cand
-    # Return the un-padded form as the "expected" path when neither
-    # variant exists so the error message reads naturally.
-    return candidates[-1]
+    cat = int(m.group("cat"))
+    filename = f"UC-{uc_id}.json"
+    # The category prefix is always zero-padded in content/.
+    matches = sorted(CONTENT.glob(f"cat-{cat:02d}-*/{filename}"))
+    if matches:
+        return matches[0]
+    # Return a synthetic "expected" path so error messages are readable
+    # when the UC genuinely does not exist.
+    return CONTENT / f"cat-{cat:02d}-?" / filename
 
 
 def _collect_uc_sme_caveats(uc_ids: list[str]) -> set[str]:

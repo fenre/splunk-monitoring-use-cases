@@ -54,7 +54,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "tools"))
@@ -66,6 +66,7 @@ from build import (
     render_api,
     render_assets,
     render_exports,
+    render_legacy_artifacts,
     render_meta,
     render_metrics,
     render_pages,
@@ -103,7 +104,8 @@ class BuildOptions:
 # Stage runner
 # ---------------------------------------------------------------------------
 
-def _log(msg: str, t0: Optional[float] = None) -> None:
+
+def _log(msg: str, t0: float | None = None) -> None:
     if t0 is None:
         print(f"[build] {msg}")
     else:
@@ -114,7 +116,6 @@ def _ensure_clean_out(out: Path) -> None:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True, exist_ok=True)
-
 
 
 def _git_commit_epoch() -> str:
@@ -131,6 +132,7 @@ def _git_commit_epoch() -> str:
 # ---------------------------------------------------------------------------
 # Stage helpers
 # ---------------------------------------------------------------------------
+
 
 def _stage_parse(opts: BuildOptions) -> parse_content.Catalog:
     t0 = time.monotonic()
@@ -167,8 +169,11 @@ def _stage_search(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     render_search.render(catalog, opts.out_dir, reproducible=opts.reproducible)
     n_tokens = catalog.asset_hashes.get("search_index_tokens", "?")
     n_docs = catalog.asset_hashes.get("search_index_docs", "?")
-    _log(f"search index: {n_tokens} tokens × {n_docs} docs across "
-         f"{render_search.SHARD_COUNT} shards", t0)
+    _log(
+        f"search index: {n_tokens} tokens × {n_docs} docs across "
+        f"{render_search.SHARD_COUNT} shards",
+        t0,
+    )
 
 
 def _stage_exports(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
@@ -179,8 +184,15 @@ def _stage_exports(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
 
 def _stage_meta(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     t0 = time.monotonic()
+    # ``render_legacy_artifacts`` emits the SSOT-derived
+    # ``catalog.json`` / ``data.js`` / ``llms.txt`` / ``llm.txt`` /
+    # ``llms-full.txt`` directly into ``out_dir`` so the public site
+    # never serves a stale repo-root copy. Must run before
+    # ``render_meta`` so the SPA's ``catalog.json`` is in place when
+    # ``_write_machine_manifest`` references it.
+    render_legacy_artifacts.render(catalog, opts.out_dir, reproducible=opts.reproducible)
     render_meta.render(catalog, opts.out_dir, reproducible=opts.reproducible)
-    _log("meta (sitemap, llms.txt, feed.xml) emitted", t0)
+    _log("meta (catalog.json, sitemap, llms.txt, feed.xml) emitted", t0)
 
 
 def _stage_public(opts: BuildOptions) -> None:
@@ -226,18 +238,36 @@ def _copy_project_assets(out: Path) -> None:
     render stages own (api/cat-*.json, api/catalog-index.json).
     """
     skip_dirs = {
-        ".git", ".github", ".cursor", ".idea", ".vscode",
-        "node_modules", ".venv", ".venv-feasibility", "venv", "env",
-        "dist", "tools", "scripts", "mcp", "src", "content",
-        "public", "terminals", "build", "test-results", "other",
-        "__pycache__", "legacy", "agent-notes", "agent-transcripts",
+        ".git",
+        ".github",
+        ".cursor",
+        ".idea",
+        ".vscode",
+        "node_modules",
+        ".venv",
+        ".venv-feasibility",
+        "venv",
+        "env",
+        "dist",
+        "tools",
+        "scripts",
+        "mcp",
+        "src",
+        "content",
+        "public",
+        "terminals",
+        "build",
+        "test-results",
+        "other",
+        "__pycache__",
+        "legacy",
+        "agent-notes",
+        "agent-transcripts",
     }
     skip_extensions = {".pyc", ".pyo", ".pyd", ".swp", ".swo"}
 
     # Files owned by v7 render stages — never overwrite from project root.
-    v7_owned = re.compile(
-        r"^api/cat-\d+\.json$|^api/catalog-index\.json$|^api/manifest\.json$"
-    )
+    v7_owned = re.compile(r"^api/cat-\d+\.json$|^api/catalog-index\.json$|^api/manifest\.json$")
 
     # Static top-level files the site needs.
     for fname in _PROJECT_STATIC_FILES:
@@ -292,7 +322,6 @@ def _copy_project_assets(out: Path) -> None:
 
 _PROJECT_STATIC_FILES = (
     "index.html",
-    "catalog.json",
     "openapi.yaml",
     "scorecard.html",
     "scorecard.json",
@@ -311,9 +340,6 @@ _PROJECT_STATIC_FILES = (
     "provenance.js",
     "mitre_techniques.json",
     "recently-added.json",
-    "llms.txt",
-    "llm.txt",
-    "llms-full.txt",
     "ai.txt",
     "robots.txt",
     "AGENTS.md",
@@ -328,13 +354,18 @@ _PROJECT_STATIC_FILES = (
     ".nojekyll",
     "CNAME",
 )
+# ``catalog.json`` / ``data.js`` / ``llms.txt`` / ``llm.txt`` /
+# ``llms-full.txt`` are emitted from the SSOT by
+# ``render_legacy_artifacts.render`` (invoked by the ``meta`` stage), so
+# they are intentionally **not** copied from the repo root. The legacy
+# ``use-cases/`` markdown corpus was retired in v8.2.0 and is no longer
+# shipped.
 
 _PROJECT_CONTENT_DIRS = (
     "api",
     "assets",
     "data",
     "docs",
-    "use-cases",
     "samples",
     "templates",
     "schemas",
@@ -347,9 +378,7 @@ _PROJECT_CONTENT_DIRS = (
     "vendor",
 )
 
-_COMPANION_TOOLS = (
-    "tools/data-sizing",
-)
+_COMPANION_TOOLS = ("tools/data-sizing",)
 
 
 def _looks_like_ssg_landing(path: Path) -> bool:
@@ -372,8 +401,6 @@ def _looks_like_ssg_landing(path: Path) -> bool:
     return ('class="cta primary"' in head) and ("/browse/" in head)
 
 
-
-
 def _site_base_path() -> str:
     """Extract the URL path prefix from the SITE_URL env var or render_pages default.
 
@@ -381,6 +408,7 @@ def _site_base_path() -> str:
     project site, or ``""`` for a root deployment.
     """
     from urllib.parse import urlparse
+
     site_url = os.environ.get("SITE_URL", render_pages.SITE_URL_DEFAULT).rstrip("/")
     return urlparse(site_url).path.rstrip("/")
 
@@ -438,7 +466,9 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
         original_size = len(html)
         use_root_abs = index_path.parent != opts.out_dir
         if css_name:
-            html = _swap_inline_style(html, css_name, catalog.critical_css, root_abs=use_root_abs, base_path=base_path)
+            html = _swap_inline_style(
+                html, css_name, catalog.critical_css, root_abs=use_root_abs, base_path=base_path
+            )
         if js_name:
             html = _swap_inline_script(html, js_name, root_abs=use_root_abs, base_path=base_path)
         html = _drop_legacy_data_script(html)
@@ -458,13 +488,14 @@ def _stage_html_rewrite(opts: BuildOptions, catalog: parse_content.Catalog) -> N
         legacy_data_js.unlink()
 
     _log(
-        f"html_rewrite: {rewrote} SPA copies processed "
-        f"({total_saved / 1024:.1f} KiB saved)",
+        f"html_rewrite: {rewrote} SPA copies processed ({total_saved / 1024:.1f} KiB saved)",
         t0,
     )
 
 
-def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs: bool = False, base_path: str = "") -> str:
+def _swap_inline_style(
+    html: str, css_name: str, critical_css: str, *, root_abs: bool = False, base_path: str = ""
+) -> str:
     """Replace the first ``<style>...</style>`` block with bundle refs."""
     start = html.find("<style>")
     if start == -1:
@@ -483,7 +514,9 @@ def _swap_inline_style(html: str, css_name: str, critical_css: str, *, root_abs:
     return html[:start] + replacement + html[end:]
 
 
-def _swap_inline_script(html: str, js_name: str, *, root_abs: bool = False, base_path: str = "") -> str:
+def _swap_inline_script(
+    html: str, js_name: str, *, root_abs: bool = False, base_path: str = ""
+) -> str:
     """Replace the bare ``<script>...</script>`` block with one ``defer`` link.
 
     Anchors on ``<script>\\n`` (with newline) to skip the inline
@@ -520,11 +553,11 @@ def _inject_base_path_config(html: str, base_path: str) -> str:
     if not base_path:
         return html
     config_script = (
-        f'<script>'
+        f"<script>"
         f'window.__SITE_BASE_PATH="{base_path}";'
         f'window.__CATALOG_API_BASE="{base_path}/api";'
         f'window.__CATALOG_ASSETS_BASE="{base_path}/assets";'
-        f'</script>\n'
+        f"</script>\n"
     )
     # Insert just before </head> so the globals are available before any
     # deferred script runs.
@@ -558,7 +591,7 @@ _RELATIVE_REWRITES = (
     re.compile(r'src="(api/[^"#?]+)"'),
     re.compile(r'href="(assets/[^"#?]+)"'),
     re.compile(r'src="(assets/[^"#?]+)"'),
-    re.compile(r'href="(use-cases/[^"#?]+)"'),
+    re.compile(r'href="(content/[^"#?]+)"'),
     re.compile(r'href="(schemas/[^"#?]+)"'),
     re.compile(r'href="(docs/[^"#?]+)"'),
     re.compile(r'href="(data/[^"#?]+)"'),
@@ -644,7 +677,8 @@ def _stage_metrics(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
-def main(argv: Optional[list[str]] = None) -> int:
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="tools.build.build",
         description=(
@@ -668,10 +702,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help=(
-            "Run the build twice and assert byte-identical output. "
-            "Implies --reproducible."
-        ),
+        help=("Run the build twice and assert byte-identical output. Implies --reproducible."),
     )
     parser.add_argument(
         "--only",
@@ -717,9 +748,7 @@ def _run_check(args: argparse.Namespace) -> int:
         text=True,
     )
     if diff.returncode != 0:
-        sys.stderr.write(
-            "[build] FAIL: two consecutive --reproducible builds disagree.\n"
-        )
+        sys.stderr.write("[build] FAIL: two consecutive --reproducible builds disagree.\n")
         sys.stderr.write(diff.stdout[:4000])
         return 1
     _log("CHECK passed: two builds are byte-identical")

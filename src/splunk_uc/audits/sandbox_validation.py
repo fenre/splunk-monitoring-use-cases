@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """audit_sandbox_validation.py - Phase 4.5c sandbox validation gate.
 
-Walks every UC sidecar under ``use-cases/cat-*/uc-*.json`` and verifies
-that every ``controlTest.fixtureRef`` reference:
+Walks every UC sidecar under ``content/cat-*/UC-*.json`` (the JSON SSOT)
+and verifies that every ``controlTest.fixtureRef`` reference:
 
 1.  Resolves to a file on disk under ``sample-data/``.
 2.  Is valid JSON.
@@ -74,7 +74,7 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[3]
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 SAMPLE_DATA = REPO / "sample-data"
 REPORT_PATH = REPO / "reports" / "sandbox-validation.json"
 
@@ -215,7 +215,7 @@ def _collect_records() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "hard_failures": 0,
     }
 
-    for sidecar_path in sorted(USE_CASES.glob("cat-*/uc-*.json")):
+    for sidecar_path in sorted(CONTENT.glob("cat-*/UC-*.json")):
         data = _load_uc_sidecar(sidecar_path)
         if data is None:
             # Broken sidecars are caught by audit_compliance_mappings;
@@ -224,7 +224,7 @@ def _collect_records() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
         summary["total_ucs_examined"] += 1
 
-        uc_id = data.get("id") or sidecar_path.stem.removeprefix("uc-")
+        uc_id = data.get("id") or sidecar_path.stem.removeprefix("UC-")
         control_test = data.get("controlTest") or {}
         fixture_ref = control_test.get("fixtureRef")
         compliance = data.get("compliance") or []

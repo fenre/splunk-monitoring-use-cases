@@ -143,14 +143,6 @@ register(
 )
 register(
     Verb(
-        name="audit-legacy-orphans",
-        module="audits.legacy_orphans",
-        help="Diagnose UCs in the legacy use-cases/ tree without a JSON SSOT sidecar.",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-coverage-budget",
         module="audits.coverage_budget",
         help="Per-file pytest-cov ratchet for tier-1 + tier-2 paths.",
@@ -169,7 +161,7 @@ register(
     Verb(
         name="audit-uc-structure",
         module="audits.uc_structure",
-        help="Validate UC markdown corpus + JSON sidecars for structural correctness.",
+        help="Validate UC JSON sidecars (content/cat-*/UC-*.json) for structural correctness.",
         category="audits",
     )
 )
@@ -233,7 +225,15 @@ register(
     Verb(
         name="audit-uc-ids",
         module="audits.uc_ids",
-        help="Audit UC-* IDs in use-cases/cat-*.md for duplicates, gaps, wrong category, ordering.",
+        help="Audit UC IDs in content/cat-*/UC-*.json for duplicates, gaps, wrong category, ordering.",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-no-use-cases-dir",
+        module="audits.no_use_cases_dir",
+        help="Block reintroduction of the legacy use-cases/ markdown corpus or any new path references.",
         category="audits",
     )
 )
@@ -249,7 +249,7 @@ register(
     Verb(
         name="audit-known-fp",
         module="audits.known_fp",
-        help="Flag YAML-import artefacts and placeholders in `Known false positives` fields.",
+        help="Flag YAML-import artefacts and placeholders in knownFalsePositives fields.",
         category="audits",
     )
 )
@@ -257,7 +257,7 @@ register(
     Verb(
         name="audit-non-technical-sync",
         module="audits.non_technical_sync",
-        help="Cross-check non-technical-view.js against use-cases/cat-*.md UC and category coverage.",
+        help="Cross-check non-technical-view.js against content/cat-*/UC-*.json category coverage.",
         category="audits",
     )
 )
@@ -265,7 +265,7 @@ register(
     Verb(
         name="audit-monitoring-type",
         module="audits.monitoring_type",
-        help="Validate `Monitoring type:` tokens and Security label coverage for ATT&CK-mapped UCs.",
+        help="Validate `monitoringType` tokens and Security label coverage for ATT&CK-mapped UCs.",
         category="audits",
     )
 )
@@ -273,7 +273,7 @@ register(
     Verb(
         name="audit-changelog-uc-refs",
         module="audits.changelog_uc_refs",
-        help="Validate CHANGELOG.md headers/dates and UC cross-references in use-cases/cat-*.md.",
+        help="Validate CHANGELOG.md headers/dates and UC cross-references against the JSON SSOT.",
         category="audits",
     )
 )
@@ -281,7 +281,7 @@ register(
     Verb(
         name="audit-repo-consistency",
         module="audits.repo_consistency",
-        help="Cross-check INDEX.md, CAT_GROUPS, SPLUNK_APPS, and use-cases/cat-*.md for drift.",
+        help="Cross-check INDEX.md, CAT_GROUPS, SPLUNK_APPS, and content/cat-*/ for drift.",
         category="audits",
     )
 )
@@ -305,7 +305,7 @@ register(
     Verb(
         name="audit-spl-duplicates",
         module="audits.spl_duplicates",
-        help="Surface near-duplicate SPL queries across use-cases/cat-*.md (informational).",
+        help="Surface near-duplicate SPL queries across content/cat-*/UC-*.json (informational).",
         category="audits",
     )
 )
@@ -313,7 +313,7 @@ register(
     Verb(
         name="audit-links",
         module="audits.links",
-        help="Manual audit: check http(s) URLs on - **References:** lines in use-cases/cat-*.md.",
+        help="Audit http(s) URLs in references[].url and prose fields across the JSON SSOT.",
         category="audits",
     )
 )
@@ -501,6 +501,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-meraki-spl",
+        module="audits.meraki_spl",
+        help="Audit Cisco Meraki UCs for SPL hallucinations (unknown sourcetypes/indexes/fields).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -571,22 +579,6 @@ register(
 )
 register(
     Verb(
-        name="generate-phase2-mini-categories",
-        module="generators.phase2_mini_categories",
-        help="Phase 2.2 generator: 35 mini-category UCs + CIM backfill in cat-22 markdown/sidecars.",
-        category="generators",
-    )
-)
-register(
-    Verb(
-        name="generate-phase2-3-per-regulation",
-        module="generators.phase2_3_per_regulation",
-        help="Phase 2.3 generator: 45 per-regulation content-fill UCs in cat-22 markdown/sidecars.",
-        category="generators",
-    )
-)
-register(
-    Verb(
         name="generate-phase3-1-backfill",
         module="generators.phase3_1_backfill",
         help="Phase 3.1 generator: clause-level compliance backfill on existing cat-22 UC sidecars.",
@@ -623,5 +615,203 @@ register(
         module="generators.story_payload",
         help="Regenerate api/v1/compliance/story/* (per-regulation buyer/auditor/implementer story).",
         category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-recommender-app",
+        module="generators.recommender_app",
+        help="Regenerate splunk-apps/splunk-uc-recommender/ (single-artefact Cloud-safe Splunk app).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-scorecard",
+        module="generators.scorecard",
+        help="Regenerate docs/scorecard.md + scorecard.json (per-category quality grades).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-splunkbase-mappings",
+        module="generators.splunkbase_mappings",
+        help="Propose splunkbaseApps[] arrays for UC sidecars (--check / --write).",
+        category="generators",
+    )
+)
+
+# ----------------------------------------------------------------------
+# Ingest (Tier 2 batch 8) -- pull authoritative external sources into
+# data/crosswalks/. Every driver uses the shared splunk_uc.ingest.manifest
+# helper for HTTPS-only fetching with SHA-256 + manifest provenance.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="ingest-oscal",
+        module="ingest.oscal",
+        help="Ingest NIST OSCAL catalogues (CSF 2.0, 800-53 r5 + baselines, 800-171 r3, 800-218 SSDF).",
+        category="ingest",
+    )
+)
+register(
+    Verb(
+        name="ingest-attack",
+        module="ingest.attack",
+        help="Ingest MITRE ATT&CK Enterprise / ICS / Mobile STIX bundles into data/crosswalks/attack/.",
+        category="ingest",
+    )
+)
+register(
+    Verb(
+        name="ingest-d3fend",
+        module="ingest.d3fend",
+        help="Ingest MITRE D3FEND ontology + ATT&CK mappings into data/crosswalks/d3fend/.",
+        category="ingest",
+    )
+)
+register(
+    Verb(
+        name="ingest-atomic",
+        module="ingest.atomic",
+        help="Ingest Red Canary Atomic Red Team master index into data/crosswalks/atomic-red-team/.",
+        category="ingest",
+    )
+)
+register(
+    Verb(
+        name="ingest-olir",
+        module="ingest.olir",
+        help="Ingest CTID Mappings Explorer crosswalks (OLIR-style) into data/crosswalks/olir/.",
+        category="ingest",
+    )
+)
+register(
+    Verb(
+        name="ingest-all",
+        module="ingest.run_all",
+        help="Run every ingest driver in order (oscal -> attack -> d3fend -> atomic -> olir).",
+        category="ingest",
+    )
+)
+
+# ----------------------------------------------------------------------
+# Migrations (Tier 2 batch 10) -- standalone one-shot migrations that
+# rewrite UC sidecars or regenerate UI helper artefacts. They differ
+# from generators because they mutate JSON SSOT in place rather than
+# re-emit derived files; the ``--check`` flag is the drift guard.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="gap-analysis",
+        module="migrations.gap_analysis",
+        help="Correlate ucs.json with regulations.draft.json; emit data/inventory/gap-analysis.json.",
+        category="migrations",
+    )
+)
+register(
+    Verb(
+        name="migrate-cat22-ntv",
+        module="migrations.regenerate_cat22_ntv",
+        help="Regenerate the cat-22 block in non-technical-view.js (--check / --write).",
+        category="migrations",
+    )
+)
+register(
+    Verb(
+        name="migrate-compliance-phase4",
+        module="migrations.migrate_compliance_phase4",
+        help="Phase 4 backfill: controlObjective + evidenceArtifact + requires_sme_review.",
+        category="migrations",
+    )
+)
+
+# ----------------------------------------------------------------------
+# Feasibility (Tier 2 batch 9) -- early-phase proof-of-concept spikes.
+# These are intentionally minimal: they prove an approach works
+# end-to-end, then production CI gates take over the same job from
+# under audits/ or generators/.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="feasibility-validate-exemplar",
+        module="feasibility.validate_exemplar_uc",
+        help="Phase 0.5c spike: validate the exemplar UC against the draft schema (jsonschema).",
+        category="feasibility",
+    )
+)
+register(
+    Verb(
+        name="feasibility-olir-ingest-proof",
+        module="feasibility.olir_ingest_proof",
+        help="Phase 0.5a spike: prove OSCAL catalogue ingest end-to-end with SHA-256 provenance.",
+        category="feasibility",
+    )
+)
+register(
+    Verb(
+        name="feasibility-oscal-generate-proof",
+        module="feasibility.oscal_generate_proof",
+        help="Phase 0.5b spike: emit + Ajv-validate an OSCAL Component Definition for the exemplar UC.",
+        category="feasibility",
+    )
+)
+register(
+    Verb(
+        name="feasibility-splunk-app-poc",
+        module="feasibility.splunk_app_poc",
+        help="Phase 0.5d spike: emit an AppInspect-shaped Splunk app under build/poc/ deterministically.",
+        category="feasibility",
+    )
+)
+
+# ----------------------------------------------------------------------
+# Tools (Tier 2 batch 11) -- recurring utility verbs that don't fit any
+# of the four functional buckets. Migration eligibility: the script must
+# be (a) committed to git and (b) invoked recurringly across releases
+# (CI, Make target, pre-commit hook, or release flow). One-shot fixers,
+# ``_underscore`` helpers, and tier-uplift scripts stay under
+# ``scripts/`` because they will be removed wholesale at the end of
+# their associated content burndown.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="splunk-fortune",
+        module="tools.splunk_fortune",
+        help="Random Splunk monitoring use case from catalog.json (decorative CLI).",
+        category="tools",
+    )
+)
+register(
+    Verb(
+        name="extract-release-notes",
+        module="tools.extract_release_notes",
+        help="Extract a release-notes body from CHANGELOG.md for a given version.",
+        category="tools",
+    )
+)
+register(
+    Verb(
+        name="prepare-release",
+        module="tools.prepare_release",
+        help="Validate or update version references across VERSION/CHANGELOG/CITATION/openapi/index.html.",
+        category="tools",
+    )
+)
+register(
+    Verb(
+        name="validate-uc-schema-staged",
+        module="tools.validate_uc_schema_staged",
+        help="Pre-commit hook: validate staged UC sidecars against schemas/uc.schema.json.",
+        category="tools",
+    )
+)
+register(
+    Verb(
+        name="inventory-ucs",
+        module="tools.inventory_ucs",
+        help="Emit data/inventory/ucs.{json,csv} from content/cat-*/UC-*.json sidecars.",
+        category="tools",
     )
 )

@@ -22,7 +22,7 @@ CI guardrail for the legal-review framework introduced in Phase 4.5b
        or evidence-pack scope requires ``internal-counsel`` or
        ``external-counsel`` per the guide (\u00a72.1).
     *  Every UC ID in ``scope.ucs`` maps to a real sidecar on disk
-       (``use-cases/cat-NN/uc-<id>.json``).
+       (``content/cat-NN-<slug>/UC-<id>.json``).
     *  Every document path in ``scope.documents`` resolves to a real
        file in the repo (the leading ``#anchor`` suffix is stripped
        before the existence check).
@@ -68,7 +68,7 @@ except ImportError as err:  # pragma: no cover - local ergonomics only
 REPO = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = REPO / "schemas" / "legal-review-signoff.schema.json"
 DATA_PATH = REPO / "data" / "provenance" / "legal-review-signoffs.json"
-USE_CASES = REPO / "use-cases"
+CONTENT = REPO / "content"
 
 _SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _UC_ID_RE = re.compile(r"^(?P<cat>0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
@@ -99,19 +99,22 @@ def _validate_schema(data: dict[str, Any]) -> list[str]:
 
 
 def _uc_sidecar_path(uc_id: str) -> Path | None:
-    """Return the expected sidecar path for a UC id, or ``None`` if the
+    """Return the JSON SSOT sidecar path for a UC id, or ``None`` if the
     id does not parse.
 
-    A UC sidecar lives at ``use-cases/cat-<cat>/uc-<id>.json`` where
-    ``<cat>`` is the category number and ``<id>`` is the full
-    dotted id.  Callers should check ``path.is_file()`` before
-    reading.
+    Sidecars live at ``content/cat-NN-<slug>/UC-<id>.json``. The slug
+    can't be derived from the id alone, so we glob for the actual
+    file. Callers should check ``path.is_file()`` before reading.
     """
     m = _UC_ID_RE.match(uc_id)
     if not m:
         return None
-    cat = m.group("cat")
-    return USE_CASES / f"cat-{cat}" / f"uc-{uc_id}.json"
+    cat = int(m.group("cat"))
+    matches = sorted(CONTENT.glob(f"cat-{cat:02d}-*/UC-{uc_id}.json"))
+    if matches:
+        return matches[0]
+    # Synthetic "expected" path so error messages are readable.
+    return CONTENT / f"cat-{cat:02d}-?" / f"UC-{uc_id}.json"
 
 
 def _collect_uc_legal_caveats(uc_ids: list[str]) -> set[str]:

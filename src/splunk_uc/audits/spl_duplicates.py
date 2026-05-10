@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Surface near-duplicate SPL queries across `use-cases/cat-*.md`.
+"""Surface near-duplicate SPL queries across the JSON SSOT.
 
 This is an **informational** linter — it never exits non-zero and is
-not wired into the CI gate. Its job is to flag UCs whose ```spl```
-body is byte-for-byte identical after normalisation (whitespace
-collapse + macro-argument masking). These clusters warrant a closer
-look: the UCs may be legitimately related, but more often they are
-symptoms of an over-zealous ESCU mirror where the detection query was
-replaced by a generic `from datamodel Risk.All_Risk` stub.
+not wired into the CI gate. Its job is to flag UCs whose ``spl`` field
+is byte-for-byte identical after normalisation (whitespace collapse +
+macro-argument masking). These clusters warrant a closer look: the UCs
+may be legitimately related, but more often they are symptoms of an
+over-zealous ESCU mirror where the detection query was replaced by a
+generic ``from datamodel Risk.All_Risk`` stub.
+
+Pre-v8.2.0 this audit walked ``use-cases/cat-*.md``. The legacy
+markdown corpus has been deleted; the JSON SSOT is the only place SPL
+lives now.
 
 Output
 ------
@@ -19,22 +23,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import pathlib
 import re
 import sys
 from collections import defaultdict
 
-# parents[3] resolves: spl_duplicates.py -> audits/ -> splunk_uc/ ->
-# src/ -> repo root. The legacy ``parent.parent`` chain assumed a
-# one-level depth and is now wrong by three.
-REPO = pathlib.Path(__file__).resolve().parents[3]
-USE_CASES = REPO / "use-cases"
+from splunk_uc.audits._uc_walk import iter_uc_sidecars
 
-RE_UC_HEAD = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\s*·\s*(.*)$", re.MULTILINE)
-RE_SPL_BLOCK = re.compile(
-    r"^-[ \t]*\*\*SPL:\*\*[ \t]*\n```spl\n(?P<spl>.*?)\n```",
-    re.MULTILINE | re.DOTALL,
-)
 RE_WS = re.compile(r"\s+")
 RE_MACRO_ARGS = re.compile(r"`([a-z_]+)\([^)]*\)`")
 
@@ -53,21 +47,15 @@ def _canonical_spl(spl: str) -> str:
 
 def _collect() -> dict[str, list[tuple[str, str, str]]]:
     clusters: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-    for md in sorted(USE_CASES.glob("cat-*.md")):
-        text = md.read_text(encoding="utf-8")
-        head_matches = list(RE_UC_HEAD.finditer(text))
-        for i, m in enumerate(head_matches):
-            uc_id = m.group(1)
-            title = m.group(2).strip()
-            start = m.start()
-            end = head_matches[i + 1].start() if i + 1 < len(head_matches) else len(text)
-            block = text[start:end]
-            spl_match = RE_SPL_BLOCK.search(block)
-            if not spl_match:
-                continue
-            canonical = _canonical_spl(spl_match.group("spl"))
-            digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
-            clusters[digest].append((md.name, uc_id, title))
+    for path, payload in iter_uc_sidecars():
+        spl = payload.get("spl")
+        if not isinstance(spl, str) or not spl.strip():
+            continue
+        uc_id = f"UC-{payload.get('id', '<unknown>')}"
+        title = str(payload.get("title", "")).strip() or "(no title)"
+        canonical = _canonical_spl(spl)
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
+        clusters[digest].append((path.name, uc_id, title))
     return clusters
 
 

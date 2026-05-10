@@ -3,7 +3,7 @@
 Phase 5.4 — signed provenance ledger for compliance mappings.
 
 Derives a content-addressable, merkle-rooted ledger from:
-    * Every UC sidecar's compliance[] array (use-cases/**/*.json)
+    * Every UC sidecar's compliance[] array (content/cat-*/UC-*.json)
     * data/regulations.json (canonicalises regulation name -> id)
     * data/provenance/{peer,legal,sme}-signoffs.json (signoff state snapshot)
     * git log (firstSeenCommit / lastModifiedCommit, best-effort)
@@ -53,7 +53,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-USE_CASES_DIR = ROOT / "use-cases"
 CONTENT_DIR = ROOT / "content"
 REGULATIONS_JSON = ROOT / "data" / "regulations.json"
 LEDGER_PATH = ROOT / "data" / "provenance" / "mapping-ledger.json"
@@ -251,23 +250,22 @@ def normalise_version(regulation_id: str, raw_version: str) -> str:
 
 
 def iter_uc_sidecars() -> Iterable[pathlib.Path]:
-    """All UC sidecars under content/ and use-cases/."""
+    """All UC sidecars under ``content/cat-*/UC-*.json`` (the JSON SSOT)."""
     seen: set[str] = set()
-    for root_dir, glob in ((CONTENT_DIR, "UC-*.json"), (USE_CASES_DIR, "uc-*.json")):
-        if not root_dir.exists():
+    if not CONTENT_DIR.exists():
+        return
+    for path in sorted(CONTENT_DIR.rglob("UC-*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
             continue
-        for path in sorted(root_dir.rglob(glob)):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(data, dict) or "id" not in data:
-                continue
-            uid = data["id"]
-            if uid in seen:
-                continue
-            seen.add(uid)
-            yield path
+        if not isinstance(data, dict) or "id" not in data:
+            continue
+        uid = data["id"]
+        if uid in seen:
+            continue
+        seen.add(uid)
+        yield path
 
 
 # ----------------------------------------------------------------------

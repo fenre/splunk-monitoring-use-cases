@@ -2,23 +2,20 @@
 """Phase 3.2 cross-cutting compliance generator.
 
 Phase 3.2 attaches clause-level regulatory tags to *existing* UCs that live
-OUTSIDE cat-22. The generator does NOT create new UCs, does NOT author SPL,
-and does NOT modify markdown. It reads the hand-curated manifest
-``data/per-regulation/phase3.2.json`` and, for each target UC, writes (or
-idempotently updates) a minimal JSON sidecar at
-``use-cases/cat-NN/uc-<id>.json`` that contains the ``compliance[]`` entries
-mapping that UC to specific regulatory clauses.
+OUTSIDE cat-22. The generator does NOT create new UCs and does NOT author
+SPL. It reads the hand-curated manifest ``data/per-regulation/phase3.2.json``
+and, for each target UC, idempotently merges new ``compliance[]`` entries
+into the JSON SSOT sidecar at
+``content/cat-NN-<slug>/UC-<id>.json``.
 
-Why minimal sidecars?
----------------------
-The authoritative narrative, SPL and data sources for non-cat-22 UCs live in
-the markdown files (``use-cases/cat-NN-<slug>.md``). Phase 3.2 is purely a
-metadata overlay that an auditor can consume: every existing compliance-aware
-script in the repo (``scripts/audit_compliance_mappings.py``,
+Why merge into the SSOT directly?
+---------------------------------
+``content/cat-*/UC-*.json`` is the single source of truth (ADR-0007). All
+downstream tooling (``scripts/audit_compliance_mappings.py``,
 ``scripts/audit_compliance_gaps.py``, ``scripts/generate_api_surface.py``,
-``scripts/generate_recommender_app.py``) already reads ``use-cases/cat-*/uc-*.json``
-so a minimal sidecar is sufficient to pick up the new clause tags without
-touching a single line of SPL.
+``scripts/generate_recommender_app.py``, the build pipeline) already reads
+the SSOT, so writing the clause tags directly into the existing sidecar
+keeps a single representation of the UC.
 
 Idempotency rule
 ----------------
@@ -26,27 +23,23 @@ A compliance entry is considered "already present" when an existing entry in
 the target sidecar's ``compliance[]`` array matches on the triple
 ``(regulation, version, clause)``. ``regulation`` comparison is
 case-insensitive so that running the generator repeatedly never produces
-duplicates even if the authoritative spelling drifts between aliases. If the
-target sidecar does not exist yet, a brand-new minimal sidecar is emitted
-with exactly three keys: ``$schema``, ``id``, ``title``, ``compliance``.
+duplicates even if the authoritative spelling drifts between aliases.
 
 Safety gates
 ------------
 * The generator refuses to touch any UC whose id starts with ``22.`` (those
   sidecars are owned by Phase 1.3 / 2.2 / 2.3 / 3.1 generators).
-* Before writing a sidecar, the generator verifies that the UC exists as a
-  markdown heading in the corresponding ``use-cases/cat-NN-<slug>.md`` file
-  AND that the heading title matches the manifest title byte-for-byte
-  (modulo stripping of the leading ``UC-<id> \u00b7 `` prefix). Any drift aborts
-  the run with a clear error, so the manifest can never silently point at a
+* The target sidecar MUST already exist in ``content/`` and the SSOT title
+  MUST match the manifest title byte-for-byte. Any drift aborts the run
+  with a clear error, so the manifest can never silently point at a
   non-existent or renamed UC.
 
 Security notes
 --------------
-* All file writes are under repo-relative paths (``use-cases/cat-NN/``). No
-  user input is evaluated; the manifest is schema-validated by
-  ``scripts/audit_compliance_mappings.py`` after generation
-  (codeguard-0-input-validation-injection,
+* All file writes are under repo-relative paths
+  (``content/cat-NN-<slug>/``). No user input is evaluated; the manifest
+  is schema-validated by ``scripts/audit_compliance_mappings.py`` after
+  generation (codeguard-0-input-validation-injection,
   codeguard-0-file-handling-and-uploads).
 * JSON is parsed with the stdlib, no network, no external code.
 * The generator is deterministic: for a given manifest + repo state it
@@ -74,19 +67,11 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-USE_CASES_DIR = REPO_ROOT / "use-cases"
+CONTENT_DIR = REPO_ROOT / "content"
 MANIFEST_PATH = REPO_ROOT / "data" / "per-regulation" / "phase3.2.json"
 
-# Matches a UC heading like:
-#   ### UC-9.1.1 · Brute-Force Login Detection
-#   #### UC-14.2.4 · Network Segmentation Monitoring
-# Captures (1) uc_id, (2) title. The middle-dot character is U+00B7 and
-# must be preserved verbatim (it is the documented separator in the
-# markdown style guide).
-_HEADING_RE = re.compile(
-    r"^#{2,4}\s+UC-(?P<id>\d+\.\d+\.\d+)\s*\u00b7\s*(?P<title>.+?)\s*$",
-    re.MULTILINE,
-)
+# Matches the SSOT category folder name, e.g. ``cat-09-identity-access-management``.
+_CAT_DIR_RE = re.compile(r"^cat-(?P<num>\d{2})-")
 
 # Canonical sidecar field order. Mirrors Phase 1.6 / 2.2 / 2.3 / 3.1
 # generators so that repeated runs of the whole generator pipeline keep
@@ -160,13 +145,6 @@ _ENTRY_FIELD_ORDER: tuple[str, ...] = (
     "assurance_rationale",
 )
 
-# The schema hint path that minimal sidecars get when they are newly
-# created. Sidecars in ``use-cases/cat-NN/`` are two levels deep relative
-# to the repo root, so ``../../schemas/uc.schema.json`` is correct (same
-# as every existing cat-22 sidecar).
-_SCHEMA_REF = "../../schemas/uc.schema.json"
-
-
 # ---------------------------------------------------------------------------
 # Low-level IO
 # ---------------------------------------------------------------------------
@@ -222,47 +200,64 @@ def _load_manifest() -> dict[str, Any]:
 def _category_padded(uc_id: str) -> str:
     """Return the two-digit zero-padded category segment for a UC id.
 
-    cat-NN directories always use two-digit padding (cat-01, cat-09, cat-14)
-    to mirror the markdown naming convention (cat-01-server-compute.md).
+    SSOT category folders always use two-digit padding
+    (``cat-01-server-compute``, ``cat-09-identity-access-management``,
+    ``cat-14-iot-operational-technology-ot``).
     """
     head = uc_id.split(".", 1)[0]
     return head.zfill(2)
 
 
-def _sidecar_path(uc_id: str) -> Path:
+def _category_dir_index() -> dict[str, Path]:
+    """Map two-digit category number -> SSOT folder path."""
+    index: dict[str, Path] = {}
+    for path in sorted(CONTENT_DIR.glob("cat-*-*")):
+        if not path.is_dir():
+            continue
+        m = _CAT_DIR_RE.match(path.name)
+        if not m:
+            continue
+        index[m.group("num")] = path
+    return index
+
+
+def _sidecar_path(uc_id: str, cat_index: dict[str, Path]) -> Path | None:
+    """Resolve the SSOT sidecar path for ``uc_id`` (returns None if unknown)."""
     cat = _category_padded(uc_id)
-    return USE_CASES_DIR / f"cat-{cat}" / f"uc-{uc_id}.json"
+    cat_dir = cat_index.get(cat)
+    if cat_dir is None:
+        return None
+    return cat_dir / f"UC-{uc_id}.json"
 
 
-def _build_markdown_title_index() -> dict[str, tuple[str, Path]]:
-    """Return {uc_id: (markdown_title, source_file)} for every non-cat-22 UC.
+def _build_ssot_title_index(
+    cat_index: dict[str, Path],
+) -> dict[str, tuple[str, Path]]:
+    """Return ``{uc_id: (title, sidecar_path)}`` for every non-cat-22 SSOT UC.
 
     cat-22 UCs are intentionally excluded so we can assert that Phase 3.2
     never accidentally overlaps with cat-22 sidecar ownership.
     """
     index: dict[str, tuple[str, Path]] = {}
-    for md_path in sorted(USE_CASES_DIR.glob("cat-*-*.md")):
-        # Example path stem: 'cat-09-identity-access-management'
-        stem = md_path.stem
-        # Skip cat-22-regulatory-compliance.md entirely; it is owned by
-        # the other generators and any UC there must never appear in the
-        # Phase 3.2 manifest.
-        if stem.startswith("cat-22-"):
+    for cat, cat_dir in cat_index.items():
+        if cat == "22":
             continue
-        content = md_path.read_text(encoding="utf-8")
-        for match in _HEADING_RE.finditer(content):
-            uc_id = match.group("id")
-            title = match.group("title").rstrip()
-            # If the same UC id appears in two markdown files (should not
-            # happen; audit_uc_ids.py fails CI if it does), keep the
-            # first occurrence and record the duplicate for error output.
-            index.setdefault(uc_id, (title, md_path))
+        for sidecar in sorted(cat_dir.glob("UC-*.json")):
+            try:
+                payload = _read_json(sidecar)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            uc_id = payload.get("id") or sidecar.stem.removeprefix("UC-")
+            title = str(payload.get("title", "")).rstrip()
+            index.setdefault(uc_id, (title, sidecar))
     return index
 
 
 def _validate_targets(
     manifest: dict[str, Any],
-    markdown_index: dict[str, tuple[str, Path]],
+    ssot_index: dict[str, tuple[str, Path]],
 ) -> None:
     """Fail loudly if the manifest points at non-existent or renamed UCs."""
     errors: list[str] = []
@@ -279,19 +274,19 @@ def _validate_targets(
                 f"  - {uc_id}: cat-22 UCs are owned by Phase 1.3/2.2/2.3/3.1 generators; remove from phase3.2.json",
             )
             continue
-        if uc_id not in markdown_index:
+        if uc_id not in ssot_index:
             errors.append(
-                f"  - {uc_id}: manifest title={title!r} but no matching UC heading found in any use-cases/cat-*-*.md",
+                f"  - {uc_id}: manifest title={title!r} but no matching UC sidecar found under content/cat-*/UC-*.json",
             )
             continue
-        md_title, md_path = markdown_index[uc_id]
-        if md_title != title:
+        ssot_title, ssot_path = ssot_index[uc_id]
+        if ssot_title != title:
             errors.append(
-                f"  - {uc_id}: manifest title={title!r} differs from markdown title={md_title!r} in {md_path.relative_to(REPO_ROOT)}",
+                f"  - {uc_id}: manifest title={title!r} differs from SSOT title={ssot_title!r} in {ssot_path.relative_to(REPO_ROOT)}",
             )
     if errors:
         print(
-            "ERROR: Phase 3.2 manifest references UCs that do not match the markdown truth:",
+            "ERROR: Phase 3.2 manifest references UCs that do not match the SSOT:",
             file=sys.stderr,
         )
         for err in errors:
@@ -356,16 +351,6 @@ def _apply_mappings(
     return touched
 
 
-def _build_minimal_sidecar(uc_id: str, title: str) -> dict[str, Any]:
-    """Produce a brand-new sidecar skeleton for a UC that has none yet."""
-    return {
-        "$schema": _SCHEMA_REF,
-        "id": uc_id,
-        "title": title,
-        "compliance": [],
-    }
-
-
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -377,8 +362,9 @@ def _uc_sort_key(uc_id: str) -> list[int]:
 
 def _process(check_only: bool) -> int:
     manifest = _load_manifest()
-    markdown_index = _build_markdown_title_index()
-    _validate_targets(manifest, markdown_index)
+    cat_index = _category_dir_index()
+    ssot_index = _build_ssot_title_index(cat_index)
+    _validate_targets(manifest, ssot_index)
 
     per_uc: dict[str, tuple[str, list[dict[str, Any]]]] = {}
     for uc in manifest["ucs"]:
@@ -394,54 +380,43 @@ def _process(check_only: bool) -> int:
         per_uc[uc_id] = (title, mappings)
 
     drift = False
-    created: list[str] = []
     updated: list[str] = []
 
     for uc_id in sorted(per_uc, key=_uc_sort_key):
-        title, mappings = per_uc[uc_id]
-        path = _sidecar_path(uc_id)
+        _title, mappings = per_uc[uc_id]
+        path = _sidecar_path(uc_id, cat_index)
+        if path is None or not path.exists():
+            print(
+                f"ERROR: SSOT sidecar missing for {uc_id}; cannot apply Phase 3.2 mappings",
+                file=sys.stderr,
+            )
+            return 2
 
-        if path.exists():
-            sidecar = _read_json(path)
-            if not isinstance(sidecar, dict):
-                print(
-                    f"ERROR: {path.relative_to(REPO_ROOT)}: sidecar is not a JSON object",
-                    file=sys.stderr,
-                )
-                return 2
-            # Defensive safety rail: if some future hand edit silently
-            # renamed the sidecar's title, refuse to mutate it; the
-            # manifest should be the single source of truth.
-            existing_id = sidecar.get("id")
-            if existing_id and existing_id != uc_id:
-                print(
-                    f"ERROR: {path.relative_to(REPO_ROOT)}: sidecar.id={existing_id!r} does not match manifest uc_id={uc_id!r}",
-                    file=sys.stderr,
-                )
-                return 2
-            _apply_mappings(sidecar, mappings)
-        else:
-            sidecar = _build_minimal_sidecar(uc_id, title)
-            _apply_mappings(sidecar, mappings)
+        sidecar = _read_json(path)
+        if not isinstance(sidecar, dict):
+            print(
+                f"ERROR: {path.relative_to(REPO_ROOT)}: sidecar is not a JSON object",
+                file=sys.stderr,
+            )
+            return 2
+        existing_id = sidecar.get("id")
+        if existing_id and existing_id != uc_id:
+            print(
+                f"ERROR: {path.relative_to(REPO_ROOT)}: sidecar.id={existing_id!r} does not match manifest uc_id={uc_id!r}",
+                file=sys.stderr,
+            )
+            return 2
+        _apply_mappings(sidecar, mappings)
 
         new_text = _encode_sidecar(sidecar)
-
-        if path.exists():
-            on_disk = path.read_text(encoding="utf-8")
-            if new_text == on_disk:
-                continue
-            if check_only:
-                drift = True
-            else:
-                path.write_text(new_text, encoding="utf-8")
-            updated.append(uc_id)
+        on_disk = path.read_text(encoding="utf-8")
+        if new_text == on_disk:
+            continue
+        if check_only:
+            drift = True
         else:
-            if check_only:
-                drift = True
-            else:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(new_text, encoding="utf-8")
-            created.append(uc_id)
+            path.write_text(new_text, encoding="utf-8")
+        updated.append(uc_id)
 
     total_mappings = sum(len(mappings) for _, mappings in per_uc.values())
 
@@ -449,20 +424,17 @@ def _process(check_only: bool) -> int:
         if drift:
             print(
                 "Phase 3.2 cross-cutting drift detected. Run "
-                "scripts/generate_phase3_2_cross_cutting.py and commit the "
-                "result.",
+                "`python -m splunk_uc generate-phase3-2-cross-cutting` and "
+                "commit the result.",
                 file=sys.stderr,
             )
-            for uc_id in created:
-                print(
-                    f"  would-create: {_sidecar_path(uc_id).relative_to(REPO_ROOT)}",
-                    file=sys.stderr,
-                )
             for uc_id in updated:
-                print(
-                    f"  would-update: {_sidecar_path(uc_id).relative_to(REPO_ROOT)}",
-                    file=sys.stderr,
-                )
+                resolved = _sidecar_path(uc_id, cat_index)
+                if resolved is not None:
+                    print(
+                        f"  would-update: {resolved.relative_to(REPO_ROOT)}",
+                        file=sys.stderr,
+                    )
             return 1
         print(
             f"Phase 3.2 cross-cutting: OK ({len(per_uc)} UCs, "
@@ -471,9 +443,8 @@ def _process(check_only: bool) -> int:
         return 0
 
     print(
-        f"Phase 3.2 cross-cutting: wrote {len(created)} new + {len(updated)} "
-        f"updated sidecar(s) covering {len(per_uc)} UCs with "
-        f"{total_mappings} compliance mappings.",
+        f"Phase 3.2 cross-cutting: updated {len(updated)} sidecar(s) covering "
+        f"{len(per_uc)} UCs with {total_mappings} compliance mappings.",
     )
     return 0
 
@@ -481,10 +452,9 @@ def _process(check_only: bool) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Phase 3.2 cross-cutting compliance generator. Emits or "
-            "idempotently updates minimal JSON sidecars at "
-            "use-cases/cat-NN/uc-<id>.json so existing non-cat-22 UCs "
-            "carry clause-level regulatory tags. Reads "
+            "Phase 3.2 cross-cutting compliance generator. Idempotently "
+            "merges clause-level regulatory tags into existing non-cat-22 "
+            "UC sidecars under content/cat-NN-<slug>/UC-<id>.json. Reads "
             "data/per-regulation/phase3.2.json."
         ),
     )

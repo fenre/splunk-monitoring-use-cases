@@ -12,8 +12,8 @@ Inputs (all in-repo, no network):
 * ``data/regulations.json``             - multi-version regulation catalogue.
 * ``content/cat-*/UC-*.json``           - UC sidecars with compliance[]
                                           (canonical source of truth per
-                                          ADR-0007; supersedes the legacy
-                                          ``use-cases/cat-*.md`` corpus).
+                                          ADR-0007; the JSON SSOT is the
+                                          single corpus, no markdown twin).
 * ``data/crosswalks/olir/*.normalised.json``
 * ``data/crosswalks/oscal/*.normalised.json``
   ``data/crosswalks/oscal/component-definition-*.json``

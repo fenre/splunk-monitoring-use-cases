@@ -114,7 +114,6 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         ("scripts/audit_action_pins.py", "tier2"),
         ("scripts/audit_compliance_mappings.py", "tier2"),
         ("scripts/equipment_lib.py", "tier2"),
-        ("scripts/generate_recommender_app.py", "tier2"),
         ("scripts/build_es.py", "tier2"),
         ("scripts/build_ta.py", "tier2"),
         # Tier 3 (one-shot helpers — always exempt)
@@ -124,6 +123,9 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         ("scripts/backfill_cim_models.py", "tier3"),
         ("scripts/enrich_di_gold.py", "tier3"),
         ("scripts/generate_md_from_json.py", "tier3"),
+        # P6 Tier 2 batch 5: generate_recommender_app.py is now a shim;
+        # the implementation moved to src/splunk_uc/generators/recommender_app.py.
+        ("scripts/generate_recommender_app.py", "tier3"),
         ("scripts/ingest_all.py", "tier3"),
         ("scripts/ingest/source_a.py", "tier3"),
         # Anything outside the included paths is tier-3
@@ -132,9 +134,7 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
     ],
 )
 def test_classify_assigns_correct_tier(path: str, expected: str) -> None:
-    assert audit._classify(path) == expected, (
-        f"path {path!r} should be classified as {expected!r}"
-    )
+    assert audit._classify(path) == expected, f"path {path!r} should be classified as {expected!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -189,9 +189,7 @@ def test_build_baseline_sorts_deterministically(tmp_path: Path) -> None:
     rp.write_text(json.dumps(report))
     out = audit.build_baseline(rp)
     keys = list(out["tier_1_modules"].keys())
-    assert keys == sorted(keys), (
-        f"tier_1_modules must be lexicographically sorted; got {keys}"
-    )
+    assert keys == sorted(keys), f"tier_1_modules must be lexicographically sorted; got {keys}"
 
 
 def test_build_baseline_rounds_percentages_to_two_decimals(tmp_path: Path) -> None:
@@ -217,7 +215,9 @@ def _write_baseline(tmp_path: Path, baseline: dict[str, Any]) -> Path:
     return p
 
 
-def _baseline_with(tier1: dict[str, float], tier2: dict[str, float] | None = None) -> dict[str, Any]:
+def _baseline_with(
+    tier1: dict[str, float], tier2: dict[str, float] | None = None
+) -> dict[str, Any]:
     return {
         "version": "9.1.0",
         "captured_at": "2026-05-09T00:00:00Z",
@@ -318,7 +318,9 @@ def test_check_passes_when_new_tier1_file_clears_floor(tmp_path: Path) -> None:
     assert audit.check(bp, rp, tolerance=1.0, tier1_floor=60.0, tier2_floor=40.0) == 0
 
 
-def test_check_warns_when_tier1_file_disappears(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_check_warns_when_tier1_file_disappears(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Deleting a tier-1 file is allowed (warned, but not failed).
 
     A real deletion that actually moves coverage backward will get

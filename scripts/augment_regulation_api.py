@@ -8,13 +8,12 @@ and injects per-version ``clauseCoverageMatrix[]`` plus correctly-populated
 into every regulation and per-version-slice file already on disk.
 
 Why a post-processor rather than an extension of
-``scripts/generate_api_surface.py``: the existing generator's UC glob still
-points at the legacy ``use-cases/cat-*/uc-*.json`` tree (now empty — the
-catalogue moved to ``content/cat-*/UC-*.json`` in v4+) and so it writes
-empty ``useCasesTaggingThisVersion[]`` / ``clausesReferencedByCatalogue[]``
-arrays. Migrating the upstream generator's UC loader is orthogonal to this
-plan; augmenting here keeps the blast radius to regulation endpoints and
-matches the incremental pattern used for equipment and scorecard data.
+``scripts/generate_api_surface.py``: that generator's UC loader iterates the
+JSON SSOT under ``content/cat-*/UC-*.json``, but the regulation surface needs
+extra story-layer fields that depend on the reverse-index artefacts emitted
+by ``scripts/generate_clause_index.py``. Augmenting in a separate pass keeps
+the blast radius to regulation endpoints and matches the incremental pattern
+used for equipment and scorecard data.
 
 Inputs (in-repo, zero network):
 
@@ -66,7 +65,8 @@ import sys
 import tempfile
 import urllib.parse
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CLAUSES_DIR = REPO_ROOT / "api" / "v1" / "compliance" / "clauses"
@@ -95,7 +95,7 @@ def _write_json(path: pathlib.Path, payload: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-def load_clause_index(clauses_dir: Optional[pathlib.Path] = None) -> List[Dict[str, Any]]:
+def load_clause_index(clauses_dir: pathlib.Path | None = None) -> list[dict[str, Any]]:
     """Load the clause registry produced by ``generate_clause_index.py``.
 
     ``clauses_dir`` defaults to ``api/v1/compliance/clauses`` so ad-hoc
@@ -106,10 +106,7 @@ def load_clause_index(clauses_dir: Optional[pathlib.Path] = None) -> List[Dict[s
     base = clauses_dir or CLAUSES_DIR
     path = base / "index.json"
     if not path.exists():
-        raise SystemExit(
-            f"ERROR: {path} missing. "
-            "Run scripts/generate_clause_index.py first."
-        )
+        raise SystemExit(f"ERROR: {path} missing. Run scripts/generate_clause_index.py first.")
     idx = _load_json(path)
     rows = idx.get("clauses") or []
     if not isinstance(rows, list):
@@ -119,8 +116,8 @@ def load_clause_index(clauses_dir: Optional[pathlib.Path] = None) -> List[Dict[s
 
 def group_clauses_by_regulation_version(
     clauses: Iterable[Mapping[str, Any]],
-) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
-    out: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    out: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in clauses:
         reg = row.get("regulationId")
         ver = row.get("version")
@@ -138,7 +135,7 @@ def group_clauses_by_regulation_version(
 _ASSURANCE_RANK = {"full": 3, "partial": 2, "contributing": 1}
 
 
-def _coverage_state_from_assurance(top: Optional[str]) -> str:
+def _coverage_state_from_assurance(top: str | None) -> str:
     if top == "full":
         return "covered-full"
     if top == "partial":
@@ -150,8 +147,8 @@ def _coverage_state_from_assurance(top: Optional[str]) -> str:
 
 def build_clause_coverage_matrix(
     version_obj: Mapping[str, Any],
-    reg_rows: List[Mapping[str, Any]],
-) -> List[Dict[str, Any]]:
+    reg_rows: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     """Merge the framework's declared ``commonClauses[]`` with any clauses
     the catalogue actually tags for this version, then annotate each row.
 
@@ -159,7 +156,7 @@ def build_clause_coverage_matrix(
     appended from off-list UC-tagged clauses carry ``offCommonList: true``
     so the auditor view can render them separately.
     """
-    rows_by_clause: Dict[str, Dict[str, Any]] = {}
+    rows_by_clause: dict[str, dict[str, Any]] = {}
     for cc in version_obj.get("commonClauses") or []:
         clause = cc.get("clause")
         if not isinstance(clause, str):
@@ -204,23 +201,19 @@ def build_clause_coverage_matrix(
         state = row.get("coverageState")
         top = row.get("topAssurance")
         entry["topAssurance"] = _better_assurance(entry["topAssurance"], top)
-        entry["coverageState"] = _stronger_coverage_state(
-            entry["coverageState"], state
-        )
+        entry["coverageState"] = _stronger_coverage_state(entry["coverageState"], state)
 
     for entry in rows_by_clause.values():
         if not entry["coveringUcs"]:
             entry["coverageState"] = "uncovered"
             entry["topAssurance"] = None
         elif entry["topAssurance"] and entry["coverageState"] == "uncovered":
-            entry["coverageState"] = _coverage_state_from_assurance(
-                entry["topAssurance"]
-            )
+            entry["coverageState"] = _coverage_state_from_assurance(entry["topAssurance"])
 
     return sorted(rows_by_clause.values(), key=lambda r: (not r["onCommonList"], r["clause"]))
 
 
-def _better_assurance(a: Optional[str], b: Optional[str]) -> Optional[str]:
+def _better_assurance(a: str | None, b: str | None) -> str | None:
     if not a:
         return b
     if not b:
@@ -236,14 +229,14 @@ _STATE_RANK = {
 }
 
 
-def _stronger_coverage_state(a: Optional[str], b: Optional[str]) -> str:
+def _stronger_coverage_state(a: str | None, b: str | None) -> str:
     """Pick the stronger of two coverage-state labels."""
     ra = _STATE_RANK.get(a or "uncovered", 0)
     rb = _STATE_RANK.get(b or "uncovered", 0)
     return a if ra >= rb else b  # type: ignore[return-value]
 
 
-def build_coverage_summary(matrix: List[Mapping[str, Any]]) -> Dict[str, Any]:
+def build_coverage_summary(matrix: list[Mapping[str, Any]]) -> dict[str, Any]:
     state_counts = {"covered-full": 0, "covered-partial": 0, "contributing-only": 0, "uncovered": 0}
     total_weight = 0.0
     covered_weight = 0.0  # full=1.0x, partial=0.5x, contributing=0.25x, uncovered=0
@@ -262,11 +255,7 @@ def build_coverage_summary(matrix: List[Mapping[str, Any]]) -> Dict[str, Any]:
         elif ta == "contributing":
             covered_weight += pw * 0.25
     total_common = len(on_common_rows)
-    covered_any = sum(
-        1
-        for r in on_common_rows
-        if r.get("coverageState") != "uncovered"
-    )
+    covered_any = sum(1 for r in on_common_rows if r.get("coverageState") != "uncovered")
     return {
         "commonClauseCount": total_common,
         "coveredClauseCount": covered_any,
@@ -305,8 +294,8 @@ def version_slug(version: str) -> str:
 
 def augment_regulation_file(
     reg_path: pathlib.Path,
-    rows_by_rv: Dict[Tuple[str, str], List[Dict[str, Any]]],
-) -> Dict[str, List[Dict[str, Any]]]:
+    rows_by_rv: dict[tuple[str, str], list[dict[str, Any]]],
+) -> dict[str, list[dict[str, Any]]]:
     """Augment one multi-version regulation file in place.
 
     Returns ``{version_string: clauseCoverageMatrix_rows}`` so the caller
@@ -320,7 +309,7 @@ def augment_regulation_file(
     versions = payload.get("versions") or []
     if not isinstance(versions, list):
         return {}
-    matrices: Dict[str, List[Dict[str, Any]]] = {}
+    matrices: dict[str, list[dict[str, Any]]] = {}
     for v in versions:
         if not isinstance(v, Mapping):
             continue
@@ -344,7 +333,7 @@ def augment_regulation_file(
 def augment_single_version_file(
     slice_path: pathlib.Path,
     reg_id: str,
-    matrices: Dict[str, List[Dict[str, Any]]],
+    matrices: dict[str, list[dict[str, Any]]],
     version_str: str,
 ) -> None:
     """Augment the ``regulations/{id}@{version}.json`` slice file to match."""
@@ -366,14 +355,14 @@ def augment_single_version_file(
 
 def augment_regulations_index(
     reg_root: pathlib.Path,
-    rows_by_rv: Dict[Tuple[str, str], List[Dict[str, Any]]],
+    rows_by_rv: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> None:
     """Append a ``catalogueCoverageSummary`` to ``regulations/index.json``."""
     idx_path = reg_root / "index.json"
     if not idx_path.exists():
         return
     idx = _load_json(idx_path)
-    summary_by_framework: Dict[str, Any] = {}
+    summary_by_framework: dict[str, Any] = {}
     for fw in idx.get("frameworks", []):
         if not isinstance(fw, Mapping):
             continue
@@ -400,9 +389,7 @@ def augment_regulations_index(
             if isinstance(pw, (int, float)):
                 pw_vals.append(float(pw))
         if pw_vals:
-            totals["priorityWeightedCoverageMean"] = round(
-                sum(pw_vals) / len(pw_vals), 2
-            )
+            totals["priorityWeightedCoverageMean"] = round(sum(pw_vals) / len(pw_vals), 2)
         summary_by_framework[reg_id] = totals
     idx["catalogueCoverageSummary"] = summary_by_framework
     _write_json(idx_path, idx)
@@ -414,9 +401,9 @@ def augment_regulations_index(
 
 
 def augment_all(
-    reg_root: Optional[pathlib.Path] = None,
+    reg_root: pathlib.Path | None = None,
     *,
-    clauses_dir: Optional[pathlib.Path] = None,
+    clauses_dir: pathlib.Path | None = None,
 ) -> None:
     reg_root = reg_root or REGS_DIR
     if not reg_root.exists():
@@ -424,10 +411,7 @@ def augment_all(
             rel = reg_root.relative_to(REPO_ROOT)
         except ValueError:
             rel = reg_root
-        raise SystemExit(
-            f"ERROR: {rel} missing. "
-            "Run scripts/generate_api_surface.py first."
-        )
+        raise SystemExit(f"ERROR: {rel} missing. Run scripts/generate_api_surface.py first.")
     # When called from generate_api_surface.py we receive an explicit
     # clauses_dir rooted at the temp output tree; ad-hoc callers keep
     # the default ``api/v1/compliance/clauses`` path.
@@ -438,7 +422,7 @@ def augment_all(
     clause_rows = load_clause_index(clauses_dir)
     rows_by_rv = group_clauses_by_regulation_version(clause_rows)
 
-    matrices_by_reg: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+    matrices_by_reg: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for reg_path in sorted(reg_root.glob("*.json")):
         if "@" in reg_path.stem or reg_path.name == "index.json":
             continue
@@ -493,7 +477,7 @@ def _check_drift() -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument(
         "--check",

@@ -3,7 +3,7 @@
 
 Tier-1 deliverable from the Gold-Standard plan (Phase 1.5c).  The script:
 
-  1. Validates every ``use-cases/cat-*/uc-*.json`` sidecar against
+  1. Validates every ``content/cat-*/UC-*.json`` sidecar against
      ``schemas/uc.schema.json`` using draft-2020-12 JSON Schema.
   2. Reconciles each UC's ``compliance[]`` entry against
      ``data/regulations.json``:
@@ -80,13 +80,7 @@ SCHEMA_PATH = REPO_ROOT / "schemas" / "uc.schema.json"
 REGS_PATH = REPO_ROOT / "data" / "regulations.json"
 GOLDEN_PATH = REPO_ROOT / "tests" / "golden" / "compliance-mappings.yaml"
 BASELINE_PATH = REPO_ROOT / "tests" / "golden" / "audit-baseline.json"
-# UC sidecars moved from ``use-cases/cat-*/uc-*.json`` to
-# ``content/cat-*/UC-*.json`` during the canonical-content migration
-# (scripts/generate_api_surface.py and build.py both read the new
-# location). The old glob matched zero files, which silently turned
-# every audit into "golden tuples against an empty catalogue" —
-# fixed here so the new Phase 4 story-layer checks actually have UCs
-# to inspect. Keeping the constant name ``UC_GLOB`` to minimise diff.
+# UC sidecars live under ``content/cat-*/UC-*.json`` (the JSON SSOT).
 UC_GLOB = "content/cat-*/UC-*.json"
 REPORT_JSON = REPO_ROOT / "reports" / "compliance-coverage.json"
 REPORT_MD = REPO_ROOT / "docs" / "compliance-coverage.md"
@@ -136,16 +130,14 @@ except Exception:  # pragma: no cover - defensive for bootstrap paths
 #      baseline in a follow-up PR. This mirrors how
 #      ``equipment-orphan`` handles narrative-tag drift.
 #
-# ``unknown-version`` is also baselineable during the Phase 4 rollout.
-# When the ``UC_GLOB`` bug was fixed (content/cat-* instead of the
-# broken ``use-cases/cat-*`` path), 33 pre-existing compliance entries
-# with ``"version": "unknown"`` surfaced as blocking errors. Those
-# entries are a pre-existing data-quality backlog that the Phase 4
-# story-layer work is not chartered to rewrite; they need a separate
-# SME pass (tracked in docs/coverage-methodology.md § 13). Capturing
-# them in the baseline lets the audit stay green while making new
-# regressions still block merges. Prune over time via
-# ``--update-baseline`` once the SMEs fix the underlying sidecars.
+# ``unknown-version`` is baselineable during the Phase 4 rollout: 33
+# pre-existing compliance entries with ``"version": "unknown"`` are a
+# data-quality backlog that the Phase 4 story-layer work is not chartered
+# to rewrite; they need a separate SME pass (tracked in
+# ``docs/coverage-methodology.md § 13``). Capturing them in the baseline
+# lets the audit stay green while making new regressions still block
+# merges. Prune over time via ``--update-baseline`` once the SMEs fix
+# the underlying sidecars.
 BASELINEABLE_CODES = frozenset(
     {
         "equipment-orphan",

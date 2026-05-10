@@ -48,7 +48,6 @@ from typing import Any
 # Repo root = this file's fourth-level ancestor.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _CONTENT_UC_ROOT = _REPO_ROOT / "content"
-_LEGACY_UC_ROOT = _REPO_ROOT / "use-cases"
 
 # ``equipment_lib`` still lives under ``scripts/`` until Tier 2 of the P6
 # migration ports it into the package as well.  Insert ``scripts/`` on
@@ -121,9 +120,8 @@ _MIN_LEN_NARRATIVE = 4
 
 
 def _iter_sidecar_paths() -> Iterable[Path]:
-    """Yield every UC sidecar JSON file under ``content/`` and ``use-cases/``."""
+    """Yield every UC sidecar JSON file under ``content/`` (JSON SSOT)."""
     yield from sorted(_CONTENT_UC_ROOT.rglob("UC-*.json"))
-    yield from sorted(_LEGACY_UC_ROOT.rglob("uc-*.json"))
 
 
 def _read_sidecar(path: Path) -> dict[str, Any] | None:

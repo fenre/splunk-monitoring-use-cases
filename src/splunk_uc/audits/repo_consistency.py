@@ -27,7 +27,7 @@ from typing import Any
 # src/ -> repo root. The legacy ``os.path.dirname(os.path.dirname(...))``
 # chain assumed a one-level depth and is now wrong by three.
 REPO_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
-UC_DIR = os.path.join(REPO_ROOT, "use-cases")
+CONTENT_DIR = os.path.join(REPO_ROOT, "content")
 INDEX_PATH = os.path.join(REPO_ROOT, "content", "INDEX.md")
 INDEX_HTML = os.path.join(REPO_ROOT, "index.html")
 
@@ -157,28 +157,33 @@ def main(argv: list[str] | None = None) -> int:
 
     for c in categories:
         n = int(c["num"])
-        pat = os.path.join(UC_DIR, f"cat-{n:02d}-*.md")
-        matches = sorted(glob.glob(pat))
+        # Category folder under content/cat-NN-*/ is the only acceptable
+        # destination since v8.2.0; the legacy use-cases/cat-NN-*.md
+        # markdown corpus was deleted at the same release.
+        pat = os.path.join(CONTENT_DIR, f"cat-{n:02d}-*")
+        matches = sorted(p for p in glob.glob(pat) if os.path.isdir(p))
         if not matches:
             issues.append(
-                f"INDEX: Category {n} ({c['name']!r}) has no matching file use-cases/cat-{n:02d}-*.md"
+                f"INDEX: Category {n} ({c['name']!r}) has no matching folder content/cat-{n:02d}-*"
             )
         elif len(matches) > 1:
-            issues.append(f"INDEX: Category {n} has multiple cat-{n:02d}-*.md files: {matches!r}")
+            issues.append(f"INDEX: Category {n} has multiple cat-{n:02d}-* folders: {matches!r}")
 
         ic = c.get("icon")
         if isinstance(ic, str) and valid_icons and ic not in valid_icons:
             issues.append(f"INDEX: Category {n} Icon {ic!r} is not a key in index.html SI_PATHS")
 
-        cat_file = matches[0] if len(matches) >= 1 else None
-        if cat_file and os.path.isfile(cat_file):
-            with open(cat_file, encoding="utf-8") as cf:
-                body = cf.read()
+        cat_dir = matches[0] if len(matches) >= 1 else None
+        if cat_dir and os.path.isdir(cat_dir):
+            present_uc_ids: set[str] = set()
+            for fn in os.listdir(cat_dir):
+                if fn.startswith("UC-") and fn.endswith(".json"):
+                    present_uc_ids.add(fn[len("UC-") : -len(".json")])
             for sid in c["starters"]:
-                token = f"UC-{sid}"
-                if token not in body:
+                if sid not in present_uc_ids:
                     issues.append(
-                        f"INDEX: Quick Start UC {token} for category {n} not found in {os.path.basename(cat_file)}"
+                        f"INDEX: Quick Start UC UC-{sid} for category {n} not found in "
+                        f"{os.path.basename(cat_dir)}/"
                     )
 
     cat_groups: dict[str, list[int]] | None
@@ -214,38 +219,40 @@ def main(argv: list[str] | None = None) -> int:
 
         cat_ids_in_groups = set(all_in_groups)
 
-        cat_files: list[str] = []
-        for fn in sorted(os.listdir(UC_DIR)):
-            if fn.startswith("cat-") and fn.endswith(".md") and fn != "cat-00-preamble.md":
-                cat_files.append(os.path.join(UC_DIR, fn))
+        cat_dirs: list[str] = []
+        for fn in sorted(os.listdir(CONTENT_DIR)):
+            full = os.path.join(CONTENT_DIR, fn)
+            if fn.startswith("cat-") and os.path.isdir(full):
+                cat_dirs.append(full)
 
-        for path in cat_files:
+        for path in cat_dirs:
             base = os.path.basename(path)
             m = re.match(r"^cat-(\d{2})-", base)
             if not m:
-                issues.append(f"cat file: Unexpected name pattern (expected cat-NN-*.md): {base}")
+                issues.append(f"cat folder: Unexpected name pattern (expected cat-NN-*): {base}")
                 continue
             num = int(m.group(1))
             if num not in cat_ids_in_groups:
                 issues.append(
-                    f"CAT_GROUPS: File {base} implies category {num}, but {num} is not in CAT_GROUPS union"
+                    f"CAT_GROUPS: Folder {base} implies category {num}, but {num} is "
+                    f"not in CAT_GROUPS union"
                 )
 
-        for path in cat_files:
+        for path in cat_dirs:
             base = os.path.basename(path)
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-            for mm in re.finditer(r"UC-(\d+)\.(\d+)\.(\d+)", text):
+            for fn in sorted(os.listdir(path)):
+                if not (fn.startswith("UC-") and fn.endswith(".json")):
+                    continue
+                uc_id = fn[len("UC-") : -len(".json")]
+                mm = re.match(r"^(\d+)\.(\d+)\.(\d+)$", uc_id)
+                if not mm:
+                    continue
                 uc_cat = int(mm.group(1))
                 if uc_cat not in EXPECTED_CATS:
-                    issues.append(
-                        f"cat-*.md: UC-{uc_cat}.{mm.group(2)}.{mm.group(3)} in {base} — "
-                        f"category {uc_cat} is not valid (1–23)"  # noqa: RUF001
-                    )
+                    issues.append(f"content/{base}/{fn}: UC-{uc_id} category {uc_cat} not in 1-23")
                 elif uc_cat not in cat_ids_in_groups:
                     issues.append(
-                        f"cat-*.md: UC-{uc_cat}.{mm.group(2)}.{mm.group(3)} in {base} — "
-                        f"category {uc_cat} not in CAT_GROUPS"
+                        f"content/{base}/{fn}: UC-{uc_id} category {uc_cat} not in CAT_GROUPS"
                     )
 
         seen_ids: dict[object, list[str]] = {}

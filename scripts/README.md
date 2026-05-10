@@ -20,7 +20,7 @@ make manifest         # Regenerate eventgen manifest
 
 | Script | Reads from | Purpose |
 |--------|-----------|---------|
-| `audit_uc_structure.py` | `use-cases/cat-*.md` | Audit legacy markdown UC blocks (required fields, enums, SPL presence). Canonical JSON validation runs in the build pipeline via [`tools/build/parse_content.py`](../tools/build/parse_content.py). |
+| `audit_uc_structure.py` | `content/**/*.json` | Audit per-UC sidecar shape (required fields, enums, SPL presence). Canonical JSON validation also runs in the build pipeline via [`tools/build/parse_content.py`](../tools/build/parse_content.py). |
 | `audit_cim_spl_alignment.py` | `content/**/*.json` | CIM Models vs CIM SPL datamodel alignment |
 | `audit_links.py` | `content/**/*.json` | HTTP check all URLs in `references` arrays |
 | `audit_repo_consistency.py` | `enrichment.py` | Cross-check CAT_GROUPS, SPLUNK_APPS, INDEX.md |
@@ -61,17 +61,19 @@ make manifest         # Regenerate eventgen manifest
 |--------|---------|---------|
 | `equipment_lib.py` | generators, audits | Equipment table accessor (reads from `tools/build/enrichment.py`) |
 
-## Deprecated
+## Removed
+
+The legacy `use-cases/` markdown corpus was retired in v8.2.0 and the
+following scripts went with it:
 
 | Script | Reason |
 |--------|--------|
 | `normalize_cim_fields.py` | Operated on `use-cases/*.md` (no longer source of truth) |
-| `sync_json_to_markdown.py` | Synced JSON sidecars into legacy markdown |
-| `author_phase_c_ucs.py` | One-time phase C authoring script |
-| `generate_phase2_*.py` | One-time phase 2 generation scripts |
-| `generate_phase3_*.py` | One-time phase 3 generation scripts |
+| `sync_json_to_markdown.py` | Synced JSON sidecars into the now-deleted legacy markdown |
+| `author_phase_c_ucs.py` | One-time phase C authoring script (markdown emitter) |
+| `generate_phase2_mini_categories.py` / `generate_phase2_3_per_regulation.py` | One-time phase 2 generation scripts (markdown writers) |
+| `generate_phase_e_signoffs.py` and other `scripts/archive/*` | One-time migration tooling for the markdown→JSON lift; kept under `scripts/archive/` until v8.2 then deleted with the corpus they consumed. |
 
-## Archive
-
-One-time migration and fixup scripts are preserved in `scripts/archive/`
-for historical reference.
+The `scripts/archive/` directory has been removed entirely; see git
+history (`git log --all --diff-filter=D -- scripts/archive`) if you need
+to replay one of the archived migrations.

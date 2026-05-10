@@ -19,6 +19,7 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from splunk_uc.audits.repo_consistency import (
+    CONTENT_DIR,
     EXPECTED_CATS,
     INDEX_HTML,
     INDEX_PATH,
@@ -27,7 +28,6 @@ from splunk_uc.audits.repo_consistency import (
     RE_STARTER,
     REPO_ROOT,
     REQUIRED_SPLUNK_APP_KEYS,
-    UC_DIR,
     extract_build_assignments,
     main,
     parse_index,
@@ -35,6 +35,7 @@ from splunk_uc.audits.repo_consistency import (
 )
 
 __all__ = [
+    "CONTENT_DIR",
     "EXPECTED_CATS",
     "INDEX_HTML",
     "INDEX_PATH",
@@ -43,7 +44,6 @@ __all__ = [
     "RE_CAT_HEADER",
     "RE_ICON",
     "RE_STARTER",
-    "UC_DIR",
     "extract_build_assignments",
     "main",
     "parse_index",

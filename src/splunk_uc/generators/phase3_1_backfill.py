@@ -20,9 +20,10 @@ compare exactly since those are the load-bearing audit identifiers.
 
 Security notes
 --------------
-- All file writes are under repo-relative paths (``use-cases/cat-22/``).
-  No user input is evaluated; all mapping data lives in the JSON manifest
-  at ``data/per-regulation/phase3.1.json`` which is schema-validated by
+- All file writes are under repo-relative paths
+  (``content/cat-22-regulatory-compliance/``). No user input is evaluated;
+  all mapping data lives in the JSON manifest at
+  ``data/per-regulation/phase3.1.json`` which is schema-validated by
   ``scripts/audit_compliance_mappings.py`` after generation
   (codeguard-0-input-validation-injection,
   codeguard-0-file-handling-and-uploads).
@@ -50,7 +51,6 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SIDECAR_DIR = REPO_ROOT / "use-cases" / "cat-22"
 CONTENT_DIR = REPO_ROOT / "content" / "cat-22-regulatory-compliance"
 MANIFEST_PATH = REPO_ROOT / "data" / "per-regulation" / "phase3.1.json"
 
@@ -213,11 +213,8 @@ def _load_manifest() -> list[dict[str, Any]]:
 
 
 def _sidecar_path(uc_id: str) -> Path:
-    """Resolve a UC sidecar checking content/ (canonical) before use-cases/."""
-    content_path = CONTENT_DIR / f"UC-{uc_id}.json"
-    if content_path.exists():
-        return content_path
-    return SIDECAR_DIR / f"uc-{uc_id}.json"
+    """Resolve a UC sidecar in the JSON SSOT (``content/cat-22-regulatory-compliance/``)."""
+    return CONTENT_DIR / f"UC-{uc_id}.json"
 
 
 def _process(check_only: bool) -> int:

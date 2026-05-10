@@ -1,60 +1,31 @@
 #!/usr/bin/env python3
-"""Run every authoritative ingest driver, emitting deterministic outputs.
+"""Compatibility shim — delegates to ``splunk_uc.ingest.run_all``.
 
-Invokes, in order:
-  1. ingest_oscal.py    — NIST OSCAL catalogues (CSF 2.0, 800-53 rev5 + baselines,
-                          800-171 rev3, 800-218 SSDF).
-  2. ingest_attack.py   — MITRE ATT&CK Enterprise, ICS, Mobile STIX bundles.
-  3. ingest_d3fend.py   — MITRE D3FEND ontology + full ATT&CK mappings.
-  4. ingest_atomic.py   — Red Canary Atomic Red Team master index.
-  5. ingest_olir.py     — Cross-framework OLIR-style crosswalks via CTID
-                          Mappings Explorer (NIST 800-53, CRI Profile, CSA CCM).
+The implementation moved under ``src/splunk_uc/ingest/`` as part of
+the Phase 6 scripts taxonomy reorganisation (Tier 2 batch 8, ingest
+cluster). This shim keeps the historic ``scripts/ingest_all.py``
+invocation alive while the new dispatcher (``python -m splunk_uc
+ingest-all``) becomes the primary entry-point. The ``main`` symbol is
+re-exported so any direct CLI invocation in CI / maintainer notes
+still works unchanged during the soak period.
 
-Each driver is idempotent thanks to the shared manifest-based cache, so
-re-running this orchestrator after a successful pass does no network I/O
-unless vendor files have been deleted.
-
-Exit code:
-  0 if all drivers succeed, non-zero on the first failure.
+Implementation note: the new module is ``splunk_uc.ingest.run_all``
+rather than ``splunk_uc.ingest.all`` because ``all`` shadows the
+Python built-in.
 """
 
 from __future__ import annotations
 
-import importlib
-import pathlib
 import sys
-import time
+from pathlib import Path
 
-_HERE = pathlib.Path(__file__).resolve()
-_REPO = _HERE.parents[1]
-INGEST_DIR = _HERE.parent / "ingest"
-if str(INGEST_DIR) not in sys.path:
-    sys.path.insert(0, str(INGEST_DIR))
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-DRIVERS = [
-    "ingest_oscal",
-    "ingest_attack",
-    "ingest_d3fend",
-    "ingest_atomic",
-    "ingest_olir",
-]
+from splunk_uc.ingest.run_all import main
 
-
-def main() -> int:
-    overall_rc = 0
-    for name in DRIVERS:
-        print(f"\n=== {name} ===", flush=True)
-        start = time.monotonic()
-        module = importlib.import_module(name)
-        rc = module.run()
-        elapsed = time.monotonic() - start
-        print(f"=== {name}: rc={rc} ({elapsed:.1f}s) ===", flush=True)
-        if rc != 0 and overall_rc == 0:
-            overall_rc = rc
-    manifest = _REPO / "data" / "provenance" / "ingest-manifest.json"
-    if manifest.exists():
-        print(f"\nManifest: {manifest.relative_to(_REPO)}", flush=True)
-    return overall_rc
+__all__ = ["main"]
 
 
 if __name__ == "__main__":

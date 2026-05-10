@@ -1,51 +1,34 @@
 #!/usr/bin/env python3
-"""Audit ``Monitoring type:`` fields across every UC in ``use-cases/cat-*.md``.
+"""Audit ``monitoringType`` arrays across every UC sidecar in the JSON SSOT.
 
 Checks performed:
 
-1. ``monitoring-type-empty`` (MED) - the ``Monitoring type:`` label is
-   present but the value is blank.
-2. ``monitoring-type-unknown-token`` (LOW) - the value contains a
-   non-canonical monitoring category (e.g., ``Operational`` where we
-   mean ``Operations``). Canonical tokens are defined by the
-   catalog-level convention; unknowns are surfaced so they can be
-   normalised.
-3. ``monitoring-type-security-mismatch`` (HIGH) - the UC carries a
-   genuine ``MITRE ATT&CK:`` technique mapping (canonical
-   ``Txxxx``/``TAxxxx`` tokens, not ``N/A (...)``) yet
-   ``Monitoring type:`` does NOT include ``Security``. ATT&CK maps
-   adversary behaviour; if the UC detects an ATT&CK technique it is,
-   by definition, at least partly security.
+1. ``monitoring-type-empty`` (MED) — ``monitoringType`` is missing or
+   empty.
+2. ``monitoring-type-unknown-token`` (LOW) — value contains a
+   non-canonical monitoring category. The schema enum already enforces
+   most spellings; this catch is a safety net for legacy edits that
+   sneak in via direct JSON manipulation.
+3. ``monitoring-type-security-mismatch`` (HIGH) — UC carries genuine
+   ``attackTechniques`` (canonical ``Txxxx``/``TAxxxx`` tokens, NOT
+   ``N/A (...)``) yet ``monitoringType`` does not include ``Security``.
+   ATT&CK maps adversary behaviour; if the UC detects an ATT&CK
+   technique it is, by definition, at least partly security.
 
-The audit is advisory today (it does not mutate markdown). Use the
-output to drive the mechanical fix pass tracked as ``fix-monitoring``.
+Pre-v8.2.0 this walked ``use-cases/cat-*.md`` and parsed
+``- **Monitoring type:**`` lines. The JSON SSOT is the only backend now.
 """
 
 from __future__ import annotations
 
 import argparse
-import pathlib
 import re
 import sys
 from collections import Counter
-from collections.abc import Iterable
 from typing import NamedTuple
 
-# parents[3] resolves: monitoring_type.py -> audits/ -> splunk_uc/ ->
-# src/ -> repo root. The legacy ``parent.parent`` chain assumed a
-# one-level depth and is now wrong by three.
-REPO = pathlib.Path(__file__).resolve().parents[3]
-USE_CASES = REPO / "use-cases"
+from splunk_uc.audits._uc_walk import get_list_field, iter_uc_sidecars
 
-RE_UC_HEAD = re.compile(r"^###\s+(UC-\d+\.\d+\.\d+)\s*·\s*(.*)$", re.MULTILINE)
-RE_MON_LINE = re.compile(
-    r"^-[ \t]*\*\*Monitoring type:\*\*[ \t]*(?P<body>[^\n]*)$",
-    re.MULTILINE,
-)
-RE_MITRE_LINE = re.compile(
-    r"^-[ \t]*\*\*MITRE ATT&CK:\*\*[ \t]*(?P<body>[^\n]*)$",
-    re.MULTILINE,
-)
 RE_MITRE_TOKEN = re.compile(r"^(?:TA\d{4}|T\d{4}(?:\.\d{3})?)$")
 RE_MITRE_NA = re.compile(r"^N/?A(\s*\([^)]+\))?\s*$", re.IGNORECASE)
 
@@ -69,6 +52,7 @@ CANONICAL_TOKENS = {
     "Operations",
     "Patient Safety",
     "Performance",
+    "Physical",
     "Physical Security",
     "Quality",
     "Reliability",
@@ -82,7 +66,6 @@ CANONICAL_TOKENS = {
 }
 TOKEN_NORMALISATION = {
     "Operational": "Operations",
-    "Physical": "Physical Security",
 }
 
 
@@ -95,41 +78,24 @@ class Finding(NamedTuple):
     snippet: str = ""
 
 
-def _iter_uc_blocks(text: str) -> Iterable[tuple[str, str]]:
-    matches = list(RE_UC_HEAD.finditer(text))
-    for i, m in enumerate(matches):
-        uc_id = m.group(1)
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        yield uc_id, text[start:end]
-
-
-def _has_real_mitre_mapping(body: str) -> bool:
-    m = RE_MITRE_LINE.search(body)
-    if not m:
-        return False
-    value = m.group("body").strip()
-    if not value or RE_MITRE_NA.match(value):
-        return False
-    for tok in (t.strip() for t in value.split(",")):
-        if tok and RE_MITRE_TOKEN.match(tok):
+def _has_real_mitre_mapping(payload: dict) -> bool:
+    techniques = get_list_field(payload, "attackTechniques")
+    for tok in techniques:
+        if not isinstance(tok, str):
+            continue
+        s = tok.strip()
+        if RE_MITRE_NA.match(s):
+            continue
+        if RE_MITRE_TOKEN.match(s):
             return True
     return False
 
 
-def _check_monitoring_line(
-    uc_id: str,
-    file: str,
-    body: str,
-) -> list[Finding]:
+def _check_uc(uc_id: str, file: str, payload: dict) -> list[Finding]:
     findings: list[Finding] = []
-    mon_match = RE_MON_LINE.search(body)
-    if not mon_match:
-        return findings
+    tokens = [t for t in get_list_field(payload, "monitoringType") if isinstance(t, str)]
 
-    raw_value = mon_match.group("body").strip()
-
-    if not raw_value:
+    if not tokens:
         findings.append(
             Finding(
                 severity="MED",
@@ -137,15 +103,14 @@ def _check_monitoring_line(
                 uc_id=uc_id,
                 file=file,
                 message=(
-                    "`Monitoring type:` label present but value is blank."
-                    " Fill in one or more canonical categories (e.g.,"
-                    " `Security`, `Performance`, `Availability`)."
+                    "`monitoringType` missing or empty. Set one or more "
+                    "canonical categories (e.g., `Security`, "
+                    "`Performance`, `Availability`)."
                 ),
             )
         )
         return findings
 
-    tokens = [t.strip() for t in raw_value.split(",") if t.strip()]
     unknown = [t for t in tokens if t not in CANONICAL_TOKENS]
     if unknown:
         advice_bits: list[str] = []
@@ -167,12 +132,12 @@ def _check_monitoring_line(
                     + ", ".join(sorted(CANONICAL_TOKENS))
                     + "."
                 ),
-                snippet=raw_value,
+                snippet=", ".join(tokens),
             )
         )
 
     has_security = any(t.lower() == "security" for t in tokens)
-    if _has_real_mitre_mapping(body) and not has_security:
+    if _has_real_mitre_mapping(payload) and not has_security:
         findings.append(
             Finding(
                 severity="HIGH",
@@ -180,31 +145,23 @@ def _check_monitoring_line(
                 uc_id=uc_id,
                 file=file,
                 message=(
-                    "UC has a genuine MITRE ATT&CK mapping but"
-                    " `Monitoring type:` does not include `Security`."
+                    "UC has a genuine MITRE attackTechniques mapping but"
+                    " `monitoringType` does not include `Security`."
                     " ATT&CK describes adversary behaviour - add"
                     " `Security` (multi-label is fine) or remove the"
                     " ATT&CK mapping if the behaviour is purely"
                     " operational."
                 ),
-                snippet=raw_value,
+                snippet=", ".join(tokens),
             )
         )
 
     return findings
 
 
-def audit_file(path: pathlib.Path) -> list[Finding]:
-    text = path.read_text(encoding="utf-8")
-    findings: list[Finding] = []
-    for uc_id, body in _iter_uc_blocks(text):
-        findings.extend(_check_monitoring_line(uc_id, path.name, body))
-    return findings
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Audit Monitoring type fields across use-cases/cat-*.md."
+        description="Audit monitoringType across the JSON SSOT.",
     )
     parser.add_argument(
         "--check",
@@ -214,14 +171,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     all_findings: list[Finding] = []
-    files = sorted(USE_CASES.glob("cat-*.md"))
-    for md in files:
-        all_findings.extend(audit_file(md))
+    sidecar_count = 0
+    for path, payload in iter_uc_sidecars():
+        sidecar_count += 1
+        uc_id = f"UC-{payload.get('id', '<unknown>')}"
+        all_findings.extend(_check_uc(uc_id, path.name, payload))
 
     print("=" * 72)
-    print("Monitoring-type audit (use-cases/cat-*.md)")
+    print("Monitoring-type audit (content/cat-*/UC-*.json)")
     print("=" * 72)
-    print(f"Files scanned: {len(files)}")
+    print(f"Sidecars scanned: {sidecar_count}")
     by_sev = Counter(f.severity for f in all_findings)
     print("Findings by severity: " + ", ".join(f"{k}={v}" for k, v in sorted(by_sev.items())))
     by_kind = Counter(f.kind for f in all_findings)
