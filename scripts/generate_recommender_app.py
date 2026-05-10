@@ -299,7 +299,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("is_configured", "0"),
                 ("state", "enabled"),
-                ("build", "13"),
+                ("build", "14"),
             ],
         ),
         (
@@ -307,7 +307,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("name", PRIMARY_APP_ID),
                 ("version", version),
-                ("build", "13"),
+                ("build", "14"),
             ],
         ),
         (
@@ -494,7 +494,30 @@ def _compliance_eventtypes_sections(
     ucs: Sequence[Mapping[str, Any]],
     frameworks: Mapping[str, Mapping[str, Any]],
 ) -> List[Tuple[str, List[Tuple[str, str]]]]:
-    """One eventtype per (regulation, controlFamily) for routing/searches."""
+    """One eventtype per (regulation, controlFamily) for routing/searches.
+
+    The eventtype is a navigation/routing marker referenced by the
+    ``uc_compliance_<fw>`` macros and tagged in ``tags.conf`` — it does
+    not have a live event surface of its own (the bundled compliance
+    saved searches ship disabled-by-default and don't write summary
+    events). The ``search`` clause is therefore intentionally a
+    sourcetype-scoped placeholder that:
+
+    * parses cleanly so Splunk does not emit a ``[mink]`` warning at
+      conf-load (a previous build used ``tag::uc_compliance_regulation=
+      "<fw>"`` which referenced a tag that ``tags.conf`` does not
+      define on the ``uc_compliance_regulation`` field — Splunk
+      validated the eventtype search and warned ``The tag '<fw>' does
+      not exist or is deactivated on uc_compliance_regulation``);
+    * does not accidentally match unrelated production data;
+    * survives if an operator later starts logging the bundled saved
+      searches to a summary index with that sourcetype.
+
+    The human-readable description (covered UC IDs etc.) lives in the
+    proper ``description`` attribute, not concatenated into ``search``
+    where it was previously parsed as a ``eventtype_description="..."``
+    field clause that never matches.
+    """
     by_key: Dict[Tuple[str, str], List[str]] = {}
     for uc in ucs:
         family = (uc.get("controlFamily") or "uncategorised").strip() or "uncategorised"
@@ -508,15 +531,16 @@ def _compliance_eventtypes_sections(
         ids = sorted(set(by_key[(fw_id, family)]))
         safe_family = re.sub(r"[^A-Za-z0-9]+", "_", family).strip("_").lower() or "uncategorised"
         stanza = f"uc_compliance_{fw_id}_{safe_family}"
-        search = (
-            f"eventtype_description=\"{fw_id} — {family} (covers "
-            f"UC {', '.join(ids[:5])}{'…' if len(ids) > 5 else ''})\" "
-            f"tag::uc_compliance_regulation=\"{fw_id}\""
+        description = (
+            f"{fw_id} — {family} (covers "
+            f"UC {', '.join(ids[:5])}{'…' if len(ids) > 5 else ''})"
         )
+        search = f"sourcetype=\"uc_compliance::{fw_id}::{safe_family}\""
         sections.append(
             (
                 stanza,
                 [
+                    ("description", description),
                     ("search", search),
                     ("priority", "10"),
                     ("disabled", "0"),
@@ -2301,10 +2325,32 @@ def _js_recommender(api_base: str) -> str:
     }}
     return out;
   }}
+
+  // Build 14 — broader tokeniser for cross-namespace matching. App
+  // tokens preserve ``_`` so ``Splunk_TA_nix`` stays one token, but
+  // index names (``edge_hub_opcua``), sourcetype names
+  // (``splunk:edge_hub:opcua``), and underscore-separated app folders
+  // need to be reduced to comparable atomic words. ``broadTokens``
+  // splits on every non-alphanumeric character so it can find the
+  // ``opcua`` overlap between an index and a sourcetype.
+  function broadTokens(s) {{
+    if (typeof s !== 'string') return [];
+    var t = s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\\s+/);
+    var out = [];
+    for (var i = 0; i < t.length; i++) {{
+      if (t[i] && t[i].length >= 3) out.push(t[i]);
+    }}
+    return out;
+  }}
   // Exposed for unit tests.
   window.__uc_recommender_helpers__ = {{
     looksLikeAppKey: looksLikeAppKey,
     appNameTokens: appNameTokens,
+    looksLikeRealSourcetype: looksLikeRealSourcetype,
+    looksLikeUserIndex: looksLikeUserIndex,
+    isItsiInternalInventoryApp: isItsiInternalInventoryApp,
+    equipmentOptions: equipmentOptions,
+    sortRows: sortRows,
   }};
 
   // Build 13 — three matcher fairness fixes.
@@ -2328,14 +2374,27 @@ def _js_recommender(api_base: str) -> str:
   //     sweep the entire slice(0, 100).
   //
   // Stop-words used in (a). Tokens that appear in *both* sides at high
-  // density and carry no meaningful signal. Conservative list — does
-  // not include "data", "service", "cloud", "enterprise" because those
-  // are still useful disambiguators in some app-name pairs.
+  // density and carry no meaningful signal.
+  //
+  // Build 15 expansion: the live-data simulation against a real ITSI
+  // shop (90 apps, 27 CIM models) showed that "itsi", "module",
+  // "monitoring", "content", "pack", "dashboard", "report", "service"
+  // / "intelligence" were the dominant noise sources — every "ITSI
+  // Module for X" inventory app token-matched dozens of catalogue
+  // entries that simply contained "monitoring" or "module" with no
+  // domain overlap. We deliberately keep "data", "cloud", "enterprise"
+  // OFF the list — they're still useful disambiguators in app names.
   var APP_TOKEN_STOPWORDS = {{
     'splunk': 1, 'app': 1, 'apps': 1, 'add': 1, 'addon': 1, 'addons': 1,
     'for': 1, 'and': 1, 'the': 1, 'with': 1, 'via': 1, 'use': 1, 'using': 1,
     'from': 1, 'has': 1, 'any': 1, 'all': 1, 'this': 1, 'that': 1,
-    'optional': 1, 'required': 1, 'requires': 1, 'tools': 1, 'tool': 1
+    'optional': 1, 'required': 1, 'requires': 1, 'tools': 1, 'tool': 1,
+    // build 15 — ITSI / Content Pack / Monitoring family stop-words.
+    'itsi': 1, 'module': 1, 'modules': 1,
+    'monitoring': 1, 'monitor': 1,
+    'content': 1, 'pack': 1, 'packs': 1,
+    'dashboard': 1, 'dashboards': 1, 'report': 1, 'reports': 1,
+    'service': 1, 'services': 1, 'intelligence': 1
   }};
 
   function meaningfulTokens(tokens) {{
@@ -2344,6 +2403,87 @@ def _js_recommender(api_base: str) -> str:
       if (!APP_TOKEN_STOPWORDS[tokens[i]]) out.push(tokens[i]);
     }}
     return out;
+  }}
+
+  // Build 14 — evidence-pack synthetic-key detector. Catalogue keys of
+  // the form ``Some App Name (NNNN)`` or ``Some App Name (Splunkbase
+  // NNNN)`` are regulatory-evidence citations injected by the cat-22
+  // pipeline. A user installing the underlying app does not imply the
+  // SOX/HIPAA/etc. UC behind that key is actionable for them, so we
+  // multiply any match weight that fires through such a key by
+  // ``EVIDENCE_PACK_DISCOUNT``. The clean ``Some App Name`` key (no
+  // trailing parens) still scores at full weight.
+  var EVIDENCE_PACK_DISCOUNT = 0.4;
+  // Trailing ``(NNNN)`` or ``(Splunkbase NNNN)``, optionally followed
+  // by punctuation or whitespace. The trailing-punctuation tolerance
+  // catches catalogue keys that picked up a stray ``.`` or ``,`` from
+  // the upstream prose extractor (e.g.
+  // ``Splunk Common Information Model Add-on (1621).``).
+  var EVIDENCE_PACK_RE = /\\(\\s*(?:splunkbase\\s*)?\\d{{2,}}\\s*\\)\\s*[.,;:!?\\s]*$/i;
+  function isEvidencePackKey(key) {{
+    return typeof key === 'string' && EVIDENCE_PACK_RE.test(key);
+  }}
+
+  // Build 15 — guards on the INVENTORY side. The live-data simulation
+  // against a real ITSI/OT shop showed that the dominant noise sources
+  // were Splunk-auto-classified "sourcetypes" that don't represent real
+  // monitored data (`_json`, `stash`, `*-too_small`, `dpkg-N`, bare
+  // `cpu`/`disk`/`memory` from Linux input rules), Splunk-system /
+  // ITSI-internal indexes (`main`, `summary`, `learned`, `itsi_*`), and
+  // ITSI Content Pack inventory apps (`DA-ITSI-CP-*`) — none of which
+  // reflect a domain the user is actually monitoring. These three
+  // helpers filter inventory rows out (or down-weight them) BEFORE the
+  // matcher tokenises them so they cannot pile noise onto the buckets.
+
+  // Sourcetype names the saved-search inventory will return that
+  // are Splunk-internal / auto-classified placeholders, never real
+  // monitored data domains.
+  var BUILD15_SYSTEM_SOURCETYPES = {{
+    'stash': 1, 'config_file': 1, 'learned': 1, 'history': 1
+  }};
+  // Bare auto-classified short names with no namespace separator (e.g.
+  // collectd's `cpu` / `memory` lines when no inputs.conf rule fires).
+  // We restrict the bare-name guard to a strict allow-deny set so we
+  // don't accidentally drop legitimate short sourcetypes.
+  var BUILD15_BARE_AUTOCLASS = {{
+    'cpu': 1, 'disk': 1, 'memory': 1, 'mem': 1, 'swap': 1,
+    'process': 1, 'login': 1, 'utmp': 1, 'wtmp': 1, 'btmp': 1
+  }};
+  var BUILD15_SYSTEM_PKG_RE = /^(?:dpkg|alternatives|history|yum|apt|rpm)-/;
+  function looksLikeRealSourcetype(name) {{
+    if (typeof name !== 'string' || !name) return false;
+    if (name.charAt(0) === '_') return false;            // _json, _internal_*
+    if (BUILD15_SYSTEM_SOURCETYPES[name]) return false;
+    if (BUILD15_BARE_AUTOCLASS[name]) return false;
+    if (/-too_small$/.test(name)) return false;
+    if (BUILD15_SYSTEM_PKG_RE.test(name)) return false;
+    return true;
+  }}
+
+  // Splunk-system + ITSI-internal indexes whose names are not signals
+  // of monitored data. Splunk auto-creates the leading ones; ITSI
+  // pipelines auto-create the `itsi_*` ones for accounting.
+  var BUILD15_SYSTEM_INDEXES = {{
+    'main': 1, 'summary': 1, 'history': 1, 'learned': 1,
+    'lastchanceindex': 1, 'splunklogger': 1, 'splunk_metrics': 1,
+    'cim_modactions': 1, 'anomaly_detection': 1, 'snmptrapd': 1
+  }};
+  function looksLikeUserIndex(name) {{
+    if (typeof name !== 'string' || !name) return false;
+    if (name.charAt(0) === '_') return false;            // _internal, _audit, _telemetry, …
+    if (BUILD15_SYSTEM_INDEXES[name]) return false;
+    if (name.indexOf('itsi_') === 0) return false;       // 10+ ITSI internal accounting indexes
+    if (name.indexOf('da_itsi_') === 0) return false;
+    return true;
+  }}
+
+  // Inventory app rows whose ``extras`` (folder name) marks them as
+  // ITSI internals — Content Packs (DA-ITSI-CP-*), Modules (DA-ITSI-*),
+  // supporting addons (SA-ITSI-*). Same shape as the evidence-pack
+  // discount: real apps installed for ITSI plumbing, not user-domain.
+  var BUILD15_ITSI_INTERNAL_RE = /^(?:DA-ITSI-|SA-ITSI-)/i;
+  function isItsiInternalInventoryApp(extras) {{
+    return typeof extras === 'string' && BUILD15_ITSI_INTERNAL_RE.test(extras);
   }}
 
   function matchUseCases(inventory, indexes) {{
@@ -2358,6 +2498,8 @@ def _js_recommender(api_base: str) -> str:
 
     function bump(ucId, weight, reason) {{
       if (!ucId) return;
+      // Tolerate floating-point weights (build 14 uses 0.4 and 0.5).
+      if (!(weight > 0)) return;
       var seenKey = currentRowKey + '::' + ucId;
       var prev = rowSeen[seenKey] || 0;
       if (weight <= prev) {{
@@ -2367,9 +2509,25 @@ def _js_recommender(api_base: str) -> str:
       }}
       var delta = weight - prev;
       rowSeen[seenKey] = weight;
-      if (!buckets[ucId]) buckets[ucId] = {{ id: ucId, score: 0, reasons: [] }};
+      if (!buckets[ucId]) {{
+        buckets[ucId] = {{
+          id: ucId,
+          score: 0,
+          reasons: [],
+          topReason: '',
+          topWeight: 0,
+        }};
+      }}
       buckets[ucId].score += delta;
       buckets[ucId].reasons.push(reason);
+      // Build 14 — track strongest match reason for the UI chip.
+      // ``topReason`` answers the question "why was this UC picked?"
+      // for the user at a glance. We store the un-discounted weight
+      // (so the chip ranks "sourcetype: x" 10 above "app token: y" 0.5).
+      if (weight > buckets[ucId].topWeight) {{
+        buckets[ucId].topReason = reason;
+        buckets[ucId].topWeight = weight;
+      }}
     }}
 
     // Pre-filter the app-index once per call so the per-row loop is
@@ -2391,20 +2549,106 @@ def _js_recommender(api_base: str) -> str:
       currentRowKey = (row.type || '?') + ':' + rowIndex + ':' + name;
 
       if (row.type === 'sourcetype') {{
+        // Build 15 — drop Splunk-auto-classified placeholder
+        // sourcetypes BEFORE they reach the matcher. They carry no
+        // signal about real monitored data (e.g. `_json`, `stash`,
+        // `dpkg-too_small`, `config_file`).
+        if (!looksLikeRealSourcetype(name)) return;
+        // Build 14 — sourcetype is the strongest signal: real data
+        // flowing through the user's deployment. Weights bumped from
+        // 3/1 to 10/4 so a single sourcetype-exact hit dominates any
+        // app-only match, and a sourcetype-fuzzy hit still beats
+        // app-fuzzy (4 vs 1).
         var exact = indexes.sourcetypes[name];
-        if (exact) exact.forEach(function (id) {{ bump(id, 3, 'sourcetype: ' + name); }});
+        if (exact) exact.forEach(function (id) {{ bump(id, 10, 'sourcetype: ' + name); }});
         Object.keys(indexes.sourcetypes).forEach(function (key) {{
           if (key !== name && (key.indexOf(name) !== -1 || name.indexOf(key) !== -1)) {{
+            // Build 15 — scale fuzzy weight by the substring/length
+            // ratio. Without this, 24 Meraki sourcetypes all
+            // fuzzy-matching the single short catalogue key `meraki`
+            // gave +4 each to every UC cited under `meraki`, tying
+            // 41 UCs at the exact same score 98.40. With ratio
+            // scaling, longer / shorter pairs score lower so closer
+            // matches break the tie.
+            var ratio = Math.min(name.length, key.length)
+                      / Math.max(name.length, key.length);
+            var fuzzyWeight = 4 * ratio;
             indexes.sourcetypes[key].forEach(function (id) {{
-              bump(id, 1, 'fuzzy sourcetype: ' + key);
+              bump(id, fuzzyWeight, 'fuzzy sourcetype: ' + key);
             }});
           }}
         }});
-      }} else if (row.type === 'cim_model' && (row.extras || '').indexOf('accelerated') !== -1) {{
+      }} else if (row.type === 'cim_model') {{
+        // Build 14 — award even unaccelerated CIM models. A CIM model
+        // being defined at all is meaningful intent: the user has
+        // mapped their data into that schema. Accelerated keeps the
+        // higher weight (3) because tstats-friendly searches actually
+        // run faster against it.
+        //
+        // Build 15 — defined-only halved from +1 → +0.5. Real-world
+        // ITSI deployments ship with all 27 CIM models defined-but-
+        // not-accelerated, so the +1 used to lift every CIM-touching
+        // UC by a flat noise floor. Halving keeps it as a tiebreaker
+        // without dominating the score.
         var cimIds = indexes.cim[row.name];
-        if (cimIds) cimIds.forEach(function (id) {{
-          bump(id, 2, 'CIM accelerated: ' + row.name);
-        }});
+        if (cimIds) {{
+          var accel = (row.extras || '').toLowerCase().indexOf('accelerated') !== -1
+                   && (row.extras || '').toLowerCase().indexOf('not_accelerated') === -1;
+          var cimWeight = accel ? 3 : 0.5;
+          var cimReason = accel
+            ? 'CIM accelerated: ' + row.name
+            : 'CIM defined: '   + row.name;
+          cimIds.forEach(function (id) {{ bump(id, cimWeight, cimReason); }});
+        }}
+      }} else if (row.type === 'index') {{
+        // Build 14 — match the user's index names as a low-weight
+        // signal. Indexes are weaker than sourcetypes (an index can
+        // be empty) but a defined index named ``meraki`` or
+        // ``edge_hub_opcua`` is still real evidence the user is
+        // collecting that data domain.
+        //
+        // Index names use ``_`` separators while sourcetypes use ``:``
+        // and apps use mixed punctuation, so we tokenise both with
+        // ``broadTokens`` (splits on every non-alphanumeric char) and
+        // look for at least one shared meaningful token. Caps: +1 for
+        // sourcetype-side overlap (most likely to indicate flowing
+        // data), +0.5 for app-side overlap (intent signal only).
+        //
+        // Build 15 — drop Splunk-system + ITSI-internal indexes BEFORE
+        // tokenising. The user's `main` / `summary` / `itsi_*`
+        // accounting indexes were generating cross-token noise (e.g.
+        // `itsi_summary` token-matching every `splunk:summary` key in
+        // the catalogue) without any real monitoring intent.
+        if (!looksLikeUserIndex(name)) return;
+        var idxLow = name;
+        var idxTokens = meaningfulTokens(broadTokens(idxLow));
+        if (idxTokens.length) {{
+          Object.keys(indexes.sourcetypes).forEach(function (key) {{
+            var keyTokens = meaningfulTokens(broadTokens(key));
+            for (var ti = 0; ti < idxTokens.length; ti++) {{
+              if (keyTokens.indexOf(idxTokens[ti]) !== -1) {{
+                indexes.sourcetypes[key].forEach(function (id) {{
+                  bump(id, 1, 'index ↔ sourcetype: ' + idxLow + ' / ' + key);
+                }});
+                break;
+              }}
+            }}
+          }});
+          for (var ai = 0; ai < cleanAppKeys.length; ai++) {{
+            var keyTokens2 = meaningfulTokens(broadTokens(cleanAppKeys[ai]));
+            for (var ti2 = 0; ti2 < idxTokens.length; ti2++) {{
+              if (keyTokens2.indexOf(idxTokens[ti2]) !== -1) {{
+                var w = isEvidencePackKey(cleanAppKeys[ai])
+                  ? 0.5 * EVIDENCE_PACK_DISCOUNT
+                  : 0.5;
+                indexes.apps[cleanAppKeys[ai]].forEach(function (id) {{
+                  bump(id, w, 'index ↔ app: ' + idxLow + ' / ' + cleanAppKeys[ai]);
+                }});
+                break;
+              }}
+            }}
+          }}
+        }}
       }} else if (row.type === 'app') {{
         // (1) Splunkbase folder/title exact match against ``extras`` —
         // the inventory saved-search records the ``title`` (folder) in
@@ -2452,18 +2696,36 @@ def _js_recommender(api_base: str) -> str:
           if (!matched && rowTokens.length) {{
             // Token-overlap fallback over MEANINGFUL tokens only.
             // ``rowTokens`` and ``cleanAppTokenLists[i]`` were both
-            // already stripped of stop-words above.
+            // already stripped of stop-words above. Build 14: weight
+            // dropped to 0.5 — token-only matches are by far the
+            // weakest signal and were the dominant noise source.
             var keyTokens = cleanAppTokenLists[i];
             for (var t = 0; t < rowTokens.length; t++) {{
               if (keyTokens.indexOf(rowTokens[t]) !== -1) {{
-                matched = true; weight = 1; reasonSuffix = 'app token: ' + cleanAppKeys[i];
+                matched = true; weight = 0.5; reasonSuffix = 'app token: ' + cleanAppKeys[i];
                 break;
               }}
             }}
           }}
           if (matched) {{
+            // Build 14 evidence-pack discount. Synthetic catalogue
+            // keys like ``Splunk Add-on for Unix and Linux (833)``
+            // are regulatory documentation, not actionable installs.
+            var effectiveWeight = isEvidencePackKey(cleanAppKeys[i])
+              ? weight * EVIDENCE_PACK_DISCOUNT
+              : weight;
+            // Build 15 — ITSI Content-Pack / Module / supporting
+            // addon discount. Inventory rows whose ``extras`` matches
+            // ``DA-ITSI-CP-*`` / ``DA-ITSI-*`` / ``SA-ITSI-*`` are
+            // ITSI plumbing, not user-domain installs. Multiply by
+            // the same 0.4× we use for evidence-pack catalogue keys
+            // so we don't double-discount the intersection.
+            if (isItsiInternalInventoryApp(row.extras)
+                && !isEvidencePackKey(cleanAppKeys[i])) {{
+              effectiveWeight *= EVIDENCE_PACK_DISCOUNT;
+            }}
             indexes.apps[cleanAppKeys[i]].forEach(function (id) {{
-              bump(id, weight, reasonSuffix);
+              bump(id, effectiveWeight, reasonSuffix);
             }});
           }}
         }}
@@ -2485,8 +2747,16 @@ def _js_recommender(api_base: str) -> str:
         app: thin.app,
         cimModels: thin.cimModels,
         mitreAttack: thin.mitreAttack,
+        // Build 15 — surface equipment / equipmentModels to the UI
+        // so the toolbar can offer an equipment filter chip + sort
+        // (and so renderCard can show the equipment slugs at a glance
+        // without re-reading the thin index per card).
+        equipment: thin.equipment || [],
+        equipmentModels: thin.equipmentModels || [],
         _score: bucket.score,
         reasons: bucket.reasons,
+        topReason: bucket.topReason,
+        topWeight: bucket.topWeight,
       }};
     }}).filter(Boolean);
     out.sort(function (a, b) {{
@@ -2601,10 +2871,57 @@ def _js_recommender(api_base: str) -> str:
     renderStatusBadge(header, row.id);
     safeAppend(card, 'h4', row.title || ('UC ' + row.id));
     if (row.value) safeAppend(card, 'p', row.value, {{ 'class': 'uc-value' }});
-    if (row.reasons && row.reasons.length) {{
-      var why = safeAppend(card, 'div', null, {{ 'class': 'uc-why' }});
-      safeAppend(why, 'strong', 'Why: ');
-      safeAppend(why, 'span', row.reasons.slice(0, 4).join('; '));
+    // Build 15 — equipment chips. Render a small row of pill-shaped
+    // chips for the UC's equipment slugs (and the first equipment
+    // model, if any) so users can scan equipment compatibility at a
+    // glance instead of opening the detail drawer. Capped at 4 chips
+    // + an "+N more" overflow chip for cards with long lists.
+    var eq = (row.equipment || []);
+    var em = (row.equipmentModels || []);
+    if (eq.length || em.length) {{
+      var chipRow = safeAppend(card, 'div', null, {{ 'class': 'uc-eq-chips' }});
+      var shown = 0;
+      var MAX_CHIPS = 4;
+      eq.slice(0, MAX_CHIPS).forEach(function (slug) {{
+        safeAppend(chipRow, 'span', slug, {{ 'class': 'uc-eq-chip uc-eq-chip-slug' }});
+        shown++;
+      }});
+      // Show one equipment model only if we still have chip budget.
+      if (shown < MAX_CHIPS && em.length) {{
+        safeAppend(chipRow, 'span', em[0], {{ 'class': 'uc-eq-chip uc-eq-chip-model' }});
+        shown++;
+      }}
+      var extra = (eq.length + em.length) - shown;
+      if (extra > 0) {{
+        safeAppend(chipRow, 'span', '+' + extra + ' more', {{
+          'class': 'uc-eq-chip uc-eq-chip-more',
+          'title': eq.concat(em).join(', '),
+        }});
+      }}
+    }}
+    // Build 14 — render strongest match reason as a colour-coded chip
+    // so users can see at a glance whether a UC was picked from a
+    // strong signal (data flowing through a sourcetype) or a weak one
+    // (token overlap on an app name). Strength buckets:
+    //   topWeight ≥ 4   → "strong"  (sourcetype exact/fuzzy)
+    //   topWeight ≥ 1   → "medium"  (CIM model, app exact/substring,
+    //                                 index ↔ sourcetype)
+    //   topWeight  < 1  → "weak"    (token overlap, evidence-pack hit)
+    if (row.topReason) {{
+      var w = row.topWeight || 0;
+      var strength = w >= 4 ? 'strong' : (w >= 1 ? 'medium' : 'weak');
+      var chip = safeAppend(card, 'div', null, {{
+        'class': 'uc-match-chip uc-match-' + strength,
+        'title': 'Match strength: ' + strength
+              + ' (score ' + (Math.round(w * 10) / 10) + ')',
+      }});
+      safeAppend(chip, 'span', '● ', {{ 'class': 'uc-match-dot' }});
+      safeAppend(chip, 'span', 'Matched: ' + row.topReason);
+    }}
+    if (row.reasons && row.reasons.length > 1) {{
+      var why = safeAppend(card, 'details', null, {{ 'class': 'uc-why' }});
+      safeAppend(why, 'summary', 'Other matches (' + (row.reasons.length - 1) + ')');
+      safeAppend(why, 'span', row.reasons.slice(1, 5).join('; '));
     }}
     var sbContainer = safeAppend(card, 'div', null, {{ 'class': 'uc-sb-container' }});
     renderRequiredSplunkbase(sbContainer, row.sb || []);
@@ -2888,13 +3205,23 @@ def _js_recommender(api_base: str) -> str:
   function readUrlState() {{
     try {{
       var params = new URLSearchParams(window.location.search || '');
+      var equipParam = params.get('eq') || '';
+      // Build 15 — additional facets so deep links survive reload.
+      // ``eq`` carries a comma-separated list of equipment slugs.
       return {{
-        text: params.get('q') || '',
-        status: params.get('status') || '',
-        criticality: params.get('crit') || '',
+        text:           params.get('q')      || '',
+        status:         params.get('status') || '',
+        criticality:    params.get('crit')   || '',
+        pillar:         params.get('pillar') || '',
+        monitoringType: params.get('mtype')  || '',
+        equipment:      equipParam ? equipParam.split(',').filter(Boolean) : [],
+        sort:           params.get('sort')   || '',
       }};
     }} catch (err) {{
-      return {{ text: '', status: '', criticality: '' }};
+      return {{
+        text: '', status: '', criticality: '',
+        pillar: '', monitoringType: '', equipment: [], sort: '',
+      }};
     }}
   }}
 
@@ -2902,9 +3229,18 @@ def _js_recommender(api_base: str) -> str:
     if (!window.history || typeof window.history.replaceState !== 'function') return;
     try {{
       var url = new URL(window.location.href);
-      if (state.text) {{ url.searchParams.set('q', state.text); }} else {{ url.searchParams.delete('q'); }}
-      if (state.status) {{ url.searchParams.set('status', state.status); }} else {{ url.searchParams.delete('status'); }}
-      if (state.criticality) {{ url.searchParams.set('crit', state.criticality); }} else {{ url.searchParams.delete('crit'); }}
+      var setOrDelete = function (key, value) {{
+        if (value) url.searchParams.set(key, value);
+        else        url.searchParams.delete(key);
+      }};
+      setOrDelete('q',      state.text);
+      setOrDelete('status', state.status);
+      setOrDelete('crit',   state.criticality);
+      setOrDelete('pillar', state.pillar);
+      setOrDelete('mtype',  state.monitoringType);
+      setOrDelete('sort',   state.sort);
+      var eq = (state.equipment || []).join(',');
+      setOrDelete('eq', eq);
       window.history.replaceState(null, '', url.toString());
     }} catch (err) {{
       /* ignore — URL persistence is best-effort */
@@ -2947,20 +3283,132 @@ def _js_recommender(api_base: str) -> str:
     setTimeout(function () {{ URL.revokeObjectURL(url); }}, 5000);
   }}
 
+  // Build 15 — central filter applied to BOTH the Recommend tab
+  // (rows = matchUseCases output) and the Browse tab (rows = thin
+  // entries). The state object carries every active toolbar control:
+  //   text             freeform substring search across many fields
+  //   status           implementation status (Recommend tab only)
+  //   criticality      one of critical / high / medium / low / ''
+  //   pillar           one of security / observability / platform / ''
+  //   monitoringType   substring match against the row's mtype list
+  //   equipment        array of equipment slugs; row matches if it
+  //                    carries ANY of the selected slugs (OR logic)
+  // Empty string / empty array / undefined ⇒ "no constraint".
   function applyFilters(rows, state) {{
     var f = (state.text || '').toLowerCase();
     var statusFilter = state.status || '';
     var critFilter = state.criticality || '';
+    var pillarFilter = (state.pillar || '').toLowerCase();
+    var mtypeFilter = (state.monitoringType || '').toLowerCase();
+    var equipFilter = Array.isArray(state.equipment) ? state.equipment : [];
     return rows.filter(function (row) {{
       if (statusFilter && statusOf(row.id) !== statusFilter) return false;
       if (critFilter && (row.criticality || '') !== critFilter) return false;
+      if (pillarFilter && (row.splunkPillar || '').toLowerCase() !== pillarFilter) return false;
+      if (mtypeFilter) {{
+        var mt = (row.monitoringType || []);
+        var hit = false;
+        for (var k = 0; k < mt.length; k++) {{
+          if (String(mt[k]).toLowerCase() === mtypeFilter) {{ hit = true; break; }}
+        }}
+        if (!hit) return false;
+      }}
+      if (equipFilter.length) {{
+        var eq = (row.equipment || []);
+        var hitEq = false;
+        for (var ei = 0; ei < eq.length; ei++) {{
+          if (equipFilter.indexOf(String(eq[ei])) !== -1) {{ hitEq = true; break; }}
+        }}
+        if (!hitEq) return false;
+      }}
       if (f) {{
-        var hay = (row.id + ' ' + (row.title || '') + ' ' + (row.value || '') + ' '
-          + (row.reasons || []).join(' ')).toLowerCase();
+        // Build 15 — extend the search hay to every metadata facet
+        // the user might reasonably look up. Previously this only
+        // searched id + title + value + reasons, which missed common
+        // queries like "MITRE T1110" or "OPC-UA equipment" or
+        // "endpoint cim".
+        var hay = (
+          row.id + ' ' +
+          (row.title || '') + ' ' +
+          (row.value || '') + ' ' +
+          (row.reasons || []).join(' ') + ' ' +
+          (row.equipment || []).join(' ') + ' ' +
+          (row.equipmentModels || []).join(' ') + ' ' +
+          (row.cimModels || []).join(' ') + ' ' +
+          (row.mitreAttack || []).join(' ') + ' ' +
+          (row.monitoringType || []).join(' ') + ' ' +
+          (row.app || []).join(' ') + ' ' +
+          (row.splunkPillar || '')
+        ).toLowerCase();
         if (hay.indexOf(f) === -1) return false;
       }}
       return true;
     }});
+  }}
+
+  // Build 15 — derive a stable, sorted union of equipment slugs from
+  // a row set so the toolbar dropdown can offer real options. We
+  // de-dup case-insensitively but keep the original-cased label.
+  function equipmentOptions(rows) {{
+    var seen = {{}};
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {{
+      var eq = (rows[i].equipment || []);
+      for (var j = 0; j < eq.length; j++) {{
+        var slug = String(eq[j] || '').trim();
+        if (!slug) continue;
+        var key = slug.toLowerCase();
+        if (seen[key]) continue;
+        seen[key] = 1;
+        out.push(slug);
+      }}
+    }}
+    out.sort(function (a, b) {{ return a.toLowerCase().localeCompare(b.toLowerCase()); }});
+    return out;
+  }}
+
+  // Build 15 — Sort comparator factory. The "relevance" mode exists
+  // ONLY for the Recommend tab where rows carry ``_score``; the
+  // Browse tab uses "id" (the natural lexical UC-id sort) instead.
+  var CRIT_RANK = {{ 'critical': 0, 'high': 1, 'medium': 2, 'low': 3 }};
+  function sortRows(rows, by) {{
+    var sorted = rows.slice();
+    if (by === 'criticality') {{
+      sorted.sort(function (a, b) {{
+        var ra = CRIT_RANK[a.criticality];
+        var rb = CRIT_RANK[b.criticality];
+        if (ra === undefined) ra = 4;
+        if (rb === undefined) rb = 4;
+        if (ra !== rb) return ra - rb;
+        return String(a.id).localeCompare(String(b.id));
+      }});
+    }} else if (by === 'title') {{
+      sorted.sort(function (a, b) {{
+        return String(a.title || '').toLowerCase()
+                 .localeCompare(String(b.title || '').toLowerCase());
+      }});
+    }} else if (by === 'equipment') {{
+      sorted.sort(function (a, b) {{
+        var ea = ((a.equipment || [])[0] || '~').toLowerCase();   // '~' sorts last
+        var eb = ((b.equipment || [])[0] || '~').toLowerCase();
+        if (ea !== eb) return ea.localeCompare(eb);
+        return String(a.id).localeCompare(String(b.id));
+      }});
+    }} else if (by === 'category') {{
+      sorted.sort(function (a, b) {{
+        var ca = parseInt(String(a.id).split('.')[0], 10) || 0;
+        var cb = parseInt(String(b.id).split('.')[0], 10) || 0;
+        if (ca !== cb) return ca - cb;
+        return String(a.id).localeCompare(String(b.id));
+      }});
+    }} else if (by === 'id') {{
+      sorted.sort(function (a, b) {{
+        return String(a.id).localeCompare(String(b.id));
+      }});
+    }}
+    // by === 'relevance' OR unknown ⇒ leave as-is (matchUseCases
+    // already returned the rows in score-then-diversification order).
+    return sorted;
   }}
 
   // Build a structured diagnostics view shown when ``matchUseCases``
@@ -3181,11 +3629,12 @@ def _js_recommender(api_base: str) -> str:
       return;
     }}
     var state = readUrlState();
-    // Toolbar: text filter, status filter, criticality filter, CSV export.
+    // Toolbar: text + status + criticality + equipment + sort + CSV export.
+    // Build 15 added equipment dropdown and sort dropdown.
     var toolbar = safeAppend(root, 'div', null, {{ 'class': 'uc-toolbar' }});
     var search = safeAppend(toolbar, 'input', null, {{
       'type': 'search',
-      'placeholder': 'Filter by id, title, value, reason…',
+      'placeholder': 'Filter by id, title, equipment, MITRE, CIM, app…',
       'class': 'uc-filter',
       'value': state.text,
       'aria-label': 'Filter recommendations',
@@ -3208,6 +3657,40 @@ def _js_recommender(api_base: str) -> str:
       var opt = safeAppend(critSel, 'option', c, {{ 'value': c }});
       if (c === state.criticality) opt.setAttribute('selected', 'selected');
     }});
+    // Build 15 — equipment dropdown (single-select for layout reasons;
+    // multi-select would require a custom widget). The "All equipment"
+    // option clears the constraint. Options are computed once from the
+    // full unfiltered ``rows`` so the menu doesn't shrink as the user
+    // narrows the selection.
+    var equipSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-equip-filter',
+      'aria-label': 'Filter by equipment',
+    }});
+    safeAppend(equipSel, 'option', 'All equipment', {{ 'value': '' }});
+    equipmentOptions(rows).forEach(function (slug) {{
+      var opt = safeAppend(equipSel, 'option', slug, {{ 'value': slug }});
+      if ((state.equipment || []).indexOf(slug) !== -1) {{
+        opt.setAttribute('selected', 'selected');
+      }}
+    }});
+    // Build 15 — sort dropdown. "Relevance" is the default and uses the
+    // matchUseCases score-then-diversification order. Other modes sort
+    // the already-filtered slice.
+    var sortSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-sort-filter',
+      'aria-label': 'Sort recommendations',
+    }});
+    var sortOptions = [
+      ['',            'Sort: Relevance'],
+      ['criticality', 'Sort: Criticality'],
+      ['equipment',   'Sort: Equipment'],
+      ['category',    'Sort: Category'],
+      ['title',       'Sort: Title (A-Z)'],
+    ];
+    sortOptions.forEach(function (pair) {{
+      var opt = safeAppend(sortSel, 'option', pair[1], {{ 'value': pair[0] }});
+      if (pair[0] === (state.sort || '')) opt.setAttribute('selected', 'selected');
+    }});
     var exportBtn = safeAppend(toolbar, 'button', 'Export CSV', {{
       'type': 'button',
       'class': 'uc-btn uc-btn-export',
@@ -3219,6 +3702,7 @@ def _js_recommender(api_base: str) -> str:
     function refresh() {{
       grid.textContent = '';
       var filtered = applyFilters(rows, state);
+      filtered = sortRows(filtered, state.sort || 'relevance');
       counter.textContent = 'Showing ' + Math.min(filtered.length, 60)
         + ' of ' + filtered.length + ' (of ' + rows.length + ' total)';
       filtered.slice(0, 60).forEach(function (row) {{
@@ -3234,21 +3718,27 @@ def _js_recommender(api_base: str) -> str:
 
     search.addEventListener('input', function (e) {{
       state.text = e.target.value;
-      writeUrlState(state);
-      refresh();
+      writeUrlState(state); refresh();
     }});
     statusSel.addEventListener('change', function (e) {{
       state.status = e.target.value;
-      writeUrlState(state);
-      refresh();
+      writeUrlState(state); refresh();
     }});
     critSel.addEventListener('change', function (e) {{
       state.criticality = e.target.value;
-      writeUrlState(state);
-      refresh();
+      writeUrlState(state); refresh();
+    }});
+    equipSel.addEventListener('change', function (e) {{
+      state.equipment = e.target.value ? [e.target.value] : [];
+      writeUrlState(state); refresh();
+    }});
+    sortSel.addEventListener('change', function (e) {{
+      state.sort = e.target.value;
+      writeUrlState(state); refresh();
     }});
     exportBtn.addEventListener('click', function () {{
       var filtered = applyFilters(rows, state);
+      filtered = sortRows(filtered, state.sort || 'relevance');
       var ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
       downloadCsv('uc-recommender-' + ts + '.csv', rowsToCsv(filtered));
     }});
@@ -3258,28 +3748,147 @@ def _js_recommender(api_base: str) -> str:
 
   function renderBrowse(root, thin) {{
     root.textContent = '';
-    var ids = Object.keys(thin).sort();
-    safeAppend(root, 'p', 'Showing ' + ids.length + ' use cases.');
-    var wrap = safeAppend(root, 'div', null, {{ 'class': 'uc-browse' }});
-    var input = safeAppend(wrap, 'input', null, {{
-      'type': 'search',
-      'placeholder': 'Filter title, id, value…',
-      'class': 'uc-filter',
+    // Build 15 — Browse tab now uses the same applyFilters + sortRows
+    // pipeline as the Recommend tab. Previous implementation searched
+    // only id/title/value with no facet filters and no sort control,
+    // which made it useless for "show me everything tagged ``meraki``"
+    // or "show me Critical UCs in pillar=Security" queries.
+    var rows = Object.keys(thin).sort().map(function (id) {{ return thin[id]; }});
+    var state = readUrlState();
+    // Default Browse sort is "id" so the page is stable on initial
+    // load (matchUseCases ordering doesn't apply here — these aren't
+    // recommendations).
+    if (!state.sort) state.sort = 'id';
+
+    var summary = safeAppend(root, 'p', 'Showing ' + rows.length + ' use cases.', {{
+      'class': 'uc-browse-summary',
     }});
-    var grid = safeAppend(wrap, 'div', null, {{ 'class': 'uc-grid' }});
-    function render(filter) {{
-      grid.textContent = '';
-      var f = (filter || '').toLowerCase();
-      ids.forEach(function (id) {{
-        var row = thin[id];
-        if (!row) return;
-        var hay = (id + ' ' + (row.title || '') + ' ' + (row.value || '')).toLowerCase();
-        if (f && hay.indexOf(f) === -1) return;
-        renderCard(grid, row);
+
+    var toolbar = safeAppend(root, 'div', null, {{ 'class': 'uc-toolbar uc-toolbar-browse' }});
+    var input = safeAppend(toolbar, 'input', null, {{
+      'type': 'search',
+      'placeholder': 'Filter id, title, equipment, MITRE, CIM, app, pillar…',
+      'class': 'uc-filter',
+      'value': state.text,
+      'aria-label': 'Filter use cases',
+    }});
+    // Criticality filter
+    var critSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-crit-filter',
+      'aria-label': 'Filter by criticality',
+    }});
+    safeAppend(critSel, 'option', 'All criticality', {{ 'value': '' }});
+    ['critical', 'high', 'medium', 'low'].forEach(function (c) {{
+      var opt = safeAppend(critSel, 'option', c, {{ 'value': c }});
+      if (c === state.criticality) opt.setAttribute('selected', 'selected');
+    }});
+    // Pillar filter — derived from the row set, lower-cased to dedup.
+    var pillarSet = {{}};
+    rows.forEach(function (r) {{
+      var p = (r.splunkPillar || '').toString().trim();
+      if (p) pillarSet[p.toLowerCase()] = p;
+    }});
+    var pillarSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-pillar-filter',
+      'aria-label': 'Filter by Splunk pillar',
+    }});
+    safeAppend(pillarSel, 'option', 'All pillars', {{ 'value': '' }});
+    Object.keys(pillarSet).sort().forEach(function (k) {{
+      var opt = safeAppend(pillarSel, 'option', pillarSet[k], {{ 'value': k }});
+      if (k === (state.pillar || '').toLowerCase()) opt.setAttribute('selected', 'selected');
+    }});
+    // Monitoring-type filter — same pattern but on the array field.
+    var mtypeSet = {{}};
+    rows.forEach(function (r) {{
+      (r.monitoringType || []).forEach(function (m) {{
+        if (m) mtypeSet[String(m).toLowerCase()] = String(m);
       }});
+    }});
+    var mtypeSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-mtype-filter',
+      'aria-label': 'Filter by monitoring type',
+    }});
+    safeAppend(mtypeSel, 'option', 'All monitoring types', {{ 'value': '' }});
+    Object.keys(mtypeSet).sort().forEach(function (k) {{
+      var opt = safeAppend(mtypeSel, 'option', mtypeSet[k], {{ 'value': k }});
+      if (k === (state.monitoringType || '').toLowerCase()) opt.setAttribute('selected', 'selected');
+    }});
+    // Equipment filter — derived from union of rows.equipment.
+    var equipSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-equip-filter',
+      'aria-label': 'Filter by equipment',
+    }});
+    safeAppend(equipSel, 'option', 'All equipment', {{ 'value': '' }});
+    equipmentOptions(rows).forEach(function (slug) {{
+      var opt = safeAppend(equipSel, 'option', slug, {{ 'value': slug }});
+      if ((state.equipment || []).indexOf(slug) !== -1) {{
+        opt.setAttribute('selected', 'selected');
+      }}
+    }});
+    // Sort dropdown — Browse defaults to "id".
+    var sortSel = safeAppend(toolbar, 'select', null, {{
+      'class': 'uc-sort-filter',
+      'aria-label': 'Sort use cases',
+    }});
+    [
+      ['id',          'Sort: ID'],
+      ['title',       'Sort: Title (A-Z)'],
+      ['criticality', 'Sort: Criticality'],
+      ['equipment',   'Sort: Equipment'],
+      ['category',    'Sort: Category'],
+    ].forEach(function (pair) {{
+      var opt = safeAppend(sortSel, 'option', pair[1], {{ 'value': pair[0] }});
+      if (pair[0] === state.sort) opt.setAttribute('selected', 'selected');
+    }});
+    var counter = safeAppend(toolbar, 'span', '', {{ 'class': 'uc-toolbar-count' }});
+
+    var grid = safeAppend(root, 'div', null, {{ 'class': 'uc-grid' }});
+
+    function refresh() {{
+      grid.textContent = '';
+      // Browse mode never filters on implementation status — leave
+      // ``state.status`` blank so applyFilters skips that branch.
+      state.status = '';
+      var filtered = applyFilters(rows, state);
+      filtered = sortRows(filtered, state.sort || 'id');
+      counter.textContent = 'Showing ' + filtered.length + ' of ' + rows.length;
+      // Paginate at 200 to keep the DOM bounded; users searching
+      // beyond that should narrow filters first.
+      var slice = filtered.slice(0, 200);
+      slice.forEach(function (row) {{ renderCard(grid, row); }});
+      if (filtered.length > slice.length) {{
+        safeAppend(grid, 'p',
+          'Showing first ' + slice.length + ' of ' + filtered.length
+          + '. Narrow the filters to see more.',
+          {{ 'class': 'uc-empty', 'role': 'status' }});
+      }} else if (filtered.length === 0) {{
+        safeAppend(grid, 'p', 'No use cases match the current filters.', {{
+          'class': 'uc-empty', 'role': 'status',
+        }});
+      }}
     }}
-    input.addEventListener('input', function (e) {{ render(e.target.value); }});
-    render('');
+
+    input.addEventListener('input', function (e) {{
+      state.text = e.target.value; writeUrlState(state); refresh();
+    }});
+    critSel.addEventListener('change', function (e) {{
+      state.criticality = e.target.value; writeUrlState(state); refresh();
+    }});
+    pillarSel.addEventListener('change', function (e) {{
+      state.pillar = e.target.value; writeUrlState(state); refresh();
+    }});
+    mtypeSel.addEventListener('change', function (e) {{
+      state.monitoringType = e.target.value; writeUrlState(state); refresh();
+    }});
+    equipSel.addEventListener('change', function (e) {{
+      state.equipment = e.target.value ? [e.target.value] : [];
+      writeUrlState(state); refresh();
+    }});
+    sortSel.addEventListener('change', function (e) {{
+      state.sort = e.target.value; writeUrlState(state); refresh();
+    }});
+
+    refresh();
   }}
 
   function renderSettings(root) {{
@@ -3553,6 +4162,66 @@ def _css_recommender() -> str:
 .uc-card h4 {{ margin: 4px 0; color: #222; }}
 .uc-value {{ font-size: 13px; color: #555; margin: 4px 0 8px; }}
 .uc-why {{ font-size: 12px; color: #4a4a4a; margin-bottom: 8px; }}
+.uc-why summary {{ cursor: pointer; font-weight: 600; color: #4a4a4a; padding: 2px 0; }}
+.uc-why summary:hover {{ color: #255a15; }}
+.uc-why span {{ display: block; padding: 4px 0 0 12px; }}
+.uc-match-chip {{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  border: 1px solid;
+}}
+.uc-match-dot {{ font-size: 10px; line-height: 1; margin-top: -1px; }}
+.uc-match-strong {{
+  background: #e6f5e0; color: #1b5e20; border-color: #4ea64e;
+}}
+.uc-match-medium {{
+  background: #fff8e1; color: #5d4708; border-color: #f0c34a;
+}}
+.uc-match-weak {{
+  background: #fdecea; color: #8a2018; border-color: #e3897f;
+}}
+/* Build 15 — equipment chips on UC cards. Small pill-shaped tags
+   show which equipment slugs (and one model) the UC applies to so
+   users can scan compatibility without opening the drawer. */
+.uc-eq-chips {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+}}
+.uc-eq-chip {{
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  white-space: nowrap;
+  line-height: 1.4;
+}}
+.uc-eq-chip-slug {{
+  background: #eef4ff;
+  color: #1f3d7a;
+  border-color: #b6c8eb;
+}}
+.uc-eq-chip-model {{
+  background: #f3eefe;
+  color: #4a2a8a;
+  border-color: #c8b6eb;
+}}
+.uc-eq-chip-more {{
+  background: #f5f5f5;
+  color: #555;
+  border-color: #d0d0d0;
+  cursor: help;
+}}
 .uc-btn-row {{ display: flex; gap: 8px; }}
 .uc-btn {{
   border: 1px solid #65a637;
@@ -3687,13 +4356,20 @@ def _css_recommender() -> str:
   align-items: center;
   margin: 8px 0 12px;
 }}
-.uc-status-filter, .uc-crit-filter {{
+.uc-status-filter,
+.uc-crit-filter,
+.uc-pillar-filter,
+.uc-mtype-filter,
+.uc-equip-filter,
+.uc-sort-filter {{
   padding: 6px 8px;
   border: 1px solid #bbb;
   border-radius: 3px;
   font-size: 13px;
   background: #fff;
+  max-width: 180px;
 }}
+.uc-sort-filter {{ font-weight: 600; color: #2a4f9c; }}
 .uc-toolbar .uc-filter {{
   flex: 1 1 240px;
   min-width: 180px;
