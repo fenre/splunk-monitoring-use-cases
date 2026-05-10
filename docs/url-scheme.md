@@ -115,7 +115,11 @@ published in `dist/api/manifest.json` for tooling.
 /embed/embed.js                      auto-resize + postMessage theming helper (≤3 KB)
 ```
 
-Copy-paste snippets for embeds are *planned* (`docs/embedding.md` TBD).
+Copy-paste snippets and the available embedding patterns (iframe, JSON
+fetch, markdown twin, deep-link) are documented in
+[Embedding](embedding.md). The dedicated `/embed/*` widgets above are
+planned; today, use the per-UC HTML / JSON / markdown twins under
+`/uc/UC-X.Y.Z/`.
 
 ### Discovery
 

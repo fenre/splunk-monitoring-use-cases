@@ -1574,6 +1574,48 @@ var DOC_UC_MAP = {
   "docs/feasibility-spike-results.md": {
     title: "Feasibility Spike Results",
     ucs: ["22.35.1"]
+  },
+
+  /* ── Catalog User Guides (v8.2+) ─────────────────────────────────────── */
+  "docs/site-user-guide.md": {
+    title: "Site User Guide"
+  },
+  "docs/non-technical-view.md": {
+    title: "Non-technical View"
+  },
+  "docs/inventory-and-sizing.md": {
+    title: "Inventory & Sizing",
+    ucs: ["1.1.1", "5.1.1", "11.1.1"]
+  },
+  "docs/clause-navigator-guide.md": {
+    title: "Clause Navigator Guide",
+    ucs: ["22.1.1", "22.2.1", "22.4.1"]
+  },
+  "docs/compliance-story-guide.md": {
+    title: "Compliance Story Guide",
+    ucs: ["22.1.1", "22.2.1", "22.4.1"]
+  },
+  "docs/knowledge-graph-guide.md": {
+    title: "Knowledge Graph Guide"
+  },
+  "docs/api-docs-guide.md": {
+    title: "API Docs Page Guide"
+  },
+
+  /* ── Catalog Reference (v8.2+) ───────────────────────────────────────── */
+  "docs/mitre-attack-mapping.md": {
+    title: "MITRE ATT&CK Mapping",
+    ucs: ["9.6.4", "10.1.1", "17.4.1"]
+  },
+  "docs/cim-models-inventory.md": {
+    title: "CIM Models Inventory",
+    ucs: ["9.6.4", "10.1.1", "17.4.1"]
+  },
+  "docs/embedding.md": {
+    title: "Embedding the Catalog"
+  },
+  "docs/build-artefacts-reference.md": {
+    title: "Build Artefacts Reference"
   }
 };
 

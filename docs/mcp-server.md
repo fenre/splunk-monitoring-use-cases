@@ -39,7 +39,7 @@ project's GitHub Pages mirror.
 
 | Surface | Count | Source |
 | --- | --- | --- |
-| Tools | 10 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
+| Tools | 11 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
 | URI families | 4 (`uc://`, `reg://`, `equipment://`, `ledger://`) | Declared in [`mcp/src/splunk_uc_mcp/resources/uri_scheme.py`](../mcp/src/splunk_uc_mcp/resources/uri_scheme.py) |
 | Use cases exposed | 7,337 | `api/v1/recommender/uc-thin.json` + per-UC endpoints |
 | Regulations | 69 | `api/v1/compliance/regulations/index.json` |
@@ -353,6 +353,40 @@ deployment already catches via UCs bearing that equipment tag.
 {
   "regulations": ["gdpr", "hipaa"],   // 1-20 slugs
   "equipment_id": "azure"             // optional overlay
+}
+```
+
+### `get_clause_coverage`
+
+Return the clause-first coverage entry for one regulator clause
+(`regulation_id` + `clause`, with optional `version`). Reports
+`coverageState` (`covered-full` / `covered-partial` /
+`covered-contributing` / `uncovered`), the covering UC IDs,
+assurance breakdown, and a deep-link into the
+[Clause Navigator](clause-navigator-guide.md). Use this when an
+auditor asks "which UCs cover GDPR Art.5?".
+
+```json
+{
+  "regulation_id": "gdpr",
+  "clause": "Art5.1.f",
+  "version": "2016-679"             // optional
+}
+```
+
+### `list_uncovered_clauses`
+
+List clauses whose `coverageState` is `uncovered` for one or more
+regulations, sorted by descending priority weight. Pass
+`regulations=["*"]` to sweep every framework. Optional `tier` filter
+and `common_clauses_only` toggle help scope the worklist. Use this to
+hand an implementer a prioritised backlog of unmet obligations.
+
+```json
+{
+  "regulations": ["gdpr", "hipaa"],   // or ["*"]
+  "tier": 1,                          // optional 1-3
+  "common_clauses_only": true         // default false
 }
 ```
 

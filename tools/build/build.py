@@ -304,6 +304,7 @@ _PROJECT_STATIC_FILES = (
     "graph.html",
     "graph-data.json",
     "docs.html",
+    "guide-reader.js",
     "non-technical-view.js",
     "docs-uc-map.js",
     "provenance.json",
