@@ -154,7 +154,7 @@ build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined 
 - **Description:** Building management, industrial control, Splunk Edge Hub, and IoT platforms — sensor data, anomaly detection, and OT security.
 - **Quick Tip:** Deploy Splunk Edge Hub with built-in sensors or configure MQTT/OPC-UA/Modbus protocol collection.
 - **Quick Start:**
-  - UC-14.1.2 · UPS Battery Monitoring (critical, Building Management Systems (BMS))
+  - UC-14.1.19 · Power Monitoring and Electrical Load Analysis (Meraki MT) (critical, Building Management Systems (BMS))
   - UC-14.1.6 · Environmental Compliance (critical, Building Management Systems (BMS))
   - UC-14.2.1 · PLC/RTU Health Monitoring (critical, Industrial Control Systems (ICS/SCADA))
   - UC-14.2.3 · Safety System Activation (critical, Industrial Control Systems (ICS/SCADA))
