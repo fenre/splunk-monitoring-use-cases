@@ -209,13 +209,30 @@ jobs:
         # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
 
+      - name: Build catalog (required by Phase 3a smoke test)
+        # ``_phase3a_smoke.js`` loads ``catalog.json`` to populate window
+        # globals (DATA / EQUIPMENT / CAT_META / CAT_GROUPS / FILTER_FACETS)
+        # before exercising 01-state.js / 02-filters.js / 04-panel.js.
+        # The legacy committed root-level ``catalog.json`` was retired in
+        # v8.2.0 (commit faffd68e4); the catalog is now produced under
+        # ``dist/catalog.json`` by the build pipeline. The smoke test
+        # already probes both locations (``dist/`` first, then root) so
+        # this step just ensures the file exists before we run it.
+        # The full validate.yml workflow runs build twice (here + in the
+        # later "Build check (catalog regeneration)" step that diffs the
+        # output for freshness). The duplication is intentional: this
+        # build feeds the smoke test, the later one verifies the
+        # committed derivative artefacts are fresh.
+        run: python3 tools/build/build.py --out dist
+
       - name: Story-layer UI smoke tests
         # Node.js headless shims exercise the JS in index.html,
         # clause-navigator.html, compliance-story.html and
         # regulatory-primer.html so regressions in the regulation-to-UC
         # story surfaces (Phase 3a/3b/3c, Phase 5 primer autolinker) are
         # caught in CI. These tests ship no external dependencies and
-        # read the generated api/v1/ tree.
+        # read the generated api/v1/ tree (3b/3c/5) plus
+        # dist/catalog.json (3a, post-v8.2.0).
         run: |
           node tools/audits/_phase3a_smoke.js
           node tools/audits/_phase3b_smoke.js
