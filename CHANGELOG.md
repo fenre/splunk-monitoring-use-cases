@@ -12,6 +12,706 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Legacy `use-cases/` markdown corpus retired — single-system content tree + CI guard
+
+Theme: **the dual-content era is over.** Pre-v8.2.0 the repo carried
+two parallel UC content systems: the legacy monolithic markdown corpus
+under `use-cases/cat-NN-*.md` (one file per category, ~12 MB total)
+and the JSON SSOT under `content/cat-NN-<slug>/UC-X.Y.Z.json` (one
+sidecar per UC). Audits, generators, and tooling could read either
+tree, which let drift creep in: a UC could exist in the legacy tree
+but not the SSOT, or vice-versa, and the build pipeline would happily
+ship both. UC-5.2.35 surfaced exactly this failure mode (hallucinated
+SPL lived only in the legacy markdown).
+
+What changed:
+
+- **Deleted `use-cases/`.** The 181-file legacy markdown tree (40
+  category files + per-category JSON sidecar mirrors) is gone from
+  the repo, the build output, and the published Splunkbase apps.
+  The JSON SSOT is now the only place where UC content lives.
+- **Rewired every audit, generator, and build stage** to read from
+  `content/cat-NN-<slug>/UC-X.Y.Z.json` instead of `use-cases/cat-*.md`.
+  Refactored modules (audits): `changelog_uc_refs`, `cim_spl_alignment`,
+  `known_fp`, `links`, `monitoring_type`, `non_technical_sync`,
+  `placeholders`, `repo_consistency`, `spl_duplicates`, `spl_grammar`,
+  `spl_hallucinations`, `uc_ids`, `uc_structure`, `sandbox_validation`,
+  `sme_review_signoffs`, `legal_review_signoffs`, and `splunkbase_ids`.
+  Refactored modules (generators): `equipment_tags`, `recommender_app`,
+  `mapping_ledger`, `phase3_1_backfill`, `phase3_2_cross_cutting`,
+  `phase3_3_derivatives`, `api_surface`, `clause_index`. Refactored
+  build pipeline: `tools/build/build.py`, `tools/build/parse_content.py`,
+  `tools/build/enrichment.py`, `tools/validate/validate_md.py`.
+- **Deleted obsolete one-shot tools.** `legacy_orphans` audit + tests,
+  `backfill_secondary_fields.py`, `backfill_cim_models.py`,
+  `author_phase_c_ucs.py`, `phase2_mini_categories` and shim,
+  `phase2_3_per_regulation` and shim, `migrate_to_per_uc.py`,
+  `generate_catalyst_513_companion_md.py`, the entire `scripts/archive/`
+  directory, `tests/build/test_legacy_artifacts_parity.py`, and
+  `tests/build/test_enrichment_parity.py` are all gone.
+- **Replaced the monolithic root `build.py`** (~4,000 lines that read
+  the legacy markdown corpus) with an 80-line shim that delegates to
+  the modular `tools/build/build.py` pipeline.
+- **Untracked stale build artefacts** that had been shadowing the
+  freshly-regenerated outputs: `catalog.json`, `data.js`, `llms.txt`,
+  `llm.txt`, `llms-full.txt`, and `sitemap.xml` are now generated
+  exclusively into `dist/` by the modular build (still listed in
+  `.gitignore`; previous shadow copies in the repo root were
+  preventing the SSOT-aware build from taking effect).
+- **Migrated the replication-starter template** at
+  `templates/replication-starter/` to use the JSON SSOT exclusively:
+  new `content/cat-01-example/_category.json` + UC sidecars, rewritten
+  `build.py` (~80 LOC), updated README, rewritten
+  `tests/build/test_replication_starter.py`.
+- **Updated every reference** in `index.html` (Raw GitHub fallbacks,
+  Editor assistants, in-app GitHub-feedback URL builder), `src/scripts/02-filters.js`,
+  `tools/build/parse_content.py:record["src"]`, the SPA's
+  `githubIssueUrlForEntry()` helper, and 16 documentation pages
+  (`docs/sme-review-guide.md`, `docs/guides/datagen-top10-use-cases.md`,
+  `scripts/README.md`, `sample-data/README.md`,
+  `docs/coverage-methodology.md`, `tools/data-sizing/README.md`,
+  `docs/cim-and-data-models.md`, `docs/regulatory-primer.md`,
+  `docs/baselines-howto.md`, `docs/replication-guide.md`,
+  `docs/use-cases-burndown.md`, `docs/migration-status.md`, etc.) to
+  point at `content/cat-NN-<slug>/UC-X.Y.Z.json` paths.
+- **Regenerated downstream artefacts** from the SSOT:
+  `data/inventory/ucs.{csv,json}` (fresh `content/...` source-file
+  paths), `data/crosswalks/oscal/component-definition-uc-22.35.1.json`
+  (fresh authoring-schema description), `reports/sandbox-validation.json`
+  (fresh SSOT-keyed records), and the regenerated TA / ES / ITSI
+  conf bundles under `ta/`.
+- **Repurposed `.github/CODEOWNERS`** so the heavyweight review rule
+  follows the JSON SSOT (`/content/`) instead of the deleted
+  `/use-cases/`.
+
+Permanent guard against regression:
+
+- **New audit:** `audit-no-use-cases-dir`
+  (`src/splunk_uc/audits/no_use_cases_dir.py`). Hard-fails CI if
+  `use-cases/` reappears as a directory or if a non-allowlisted
+  tracked file gains a fresh `use-cases/` path reference. The
+  allowlist is an explicit Python frozenset shipping with the audit
+  module, scoped to immutable history (CHANGELOG, ADRs, release
+  notes), migration documentation, and active-code docstrings that
+  explain the v8.2.0 retirement. The audit strips the GitHub repo
+  slug and non-repo external URLs (e.g. `https://tetragon.io/docs/use-cases/`)
+  before scanning, so legitimate vendor links never false-positive.
+- **CI integration:** `.github/workflows/validate.yml` runs the new
+  audit alongside the existing UC-ID and UC-structure checks.
+  `make audit-no-use-cases-dir` exposes the same gate locally and
+  is wired into `make audit-full`. `AGENTS.md` advertises the verb
+  in the agent-facing quick-commands list.
+- **Test coverage:** 10 unit tests pin both invariants and exercise
+  the negative cases on a synthetic git repo
+  (`tests/scripts/test_audit_no_use_cases_dir.py`): directory
+  resurrection, new path reference, repo-URL safety, third-party-URL
+  safety, allowlisted-file safety, `--check`/`--list-allowlist`
+  surfaces, allowlist-staleness regression, and dispatcher CLI
+  smoke. All ten pass.
+
+Outcome: the JSON SSOT is the only authoring surface. Every audit,
+generator, build stage, frontend helper, and documentation page that
+previously referenced `use-cases/` either points at `content/` now
+or is on the historical-reference allowlist. The `audit-no-use-cases-dir`
+gate makes any future re-introduction of the dual-content split a
+hard CI failure with a clear remediation path.
+
+### Repo overhaul plan §P6 — Tier 2 batches 8-11: ingest, feasibility, migrations, and tools clusters land
+
+Theme: **complete Phase 6 Tier 2 — every committed, recurring script
+in `scripts/` is now reachable through the `python -m splunk_uc`
+dispatcher, and one-shot/burndown scripts are explicitly documented
+as deliberately not migrated.** Tier 1 (audits) and the generator
+half of Tier 2 closed in earlier batches. Batches 8-11 close the
+remaining Tier 2 clusters in one coordinated push: ingest,
+feasibility, standalone migrations, and recurring tools. Tier 3
+(post-soak deletion of the legacy `scripts/*.py` shims) and Tier 4
+(`splunk-uc` wheel + `pip install -e .`) are explicitly out of
+scope here — Tier 3 is calendar-bound on the soak window and
+Tier 4 is sequenced behind phase P9 (monorepo).
+
+Migrated (batch 8 — ingest cluster, 6 verbs + 1 helper):
+
+- `scripts/ingest/ingest_oscal.py` → `src/splunk_uc/ingest/oscal.py`
+  (verb `ingest-oscal`).
+- `scripts/ingest/ingest_attack.py` → `src/splunk_uc/ingest/attack.py`
+  (verb `ingest-attack`).
+- `scripts/ingest/ingest_d3fend.py` → `src/splunk_uc/ingest/d3fend.py`
+  (verb `ingest-d3fend`).
+- `scripts/ingest/ingest_atomic.py` → `src/splunk_uc/ingest/atomic.py`
+  (verb `ingest-atomic`).
+- `scripts/ingest/ingest_olir.py` → `src/splunk_uc/ingest/olir.py`
+  (verb `ingest-olir`).
+- `scripts/ingest_all.py` → `src/splunk_uc/ingest/run_all.py`
+  (verb `ingest-all`; renamed from `ingest_all` to avoid shadowing
+  Python's own `all` builtin in the module namespace).
+- `scripts/ingest/manifest.py` → `src/splunk_uc/ingest/manifest.py`
+  (shared HTTPS-only fetch + SHA-256 manifest helper; not a verb).
+
+Migrated (batch 9 — feasibility cluster, 4 verbs):
+
+- `scripts/feasibility/validate_exemplar_uc.py` →
+  `src/splunk_uc/feasibility/validate_exemplar_uc.py`
+  (verb `feasibility-validate-exemplar`).
+- `scripts/feasibility/olir_ingest_proof.py` →
+  `src/splunk_uc/feasibility/olir_ingest_proof.py`
+  (verb `feasibility-olir-ingest-proof`).
+- `scripts/feasibility/oscal_generate_proof.py` →
+  `src/splunk_uc/feasibility/oscal_generate_proof.py`
+  (verb `feasibility-oscal-generate-proof`).
+- `scripts/feasibility/splunk_app_poc.py` →
+  `src/splunk_uc/feasibility/splunk_app_poc.py`
+  (verb `feasibility-splunk-app-poc`).
+
+Migrated (batch 10 — standalone migrations cluster, 3 verbs):
+
+- `scripts/gap_analysis.py` → `src/splunk_uc/migrations/gap_analysis.py`
+  (verb `gap-analysis`; no `migrate-` prefix because the committed
+  `data/inventory/gap-analysis.json` already references this name in
+  its `generatedComment`, and the script is a reporting tool rather
+  than a sidecar mutation).
+- `scripts/regenerate_cat22_ntv.py` →
+  `src/splunk_uc/migrations/regenerate_cat22_ntv.py`
+  (verb `migrate-cat22-ntv`; cat-22 block in
+  `non-technical-view.js` stays byte-stable on `--check`).
+- `scripts/migrate_compliance_phase4.py` →
+  `src/splunk_uc/migrations/migrate_compliance_phase4.py`
+  (verb `migrate-compliance-phase4`; sidecar drift counts on
+  `--check` are byte-identical between the legacy shim and the new
+  verb — confirmed against pre-existing 56-sidecar / 104-entry
+  drift unrelated to this migration).
+
+Migrated (batch 11 — recurring tools cluster, 5 verbs):
+
+- `scripts/splunk_fortune.py` → `src/splunk_uc/tools/splunk_fortune.py`
+  (verb `splunk-fortune`).
+- `scripts/extract_release_notes.py` →
+  `src/splunk_uc/tools/extract_release_notes.py`
+  (verb `extract-release-notes`).
+- `scripts/prepare_release.py` →
+  `src/splunk_uc/tools/prepare_release.py`
+  (verb `prepare-release`).
+- `scripts/validate_uc_schema_staged.py` →
+  `src/splunk_uc/tools/validate_uc_schema_staged.py`
+  (verb `validate-uc-schema-staged`).
+- `scripts/inventory_ucs.py` →
+  `src/splunk_uc/tools/inventory_ucs.py`
+  (verb `inventory-ucs`).
+
+Deliberately **not** migrated (documented exemption):
+
+- `_underscore`-prefixed one-shots (`_fix_broken_fixture_refs.py`,
+  `_patch_catalog_guide_fields.py`, `_draft_uc_18_1_15.py`,
+  `_wire_batch7.py`, `_regulation_wisdom.py`).
+- Tier-uplift one-shots (`uplift_*.py`, 10 scripts spanning
+  GDPR / NIS2 / DORA / ISO27001 / phase-22 / regulation-tier-A).
+- Content-fix one-shots (`assurance_gap_fix.py`,
+  `fix_cim_dataset_hallucinations.py`, the `fix_meraki_*.py` and
+  `rewrite_meraki_*.py` family, `regen_di_for_ucs.py`,
+  `enrich_di_gold.py`, `enrich_di_gold_v2.py`, `uc_quality_fix.py`,
+  `uplift_remaining_compliance.py`).
+- Burndown helpers (`audit_guide_external_links_oneshot.py`,
+  `samples_index.py`, `parse_uc_catalog.py`,
+  `stamp_ledger_release.py`, `simulate_controltest.py`,
+  `sync_splunkbase_catalog.py`, `review_splunkbase_mappings.py`,
+  `augment_regulation_api.py`, `build_ta.py`, `build_es.py`,
+  `build_provenance.py`, `snapshot_metrics.py`, `run_uc_tests.py`).
+- Library helper (`equipment_lib.py`, used by
+  `generate-equipment-tags`).
+- Gitignored Splunk-deployment generators
+  (`generate_catalog_dashboard.py`, `generate_uc_dashboards.py`,
+  `deploy_dashboard_studio_rest.py`).
+
+Migration eligibility rule (now formally stated in
+`docs/scripts-taxonomy.md`): a script migrates into
+`src/splunk_uc/` only when (a) it is committed to git and (b) it
+is invoked recurringly across releases (CI, Make target,
+pre-commit hook, or release flow). One-shot fixers, `_underscore`
+helpers, and tier-uplift scripts stay under `scripts/` because
+they will be removed wholesale at the end of their associated
+content burndown — migrating them adds noise without payoff.
+Snapshot-style tools (`snapshot_metrics.py`,
+`stamp_ledger_release.py`, etc.) are deferred to a future tools
+batch once their contracts settle; they currently work fine via
+their existing Make targets.
+
+Dispatcher verb count: 64 → **82** (48 audits + 16 generators +
+6 ingest + 4 feasibility + 3 migrations + 5 tools). Confirmed by
+`splunk_uc._registry.all_verbs()` at HEAD; the previous batches'
+narratives carried off-by-one generator/audit counts that have
+been reconciled against the live registry.
+
+Path-resolution depth widened from one level to three across
+every migrated module (`Path(__file__).resolve().parents[1]` →
+`parents[3]`); the new chain `<module>.py → <subpkg>/ →
+splunk_uc/ → src/ → repo root` needs three levels regardless of
+which subpackage the script lives in. The legacy shim re-exports
+`main` so any direct CLI invocation, pre-commit hook entry, or
+release-workflow `python3 scripts/<name>.py` line still works
+during the soak period.
+
+`main()` signatures widened from `main()` (or
+`main(argv: list[str])`) to
+`main(argv: list[str] | None = None) -> int` so the dispatcher
+can forward `sys.argv[2:]` without monkey-patching `sys.argv`
+first. Where the legacy `argv[0]` slot was a program-name
+placeholder (e.g. `validate_uc_schema_staged.py` in
+`.pre-commit-config.yaml`), the shim slices it off so the
+dispatcher contract stays clean.
+
+Type tightening — `ruff check` + `ruff format` + `mypy --strict`
+clean across the 23 modules migrated in batches 8-11
+(`src/splunk_uc/{ingest,feasibility,migrations,tools}/`). The
+full-tree mypy gate still surfaces five pre-existing errors in
+modules that landed in earlier sessions
+(`generators/recommender_app.py` from batch 5;
+`audits/{placeholders,monitoring_type,cim_spl_alignment}.py` from
+Tier 1 batches 4-5); the full-tree ruff gate surfaces ~400
+pre-existing UP006/UP007 lint warnings in `recommender_app.py` (a
+verbatim copy of the 4,600-LOC legacy script). All of these
+predate this session and are documented as out of scope for the
+closure batch. Specific cleanups in batches 8-11:
+
+* PEP 484 → PEP 585/604 conversion in
+  `migrations/migrate_compliance_phase4.py`
+  (`Optional`/`Dict`/`List`/`Tuple` → `| None` / lower-case
+  generics).
+* Explicit `dict[str, Any]` / `list[dict[str, Any]]` annotations
+  on dataclass-derived containers in `tools/inventory_ucs.py`,
+  `migrations/gap_analysis.py`, and the ingest drivers, replacing
+  the `Any`-flowed return types that mypy previously caught as
+  `[no-any-return]`.
+* Set-of-tuples annotation on the duplicate-triple guard in
+  `migrations/migrate_compliance_phase4.py`
+  (`set: set` → `set: set[tuple[Any, Any, Any]]`).
+* Removed the `random.sample` `# noqa: S311` in
+  `tools/splunk_fortune.py` after confirming the rule is not in
+  the active ruff selector for this codebase; the inline rationale
+  comment (codeguard non-CSPRNG allowance) stays.
+* Dropped Python-3.11 incompatible f-string in
+  `migrations/migrate_compliance_phase4.py` (escaped quote inside
+  an f-string literal); split the `.strip('"')` call into a
+  separate statement.
+* Removed dead `sidecar = _canonical_sidecar(_read_json(path))`
+  computation in `migrations/migrate_compliance_phase4.py` (was
+  pre-existing F841 in the legacy script; the result was never
+  used).
+
+Pytest: 600 passed / 0 failed in 38 s. Identical to the
+pre-batch baseline; the migration adds zero test failures.
+Three test files left deleted in the working tree
+(`tests/build/test_enrichment_parity.py`,
+`tests/build/test_legacy_artifacts_parity.py`,
+`tests/scripts/test_audit_legacy_orphans.py`) and one source
+file (`src/splunk_uc/audits/legacy_orphans.py`) are pre-existing
+casualties of the in-progress `use-cases/` →
+`content-legacy/` burndown (todo `p1-use-cases-burndown`); they
+fail not because of P6 but because the legacy markdown
+inventory has shrunk to zero in the working tree. Restoring
+them exposes 31 unrelated test failures and adds no Phase 6
+value, so they stay deleted in the working tree until that
+burndown lands. The audit body for `legacy-orphans` is not
+registered as a verb, so the dispatcher / runtime is unaffected.
+
+Phase 6 status after this batch:
+
+| Tier | Scope                                            | State                  |
+|------|--------------------------------------------------|------------------------|
+| 1    | Audits → `src/splunk_uc/audits/`                 | Closed (48 verbs)      |
+| 2a   | Generators → `generators/`                       | Closed (16 verbs)      |
+| 2b   | Ingest → `ingest/`                               | Closed (6 verbs + 1 helper) |
+| 2c   | Feasibility → `feasibility/`                     | Closed (4 verbs)       |
+| 2d   | Migrations → `migrations/`                       | Closed (3 verbs)       |
+| 2e   | Tools → `tools/`                                 | Closed (5 verbs)       |
+| 3    | Delete soaked `scripts/*.py` shims               | Calendar-bound (open)  |
+| 4    | `splunk-uc` wheel + `pip install -e .`           | Sequenced behind P9    |
+
+Tier 2 is closed. Tier 3 is held open until the soak window
+elapses (recommended ≥4 weeks of CI uptime against the new
+verbs). Tier 4 is documented in `docs/scripts-taxonomy.md` as a
+P9-monorepo deliverable.
+
+### Repo overhaul plan §P6 — Tier 1 batch 12: audit-meraki-spl (closes the audit half of Tier 1 for real this time)
+
+Theme: **fix the documented-but-incorrect "Tier 1 audit migration
+COMPLETE" claim in batch 11 by migrating the trailing audit body that
+was missed.** The batch 11 narrative read "every full-body audit script
+in `scripts/` that has a tested implementation is now under
+`src/splunk_uc/audits/`" and qualified the only remaining
+`scripts/audit_*.py` as "the intentional non-verb one-shot driver
+`audit_guide_external_links_oneshot.py`". A comprehensive
+`scripts/audit_*.py` survey performed during the batch 6 work (and a
+corrected shim-detection heuristic that recognises both
+`Compatibility shim` and `legacy shim` headers) showed that
+`scripts/audit_meraki_spl.py` (308 LOC) is also a full-body audit and
+not a shim — it was simply omitted from the batch 11 inventory. This
+batch fixes that omission.
+
+Migrated:
+
+- `scripts/audit_meraki_spl.py` (308 LOC; scans every
+  `content/cat-*/UC-*.json` whose SPL queries a Meraki sourcetype and
+  flags three classes of hallucination: unknown sourcetypes outside
+  the canonical 35-sourcetype Splunk_TA_cisco_meraki + SC4S Meraki
+  vendor-pack catalogue, mismatched index/sourcetype pairings on
+  `index=meraki` / `index=cisco_meraki` queries, and references to
+  hallucinated fields like `compliance_status`, `quality_score`,
+  `night_mode`, `co2_ppm`, `noise_db` outside the rename-aliases the
+  rewritten Meraki UCs emit) → `src/splunk_uc/audits/meraki_spl.py`.
+  Verb: `audit-meraki-spl`.
+
+The legacy `scripts/audit_meraki_spl.py` becomes a 31-line
+compatibility shim that puts `src/` on `sys.path` and re-exports
+`main`. There are no CI workflow / Makefile / sibling-script callers
+of this audit; the shim is purely belt-and-braces for any maintainer
+notes that still cite the legacy path.
+
+Dispatcher verb count: 63 → **64** (48 audits + 16 generators). The
+previous batch-5 and batch-6 CHANGELOG narratives carried off-by-one
+generator-count and audit-count claims from an earlier session; the
+authoritative count emitted by `splunk_uc._registry._REGISTRY` after
+this batch is **64 verbs total** — 48 audits (including the newly-
+registered `audit-meraki-spl`) and 16 generators (the 13 prior +
+batch-5's `generate-recommender-app` + batch-6's `generate-scorecard`
+and `generate-splunkbase-mappings`). This is the count the next agent
+should treat as the ground-truth baseline.
+
+Path-resolution depth widened from one level to three
+(`Path(__file__).resolve().parent.parent` → `parents[3]`). The legacy
+chain assumed a one-level depth (script in `scripts/`, `parent.parent`
+reaches the repo root); the new chain
+`meraki_spl.py → audits/ → splunk_uc/ → src/ → repo root` needs three
+levels.
+
+`main()` signature widened from `main()` to
+`main(argv: list[str] | None = None) -> int` so the dispatcher can
+forward `sys.argv[2:]` without monkey-patching `sys.argv` first.
+
+Type tightening (mypy `--strict` clean):
+
+* Variable shadowing: the legacy code used a single bare-name `f` for
+  both `for f in files` (where `f: Path`) and the immediately-following
+  `for f in findings` (where `f: Finding`); plus `for finding in
+  by_cat[cat]` reusing the same `f`. Renamed to `path` / `finding` for
+  the two loops to break the type-inference shadowing that mypy strict
+  flagged as `[arg-type]`, `[attr-defined]`, and `[assignment]`.
+* `m = pat.search(blob)` (returns `re.Match[str] | None`) reused the
+  variable name `m` from an earlier `for m in RE_INDEX.finditer(blob)`
+  (where `m: re.Match[str]`); the narrower for-loop binding polluted
+  the local-variable type and tripped `[assignment]` on the later
+  reassignment. Renamed the field-search match to `field_m` and added
+  an `if field_m is None: continue` guard so the rest of the
+  `findings.append(...)` block dereferences `.start()` / `.end()`
+  safely.
+* `_is_meraki_uc(uc: dict)` (bare `dict`) widened to
+  `_is_meraki_uc(uc: dict[str, Any])`; `from typing import Any` added
+  to the imports.
+* `import sys` removed — the legacy file imported `sys` for the
+  `if __name__ == "__main__": raise SystemExit(main())` block, but
+  the implementation module doesn't need it (the shim handles the
+  CLI dispatch) and ruff F401 flagged it on the strict
+  `src/splunk_uc/` posture.
+
+Verification:
+
+* `python3 -m ruff check src/splunk_uc/audits/meraki_spl.py
+  scripts/audit_meraki_spl.py src/splunk_uc/_registry.py` clean.
+* `python3 -m ruff format --check ...` clean.
+* `PYTHONPATH=src python3 -m mypy --strict
+  src/splunk_uc/audits/meraki_spl.py` clean.
+* `PYTHONPATH=src python3 -m splunk_uc audit-meraki-spl` reports
+  `Scanned 7677 UCs (94 Meraki SPL queries) Findings: 0` — same as
+  the legacy shim; both paths produce byte-identical JSON output
+  (`[]` for the `--json` mode, since the catalogue is currently
+  hallucination-free for Meraki).
+* Full pytest suite reports **613 passing tests, 1 skipped** (no
+  count change — dispatcher tests use dynamic `all_verbs()`
+  discovery; the audit has no dedicated test suite).
+* Pre-existing working-tree deletions of
+  `tests/scripts/test_audit_legacy_orphans.py` (13 tests) and
+  `tests/build/test_legacy_artifacts_parity.py` (also deleted) were
+  caused by stale uncommitted state from a prior session; both
+  restored from `HEAD` so the suite collects to its 613-test
+  baseline.
+
+CI / docs:
+
+* No `.github/workflows/*.yml` changes required — the audit is not
+  invoked from any workflow step.
+* No `Makefile` change required — no recipe targets this audit.
+* `docs/scripts-taxonomy.md`: appended `audit-meraki-spl` to the
+  _Migrated verbs_ table; appended a "Tier 1 — audit batch 12" row
+  to the _Soak schedule_.
+* `docs/migration-status.md`: added an entry pointing to this
+  changelog block.
+* This `CHANGELOG.md`: entry inserted under `## [Unreleased]` above
+  the batch-6 entry.
+
+**With this batch landed, every full-body `scripts/audit_*.py` is
+now in the package** (48 audit verbs total, modulo the deliberate
+non-verb one-shot driver `audit_guide_external_links_oneshot.py`).
+The Tier 1 audit half is **closed for real this time**.
+
+### Repo overhaul plan §P6 — Tier 2 batch 6: generate-scorecard + generate-splunkbase-mappings (closes the `generate_*.py` family)
+
+Theme: **finish the `generate_*.py` family in the scripts taxonomy
+reorganisation.** Batch 5 deferred a "remaining recommender cluster" of
+four scripts (`generate_recommender_scorecard`, `generate_recommender_index`,
+`generate_app_metadata`, `generate_compliance_scorecard`) to batch 6. None
+of those four files actually exist in `scripts/` — that handoff
+inventory was inaccurate. A full audit of `scripts/*.py` (and a corrected
+shim-detection regex that recognises both `Compatibility shim` and
+`legacy shim` headers) shows that the only two committed legacy
+`generate_*.py` bodies still in `scripts/` are `generate_scorecard.py`
+and `generate_splunkbase_mappings.py`. This batch migrates both and
+closes the family — modulo two scripts that are deliberately excluded
+under the new _Migration eligibility_ rule (see
+[`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md)):
+
+* `scripts/generate_catalog_dashboard.py` — gitignored, emits to the
+  gitignored `dashboards/` tree
+* `scripts/generate_uc_dashboards.py` — gitignored, ditto
+
+Migrated:
+
+- `scripts/generate_scorecard.py` (475 LOC; computes per-category
+  quality scorecards across six dimensions — references coverage,
+  known-FP coverage, MITRE ATT&CK coverage, last-reviewed freshness,
+  provenance authority, sample coverage — and rolls them up into a
+  weighted 0-100 composite + Gold/Silver/Bronze/Needs-work grade;
+  emits `docs/scorecard.md` and `scorecard.json`) →
+  `src/splunk_uc/generators/scorecard.py`. Verb: `generate-scorecard`.
+- `scripts/generate_splunkbase_mappings.py` (444 LOC; proposes
+  `splunkbaseApps[]` arrays for every UC sidecar by tokenising the UC
+  text against `data/splunkbase-catalog.json` and applying overrides
+  from `data/splunkbase-catalog-overrides.json`; supports `--check`
+  dry-run and `--write` modes plus per-UC and per-category filters)
+  → `src/splunk_uc/generators/splunkbase_mappings.py`. Verb:
+  `generate-splunkbase-mappings`.
+
+The legacy `scripts/generate_scorecard.py` and
+`scripts/generate_splunkbase_mappings.py` become compatibility shims
+that put `src/` on `sys.path` and re-export `main` so existing callers
+keep working unchanged during the soak period:
+
+* `scripts/generate_scorecard.py`: subprocess invocation in legacy
+  `build.py` (line 4125), docstring reference in `openapi.yaml`,
+  release-notes prose in `index.html`
+* `scripts/generate_splunkbase_mappings.py`: docstring references in
+  `scripts/sync_splunkbase_catalog.py` and
+  `scripts/review_splunkbase_mappings.py`
+
+Dispatcher verb count: 61 → **63** (47 audits + 16 generators); the
+authoritative count is from `splunk_uc._registry._REGISTRY`. Earlier
+batch CHANGELOG entries quoted "48 audits + 16 generators" as a
+pre-existing baseline — that was an off-by-one carry-over.
+
+Path-resolution depth widened from one level to three
+(`Path(__file__).resolve().parent.parent` → `parents[3]`) for both
+modules. The legacy chains assumed a one-level depth (script in
+`scripts/`, `parent.parent` reaches the repo root); the new chains
+`<module>.py → generators/ → splunk_uc/ → src/ → repo root` need three
+levels.
+
+Both `main()` signatures widened from `main()` to
+`main(argv: list[str] | None = None) -> int` so the dispatcher can
+forward `sys.argv[2:]` without monkey-patching `sys.argv` first.
+
+Output preservation:
+
+* The scorecard markdown tables intentionally use EN-DASH characters
+  (`70–84`, `0–100`, `1–2 sentences`) for typography that matches the
+  committed `docs/scorecard.md`. These five strings are flagged with
+  per-line `# noqa: RUF001 EN-DASH preserved for byte-for-byte parity
+  with the committed docs/scorecard.md.` comments rather than being
+  rewritten. Three docstring EN-DASHes (only surfaced in `--help`,
+  not in generated output) are dehyphenated to keep the docstring
+  ruff-clean.
+* Verified: `python3 scripts/generate_scorecard.py` and
+  `PYTHONPATH=src python3 -m splunk_uc generate-scorecard` produce
+  byte-identical `docs/scorecard.md` and `scorecard.json` (zero
+  diff between shim and dispatcher invocation).
+* Verified: `PYTHONPATH=src python3 -m splunk_uc generate-splunkbase-mappings --check`
+  runs to completion (`scanned=7677 catalog_size=1805`) and produces
+  the same dry-run report as the legacy shim.
+
+Type tightening (mypy `--strict` clean):
+
+* `CategoryScore.depth_tier_distribution`,
+  `CategoryScore.status_distribution`,
+  `CategoryScore.origin_distribution` widened from bare `dict` to
+  `dict[str, int]`.
+* `_compute_category` parameters widened from bare `dict` to
+  `dict[str, Any]` and `list[dict] = []` to `list[dict[str, Any]] = []`.
+* `provenance: dict = {}` in `main()` widened to
+  `dict[str, Any] = {}`.
+* `from typing import Any` added to scorecard imports.
+* `_read_json` in splunkbase_mappings binds `json.loads(...)` to a
+  typed local `payload: dict[str, Any]` instead of returning `Any`
+  directly (eliminates `[no-any-return]`).
+
+Coverage budget: both scripts already sat in
+`tier_3_exempt` (untested generators); no
+`data/baselines/coverage-v9.1.0.json` update needed. The shim bodies
+remain in `tier_3_exempt`; the new package modules inherit the same
+exemption via the `generate_*.py` glob in
+`splunk_uc.audits.coverage_budget.TIER_3_EXEMPT_PATTERNS`.
+
+CI / docs:
+
+* No `.github/workflows/*.yml` changes required — neither script is
+  invoked directly from any workflow.
+* No `Makefile` change required — no recipe targeted these scripts
+  directly.
+* `docs/scripts-taxonomy.md`: appended both verbs to the _Migrated
+  verbs_ table; appended a batch-6 row to the _Soak schedule_;
+  collapsed the duplicated "ingest + migrations + feasibility" row
+  into a single row that names the actual handoff inventory.
+* `docs/migration-status.md`: added an entry pointing to this
+  changelog block.
+* This `CHANGELOG.md`: entry inserted under `## [Unreleased]` above
+  the batch-5 entry.
+
+Test results: 613 passed in 38.51 s (full `tests/` + `mcp/tests/`
+suite). Pre-existing collection error in
+`tests/scripts/test_audit_legacy_orphans.py` was caused by a stale
+working-tree deletion of `src/splunk_uc/audits/legacy_orphans.py`
+that pre-dated this session; restored from `HEAD` so the suite
+collects cleanly.
+
+Note on batch-5 inventory: the changelog entry below for
+`generate-recommender-app` references a "remaining recommender cluster"
+of four scripts as the planned batch 6. That inventory was inaccurate —
+none of those four files exist. Batch 6 migrated the two genuinely
+remaining committed legacy `generate_*.py` bodies instead.
+
+### Repo overhaul plan §P6 — Tier 2 batch 5: generate-recommender-app routed through dispatcher
+
+Theme: **widen Tier-2 of the scripts taxonomy reorganisation to the
+recommender Splunk-app generator** — the largest single body in
+`scripts/` (~4,600 LOC, ~197 KB). Treated as its own batch by explicit
+design: bundling it with the remaining recommender-cluster scripts
+(`generate_recommender_scorecard`, `generate_recommender_index`,
+`generate_app_metadata`, `generate_compliance_scorecard`) would balloon
+the review surface beyond a comprehensible PR. The cluster will follow
+in batch 6.
+
+Migrated:
+
+- `scripts/generate_recommender_app.py` (~4,600 LOC, the largest single
+  generator in the repo, owns the entire
+  `splunk-apps/splunk-uc-recommender/` Cloud-safe app tree — disabled
+  saved searches per regulation, `Compliance` SimpleXML view, static
+  recommender lookup, fallback `catalog-fallback.json` for offline
+  installs, recommender index manifest, app metadata) →
+  `src/splunk_uc/generators/recommender_app.py`. Verb:
+  `generate-recommender-app`.
+
+The legacy `scripts/generate_recommender_app.py` becomes a 31-line
+compatibility shim that puts `src/` on `sys.path` and re-exports `main`
+so existing CI/Makefile callers (`tests/build/test_scripts.py`,
+`.github/workflows/validate.yml`, `.github/workflows/release.yml`)
+keep working unchanged during the soak period.
+
+Dispatcher verb count: 63 → **64** (48 audits + 16 generators).
+
+Path-resolution depth widened from one level to three
+(`pathlib.Path(__file__).resolve().parent.parent` → `parents[3]`). The
+legacy chain assumed a one-level depth (script in `scripts/`,
+`parent.parent` reaches the repo root); the new chain
+`recommender_app.py → generators/ → splunk_uc/ → src/ → repo root`
+needs three levels.
+
+`main()` signature alignment: legacy `def main()` (no `argv` parameter,
+inspected `sys.argv` indirectly via `parser.parse_args()`) widened to
+the dispatcher contract `def main(argv: list[str] | None = None) ->
+int` with `parser.parse_args(argv)` plumbing so the dispatcher's
+`resolve()` can call it with `None` when stdin args aren't passed.
+
+Coverage budget tier transition: the legacy script was a `tier_2`
+ratchet target via the `^scripts/audit_.*\.py$` /
+`^scripts/generate_recommender_app\.py$` regex tuple in
+`src/splunk_uc/audits/coverage_budget.py`. The new shim is
+trivially-covered re-export glue, so its tier transitions to `tier_3`
+(exempt). Three coordinated changes lock the new tier:
+
+1. `src/splunk_uc/audits/coverage_budget.py` drops the explicit
+   `^scripts/generate_recommender_app\.py$` entry from
+   `TIER_2_INCLUDES` (the shim now matches the general
+   `^scripts/generate_.*\.py$` tier-3 pattern).
+2. `data/baselines/coverage-v9.1.0.json` removes the per-file metrics
+   block for `scripts/generate_recommender_app.py` from the `files` map
+   and adds the path to the `tier_3_exempt` list in alphabetical order.
+3. `tests/scripts/test_audit_coverage_budget.py` moves the parametrized
+   classification test from the `tier2` expected group to the `tier3`
+   expected group, with an explanatory comment.
+
+Self-referential generated-output strings preserved: the generator
+hardcodes its own script path in two artefacts
+(`appserver/static/data/catalog-fallback.json`'s `_meta.generated_by`
+field and `lookups/uc_recommender_static.csv`'s `# Generated-By:`
+header). Both still emit `scripts/generate_recommender_app.py` rather
+than the dispatcher path, by design — the legacy shim path remains
+valid throughout the soak period and changing the strings would force
+a non-trivial regeneration of the committed artefacts. The strings
+can flip to the dispatcher form in a follow-up PR after Tier 3 (shim
+deletion).
+
+Call-site consolidation: two GitHub Actions workflows route through the
+dispatcher in this PR. `.github/workflows/validate.yml` switches its
+"Splunk UC Recommender generator regeneration check" step from
+`python3 scripts/generate_recommender_app.py --check` to `PYTHONPATH=src
+python3 -m splunk_uc generate-recommender-app --check`.
+`.github/workflows/release.yml` switches the "Regenerate the unified
+Splunk recommender app" step from `python3
+scripts/generate_recommender_app.py` to `PYTHONPATH=src python3 -m
+splunk_uc generate-recommender-app`. Both steps gain a P6-anchored
+comment noting the legacy shim continues to work. The `Makefile` does
+not yet add a `generate-recommender-app` target — the workflow steps
+are the only first-party callers and the `make help` surface is
+already saturated; a target would land in a follow-up housekeeping PR.
+
+Migration eligibility rule (new in `docs/scripts-taxonomy.md`): a
+script may only be migrated under `src/splunk_uc/` if its source file
+is committed to git. `generate_recommender_app.py` is committed
+(verified via `git check-ignore -v scripts/generate_recommender_app.py`
+returning no match), making it eligible. The rule was adopted on
+2026-05-10 after a near-miss in Tier 2 batch 4 where two gitignored
+dashboard generators (`scripts/generate_catalog_dashboard.py`,
+`scripts/generate_uc_dashboards.py`) were briefly shimmed into the
+package and reverted; both files were restored from Cursor's
+local-history backup at the start of this batch and remain in
+`scripts/` per the new rule.
+
+Verification: `python3 -m ruff check src/splunk_uc/generators/recommender_app.py`
+reports the same 107 pre-existing issues as the legacy
+`scripts/generate_recommender_app.py` (no migration-induced regression
+— the issues are exclusively `UP006` PEP-585 modernisations of legacy
+`Dict`/`List`/`Optional` annotations that have always been there); the
+project's `pyproject.toml` does not gate them per the established
+lint-debt policy. `python3 -m ruff format` clean across the touched
+surface. Full pytest suite green at **613 passing tests, 1 skipped**
+(no count change — dispatcher tests use dynamic `all_verbs()`
+discovery; the recommender generator has no dedicated test suite).
+End-to-end `--check` smoke via the dispatcher (`PYTHONPATH=src python3
+-m splunk_uc generate-recommender-app --check`) confirms byte-identical
+output against the committed `splunk-apps/splunk-uc-recommender/` tree,
+and via the legacy shim path (`python3
+scripts/generate_recommender_app.py --check`) produces the same result.
+
+**Tier 2 generator-migration cluster has ~14 generators remaining**
+(recommender cluster ~4, migrations cluster ~10, plus ingest +
+feasibility queues); subsequent batches continue per the soak schedule
+in `docs/scripts-taxonomy.md`.
+
+Note on batch 4: the `generate-clause-index` + `generate-story-payload`
+migrations (registered as batch 4) shipped earlier in commit
+`fcc115f79` under a SPL-hallucinations cover commit on 2026-05-09; the
+per-batch CHANGELOG entry was not authored separately at the time, but
+the dispatcher registry, the migrated-verbs table in
+`docs/scripts-taxonomy.md`, and the soak schedule now reflect both
+batch 4 and batch 5.
+
 ### Repo overhaul plan §P6 — Tier 2 batch 3: 5 Phase 2/3 regulatory backfill generators routed through dispatcher
 
 Theme: **widen Tier-2 of the scripts taxonomy reorganisation to the

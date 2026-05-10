@@ -42,9 +42,9 @@ from typing import Any
 
 # Repo-overhaul plan §P1 step 1: ``tools.build.enrichment`` is the canonical
 # source for EQUIPMENT, CAT_GROUPS, SPLUNK_APPS, and every helper this loader
-# post-processes UCs with. Until ``build.py`` is deleted (P1 step 5), the
-# parity test in ``tests/build/test_enrichment_parity.py`` blocks any drift
-# between the two modules.
+# post-processes UCs with. The legacy root ``build.py`` and its parity
+# tests were retired in v8.2.0; this module is now the only enrichment
+# surface.
 from build import enrichment as _enrichment
 from build.models import (
     CatalogCategory,
@@ -228,10 +228,10 @@ def _load_categories(cat: Catalog, project_root: Path, *, reproducible: bool) ->
 
     Repo-overhaul plan §P1 step 5a (2026-05-08): only the JSON-corpus
     loader survives. The previous markdown-corpus loader was a parity
-    aid for the v6 → v7 migration and was never the default; it has
-    been removed now that the parity tests in
-    ``tests/build/test_enrichment_parity.py`` validate the SSOT
-    independently.
+    aid for the v6 → v7 migration and was never the default; it was
+    removed once the SSOT became authoritative, and the parity tests
+    that once validated it independently were retired in v8.2.0
+    alongside the rest of the legacy ``build.py`` infrastructure.
     """
     _load_categories_from_content(cat, project_root, reproducible=reproducible)
 

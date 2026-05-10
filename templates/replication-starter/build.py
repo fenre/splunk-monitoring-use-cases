@@ -1,59 +1,89 @@
 #!/usr/bin/env python3
 """Minimal replication starter build.
 
-Reads every use-cases/cat-*.md file, parses a fixed heading + bulleted-field
-schema, and emits data.js (for the dashboard) and catalog.json (for integrators).
+Reads every JSON sidecar under ``content/cat-NN-<slug>/UC-X.Y.Z.json`` (the
+single source of truth) and emits ``data.js`` (for the dashboard) and
+``catalog.json`` (for integrators).
 
-This is the smallest useful build script. The parent repo's build.py extends
-this pattern with: auto-tagging, derived fields, LLM index, API shards, sitemap,
-and release-notes sync. Start here and layer on what you need.
+Each category directory must also carry a ``_category.json`` describing the
+category's id, display name, and ordered subcategory shells. UC sidecars are
+slotted into subcategories by their ``id`` prefix (e.g. ``1.2.3`` lands in
+subcategory ``1.2``); a missing subcategory entry creates a stub bucket so
+the build never silently drops a UC.
+
+This is the smallest useful build script. The parent repo's
+``tools/build/build.py`` extends this pattern with: auto-tagging, derived
+fields, LLM index, API shards, sitemap, signed provenance, and release-notes
+sync. Start here and layer on what you need.
 """
 
 import glob
 import json
 import os
-import re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-UC_DIR = os.path.join(SCRIPT_DIR, "use-cases")
+CONTENT_DIR = os.path.join(SCRIPT_DIR, "content")
 
 
-def parse_category(path):
-    """Parse one cat-*.md file into a category dict."""
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-    cat = {"s": []}
-    current_sub = None
-    current_uc = None
+def parse_category(cat_dir):
+    """Parse one ``content/cat-*/`` directory into a category dict."""
+    meta_path = os.path.join(cat_dir, "_category.json")
+    if not os.path.exists(meta_path):
+        return None
+    with open(meta_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
 
-    for line in content.split("\n"):
-        stripped = line.strip()
-        m = re.match(r"^#\s+(\d+)\.\s+(.+)$", stripped)
-        if m:
-            cat["i"] = int(m.group(1))
-            cat["n"] = m.group(2).strip()
+    cid = meta.get("id")
+    if cid is None:
+        return None
+    try:
+        cid_int = int(cid)
+    except (TypeError, ValueError):
+        return None
+
+    cat = {"i": cid_int, "n": meta.get("name", ""), "s": []}
+    sub_buckets = {}
+    for sub in meta.get("subcategories", []) or []:
+        sub_id = sub.get("id")
+        if not sub_id:
             continue
-        m = re.match(r"^##\s+(\d+\.\d+)\s+(.+)$", stripped)
-        if m:
-            current_sub = {"i": m.group(1), "n": m.group(2).strip(), "u": []}
-            cat["s"].append(current_sub)
-            current_uc = None
-            continue
-        m = re.match(r"^###\s+UC-(\d+\.\d+\.\d+)\s*[·•]\s*(.+)$", stripped)
-        if m and current_sub is not None:
-            current_uc = {"i": m.group(1), "n": m.group(2).strip()}
-            current_sub["u"].append(current_uc)
-            continue
-        m = re.match(r"^-\s+\*\*(.+?):\*\*\s*(.*)$", stripped)
-        if m and current_uc is not None:
-            current_uc[m.group(1).lower().replace(" ", "_")] = m.group(2).strip()
+        record = {"i": sub_id, "n": sub.get("name", ""), "u": []}
+        sub_buckets[sub_id] = record
+        cat["s"].append(record)
 
+    for uc_path in sorted(glob.glob(os.path.join(cat_dir, "UC-*.json"))):
+        try:
+            with open(uc_path, "r", encoding="utf-8") as f:
+                uc = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        uid = uc.get("id") or ""
+        if not uid:
+            continue
+        bucket_key = ".".join(uid.split(".")[:2])
+        bucket = sub_buckets.get(bucket_key)
+        if bucket is None:
+            bucket = {"i": bucket_key, "n": "", "u": []}
+            sub_buckets[bucket_key] = bucket
+            cat["s"].append(bucket)
+        bucket["u"].append({
+            "i": uid,
+            "n": uc.get("title", ""),
+            "c": uc.get("criticality", ""),
+            "f": uc.get("difficulty", ""),
+        })
     return cat
 
 
 def main():
-    files = sorted(glob.glob(os.path.join(UC_DIR, "cat-*.md")))
-    data = [parse_category(p) for p in files]
+    cat_dirs = sorted(
+        d for d in glob.glob(os.path.join(CONTENT_DIR, "cat-*")) if os.path.isdir(d)
+    )
+    data = []
+    for cat_dir in cat_dirs:
+        cat = parse_category(cat_dir)
+        if cat is not None:
+            data.append(cat)
     total = sum(len(u["u"]) for c in data for u in c["s"])
 
     with open(os.path.join(SCRIPT_DIR, "catalog.json"), "w", encoding="utf-8") as f:

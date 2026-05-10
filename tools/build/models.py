@@ -503,10 +503,11 @@ class CatalogJson(TypedDict, total=False):
     ``catalog.json`` get the field-name mapping inline).
 
     ``lastModified`` and ``version`` are intentionally NOT part of the
-    byte-reproducible build subset (see ``test_legacy_artifacts_parity``):
-    ``version`` is sourced from ``VERSION``; ``lastModified`` is the
-    git HEAD commit timestamp where available, falling back to the
-    process clock.
+    byte-reproducible build subset: ``version`` is sourced from
+    ``VERSION``; ``lastModified`` is the git HEAD commit timestamp
+    where available, falling back to the process clock. (The legacy
+    ``test_legacy_artifacts_parity`` test that originally documented
+    this carve-out was retired in v8.2.0.)
     """
 
     _schema_url: str

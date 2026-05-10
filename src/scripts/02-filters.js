@@ -342,7 +342,14 @@ function githubIssueUrlForEntry(entry) {
   var mm = repo.match(/github\.com\/([^/]+)\/([^/?#]+)/);
   var base = mm ? 'https://github.com/' + mm[1] + '/' + mm[2] : 'https://github.com/fenre/splunk-monitoring-use-cases';
   var issueTitle = '[UC Feedback] UC-' + uc.i + ' — ' + String(uc.n).replace(/[\r\n]+/g, ' ').substring(0, 100);
-  var mdLink = cat.src ? (repo + '/blob/main/use-cases/' + cat.src) : (repo + '/tree/main/use-cases');
+  // The JSON SSOT lives at content/cat-<slug>/UC-<id>.json. ``cat.src``
+  // historically pointed at the per-category markdown monolith
+  // (``use-cases/cat-NN-*.md``); that corpus was retired in v8.2.0 so
+  // we now link directly at the canonical sidecar.
+  var sidecarSlug = cat.src ? String(cat.src).replace(/^cat-/, 'cat-').replace(/\.md$/, '') : '';
+  var mdLink = sidecarSlug
+    ? (repo + '/blob/main/content/' + sidecarSlug + '/UC-' + uc.i + '.json')
+    : (repo + '/tree/main/content');
   var pageLink = '';
   try { pageLink = location.origin + location.pathname + location.search + '#uc-' + (uc.i || ''); } catch (e2) { pageLink = repo; }
   // Pre-fill the YAML issue form fields declared in
@@ -352,7 +359,7 @@ function githubIssueUrlForEntry(entry) {
   //   - fix        (textarea)  -- left blank for the reporter
   var details = 'Category: ' + cat.i + '. ' + cat.n +
                 ' / Subcategory: ' + sc.i + ' ' + sc.n + '\n\n' +
-                'Source file: ' + (cat.src ? mdLink : '(unknown)') + '\n' +
+                'Source file: ' + (sidecarSlug ? mdLink : '(unknown)') + '\n' +
                 'Dashboard link: ' + pageLink + '\n\n' +
                 'What is wrong?\n\n';
   var qs = [

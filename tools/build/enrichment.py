@@ -143,11 +143,10 @@ PILLAR_OBS_MTYPES = {"performance", "availability", "capacity", "fault", "config
 def _atomic_write(path, content, encoding="utf-8"):
     """Write *content* to *path* atomically via a temp file + os.replace.
 
-    Lifted from ``build.py`` (P1 step 1, 2026-05-08) so the SSOT writers
-    in this module no longer need to import the legacy script. Behaviour
-    is byte-identical: the parity test in
-    ``tests/build/test_enrichment_parity.py`` ensures any future change
-    here is mirrored in ``build.py`` until the latter is deleted.
+    Lifted from the legacy root ``build.py`` (P1 step 1, 2026-05-08)
+    so the SSOT writers in this module no longer need to import the
+    legacy script. The legacy script and its parity tests were
+    retired in v8.2.0 alongside the ``use-cases/`` corpus burndown.
     """
     dir_name = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
@@ -2048,8 +2047,9 @@ def _splunkbase_ids_in(raw: str) -> set:
     (Splunkbase 1928)`` where the legacy token-only match (looking for the
     bare ``Splunk_TA_servicenow`` token) fails. Repo-overhaul plan §P1
     step 5b prep #2 (2026-05-08): closes the 22-UC ``sapp`` and 10-UC
-    ``ta_link`` field-loss gap captured in
-    ``tests/build/test_legacy_artifacts_parity.py``.
+    ``ta_link`` field-loss gap that the legacy parity tests had
+    captured before they were retired with the rest of the
+    ``build.py`` infrastructure in v8.2.0.
     """
     if not raw:
         return set()

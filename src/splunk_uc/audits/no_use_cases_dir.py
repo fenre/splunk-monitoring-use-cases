@@ -88,7 +88,6 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         "content/README.md",
         "scripts/README.md",
         # ── Active code with historical comments only (no real refs) ──────
-        "build.py",
         "scripts/parse_uc_catalog.py",
         "src/scripts/02-filters.js",
         "src/splunk_uc/audits/_uc_walk.py",
