@@ -530,12 +530,24 @@ def test_starter_does_not_pin_repo_version() -> None:
     If a real semantic-version dependency is ever needed (e.g. the
     schema dialect bumps), encode it via the ``$schema`` URL inside
     ``catalog.schema.json``, not as a string in prose.
+
+    Note: UC IDs follow the same X.Y.Z shape as SemVer (e.g.
+    ``UC-1.1.1``), so the regex below uses a negative lookbehind to
+    exclude any X.Y.Z preceded by ``UC-`` (with optional surrounding
+    backticks) from the match. UC IDs are catalogue identifiers, not
+    version pins.
     """
     readme = README.read_text(encoding="utf-8")
+    # Strip out UC-X.Y.Z identifiers (e.g. ``UC-1.1.1``, ``UC-1.1.2.json``)
+    # before scanning for SemVer patterns. UC IDs are not version pins;
+    # they are catalogue-level identifiers and are expected in starter
+    # docs that walk through example UCs.
+    uc_id_re = re.compile(r"`?UC-\d+\.\d+\.\d+(?:\.json)?`?")
+    scrubbed = uc_id_re.sub("", readme)
     # Match a canonical SemVer like X.Y.Z (e.g. "8.1.0") but allow
     # "v8" / "v8.x" generic references to the major series.
     semver_re = re.compile(r"\bv?\d+\.\d+\.\d+\b")
-    matches = semver_re.findall(readme)
+    matches = semver_re.findall(scrubbed)
     assert not matches, (
         f"README pins specific version(s) {matches}; replace with "
         "version-agnostic prose ('v8 series', 'current schema') so the "
