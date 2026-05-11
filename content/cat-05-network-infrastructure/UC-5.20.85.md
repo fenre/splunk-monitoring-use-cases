@@ -133,7 +133,7 @@ index=network sourcetype="cisco:ios" earliest=-1h
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:ios" OR sourcetype="zeek:conn" OR sourcetype="paloalto:traffic") earliest=-24h
+index=network (sourcetype="cisco:ios" OR sourcetype="zeek:conn" OR sourcetype="pan:traffic") earliest=-24h
 | eval is_ipv6=case(
     match(src, ":"), 1,
     match(dest, ":"), 1,

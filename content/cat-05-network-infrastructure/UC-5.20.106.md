@@ -132,7 +132,7 @@ Verify the tunnel is detected in Splunk.
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:ios" OR sourcetype="zeek:conn") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:ios" OR sourcetype="zeek:conn") earliest=-24h
 | eval is_tunnel=case(
     match(proto, "^41$") OR match(protocol, "(?i)6in4|6to4|6rd|proto-41"), "6in4 (protocol 41)",
     match(proto, "^47$") OR match(protocol, "(?i)gre"), "GRE",

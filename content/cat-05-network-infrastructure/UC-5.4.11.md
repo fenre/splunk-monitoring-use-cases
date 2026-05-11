@@ -107,7 +107,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" "associated"
+index=network sourcetype="cisco:wlc:syslog" "associated"
 | eval band=if(match(channel,"^(1|6|11)$"),"2.4GHz","5GHz")
 | stats count by band, ssid
 | eventstats sum(count) as total by ssid

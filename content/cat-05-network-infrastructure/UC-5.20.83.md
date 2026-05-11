@@ -51,7 +51,7 @@ index=network (sourcetype="pan:globalprotect" OR sourcetype="cisco:asa" OR sourc
 
 **Detection search — DNS leakage via IPv6:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") dest_port=53 earliest=-1h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") dest_port=53 earliest=-1h
 | eval is_ipv6_dns=if(match(src, ":") AND match(dest, ":"), 1, 0)
 | where is_ipv6_dns=1
 | lookup vpn_client_assignments.csv public_ip as src OUTPUT vpn_user, vpn_status
@@ -69,7 +69,7 @@ index=network sourcetype="pan:globalprotect" "connected" | stats count by user |
 
 **Full VPN leakage detection:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="netflow") earliest=-4h
+index=network (sourcetype="pan:traffic" OR sourcetype="netflow") earliest=-4h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | lookup vpn_client_assignments.csv public_ip as src OUTPUT vpn_user, vpn_status
@@ -117,7 +117,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="netflow") earliest=-
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="netflow") earliest=-4h
+index=network (sourcetype="pan:traffic" OR sourcetype="netflow") earliest=-4h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | lookup vpn_client_assignments.csv src_ip as src OUTPUT vpn_user, vpn_status, tunnel_interface

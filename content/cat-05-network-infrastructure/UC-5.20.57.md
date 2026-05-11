@@ -80,7 +80,7 @@ Or via Group Policy: `Computer Configuration → Administrative Templates → Ne
 
 **Verification:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") ("protocol 41" OR "3544" OR "192.88.99.1" OR "teredo" OR "6to4") earliest=-7d
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") ("protocol 41" OR "3544" OR "192.88.99.1" OR "teredo" OR "6to4") earliest=-7d
 | stats count by sourcetype
 ```
 
@@ -88,7 +88,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") ("protoc
 
 **6to4 detection (CRITICAL):**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ios")
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ios")
   ("192.88.99.1" OR "2002:" OR ("protocol" AND "41"))
   earliest=-1h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src>[0-9.]+)"
@@ -99,7 +99,7 @@ Trigger: any detection.
 
 **Teredo detection (CRITICAL):**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="zeek:conn")
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="zeek:conn")
   ("3544" OR "teredo")
   earliest=-1h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src>[0-9.]+)"
@@ -109,7 +109,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR source
 
 **Protocol 41 inventory (legitimate vs shadow):**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") "protocol 41" earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") "protocol 41" earliest=-24h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src>[0-9.]+)"
 | rex field=_raw "(?:dst|dest)\s*=?\s*(?<dst>[0-9.]+)"
 | lookup approved_tunnels.csv src, dst OUTPUT tunnel_name, approved
@@ -150,7 +150,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") "protoco
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:ios" OR sourcetype="zeek:conn") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:ios" OR sourcetype="zeek:conn") earliest=-24h
 | eval tunnel_type=case(
     match(_raw, "(?i)protocol.?41|ip-encap|ipv6inipv4") AND match(_raw, "192\.88\.99\.1"), "6to4 via anycast relay — CRITICAL",
     match(_raw, "(?i)protocol.?41|ip-encap") AND match(_raw, "2002:"), "6to4 tunnel — CRITICAL",

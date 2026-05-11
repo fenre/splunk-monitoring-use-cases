@@ -49,7 +49,7 @@ Monitor traffic flows to known cloud provider IPv6 prefixes. Track latency and c
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:ios" OR sourcetype="paloalto:traffic") earliest=-4h
+index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic") earliest=-4h
 | eval cloud_dest=case(
     match(dest, "^2600:1f") OR match(dest, "^2406:da"), "AWS",
     match(dest, "^2603:"), "Azure",

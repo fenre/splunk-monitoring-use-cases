@@ -50,7 +50,7 @@ Detect deprecated and active transition mechanism traffic patterns. Track sunset
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:ios" OR sourcetype="paloalto:traffic" OR sourcetype="netflow") earliest=-7d
+index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic" OR sourcetype="netflow") earliest=-7d
 | eval deprecated_mechanism=case(
     match(_raw, "(?i)6to4|2002:|proto.?41.*6to4"), "6to4 (DEPRECATED per RFC 7526)",
     match(_raw, "(?i)teredo|3544|2001:0000:"), "Teredo (limited use — disable when not needed)",

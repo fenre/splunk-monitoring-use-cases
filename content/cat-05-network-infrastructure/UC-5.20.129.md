@@ -49,7 +49,7 @@ Monitor WLC roaming events. Correlate with IPv6 address changes. Track DAD event
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" earliest=-24h
+index=network sourcetype="cisco:wlc:syslog" earliest=-24h
   ("roam" OR "handoff" OR "mobility" OR "anchor" OR "L2-roam" OR "L3-roam")
 | eval is_ipv6_relevant=if(match(_raw, "(?i)ipv6|RA|NDP|SLAAC|DHCPv6"), 1, 0)
 | eval roam_type=case(

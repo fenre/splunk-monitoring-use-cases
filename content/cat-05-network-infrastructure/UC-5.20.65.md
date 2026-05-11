@@ -57,7 +57,7 @@ Deny events appear as syslog messages: `%ASA-4-106100: access-list acl_name deni
 
 **Verification:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action="denied" OR action="drop" OR "denied" OR "Deny") earliest=-1h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") (action="denied" OR action="drop" OR "denied" OR "Deny") earliest=-1h
 | eval is_ipv6=if(match(_raw, "[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}"), 1, 0)
 | stats count(eval(is_ipv6=1)) as ipv6_denies count(eval(is_ipv6=0)) as ipv4_denies by host
 ```
@@ -66,7 +66,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action=
 
 **Misconfiguration alert (blocked essential ICMPv6):**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-1h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-1h
 | eval is_critical_block=case(
     match(_raw, "(?i)icmpv6.*packet.too.big|icmpv6.*type.?2"), "PMTUD broken",
     match(_raw, "(?i)icmpv6.*router.solicit|icmpv6.*type.?133"), "SLAAC broken",
@@ -82,7 +82,7 @@ Trigger: any event. These deny categories should never appear â€” their presence
 
 **IPv6 scanning detection:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-1h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-1h
 | eval is_ipv6_dest=if(match(dest, ":"), 1, 0)
 | where is_ipv6_dest=1
 | rex field=dest "(?<dest_prefix>[0-9a-fA-F:]+:)[0-9a-fA-F]+$"
@@ -93,7 +93,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action=
 
 **Application IPv6 gap analysis:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-7d
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") (action="denied" OR "denied") earliest=-7d
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | rex field=_raw "(?:rule|acl)\s*=?\s*(?<denied_by>\S+)"
@@ -138,7 +138,7 @@ This identifies IPv6 traffic that is consistently denied from multiple sources â
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ios") action="denied" earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ios") action="denied" earliest=-24h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | eval deny_category=case(

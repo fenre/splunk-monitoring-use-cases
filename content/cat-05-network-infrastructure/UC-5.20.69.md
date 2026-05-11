@@ -64,7 +64,7 @@ Upload as `geo_policy.csv`.
 
 **Verification:**
 ```spl
-index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-1h
+index=network (sourcetype="netflow" OR sourcetype="pan:traffic") earliest=-1h
 | eval src_ip=coalesce(sourceIPv6Address, src)
 | where match(src_ip, ":")
 | iplocation src_ip
@@ -76,7 +76,7 @@ index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-
 
 **Blocked country IPv6 traffic alert:**
 ```spl
-index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-1h
+index=network (sourcetype="netflow" OR sourcetype="pan:traffic") earliest=-1h
 | eval src_ip=coalesce(sourceIPv6Address, src)
 | where match(src_ip, ":")
 | iplocation src_ip
@@ -90,7 +90,7 @@ index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-
 
 **IPv4 vs IPv6 geo-policy parity check:**
 ```spl
-index=network (sourcetype="paloalto:traffic") action="allowed" earliest=-24h
+index=network (sourcetype="pan:traffic") action="allowed" earliest=-24h
 | eval ip_ver=if(match(src, ":"), "IPv6", "IPv4")
 | iplocation src
 | rename Country as src_country
@@ -103,7 +103,7 @@ If blocked-country traffic is permitted via IPv6 but not IPv4, the geo-blocking 
 
 **Geographic shift detection:**
 ```spl
-index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-7d
+index=network (sourcetype="netflow" OR sourcetype="pan:traffic") earliest=-7d
 | eval src_ip=coalesce(sourceIPv6Address, src)
 | where match(src_ip, ":")
 | iplocation src_ip
@@ -148,7 +148,7 @@ index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-
 ## SPL
 
 ```spl
-index=network (sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-24h
+index=network (sourcetype="netflow" OR sourcetype="pan:traffic") earliest=-24h
 | eval src_ip=coalesce(sourceIPv6Address, src)
 | eval dest_ip=coalesce(destinationIPv6Address, dest)
 | where match(src_ip, ":")

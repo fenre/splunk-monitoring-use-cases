@@ -42,7 +42,7 @@ Run the main SPL search to identify all sourcetypes with parity gaps. This creat
 ```spl
 | makeresults
 | eval domain=mvappend(
-    "Firewall logging (paloalto:traffic, cisco:asa, cisco:ftd)",
+    "Firewall logging (pan:traffic, cisco:asa, cisco:ftd)",
     "Flow data (netflow, sflow, ipfix)",
     "IDS/IPS (suricata:alert, snort:alert, zeek:notice)",
     "Network device syslog (cisco:ios, juniper:junos)",
@@ -60,7 +60,7 @@ Run the main SPL search to identify all sourcetypes with parity gaps. This creat
 
 **Firewall parity (most critical):**
 ```spl
-index=network sourcetype="paloalto:traffic" earliest=-24h
+index=network sourcetype="pan:traffic" earliest=-24h
 | eval ip_ver=case(
     match(src, ":") OR match(dest, ":"), "IPv6",
     match(src, "^\d+\."), "IPv4",

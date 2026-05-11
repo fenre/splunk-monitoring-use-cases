@@ -72,7 +72,7 @@ index=network sourcetype="cisco:iosxe" "SRv6" earliest=-24h | stats count by hos
 
 **SRH injection detection (domain boundary):**
 ```spl
-index=network (sourcetype="cisco:iosxe" OR sourcetype="cisco:nxos") earliest=-24h
+index=network (sourcetype="cisco:iosxe" OR sourcetype="cisco:nxos:syslog") earliest=-24h
   "%IPV6_ACL" AND "routing-type 3" AND "denied"
 | rex field=_raw "(?:src|source)\s*=?\s*(?<external_src>[0-9a-fA-F:.]+)"
 | stats count as injection_attempts by host, external_src
@@ -121,7 +121,7 @@ index=network (sourcetype="cisco:iosxe" OR sourcetype="juniper:junos") earliest=
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:iosxe" OR sourcetype="cisco:nxos" OR sourcetype="juniper:junos") earliest=-24h
+index=network (sourcetype="cisco:iosxe" OR sourcetype="cisco:nxos:syslog" OR sourcetype="juniper:junos") earliest=-24h
   ("%SRV6" OR "%ISIS" OR "segment-routing" OR "srv6" OR "SRH")
 | eval event_type=case(
     match(_raw, "(?i)SRH.*drop|SRH.*reject|SRH.*invalid"), "SRH_REJECTED",

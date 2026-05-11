@@ -70,7 +70,7 @@ index=network (sourcetype="infoblox:dns" OR sourcetype="named:querylog") "64:ff9
 
 **NAT64 translation health:**
 ```spl
-index=network (sourcetype="cisco:ios" OR sourcetype="paloalto:traffic") ("NAT64" OR "nat64") earliest=-1h
+index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic") ("NAT64" OR "nat64") earliest=-1h
 | eval outcome=case(
     match(_raw, "(?i)create|new|start"), "success",
     match(_raw, "(?i)fail|drop|error|denied"), "failure",
@@ -133,7 +133,7 @@ index=network sourcetype="sc4snmp:metric" metric_name="nat64.active_translations
 index=network (sourcetype="infoblox:dns" OR sourcetype="named:querylog") "64:ff9b" earliest=-24h
 | stats count as dns64_syntheses
 | append [
-    search index=network (sourcetype="cisco:ios" OR sourcetype="paloalto:traffic") ("NAT64" OR "nat64" OR "64:ff9b") earliest=-24h
+    search index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic") ("NAT64" OR "nat64" OR "64:ff9b") earliest=-24h
     | eval nat64_event=case(
         match(_raw, "(?i)created|create|new"), "translation_created",
         match(_raw, "(?i)deleted|expire|timeout"), "translation_removed",

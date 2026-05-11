@@ -38,7 +38,7 @@ Collect firewall configurations periodically. Audit each configuration for essen
 ### Step 1 — Configure data collection
 
 **Configuration collection:**
-Index firewall configurations as `sourcetype=cisco:ios:config`, `sourcetype=paloalto:config`, or `sourcetype=cisco:asa:config`. See UC-5.20.36 for configuration collection guidance.
+Index firewall configurations as `sourcetype=cisco:ios:config`, `sourcetype=pan:config`, or `sourcetype=cisco:asa:config`. See UC-5.20.36 for configuration collection guidance.
 
 **Firewall role lookup:**
 ```csv
@@ -60,7 +60,7 @@ index=network (sourcetype="*:config") "ipv6" earliest=-7d
 
 **Comprehensive IPv6 firewall rule audit:**
 ```spl
-index=network (sourcetype="cisco:ios:config" OR sourcetype="cisco:asa:config" OR sourcetype="paloalto:config") earliest=-2d
+index=network (sourcetype="cisco:ios:config" OR sourcetype="cisco:asa:config" OR sourcetype="pan:config") earliest=-2d
 | lookup firewall_roles.csv host OUTPUT fw_role, ipv6_enabled, fw_platform
 | where ipv6_enabled="true"
 | eval checks=mvappend(
@@ -79,7 +79,7 @@ index=network (sourcetype="cisco:ios:config" OR sourcetype="cisco:asa:config" OR
 
 **Extension header handling audit:**
 ```spl
-index=network (sourcetype="cisco:asa:config" OR sourcetype="paloalto:config") earliest=-2d
+index=network (sourcetype="cisco:asa:config" OR sourcetype="pan:config") earliest=-2d
 | eval eh_policy=case(
     match(_raw, "(?i)deny.*all.*ext.header|drop.*extension"), "BLOCK ALL — may break legitimate IPv6 traffic",
     match(_raw, "(?i)permit.*hop.by.hop|permit.*ext.header"), "PERMIT ALL — may allow EH-based evasion",
@@ -128,7 +128,7 @@ The regex patterns in the search must account for these variations, or use separ
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:config" OR sourcetype="cisco:asa:config" OR sourcetype="cisco:ios:config") earliest=-2d
+index=network (sourcetype="pan:config" OR sourcetype="cisco:asa:config" OR sourcetype="cisco:ios:config") earliest=-2d
 | eval blocks_icmpv6_all=if(match(_raw, "(?i)deny\s+icmpv6?\s+any\s+any(?!\s+(destination-unreachable|packet-too-big|time-exceeded|echo|nd-na|nd-ns|router))"), 1, 0)
 | eval blocks_nd_multicast=if(match(_raw, "(?i)deny.*(?:ff02::1:ff|solicited.node)"), 1, 0)
 | eval blocks_all_ext_headers=if(match(_raw, "(?i)deny.*(?:ext-header|extension.header|routing.header|hop-by-hop)"), 1, 0)

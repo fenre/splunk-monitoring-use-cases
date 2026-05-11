@@ -59,7 +59,7 @@ index=authentication sourcetype="cisco:ise" "IPv6" earliest=-24h
 
 **§164.312(e)(1) — Transmission security (encryption audit):**
 ```spl
-index=network sourcetype="paloalto:traffic" earliest=-24h
+index=network sourcetype="pan:traffic" earliest=-24h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | lookup ephi_subnets.csv dest_subnet as dest OUTPUT contains_ephi
 | where contains_ephi="yes" AND is_ipv6=1
@@ -112,7 +112,7 @@ index=network earliest=-7d
 
 ```spl
 index=network earliest=-24h
-  (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd")
+  (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd")
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | lookup ephi_subnets.csv dest_subnet as dest OUTPUT contains_ephi
 | where contains_ephi="yes" AND is_ipv6=1

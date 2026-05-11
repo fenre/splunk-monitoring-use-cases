@@ -76,14 +76,14 @@ rulebase security rules {
 
 **Verification:**
 ```spl
-index=network sourcetype="paloalto:traffic" (src="fc*" OR src="fd*" OR dest="fc*" OR dest="fd*") | stats count by host
+index=network sourcetype="pan:traffic" (src="fc*" OR src="fd*" OR dest="fc*" OR dest="fd*") | stats count by host
 ```
 
 ### Step 2 — Create monitoring search
 
 **ULA leakage detection with characterisation:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="netflow") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="netflow") earliest=-24h
 | eval src_is_ula=if(match(src, "^[Ff][CcDd]"), 1, 0)
 | eval dst_is_ula=if(match(dest, "^[Ff][CcDd]"), 1, 0)
 | where src_is_ula=1 OR dst_is_ula=1
@@ -139,7 +139,7 @@ index=network (sourcetype="cisco:ios:config" OR sourcetype="cisco:iosxe:config")
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="netflow" OR sourcetype="cisco:asa") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="netflow" OR sourcetype="cisco:asa") earliest=-24h
 | eval src_ula=if(match(src, "^[Ff][CcDd]"), 1, 0)
 | eval dst_ula=if(match(dest, "^[Ff][CcDd]"), 1, 0)
 | where src_ula=1 OR dst_ula=1

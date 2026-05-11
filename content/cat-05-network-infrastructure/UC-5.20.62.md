@@ -71,7 +71,7 @@ Upload as `firewall_capacity.csv`.
 
 **Verification:**
 ```spl
-index=network (sourcetype="paloalto:system" OR sourcetype="cisco:asa") "session" earliest=-24h
+index=network (sourcetype="pan:system" OR sourcetype="cisco:asa") "session" earliest=-24h
 | stats count by host, sourcetype
 ```
 
@@ -79,7 +79,7 @@ index=network (sourcetype="paloalto:system" OR sourcetype="cisco:asa") "session"
 
 **Session table utilization alert:**
 ```spl
-index=network (sourcetype="paloalto:system" OR sourcetype="cisco:asa" OR sourcetype="sc4snmp:metric")
+index=network (sourcetype="pan:system" OR sourcetype="cisco:asa" OR sourcetype="sc4snmp:metric")
   ("session" OR metric_name="firewall.active_sessions") earliest=-15m
 | rex field=_raw "(?:active|current|in use)\s*:?\s*(?<active>\d+)"
 | eval active=coalesce(active, metric_value)
@@ -96,7 +96,7 @@ index=network (sourcetype="paloalto:system" OR sourcetype="cisco:asa" OR sourcet
 
 **IPv6 session contribution analysis:**
 ```spl
-index=network sourcetype="paloalto:traffic" earliest=-1h
+index=network sourcetype="pan:traffic" earliest=-1h
 | eval ip_version=if(match(src, ":") OR match(dst, ":"), "IPv6", "IPv4")
 | stats count as sessions by ip_version
 | eventstats sum(sessions) as total
@@ -105,7 +105,7 @@ index=network sourcetype="paloalto:traffic" earliest=-1h
 
 **Connection rate spike detection (CPS):**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa")
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa")
   ("session" AND ("create" OR "start" OR "conn-id")) earliest=-15m
 | eval ip_version=if(match(_raw, ":"), "IPv6", "IPv4")
 | timechart span=1m count as cps by ip_version
@@ -152,7 +152,7 @@ index=network sourcetype="sc4snmp:metric" metric_name="firewall.active_sessions"
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:system" OR sourcetype="cisco:asa" OR sourcetype="fortinet:fortigate") earliest=-24h
+index=network (sourcetype="pan:system" OR sourcetype="cisco:asa" OR sourcetype="fortinet:fortigate") earliest=-24h
   ("session" AND ("table" OR "count" OR "utilization" OR "max"))
 | rex field=_raw "(?:active|current)\s*(?:sessions?|connections?)\s*:?\s*(?<active_sessions>\d+)"
 | rex field=_raw "(?:max|maximum|limit)\s*(?:sessions?|connections?)\s*:?\s*(?<max_sessions>\d+)"

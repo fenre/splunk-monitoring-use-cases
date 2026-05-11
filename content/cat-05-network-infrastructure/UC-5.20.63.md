@@ -88,7 +88,7 @@ index=network sourcetype="cisco:ios" "BOGON" OR "access-list" "deny" ("fe80" OR 
 
 **Bogon source detection at perimeter:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:ios" OR sourcetype="netflow") earliest=-1h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:ios" OR sourcetype="netflow") earliest=-1h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src>[0-9a-fA-F:.]+)"
 | eval bogon_type=case(
     match(src, "^2001:0?[Dd][Bb]8:"), "Documentation (RFC 3849)",
@@ -147,7 +147,7 @@ Trigger: any bogon prefix received via BGP is a definitive misconfiguration or r
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:ios" OR sourcetype="netflow") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:ios" OR sourcetype="netflow") earliest=-24h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src_ipv6>[0-9a-fA-F:.]+)"
 | rex field=_raw "(?:dst|dest)\s*=?\s*(?<dst_ipv6>[0-9a-fA-F:.]+)"
 | eval src_bogon=case(

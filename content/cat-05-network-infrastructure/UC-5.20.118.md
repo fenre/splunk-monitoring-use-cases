@@ -90,7 +90,7 @@ Send traffic from a source using 2001:db8::1 through the border firewall. Verify
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
 | eval src_bogon=case(
     match(src, "^2001:0?[Dd][Bb]8:"), "documentation (2001:db8::/32)",
     match(src, "^2001:0?0?0?2:"), "benchmarking (2001:2::/48)",

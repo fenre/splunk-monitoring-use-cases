@@ -112,7 +112,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" "roam" OR "reassociation"
+index=network sourcetype="cisco:wlc:syslog" "roam" OR "reassociation"
 | transaction client_mac maxspan=1h maxpause=5m
 | eval roam_count=eventcount-1
 | stats avg(roam_count) as avg_roams, max(roam_count) as max_roams by client_mac, ssid

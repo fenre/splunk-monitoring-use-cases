@@ -68,7 +68,7 @@ index=network (sourcetype="zeek:conn" OR sourcetype="corelight:conn") ext_header
 
 **Routing Header Type 0 detection (CRITICAL):**
 ```spl
-index=network (sourcetype="zeek:conn" OR sourcetype="corelight:conn" OR sourcetype="paloalto:traffic" OR sourcetype="cisco:ios")
+index=network (sourcetype="zeek:conn" OR sourcetype="corelight:conn" OR sourcetype="pan:traffic" OR sourcetype="cisco:ios")
   ("routing header type 0" OR "RH0" OR (ext_header_types=* "43" AND match(_raw, "type.?0")))
   earliest=-24h
 | rex field=_raw "(?:src|source)\s*=?\s*(?<src_ipv6>[0-9a-fA-F:.]+)"
@@ -139,7 +139,7 @@ Hop-by-Hop options force routers to process packets in the slow path. Flooding r
 ## SPL
 
 ```spl
-index=network (sourcetype="zeek:conn" OR sourcetype="corelight:conn" OR sourcetype="paloalto:traffic") earliest=-24h
+index=network (sourcetype="zeek:conn" OR sourcetype="corelight:conn" OR sourcetype="pan:traffic") earliest=-24h
 | eval has_ext_headers=case(
     isnotnull(ext_header_types), 1,
     match(_raw, "(?i)extension.?header|routing.?header|fragment.?header|hop.?by.?hop"), 1,

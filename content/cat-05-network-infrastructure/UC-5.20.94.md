@@ -53,7 +53,7 @@ log_format combined_port '$remote_addr:$remote_port - $remote_user [$time_local]
 
 **Palo Alto Networks — source port is logged by default in traffic logs.** Verify with:
 ```spl
-index=network sourcetype="paloalto:traffic" | eval has_sport=if(isnotnull(src_port), 1, 0) | stats count by has_sport
+index=network sourcetype="pan:traffic" | eval has_sport=if(isnotnull(src_port), 1, 0) | stats count by has_sport
 ```
 
 **Load balancer X-Forwarded-For with port:**

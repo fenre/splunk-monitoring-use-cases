@@ -57,7 +57,7 @@ Upload as `cde_approved_sources.csv`.
 
 **IPv6 policy parity check on firewall:**
 ```spl
-index=network (sourcetype="paloalto:config" OR sourcetype="cisco:asa:config") earliest=-7d
+index=network (sourcetype="pan:config" OR sourcetype="cisco:asa:config") earliest=-7d
 | eval has_ipv4_cde_rule=if(match(_raw, "(?i)(deny|drop).*10\.10\.0\.0"), 1, 0)
 | eval has_ipv6_cde_rule=if(match(_raw, "(?i)(deny|drop).*2001:db8:cde:") OR match(_raw, "(?i)(deny|drop).*ipv6.*any.*cde"), 1, 0)
 | eval parity=if(has_ipv4_cde_rule=1 AND has_ipv6_cde_rule=0, "GAP — IPv4 CDE rules exist but NO IPv6 equivalent", "OK")
@@ -67,14 +67,14 @@ index=network (sourcetype="paloalto:config" OR sourcetype="cisco:asa:config") ea
 
 **Verification:**
 ```spl
-index=network sourcetype="paloalto:traffic" dest_zone="CDE" | eval is_ipv6=if(match(src, ":"), 1, 0) | stats count by is_ipv6
+index=network sourcetype="pan:traffic" dest_zone="CDE" | eval is_ipv6=if(match(src, ":"), 1, 0) | stats count by is_ipv6
 ```
 
 ### Step 2 — Create segmentation validation
 
 **Continuous IPv6 segmentation monitoring:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") earliest=-24h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | eval dest_in_cde=case(
@@ -133,7 +133,7 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") earliest
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | lookup cde_subnets.csv dest_subnet as dest OUTPUT is_cde
 | where is_cde="yes" AND is_ipv6=1

@@ -71,7 +71,7 @@ index=network (sourcetype="zeek:conn" OR sourcetype="cisco:ios") ("frag" OR "rea
 
 **Fragment overlap detection (CRITICAL — zero legitimate use):**
 ```spl
-index=network (sourcetype="zeek:weird" OR sourcetype="corelight:weird" OR sourcetype="cisco:ios" OR sourcetype="paloalto:threat")
+index=network (sourcetype="zeek:weird" OR sourcetype="corelight:weird" OR sourcetype="cisco:ios" OR sourcetype="pan:threat")
   ("fragment_overlap" OR "FRAG_OVERLAP" OR "overlapping fragment" OR "frag overlap")
   earliest=-24h
 | rex field=_raw "(?:src|source|from)\s*=?\s*(?<src_ipv6>[0-9a-fA-F:.]+)"
@@ -83,7 +83,7 @@ Trigger: any detection. Zero false positive rate — overlapping IPv6 fragments 
 
 **Reassembly failure trending:**
 ```spl
-index=network (sourcetype="cisco:ios" OR sourcetype="paloalto:traffic")
+index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic")
   ("reassembly" AND ("fail" OR "timeout" OR "error"))
   earliest=-24h
 | rex field=_raw "(?:src|source|from)\s*=?\s*(?<src_ipv6>[0-9a-fA-F:.]+)"

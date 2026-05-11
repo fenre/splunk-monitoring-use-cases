@@ -109,7 +109,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" ("association" OR "authentication") AND ("fail" OR "reject" OR "denied")
+index=network sourcetype="cisco:wlc:syslog" ("association" OR "authentication") AND ("fail" OR "reject" OR "denied")
 | stats count by ap_name, ssid, reason | sort -count
 ```
 

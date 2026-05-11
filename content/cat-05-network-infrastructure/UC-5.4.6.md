@@ -30,7 +30,7 @@ Network operations teams detect and classify RF interference sources (microwaves
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless controller or spectrum analysis tool reporting RF interference events. Sources: (1) Cisco CleanAir — spectrum analysis via WLC syslog (`sourcetype=cisco:wlc`), (2) Meraki — RF interference events via API, (3) Aruba ARM — interference detection.
+- Wireless controller or spectrum analysis tool reporting RF interference events. Sources: (1) Cisco CleanAir — spectrum analysis via WLC syslog (`sourcetype=cisco:wlc:syslog`), (2) Meraki — RF interference events via API, (3) Aruba ARM — interference detection.
 - Key fields: `ap_name`, `radio_band`, `channel`, `interference_type` (microwave, bluetooth, cordless phone, video bridge, radar, jammer), `severity`, `duty_cycle` (% of time the interferer is active), `rssi` (interferer signal strength).
 
 ### Step 1 — Configure data collection
@@ -96,7 +96,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" ("radar" OR "DFS" OR "interference" OR "channel change")
+index=network sourcetype="cisco:wlc:syslog" ("radar" OR "DFS" OR "interference" OR "channel change")
 | stats count by ap_name, channel | sort -count
 ```
 

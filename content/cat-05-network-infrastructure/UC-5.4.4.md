@@ -30,7 +30,7 @@ Security operations teams detect unauthorized rogue access points with risk-base
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless IDS/IPS or management platform reporting rogue AP detections. Sources: (1) Cisco WLC — CleanAir and rogue AP detection events (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal via API/events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS events (`sourcetype=aruba:controller`).
+- Wireless IDS/IPS or management platform reporting rogue AP detections. Sources: (1) Cisco WLC — CleanAir and rogue AP detection events (`sourcetype=cisco:wlc:syslog`), (2) Meraki Air Marshal via API/events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS events (`sourcetype=aruba:controller`).
 - Key fields: `rogue_mac` (MAC of detected rogue AP), `rogue_ssid` (SSID broadcast by rogue), `detecting_ap` (AP that detected it), `rssi` (signal strength — proximity indicator), `channel`, `classification` (rogue/friendly/contained), `is_on_wire` (detected on wired network — highest risk).
 - Build `authorized_aps.csv` lookup: `mac,ap_name,owner,status` for all known authorized APs. Any AP not in this lookup is potentially rogue.
 
@@ -102,7 +102,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" "rogue" ("detected" OR "alert" OR "contained")
+index=network sourcetype="cisco:wlc:syslog" "rogue" ("detected" OR "alert" OR "contained")
 | stats count by rogue_mac, detecting_ap, channel | sort -count
 ```
 

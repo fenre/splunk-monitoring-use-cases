@@ -59,7 +59,7 @@ This sets RA interval to 600 seconds (10 minutes), producing ~6 RAs/hour — wit
 
 **Verification:**
 ```spl
-index=network (sourcetype="cisco:wlc" OR sourcetype="cisco:iosxe") "ra-throttl" | stats count by host
+index=network (sourcetype="cisco:wlc:syslog" OR sourcetype="cisco:iosxe") "ra-throttl" | stats count by host
 ```
 
 ### Step 2 — Create monitoring searches
@@ -81,7 +81,7 @@ index=network (sourcetype="cisco:ios" OR sourcetype="zeek:conn") earliest=-1h
 
 **RA Throttler drop analysis:**
 ```spl
-index=network sourcetype="cisco:wlc" "ra-throttl" "drop" earliest=-24h
+index=network sourcetype="cisco:wlc:syslog" "ra-throttl" "drop" earliest=-24h
 | rex field=_raw "VLAN\s*(?<vlan>\d+)"
 | rex field=_raw "(?:src|source)\s*=?\s*(?<ra_source>[0-9a-fA-F:.]+)"
 | stats count as dropped_ras by vlan, ra_source
@@ -122,7 +122,7 @@ index=network sourcetype="cisco:wlc" "ra-throttl" "drop" earliest=-24h
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:wlc" OR sourcetype="cisco:ios" OR sourcetype="cisco:iosxe") earliest=-24h
+index=network (sourcetype="cisco:wlc:syslog" OR sourcetype="cisco:ios" OR sourcetype="cisco:iosxe") earliest=-24h
   ("RA" AND ("throttl" OR "drop" OR "rate" OR "suppress") OR "%IPV6_ND-6-RA_THROTTLE")
 | rex field=_raw "VLAN\s*(?<vlan>\d+)"
 | rex field=_raw "(?:rate|count)\s*=?\s*(?<ra_rate>\d+)"

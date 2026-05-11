@@ -51,7 +51,7 @@ redef Scan::addr_scan_threshold = 25;
 
 **Comprehensive IPv6 scan detection:**
 ```spl
-index=network (sourcetype="zeek:conn" OR sourcetype="paloalto:traffic") earliest=-24h
+index=network (sourcetype="zeek:conn" OR sourcetype="pan:traffic") earliest=-24h
 | eval is_ipv6_dest=if(match(dest, ":"), 1, 0)
 | where is_ipv6_dest=1
 | eval host_part=replace(dest, "^[0-9a-fA-F:]+::?", "")
@@ -118,7 +118,7 @@ index=dns sourcetype="zeek:dns" earliest=-24h
 ## SPL
 
 ```spl
-index=network (sourcetype="zeek:conn" OR sourcetype="paloalto:traffic" OR sourcetype="cisco:ftd") earliest=-24h
+index=network (sourcetype="zeek:conn" OR sourcetype="pan:traffic" OR sourcetype="cisco:ftd") earliest=-24h
 | eval is_ipv6=if(match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | eval scan_pattern=case(

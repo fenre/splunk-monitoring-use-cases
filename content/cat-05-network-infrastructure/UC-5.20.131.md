@@ -49,7 +49,7 @@ Monitor firewall deny logs for blocked ICMPv6 types. Classify by RFC 4890 catego
 ## SPL
 
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa" OR sourcetype="cisco:ftd") earliest=-24h
   ("icmpv6" OR "ICMPv6" OR "icmp6") AND ("deny" OR "drop" OR "block")
 | rex field=_raw "type\s*=?\s*(?<icmpv6_type>\d+)"
 | eval rfc4890_category=case(

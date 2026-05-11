@@ -63,14 +63,14 @@ logging level nve 5
 
 **Verification:**
 ```spl
-index=network sourcetype="cisco:nxos" ("%BGP" OR "%NVE" OR "%EVPN") | stats count by host, sourcetype
+index=network sourcetype="cisco:nxos:syslog" ("%BGP" OR "%NVE" OR "%EVPN") | stats count by host, sourcetype
 ```
 
 ### Step 2 — Create monitoring searches
 
 **Underlay BGP Unnumbered session health:**
 ```spl
-index=network sourcetype="cisco:nxos" "%BGP-5-ADJCHANGE" earliest=-24h
+index=network sourcetype="cisco:nxos:syslog" "%BGP-5-ADJCHANGE" earliest=-24h
 | rex field=_raw "neighbor\s+(?<neighbor>[0-9a-fA-F:.]+)"
 | rex field=_raw "(?<bgp_state>Up|Down)"
 | eval is_ipv6_session=if(match(neighbor, ":") OR match(_raw, "(?i)link-local|unnumbered"), "yes", "no")
@@ -84,7 +84,7 @@ index=network sourcetype="cisco:nxos" "%BGP-5-ADJCHANGE" earliest=-24h
 
 **EVPN IPv6 route distribution:**
 ```spl
-index=network sourcetype="cisco:nxos" "EVPN" earliest=-1h
+index=network sourcetype="cisco:nxos:syslog" "EVPN" earliest=-1h
 | eval route_type=case(
     match(_raw, "[Tt]ype.?2"), "MAC/IP (host route)",
     match(_raw, "[Tt]ype.?5"), "IP prefix route",
@@ -96,7 +96,7 @@ index=network sourcetype="cisco:nxos" "EVPN" earliest=-1h
 
 **NDP suppression verification:**
 ```spl
-index=network sourcetype="cisco:nxos" "nve" "suppress" earliest=-24h
+index=network sourcetype="cisco:nxos:syslog" "nve" "suppress" earliest=-24h
 | stats count as suppressed_ndp by host
 | eval status=if(suppressed_ndp > 0, "NDP suppression active", "NDP suppression NOT active — multicast NDP flooding")
 ```
@@ -134,7 +134,7 @@ index=network sourcetype="cisco:nxos" "nve" "suppress" earliest=-24h
 ## SPL
 
 ```spl
-index=network (sourcetype="cisco:nxos" OR sourcetype="cisco:iosxe") earliest=-24h
+index=network (sourcetype="cisco:nxos:syslog" OR sourcetype="cisco:iosxe") earliest=-24h
   ("%BGP-5-ADJCHANGE" OR "%VXLAN" OR "%EVPN" OR "%NVE" OR "nve1")
 | eval event_type=case(
     match(_raw, "BGP.*ADJCHANGE.*Down"), "BGP_DOWN",

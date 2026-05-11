@@ -58,7 +58,7 @@ index=network (sourcetype="zeek:conn" OR sourcetype="netflow") earliest=-1h
 
 **Low-byte address scanning detection (RFC 7707 §2.5):**
 ```spl
-index=network (sourcetype="zeek:conn" OR sourcetype="netflow" OR sourcetype="paloalto:traffic") earliest=-1h
+index=network (sourcetype="zeek:conn" OR sourcetype="netflow" OR sourcetype="pan:traffic") earliest=-1h
 | eval dest_ip=coalesce(id_resp_h, dest, destinationIPv6Address)
 | eval src_ip=coalesce(id_orig_h, src, sourceIPv6Address)
 | where match(dest_ip, ":")
@@ -128,7 +128,7 @@ index=network (sourcetype="zeek:conn" OR sourcetype="cisco:ios") "ff02::1" earli
 ## SPL
 
 ```spl
-index=network (sourcetype="netflow" OR sourcetype="zeek:conn" OR sourcetype="paloalto:traffic") earliest=-1h
+index=network (sourcetype="netflow" OR sourcetype="zeek:conn" OR sourcetype="pan:traffic") earliest=-1h
 | eval dest_ip=coalesce(destinationIPv6Address, id_resp_h, dest)
 | eval src_ip=coalesce(sourceIPv6Address, id_orig_h, src)
 | where match(dest_ip, ":")

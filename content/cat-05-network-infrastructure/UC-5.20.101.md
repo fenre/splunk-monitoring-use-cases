@@ -54,7 +54,7 @@ Upload to `$SPLUNK_HOME/etc/apps/<app>/lookups/soc2_evidence_status.csv`.
 
 **CC6.1 — IPv6 firewall rule audit:**
 ```spl
-index=network sourcetype="paloalto:config" earliest=-30d
+index=network sourcetype="pan:config" earliest=-30d
 | spath output=rules path=config.security.rules{}
 | mvexpand rules
 | spath input=rules
@@ -78,7 +78,7 @@ index=network earliest=-7d
 
 **CC6.6 — IPv6 segmentation test:**
 ```spl
-index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") earliest=-30d
+index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") earliest=-30d
 | eval is_ipv6=if(match(src, ":") OR match(dest, ":"), 1, 0)
 | where is_ipv6=1
 | lookup network_segments.csv src_subnet as src OUTPUT src_segment
@@ -134,12 +134,12 @@ index=network (sourcetype="paloalto:traffic" OR sourcetype="cisco:asa") earliest
     "C1.1 — Confidentiality: IPv6 encryption in transit")
 | mvexpand tsc
 | eval evidence_search=case(
-    match(tsc, "CC6.1"), "index=network sourcetype=paloalto:config \"ipv6\" | stats count by policy_name",
-    match(tsc, "CC6.6"), "index=network sourcetype=paloalto:traffic \"ipv6\" action=\"allowed\" | lookup cde_subnets.csv dest | where is_cde=\"yes\"",
+    match(tsc, "CC6.1"), "index=network sourcetype=pan:config \"ipv6\" | stats count by policy_name",
+    match(tsc, "CC6.6"), "index=network sourcetype=pan:traffic \"ipv6\" action=\"allowed\" | lookup cde_subnets.csv dest | where is_cde=\"yes\"",
     match(tsc, "CC7.1"), "index=network sourcetype=suricata:alert \"ipv6\" | stats dc(alert_signature) as ipv6_sigs",
     match(tsc, "CC7.2"), "index=network | eval v6=if(match(src,\":\"),1,0) | stats count(eval(v6=1)) as ipv6_events count as total",
     match(tsc, "A1.2"), "index=network sourcetype=cisco:ios \"ipv6\" \"down\" OR \"up\" | stats count by host",
-    match(tsc, "C1.1"), "index=network sourcetype=paloalto:traffic \"ipv6\" app=\"ssl\" OR app=\"ipsec\" | stats count by app")
+    match(tsc, "C1.1"), "index=network sourcetype=pan:traffic \"ipv6\" app=\"ssl\" OR app=\"ipsec\" | stats count by app")
 | lookup soc2_evidence_status.csv tsc OUTPUT status last_evidence_date auditor_notes
 | eval status=coalesce(status, "NOT COLLECTED")
 | table tsc, status, last_evidence_date, evidence_search, auditor_notes

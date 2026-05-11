@@ -30,7 +30,7 @@ Security operations teams detect active wireless attacks (deauth floods, evil tw
 ## Detailed Implementation
 
 ### Prerequisites
-- Wireless IDS/IPS events from controllers or dedicated sensors. Sources: (1) Cisco Adaptive wIPS via WLC syslog (`sourcetype=cisco:wlc`), (2) Meraki Air Marshal events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS (`sourcetype=aruba:controller`).
+- Wireless IDS/IPS events from controllers or dedicated sensors. Sources: (1) Cisco Adaptive wIPS via WLC syslog (`sourcetype=cisco:wlc:syslog`), (2) Meraki Air Marshal events (`sourcetype=meraki`), (3) Aruba WIDS/WIPS (`sourcetype=aruba:controller`).
 - Key fields: `alert_type` (deauth_flood, beacon_flood, evil_twin, rogue_ap, mitm, eapol_flood), `severity`, `src_mac` (attacker MAC), `target_mac`, `ap_name` (detecting AP), `channel`, `action` (alert/contain/block).
 - Wireless attacks include: (1) Deauthentication flood — forces all clients to disconnect and reconnect, (2) Beacon flood — overwhelms clients with fake SSIDs, (3) Evil twin — rogue AP mimicking corporate SSID, (4) EAPOL flood — targets the authentication process, (5) Man-in-the-middle — interception of client traffic.
 
@@ -96,7 +96,7 @@ Alerting:
 ## SPL
 
 ```spl
-index=network sourcetype="cisco:wlc" "IDS Signature" OR "wIPS"
+index=network sourcetype="cisco:wlc:syslog" "IDS Signature" OR "wIPS"
 | rex "Signature (?<sig_id>\d+).*?(?<sig_name>[^,]+).*?MAC (?<attacker_mac>[0-9a-f:]+)"
 | stats count by sig_name, attacker_mac | sort -count
 ```

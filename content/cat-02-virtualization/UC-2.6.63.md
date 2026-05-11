@@ -51,7 +51,7 @@ Tie into FinOps and change management when autoscale policy or instance family c
 index=cloud sourcetype="azure:consume:export" (resource_type="*compute*" OR resource_type="*virtual*")
 | eval tag_pool=if(isnotnull(citrix_host_pool) AND citrix_host_pool!="", citrix_host_pool, coalesce(resource_name, resource_id, "unmapped"))
 | bin _time span=1d
-| stats sum(tonumber(cost,0)) as daily_cost by _time, tag_pool
+| stats sum(coalesce(tonumber(cost), 0)) as daily_cost by _time, tag_pool
 | join type=left _time, tag_pool [
   search index=xd (sourcetype="citrix:mc:autoscale" OR sourcetype="citrix:brokering:summary")
   | eval tag_pool=coalesce(host_pool, delivery_group, catalog_name, "unmapped")
