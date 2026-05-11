@@ -59,9 +59,6 @@ def collect_md_files() -> list[Path]:
         p = REPO / rel
         if p.is_file():
             nodes.append(p)
-    for p in (REPO / ".cursor" / "skills").rglob("*.md"):
-        if p.is_file():
-            nodes.append(p)
     return sorted({p.resolve() for p in nodes})
 
 

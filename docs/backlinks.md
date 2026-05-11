@@ -7,29 +7,9 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_198 pages indexed; 122 have at least one inbound link; 393 unique source→target edges._
+_193 pages indexed; 120 have at least one inbound link; 391 unique source→target edges._
 
 ---
-
-## `.cursor/skills/splunk-custom-viz/SKILL.md`
-
-_No inbound links yet._
-
-## `.cursor/skills/splunk-edge-hub/SKILL.md`
-
-_No inbound links yet._
-
-## `.cursor/skills/splunk-edge-hub/reference.md`
-
-- [`.cursor/skills/splunk-edge-hub/SKILL.md`](../.cursor/skills/splunk-edge-hub/SKILL.md)
-
-## `.cursor/skills/splunk-itsi/SKILL.md`
-
-_No inbound links yet._
-
-## `.cursor/skills/splunk-itsi/reference.md`
-
-- [`.cursor/skills/splunk-itsi/SKILL.md`](../.cursor/skills/splunk-itsi/SKILL.md)
 
 ## `.github/PULL_REQUEST_TEMPLATE.md`
 
