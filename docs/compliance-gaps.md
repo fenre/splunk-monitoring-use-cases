@@ -504,7 +504,7 @@ _ASD Essential Eight Maturity Model_
 | `E8.01` | Application control | 1.00 | ✔ 3 | partial | 1.2.91, 12.3.10, 22.31.6 |
 | `E8.03` | Configure MS Office macro settings | 1.00 | ✔ 2 | partial | 22.31.13, 22.31.7 |
 | `E8.05` | Restrict administrative privileges | 1.00 | ✔ 4 | partial | 1.1.76, 22.31.9, 9.1.3, 9.4.1 |
-| `E8.06` | Patch operating systems | 1.00 | ✔ 4 | partial | 1.2.9, 1.3.4, 12.3.2, 22.31.10 |
+| `E8.06` | Patch operating systems | 1.00 | ✔ 5 | partial | 1.2.9, 1.3.4, 12.3.2, 22.31.10, 3.1.5 |
 | `E8.08` | Regular backups | 1.00 | ✔ 5 | full | 22.31.12, 5.1.24, 6.3.1, 6.3.13, 6.3.23 |
 
 ### AU Privacy Act — `au-privacy-act`
@@ -719,8 +719,8 @@ _EU Cyber Resilience Act_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.13` | Obligations of manufacturers | 1.00 | ✔ 3 | partial | 12.1.4, 12.3.10, 12.3.2 |
-| `Art.14` | Reporting of actively exploited vulnerabilities | 1.00 | ✔ 21 | full | 12.3.2, 22.23.1, 22.23.10, 22.23.11, 22.23.12, 22.23.13, 22.23.14, 22.23.15 |
+| `Art.13` | Obligations of manufacturers | 1.00 | ✔ 4 | partial | 12.1.4, 12.3.10, 12.3.2, 3.1.5 |
+| `Art.14` | Reporting of actively exploited vulnerabilities | 1.00 | ✔ 22 | full | 12.3.2, 22.23.1, 22.23.10, 22.23.11, 22.23.12, 22.23.13, 22.23.14, 22.23.15 |
 
 ### FCA SM&CR — `fca-smcr`
 
