@@ -1155,7 +1155,6 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 ### Cited by
 
-- [`dashboards/README.md`](../../dashboards/README.md)
 - [`docs/guides/observability-tooling-grafana-fluentd.md`](observability-tooling-grafana-fluentd.md)
 - [`docs/guides/relational-databases.md`](relational-databases.md)
 - [`docs/guides/splunk-observability-cloud.md`](splunk-observability-cloud.md)

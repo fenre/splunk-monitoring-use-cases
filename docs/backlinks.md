@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_199 pages indexed; 123 have at least one inbound link; 396 unique source→target edges._
+_198 pages indexed; 122 have at least one inbound link; 393 unique source→target edges._
 
 ---
 
@@ -94,10 +94,6 @@ _No inbound links yet._
 ## `api/README.md`
 
 _No inbound links yet._
-
-## `dashboards/README.md`
-
-- [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
 
 ## `docs/DESIGN.md`
 
@@ -497,7 +493,6 @@ _No inbound links yet._
 
 ## `docs/guides/catalyst-center.md`
 
-- [`dashboards/README.md`](../dashboards/README.md)
 - [`docs/guides/cisco-networks.md`](guides/cisco-networks.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](guides/datacenter-fabric-sdn.md)
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
@@ -737,7 +732,6 @@ _No inbound links yet._
 
 ## `docs/guides/splunk-itsi.md`
 
-- [`dashboards/README.md`](../dashboards/README.md)
 - [`docs/guides/observability-tooling-grafana-fluentd.md`](guides/observability-tooling-grafana-fluentd.md)
 - [`docs/guides/relational-databases.md`](guides/relational-databases.md)
 - [`docs/guides/splunk-observability-cloud.md`](guides/splunk-observability-cloud.md)

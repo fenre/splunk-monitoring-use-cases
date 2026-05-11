@@ -1555,7 +1555,6 @@ This guide is part of the [Splunk Monitoring Use Cases](https://github.com/fenre
 
 ### Cited by
 
-- [`dashboards/README.md`](../../dashboards/README.md)
 - [`docs/guides/cisco-networks.md`](cisco-networks.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](datacenter-fabric-sdn.md)
 - [`docs/guides/industry-verticals.md`](industry-verticals.md)

@@ -416,7 +416,6 @@ For corrections or additions, file an issue with `datagen` label.
 
 ### Related repository documents
 
-- [`dashboards/README.md`](../../dashboards/README.md)
 - [`docs/ci-architecture.md`](../ci-architecture.md)
 - [`docs/guides/aws.md`](aws.md)
 - [`docs/guides/container-platforms-docker-openshift.md`](container-platforms-docker-openshift.md)

@@ -193,7 +193,7 @@ def collect_md_nodes() -> list[Path]:
         "samples/README.md", "mcp/README.md", "api/README.md",
         "templates/replication-starter/README.md",
         "ta/DA-ITSI-monitoring-use-cases/README.md",
-        "dashboards/README.md", "eventgen_data/README.md",
+        "eventgen_data/README.md",
         ".github/PULL_REQUEST_TEMPLATE.md",
         ".github/PULL_REQUEST_TEMPLATE/architecture.md",
         ".github/PULL_REQUEST_TEMPLATE/security.md",
