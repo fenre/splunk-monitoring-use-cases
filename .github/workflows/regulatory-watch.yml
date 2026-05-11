@@ -106,6 +106,23 @@ jobs:
           git commit -m "chore(regwatch): refresh regulatory change-watch manifest $(date -u +%Y-%m-%d)"
           git push
 
+      - name: Ensure issue labels exist
+        if: steps.fetch.outputs.findings_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Idempotently create the two labels the issue step relies on.
+          # gh label create exits non-zero if the label already exists, hence
+          # the explicit existence check via `gh label list`.
+          ensure_label() {
+            local name="$1" color="$2" desc="$3"
+            if ! gh label list --limit 200 --json name --jq '.[].name' | grep -Fxq "$name"; then
+              gh label create "$name" --color "$color" --description "$desc"
+            fi
+          }
+          ensure_label regulatory-change-watch a2eeef "Tracked upstream regulatory artefact changed"
+          ensure_label compliance 0e8a16 "Compliance / regulatory mapping work"
+
       - name: Open or update change-watch issue
         if: steps.fetch.outputs.findings_count != '0'
         env:
