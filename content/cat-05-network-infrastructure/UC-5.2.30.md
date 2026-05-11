@@ -30,55 +30,44 @@ Ingest URL logs with GeoIP enrichment. Track blocks by geography.
 ## Detailed Implementation
 
 ### Prerequisites
-* Meraki MX geo-blocking events. Data in `index=meraki` with `sourcetype=meraki`. Key fields: `country`, `action` (block), `src_ip`, `dest_ip`.
-* Meraki geo-blocking: MX can block inbound and outbound traffic based on source/destination country. Configured in Dashboard > Security & SD-WAN > Firewall > Layer 3. Uses Meraki's GeoIP database for classification.
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
+- Ensure the following data sources are available: `sourcetype=meraki type=urls action="blocked" country=*` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype="meraki" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA..
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
-### Step 1 — - Configure data collection
-```
-# Dashboard > Security & SD-WAN > Firewall
-# Add geo-based L3 rules blocking specific countries
-# Syslog > Roles: Flows
-```
-Verify:
+### Step 1 — Configure data collection
+Ingest URL logs with GeoIP enrichment. Track blocks by geography.
+
+### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
+
 ```spl
-index=meraki sourcetype="meraki" earliest=-4h
-| where match(_raw, "(?i)geo.*block|country.*block|country.*deny")
-| stats count by host
+index=meraki sourcetype="meraki" type=urls action="blocked"
+| lookup geo_ip.csv dest OUTPUTNEW country, city
+| stats count as block_count by country
+| sort - block_count
 ```
 
-### Step 2 — - Create the search and alert
+#### Understanding this SPL
 
-**Primary search -- Geo-blocking event tracking:**
-```spl
-index=meraki sourcetype="meraki" earliest=-4h
-| where match(pattern, "(?i)deny") OR match(action, "(?i)block|deny")
-| eval src=coalesce(src, src_ip)
-| eval dst=coalesce(dest, dest_ip, dst)
-| iplocation src prefix=src_
-| iplocation dst prefix=dest_
-| where isnotnull(src_Country) OR isnotnull(dest_Country)
-| eval geo_direction=case(match(src, "^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)"), "OUTBOUND to ".dest_Country, 1==1, "INBOUND from ".src_Country)
-| stats count as blocks dc(src) as unique_sources dc(dst) as unique_targets by geo_direction, src_Country, dest_Country
-| sort -blocks | head 20
-```
+**Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)** — Security teams track Meraki MX geo-blocking enforcement by country and direction, validating geographic access policy effectiveness and identifying legitimate traffic requiring exceptions.
 
-### Step 3 — - Validate
-(a) Dashboard: Security & SD-WAN > Firewall -- check geo-based rules.
-(b) Test with a VPN to a blocked country and verify block event.
-(c) Compare with Meraki Dashboard event log.
+Documented **Data sources**: `sourcetype=meraki type=urls action="blocked" country=*` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype="meraki" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
-### Step 4 — - Operationalize
-Dashboard ("Meraki MX -- Geo-Blocking"):
-* Row 1 -- Single-value: "Geo blocks (4h)", "Blocked countries", "Unique blocked sources".
-* Row 2 -- Geo-blocking by country.
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
-### Step 5 — - Troubleshooting
+**Pipeline walkthrough**
 
-* **Legitimate traffic blocked by geo-policy** -- CDN endpoints may be in blocked countries. Whitelist specific IPs or CIDR ranges while keeping country block active.
+- Scopes the data: index=meraki, sourcetype="meraki". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Enriches events using `lookup` (lookup definition + optional OUTPUT fields).
+- `stats` rolls up events into metrics; results are split **by country** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
-* **Geo-blocking not effective** -- Traffic may bypass via VPN/proxy. Combine with URL filtering to block proxy/VPN categories.
 
-* **GeoIP misclassification** -- Some IPs may be classified in the wrong country. Check with external GeoIP databases (MaxMind, IP2Location).
+### Step 3 — Validate
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
+
+### Step 4 — Operationalize
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Geo-block map; country block count chart; policy compliance dashboard.
 
 ## SPL
 

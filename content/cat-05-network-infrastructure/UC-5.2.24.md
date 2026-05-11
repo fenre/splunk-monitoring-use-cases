@@ -30,7 +30,7 @@ Operations teams evaluate Meraki MX traffic shaping effectiveness by application
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for L3 firewall flows from the MX, plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage) for top-talker context. NOTE: Meraki MX traffic-shaping uses a token-bucket algorithm and does NOT emit per-queue drop counters; QoS effectiveness can only be inferred indirectly from flow distribution and top-talker usage..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -64,7 +64,7 @@ index=meraki sourcetype="meraki" (type=flows OR type=firewall) earliest=-24h
 
 **Traffic Shaping Effectiveness and QoS Policy Analysis (Meraki MX)** — Operations teams evaluate Meraki MX traffic shaping effectiveness by application category, identifying over-shaped critical applications and under-shaped bandwidth hogs.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for L3 firewall flows from the MX, plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage) for top-talker context. NOTE: Meraki MX traffic-shaping uses a token-bucket algorithm and does NOT emit per-queue drop counters; QoS effectiveness can only be inferred indirectly from flow distribution and top-talker usage. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for L3 firewall flows from the MX, plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage) for top-talker context. NOTE: Meraki MX traffic-shaping uses a token-bucket algorithm and does NOT emit per-queue drop counters; QoS effectiveness can only be inferred indirectly from flow distribution and top-talker usage. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 

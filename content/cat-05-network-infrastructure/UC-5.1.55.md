@@ -50,9 +50,9 @@ index=meraki sourcetype="meraki:devices" productType="cellularGateway"
     | stats latest(status) as status, latest(_time) as last_seen by serial
   ]
 | join type=left serial [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
-    | stats values(title) as open_alerts, count as alert_count by deviceSerial
-    | rename deviceSerial as serial
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MG" earliest=-24h
+    | stats values(title) as open_alerts, count as alert_count by scope.devices{}.serial
+    | rename scope.devices{}.serial as serial
   ]
 | eval status = coalesce(status, "unknown")
 | sort - alert_count
@@ -94,9 +94,9 @@ index=meraki sourcetype="meraki:devices" productType="cellularGateway"
     | stats latest(status) as status, latest(_time) as last_seen by serial
   ]
 | join type=left serial [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
-    | stats values(title) as open_alerts, count as alert_count by deviceSerial
-    | rename deviceSerial as serial
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MG" earliest=-24h
+    | stats values(title) as open_alerts, count as alert_count by scope.devices{}.serial
+    | rename scope.devices{}.serial as serial
   ]
 | eval status = coalesce(status, "unknown")
 | sort - alert_count

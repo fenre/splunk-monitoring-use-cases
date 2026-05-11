@@ -30,7 +30,7 @@ NOC teams monitor Meraki MX warm spare failover events and redundancy status to 
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -51,9 +51,9 @@ index=meraki sourcetype="meraki" type=events
          by host
 | where ha_event_count > 0
 | append [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="appliance"
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MX"
         (title="*HA*" OR title="*spare*" OR title="*primary*") earliest=-7d
-    | stats values(title) as ha_alerts, count by deviceSerial, networkName
+    | stats values(title) as ha_alerts, count by scope.devices{}.serial, network.name
   ]
 ```
 
@@ -61,7 +61,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Warm Spare Failover and Appliance Redundancy (Meraki MX)** — NOC teams monitor Meraki MX warm spare failover events and redundancy status to ensure appliance-level high availability and detect loss of backup protection.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX warm-spare HA events as type=events, plus Splunk_TA_cisco_meraki Assurance Alerts input for HA-related Dashboard alerts. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -93,9 +93,9 @@ index=meraki sourcetype="meraki" type=events
          by host
 | where ha_event_count > 0
 | append [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="appliance"
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MX"
         (title="*HA*" OR title="*spare*" OR title="*primary*") earliest=-7d
-    | stats values(title) as ha_alerts, count by deviceSerial, networkName
+    | stats values(title) as ha_alerts, count by scope.devices{}.serial, network.name
   ]
 ```
 

@@ -30,7 +30,7 @@ NOC teams track Meraki MX uplink failover events and measure recovery time to as
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX syslog. Uplink failover events use type=events with message bodies 'failover to wan1', 'failover to cellular', 'Cellular connection up', 'Cellular connection down'..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -63,7 +63,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Internet Uplink Failover Events and Recovery Time (Meraki MX)** — NOC teams track Meraki MX uplink failover events and measure recovery time to assess high-availability effectiveness and identify flapping circuits requiring ISP escalation.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX syslog. Uplink failover events use type=events with message bodies 'failover to wan1', 'failover to cellular', 'Cellular connection up', 'Cellular connection down'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MX syslog. Uplink failover events use type=events with message bodies 'failover to wan1', 'failover to cellular', 'Cellular connection up', 'Cellular connection down'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 

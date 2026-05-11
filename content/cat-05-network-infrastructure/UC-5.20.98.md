@@ -139,10 +139,10 @@ index=network (sourcetype="zeek:conn" OR sourcetype="cisco:ios" OR sourcetype="s
 | rex field=_raw "(?:src|source)\s*=?\s*(?<frag_src>[0-9a-fA-F:.]+)"
 | stats count as events dc(frag_src) as unique_sources by host, frag_event
 | eval severity=case(
-    frag_event="OVERLAPPING_FRAGMENT*", "CRITICAL — must drop; indicates active attack",
-    frag_event="TINY_FRAGMENT*", "HIGH — likely IDS evasion or scanning",
-    frag_event="REASSEMBLY_TIMEOUT*" AND events > 100, "HIGH — possible fragment flood DoS",
-    frag_event="ATOMIC_FRAGMENT*", "MEDIUM — investigate upstream ICMPv6 PTB source",
+    like(frag_event, "OVERLAPPING_FRAGMENT%"), "CRITICAL — must drop; indicates active attack",
+    like(frag_event, "TINY_FRAGMENT%"), "HIGH — likely IDS evasion or scanning",
+    like(frag_event, "REASSEMBLY_TIMEOUT%") AND events > 100, "HIGH — possible fragment flood DoS",
+    like(frag_event, "ATOMIC_FRAGMENT%"), "MEDIUM — investigate upstream ICMPv6 PTB source",
     1=1, "INFO")
 | sort -events
 ```

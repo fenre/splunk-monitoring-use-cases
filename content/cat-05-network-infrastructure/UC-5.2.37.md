@@ -30,7 +30,7 @@ Network engineers track Meraki Auto VPN path changes and tunnel switching to ide
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for Auto VPN connectivity_change events as type=events with the structured 'type=vpn_connectivity_change vpn_type=... peer_contact=... peer_ident=... connectivity=...' payload, plus Splunk_TA_cisco_meraki Appliance VPN Stats input for tunnel performance context..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -42,7 +42,7 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    "type=vpn_connectivity_change"
+    "vpn_connectivity_change"
     earliest=-24h
 | rex "peer_contact='(?<peer>[\d\.:]+)'"
 | rex "peer_ident='(?<peer_ident>[a-f0-9]+)'"
@@ -65,7 +65,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Auto VPN Path Changes and Tunnel Switching (Meraki MX)** — Network engineers track Meraki Auto VPN path changes and tunnel switching to identify SD-WAN path instability and optimize uplink selection thresholds.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for Auto VPN connectivity_change events as type=events with the structured 'type=vpn_connectivity_change vpn_type=... peer_contact=... peer_ident=... connectivity=...' payload, plus Splunk_TA_cisco_meraki Appliance VPN Stats input for tunnel performance context. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for Auto VPN connectivity_change events as type=events with the structured 'type=vpn_connectivity_change vpn_type=... peer_contact=... peer_ident=... connectivity=...' payload, plus Splunk_TA_cisco_meraki Appliance VPN Stats input for tunnel performance context. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -92,7 +92,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    "type=vpn_connectivity_change"
+    "vpn_connectivity_change"
     earliest=-24h
 | rex "peer_contact='(?<peer>[\d\.:]+)'"
 | rex "peer_ident='(?<peer_ident>[a-f0-9]+)'"

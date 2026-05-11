@@ -30,7 +30,7 @@ Operations teams monitor Meraki MG carrier connection health including connectio
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for syslog from MX/MG cellular uplinks (Cellular connection up/down messages) and Splunk_TA_cisco_meraki Assurance Alerts input for cellular-specific alerts. NOTE: carrier name, RSSI, data plan usage and SIM status are NOT in syslog; the Dashboard API does not expose them either..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -50,8 +50,8 @@ index=meraki sourcetype="meraki" type=events
          by host
 | sort - event_count
 | append [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
-    | stats count as alert_count, values(title) as alerts by deviceSerial, networkName
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MG" earliest=-24h
+    | stats count as alert_count, values(title) as alerts by scope.devices{}.serial, network.name
   ]
 ```
 
@@ -59,7 +59,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Carrier Connection Health and Network Performance (Meraki MG)** — Operations teams monitor Meraki MG carrier connection health including connection type, latency, and loss to detect carrier network degradation and connection downgrades affecting WAN performance.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for syslog from MX/MG cellular uplinks (Cellular connection up/down messages) and Splunk_TA_cisco_meraki Assurance Alerts input for cellular-specific alerts. NOTE: carrier name, RSSI, data plan usage and SIM status are NOT in syslog; the Dashboard API does not expose them either. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for syslog from MX/MG cellular uplinks (Cellular connection up/down messages) and Splunk_TA_cisco_meraki Assurance Alerts input for cellular-specific alerts. NOTE: carrier name, RSSI, data plan usage and SIM status are NOT in syslog; the Dashboard API does not expose them either. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -90,8 +90,8 @@ index=meraki sourcetype="meraki" type=events
          by host
 | sort - event_count
 | append [
-    search index=meraki sourcetype="meraki:assurancealerts" deviceType="cellularGateway" earliest=-24h
-    | stats count as alert_count, values(title) as alerts by deviceSerial, networkName
+    search index=meraki sourcetype="meraki:assurancealerts" deviceType="MG" earliest=-24h
+    | stats count as alert_count, values(title) as alerts by scope.devices{}.serial, network.name
   ]
 ```
 

@@ -42,14 +42,14 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki:assurancealerts"
-    deviceType="switch"
+    deviceType="MS"
     (title="*cable*" OR title="*physical*" OR title="*transceiver*"
      OR title="*SFP*")
     earliest=-7d
 | stats count as alert_count,
         values(title) as cable_alerts,
         latest(severity) as severity
-         by deviceSerial, deviceName, networkName
+         by scope.devices{}.serial, scope.devices{}.name, network.name
 | sort - alert_count
 | append [
     search index=meraki sourcetype="meraki:portstransceiversreadingshistorybyswitch" earliest=-7d
@@ -75,7 +75,7 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:assurancealerts", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `stats` rolls up events into metrics; results are split **by scope.devices{}.serial, scope.devices{}.name, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 - Appends rows from a subsearch with `append`.
 
@@ -90,14 +90,14 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki:assurancealerts"
-    deviceType="switch"
+    deviceType="MS"
     (title="*cable*" OR title="*physical*" OR title="*transceiver*"
      OR title="*SFP*")
     earliest=-7d
 | stats count as alert_count,
         values(title) as cable_alerts,
         latest(severity) as severity
-         by deviceSerial, deviceName, networkName
+         by scope.devices{}.serial, scope.devices{}.name, network.name
 | sort - alert_count
 | append [
     search index=meraki sourcetype="meraki:portstransceiversreadingshistorybyswitch" earliest=-7d

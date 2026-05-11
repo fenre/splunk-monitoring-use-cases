@@ -30,7 +30,7 @@ Network engineers monitor Meraki MS STP topology changes, root bridge stability,
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. STP events are emitted as type=events with message bodies like 'Port 5 received an STP BPDU from <mac> so the port was blocked' and 'Port 5 changed STP role from designated to alternate'. Use rex to extract port_id and the role transition..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -57,7 +57,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Spanning Tree Protocol (STP) Topology Changes (Meraki MS)** — Network engineers monitor Meraki MS STP topology changes, root bridge stability, and BPDU guard violations to detect network loops and unauthorized switch connections.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. STP events are emitted as type=events with message bodies like 'Port 5 received an STP BPDU from <mac> so the port was blocked' and 'Port 5 changed STP role from designated to alternate'. Use rex to extract port_id and the role transition. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. STP events are emitted as type=events with message bodies like 'Port 5 received an STP BPDU from <mac> so the port was blocked' and 'Port 5 changed STP role from designated to alternate'. Use rex to extract port_id and the role transition. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 

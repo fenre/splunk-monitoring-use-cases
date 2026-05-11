@@ -384,12 +384,12 @@ Performance note: when Job Inspector shows heavy scan cost on k8s_metrics, mater
 ## CIM SPL
 
 ```spl
-| tstats summariesonly=f count FROM datamodel=Web WHERE nodename=Web earliest=-24h@h latest=now BY Web.url Web.status span=15m
+| tstats summariesonly=f count FROM datamodel=Web WHERE nodename=Web earliest=-24h@h latest=now BY Web.url Web.status _time span=15m
 | rename Web.url AS vhost Web.status AS http_status
 | where http_status>=502 AND http_status<=504
-| stats sum(count) AS edge_cnt BY vhost http_status span=15m
+| stats sum(count) AS edge_cnt BY vhost http_status _time
 | join type=left vhost [
-| tstats summariesonly=f perc90(Performance.response_time) AS p90_ms FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.dest span=15m
+| tstats summariesonly=f perc90(Performance.response_time) AS p90_ms FROM datamodel=Performance WHERE nodename=Performance earliest=-24h@h latest=now BY Performance.dest _time span=15m
 | rename Performance.dest AS vhost ]
 | where edge_cnt>=3
 ```

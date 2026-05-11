@@ -53,7 +53,7 @@ index=meraki sourcetype IN ("meraki","cisco:meraki") (type=events OR type=flows)
 | append [
     search index=meraki sourcetype="meraki:assurancealerts"
         (title="*DHCP*" OR categoryType="appliance") earliest=-24h
-    | stats count by deviceSerial, networkName, title
+    | stats count by scope.devices{}.serial, network.name, title
   ]
 ```
 
@@ -121,7 +121,7 @@ index=meraki sourcetype IN ("meraki","cisco:meraki") (type=events OR type=flows)
 | append [
     search index=meraki sourcetype="meraki:assurancealerts"
         (title="*DHCP*" OR categoryType="appliance") earliest=-24h
-    | stats count by deviceSerial, networkName, title
+    | stats count by scope.devices{}.serial, network.name, title
   ]
 ```
 

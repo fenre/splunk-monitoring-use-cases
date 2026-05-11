@@ -30,7 +30,7 @@ SOC teams detect denial-of-service attacks against Meraki MX firewalls by analyz
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) receiving MX L3 firewall flow logs. NOTE: Meraki MX flow records do NOT expose individual TCP flag bits; only the protocol, src/dst, sport/dport, and pattern (allow/deny) are emitted. This UC monitors absolute new-connection rate per source IP as a DoS indicator..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -55,7 +55,7 @@ index=meraki sourcetype="meraki" (type=flows OR type=firewall)
 
 **Connection Rate Analysis and DOS Detection (Meraki MX)** — SOC teams detect denial-of-service attacks against Meraki MX firewalls by analyzing connection rate anomalies and IDS/IPS threat events, enabling rapid incident response.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) receiving MX L3 firewall flow logs. NOTE: Meraki MX flow records do NOT expose individual TCP flag bits; only the protocol, src/dst, sport/dport, and pattern (allow/deny) are emitted. This UC monitors absolute new-connection rate per source IP as a DoS indicator. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) receiving MX L3 firewall flow logs. NOTE: Meraki MX flow records do NOT expose individual TCP flag bits; only the protocol, src/dst, sport/dport, and pattern (allow/deny) are emitted. This UC monitors absolute new-connection rate per source IP as a DoS indicator. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -82,7 +82,7 @@ Understanding this CIM / accelerated SPL
 
 **Connection Rate Analysis and DOS Detection (Meraki MX)** — SOC teams detect denial-of-service attacks against Meraki MX firewalls by analyzing connection rate anomalies and IDS/IPS threat events, enabling rapid incident response.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) receiving MX L3 firewall flow logs. NOTE: Meraki MX flow records do NOT expose individual TCP flag bits; only the protocol, src/dst, sport/dport, and pattern (allow/deny) are emitted. This UC monitors absolute new-connection rate per source IP as a DoS indicator. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) receiving MX L3 firewall flow logs. NOTE: Meraki MX flow records do NOT expose individual TCP flag bits; only the protocol, src/dst, sport/dport, and pattern (allow/deny) are emitted. This UC monitors absolute new-connection rate per source IP as a DoS indicator. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 

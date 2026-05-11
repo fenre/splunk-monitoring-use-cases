@@ -30,7 +30,7 @@ NOC teams track Meraki MX cellular modem failover activations and usage duration
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -67,7 +67,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Cellular Modem Failover Activation and Usage (Meraki MX)** — NOC teams track Meraki MX cellular modem failover activations and usage duration to monitor backup connectivity effectiveness and manage cellular data costs.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 

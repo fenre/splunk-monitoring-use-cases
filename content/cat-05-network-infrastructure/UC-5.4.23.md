@@ -30,7 +30,7 @@ Facilities and wireless teams estimate location-based occupancy from Meraki MR c
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR L3 firewall flow logs. Broadcast / multicast traffic surfaces in flows with dst=255.255.255.255 (broadcast), dst in 224.0.0.0/4 (multicast), or mac=ff:ff:ff:ff:ff:ff (broadcast MAC)..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -60,7 +60,7 @@ index=meraki sourcetype="meraki" (type=flows OR type=firewall)
 
 **Multicast and Broadcast Storm Detection (Meraki MR)** — Facilities and wireless teams estimate location-based occupancy from Meraki MR client counts per zone, detecting near-capacity areas for facilities planning and proactive wireless capacity management.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR L3 firewall flow logs. Broadcast / multicast traffic surfaces in flows with dst=255.255.255.255 (broadcast), dst in 224.0.0.0/4 (multicast), or mac=ff:ff:ff:ff:ff:ff (broadcast MAC). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR L3 firewall flow logs. Broadcast / multicast traffic surfaces in flows with dst=255.255.255.255 (broadcast), dst in 224.0.0.0/4 (multicast), or mac=ff:ff:ff:ff:ff:ff (broadcast MAC). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -88,7 +88,7 @@ Understanding this CIM / accelerated SPL
 
 **Multicast and Broadcast Storm Detection (Meraki MR)** — Facilities and wireless teams estimate location-based occupancy from Meraki MR client counts per zone, detecting near-capacity areas for facilities planning and proactive wireless capacity management.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR L3 firewall flow logs. Broadcast / multicast traffic surfaces in flows with dst=255.255.255.255 (broadcast), dst in 224.0.0.0/4 (multicast), or mac=ff:ff:ff:ff:ff:ff (broadcast MAC). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR L3 firewall flow logs. Broadcast / multicast traffic surfaces in flows with dst=255.255.255.255 (broadcast), dst in 224.0.0.0/4 (multicast), or mac=ff:ff:ff:ff:ff:ff (broadcast MAC). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 

@@ -30,7 +30,7 @@ Network operations teams monitoring Meraki environments detect DHCP assignment f
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MX/MS syslog. DHCP events appear as type=events with message bodies 'dhcp no offers for mac <mac>', 'dhcp lease of ip <ip> from server mac <mac> for client mac <mac>', and 'Blocked DHCP server response from <mac> on VLAN <id>'..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -63,7 +63,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Failed DHCP Assignments and IP Pool Exhaustion (Meraki)** — Network operations teams monitoring Meraki environments detect DHCP assignment failures and pool exhaustion per site/subnet, enabling proactive pool expansion before users lose network connectivity.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MX/MS syslog. DHCP events appear as type=events with message bodies 'dhcp no offers for mac <mac>', 'dhcp lease of ip <ip> from server mac <mac> for client mac <mac>', and 'Blocked DHCP server response from <mac> on VLAN <id>'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MX/MS syslog. DHCP events appear as type=events with message bodies 'dhcp no offers for mac <mac>', 'dhcp lease of ip <ip> from server mac <mac> for client mac <mac>', and 'Blocked DHCP server response from <mac> on VLAN <id>'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -91,7 +91,7 @@ Understanding this CIM / accelerated SPL
 
 **Failed DHCP Assignments and IP Pool Exhaustion (Meraki)** — Network operations teams monitoring Meraki environments detect DHCP assignment failures and pool exhaustion per site/subnet, enabling proactive pool expansion before users lose network connectivity.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MX/MS syslog. DHCP events appear as type=events with message bodies 'dhcp no offers for mac <mac>', 'dhcp lease of ip <ip> from server mac <mac> for client mac <mac>', and 'Blocked DHCP server response from <mac> on VLAN <id>'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MX/MS syslog. DHCP events appear as type=events with message bodies 'dhcp no offers for mac <mac>', 'dhcp lease of ip <ip> from server mac <mac> for client mac <mac>', and 'Blocked DHCP server response from <mac> on VLAN <id>'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 

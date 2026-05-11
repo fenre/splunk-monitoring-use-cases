@@ -30,7 +30,7 @@ Network operations teams detect excessive wireless client roaming on Meraki MR n
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR access-point syslog. Roaming = a client with high association/disassociation event count across multiple APs (host field). Each event carries aid (association id), vap, channel..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -42,7 +42,7 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    (type=association OR type=disassociation)
+    ("association" OR "disassociation")
     earliest=-24h
 | rex "aid='(?<client_aid>\d+)'"
 | rex "vap='(?<vap_id>\d+)'"
@@ -59,7 +59,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Excessive Client Roaming Activity (Meraki MR)** — Network operations teams detect excessive wireless client roaming on Meraki MR networks, identifying ping-pong patterns between AP pairs to optimize RF design, power levels, and cell boundaries.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR access-point syslog. Roaming = a client with high association/disassociation event count across multiple APs (host field). Each event carries aid (association id), vap, channel. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving MR access-point syslog. Roaming = a client with high association/disassociation event count across multiple APs (host field). Each event carries aid (association id), vap, channel. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -84,7 +84,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    (type=association OR type=disassociation)
+    ("association" OR "disassociation")
     earliest=-24h
 | rex "aid='(?<client_aid>\d+)'"
 | rex "vap='(?<vap_id>\d+)'"

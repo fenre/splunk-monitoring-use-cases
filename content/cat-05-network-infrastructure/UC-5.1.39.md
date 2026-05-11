@@ -30,7 +30,7 @@ Security teams detect Meraki MS port security violations and rogue device connec
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. NOTE: Meraki MS does NOT have classic IOS-style 'port-security' (sticky MAC, max-mac, violation modes); the closest Meraki signals are 802.1X authentication failures (type=8021x_eap_failure / 8021x_deauth) and 'Blocked DHCP server response from <mac> on VLAN <id>' messages emitted by the DHCP guard feature..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -42,7 +42,7 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    (type=8021x_eap_failure OR type=8021x_deauth
+    ("8021x_eap_failure" OR "8021x_deauth"
      OR "Blocked DHCP server response"
      OR "MAC flooding" OR "unauthorized")
     earliest=-24h
@@ -60,7 +60,7 @@ index=meraki sourcetype="meraki" type=events
 
 **Port Security Violations and Rogue Device Detection (Meraki MS)** — Security teams detect Meraki MS port security violations and rogue device connections, identifying unauthorized devices and 802.1X authentication failures on secure switch ports.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. NOTE: Meraki MS does NOT have classic IOS-style 'port-security' (sticky MAC, max-mac, violation modes); the closest Meraki signals are 802.1X authentication failures (type=8021x_eap_failure / 8021x_deauth) and 'Blocked DHCP server response from <mac> on VLAN <id>' messages emitted by the DHCP guard feature. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. NOTE: Meraki MS does NOT have classic IOS-style 'port-security' (sticky MAC, max-mac, violation modes); the closest Meraki signals are 802.1X authentication failures (type=8021x_eap_failure / 8021x_deauth) and 'Blocked DHCP server response from <mac> on VLAN <id>' messages emitted by the DHCP guard feature. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -84,7 +84,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki" type=events
-    (type=8021x_eap_failure OR type=8021x_deauth
+    ("8021x_eap_failure" OR "8021x_deauth"
      OR "Blocked DHCP server response"
      OR "MAC flooding" OR "unauthorized")
     earliest=-24h

@@ -30,7 +30,7 @@ Network operations teams monitor Meraki wireless health scores across all sites,
 ## Detailed Implementation
 
 ### Prerequisites
-- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA)..
 - Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for syslog flow records (which give protocol/port granularity but not byte counters), plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage, daily) for the org's top 10 clients by data volume in kB. NOTE: per-flow byte counters are NOT in Meraki syslog..
 - For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
@@ -67,7 +67,7 @@ index=meraki sourcetype="meraki" (type=flows OR type=firewall) earliest=-24h
 
 **Top Talker Analysis and Bandwidth Hogs (Meraki MR)** — Network operations teams monitor Meraki wireless health scores across all sites, grading each network on connection success, throughput, and latency to prioritize sites needing wireless optimization.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for syslog flow records (which give protocol/port granularity but not byte counters), plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage, daily) for the org's top 10 clients by data volume in kB. NOTE: per-flow byte counters are NOT in Meraki syslog. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for syslog flow records (which give protocol/port granularity but not byte counters), plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage, daily) for the org's top 10 clients by data volume in kB. NOTE: per-flow byte counters are NOT in Meraki syslog. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.
 
@@ -97,7 +97,7 @@ Understanding this CIM / accelerated SPL
 
 **Top Talker Analysis and Bandwidth Hogs (Meraki MR)** — Network operations teams monitor Meraki wireless health scores across all sites, grading each network on connection success, throughput, and latency to prioritize sites needing wireless optimization.
 
-Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for syslog flow records (which give protocol/port granularity but not byte counters), plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage, daily) for the org's top 10 clients by data volume in kB. NOTE: per-flow byte counters are NOT in Meraki syslog. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+Documented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=flows / type=firewall) for syslog flow records (which give protocol/port granularity but not byte counters), plus Splunk_TA_cisco_meraki Summary Top Clients by Usage input (sourcetype=meraki:summarytopclientsbyusage, daily) for the org's top 10 clients by data volume in kB. NOTE: per-flow byte counters are NOT in Meraki syslog. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype="meraki" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
 
 This **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.
 
