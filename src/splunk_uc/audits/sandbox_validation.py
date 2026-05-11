@@ -6,15 +6,25 @@ and verifies that every ``controlTest.fixtureRef`` reference:
 
 1.  Resolves to a file on disk under ``sample-data/``.
 2.  Is valid JSON.
-3.  Follows one of the two accepted fixture shapes:
-    *  **phase2** (preferred): top-level keys ``uc_id``, ``description``,
-       ``events_positive`` (array), ``events_negative`` (array).
-       Optional ``$comment``.
+3.  Follows one of the three accepted fixture shapes:
+    *  **phase2** (synthetic events): top-level keys ``uc_id``,
+       ``description``, ``events_positive`` (array), ``events_negative``
+       (array). Optional ``$comment``.
+    *  **phase3** (compliance evidence, NIS2 gold-standard uplift,
+       commit ``8fba766c8``): top-level keys ``uc`` (UC-X.Y.Z string),
+       ``positive`` (array of evidence items), ``negative`` (array of
+       evidence items). Each evidence item is an object describing an
+       attestation artefact (``evidence_id``, ``owner``, ``status``).
+       Used by NIS2 / regulatory UCs where the "test" is an evidence
+       attestation rather than a synthetic Splunk event stream.
     *  **legacy**: top-level keys ``description`` (optional),
        ``positiveCase`` (object with ``events`` array, ``expectedFire``),
        ``negativeCase`` (object with ``events`` array, ``expectedFire``).
 4.  Has the correct ``expectedFire`` polarity on each case
-    (positive=true, negative=false).
+    (positive=true, negative=false). Phase3 fixtures do not carry an
+    explicit polarity flag because each entry's status field already
+    encodes whether the evidence is satisfied (``complete``) or
+    outstanding (``gap``).
 
 For every UC with a fixture, the script classifies its status as one of:
 
@@ -88,6 +98,7 @@ STATUS_POPULATED = "populated"
 HARD_FAIL_STATUSES = {STATUS_BAD_JSON, STATUS_MALFORMED}
 
 FIXTURE_SHAPE_PHASE2 = "phase2"
+FIXTURE_SHAPE_PHASE3 = "phase3"
 FIXTURE_SHAPE_LEGACY = "legacy"
 
 
@@ -106,10 +117,10 @@ def _classify_fixture(
     ``(status, shape, pos_events, neg_events, issues)``.
 
     ``status`` is one of the ``STATUS_*`` constants.  ``shape`` is
-    ``"phase2"`` / ``"legacy"`` / ``None``.  ``pos_events`` and
-    ``neg_events`` are event counts (0 when unknown).  ``issues`` is a
-    list of human-readable notes describing why the fixture failed the
-    structural check, when applicable.
+    ``"phase2"`` / ``"phase3"`` / ``"legacy"`` / ``None``.  ``pos_events``
+    and ``neg_events`` are event (or evidence) counts (0 when unknown).
+    ``issues`` is a list of human-readable notes describing why the
+    fixture failed the structural check, when applicable.
     """
     if not fixture_path.is_file():
         return (STATUS_MISSING, None, 0, 0, [])
@@ -138,6 +149,26 @@ def _classify_fixture(
             issues.append("'events_positive' is not a list")
         if not isinstance(neg, list):
             issues.append("'events_negative' is not a list")
+        if issues or not isinstance(pos, list) or not isinstance(neg, list):
+            return (STATUS_MALFORMED, shape, 0, 0, issues)
+        pos_events = len(pos)
+        neg_events = len(neg)
+    elif "positive" in payload and "negative" in payload:
+        # Phase3 (NIS2 gold-standard uplift) shape: top-level
+        # ``positive`` / ``negative`` arrays of evidence-attestation
+        # objects (no Splunk events). Evidence items typically carry
+        # ``evidence_id`` / ``owner`` / ``status`` keys, where ``status``
+        # is ``complete`` or ``gap``. Treated structurally the same as
+        # phase2: the audit only checks shape and population, not the
+        # semantic content of each evidence item (that is the job of
+        # audit_legal_review_signoffs / audit_sme_review_signoffs).
+        shape = FIXTURE_SHAPE_PHASE3
+        pos = payload.get("positive")
+        neg = payload.get("negative")
+        if not isinstance(pos, list):
+            issues.append("'positive' is not a list")
+        if not isinstance(neg, list):
+            issues.append("'negative' is not a list")
         if issues or not isinstance(pos, list) or not isinstance(neg, list):
             return (STATUS_MALFORMED, shape, 0, 0, issues)
         pos_events = len(pos)
@@ -174,8 +205,9 @@ def _classify_fixture(
             0,
             0,
             [
-                "fixture does not match either accepted shape "
-                "(phase2: events_positive/events_negative OR "
+                "fixture does not match any accepted shape "
+                "(phase2: events_positive/events_negative; "
+                "phase3: positive/negative; "
                 "legacy: positiveCase/negativeCase)"
             ],
         )
