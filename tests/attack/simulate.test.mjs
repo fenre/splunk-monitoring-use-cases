@@ -29,8 +29,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO = path.resolve(__dirname, '..', '..');
 const REPORT_PATH = path.join(REPO, 'reports', 'attack-simulation.json');
-// JSON SSOT lives under content/cat-*/UC-*.json since v8.2.0.
-// The legacy use-cases/ tree was retired then; see docs/migration-status.md.
+// JSON SSOT lives under content/cat-*/UC-*.json since v8.2.0; see
+// docs/migration-status.md for the retirement of the legacy markdown
+// corpus that previously hosted these sidecars.
 const CONTENT_DIR = path.join(REPO, 'content');
 // "N/A (<reason>)" entries in mitreAttack are valid per audit-mitre-taxonomy
 // (meta-detection / platform-health UCs with no adversary technique).
