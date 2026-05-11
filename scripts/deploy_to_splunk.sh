@@ -39,7 +39,7 @@
 #
 # Behaviour:
 #   1. Source secrets.env (does not echo any token).
-#   2. Regenerate the app via scripts/generate_recommender_app.py.
+#   2. Regenerate the app via python3 -m splunk_uc generate-recommender-app.
 #   3. Detect whether default/*.conf changed since the last deploy.
 #      .conf changes require a Splunkd restart; .js / .css / .xml
 #      changes only need a bundle reload.
@@ -682,7 +682,7 @@ done <<< "${unique_targets}"
 # dashboards and saved searches existed at the right URLs. It never
 # dispatched any of the dashboards' panel queries, so a malformed
 # `inputlookup ... $status_filter$` shipped to users and 400'd at first
-# load. scripts/audit_dashboard_spl.py closes the gap: it parses every
+# load. python3 -m splunk_uc audit-dashboard-spl closes the gap: it parses every
 # generated default/data/ui/views/*.xml, expands $tokens$ from <input>
 # defaults, and dispatches each <query> to splunkd in
 # exec_mode=blocking, asserting isFailed=False and no FATAL messages.
@@ -692,7 +692,8 @@ echo ">> Dispatching every dashboard panel SPL ..."
 # pass it via the "name=value command" prefix syntax so the value never
 # lands on `ps aux` past the lifetime of this single line.
 if SPLUNK_REST_TOKEN="${TOKEN_VALUE}" \
-        python3 "${REPO_ROOT}/scripts/audit_dashboard_spl.py" \
+        PYTHONPATH="${REPO_ROOT}/src" \
+        python3 -m splunk_uc audit-dashboard-spl \
         --host "${HOST}" \
         --port "${PORT}" \
         --app "${APP_ID}" \

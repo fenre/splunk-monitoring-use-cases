@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_build_reproducibility.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-reproducibility``.
 
 The audit drives ``tools/build/build.py``, which is heavy (~30s per
 run on commodity hardware). The tests here therefore exercise the
@@ -37,24 +37,37 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-SCRIPT_PATH = SCRIPTS_DIR / "audit_build_reproducibility.py"
 SRC_DIR = PROJECT_ROOT / "src"
 
-# Two import surfaces are exercised:
-#   * ``abr`` - the legacy ``scripts/audit_build_reproducibility.py``
-#     entry-point (now a thin shim), used by every existing CI workflow,
-#     Makefile target, and ad-hoc maintainer invocation.
-#   * ``impl`` - the real implementation under
-#     ``splunk_uc.audits.build_reproducibility``. Tests that need to
-#     monkeypatch module-level state (``PROJECT_ROOT``) MUST go through
-#     ``impl`` because the shim only re-exports those names; patching
-#     the shim does not propagate into the implementation's closure.
-sys.path.insert(0, str(SCRIPTS_DIR))
+# Phase 6 closure (2026-05-11): the legacy ``scripts/audit_build_reproducibility.py``
+# shim has been deleted. All tests now exercise the canonical implementation
+# under ``splunk_uc.audits.build_reproducibility`` directly. ``abr`` is kept
+# as a local alias to minimise diff churn against the pre-deletion test body.
+# Subprocess-driven CLI tests invoke the dispatcher
+# (``python3 -m splunk_uc audit-reproducibility``) with ``PYTHONPATH=src`` so
+# the package resolves without requiring an editable install.
 sys.path.insert(0, str(SRC_DIR))
-import audit_build_reproducibility as abr  # noqa: E402
 
 from splunk_uc.audits import build_reproducibility as impl  # noqa: E402
+abr = impl
+
+DISPATCHER_CMD = [sys.executable, "-m", "splunk_uc", "audit-reproducibility"]
+
+
+def _dispatcher_env() -> dict[str, str]:
+    """Return an ``os.environ``-derived env with ``src/`` on ``PYTHONPATH``.
+
+    The dispatcher needs the ``splunk_uc`` package importable; the editable
+    install is not assumed during ad-hoc maintainer runs, so we prepend
+    ``src/`` ourselves. Tests preserve any pre-existing ``PYTHONPATH`` so a
+    caller can layer additional paths (e.g. for tooling) on top.
+    """
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{SRC_DIR}{os.pathsep}{existing}" if existing else str(SRC_DIR)
+    )
+    return env
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -106,10 +119,11 @@ def test_read_integrity_raises_file_not_found(tmp_path: Path) -> None:
 
 
 def test_argparse_accepts_check_flag() -> None:
-    """No exception when only ``--check`` is provided."""
+    """No exception when only ``--help`` is provided."""
     rc = subprocess.call(
-        [sys.executable, str(SCRIPT_PATH), "--help"],
+        [*DISPATCHER_CMD, "--help"],
         cwd=str(PROJECT_ROOT),
+        env=_dispatcher_env(),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -119,8 +133,9 @@ def test_argparse_accepts_check_flag() -> None:
 def test_argparse_help_lists_three_modes() -> None:
     """The --help output names the three supported flags."""
     out = subprocess.check_output(
-        [sys.executable, str(SCRIPT_PATH), "--help"],
+        [*DISPATCHER_CMD, "--help"],
         cwd=str(PROJECT_ROOT),
+        env=_dispatcher_env(),
         text=True,
     )
     for flag in ("--check", "--keep", "--first-build-only"):
@@ -129,8 +144,9 @@ def test_argparse_help_lists_three_modes() -> None:
 
 def test_argparse_rejects_unknown_flag() -> None:
     rc = subprocess.call(
-        [sys.executable, str(SCRIPT_PATH), "--bogus"],
+        [*DISPATCHER_CMD, "--bogus"],
         cwd=str(PROJECT_ROOT),
+        env=_dispatcher_env(),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -172,8 +188,9 @@ def test_first_build_only_smoke(tmp_path: Path) -> None:
     the audit is what gates the entire reproducibility contract.
     """
     rc = subprocess.call(
-        [sys.executable, str(SCRIPT_PATH), "--first-build-only"],
+        [*DISPATCHER_CMD, "--first-build-only"],
         cwd=str(PROJECT_ROOT),
+        env=_dispatcher_env(),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

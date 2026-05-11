@@ -243,7 +243,7 @@ splunk-uc-help: ## Show the splunk_uc CLI help
 # --- Data generation ---
 
 inventory: ## Regenerate data/inventory/ucs.json + ucs.csv
-	$(PYTHON) scripts/inventory_ucs.py --stats
+	$(SPLUNK_UC) inventory-ucs --stats
 
 manifest: ## Regenerate eventgen_data/manifest-all.json
 	$(PYTHON) scripts/parse_uc_catalog.py --check --output eventgen_data/manifest-all.json
