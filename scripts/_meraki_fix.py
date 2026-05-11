@@ -176,7 +176,10 @@ def fix_spl_sc4s(text: str) -> tuple[str, list[str]]:
     has_outer_events = bool(re.search(r'\btype\s*=\s*"?events"?', new))
 
     for sub in SC4S_WIRELESS_SUBTYPES:
-        pattern = rf'\btype\s*=\s*"?{re.escape(sub)}"?'
+        # Symmetric quote handling: match both the bare `type=X` form AND
+        # the `"type=X"` quoted-content-match form so we don't leave a
+        # stray opening quote behind (regression that affected UC-5.2.37).
+        pattern = rf'"?\btype\s*=\s*{re.escape(sub)}"?'
         if not re.search(pattern, new):
             continue
         if has_outer_events:
