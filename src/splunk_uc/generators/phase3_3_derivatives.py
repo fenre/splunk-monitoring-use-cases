@@ -154,6 +154,18 @@ SIDECAR_FIELD_ORDER: tuple[str, ...] = (
 # Order in which compliance[] entry keys are emitted so diffs stay legible.
 # Matches schemas/uc.schema.json property declaration order and Phase 3.2
 # output. ``derivationSource`` is last because it is the largest sub-object.
+#: Canonical compliance-entry field order.
+#:
+#: ``controlObjective`` / ``evidenceArtifact`` / ``obligationRef`` /
+#: ``requires_sme_review`` are placed immediately after the assurance
+#: pair so the entry reads top-to-bottom as: identity (regulation /
+#: clause), satisfaction posture (mode / assurance / rationale),
+#: SME-curated audit-evidence detail, and finally provenance + signature.
+#: This matches the on-disk layout used by the JSON SSOT migration
+#: (commit ``156913962``) and by every cat-22 sidecar that already
+#: carries SME-curated text on derived entries; pinning the order here
+#: keeps :func:`_canonical_entry` byte-stable across regenerations so
+#: the ``--check`` drift gate stays green.
 ENTRY_FIELD_ORDER: tuple[str, ...] = (
     "regulation",
     "version",
@@ -162,6 +174,10 @@ ENTRY_FIELD_ORDER: tuple[str, ...] = (
     "mode",
     "assurance",
     "assurance_rationale",
+    "controlObjective",
+    "evidenceArtifact",
+    "obligationRef",
+    "requires_sme_review",
     "provenance",
     "signedBy",
     "derivationSource",
@@ -481,6 +497,89 @@ def _build_inherited_entry(
     }
 
 
+#: Fields that an SME may have curated on an existing derived entry
+#: which the generator must NOT clobber on regen. The migration to the
+#: JSON SSOT (commit ``156913962``) auto-drafted ``controlObjective`` /
+#: ``evidenceArtifact`` text on every derived entry to satisfy the
+#: ``audit-compliance-mappings`` ``missing-evidence-artifact`` /
+#: ``missing-control-objective`` rules; SMEs subsequently refined many
+#: of those drafts. Likewise an SME may upgrade ``assurance`` /
+#: ``assurance_rationale`` (e.g. ``contributing -> partial``) when they
+#: assert the derivative regulation has the same evidence quality as the
+#: parent. Fields the generator OWNS (``provenance``, ``derivationSource``,
+#: ``regulation``, ``version``, ``clause``, ``mode``) always come from the
+#: freshly-built entry; everything else is merged from the existing
+#: entry when one exists for the same (regulation, version, clause)
+#: triple. This makes the generator additive: SME work survives every
+#: re-run, and ``--check`` stays green so long as authors leave the
+#: structural fields untouched.
+_CURATED_DERIVED_FIELDS: tuple[str, ...] = (
+    "controlObjective",
+    "evidenceArtifact",
+    "obligationRef",
+    "requires_sme_review",
+    "assurance",
+    "assurance_rationale",
+)
+
+
+def _merge_curated_fields(
+    inherited: dict[str, Any], curated: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Overlay SME-curated fields from ``curated`` onto ``inherited``.
+
+    ``inherited`` is the freshly-built derived entry returned by
+    :func:`_build_inherited_entry`; ``curated`` is the existing entry
+    from disk for the same ``(regulation, version, clause)`` key (or
+    ``None`` if the entry is brand-new). Generator-owned fields
+    (``provenance``, ``derivationSource``, the structural identity
+    triple, ``mode``) always come from ``inherited`` so that
+    propagation pointers stay current; SME-owned fields listed in
+    :data:`_CURATED_DERIVED_FIELDS` are taken from ``curated`` when
+    present so SME annotations and assurance upgrades survive a regen.
+    """
+    if not isinstance(curated, dict):
+        return inherited
+    merged = dict(inherited)
+    for field in _CURATED_DERIVED_FIELDS:
+        if field in curated:
+            merged[field] = curated[field]
+    return merged
+
+
+def _autodraft_audit_fields(
+    sidecar: dict[str, Any], entry: dict[str, Any]
+) -> dict[str, Any]:
+    """Auto-draft the auditor-facing ``controlObjective`` /
+    ``evidenceArtifact`` fields when a brand-new derived entry has no
+    SME-curated values to inherit.
+
+    The Phase 4 migration's synthesizers are the canonical source of
+    these templates (``Auto-drafted — SME review required.`` suffix);
+    re-using them here means brand-new derived entries pass the
+    ``audit-compliance-mappings`` ``missing-control-objective`` /
+    ``missing-evidence-artifact`` rules without forcing an SME pass
+    every time the propagation graph grows. SME refinements survive
+    subsequent regenerations because :func:`_merge_curated_fields`
+    treats both fields as curated.
+    """
+    if "controlObjective" not in entry:
+        from splunk_uc.migrations.migrate_compliance_phase4 import (
+            synthesise_control_objective,
+        )
+
+        entry["controlObjective"] = synthesise_control_objective(
+            sidecar, entry, None
+        )
+    if "evidenceArtifact" not in entry:
+        from splunk_uc.migrations.migrate_compliance_phase4 import (
+            synthesise_evidence_artifact,
+        )
+
+        entry["evidenceArtifact"] = synthesise_evidence_artifact(sidecar, entry)
+    return entry
+
+
 def _rewrite_sidecar(
     sidecar: dict[str, Any],
     plan: PropagationPlan,
@@ -494,14 +593,22 @@ def _rewrite_sidecar(
                            byte-for-byte from what was present before.
     * ``derived_count`` -- Number of inherited entries the generator
                            produced for this sidecar (0 is valid).
+
+    Curated SME fields on existing derived entries (see
+    :data:`_CURATED_DERIVED_FIELDS`) are preserved across regenerations
+    via :func:`_merge_curated_fields`; the generator only owns the
+    structural identity (regulation/version/clause), the propagation
+    pointers (``provenance``, ``derivationSource``), and ``mode``.
     """
     original = list(sidecar.get("compliance", []))
     native: list[Any] = []
+    existing_derived_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     for entry in original:
         if not isinstance(entry, dict):
             native.append(entry)
             continue
         if _is_derived(entry):
+            existing_derived_by_key[_entry_key(entry)] = entry
             continue
         native.append(entry)
 
@@ -535,6 +642,9 @@ def _rewrite_sidecar(
                 # iterated in on-disk order and ``plan.targets_for_parent_clause``
                 # returns derivatives sorted by id.
                 continue
+            curated = existing_derived_by_key.get(key)
+            inherited = _merge_curated_fields(inherited, curated)
+            inherited = _autodraft_audit_fields(sidecar, inherited)
             derived.append(inherited)
             derived_keys.add(key)
 

@@ -66,6 +66,18 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+# audit-compliance-mappings requires every compliance entry to carry
+# ``controlObjective`` and ``evidenceArtifact`` text. The Phase 4
+# migration script is the canonical author of the templated drafts
+# (``Auto-drafted — SME review required.`` suffix), so we re-use its
+# helpers here rather than duplicating the templates. Imported at module
+# scope so the dispatcher's smoke tests catch any breaking change in
+# the helper signatures at import time.
+from splunk_uc.migrations.migrate_compliance_phase4 import (
+    synthesise_control_objective,
+    synthesise_evidence_artifact,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_DIR = REPO_ROOT / "content"
 MANIFEST_PATH = REPO_ROOT / "data" / "per-regulation" / "phase3.2.json"
@@ -122,8 +134,13 @@ SIDECAR_FIELD_ORDER: tuple[str, ...] = (
 )
 
 # Keys that may legitimately appear in Phase 3.2 compliance entries.
-# Sourced from the manifest schema ``per-regulation-phase3.2.schema.json``.
-# Anything else is silently dropped to keep the output schema-clean.
+# Sourced from the manifest schema ``per-regulation-phase3.2.schema.json``,
+# plus ``controlObjective`` / ``evidenceArtifact`` which are auto-drafted
+# in :func:`_apply_mappings` from the migration helpers
+# (``synthesise_control_objective`` / ``synthesise_evidence_artifact``)
+# so every new entry satisfies ``audit-compliance-mappings``'
+# ``missing-control-objective`` / ``missing-evidence-artifact`` rules
+# without manual SME backfill.
 _ALLOWED_ENTRY_KEYS: tuple[str, ...] = (
     "regulation",
     "version",
@@ -132,9 +149,16 @@ _ALLOWED_ENTRY_KEYS: tuple[str, ...] = (
     "mode",
     "assurance",
     "assurance_rationale",
+    "controlObjective",
+    "evidenceArtifact",
 )
 
-# Order in which entry keys are emitted so diffs stay legible.
+# Order in which entry keys are emitted so diffs stay legible. Mirrors
+# the on-disk layout produced by the v8.1 SSOT migration: identity
+# (regulation/clause), satisfaction posture (mode/assurance/rationale),
+# audit-evidence detail (controlObjective/evidenceArtifact). Pinning the
+# order keeps :func:`_canonical_entry` byte-stable across regenerations
+# so the ``--check`` drift gate stays green.
 _ENTRY_FIELD_ORDER: tuple[str, ...] = (
     "regulation",
     "version",
@@ -143,6 +167,8 @@ _ENTRY_FIELD_ORDER: tuple[str, ...] = (
     "mode",
     "assurance",
     "assurance_rationale",
+    "controlObjective",
+    "evidenceArtifact",
 )
 
 # ---------------------------------------------------------------------------
@@ -328,6 +354,18 @@ def _apply_mappings(
 ) -> bool:
     """Idempotently append new manifest mappings to ``sidecar.compliance``.
 
+    For every newly-added entry the helper also auto-drafts
+    ``controlObjective`` and ``evidenceArtifact`` strings via the
+    Phase 4 migration synthesizers (``Auto-drafted — SME review
+    required.`` suffix). This keeps every Phase 3.2 cross-cutting
+    mapping audit-clean against
+    ``audit-compliance-mappings``' ``missing-control-objective`` /
+    ``missing-evidence-artifact`` rules without forcing the manifest
+    author to write the auditor-facing prose by hand. SMEs can refine
+    the draft text later; idempotency means subsequent regenerations
+    will not overwrite SME-curated text because the entry key already
+    exists in ``existing_keys``.
+
     Returns True if any new entry was added (or an existing entry was
     touched by the canonical-order rewrite). Returns False when every
     mapping was already present.
@@ -340,6 +378,18 @@ def _apply_mappings(
         key = _entry_key(new_entry)
         if key in existing_keys:
             continue
+        # Auto-draft the auditor-facing fields. These templates are
+        # the canonical phrasing the v8.1 SSOT migration used; using
+        # the same helper functions guarantees byte-stable output
+        # (no template drift across generators).
+        if "controlObjective" not in new_entry:
+            new_entry["controlObjective"] = synthesise_control_objective(
+                sidecar, new_entry, None
+            )
+        if "evidenceArtifact" not in new_entry:
+            new_entry["evidenceArtifact"] = synthesise_evidence_artifact(
+                sidecar, new_entry
+            )
         existing.append(new_entry)
         existing_keys.add(key)
         touched = True
