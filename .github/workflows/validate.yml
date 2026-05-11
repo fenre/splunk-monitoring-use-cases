@@ -205,11 +205,7 @@ jobs:
           fi
           python3 tools/audits/schema_diff.py --baseline-tag "${BASELINE_TAG}"
 
-      - name: Generate api/v1 tree (required by smoke tests)
-        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
-
-      - name: Build catalog (required by Phase 3a smoke test)
+      - name: Build catalog (required by Phase 3a smoke test + api/v1 generator)
         # ``_phase3a_smoke.js`` loads ``catalog.json`` to populate window
         # globals (DATA / EQUIPMENT / CAT_META / CAT_GROUPS / FILTER_FACETS)
         # before exercising 01-state.js / 02-filters.js / 04-panel.js.
@@ -218,12 +214,27 @@ jobs:
         # ``dist/catalog.json`` by the build pipeline. The smoke test
         # already probes both locations (``dist/`` first, then root) so
         # this step just ensures the file exists before we run it.
+        #
+        # IMPORTANT: this step MUST run before the api/v1 generation step
+        # below. ``generate-api-surface`` reads the equipment slug list out
+        # of ``dist/catalog.json`` (every UC's ``e`` field) so cross-vendor
+        # slugs not in the static EQUIPMENT registry (a10, akamai, ...)
+        # can be emitted. Running api gen before the build leaves it with
+        # an empty catalog → the registry-only subset of equipment files,
+        # which then drifts from the post-build ``--check`` rerun.
+        #
         # The full validate.yml workflow runs build twice (here + in the
         # later "Build check (catalog regeneration)" step that diffs the
         # output for freshness). The duplication is intentional: this
-        # build feeds the smoke test, the later one verifies the
-        # committed derivative artefacts are fresh.
+        # build feeds the smoke test + api gen, the later one verifies
+        # the committed derivative artefacts are fresh.
         run: python3 tools/build/build.py --out dist
+
+      - name: Generate api/v1 tree (required by smoke tests)
+        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
+        # MUST run after the build step above so dist/catalog.json exists
+        # and the equipment slug list is complete (see comment above).
+        run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
 
       - name: Story-layer UI smoke tests
         # Node.js headless shims exercise the JS in index.html,
