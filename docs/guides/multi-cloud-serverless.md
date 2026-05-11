@@ -684,7 +684,7 @@ index=multicloud_summary sourcetype=multicloud:trending earliest=-30d@d
 > above for the equivalent `| tstats summariesonly=t count from
 > datamodel=multicloud_trending by multicloud_trending.provider,
 > multicloud_trending.severity`. The data model name is yours to
-> pick — it is **not** part of Splunk CIM 6.x — so anything you
+> pick — it is **not** part of Splunk CIM<sup class="ref">[<a href="#ref-12">12</a>]</sup> 6.x — so anything you
 > configure under Settings -> Data models will work.
 
 ## Sizing and Capacity Planning
