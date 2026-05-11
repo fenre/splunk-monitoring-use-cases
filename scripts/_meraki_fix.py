@@ -25,6 +25,24 @@ Bug classes handled:
   N2  Same as N1, plus `dataSources` doesn't mention SC4S.
       Append SC4S to both `app` and `dataSources`.
 
+  T1  SC4S sourcetype="meraki" SPL combines outer `type=events` with
+      `type=<wireless_subtype>`. The two are mutually exclusive on the
+      same single-valued field. Strip the `type=` prefix from the inner
+      wireless subtypes so they become raw-text matches inside the
+      surrounding parens.
+        type=events (type=8021x_eap_failure OR type=wpa_deauth)
+        -> type=events ("8021x_eap_failure" OR "wpa_deauth")
+
+  T2  Wireless subtype used as outer `type=` field with no `type=events`
+      anchor. Same root cause as T1. Replace `type=<sub>` with
+      `type=events "<sub>"` so the outer program tag is correct AND the
+      inner subtype is matched in the raw body.
+
+  T3  `signature=...` on SC4S sourcetype="meraki". Strip the
+      `signature=` prefix and quote the value as a raw text match.
+      Wildcards (`*Rogue*`) are kept; bareword tokens become raw text
+      matches.
+
 Usage:
     python3 scripts/_meraki_fix.py            # apply changes in place
     python3 scripts/_meraki_fix.py --dry-run  # show diffs only
@@ -138,6 +156,54 @@ def add_sc4s_to_data_sources(ds: str) -> str:
     return (ds.rstrip() + SC4S_DS_NOTE).strip()
 
 
+SC4S_WIRELESS_SUBTYPES = (
+    "8021x_eap_failure", "8021x_deauth", "8021x_eap_success",
+    "wpa_deauth", "wpa_auth", "disassociation", "association",
+    "splash_auth", "airmarshal_events", "vpn_connectivity_change",
+)
+
+
+def fix_spl_sc4s(text: str) -> tuple[str, list[str]]:
+    """Apply T1/T2/T3 substitutions on SC4S sourcetype=\"meraki\" SPL."""
+    notes: list[str] = []
+    new = text
+
+    # T1 / T2 — strip `type=` prefix from inner wireless subtypes.
+    # Only fires when the SPL targets sourcetype="meraki" (SC4S, not API TA).
+    if not re.search(r'sourcetype\s*=\s*"?meraki"?(?!\:)', new):
+        return new, notes
+
+    has_outer_events = bool(re.search(r'\btype\s*=\s*"?events"?', new))
+
+    for sub in SC4S_WIRELESS_SUBTYPES:
+        pattern = rf'\btype\s*=\s*"?{re.escape(sub)}"?'
+        if not re.search(pattern, new):
+            continue
+        if has_outer_events:
+            # T1: just convert `type=<sub>` -> `"<sub>"` (raw-text match).
+            new = re.sub(pattern, f'"{sub}"', new)
+            notes.append(f'T1 type={sub} -> "{sub}" (inner raw-text match)')
+        else:
+            # T2: replace `type=<sub>` with `type=events "<sub>"` so we get
+            # both the correct outer program tag and the inner content match.
+            new = re.sub(pattern, f'type=events "{sub}"', new)
+            has_outer_events = True
+            notes.append(f'T2 type={sub} -> type=events "{sub}"')
+
+    # T3 — strip `signature=...` prefix and quote the value as raw text.
+    def t3_repl(m: re.Match[str]) -> str:
+        val = m.group(1).strip('"\'')
+        return f'"{val}"'
+
+    if re.search(r'\bsignature\s*=\s*"?\*?[\w*-]+\*?"?', new):
+        new2 = re.sub(r'\bsignature\s*=\s*("?\*?[\w*-]+\*?"?)', t3_repl, new)
+        if new2 != new:
+            notes.append("T3 signature=<v> -> raw-text match")
+            new = new2
+
+    return new, notes
+
+
 def fix_uc(payload: dict, codes: set[str]) -> tuple[dict, list[str]]:
     """Return (payload, change-log)."""
     changes: list[str] = []
@@ -149,6 +215,18 @@ def fix_uc(payload: dict, codes: set[str]) -> tuple[dict, list[str]]:
             if not v:
                 continue
             new, notes = fix_spl_assurance(v)
+            if new != v:
+                payload[field] = new
+                for n in notes:
+                    changes.append(f"{field}: {n}")
+
+    # T1/T2/T3 — SC4S syslog sourcetype="meraki" SPL fixes.
+    if codes & {"T1", "T2", "T3"}:
+        for field in ("spl", "qs", "implementation", "detailedImplementation"):
+            v = payload.get(field) or ""
+            if not v:
+                continue
+            new, notes = fix_spl_sc4s(v)
             if new != v:
                 payload[field] = new
                 for n in notes:

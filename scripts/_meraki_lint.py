@@ -47,6 +47,25 @@ Bug classes (each tied to a specific sourcetype's canonical field set):
       (those are assurance-alerts paths; on meraki:devices the fields are
       flat: serial / name).
 
+  T1  SC4S sourcetype="meraki" SPL uses BOTH `type=events` AND
+      `type=<wireless_subtype>` (8021x_eap_failure, wpa_deauth,
+      disassociation, association, splash_auth, airmarshal_events,
+      vpn_connectivity_change). These are mutually exclusive — `type`
+      is a single-valued field on SC4S Meraki vendor pack. The query
+      ALWAYS returns 0 rows regardless of data. The wireless subtypes
+      live INSIDE the message body, not as the outer `type` field.
+      Rewrite to: `type=events ("8021x_eap_failure" OR ...)` (raw text
+      match for the inner subtype).
+
+  T2  SC4S sourcetype="meraki" SPL uses ONLY `type=<wireless_subtype>`
+      (no outer `type=events`). Same root cause as T1 — the wireless
+      subtype is not the outer `type` field on SC4S. Use raw text match.
+
+  T3  SC4S sourcetype="meraki" SPL uses `signature=...` — the `signature`
+      field is only extracted on meraki:securityappliances (API TA, MX
+      IDS/AMP events), NOT on the SC4S syslog stream. Use raw text match
+      or pivot to meraki:securityappliances.
+
 Usage:
     python3 scripts/_meraki_lint.py            # human report
     python3 scripts/_meraki_lint.py --json     # machine readable
@@ -181,6 +200,43 @@ def lint_uc(payload: dict) -> list[dict]:
                 "msg": (f"sourcetype {next(iter(flat_serial_sts & sts))} uses flat 'serial' "
                         "field; scope.devices{}.serial is an assurance-alerts path and won't match here."),
             })
+
+    # T1 / T2 — wireless subtypes used as outer `type=` field on SC4S syslog
+    # (they're inner sub-types in the message body, not the outer program tag).
+    SC4S_WIRELESS_SUBTYPES = (
+        "8021x_eap_failure", "8021x_deauth", "8021x_eap_success",
+        "wpa_deauth", "wpa_auth", "disassociation", "association",
+        "splash_auth", "airmarshal_events", "vpn_connectivity_change",
+    )
+    if re.search(r'sourcetype\s*=\s*"?meraki"?(?!\:)', spl):
+        for sub in SC4S_WIRELESS_SUBTYPES:
+            if re.search(rf'\btype\s*=\s*"?{re.escape(sub)}"?', spl):
+                # Distinguish T1 (with outer type=events) vs T2 (without).
+                if re.search(r'\btype\s*=\s*"?events"?', spl):
+                    findings.append({
+                        "code": "T1",
+                        "msg": (f'SC4S sourcetype="meraki" combines outer `type=events` with '
+                                f'`type={sub}` (a wireless sub-type). Splunk treats these as AND '
+                                f'on the same single-valued `type` field, so the query returns 0 '
+                                f'rows always. Use raw text match: `type=events ("{sub}" OR ...)`.'),
+                    })
+                else:
+                    findings.append({
+                        "code": "T2",
+                        "msg": (f'SC4S sourcetype="meraki" uses `type={sub}` as outer field '
+                                f'but {sub} is an inner subtype in the message body, not the '
+                                f'outer program tag. Use `type=events` plus raw text match for "{sub}".'),
+                    })
+
+    # T3 — `signature=` on SC4S sourcetype="meraki" (the field doesn't exist there).
+    if re.search(r'sourcetype\s*=\s*"?meraki"?(?!\:)', spl) and \
+       re.search(r'\bsignature\s*=\s*"?\*?[\w*-]+\*?"?', spl):
+        findings.append({
+            "code": "T3",
+            "msg": ('SC4S sourcetype="meraki" uses `signature=...` but that field is only '
+                    'extracted on meraki:securityappliances (API TA, MX IDS/AMP), not on the '
+                    'SC4S syslog stream. Use raw text match or pivot to the API sourcetype.'),
+        })
 
     # N1 / N2 — narrative inconsistency between SPL sourcetype, app, and dataSources
     sc4s_in_spl = bool(re.search(r'sourcetype\s*=\s*"?meraki"?(?!\:)', spl))
