@@ -152,7 +152,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
     p.add_argument("--report", type=Path, default=DEFAULT_REPORT)
-    p.add_argument("--earliest", default="-24h",
+    p.add_argument("--earliest", default="-30d",
                    help="Time window low end. -5m for SC4S syslog rate, "
                         "-24h covers one cycle of every API-TA modular input.")
     p.add_argument("--workers", type=int, default=8)

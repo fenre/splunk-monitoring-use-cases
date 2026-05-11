@@ -30,61 +30,46 @@ Ingest wireless client events from Meraki or WLC. Extract association and roam o
 ## Detailed Implementation
 
 ### Prerequisites
-- Meraki providing wireless QoS and voice/video performance data. Data in `index=meraki` with `sourcetype=meraki` or `sourcetype=meraki:accesspoints`. Key fields: `ssid`, `client_mac`, `application` (voice/video apps), `latency` (ms), `jitter` (ms), `packet_loss` (%), `rssi`.
-- Wireless QoS for voice and video requires: (1) WMM (Wi-Fi Multimedia) enabled — prioritizes voice (AC_VO) and video (AC_VI) traffic, (2) low latency (< 150 ms for voice, < 300 ms for video), (3) low jitter (< 30 ms), (4) low packet loss (< 1% for voice, < 5% for video), (5) sufficient signal strength (RSSI > -67 dBm for voice).
+- Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (WLC), wireless controller logs.
+- Ensure the following data sources are available: Meraki wireless events, Cisco WLC syslog.
+- For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md
 
 ### Step 1 — Configure data collection
-Verify QoS/voice data:
-```spl
-index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-4h
-| where isnotnull(latency) OR match(application, "(?i)(teams|zoom|webex|voice|sip|rtp)")
-| stats avg(latency) as avg_latency avg(jitter) as avg_jitter by ssid
-```
+Ingest wireless client events from Meraki or WLC. Extract association and roam outcomes. Alert when failure rate exceeds threshold per AP or SSID. Dashboard by location and time.
 
 ### Step 2 — Create the search and alert
+Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
-**Primary search — Voice/video QoS assessment:**
 ```spl
-index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-4h
-| where match(application, "(?i)(teams|zoom|webex|meet|voice|sip|rtp|video.conf)") OR isnotnull(latency)
-| stats avg(latency) as avg_latency max(latency) as max_latency avg(jitter) as avg_jitter avg(packet_loss) as avg_loss avg(rssi) as avg_rssi dc(client_mac) as uc_users by ssid, ap_name
-| eval voice_quality=case(avg_latency > 150 OR avg_jitter > 30 OR avg_loss > 1, "POOR", avg_latency > 100 OR avg_jitter > 20 OR avg_loss > 0.5, "FAIR", 1==1, "GOOD")
-| eval issues=mvappend(if(avg_latency > 150, "High latency (".round(avg_latency,0)."ms)", null()), if(avg_jitter > 30, "High jitter (".round(avg_jitter,0)."ms)", null()), if(avg_loss > 1, "Packet loss (".round(avg_loss,1)."%)", null()), if(avg_rssi < -70, "Weak signal (".round(avg_rssi,0)."dBm)", null()))
-| where voice_quality != "GOOD"
-| sort voice_quality, -avg_latency
+index=meraki sourcetype=meraki:accesspoints (event_type="association_failed" OR event_type="roam_failed")
+| bin _time span=15m
+| stats count by ap_serial, ssid, _time
+| where count > 20
+| sort -count
 ```
 
-**UC application performance trending:**
-```spl
-index=meraki (sourcetype="meraki" OR sourcetype="meraki:accesspoints") earliest=-24h
-| where match(application, "(?i)(teams|zoom|webex)") AND isnotnull(latency)
-| bin _time span=30m
-| stats avg(latency) as latency avg(jitter) as jitter dc(client_mac) as users by _time, application
-| timechart span=30m avg(latency) by application
-```
+#### Understanding this SPL
+
+**Wireless Client Association and Roaming Failures (Meraki MR)** — UC/collaboration teams assess wireless voice and video call quality from Meraki latency, jitter, and packet loss data, identifying APs where meeting quality degrades below acceptable thresholds.
+
+Documented **Data sources**: Meraki wireless events, Cisco WLC syslog. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (WLC), wireless controller logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.
+
+The first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:accesspoints. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.
+
+**Pipeline walkthrough**
+
+- Scopes the data: index=meraki, sourcetype=meraki:accesspoints. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Discretizes time or numeric ranges with `bin`/`bucket`.
+- `stats` rolls up events into metrics; results are split **by ap_serial, ssid, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.
+- Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
+
 
 ### Step 3 — Validate
-(a) Start a Zoom/Teams call and verify the QoS metrics appear in Splunk.
-(b) Compare voice quality assessment with actual user-reported call quality.
-(c) Walk to a weak signal area during a call and verify the quality degrades in the metrics.
+Confirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.
 
 ### Step 4 — Operationalize
-Dashboard ("Meraki — Wireless Voice/Video QoS"):
-- Row 1 — Single-value: "UC users", "Average latency", "Average jitter", "APs with poor voice quality".
-- Row 2 — Per-AP voice quality assessment with specific issues.
-- Row 3 — UC application latency trending.
-
-Alerting:
-- Warning (AP with > 5 UC users and POOR voice quality for > 15 min): impact on meetings — investigate.
-- Info (weekly): wireless voice/video quality report.
-
-### Step 5 — Troubleshooting
-
-- **High latency on specific SSID** — Check if traffic shaping is limiting bandwidth on that SSID. Ensure voice/video traffic has QoS priority (WMM must be enabled — Meraki enables by default).
-
-- **Poor quality despite good signal** — Channel utilization may be high. Even with strong signal, congested channels cause contention delays. Check per-AP channel utilization.
-
-- **Jitter spikes at specific times** — Correlate with backup schedules, OS update rollouts, or other bandwidth-heavy activities that may be competing for airtime.
+Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (AP, SSID, failures), Line chart (failure rate over time), Heatmap (AP by location).
 
 ## SPL
 

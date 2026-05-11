@@ -52,7 +52,7 @@ def _ctx() -> ssl.SSLContext:
     return c
 
 
-def run(spl: str, token: str, earliest: str = "-24h",
+def run(spl: str, token: str, earliest: str = "-90d",
         timeout: int = 60) -> tuple[str, str, int]:
     """Return (category, detail, row_count)."""
     body = urllib.parse.urlencode({
@@ -102,6 +102,12 @@ def leading_search(spl: str) -> str:
 
 
 def main() -> int:
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("--earliest", default="-90d",
+                    help="Earliest time for leading-search probe (default -90d).")
+    args = p.parse_args()
+
     token = os.environ.get("SPLUNK_REST_TOKEN")
     if not token:
         print("error: source secrets.env first", file=sys.stderr)
@@ -151,7 +157,7 @@ def main() -> int:
             continue
 
         # Primary sourcetype has data. Run the leading search.
-        cat, detail, count = run(head_spl, token)
+        cat, detail, count = run(head_spl, token, earliest=args.earliest)
 
         if cat == "PARSE_ERROR":
             verdict = "LEADING_PARSE_ERROR"
