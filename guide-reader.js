@@ -52,22 +52,76 @@
 
   function renderInline(raw) {
     var tokens = [];
-    var text = String(raw).replace(/`([^`\n]+?)`/g, function (_, inner) {
+    function stash(html) {
       var i = tokens.length;
-      tokens.push('<code>' + escapeHtml(inner) + '</code>');
-      return '\u0000CODE' + i + '\u0000';
+      tokens.push(html);
+      return '\u0000T' + i + '\u0000';
+    }
+
+    var text = String(raw).replace(/`([^`\n]+?)`/g, function (_, inner) {
+      return stash('<code>' + escapeHtml(inner) + '</code>');
     });
+
+    // Inline HTML whitelist (produced by scripts/generate_doc_references.py
+    // and a handful of hand-authored docs).  Same-origin markdown only, so
+    // we can pass these through without XSS risk — but we keep the whitelist
+    // tight and rebuild each tag from validated capture groups.
+    text = text.replace(
+      /<sup class=["']ref["']>\[<a href=["']#ref-([\w.-]+)["']>([\w.-]+)<\/a>\]<\/sup>/g,
+      function (_, refId, label) {
+        return stash(
+          '<sup class="ref">[<a href="#ref-' + escapeHtml(refId) + '">' +
+          escapeHtml(label) + '</a>]</sup>'
+        );
+      }
+    );
+    text = text.replace(/<a id=["']([\w.:-]+)["']><\/a>/g, function (_, id) {
+      return stash('<a id="' + escapeHtml(id) + '"></a>');
+    });
+    text = text.replace(/<sup>([^<\n]+)<\/sup>/g, function (_, inner) {
+      return stash('<sup>' + escapeHtml(inner) + '</sup>');
+    });
+    text = text.replace(/<kbd>([^<\n]+)<\/kbd>/g, function (_, inner) {
+      return stash('<kbd>' + escapeHtml(inner) + '</kbd>');
+    });
+    text = text.replace(/<br\s*\/?>/g, function () {
+      return stash('<br>');
+    });
+
     text = escapeHtml(text);
     text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, function (m, label, url) {
       if (!/^(https?:|mailto:|#|\.?\.?\/)/i.test(url)) return m;
       var external = /^https?:\/\//i.test(url);
       var attrs = external ? ' target="_blank" rel="noopener noreferrer"' : '';
-      return '<a href="' + escapeHtml(url) + '"' + attrs + '>' + label + '</a>';
+      var anchor = '<a href="' + escapeHtml(url) + '"' + attrs + '>' + label + '</a>';
+      return stash(anchor);
     });
+
+    // Auto-link bare URLs (e.g. plain `https://example.com/` in the
+    // bibliographic footer).  We do this after explicit markdown links have
+    // been stashed, so we never double-wrap an already-linked URL.  Lead
+    // must be start-of-string, whitespace, or a few safe punctuation chars
+    // — never `=` or `"`, which would mean we're inside an attribute.
+    text = text.replace(
+      /(^|[\s(\[<>])(https?:\/\/[^\s<>"'`)\]]+)/g,
+      function (_, lead, url) {
+        var trail = '';
+        while (/[.,;:!?\)\]]$/.test(url)) {
+          trail = url.slice(-1) + trail;
+          url = url.slice(0, -1);
+        }
+        if (!url) return lead + trail;
+        return lead + stash(
+          '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
+          url + '</a>'
+        ) + trail;
+      }
+    );
+
     text = text.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
     text = text.replace(/---/g, '&mdash;').replace(/--/g, '&ndash;');
-    text = text.replace(/\u0000CODE(\d+)\u0000/g, function (_, i) { return tokens[+i]; });
+    text = text.replace(/\u0000T(\d+)\u0000/g, function (_, i) { return tokens[+i]; });
     return text;
   }
 
@@ -149,6 +203,22 @@
         var htext = hm[2];
         var id = slugify(htext);
         out.push('<h' + level + ' id="' + escapeHtml(id) + '">' + renderInline(htext) + '</h' + level + '>');
+        i++; continue;
+      }
+
+      // Block-level HTML whitelist for the auto-generated references footer
+      // emitted by scripts/generate_doc_references.py.  Pass <details>,
+      // <summary>...</summary>, </details> through verbatim so the content
+      // *inside* a <details> still renders as normal markdown.
+      if (/^<details>\s*$/.test(stripped)) {
+        out.push('<details>'); i++; continue;
+      }
+      if (/^<\/details>\s*$/.test(stripped)) {
+        out.push('</details>'); i++; continue;
+      }
+      var sm = stripped.match(/^<summary>(.*)<\/summary>\s*$/);
+      if (sm) {
+        out.push('<summary>' + renderInline(sm[1]) + '</summary>');
         i++; continue;
       }
 
@@ -239,6 +309,8 @@
         if (/^(\s*)\d+\.\s+/.test(nxt)) break;
         if (/^`{3,}/.test(nxt)) break;
         if (/\|/.test(nxt) && i + 1 < lines.length && isTableSeparator(lines[i + 1])) break;
+        if (/^<\/?details>\s*$/.test(nxt.trim())) break;
+        if (/^<summary>.*<\/summary>\s*$/.test(nxt.trim())) break;
         pBuf.push(nxt);
         i++;
       }
