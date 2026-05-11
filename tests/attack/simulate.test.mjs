@@ -29,7 +29,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO = path.resolve(__dirname, '..', '..');
 const REPORT_PATH = path.join(REPO, 'reports', 'attack-simulation.json');
-const USE_CASES_DIR = path.join(REPO, 'use-cases');
+// JSON SSOT lives under content/cat-*/UC-*.json since v8.2.0.
+// The legacy use-cases/ tree was retired then; see docs/migration-status.md.
+const CONTENT_DIR = path.join(REPO, 'content');
+// "N/A (<reason>)" entries in mitreAttack are valid per audit-mitre-taxonomy
+// (meta-detection / platform-health UCs with no adversary technique).
+// simulate_controltest.py drops them in _collect_uc_technique_refs, so this
+// drift guard must drop them in collectUCsWithControlTest as well to keep
+// the two views aligned.
+const NA_REF_RE = /^N\/?A\s*\(.+\)\s*$/i;
 
 const ALLOWED_STATUSES = new Set([
   'simulated',
@@ -44,14 +52,14 @@ const ATTACK_ID_RE = /^T\d{4}(?:\.\d{3})?$/;
 function collectUCsWithControlTest() {
   const results = new Map();
   const catDirs = fs
-    .readdirSync(USE_CASES_DIR)
+    .readdirSync(CONTENT_DIR)
     .filter((d) => d.startsWith('cat-'))
-    .map((d) => path.join(USE_CASES_DIR, d))
+    .map((d) => path.join(CONTENT_DIR, d))
     .filter((d) => fs.statSync(d).isDirectory());
   for (const dir of catDirs) {
     const files = fs
       .readdirSync(dir)
-      .filter((f) => f.startsWith('uc-') && f.endsWith('.json'));
+      .filter((f) => f.startsWith('UC-') && f.endsWith('.json'));
     for (const file of files) {
       const full = path.join(dir, file);
       let data;
@@ -62,13 +70,13 @@ function collectUCsWithControlTest() {
       }
       const ct = data.controlTest;
       if (ct && typeof ct === 'object') {
-        const ucId = data.id || file.replace(/^uc-/, '').replace(/\.json$/, '');
+        const ucId = data.id || file.replace(/^UC-/i, '').replace(/\.json$/, '');
+        const techStrings = (s) => (typeof s === 'string' ? [s] : Array.isArray(s) ? s.filter((x) => typeof x === 'string') : []);
+        const ctTechs = techStrings(ct.attackTechnique).filter((t) => !NA_REF_RE.test(t));
+        const topTechs = techStrings(data.mitreAttack).filter((t) => !NA_REF_RE.test(t));
         results.set(ucId, {
           sidecar: path.relative(REPO, full),
-          hasAttack:
-            (typeof ct.attackTechnique === 'string' && ct.attackTechnique) ||
-            (Array.isArray(ct.attackTechnique) && ct.attackTechnique.length > 0) ||
-            (Array.isArray(data.mitreAttack) && data.mitreAttack.length > 0),
+          hasAttack: ctTechs.length > 0 || topTechs.length > 0,
         });
       }
     }

@@ -155,6 +155,9 @@ def _load_known_techniques() -> set[str]:
 # ---------------------------------------------------------------------------
 
 
+_NA_REF_RE = re.compile(r"^N/?A\s*\(.+\)\s*$", re.IGNORECASE)
+
+
 def _collect_uc_technique_refs(uc: dict) -> list[str]:
     """Return the list of ATT&CK technique IDs referenced by a UC,
     deduplicated and sorted, drawn from ``controlTest.attackTechnique``
@@ -162,6 +165,12 @@ def _collect_uc_technique_refs(uc: dict) -> list[str]:
 
     Non-string entries are silently dropped; they are caught elsewhere
     by ``audit_uc_structure`` / ``audit_compliance_mappings``.
+
+    The ``N/A (<reason>)`` convention is honoured for parity with
+    ``audit-mitre-taxonomy``: meta-detection / platform-health UCs that
+    legitimately have no adversary technique are allowed to write
+    ``N/A (<brief reason>)`` in ``mitreAttack``. Such entries are
+    dropped here so they do not show up as ``bad_technique_format``.
     """
     ids: set[str] = set()
 
@@ -180,7 +189,7 @@ def _collect_uc_technique_refs(uc: dict) -> list[str]:
             if isinstance(item, str):
                 ids.add(item.strip())
 
-    return sorted(i for i in ids if i)
+    return sorted(i for i in ids if i and not _NA_REF_RE.match(i))
 
 
 def _validate_technique_ids(refs: list[str], known: set[str]) -> tuple[list[str], list[str]]:
