@@ -304,7 +304,7 @@ Level 1: annual self-assessment with executive affirmation in SPRS. Level 2: tri
 - **NIST SP 800-172 Enhanced Security Requirements** — NIST — [https://csrc.nist.gov/publications/detail/sp/800-172/final](https://csrc.nist.gov/publications/detail/sp/800-172/final)
 - **DoD CMMC Program Documents** — DoD CIO — [https://dodcio.defense.gov/CMMC/](https://dodcio.defense.gov/CMMC/)
 - **Cyber AB CMMC Marketplace and Program Documents** — Cyber AB — [https://cyberab.org/](https://cyberab.org/)
-- **DFARS 252.204-7012 Safeguarding Covered Defense Information and Cyber Incident Reporting** — Office of the Under Secretary of Defense (Acquisition and Sustainment) — [https://www.acquisition.gov/dfars](https://www.acquisition.gov/dfars)
+- **DFARS 252.204-7012 Safeguarding Covered Defense Information and Cyber Incident Reporting** — Office of the Under Secretary of Defense (Acquisition and Sustainment) — [https://www.acquisition.gov/dfars/252.204-7012-safeguarding-covered-defense-information-and-cyber-incident-reporting](https://www.acquisition.gov/dfars/252.204-7012-safeguarding-covered-defense-information-and-cyber-incident-reporting)
 
 ## 9. Common audit deficiencies
 
@@ -426,7 +426,7 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-12"></a>**[12]** cyberab.org. *cyberab.org*. Retrieved May 11, 2026, from https://cyberab.org/
 
-<a id="ref-13"></a>**[13]** acquisition.gov. *acquisition.gov: Dfars*. Retrieved May 11, 2026, from https://www.acquisition.gov/dfars
+<a id="ref-13"></a>**[13]** acquisition.gov. *acquisition.gov: 252.204 7012 Safeguarding Covered Defense Information And Cyber Incident Reporting*. Retrieved May 11, 2026, from https://www.acquisition.gov/dfars/252.204-7012-safeguarding-covered-defense-information-and-cyber-incident-reporting
 
 </details>
 

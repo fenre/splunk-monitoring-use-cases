@@ -683,11 +683,11 @@ National competent authorities conduct risk-based supervision: essential entitie
 ## 8. Authoritative guidance
 
 - **Directive (EU) 2022/2555<sup class="ref">[<a href="#ref-1">1</a>]</sup> (NIS2)** — EU Council + Parliament — [https://eur-lex.europa.eu/eli/dir/2022/2555/oj](https://eur-lex.europa.eu/eli/dir/2022/2555/oj)
-- **ENISA NIS2 Implementation Guidance** — ENISA — [https://www.enisa.europa.eu/topics/cybersecurity-policy](https://www.enisa.europa.eu/topics/cybersecurity-policy)
+- **ENISA NIS2 Implementation Guidance** — ENISA — [https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive](https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive)
 - **Commission Implementing Regulation 2024/2690 on technical and methodological requirements** — European Commission — [https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj](https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj)
-- **National transposition trackers (e.g. Germany BSIG-E, Ireland NIS2 Bill 2024)** — Member state governments — [https://www.enisa.europa.eu/topics/cybersecurity-policy](https://www.enisa.europa.eu/topics/cybersecurity-policy)
+- **National transposition trackers (e.g. Germany BSIG-E, Ireland NIS2 Bill 2024)** — Member state governments — [https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive](https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive)
 - **ENISA NIS2 Technical Implementation Guidance** — ENISA — [https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance](https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance)
-- **Ireland NCSC draft NIS2 Risk Management Measures Guidance** — Ireland NCSC — [https://www.ncsc.gov.ie/](https://www.ncsc.gov.ie/)
+- **Ireland NCSC draft NIS2 Risk Management Measures Guidance** — Ireland NCSC — [https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf](https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf)
 
 ## 9. Common audit deficiencies
 
@@ -810,13 +810,13 @@ python3 scripts/generate_evidence_packs.py --check
 <details>
 <summary>Additional online sources cited in the document body (4)</summary>
 
-<a id="ref-14"></a>**[14]** enisa.europa.eu. *enisa.europa.eu: Cybersecurity Policy*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/cybersecurity-policy
+<a id="ref-14"></a>**[14]** enisa.europa.eu. *enisa.europa.eu: Networks And Information Systems Nis Directive*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive
 
 <a id="ref-15"></a>**[15]** eur-lex.europa.eu. *EUR-Lex: Oj*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj
 
 <a id="ref-16"></a>**[16]** enisa.europa.eu. *enisa.europa.eu: Nis2 Technical Implementation Guidance*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance
 
-<a id="ref-17"></a>**[17]** ncsc.gov.ie. *ncsc.gov.ie*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/
+<a id="ref-17"></a>**[17]** ncsc.gov.ie. *ncsc.gov.ie: Nis2 Risk Management Measures Guidance.Pdf*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf
 
 </details>
 

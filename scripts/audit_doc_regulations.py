@@ -245,22 +245,71 @@ def build_known_set() -> set[str]:
 
 # Regulations whose top-level clause/article space we know to be
 # bounded.  Used to flag obvious overshoots ("GDPR Article 124" — GDPR
-# ends at Article 99) for human review.  Be **extremely** conservative
-# — only encode boundaries that are widely cited.
-REGULATION_CLAUSE_BOUNDS: dict[str, tuple[str, int]] = {
-    # acronym -> (clause keyword, max index)
-    "GDPR": ("Article", 99),       # full text ends at Article 99
-    "UK-GDPR": ("Article", 99),
-    "NIS2": ("Article", 46),       # Directive (EU) 2022/2555, 46 articles
-    "DORA": ("Article", 64),       # Regulation (EU) 2022/2554, 64 articles
-    "CRA": ("Article", 71),        # EU Cyber Resilience Act, 71 articles
-    "AI-ACT": ("Article", 113),    # Regulation (EU) 2024/1689
+# ends at Article 99) for human review.
+#
+# Bound source for each is encoded in the inline comment so the
+# allowlist remains auditable.  Be conservative: when in doubt, set
+# the bound to the *highest* documented value rather than the
+# nominal one — false positives are expensive.
+#
+# Key shape: (acronym, clause-keyword) -> max-index.
+REGULATION_CLAUSE_BOUNDS: dict[tuple[str, str], int] = {
+    # EU regulations / directives — article-numbered.
+    ("GDPR", "article"): 99,        # Regulation (EU) 2016/679 ends at Art. 99
+    ("UK-GDPR", "article"): 99,     # UK GDPR mirrors EU GDPR article numbering
+    ("NIS2", "article"): 46,        # Directive (EU) 2022/2555 has 46 articles
+    ("NIS", "article"): 27,         # Directive (EU) 2016/1148 (NIS1) — 27 articles
+    ("DORA", "article"): 64,        # Regulation (EU) 2022/2554 — 64 articles
+    ("CRA", "article"): 71,         # Cyber Resilience Act (EU 2024/2847) — 71 articles
+    ("AI-ACT", "article"): 113,     # Regulation (EU) 2024/1689 — 113 articles
+    ("EU-AI-ACT", "article"): 113,
+    ("PSD2", "article"): 117,       # Directive (EU) 2015/2366 — 117 articles
+    ("MIFID-II", "article"): 97,    # Directive 2014/65/EU — 97 articles
+    ("MIFID2", "article"): 97,
+    ("MIFIR", "article"): 55,       # Regulation 600/2014 — 55 articles
+    ("EMIR", "article"): 89,        # Regulation 648/2012 — 89 articles
+    # PCI DSS 4.0 — 12 top-level requirements.
+    ("PCI", "requirement"): 12,
+    ("PCI-DSS", "requirement"): 12,
+    # HIPAA — Security Rule covers 45 CFR Part 164 Subpart C
+    # (164.302-164.318). The §164.NNN numbering is bounded at 164.534
+    # for the Privacy Rule and 164.318 for Security; using the broad
+    # 164.534 ceiling as a CFR ceiling.
+    # Skipped — the audit walks word-boundary numbers, not §164.NNN.
+    # SOC 2 (AICPA TSC) — Trust Services Criteria use CC / A / C / PI / P
+    # taxonomies, no flat clause index. Skipped.
+    # NIST SP 800-53 Rev 5 — 20 control families; encoded as the
+    # max numeric tail on AC-/AU-/CM-/... families isn't generally
+    # bound below 30, so we skip per-family ceilings here.
+    # ISO 27001:2022 — Annex A has 93 controls (5.x-8.x range).
+    # Splunk catalogues commonly cite A.5.1 through A.8.34; we
+    # cap at A.8.34. Encoded as ("ISO", "control") with max 8 (the
+    # top-level group), not the granular dotted form.
+    ("ISO27001", "control"): 8,
+    # NIST CSF 2.0 — 6 functions (GV, ID, PR, DE, RS, RC) but no
+    # numeric clause index suitable for a numeric ceiling. Skipped.
 }
 
-CLAUSE_REFERENCE_RE = re.compile(
-    r"\b(GDPR|UK-GDPR|NIS2|DORA|CRA|AI-ACT)\b\s+(?:Article|Art\.?)\s*(\d+)",
-    re.I,
-)
+# Match any documented (acronym, clause-keyword) pair followed by an
+# integer.  We allow both `Article N` and `Art. N` shorthand, and
+# permit a hyphen / space / non-breaking space between the acronym
+# and the keyword to absorb the various editorial styles found in
+# the corpus.
+def _build_clause_regex() -> re.Pattern[str]:
+    acronyms = {ac for ac, _ in REGULATION_CLAUSE_BOUNDS}
+    keywords = {kw for _, kw in REGULATION_CLAUSE_BOUNDS}
+    ac_alt = "|".join(sorted(re.escape(a) for a in acronyms))
+    kw_alt = "|".join(sorted(re.escape(k) for k in keywords))
+    return re.compile(
+        rf"\b(?P<acronym>{ac_alt})\b"
+        rf"[\s\-\u00a0:]*"
+        rf"(?P<keyword>{kw_alt})s?\.?\s*"
+        rf"(?P<num>\d+)",
+        re.I,
+    )
+
+
+CLAUSE_REFERENCE_RE = _build_clause_regex()
 
 
 def audit(docs: list[Path]) -> dict:
@@ -282,20 +331,21 @@ def audit(docs: list[Path]) -> dict:
             })
         # Clause-overshoot sweep
         for m in CLAUSE_REFERENCE_RE.finditer(prose):
-            acronym_canon = m.group(1).upper().replace("UK GDPR", "UK-GDPR")
-            num = int(m.group(2))
-            spec = REGULATION_CLAUSE_BOUNDS.get(acronym_canon)
-            if not spec:
+            acronym = m.group("acronym").upper()
+            keyword = m.group("keyword").lower()
+            num = int(m.group("num"))
+            max_idx = REGULATION_CLAUSE_BOUNDS.get((acronym, keyword))
+            if max_idx is None:
                 continue
-            keyword, max_idx = spec
             if num > max_idx:
                 line = prose.count("\n", 0, m.start()) + 1
                 clause_overshoots.append({
                     "path": p.relative_to(REPO).as_posix(),
                     "line": line,
-                    "regulation": acronym_canon,
-                    "clause": f"{keyword} {num}",
+                    "regulation": acronym,
+                    "clause": f"{keyword.title()} {num}",
                     "max_documented": max_idx,
+                    "raw": m.group(0),
                 })
     return {
         "_meta": {

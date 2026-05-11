@@ -52,22 +52,22 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`CC1.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC1.1) | Integrity and ethical values | 0.7 | `full` | [UC-22.8.36](#uc-22-8-36), [UC-22.8.9](#uc-22-8-9) |
-| [`CC2.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC2.1) | Internal communication | 0.7 | `contributing` | [UC-22.8.10](#uc-22-8-10), [UC-22.8.11](#uc-22-8-11), [UC-22.8.4](#uc-22-8-4), [UC-22.9.10](#uc-22-9-10) |
-| [`CC3.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC3.1) | Risk assessment | 1.0 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.8.12](#uc-22-8-12), [UC-22.8.19](#uc-22-8-19), [UC-22.8.23](#uc-22-8-23), [UC-22.9.9](#uc-22-9-9) |
-| [`CC5.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC5.1) | Control activities | 1.0 | `full` | [UC-22.47.1](#uc-22-47-1), [UC-22.8.15](#uc-22-8-15), [UC-22.9.8](#uc-22-9-8) |
-| [`CC6.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.1) | Logical access controls | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96), [UC-22.40.1](#uc-22-40-1), [UC-22.8.1](#uc-22-8-1), [UC-22.8.16](#uc-22-8-16) |
-| [`CC6.6`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.6) | Encryption in transit | 1.0 | `full` | [UC-17.1.44](#uc-17-1-44), [UC-22.11.91](#uc-22-11-91), [UC-22.8.18](#uc-22-8-18), [UC-22.8.31](#uc-22-8-31) |
-| [`CC6.7`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.7) | System boundaries and data transmission | 1.0 | `full` | [UC-22.8.32](#uc-22-8-32) |
-| [`CC7.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.1) | System operations monitoring | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101), [UC-22.11.104](#uc-22-11-104), [UC-22.12.40](#uc-22-12-40), [UC-22.6.49](#uc-22-6-49), [UC-22.8.1](#uc-22-8-1), [UC-22.8.33](#uc-22-8-33) |
-| [`CC7.2`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.2) | System monitoring for anomalies | 1.0 | `partial` | [UC-22.11.99](#uc-22-11-99), [UC-22.35.2](#uc-22-35-2), [UC-22.8.13](#uc-22-8-13), [UC-22.8.14](#uc-22-8-14), [UC-22.8.17](#uc-22-8-17), [UC-22.8.20](#uc-22-8-20) (+2 more) |
-| [`CC7.3`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.3) | Evaluated events and incidents | 1.0 | `full` | [UC-22.6.52](#uc-22-6-52), [UC-22.8.34](#uc-22-8-34) |
-| [`CC7.4`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.4) | Incident response | 1.0 | `full` | [UC-17.1.42](#uc-17-1-42), [UC-17.1.82](#uc-17-1-82), [UC-22.11.105](#uc-22-11-105), [UC-22.8.35](#uc-22-8-35), [UC-22.8.40](#uc-22-8-40) |
-| [`CC8.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC8.1) | Change management | 1.0 | `full` | [UC-22.11.92](#uc-22-11-92), [UC-22.11.95](#uc-22-11-95), [UC-22.12.38](#uc-22-12-38), [UC-22.12.39](#uc-22-12-39), [UC-22.42.1](#uc-22-42-1), [UC-22.6.55](#uc-22-6-55) (+2 more) |
-| [`CC9.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC9.1) | Risk mitigation activities | 0.7 | `full` | [UC-22.8.37](#uc-22-8-37) |
-| [`A1.2`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#A1.2) | Availability commitments | 0.7 | `full` | [UC-17.1.28](#uc-17-1-28), [UC-17.1.47](#uc-17-1-47), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.8.22](#uc-22-8-22), [UC-22.8.27](#uc-22-8-27) (+1 more) |
-| [`C1.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#C1.1) | Confidentiality | 0.7 | `full` | [UC-22.11.93](#uc-22-11-93), [UC-22.8.29](#uc-22-8-29), [UC-22.8.38](#uc-22-8-38) |
-| [`P1.1`](https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#P1.1) | Privacy notice | 0.4 | `full` | [UC-22.8.39](#uc-22-8-39) |
+| [`CC1.1`](https://www.aicpa-cima.com/tsc2017#CC1.1) | Integrity and ethical values | 0.7 | `full` | [UC-22.8.36](#uc-22-8-36), [UC-22.8.9](#uc-22-8-9) |
+| [`CC2.1`](https://www.aicpa-cima.com/tsc2017#CC2.1) | Internal communication | 0.7 | `contributing` | [UC-22.8.10](#uc-22-8-10), [UC-22.8.11](#uc-22-8-11), [UC-22.8.4](#uc-22-8-4), [UC-22.9.10](#uc-22-9-10) |
+| [`CC3.1`](https://www.aicpa-cima.com/tsc2017#CC3.1) | Risk assessment | 1.0 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.8.12](#uc-22-8-12), [UC-22.8.19](#uc-22-8-19), [UC-22.8.23](#uc-22-8-23), [UC-22.9.9](#uc-22-9-9) |
+| [`CC5.1`](https://www.aicpa-cima.com/tsc2017#CC5.1) | Control activities | 1.0 | `full` | [UC-22.47.1](#uc-22-47-1), [UC-22.8.15](#uc-22-8-15), [UC-22.9.8](#uc-22-9-8) |
+| [`CC6.1`](https://www.aicpa-cima.com/tsc2017#CC6.1) | Logical access controls | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96), [UC-22.40.1](#uc-22-40-1), [UC-22.8.1](#uc-22-8-1), [UC-22.8.16](#uc-22-8-16) |
+| [`CC6.6`](https://www.aicpa-cima.com/tsc2017#CC6.6) | Encryption in transit | 1.0 | `full` | [UC-17.1.44](#uc-17-1-44), [UC-22.11.91](#uc-22-11-91), [UC-22.8.18](#uc-22-8-18), [UC-22.8.31](#uc-22-8-31) |
+| [`CC6.7`](https://www.aicpa-cima.com/tsc2017#CC6.7) | System boundaries and data transmission | 1.0 | `full` | [UC-22.8.32](#uc-22-8-32) |
+| [`CC7.1`](https://www.aicpa-cima.com/tsc2017#CC7.1) | System operations monitoring | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101), [UC-22.11.104](#uc-22-11-104), [UC-22.12.40](#uc-22-12-40), [UC-22.6.49](#uc-22-6-49), [UC-22.8.1](#uc-22-8-1), [UC-22.8.33](#uc-22-8-33) |
+| [`CC7.2`](https://www.aicpa-cima.com/tsc2017#CC7.2) | System monitoring for anomalies | 1.0 | `partial` | [UC-22.11.99](#uc-22-11-99), [UC-22.35.2](#uc-22-35-2), [UC-22.8.13](#uc-22-8-13), [UC-22.8.14](#uc-22-8-14), [UC-22.8.17](#uc-22-8-17), [UC-22.8.20](#uc-22-8-20) (+2 more) |
+| [`CC7.3`](https://www.aicpa-cima.com/tsc2017#CC7.3) | Evaluated events and incidents | 1.0 | `full` | [UC-22.6.52](#uc-22-6-52), [UC-22.8.34](#uc-22-8-34) |
+| [`CC7.4`](https://www.aicpa-cima.com/tsc2017#CC7.4) | Incident response | 1.0 | `full` | [UC-17.1.42](#uc-17-1-42), [UC-17.1.82](#uc-17-1-82), [UC-22.11.105](#uc-22-11-105), [UC-22.8.35](#uc-22-8-35), [UC-22.8.40](#uc-22-8-40) |
+| [`CC8.1`](https://www.aicpa-cima.com/tsc2017#CC8.1) | Change management | 1.0 | `full` | [UC-22.11.92](#uc-22-11-92), [UC-22.11.95](#uc-22-11-95), [UC-22.12.38](#uc-22-12-38), [UC-22.12.39](#uc-22-12-39), [UC-22.42.1](#uc-22-42-1), [UC-22.6.55](#uc-22-6-55) (+2 more) |
+| [`CC9.1`](https://www.aicpa-cima.com/tsc2017#CC9.1) | Risk mitigation activities | 0.7 | `full` | [UC-22.8.37](#uc-22-8-37) |
+| [`A1.2`](https://www.aicpa-cima.com/tsc2017#A1.2) | Availability commitments | 0.7 | `full` | [UC-17.1.28](#uc-17-1-28), [UC-17.1.47](#uc-17-1-47), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1), [UC-22.8.22](#uc-22-8-22), [UC-22.8.27](#uc-22-8-27) (+1 more) |
+| [`C1.1`](https://www.aicpa-cima.com/tsc2017#C1.1) | Confidentiality | 0.7 | `full` | [UC-22.11.93](#uc-22-11-93), [UC-22.8.29](#uc-22-8-29), [UC-22.8.38](#uc-22-8-38) |
+| [`P1.1`](https://www.aicpa-cima.com/tsc2017#P1.1) | Privacy notice | 0.4 | `full` | [UC-22.8.39](#uc-22-8-39) |
 
 ### 4.1 Contributing UC detail
 
@@ -626,37 +626,37 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-13"></a>**[13]** aicpa-cima.com. *AICPA: Soc 2 Reporting On Controls At A Service Organization*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/cpe-learning/publication/soc-2-reporting-on-controls-at-a-service-organization
 
-<a id="ref-14"></a>**[14]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC1.1
+<a id="ref-14"></a>**[14]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC1.1
 
-<a id="ref-15"></a>**[15]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC2.1
+<a id="ref-15"></a>**[15]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC2.1
 
-<a id="ref-16"></a>**[16]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC3.1
+<a id="ref-16"></a>**[16]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC3.1
 
-<a id="ref-17"></a>**[17]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC5.1
+<a id="ref-17"></a>**[17]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC5.1
 
-<a id="ref-18"></a>**[18]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.1
+<a id="ref-18"></a>**[18]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC6.1
 
-<a id="ref-19"></a>**[19]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.6
+<a id="ref-19"></a>**[19]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC6.6
 
-<a id="ref-20"></a>**[20]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC6.7
+<a id="ref-20"></a>**[20]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC6.7
 
-<a id="ref-21"></a>**[21]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.1
+<a id="ref-21"></a>**[21]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC7.1
 
-<a id="ref-22"></a>**[22]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.2
+<a id="ref-22"></a>**[22]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC7.2
 
-<a id="ref-23"></a>**[23]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.3
+<a id="ref-23"></a>**[23]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC7.3
 
-<a id="ref-24"></a>**[24]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC7.4
+<a id="ref-24"></a>**[24]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC7.4
 
-<a id="ref-25"></a>**[25]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC8.1
+<a id="ref-25"></a>**[25]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC8.1
 
-<a id="ref-26"></a>**[26]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#CC9.1
+<a id="ref-26"></a>**[26]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#CC9.1
 
-<a id="ref-27"></a>**[27]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#A1.2
+<a id="ref-27"></a>**[27]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#A1.2
 
-<a id="ref-28"></a>**[28]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#C1.1
+<a id="ref-28"></a>**[28]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#C1.1
 
-<a id="ref-29"></a>**[29]** aicpa-cima.com. *AICPA: 2017 Trust Services Criteria*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/resources/landing/2017-trust-services-criteria#P1.1
+<a id="ref-29"></a>**[29]** aicpa-cima.com. *AICPA: Tsc2017*. Retrieved May 11, 2026, from https://www.aicpa-cima.com/tsc2017#P1.1
 
 </details>
 

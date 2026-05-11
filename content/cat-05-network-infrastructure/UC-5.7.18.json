@@ -11,7 +11,7 @@
   ],
   "splunkPillar": "Security",
   "dataSources": "`index=netflow` `sourcetype=netflow` or `stream:ipfix` with transport ports (`dest_port`, `src_port`, `protocol`), `bytes`, `packets`, `src`, `dest`; optional lookup `doh_providers.csv` listing resolver prefixes and well-known shared hosting autonomous-system notes for refinement.",
-  "app": "Splunk Add-on for NetFlow (Splunkbase 1759)",
+  "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-24h (protocol=6 OR upper(protocol)=\"TCP\")\n| eval svc=case(dest_port==853 OR src_port==853, \"PRIVATE_NAME_TLS\",\n              dest_port==443 AND packets>10 AND bytes>20480 AND bytes/packets<900, \"LIKELY_WEB_TUNNEL_HINT\",\n              dest_port==443, \"GENERIC_WEB\",\n              true(), \"OTHER\")\n| lookup doh_providers.csv dest OUTPUT provider_label\n| eval tunnel_label=case(isnotnull(provider_label), provider_label, svc==\"PRIVATE_NAME_TLS\", \"PORT853_UNLABELED\", svc==\"LIKELY_WEB_TUNNEL_HINT\", \"SMALL_PKT_WEB_HEURISTIC\", 1==1, null())\n| where isnotnull(tunnel_label)\n| stats sum(bytes) as bytes dc(src) as hosts dc(dest) as resolvers avg(bytes/packets) as avg_payload\n  by tunnel_label svc\n| eval mb=round(bytes/1048576,2)\n| sort -bytes\n| head 40",
   "description": "Segments flows likely carrying encrypted name lookups using resolver-side transport hints—standard ports for private-name-over-transport-security plus conservative World Wide Web port heuristics enriched by resolver catalogs.",
   "value": "Policy teams enforce approved resolver programs, incident responders differentiate covert channels from ordinary browsing volume, and privacy councils document proportionality when regulating encrypted resolution paths.",

@@ -320,7 +320,7 @@ QSAs conduct a Report on Compliance (ROC) annually for Level 1 merchants (>6M ca
 - **PCI DSS v4.0 Requirements and Testing Procedures** — PCI SSC — [https://www.pcisecuritystandards.org/document_library](https://www.pcisecuritystandards.org/document_library)
 - **PCI DSS v4.0 Report on Compliance (ROC) Reporting Template** — PCI SSC — [https://www.pcisecuritystandards.org/document_library](https://www.pcisecuritystandards.org/document_library)
 - **PCI SSC Penetration Testing Guidance** — PCI SSC — [https://www.pcisecuritystandards.org/document_library](https://www.pcisecuritystandards.org/document_library)
-- **PCI DSS v4.0 Summary of Changes** — PCI SSC — [https://www.pcisecuritystandards.org/document_library/](https://www.pcisecuritystandards.org/document_library/)
+- **PCI DSS v4.0 Summary of Changes** — PCI SSC — [https://www.pcisecuritystandards.org/documents/PCI-DSS-v4-0-Summary-of-Changes-r1.pdf](https://www.pcisecuritystandards.org/documents/PCI-DSS-v4-0-Summary-of-Changes-r1.pdf)
 - **PCI SSC Scoping and Segmentation Guidance** — PCI SSC — [https://www.pcisecuritystandards.org/document_library](https://www.pcisecuritystandards.org/document_library)
 
 ## 9. Common audit deficiencies
@@ -436,55 +436,57 @@ python3 scripts/generate_evidence_packs.py --check
 <a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <details>
-<summary>Additional online sources cited in the document body (24)</summary>
+<summary>Additional online sources cited in the document body (25)</summary>
 
 <a id="ref-11"></a>**[11]** pcisecuritystandards.org. *PCI SSC: Document Library*. Retrieved May 11, 2026, from https://www.pcisecuritystandards.org/document_library/
 
 <a id="ref-12"></a>**[12]** pcisecuritystandards.org. *PCI SSC: Document Library*. Retrieved May 11, 2026, from https://www.pcisecuritystandards.org/document_library
 
-<a id="ref-13"></a>**[13]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=1.2
+<a id="ref-13"></a>**[13]** pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0 Summary Of Changes R1.Pdf*. Retrieved May 11, 2026, from https://www.pcisecuritystandards.org/documents/PCI-DSS-v4-0-Summary-of-Changes-r1.pdf
 
-<a id="ref-14"></a>**[14]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=1.3
+<a id="ref-14"></a>**[14]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=1.2
 
-<a id="ref-15"></a>**[15]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=2.2
+<a id="ref-15"></a>**[15]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=1.3
 
-<a id="ref-16"></a>**[16]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.3
+<a id="ref-16"></a>**[16]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=2.2
 
-<a id="ref-17"></a>**[17]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.5
+<a id="ref-17"></a>**[17]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.3
 
-<a id="ref-18"></a>**[18]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=4.2
+<a id="ref-18"></a>**[18]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=3.5
 
-<a id="ref-19"></a>**[19]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=5.2
+<a id="ref-19"></a>**[19]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=4.2
 
-<a id="ref-20"></a>**[20]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.2
+<a id="ref-20"></a>**[20]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=5.2
 
-<a id="ref-21"></a>**[21]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.3
+<a id="ref-21"></a>**[21]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.2
 
-<a id="ref-22"></a>**[22]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=7.2
+<a id="ref-22"></a>**[22]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=6.3
 
-<a id="ref-23"></a>**[23]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.3
+<a id="ref-23"></a>**[23]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=7.2
 
-<a id="ref-24"></a>**[24]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.4
+<a id="ref-24"></a>**[24]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.3
 
-<a id="ref-25"></a>**[25]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.6
+<a id="ref-25"></a>**[25]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.4
 
-<a id="ref-26"></a>**[26]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2
+<a id="ref-26"></a>**[26]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.6
 
-<a id="ref-27"></a>**[27]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.3
+<a id="ref-27"></a>**[27]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2
 
-<a id="ref-28"></a>**[28]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.4
+<a id="ref-28"></a>**[28]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.3
 
-<a id="ref-29"></a>**[29]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.6
+<a id="ref-29"></a>**[29]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.4
 
-<a id="ref-30"></a>**[30]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.7
+<a id="ref-30"></a>**[30]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.6
 
-<a id="ref-31"></a>**[31]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.3
+<a id="ref-31"></a>**[31]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.7
 
-<a id="ref-32"></a>**[32]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.4
+<a id="ref-32"></a>**[32]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.3
 
-<a id="ref-33"></a>**[33]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.3
+<a id="ref-33"></a>**[33]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=11.4
 
-<a id="ref-34"></a>**[34]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.10
+<a id="ref-34"></a>**[34]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.3
+
+<a id="ref-35"></a>**[35]** listings.pcisecuritystandards.org. *PCI SSC: Pci Dss V4 0.Pdf*. Retrieved May 11, 2026, from https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=12.10
 
 </details>
 

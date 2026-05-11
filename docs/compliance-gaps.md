@@ -749,7 +749,7 @@ _FCA SS1/21 Operational Resilience_
 - Common clauses: **3**
 - Covered: **3** (100.00%)
 - Priority-weighted coverage: **100.00%** (3.0000 / 3.0000)
-- Authoritative source: https://www.fca.org.uk/publications/policy-statements/ps21-3-building-operational-resilience
+- Authoritative source: https://www.fca.org.uk/publication/policy/ps21-3.pdf
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -783,7 +783,7 @@ _Federal Risk and Authorization Management Program_
 - Common clauses: **3**
 - Covered: **3** (100.00%)
 - Priority-weighted coverage: **100.00%** (3.0000 / 3.0000)
-- Authoritative source: https://www.fedramp.gov/
+- Authoritative source: https://www.fedramp.gov/baselines/
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -832,7 +832,7 @@ _Gramm-Leach-Bliley Act — Safeguards Rule_
 - Common clauses: **3**
 - Covered: **3** (100.00%)
 - Priority-weighted coverage: **100.00%** (3.0000 / 3.0000)
-- Authoritative source: https://www.ecfr.gov/current/title-16/chapter-I/part-314
+- Authoritative source: https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -867,7 +867,7 @@ _HITRUST CSF_
 - Common clauses: **2**
 - Covered: **2** (100.00%)
 - Priority-weighted coverage: **100.00%** (2.0000 / 2.0000)
-- Authoritative source: https://hitrustalliance.net/product-tool/hitrust-csf/
+- Authoritative source: https://hitrustalliance.net/csf-overview/
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -883,7 +883,7 @@ _HKMA TM-G-2 General Principles for Technology Risk Management_
 - Common clauses: **1**
 - Covered: **1** (100.00%)
 - Priority-weighted coverage: **100.00%** (1.0000 / 1.0000)
-- Authoritative source: https://www.hkma.gov.hk/eng/
+- Authoritative source: https://www.hkma.gov.hk/eng/regulatory-resources/regulatory-guides/supervisory-policy-manual/
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -1016,7 +1016,7 @@ _UAE NESA Information Assurance Standards_
 - Common clauses: **4**
 - Covered: **4** (100.00%)
 - Priority-weighted coverage: **100.00%** (3.7000 / 3.7000)
-- Authoritative source: https://www.tra.gov.ae/en/about/sectors/security.aspx
+- Authoritative source: https://www.nesa.gov.ae/
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
@@ -1285,7 +1285,7 @@ _TSA Pipeline Security Directive_
 - Common clauses: **2**
 - Covered: **2** (100.00%)
 - Priority-weighted coverage: **100.00%** (2.0000 / 2.0000)
-- Authoritative source: https://www.tsa.gov/news
+- Authoritative source: https://www.tsa.gov/sd02c
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
