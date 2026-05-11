@@ -2,7 +2,7 @@
 
 > **Tier**: Tier 2 &nbsp;·&nbsp; **Jurisdiction**: UK &nbsp;·&nbsp; **Version**: `post-Brexit`
 >
-> **Full name**: UK General Data Protection Regulation
+> **Full name**: UK General Data Protection Regulation<sup class="ref">[<a href="#ref-2">2</a>]</sup>
 > **Authoritative source**: [https://www.legislation.gov.uk/eur/2016/679/contents](https://www.legislation.gov.uk/eur/2016/679/contents)
 > **Effective from**: 2021-01-01
 > **Derived from**: `gdpr` (`identity` inheritance) — see Phase 3.3
@@ -30,7 +30,7 @@
 
 ## 1. Purpose of this evidence pack
 
-UK GDPR is the United Kingdom's onshored version of Regulation (EU) 2016/679, adopted into domestic law under the European Union (Withdrawal) Act 2018 and amended by the Data Protection, Privacy and Electronic Communications (Amendments etc.) (EU Exit) Regulations 2019. It preserves the GDPR substantive regime intact while substituting UK bodies (ICO, UK government) for EU institutions. Sits alongside the Data Protection Act 2018 which provides the UK's detailed implementation framework.
+UK GDPR is the United Kingdom's onshored version of Regulation (EU) 2016/679, adopted into domestic law under the European Union (Withdrawal) Act 2018 and amended by the Data Protection, Privacy and Electronic Communications (Amendments etc.) (EU Exit) Regulations 2019. It preserves the GDPR substantive regime intact while substituting UK bodies (ICO, UK government) for EU institutions. Sits alongside the Data Protection Act 2018<sup class="ref">[<a href="#ref-1">1</a>]</sup> which provides the UK's detailed implementation framework.
 
 ## 2. Scope and applicability
 
@@ -162,7 +162,7 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.38.5.json`](../../content/cat-22-regulatory-compliance/UC-22.38.5.json)
 <a id='uc-22-39-1'></a>
-- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA)
+- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2<sup class="ref">[<a href="#ref-4">4</a>]</sup> / 72h GDPR / 72h HIPAA<sup class="ref">[<a href="#ref-12">12</a>]</sup>)
   - Control family: `ir-drill-evidence`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
@@ -210,7 +210,7 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.49.5.json`](../../content/cat-22-regulatory-compliance/UC-22.49.5.json)
 <a id='uc-22-8-39'></a>
-- **UC-22.8.39** — SOC 2 P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes
+- **UC-22.8.39** — SOC 2<sup class="ref">[<a href="#ref-3">3</a>]</sup> P1.1 — Privacy notice: consent-record freshness for privacy-notice version changes
   - Control family: `data-subject-request-lifecycle`
   - Owner: `DPO`
   - Evidence fields declared in sidecar: 1
@@ -225,7 +225,7 @@ Auditors typically request the following records when examining this regulation:
 - Same as GDPR, plus UK-specific entries:
 - PECR (Privacy and Electronic Communications Regulations) direct-marketing consent logs
 - ICO self-assessment tool outputs (ICO publishes structured self-assessment workbooks)
-- UK Cyber Essentials / Cyber Essentials Plus certification evidence (often bundled with UK GDPR assurance)
+- UK Cyber Essentials<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Cyber Essentials Plus certification evidence (often bundled with UK GDPR assurance)
 - NCSC (National Cyber Security Centre) incident-reporting records where a breach involves critical national infrastructure
 
 ### 5.2 Retention requirements
@@ -254,7 +254,7 @@ See cat-22.35 "Evidence continuity and log integrity" for UCs that implement the
 
 ## 6. Control testing procedures
 
-ICO exercises enforcement primarily through monetary-penalty notices (up to GBP 17.5 million or 4 % of worldwide turnover), enforcement notices, and assessment notices. External auditors typically align UK GDPR testing with ISO 27001, Cyber Essentials Plus, or ISAE 3000 assurance engagements. Unlike GDPR, UK regulators have been explicit that contemporaneous evidence of the detection-to-notification timeline will be scrutinised in any Art.33 enforcement review.
+ICO exercises enforcement primarily through monetary-penalty notices (up to GBP 17.5 million or 4 % of worldwide turnover), enforcement notices, and assessment notices. External auditors typically align UK GDPR testing with ISO 27001<sup class="ref">[<a href="#ref-5">5</a>]</sup>, Cyber Essentials Plus, or ISAE 3000 assurance engagements. Unlike GDPR, UK regulators have been explicit that contemporaneous evidence of the detection-to-notification timeline will be scrutinised in any Art.33 enforcement review.
 
 **Reporting cadence.** No mandatory certification cycle. Most organisations run an annual DPIA review cycle, a quarterly breach-drill, and continuous Article 30 updates. Cyber Essentials Plus re-certification is annual and is a common proxy for UK GDPR Art.32 technical-controls assurance.
 
@@ -362,3 +362,98 @@ python3 scripts/generate_evidence_packs.py --check
 ---
 
 **Licensed under the terms in [`LICENSE`](../../LICENSE).** This pack is provided for compliance-readiness and evidence-collection purposes. It does **not** constitute legal advice. Interpretation of clauses and applicability to a specific organisation requires counsel review. Retention figures are minimum defaults; organisation-specific schedules may extend.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Primary sources
+
+<a id="ref-1"></a>**[1]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+### Supporting sources
+
+<a id="ref-3"></a>**[3]** American Institute of Certified Public Accountants. (2017). *Trust Services Criteria (2017) for Security, Availability, Processing Integrity, Confidentiality, and Privacy*. AICPA & CIMA. SOC 2 / TSP Section 100. https://www.aicpa-cima.com/topic/audit-assurance/soc-suite-of-services
+
+<a id="ref-4"></a>**[4]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+
+<a id="ref-5"></a>**[5]** International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. ISO/IEC. ISO/IEC 27001:2022. https://www.iso.org/standard/27001
+
+<a id="ref-6"></a>**[6]** International Organization for Standardization. (2019). *ISO/IEC 27701:2019 — Privacy information management*. ISO/IEC. ISO/IEC 27701:2019. https://www.iso.org/standard/71670.html
+
+<a id="ref-7"></a>**[7]** National Cyber Security Centre (UK). (2025). *Cyber Essentials — Montpellier (2025)*. NCSC, IASME Consortium. https://www.ncsc.gov.uk/cyberessentials/overview
+
+<a id="ref-8"></a>**[8]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+
+<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-11"></a>**[11]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<details>
+<summary>Additional online sources cited in the document body (26)</summary>
+
+<a id="ref-13"></a>**[13]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/contents
+
+<a id="ref-14"></a>**[14]** ico.org.uk. *ico.org.uk: Uk Gdpr Guidance And Resources*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/
+
+<a id="ref-15"></a>**[15]** ico.org.uk. *ico.org.uk: Accountability Framework*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/accountability-framework/
+
+<a id="ref-16"></a>**[16]** ico.org.uk. *ico.org.uk: International Data Transfer Agreement And Guidance*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/international-data-transfer-agreement-and-guidance/
+
+<a id="ref-17"></a>**[17]** gov.uk. *gov.uk: Data A New Direction*. Retrieved May 11, 2026, from https://www.gov.uk/government/consultations/data-a-new-direction
+
+<a id="ref-18"></a>**[18]** legislation.gov.uk. *UK Legislation: 2025*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/ukpga/2025
+
+<a id="ref-19"></a>**[19]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.5
+
+<a id="ref-20"></a>**[20]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.6
+
+<a id="ref-21"></a>**[21]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.7
+
+<a id="ref-22"></a>**[22]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.15
+
+<a id="ref-23"></a>**[23]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.16
+
+<a id="ref-24"></a>**[24]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.17
+
+<a id="ref-25"></a>**[25]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.18
+
+<a id="ref-26"></a>**[26]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.20
+
+<a id="ref-27"></a>**[27]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.21
+
+<a id="ref-28"></a>**[28]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.22
+
+<a id="ref-29"></a>**[29]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.25
+
+<a id="ref-30"></a>**[30]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.28
+
+<a id="ref-31"></a>**[31]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.30
+
+<a id="ref-32"></a>**[32]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.32
+
+<a id="ref-33"></a>**[33]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.33
+
+<a id="ref-34"></a>**[34]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.34
+
+<a id="ref-35"></a>**[35]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.35
+
+<a id="ref-36"></a>**[36]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.44
+
+<a id="ref-37"></a>**[37]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.45
+
+<a id="ref-38"></a>**[38]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.46
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

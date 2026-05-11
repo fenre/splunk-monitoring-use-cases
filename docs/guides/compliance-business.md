@@ -142,7 +142,7 @@ last_updated: 2026-05-09
 | **CIO** | IT spend governance, FinOps showback / chargeback, ITGC traceability | `finops-cost-capacity.md`, `cloud-monitoring.md` |
 | **CFO** | Revenue / forecast accuracy, FP&A reconciliation, FinOps unit economics | `business-analytics.md`, `finops-cost-capacity.md` |
 | **CRO** | ERM heatmap with telemetry-derived KRIs / KCIs, residual risk dashboards | `regulatory-compliance-master.md` |
-| **DPO** | GDPR / UK GDPR / state privacy law DPIA evidence + DSAR fulfilment | `docs/evidence-packs/gdpr.md`, `docs/evidence-packs/uk-gdpr.md` |
+| **DPO** | GDPR<sup class="ref">[<a href="#ref-3">3</a>]</sup> / UK GDPR<sup class="ref">[<a href="#ref-14">14</a>]</sup> / state privacy law DPIA evidence + DSAR fulfilment | `docs/evidence-packs/gdpr.md`, `docs/evidence-packs/uk-gdpr.md` |
 | **Internal Audit (3LoD line 3)** | Workpaper-grade evidence + ITGC + IT4IT mapping | `service-management-itsm.md`, `docs/evidence-packs/sox-itgc.md` |
 | **External Auditor / 3PAO** | Continuous control monitoring + OSCAL + FedRAMP ConMon packages | `docs/evidence-packs/`, `docs/regulatory-primer.md` |
 | **Sustainability Lead (CSO)** | CSRD / ESRS / TCFD scope 1+2+3 telemetry-driven disclosure | `business-analytics.md` (cat-23.9 ESG section) |
@@ -158,7 +158,7 @@ last_updated: 2026-05-09
 3. **Clone the corresponding Evidence Packs** under `docs/evidence-packs/` for those frameworks.
 4. **First three detections enabled:**
    - UC-22.1.1 GDPR PII Detection in Application Log Data
-   - UC-22.8.1 SOC 2 Trust Services Criteria Continuous Control Monitoring
+   - UC-22.8.1 SOC 2 Trust Services Criteria<sup class="ref">[<a href="#ref-1">1</a>]</sup> Continuous Control Monitoring
    - UC-22.11.1 Scheduled Firewall Rule Review Evidence for CDE NSCs
 
 ### Week 2 — Cost & Spend Governance
@@ -395,19 +395,19 @@ rows.
 | GDPR | 50 | `docs/evidence-packs/gdpr.md` | Tier-1 |
 | UK GDPR | (subset of GDPR) | `docs/evidence-packs/uk-gdpr.md` | Tier-1 |
 | NIS2 | 57 | `docs/evidence-packs/nis2.md` | Tier-1 |
-| DORA | 40 | `docs/evidence-packs/dora.md` | Tier-1 |
+| DORA<sup class="ref">[<a href="#ref-4">4</a>]</sup> | 40 | `docs/evidence-packs/dora.md` | Tier-1 |
 | CCPA / CPRA | 25 | (state-privacy section) | Tier-2 |
 | PCI DSS 4.0 | 90 | `docs/evidence-packs/pci-dss.md` | Tier-1 |
-| HIPAA Security Rule | 55 | `docs/evidence-packs/hipaa-security.md` | Tier-1 |
+| HIPAA Security Rule<sup class="ref">[<a href="#ref-13">13</a>]</sup> | 55 | `docs/evidence-packs/hipaa-security.md` | Tier-1 |
 | SOX ITGC | 35 | `docs/evidence-packs/sox-itgc.md` | Tier-1 |
-| NIST CSF 2.0 | 50 | `docs/evidence-packs/nist-csf.md` | Tier-1 |
+| NIST CSF 2.0<sup class="ref">[<a href="#ref-8">8</a>]</sup> | 50 | `docs/evidence-packs/nist-csf.md` | Tier-1 |
 | NIST 800-53 r5 | 80 | `docs/evidence-packs/nist-800-53.md` | Tier-1 |
 | ISO 27001:2022 | 45 | `docs/evidence-packs/iso-27001.md` | Tier-1 |
 | SOC 2 Type II | 30 | `docs/evidence-packs/soc-2.md` | Tier-1 |
 | NERC CIP | 70 | (electric-sector pack) | Tier-2 |
 | ISA/IEC 62443 | 55 | (OT/ICS pack) | Tier-2 |
 | CMMC 2.0 | 20 | `docs/evidence-packs/cmmc.md` | Tier-1 |
-| EU AI Act | 25 | (AI governance pack) | Tier-2 |
+| EU AI Act<sup class="ref">[<a href="#ref-5">5</a>]</sup> | 25 | (AI governance pack) | Tier-2 |
 | Other (state privacy / regional / sector) | Various | (cross-cutting families 22.35-22.49) | Tier-3 |
 
 ### EU regimes — GDPR, NIS2, DORA, EU AI Act, CSRD
@@ -871,12 +871,12 @@ index=cmp_gdpr sourcetype="cmp:gdpr:dsar"
 ### Standards and frameworks (with stable URLs)
 
 - AICPA Trust Services Criteria — https://www.aicpa.org/
-- ISO/IEC 27001:2022 — https://www.iso.org/standard/27001
+- ISO/IEC 27001:2022<sup class="ref">[<a href="#ref-7">7</a>]</sup> — https://www.iso.org/standard/27001
 - ISO/IEC 27017 (cloud) + 27018 (PII clouds) + 27701 (PIMS)
 - HIPAA Security Rule — https://www.hhs.gov/hipaa/
 - PCI DSS 4.0 — https://www.pcisecuritystandards.org/
 - GDPR — https://gdpr.eu/
-- EU NIS2 Directive — https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+- EU NIS2 Directive<sup class="ref">[<a href="#ref-2">2</a>]</sup> — https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 - EU DORA — https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 - EU AI Act 2024/1689 — https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 - EU CSRD 2022/2464 + ESRS — https://eur-lex.europa.eu/eli/dir/2022/2464/oj
@@ -902,9 +902,9 @@ index=cmp_gdpr sourcetype="cmp:gdpr:dsar"
 
 ### Splunk documentation
 
-- Splunk Enterprise Security 8 — User Manual, Use Case Library, RBA
+- Splunk Enterprise Security<sup class="ref">[<a href="#ref-10">10</a>]</sup> 8 — User Manual, Use Case Library, RBA
 - Splunk SOAR — Playbook authoring, REST API
-- Splunk ITSI — Compliance service tree
+- Splunk ITSI<sup class="ref">[<a href="#ref-11">11</a>]</sup> — Compliance service tree
 - Splunk DB Connect — JDBC integration
 - Splunk Federated Search for Amazon S3 — long-term evidence retention
 - Splunk Edge Processor — field-level redaction at ingest
@@ -931,3 +931,108 @@ Last verified against:
 
 For corrections or additions, file an issue with `domain-compliance`,
 `cat-20`, `cat-22`, or `cat-23` labels.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** American Institute of Certified Public Accountants. (2017). *Trust Services Criteria (2017) for Security, Availability, Processing Integrity, Confidentiality, and Privacy*. AICPA & CIMA. SOC 2 / TSP Section 100. https://www.aicpa-cima.com/topic/audit-assurance/soc-suite-of-services
+
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+
+<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-4"></a>**[4]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
+
+<a id="ref-5"></a>**[5]** European Parliament and Council of the European Union. (2024, June). *Regulation (EU) 2024/1689 — EU Artificial Intelligence Act*. Official Journal of the European Union. ELI: reg/2024/1689. https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+
+<a id="ref-6"></a>**[6]** European Parliament and Council of the European Union. (2024, October). *Regulation (EU) 2024/2847 — Cyber Resilience Act*. Official Journal of the European Union. ELI: reg/2024/2847. https://eur-lex.europa.eu/eli/reg/2024/2847/oj
+
+<a id="ref-7"></a>**[7]** International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. ISO/IEC. ISO/IEC 27001:2022. https://www.iso.org/standard/27001
+
+<a id="ref-8"></a>**[8]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
+
+<a id="ref-9"></a>**[9]** Payment Card Industry Security Standards Council. (2022). *Payment Card Industry Data Security Standard v4.0* (v4.0). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-11"></a>**[11]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-13"></a>**[13]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<a id="ref-14"></a>**[14]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+
+<details>
+<summary>Additional online sources cited in the document body (28)</summary>
+
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase app #1928*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1928
+
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #2882*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2882
+
+<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
+
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #4055*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4055
+
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #2686*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2686
+
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #4105*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4105
+
+<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #3088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
+
+<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunkbase app #3457*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3457
+
+<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #3036*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3036
+
+<a id="ref-24"></a>**[24]** aicpa.org. *AICPA: standard*. Retrieved May 11, 2026, from https://www.aicpa.org/
+
+<a id="ref-25"></a>**[25]** hhs.gov. *U.S. HHS: Hipaa*. Retrieved May 11, 2026, from https://www.hhs.gov/hipaa/
+
+<a id="ref-26"></a>**[26]** pcisecuritystandards.org. *PCI SSC: document*. Retrieved May 11, 2026, from https://www.pcisecuritystandards.org/
+
+<a id="ref-27"></a>**[27]** gdpr.eu. *gdpr.eu*. Retrieved May 11, 2026, from https://gdpr.eu/
+
+<a id="ref-28"></a>**[28]** eur-lex.europa.eu. *EU Directive 2022/2464*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/dir/2022/2464/oj
+
+<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Rev 5*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-53/rev-5
+
+<a id="ref-30"></a>**[30]** fedramp.gov. *fedramp.gov*. Retrieved May 11, 2026, from https://www.fedramp.gov/
+
+<a id="ref-31"></a>**[31]** dodcio.defense.gov. *dodcio.defense.gov: Cmmc*. Retrieved May 11, 2026, from https://dodcio.defense.gov/CMMC/
+
+<a id="ref-32"></a>**[32]** coso.org. *coso.org*. Retrieved May 11, 2026, from https://www.coso.org/
+
+<a id="ref-33"></a>**[33]** coso.org. *coso.org: Erm*. Retrieved May 11, 2026, from https://www.coso.org/erm
+
+<a id="ref-34"></a>**[34]** isaca.org. *isaca.org: Cobit*. Retrieved May 11, 2026, from https://www.isaca.org/cobit
+
+<a id="ref-35"></a>**[35]** theiia.org. *theiia.org: Three Lines Model*. Retrieved May 11, 2026, from https://www.theiia.org/three-lines-model
+
+<a id="ref-36"></a>**[36]** axelos.com. *axelos.com: Itil*. Retrieved May 11, 2026, from https://www.axelos.com/best-practice-solutions/itil
+
+<a id="ref-37"></a>**[37]** finops.org. *finops.org: Framework*. Retrieved May 11, 2026, from https://www.finops.org/framework/
+
+<a id="ref-38"></a>**[38]** focus.finops.org. *focus.finops.org*. Retrieved May 11, 2026, from https://focus.finops.org/
+
+<a id="ref-39"></a>**[39]** opencost.io. *opencost.io*. Retrieved May 11, 2026, from https://www.opencost.io/
+
+<a id="ref-40"></a>**[40]** ghgprotocol.org. *ghgprotocol.org*. Retrieved May 11, 2026, from https://ghgprotocol.org/
+
+<a id="ref-41"></a>**[41]** fsb-tcfd.org. *fsb-tcfd.org*. Retrieved May 11, 2026, from https://www.fsb-tcfd.org/
+
+<a id="ref-42"></a>**[42]** ifrs.org. *ifrs.org: Issb*. Retrieved May 11, 2026, from https://www.ifrs.org/issb/
+
+</details>
+
+### Cited by
+
+- [`docs/nis2-monitoring-methodology.md`](../nis2-monitoring-methodology.md)
+
+<!-- END-AUTOGENERATED-SOURCES -->

@@ -36,7 +36,7 @@ Every architectural claim in this document is linked to a concrete file in the r
 
 The product is a curated, machine-readable, versioned catalog of IT monitoring and detection use cases, together with a static single-page web dashboard and a set of downstream integrations (Splunk TA, ITSI content pack, Enterprise Security content pack, OpenAPI feed, LLM-readable indices).
 
-The current scope is Splunk-native content: every use case carries a ready-to-run SPL query, CIM data model mappings where applicable, and a TA/App reference. The same information architecture, build pipeline, and runtime are deliberately designed to carry a non-Splunk payload (KQL for Sentinel, DQL for Datadog, SignalFlow for Splunk Observability Cloud, YARA-L for Chronicle) without structural changes; see [§14 Replication guide](#14-replication-guide).
+The current scope is Splunk-native content: every use case carries a ready-to-run SPL query, CIM data model mappings where applicable, and a TA/App reference. The same information architecture, build pipeline, and runtime are deliberately designed to carry a non-Splunk payload (KQL for Sentinel, DQL for Datadog, SignalFlow for Splunk Observability Cloud<sup class="ref">[<a href="#ref-11">11</a>]</sup>, YARA-L for Chronicle) without structural changes; see [§14 Replication guide](#14-replication-guide).
 
 The scope explicitly excludes:
 
@@ -404,7 +404,7 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 | [`audit_changelog_uc_refs.py`](../scripts/audit_changelog_uc_refs.py) | CHANGELOG version headers (shape, dates, ordering, uniqueness); UC references in markdown point at real UCs |
 | [`audit_repo_consistency.py`](../scripts/audit_repo_consistency.py) | `INDEX.md` / `content/` vs HTML; icons; Quick Start entries; `CAT_GROUPS` coverage |
 | [`audit_spl_hallucinations.py`](../scripts/audit_spl_hallucinations.py) | SPL commands, eval functions, `tstats` datamodel paths, unknown commands, `IN` wildcard misuse |
-| [`audit_splunkbase_ids.py`](../scripts/audit_splunkbase_ids.py) | Splunkbase app ID references cross-checked for consistent app naming |
+| [`audit_splunkbase_ids.py`](../scripts/audit_splunkbase_ids.py) | Splunkbase<sup class="ref">[<a href="#ref-12">12</a>]</sup> app ID references cross-checked for consistent app naming |
 | [`audit_links.py`](../scripts/audit_links.py) | HTTP HEAD every external URL; report broken |
 | [`audit_quality_metadata.py`](../scripts/audit_quality_metadata.py) (v5.1+) | Coverage % of `Status:`, `Last reviewed:`, `Splunk versions:`, `Reviewer:`, `References:`, `Known false positives:` |
 | [`audit_splunk_cloud_compat.py`](../scripts/audit_splunk_cloud_compat.py) (v6.0) | Flags SPL commands restricted on Splunk Cloud |
@@ -438,7 +438,7 @@ Post-merge, `pages.yml` publishes `dist/` to GitHub Pages.
 | `traffic.yml` | daily cron | Persist GitHub traffic stats for long-term analysis |
 | `uc-manifest.yml` | push to main | Rebuild the UC summary manifest for internal consumers |
 | `link-check.yml` (v5.1+) | weekly cron | Run `audit_links.py`; open an Issue on new breakage |
-| ~~`appinspect.yml`~~ | ~~PR~~ | ~~Validate generated `.spl` against Splunk AppInspect~~ (planned, not yet implemented) |
+| ~~`appinspect.yml`~~ | ~~PR~~ | ~~Validate generated `.spl` against Splunk AppInspect<sup class="ref">[<a href="#ref-5">5</a>]</sup>~~ (planned, not yet implemented) |
 | `uc-tests.yml` (v6.0) | PR (static) + nightly (dynamic) | Run `scripts/run_uc_tests.py` |
 | `release.yml` (v5.2+) | tag push | Publish `.spl` artefacts to the GitHub Release |
 
@@ -472,7 +472,7 @@ All four are generated from `catalog.json` by scripts under [`scripts/`](../scri
 - **HTTP GET `catalog.json`** — full catalog (~40 MB). Suitable for bulk offline processing; cache aggressively.
 - **`git clone` + `make build`** — reproduce `dist/` locally; use when changing parsers, renderers, or emitted APIs.
 - **`git clone` + `pip install openapi-generator-cli` + codegen** — the OpenAPI 3.1 spec at `openapi.yaml` (rendered at [`/api-docs.html`](../api-docs.html)) means typed client code is a single `openapi-generator-cli generate -i openapi.yaml -g <lang>` away.
-- **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (ten tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
+- **`pip install -e mcp/` + MCP-capable client** — the Phase 6 Model Context Protocol<sup class="ref">[<a href="#ref-1">1</a>]</sup> server at [`mcp/`](../mcp/) wraps `api/v1/*.json` in an LLM-addressable surface (ten tools + four URI schemes) for Cursor, Claude Desktop, Claude Code, and any other MCP-compatible agent.
 
 ### 9.4 MCP server (Phase 6)
 
@@ -653,7 +653,7 @@ This section shows how to stand up the same product for a different content doma
 
 ### 14.1 Swap the content domain
 
-To replicate for **Microsoft Sentinel analytic rules** (KQL):
+To replicate for **Microsoft Sentinel<sup class="ref">[<a href="#ref-3">3</a>]</sup> analytic rules** (KQL):
 
 1. Keep the JSON schema fields. Swap `splQuery` (or equivalent) payloads from SPL to KQL in each `UC-*.json`.
 2. Replace equipment / connector maps in the shared metadata the parser loads so tags reflect Sentinel data sources.
@@ -758,3 +758,83 @@ The product is designed to be extended without forking the parser. These are the
 | Add an MCP URI scheme | [`mcp/src/splunk_uc_mcp/resources/`](../mcp/src/splunk_uc_mcp/resources/) | Add slug regex + resolver; register in `server.py`; add tests. Keep read-only and path-traversal-safe. |
 
 This list is exhaustive for the purpose of adding content, automations, or exports. Anything beyond it needs an ADR.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** Anthropic, et al. (2026). *Model Context Protocol Specification*. Anthropic PBC. Retrieved May 11, 2026, from https://modelcontextprotocol.io/
+
+<a id="ref-2"></a>**[2]** Bray, T. (Ed.). (2017, December). *The JavaScript Object Notation (JSON) Data Interchange Format*. Internet Engineering Task Force. RFC 8259 / STD 90. https://www.rfc-editor.org/rfc/rfc8259
+
+<a id="ref-3"></a>**[3]** Microsoft Corporation. (2026). *Microsoft Sentinel Documentation*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/sentinel/
+
+<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk Cloud Platform Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+
+<a id="ref-8"></a>**[8]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
+
+<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-11"></a>**[11]** Splunk Inc. (2026). *Splunk Observability Cloud Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/
+
+<a id="ref-12"></a>**[12]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+
+<details>
+<summary>Additional online sources cited in the document body (6)</summary>
+
+<a id="ref-13"></a>**[13]** llmstxt.org. *llms.txt convention*. Retrieved May 11, 2026, from https://llmstxt.org/
+
+<a id="ref-14"></a>**[14]** adr.github.io. *MADR*. Retrieved May 11, 2026, from https://adr.github.io/madr/
+
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Security Essentials*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3435
+
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk Enterprise Security*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/263
+
+<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *IT Service Intelligence*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1841
+
+<a id="ref-18"></a>**[18]** pypi.org. *pypi.org: Mcp*. Retrieved May 11, 2026, from https://pypi.org/project/mcp/
+
+</details>
+
+### Related repository documents
+
+- [`GOVERNANCE.md`](../GOVERNANCE.md)
+- [`docs/adr/0001-markdown-as-source-of-truth.md`](adr/0001-markdown-as-source-of-truth.md)
+- [`docs/adr/0002-static-single-page-app.md`](adr/0002-static-single-page-app.md)
+- [`docs/adr/0003-single-catalog-json-plus-per-category-api.md`](adr/0003-single-catalog-json-plus-per-category-api.md)
+- [`docs/adr/0004-python-stdlib-only.md`](adr/0004-python-stdlib-only.md)
+- [`docs/adr/0005-uc-id-x-y-z-scheme.md`](adr/0005-uc-id-x-y-z-scheme.md)
+- [`docs/adr/0006-single-file-design-doc.md`](adr/0006-single-file-design-doc.md)
+- [`docs/adr/0007-json-as-source-of-truth.md`](adr/0007-json-as-source-of-truth.md)
+- [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
+- [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
+- [`docs/architecture.md`](architecture.md)
+- [`docs/catalog-schema.md`](catalog-schema.md)
+- [`docs/implementation-ordering.md`](implementation-ordering.md)
+- [`docs/replication-guide.md`](replication-guide.md)
+- [`docs/use-case-fields.md`](use-case-fields.md)
+
+### Cited by
+
+- [`README.md`](../README.md)
+- [`docs/adr/0002-static-single-page-app.md`](adr/0002-static-single-page-app.md)
+- [`docs/adr/0003-single-catalog-json-plus-per-category-api.md`](adr/0003-single-catalog-json-plus-per-category-api.md)
+- [`docs/adr/0006-single-file-design-doc.md`](adr/0006-single-file-design-doc.md)
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/replication-guide.md`](replication-guide.md)
+
+<!-- END-AUTOGENERATED-SOURCES -->

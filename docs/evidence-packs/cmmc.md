@@ -29,11 +29,11 @@
 
 ## 1. Purpose of this evidence pack
 
-Cybersecurity Maturity Model Certification 2.0 is the US Department of Defense framework for protecting Federal Contract Information (FCI) and Controlled Unclassified Information (CUI) in the Defense Industrial Base (DIB). CMMC 2.0 (revised October 2021, final rule 32 CFR Part 170 published 15 October 2024, effective 16 December 2024) replaces the five-level CMMC 1.0 with three levels: Level 1 (Foundational, FCI only), Level 2 (Advanced, CUI), Level 3 (Expert, highest-priority programs). Independent third-party assessments (C3PAOs) perform Level 2 certifications; DoD DIBCAC performs Level 3.
+Cybersecurity Maturity Model Certification 2.0 is the US Department of Defense framework for protecting Federal Contract Information (FCI) and Controlled Unclassified Information (CUI) in the Defense Industrial Base (DIB). CMMC<sup class="ref">[<a href="#ref-1">1</a>]</sup> 2.0 (revised October 2021, final rule 32 CFR Part 170 published 15 October 2024, effective 16 December 2024) replaces the five-level CMMC 1.0 with three levels: Level 1 (Foundational, FCI only), Level 2 (Advanced, CUI), Level 3 (Expert, highest-priority programs). Independent third-party assessments (C3PAOs) perform Level 2 certifications; DoD DIBCAC performs Level 3.
 
 ## 2. Scope and applicability
 
-All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic safeguarding practices from FAR 52.204-21. Level 2: 110 practices derived from NIST SP 800-171 Rev. 2. Level 3: 110 Level-2 practices plus enhanced NIST SP 800-172 controls.
+All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic safeguarding practices from FAR 52.204-21. Level 2: 110 practices derived from NIST SP 800-171<sup class="ref">[<a href="#ref-4">4</a>]</sup> Rev. 2. Level 3: 110 Level-2 practices plus enhanced NIST SP 800-172 controls.
 
 **Territorial scope.** DoD contract scope globally; any organisation in the DIB supply chain regardless of country of registration.
 
@@ -71,7 +71,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [`content/cat-10-security-infrastructure/UC-10.12.40.json`](../../content/cat-10-security-infrastructure/UC-10.12.40.json)
 <a id='uc-17-1-43'></a>
-- **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
+- **UC-17.1.43** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> TACACS+ Device Administration — Privileged Command Auditing
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
@@ -266,7 +266,7 @@ Auditors typically request the following records when examining this regulation:
 | SPRS score submission records | 6 years | NIST SP 800-171A; DFARS 252.204-7019 |
 | Subcontractor CMMC attestations | Duration of subcontract + 6 years | DFARS 252.204-7021 |
 
-> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
+> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR<sup class="ref">[<a href="#ref-3">3</a>]</sup> Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
 
 ### 5.3 Evidence integrity expectations
 
@@ -313,7 +313,7 @@ Findings frequently cited by regulators, certification bodies, and external audi
 - SSP references NIST 800-171 practices but implementation evidence does not satisfy NIST SP 800-171A assessment objectives.
 - POA&M items exceed the 180-day remediation window without explicit DoD approval for extended timelines.
 - SPRS score submission is stale (> 3 years) or based on self-assessment claims not supported by artefacts.
-- Cloud services in scope use FedRAMP 'Ready' (not Authorised) or commercial cloud without FedRAMP Moderate equivalence.
+- Cloud services in scope use FedRAMP<sup class="ref">[<a href="#ref-8">8</a>]</sup> 'Ready' (not Authorised) or commercial cloud without FedRAMP Moderate equivalence.
 - Subcontractor flow-down is contractually present but no evidence of actual CMMC-level verification exists.
 - CUI-markings on physical and digital artefacts are inconsistent; data that should be marked CUI is handled as non-CUI.
 
@@ -386,3 +386,48 @@ python3 scripts/generate_evidence_packs.py --check
 ---
 
 **Licensed under the terms in [`LICENSE`](../../LICENSE).** This pack is provided for compliance-readiness and evidence-collection purposes. It does **not** constitute legal advice. Interpretation of clauses and applicability to a specific organisation requires counsel review. Retention figures are minimum defaults; organisation-specific schedules may extend.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Primary sources
+
+<a id="ref-1"></a>**[1]** U.S. Department of Defense. (2024). *Cybersecurity Maturity Model Certification (CMMC) 2.0* (2.0). Office of the Under Secretary of Defense for Acquisition and Sustainment. https://dodcio.defense.gov/CMMC/
+
+### Supporting sources
+
+<a id="ref-2"></a>**[2]** Cisco Systems, Inc. (2026). *Cisco Identity Services Engine (ISE) Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/series.html
+
+<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-4"></a>**[4]** National Institute of Standards and Technology. (2024). *Protecting Controlled Unclassified Information in Nonfederal Systems and Organizations* (Revision 3). U.S. Department of Commerce. NIST SP 800-171 Rev. 3. https://csrc.nist.gov/pubs/sp/800/171/r3/final
+
+<a id="ref-5"></a>**[5]** National Institute of Standards and Technology. (2020). *Security and Privacy Controls for Information Systems and Organizations* (Revision 5). U.S. Department of Commerce. NIST SP 800-53 Rev. 5. https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-8"></a>**[8]** U.S. General Services Administration / FedRAMP PMO. (2023). *FedRAMP Security Controls Baseline, Rev. 5* (Rev. 5). FedRAMP Program Management Office. https://www.fedramp.gov/rev5/baselines/
+
+<details>
+<summary>Additional online sources cited in the document body (5)</summary>
+
+<a id="ref-9"></a>**[9]** ecfr.gov. *ecfr.gov: Part 170*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-32/subtitle-A/chapter-I/subchapter-M/part-170
+
+<a id="ref-10"></a>**[10]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-171/rev-2/final
+
+<a id="ref-11"></a>**[11]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-172/final
+
+<a id="ref-12"></a>**[12]** cyberab.org. *cyberab.org*. Retrieved May 11, 2026, from https://cyberab.org/
+
+<a id="ref-13"></a>**[13]** acquisition.gov. *acquisition.gov: 252.204 7012 Safeguarding Covered Defense Information And Cyber Incident Reporting*. Retrieved May 11, 2026, from https://www.acquisition.gov/dfars/252.204-7012-safeguarding-covered-defense-information-and-cyber-incident-reporting
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

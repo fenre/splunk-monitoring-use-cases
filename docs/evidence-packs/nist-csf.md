@@ -2,7 +2,7 @@
 
 > **Tier**: Tier 1 &nbsp;·&nbsp; **Jurisdiction**: US, GLOBAL &nbsp;·&nbsp; **Version**: `2.0`
 >
-> **Full name**: NIST Cybersecurity Framework
+> **Full name**: NIST Cybersecurity Framework<sup class="ref">[<a href="#ref-1">1</a>]</sup>
 > **Authoritative source**: [https://www.nist.gov/cyberframework](https://www.nist.gov/cyberframework)
 > **Effective from**: 2024-02-26
 
@@ -33,7 +33,7 @@ NIST Cybersecurity Framework 2.0 (released 26 February 2024) is a voluntary fram
 
 ## 2. Scope and applicability
 
-Any organisation seeking a structured, outcome-focused approach to cybersecurity. Not a certification. Often used as a baseline for gap analysis against sector-specific regulations (e.g. HIPAA, NYDFS 23 NYCRR 500).
+Any organisation seeking a structured, outcome-focused approach to cybersecurity. Not a certification. Often used as a baseline for gap analysis against sector-specific regulations (e.g. HIPAA<sup class="ref">[<a href="#ref-12">12</a>]</sup>, NYDFS 23 NYCRR 500).
 
 **Territorial scope.** Global adoption (US origin); frequently translated into national variants (Japan's J-CSIP profile, Italy's Framework Nazionale).
 
@@ -201,11 +201,11 @@ Auditors typically request the following records when examining this regulation:
 |---|---|---|
 | Framework Profile (Current + Target) | Indefinite — core enterprise artefact | NIST CSF 2.0 Framework Core section |
 | Risk-assessment results per Identify function | 3-7 years depending on sector regulation | NIST SP 800-30, SP 800-39 |
-| Detect-function evidence (SIEM/EDR alerts with triage outcome) | 12 months minimum; 3-7 years for regulated industries | NIST SP 800-92 |
-| Respond-function evidence (incident tickets, after-action reviews) | 3-7 years depending on sector | NIST SP 800-61 |
+| Detect-function evidence (SIEM/EDR alerts with triage outcome) | 12 months minimum; 3-7 years for regulated industries | NIST SP 800-92<sup class="ref">[<a href="#ref-7">7</a>]</sup> |
+| Respond-function evidence (incident tickets, after-action reviews) | 3-7 years depending on sector | NIST SP 800-61<sup class="ref">[<a href="#ref-5">5</a>]</sup> |
 | Improvement actions tied to Subcategory gaps | 3 years rolling | NIST CSF 2.0 guidance |
 
-> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
+> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR<sup class="ref">[<a href="#ref-3">3</a>]</sup> Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
 
 ### 5.3 Evidence integrity expectations
 
@@ -269,7 +269,7 @@ These are the questions a regulator, certification body, or external auditor is 
 - Produce your Framework Current Profile and Target Profile; demonstrate the last gap-analysis and improvement backlog.
 - For each of the six Functions (Govern, Identify, Protect, Detect, Respond, Recover), show evidence of at least one Subcategory operating in the last quarter.
 - Demonstrate how NIST CSF outcomes feed into the organisation's enterprise-risk-management register (Govern function).
-- Produce the Organizational Profile that lists informative references (NIST SP 800-53, ISO 27001, CIS Controls) used for implementation.
+- Produce the Organizational Profile that lists informative references (NIST SP 800-53<sup class="ref">[<a href="#ref-8">8</a>]</sup>, ISO 27001<sup class="ref">[<a href="#ref-4">4</a>]</sup>, CIS Controls) used for implementation.
 - For Respond and Recover, produce the last incident the organisation experienced and trace it through the framework outcomes.
 - Show evidence that supply-chain cybersecurity (GV.SC, ID.SC) is addressed, including third-party risk-assessments.
 - Demonstrate how Implementation Tier has changed over the last 12-24 months (maturity progression).
@@ -322,3 +322,88 @@ python3 scripts/generate_evidence_packs.py --check
 ---
 
 **Licensed under the terms in [`LICENSE`](../../LICENSE).** This pack is provided for compliance-readiness and evidence-collection purposes. It does **not** constitute legal advice. Interpretation of clauses and applicability to a specific organisation requires counsel review. Retention figures are minimum defaults; organisation-specific schedules may extend.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Primary sources
+
+<a id="ref-1"></a>**[1]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
+
+### Supporting sources
+
+<a id="ref-2"></a>**[2]** Center for Internet Security. (2021). *CIS Critical Security Controls v8* (v8). https://www.cisecurity.org/controls
+
+<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-4"></a>**[4]** International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. ISO/IEC. ISO/IEC 27001:2022. https://www.iso.org/standard/27001
+
+<a id="ref-5"></a>**[5]** National Institute of Standards and Technology. (2012). *Computer Security Incident Handling Guide* (Revision 2). U.S. Department of Commerce. NIST SP 800-61 Rev. 2. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/61/r2/final
+
+<a id="ref-6"></a>**[6]** National Institute of Standards and Technology. (2018). *Cybersecurity Framework (CSF) 1.1* (1.1). U.S. Department of Commerce. https://www.nist.gov/cyberframework/framework
+
+<a id="ref-7"></a>**[7]** National Institute of Standards and Technology. (2006). *Guide to Computer Security Log Management*. U.S. Department of Commerce. NIST SP 800-92. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/92/final
+
+<a id="ref-8"></a>**[8]** National Institute of Standards and Technology. (2020). *Security and Privacy Controls for Information Systems and Organizations* (Revision 5). U.S. Department of Commerce. NIST SP 800-53 Rev. 5. https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
+
+<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-11"></a>**[11]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<details>
+<summary>Additional online sources cited in the document body (21)</summary>
+
+<a id="ref-13"></a>**[13]** csrc.nist.gov. *NIST: Filters*. Retrieved May 11, 2026, from https://csrc.nist.gov/Projects/cybersecurity-framework/Filters
+
+<a id="ref-14"></a>**[14]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework/implementation
+
+<a id="ref-15"></a>**[15]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-221A/final
+
+<a id="ref-16"></a>**[16]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework/community-profiles
+
+<a id="ref-17"></a>**[17]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01
+
+<a id="ref-18"></a>**[18]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01
+
+<a id="ref-19"></a>**[19]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01
+
+<a id="ref-20"></a>**[20]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01
+
+<a id="ref-21"></a>**[21]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01
+
+<a id="ref-22"></a>**[22]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01
+
+<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05
+
+<a id="ref-24"></a>**[24]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01
+
+<a id="ref-25"></a>**[25]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02
+
+<a id="ref-26"></a>**[26]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04
+
+<a id="ref-27"></a>**[27]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02
+
+<a id="ref-28"></a>**[28]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01
+
+<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03
+
+<a id="ref-30"></a>**[30]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09
+
+<a id="ref-31"></a>**[31]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01
+
+<a id="ref-32"></a>**[32]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RS.AN-03
+
+<a id="ref-33"></a>**[33]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RC.RP-01
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

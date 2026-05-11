@@ -159,7 +159,7 @@ last_updated: 2026-05-09
 
 | Audience | What you get from this guide | Where to go for depth |
 |---|---|---|
-| **CISO / Security Director** | Programme sequencing, capacity model, MITRE ATT&CK coverage scorecard, evidence-pack mapping for 25+ frameworks | `regulatory-compliance-master.md`, `docs/evidence-packs/` |
+| **CISO / Security Director** | Programme sequencing, capacity model, MITRE ATT&CK<sup class="ref">[<a href="#ref-7">7</a>]</sup> coverage scorecard, evidence-pack mapping for 25+ frameworks | `regulatory-compliance-master.md`, `docs/evidence-packs/` |
 | **SOC Architect** | Domain-bridging architecture, ingestion ordering, RBA anchor, Splunk ES + ESCU + SOAR + ITSI integration | Per-product guides cited inline |
 | **Threat Hunter** | MITRE ATT&CK technique → UC mapping, hunt patterns, SPL examples for cross-vendor correlation | `siem-soar.md`, `edr.md` |
 | **Detection Engineer** | UC-level wiring of cat-9 + cat-10 + cat-17, ESCU lifecycle, CIM normalisation contract | `siem-soar.md`, `cisco-ise.md`, `edr.md`, `ngfw-security.md`, `email-security.md`, `web-security.md` |
@@ -783,7 +783,7 @@ Highlights:
 - Vulnerability Management correlation with reachability (10.6.x)
 - Email DMARC / DKIM / SPF alignment (10.4.x DMARC subset)
 - Web Security policy enforcement (10.5.x)
-- Splunk SOAR playbook execution monitoring (10.7.4)
+- Splunk SOAR<sup class="ref">[<a href="#ref-13">13</a>]</sup> playbook execution monitoring (10.7.4)
 
 ### Run tier (50 UCs — month 7+)
 
@@ -857,12 +857,12 @@ slice** of the compliance evidence catalogue.
 |---|---|---|
 | SOC 2 Type II | `docs/evidence-packs/soc-2.md` | 9.x, 10.7.x, 17.1.x, 17.2.x |
 | ISO 27001:2022 | `docs/evidence-packs/iso-27001.md` | All cat-9, cat-10, cat-17 |
-| HIPAA Security Rule | `docs/evidence-packs/hipaa-security.md` | 9.1.x, 9.4.x, 10.3.x, 10.6.x |
+| HIPAA Security Rule<sup class="ref">[<a href="#ref-16">16</a>]</sup> | `docs/evidence-packs/hipaa-security.md` | 9.1.x, 9.4.x, 10.3.x, 10.6.x |
 | PCI DSS 4.0 | `docs/evidence-packs/pci-dss.md` | 10.1.x, 10.3.x, 10.7.x, 17.x |
-| GDPR | `docs/evidence-packs/gdpr.md` | 9.x, 10.4.x DLP |
-| UK GDPR | `docs/evidence-packs/uk-gdpr.md` | Mirror GDPR set |
-| NIS2 | `docs/evidence-packs/nis2.md` | 9.x, 10.7.x, 17.x; supply chain 10.6.x |
-| DORA | `docs/evidence-packs/dora.md` | 10.7.x, 10.16.x; TLPT 10.x.x.x |
+| GDPR<sup class="ref">[<a href="#ref-5">5</a>]</sup> | `docs/evidence-packs/gdpr.md` | 9.x, 10.4.x DLP |
+| UK GDPR<sup class="ref">[<a href="#ref-17">17</a>]</sup> | `docs/evidence-packs/uk-gdpr.md` | Mirror GDPR set |
+| NIS2<sup class="ref">[<a href="#ref-4">4</a>]</sup> | `docs/evidence-packs/nis2.md` | 9.x, 10.7.x, 17.x; supply chain 10.6.x |
+| DORA<sup class="ref">[<a href="#ref-6">6</a>]</sup> | `docs/evidence-packs/dora.md` | 10.7.x, 10.16.x; TLPT 10.x.x.x |
 | CMMC 2.0 | `docs/evidence-packs/cmmc.md` | All controls inheriting from NIST 800-171 r3 |
 | NIST CSF 2.0 | `docs/evidence-packs/nist-csf.md` | All cat-9, cat-10, cat-17 |
 | NIST 800-53 r5 | `docs/evidence-packs/nist-800-53.md` | AC, AU, CA, CM, IA, IR, RA, SC, SI families |
@@ -1078,10 +1078,10 @@ the **inventory and trigger map**, not the implementation.
 
 ### Splunk documentation
 
-- Splunk Enterprise Security 8 — User Manual, Use Case Library, RBA setup
+- Splunk Enterprise Security<sup class="ref">[<a href="#ref-1">1</a>]</sup> 8 — User Manual, Use Case Library, RBA setup
 - Splunk Enterprise Security Content Updates (ESCU) — Release notes, Detection list
 - Splunk SOAR — Playbook authoring, REST API
-- Splunk Common Information Model (CIM) Add-on — Authentication, Network_Traffic, Intrusion_Detection, Malware, Change, Vulnerabilities data models
+- Splunk Common Information Model<sup class="ref">[<a href="#ref-2">2</a>]</sup> (CIM) Add-on — Authentication, Network_Traffic, Intrusion_Detection, Malware, Change, Vulnerabilities data models
 - Splunk Lantern — Operationalising ESCU, RBA implementation, Asset & Identity Framework
 - Splunk MLTK — Smart Outliers, DGA Analyser, behavioural detections
 - Splunk ITSI — Security service tree templates
@@ -1089,10 +1089,10 @@ the **inventory and trigger map**, not the implementation.
 ### Standards and frameworks
 
 - MITRE ATT&CK Enterprise + ICS — https://attack.mitre.org
-- MITRE D3FEND — https://d3fend.mitre.org
+- MITRE D3FEND<sup class="ref">[<a href="#ref-8">8</a>]</sup> — https://d3fend.mitre.org
 - NIST CSF 2.0 — https://www.nist.gov/cyberframework
 - NIST SP 800-53 r5 + 800-171 r3 + 800-218 SSDF + 800-207 ZTA
-- CIS Critical Security Controls v8 — https://www.cisecurity.org/controls
+- CIS Critical Security Controls v8<sup class="ref">[<a href="#ref-3">3</a>]</sup> — https://www.cisecurity.org/controls
 - OWASP Top 10 2021 + API Top 10 + ASVS
 - ISA/IEC 62443 (OT/ICS) — IEC 62443-3-3, 62443-4-2
 
@@ -1117,3 +1117,84 @@ the **inventory and trigger map**, not the implementation.
 
 For corrections or additions, file an issue with `domain-security`,
 `cat-9`, `cat-10`, or `cat-17` labels.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Primary sources
+
+<a id="ref-1"></a>**[1]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+
+### Supporting sources
+
+<a id="ref-3"></a>**[3]** Center for Internet Security. (2021). *CIS Critical Security Controls v8* (v8). https://www.cisecurity.org/controls
+
+<a id="ref-4"></a>**[4]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+
+<a id="ref-5"></a>**[5]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-6"></a>**[6]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
+
+<a id="ref-7"></a>**[7]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+
+<a id="ref-8"></a>**[8]** MITRE Corporation. (2026). *MITRE D3FEND Knowledge Graph*. MITRE. https://d3fend.mitre.org/
+
+<a id="ref-9"></a>**[9]** National Institute of Standards and Technology. (2012). *Computer Security Incident Handling Guide* (Revision 2). U.S. Department of Commerce. NIST SP 800-61 Rev. 2. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/61/r2/final
+
+<a id="ref-10"></a>**[10]** National Institute of Standards and Technology. (2006). *Guide to Computer Security Log Management*. U.S. Department of Commerce. NIST SP 800-92. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/92/final
+
+<a id="ref-11"></a>**[11]** Payment Card Industry Security Standards Council. (2018). *Payment Card Industry Data Security Standard v3.2.1* (v3.2.1). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
+
+<a id="ref-12"></a>**[12]** Payment Card Industry Security Standards Council. (2022). *Payment Card Industry Data Security Standard v4.0* (v4.0). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
+
+<a id="ref-13"></a>**[13]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
+
+<a id="ref-14"></a>**[14]** Splunk Inc. (2026). *Splunk User Behavior Analytics Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/UBA
+
+<a id="ref-15"></a>**[15]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-16"></a>**[16]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<a id="ref-17"></a>**[17]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+
+<details>
+<summary>Additional online sources cited in the document body (14)</summary>
+
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #1915*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1915
+
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #3662*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3662
+
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #7404*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7404
+
+<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #5151*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5151
+
+<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunkbase app #5580*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5580
+
+<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #2757*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2757
+
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #2846*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2846
+
+<a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunkbase app #4293*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4293
+
+<a id="ref-26"></a>**[26]** splunkbase.splunk.com. *Splunkbase app #4501*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4501
+
+<a id="ref-27"></a>**[27]** splunkbase.splunk.com. *Splunkbase app #3808*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3808
+
+<a id="ref-28"></a>**[28]** duo.com. *duo.com: Docs*. Retrieved May 11, 2026, from https://duo.com/docs
+
+<a id="ref-29"></a>**[29]** attack.mitre.org. *MITRE ATT&CK Knowledge Base*. Retrieved May 11, 2026, from https://attack.mitre.org
+
+<a id="ref-30"></a>**[30]** d3fend.mitre.org. *MITRE D3FEND (index)*. Retrieved May 11, 2026, from https://d3fend.mitre.org
+
+<a id="ref-31"></a>**[31]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

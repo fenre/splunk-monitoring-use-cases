@@ -1025,7 +1025,12 @@ def _markdown_for(payload: dict[str, Any]) -> str:
     out: list[str] = []
     out.append("# Compliance coverage report")
     out.append("")
-    out.append(f"Status: **{payload['status']}**  |  Generated: {payload['generatedAt']}")
+    out.append(
+        f"_Generated: {payload['generatedAt']}_ by "
+        "`python -m splunk_uc audit-compliance-mappings`. Do not hand-edit."
+    )
+    out.append("")
+    out.append(f"Status: **{payload['status']}**")
     out.append("")
     out.append("## Summary")
     out.append("")

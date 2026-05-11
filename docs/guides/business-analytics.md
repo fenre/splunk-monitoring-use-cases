@@ -147,7 +147,7 @@ without exporting to Excel.
 | **Real-time joins between business and operational data** (e.g. cart abandonment ↔ checkout-API p99 latency, ARR drop ↔ deployment marker) | Same index, same timestamp, same SPL — no nightly export |
 | **Multi-source forecast accuracy auditing** (CRM stage history + warehouse fact tables + finance close) | Append-only ingestion preserves point-in-time snapshots, so re-stated forecasts are still discoverable |
 | **Forensic explainability for board metrics** | Drill from a single executive KPI back to the raw API call that created the underlying record, in one click |
-| **Attestable ESG disclosures** | Immutable summary indexes with role-based access satisfy CSRD / SOX-style audit-trail requirements without a separate sustainability platform |
+| **Attestable ESG disclosures** | Immutable summary indexes with role-based access satisfy CSRD / SOX<sup class="ref">[<a href="#ref-8">8</a>]</sup>-style audit-trail requirements without a separate sustainability platform |
 | **Cross-product correlation** (revenue ↔ infra cost ↔ customer experience ↔ sustainability) | Splunk is already the system of record for IT — this guide extends that promise to the business |
 
 This guide is **not** a replacement for Salesforce CRM Analytics, SAP
@@ -426,7 +426,7 @@ customers?" resolves to a single tstats query.
 | Signal | Source | Splunk path | Sourcetype |
 |--------|--------|-------------|------------|
 | Page-view, click, scroll, conversion event | GA4 BigQuery export → Splunk Connect for BigQuery (custom) or HEC | Path B / C | `googleanalytics4:event` |
-| RUM (real-user monitoring) page-load, LCP, FID, CLS | Splunk Observability Cloud RUM SDK | Native Splunk Cloud | `splunk_rum:span` |
+| RUM (real-user monitoring) page-load, LCP, FID, CLS | Splunk Observability Cloud<sup class="ref">[<a href="#ref-7">7</a>]</sup> RUM SDK | Native Splunk Cloud | `splunk_rum:span` |
 | Session-replay metadata (FullStory, LogRocket, Hotjar) | Vendor webhook → HEC | Path C | `fullstory:session` |
 | Cart, checkout, order events | Shopify / Magento webhook → HEC | Path C | `shopify:cart`, `shopify:checkout` |
 | App-store rating + review text | App Store Connect / Google Play Console API → custom mod input | Path A | `appstore:review`, `googleplay:review` |
@@ -776,12 +776,12 @@ SEDCMD-dob = s/"date_of_birth":"\d{4}-\d{2}-\d{2}"/"date_of_birth":"REDACTED"/g
 |-----------|------------------------|
 | **SOX 404 (US)** | Immutable summary indexes for revenue, AR aging, expense, intercompany; segregation-of-duties via index-level RBAC; ITGC controls on the Bulk-API integration users (per UC-22.13.x) |
 | **CSRD (EU)** | ESG ingestion (23.9) is the technical implementation of CSRD's mandatory disclosures; immutable `esg` index with 10-year retention satisfies the audit trail; double-materiality assessment supported by `business_summary` cross-cuts |
-| **EU AI Act** | Predictive HR (UC-23.4.1, UC-23.4.6) is **high-risk AI** under Annex III: log model inputs, predictions, and outcomes in an `ai_governance` index with the controls in [`docs/guides/ai-llm-observability.md`](ai-llm-observability.md) |
-| **GDPR (EU) / UK GDPR / CCPA / LGPD** | Behavioural analytics in 23.1 must respect data-subject rights; tag every `googleanalytics4:event` and `mixpanel:event` with a `consent_status` field at ingest, and apply automated deletion via [`scripts/audit_uc_structure.py`](../../scripts/audit_uc_structure.py)-style summary cleanup |
+| **EU AI Act<sup class="ref">[<a href="#ref-3">3</a>]</sup>** | Predictive HR (UC-23.4.1, UC-23.4.6) is **high-risk AI** under Annex III: log model inputs, predictions, and outcomes in an `ai_governance` index with the controls in [`docs/guides/ai-llm-observability.md`](ai-llm-observability.md) |
+| **GDPR<sup class="ref">[<a href="#ref-1">1</a>]</sup> (EU) / UK GDPR<sup class="ref">[<a href="#ref-11">11</a>]</sup> / CCPA / LGPD** | Behavioural analytics in 23.1 must respect data-subject rights; tag every `googleanalytics4:event` and `mixpanel:event` with a `consent_status` field at ingest, and apply automated deletion via [`scripts/audit_uc_structure.py`](../../scripts/audit_uc_structure.py)-style summary cleanup |
 | **PCI-DSS v4** | Payment success rate (UC-23.6.4) must never index PAN; tokenize at the source and only ingest `last4` + `bin_hash` |
 | **MAR (EU Market Abuse Regulation)** | Pipeline / forecast data is MNPI: lock `finance` index to a closed list, log every search via Splunk audit, and integrate with the insider-list workflow defined in [`docs/guides/regulatory-compliance-master.md`](regulatory-compliance-master.md) |
-| **DORA (EU)** | Operational resilience for financial KPI systems: business KPI dashboards (23.8) are **critical or important functions** and inherit DORA Art. 16-17 incident-reporting timelines |
-| **HIPAA (US)** | Healthcare HR data (23.4) referencing benefits or wellness must follow Business Associate Agreement (BAA) terms — segregate `hr_health` index and document in the Risk Register |
+| **DORA<sup class="ref">[<a href="#ref-2">2</a>]</sup> (EU)** | Operational resilience for financial KPI systems: business KPI dashboards (23.8) are **critical or important functions** and inherit DORA Art. 16-17 incident-reporting timelines |
+| **HIPAA<sup class="ref">[<a href="#ref-10">10</a>]</sup> (US)** | Healthcare HR data (23.4) referencing benefits or wellness must follow Business Associate Agreement (BAA) terms — segregate `hr_health` index and document in the Risk Register |
 
 ---
 
@@ -941,7 +941,7 @@ response is repeatable and auditable.
 
 | Splunk product | Use in business analytics |
 |----------------|---------------------------|
-| **Splunk ITSI** | Build "Customer Experience" and "Order-to-Cash" business services with KPIs that stitch RUM page-load, checkout API latency, and cart-conversion rate together |
+| **Splunk ITSI<sup class="ref">[<a href="#ref-6">6</a>]</sup>** | Build "Customer Experience" and "Order-to-Cash" business services with KPIs that stitch RUM page-load, checkout API latency, and cart-conversion rate together |
 | **Splunk Observability Cloud** | RUM ↔ revenue correlation: every dropped checkout is joined to the precise span that failed |
 | **Splunk Enterprise Security** | Insider-trading detection on MNPI access, executive scorecard data exfiltration, and HR-data abuse |
 | **Splunk SOAR** | Auto-close on business-driven incidents (cart abandonment, AR aging, supplier OTIF breach) |
@@ -983,3 +983,82 @@ response is repeatable and auditable.
 - [`docs/guides/service-management-itsm.md`](service-management-itsm.md) — Incident impact on business KPIs
 - [`docs/guides/active-directory-entra-id.md`](active-directory-entra-id.md) — Identity reconciliation for `worker_id`
 - [`docs/guides/email-collaboration.md`](email-collaboration.md) — Microsoft Graph + Workday HR data joins
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
+
+<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2024, June). *Regulation (EU) 2024/1689 — EU Artificial Intelligence Act*. Official Journal of the European Union. ELI: reg/2024/1689. https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+
+<a id="ref-4"></a>**[4]** Public Company Accounting Oversight Board. (2007). *Auditing Standard 2201 — An Audit of Internal Control Over Financial Reporting*. PCAOB. PCAOB AS 2201. https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201
+
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk Observability Cloud Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/
+
+<a id="ref-8"></a>**[8]** U.S. Congress. (2002). *Sarbanes-Oxley Act of 2002 — Public Company Accounting Reform and Investor Protection Act*. U.S. Government. Pub. L. 107–204. https://www.sec.gov/about/laws/soa2002.pdf
+
+<a id="ref-9"></a>**[9]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-10"></a>**[10]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<a id="ref-11"></a>**[11]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+
+<details>
+<summary>Additional online sources cited in the document body (20)</summary>
+
+<a id="ref-12"></a>**[12]** developer.salesforce.com. *Salesforce Bulk API 2.0 reference*. Retrieved May 11, 2026, from https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/asynch_api_reference.htm
+
+<a id="ref-13"></a>**[13]** help.salesforce.com. *Salesforce JWT bearer flow*. Retrieved May 11, 2026, from https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_jwt_flow.htm
+
+<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunk Add-on for Salesforce (Splunkbase 4146)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4146
+
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk DB Connect (Splunkbase 2686)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2686
+
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk Connect for SAP (Splunkbase 5751)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5751
+
+<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunk Add-on for ServiceNow (Splunkbase 1928)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1928
+
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
+
+<a id="ref-19"></a>**[19]** github.com. *Splunk Connect for Kafka*. Retrieved May 11, 2026, from https://github.com/splunk/kafka-connect-splunk
+
+<a id="ref-20"></a>**[20]** community.workday.com. *Workday Reports as a Service (RaaS) overview*. Retrieved May 11, 2026, from https://community.workday.com
+
+<a id="ref-21"></a>**[21]** ghgprotocol.org. *GHG Protocol Corporate Standard*. Retrieved May 11, 2026, from https://ghgprotocol.org/corporate-standard
+
+<a id="ref-22"></a>**[22]** ghgprotocol.org. *GHG Protocol Scope 3 Standard*. Retrieved May 11, 2026, from https://ghgprotocol.org/standards/scope-3-standard
+
+<a id="ref-23"></a>**[23]** finance.ec.europa.eu. *EU CSRD overview (European Commission)*. Retrieved May 11, 2026, from https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en
+
+<a id="ref-24"></a>**[24]** epa.gov. *EPA eGRID (US grid emissions factors)*. Retrieved May 11, 2026, from https://www.epa.gov/egrid
+
+<a id="ref-25"></a>**[25]** iea.org. *IEA emission factors*. Retrieved May 11, 2026, from https://www.iea.org/data-and-statistics/data-product/emissions-factors-2024
+
+<a id="ref-26"></a>**[26]** gov.uk. *DEFRA UK conversion factors*. Retrieved May 11, 2026, from https://www.gov.uk/government/collections/government-conversion-factors-for-company-reporting
+
+<a id="ref-27"></a>**[27]** finops.org. *FinOps Foundation Framework*. Retrieved May 11, 2026, from https://www.finops.org/framework/
+
+<a id="ref-28"></a>**[28]** splunkbase.splunk.com. *Splunkbase app #4055*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4055
+
+<a id="ref-29"></a>**[29]** splunkbase.splunk.com. *Splunkbase app #3862*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3862
+
+<a id="ref-30"></a>**[30]** splunkbase.splunk.com. *Splunkbase app #5556*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5556
+
+<a id="ref-31"></a>**[31]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->
