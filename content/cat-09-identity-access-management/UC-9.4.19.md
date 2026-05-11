@@ -100,7 +100,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 index=pam sourcetype="cyberark:session"
 | eval end_time=_time+duration_sec
 | sort target_account, _time
-| streamstats window=2 current(src) as ip1 next(src) as ip2 current(_time) as t1 next(_time) as t2 by target_account
+| streamstats window=2 current(src) as ip1 first(src) as ip2 current(_time) as t1 first(_time) as t2 by target_account
 | where ip1!=ip2 AND t2 < end_time
 | table target_account, ip1, ip2, t1, t2
 ```

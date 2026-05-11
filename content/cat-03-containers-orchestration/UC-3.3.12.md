@@ -453,4 +453,4 @@ Planned OpenShiftSDN to OVN-K migration windows produce sustained Progressing=Tr
 - [OpenShift Documentation — Configuring egress IPs for OVN-Kubernetes](https://docs.openshift.com/container-platform/latest/networking/ovn_kubernetes_network_provider/configuring-egress-ips-ovn.html)
 - [OpenShift Documentation — Configuring multitenant network policy](https://docs.openshift.com/container-platform/latest/networking/network_security/configuring-multitenant-network-policy.html)
 - [OpenShift Documentation — Cluster Network Operator](https://docs.openshift.com/container-platform/latest/networking/cluster-network-operator.html)
-- [Red Hat Blog — OpenShift 4.5 full stack automated operations and the OVN-Kubernetes networking model](https://www.redhat.com/en/blog/red-hat-openshift-45-full-stack-automated-operations-and-ovn-kubernetes-networking-model)
+- [Red Hat Blog — OpenShift 4.5 full stack automated operations and the OVN-Kubernetes networking model](https://www.redhat.com/en/blog/)

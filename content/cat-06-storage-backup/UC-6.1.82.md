@@ -365,6 +365,6 @@ index=storage sourcetype=isilon:quota
 
 ## References
 
-- [Dell PowerScale OneFS — SmartQuotas Administration Guide](https://www.dell.com/support/kbdoc/en-us/000020050/)
+- [Dell PowerScale OneFS — SmartQuotas Administration Guide](https://www.dell.com/support/)
 - [Dell PowerScale OneFS 9.x — Auditing and Logging Administration Guide](https://www.dell.com/support/kbdoc/en-us/000020031/)
 - [Splunk Lantern — Use Case Explorer](https://lantern.splunk.com/Splunk_Platform/UCE)

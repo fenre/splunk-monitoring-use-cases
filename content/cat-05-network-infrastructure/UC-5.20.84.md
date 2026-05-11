@@ -157,6 +157,6 @@ index=network (sourcetype="cisco:ios" OR sourcetype="cisco:iosxe") earliest=-24h
 
 ## References
 
-- [Cisco Control Plane Policing (CoPP) Implementation Best Practices](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sec_data_copp/configuration/xe-17/sec-data-copp-xe-17-book.html)
+- [Cisco Control Plane Policing (CoPP) Implementation Best Practices](https://www.cisco.com/c/en/us/)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4 — control plane protection)](https://www.rfc-editor.org/rfc/rfc9099)
 - [RFC 6192 — Protecting the Router Control Plane (BCP 164)](https://www.rfc-editor.org/rfc/rfc6192)

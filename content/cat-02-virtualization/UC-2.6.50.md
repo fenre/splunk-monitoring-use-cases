@@ -79,4 +79,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 ## References
 
 - [Windows bug check reference (Microsoft Learn)](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-code-reference2)
-- [uberAgent unexpected reboots](https://docs.uberagent.com/)
+- [uberAgent unexpected reboots](https://liquidware.com/)

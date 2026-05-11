@@ -49,4 +49,4 @@ Planned failovers, network maintenance, or heavy bulk replication can extend lag
 
 ## References
 
-- [Apache Cassandra — Gossip](https://cassandra.apache.org/doc/latest/cassandra/architecture/gossip.html)
+- [Apache Cassandra — Gossip](https://cassandra.apache.org/doc/latest/cassandra/architecture/)

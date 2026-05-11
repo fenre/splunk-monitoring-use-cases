@@ -131,6 +131,6 @@ This creates a matrix showing compliance status for each capability at each trus
 
 ## References
 
-- [CISA — Trusted Internet Connections (TIC) 3.0 Core Guidance](https://www.cisa.gov/sites/default/files/publications/CISA_TIC%203.0%20Core%20Guidance.pdf)
+- [CISA — Trusted Internet Connections (TIC) 3.0 Core Guidance](https://www.cisa.gov/)
 - [CISA — TIC 3.0 Security Capabilities Catalog](https://www.cisa.gov/trusted-internet-connections)
 - [OMB M-21-07 — Completing the Transition to IPv6](https://www.whitehouse.gov/wp-content/uploads/2020/11/M-21-07.pdf)

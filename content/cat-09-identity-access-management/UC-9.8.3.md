@@ -51,5 +51,5 @@ Planned change windows, maintenance, approved automation, and known good service
 
 ## References
 
-- [BeyondTrust — Jump Technology overview](https://www.beyondtrust.com/resources/videos/jump-technology-overview)
+- [BeyondTrust — Jump Technology overview](https://www.beyondtrust.com/resources/videos/)
 - [Splunk Lantern](https://lantern.splunk.com/)

@@ -180,5 +180,5 @@ index=network sourcetype="cisco:ios:config" earliest=-2d
 ## References
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2 — Comprehensive first-hop security recommendation)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Cisco SISF Design Guide — Complete first-hop security deployment](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Design Guide — Complete first-hop security deployment](https://www.cisco.com/c/en/us/)
 - [NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (first-hop security requirements)](https://csrc.nist.gov/publications/detail/sp/800-119/final)

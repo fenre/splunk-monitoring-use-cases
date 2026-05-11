@@ -103,4 +103,4 @@ Short peaks during renewals, burst traffic, and shared pools can wobble utilizat
 ## References
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
-- [Citrix — Licensing and pooled capacity](https://www.citrix.com/support/licensing/)
+- [Citrix — Licensing and pooled capacity](https://www.citrix.com/support/)

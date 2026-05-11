@@ -79,6 +79,6 @@ Stacked area chart of strips vs `_time`; overlaid line for avg_dedup; annotation
 
 ## References
 
-- [Splunk Documentation — About summary indexing](https://docs.splunk.com/Documentation/Splunk/latest/Indexer/Usesummaryindexing)
+- [Splunk Documentation — About summary indexing](https://docs.splunk.com/Documentation/Splunk/latest/Indexer/)
 - [Gigamon Documentation — GigaSMART overview](https://docs.gigamon.com/)
 - [IETF RFC 7014 — IP Flow Information Export (IPFIX) considerations for visibility](https://www.rfc-editor.org/rfc/rfc7014)

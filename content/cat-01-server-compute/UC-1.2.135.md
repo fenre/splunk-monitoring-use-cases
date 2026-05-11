@@ -64,5 +64,5 @@ Area chart (reporting_hosts over time), Table (missing hosts vs CMDB), Single va
 
 ## References
 
-- [Splunk Docs: Forward data from Splunk Enterprise internal indexes](https://docs.splunk.com/Documentation/Splunk/latest/Data/Forwarddatafrominternalsindexes)
-- [Splunk Docs: Monitor internal Splunk Enterprise logs](https://docs.splunk.com/Documentation/Splunk/latest/Troubleshooting/Monitorinternalsplunklogs)
+- [Splunk Docs: Forward data from Splunk Enterprise internal indexes](https://docs.splunk.com/Documentation/Splunk/latest/Data/)
+- [Splunk Docs: Monitor internal Splunk Enterprise logs](https://docs.splunk.com/Documentation/Splunk/latest/Troubleshooting/)

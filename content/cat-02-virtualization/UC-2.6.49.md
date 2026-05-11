@@ -84,5 +84,4 @@ Session and launch time spikes may track image updates, profile migrations, or b
 
 ## References
 
-- [Session reliability and reconnection (Citrix)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/ica-session-reliability.html)
-- [Troubleshoot user issues — session disconnect](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/troubleshoot-user-issues.html)
+- [Session reliability and reconnection (Citrix)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

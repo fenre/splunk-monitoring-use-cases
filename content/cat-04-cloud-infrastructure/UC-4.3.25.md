@@ -192,7 +192,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="bigquery.googleapis.com/slot/usage"
-| stats latest(value) as slot_seconds by resource.labels.project_id, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(value) as slot_seconds by resource.labels.project_id, _time
 | eventstats avg(slot_seconds) as baseline by resource.labels.project_id
 | where slot_seconds > baseline * 1.5
 | table _time resource.labels.project_id slot_seconds baseline

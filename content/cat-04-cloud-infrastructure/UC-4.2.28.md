@@ -192,7 +192,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/serverfarms" (metric_name="CpuPercentage" OR metric_name="MemoryPercentage")
-| stats avg(average) as avg_pct by resourceId, metric_name, bin(_time, 5m)
+| bin _time span=5m
+| stats avg(average) as avg_pct by resourceId, metric_name, _time
 | where avg_pct > 80
 | eval avg_pct=round(avg_pct, 1)
 | table _time resourceId metric_name avg_pct

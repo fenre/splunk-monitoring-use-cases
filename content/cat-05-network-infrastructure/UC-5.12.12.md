@@ -74,5 +74,5 @@ SNMP counter resets during failover briefly show zero utilization; fax/modem lon
 
 ## References
 
-- [Cisco IOS Voice Troubleshooting — Resource Exhaustion Signatures](https://www.cisco.com/c/en/us/support/docs/voice/voice-quality/79361-voice-quality-troubleshooting-guide.html)
+- [Cisco IOS Voice Troubleshooting — Resource Exhaustion Signatures](https://www.cisco.com/c/en/us/)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

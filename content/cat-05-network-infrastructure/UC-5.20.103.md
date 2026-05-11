@@ -147,4 +147,4 @@ index=network earliest=-24h
 
 - [HIPAA Security Rule — §164.312 Technical Safeguards](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.312)
 - [HHS — Guidance on HIPAA Security Rule Technical Safeguards](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
-- [NIST SP 800-66 — Implementing the HIPAA Security Rule](https://csrc.nist.gov/publications/detail/sp/800-66/rev-2/final)
+- [NIST SP 800-66 — Implementing the HIPAA Security Rule](https://csrc.nist.gov/publications/)

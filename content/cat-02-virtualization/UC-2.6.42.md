@@ -78,4 +78,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix audit logging and reporting](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/operations/audit/audit-logging.html)
+- [Citrix audit logging and reporting](https://docs.citrix.com/en-us/)

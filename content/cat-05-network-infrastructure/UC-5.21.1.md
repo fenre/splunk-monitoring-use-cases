@@ -119,5 +119,5 @@ index=network (sourcetype="cisco:ios" OR sourcetype="cisco:iosxe" OR sourcetype=
 
 ## References
 
-- [Cisco — NTP Configuration Guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/xe-3s/bsm-xe-3s-book/bsm-time-ntp.html)
+- [Cisco — NTP Configuration Guide](https://www.cisco.com/c/en/us/)
 - [RFC 5905 — Network Time Protocol Version 4](https://www.rfc-editor.org/rfc/rfc5905)

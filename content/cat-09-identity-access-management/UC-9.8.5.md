@@ -54,5 +54,5 @@ Routine privileged access from approved change windows, scheduled maintenance, I
 
 ## References
 
-- [BeyondTrust — automated password management](https://www.beyondtrust.com/privileged-password-management)
+- [BeyondTrust — automated password management](https://www.beyondtrust.com/)
 - [NIST SP 800-63B — password lifecycle guidance (context)](https://pages.nist.gov/800-63-3/sp800-63b.html)

@@ -49,5 +49,5 @@ Backup jobs, scanners, and legitimate mass access can resemble policy violations
 
 ## References
 
-- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/reportinggraphs/)
+- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/)
 - [TrueNAS CORE/SCALE docs — alerts](https://www.truenas.com/docs/)

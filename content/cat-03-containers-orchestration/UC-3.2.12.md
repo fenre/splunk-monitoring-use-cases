@@ -505,9 +505,9 @@ Legitimate platform administration during published change windows produces burs
 ## References
 
 - [Kubernetes — Using RBAC Authorization](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
-- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/audit/)
+- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/)
 - [Aqua Security — kube-bench (CIS Kubernetes Benchmark checker)](https://github.com/aquasecurity/kube-bench)
 - [NSA and CISA — Kubernetes Hardening Guidance](https://media.defense.gov/2022/Aug/29/2003066362/-1/-1/0/CTR_KUBERNETES_HARDENING_GUIDANCE_1.2_20220315.PDF)
-- [BSI — Cloud Computing (Kubernetes guidance overview)](https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Informationen-und-Empfehlungen/Empfehlungen-nach-Themen/Cloud-Computing/cloud_node.html)
+- [BSI — Cloud Computing (Kubernetes guidance overview)](https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Informationen-und-Empfehlungen/)
 - [MITRE ATT&CK — Containers Matrix](https://attack.mitre.org/matrices/enterprise/containers/)
 - [CIS — Kubernetes Benchmark community page](https://www.cisecurity.org/benchmark/kubernetes)

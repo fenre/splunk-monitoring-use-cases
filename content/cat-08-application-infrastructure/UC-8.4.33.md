@@ -48,4 +48,4 @@ Response time spikes during JVM garbage collection, connection pool exhaustion, 
 
 ## References
 
-- [PHP-FPM configuration](https://www.php.net/manual/en/fpm.configuration.php#slowlog)
+- [PHP-FPM configuration](https://www.php.net/manual/en/)

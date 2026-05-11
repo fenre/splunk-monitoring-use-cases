@@ -421,5 +421,5 @@ Monthly or weekly upstream base-image refreshes for tags such as ubuntu:24.04 le
 - [Docker Docs — BuildKit](https://docs.docker.com/build/buildkit/)
 - [Docker Docs — docker build cache-from](https://docs.docker.com/engine/reference/commandline/build/#cache-from)
 - [GitHub Docs — Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows)
-- [Docker Docs — Build metadata](https://docs.docker.com/build/metadata/)
+- [Docker Docs — Build metadata](https://docs.docker.com/build/)
 - [Splunk Observability — OpenTelemetry Collector Prometheus receiver](https://docs.splunk.com/observability/en/gdi/opentelemetry/components/prometheus-receiver.html)

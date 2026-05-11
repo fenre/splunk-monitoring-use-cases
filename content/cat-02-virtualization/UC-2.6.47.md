@@ -85,4 +85,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 ## References
 
 - [Citrix Workspace app lifecycle matrix](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/whats-new.html)
-- [Session data from Monitor (context)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/monitor-service.html)
+- [Session data from Monitor (context)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

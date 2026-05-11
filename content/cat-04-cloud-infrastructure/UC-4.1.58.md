@@ -91,7 +91,8 @@ index=aws (sourcetype="aws:config:notification" resourceType="AWS::EC2::TransitG
   isnotnull(configurationItemStatus), configurationItemStatus,
   1=1, null())
 | eval resourceId=coalesce(resourceId, resource_id)
-| stats latest(attachment_state) as state, latest(Sum) as bytes_in by resourceId, bin(_time, 1h)
+| bin _time span=1h
+| stats latest(attachment_state) as state, latest(Sum) as bytes_in by resourceId, _time
 | where (isnotnull(state) AND state!="ok") OR (isnotnull(bytes_in) AND bytes_in=0)
 | table _time resourceId state bytes_in
 | sort -_time

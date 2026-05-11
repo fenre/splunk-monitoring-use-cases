@@ -164,7 +164,7 @@ Stacked bar chart (CVE severity distribution by image), sortable patch-priority 
 
 ## References
 
-- [Trivy — Container Image Vulnerability Scanner](https://aquasecurity.github.io/trivy/latest/)
+- [Trivy — Container Image Vulnerability Scanner](https://aquasecurity.github.io/trivy/)
 - [Grype — Container Image Vulnerability Scanner](https://github.com/anchore/grype)
 - [Harbor — Vulnerability Scanning](https://goharbor.io/docs/2.10.0/administration/vulnerability-scanning/)
 - [Splunk REST API Modular Input (Splunkbase 1546)](https://splunkbase.splunk.com/app/1546)

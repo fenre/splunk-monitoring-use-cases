@@ -73,12 +73,6 @@ index=os sourcetype=macos_filevault host=*
 | where fv_status!="FileVault is On."
 ```
 
-## CIM SPL
-
-```spl
-N/A — full-disk encryption status is not a standard Common Information Model field; use a custom inventory or compliance sourcetype (for example from `fdesetup status`).
-```
-
 ## Visualization
 
 Pie chart (encrypted vs. not), Table of non-compliant hosts, Single value (compliance %).

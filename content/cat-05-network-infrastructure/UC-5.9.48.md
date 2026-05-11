@@ -201,4 +201,4 @@ If it appears, the activity log pipeline is working. Revert the test name change
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes Activity Log](https://docs.thousandeyes.com/product-documentation/user-management/activity-log)
+- [ThousandEyes Activity Log](https://docs.thousandeyes.com/product-documentation/user-management/)

@@ -94,7 +94,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Web/sites" (metric_name="HttpQueueLength" OR metric_name="AverageResponseTime" OR metric_name="HealthCheckStatus")
-| stats avg(average) as v by resourceId, metric_name, bin(_time, 5m)
+| bin _time span=5m
+| stats avg(average) as v by resourceId, metric_name, _time
 | where (metric_name="HttpQueueLength" AND v>100) OR (metric_name="AverageResponseTime" AND v>2000) OR (metric_name="HealthCheckStatus" AND v>0)
 ```
 

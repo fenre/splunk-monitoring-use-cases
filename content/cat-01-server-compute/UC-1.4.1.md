@@ -77,12 +77,6 @@ index=hardware sourcetype=ipmi:sensor
 | sort -_time
 ```
 
-## CIM SPL
-
-```spl
-N/A — IPMI sensor readings are not mapped to a standard Common Information Model data model; keep the index/sourcetype search or build a private asset or metrics model.
-```
-
 ## Visualization
 
 Table of critical sensors, Gauge per sensor type, Heatmap across hosts.

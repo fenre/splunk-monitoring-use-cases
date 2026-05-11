@@ -72,5 +72,5 @@ Planned PRI cable swaps generate transient `Controller down` messages; fax storm
 
 ## References
 
-- [Cisco IOS Voice Troubleshooting Guide — Gateway DSP and PRI](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/voice/cube/configuration/cube-book/vcube.pdf)
+- [Cisco IOS Voice Troubleshooting Guide — Gateway DSP and PRI](https://www.cisco.com/c/en/us/)
 - [Splunkbase — Splunk App for Stream](https://splunkbase.splunk.com/app/1809)

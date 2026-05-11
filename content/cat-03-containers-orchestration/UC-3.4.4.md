@@ -167,7 +167,7 @@ Compliance rate gauge per project, blocked/passed bar chart, admission denial ta
 ## References
 
 - [Harbor — Vulnerability Scanning Policies](https://goharbor.io/docs/2.10.0/administration/vulnerability-scanning/)
-- [Harbor — Webhook Notifications](https://goharbor.io/docs/2.10.0/administration/webhook-notifications/)
+- [Harbor — Webhook Notifications](https://goharbor.io/docs/2.10.0/administration/)
 - [OPA Gatekeeper — Kubernetes Admission Controller](https://open-policy-agent.github.io/gatekeeper/website/docs/)
 - [Kyverno — Kubernetes Policy Engine](https://kyverno.io/docs/introduction/)
 - [Kubernetes Admission Controllers Reference](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)

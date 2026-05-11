@@ -82,5 +82,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Monitor Service and OData in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/monitor-service.html)
-- [Citrix — load management overview](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-load-balancing.html)
+- [Monitor Service and OData in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

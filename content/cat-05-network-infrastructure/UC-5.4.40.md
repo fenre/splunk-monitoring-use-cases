@@ -52,5 +52,4 @@ Table (top channel-changing APs, sorted by count), Bar chart (channel changes pe
 
 ## References
 
-- [Cisco RRM (Radio Resource Management) best-practices white paper](https://www.cisco.com/c/en/us/td/docs/wireless/controller/technotes/8-6/b_RRM_White_Paper.html)
-- [Catalyst 9800 RRM tuning](https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/216330-rrm-on-catalyst-9800.html)
+- [Cisco RRM (Radio Resource Management) best-practices white paper](https://www.cisco.com/c/en/us/)

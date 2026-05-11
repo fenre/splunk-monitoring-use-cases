@@ -133,6 +133,6 @@ index=thousandeyes_metrics thousandeyes.test.type="dns-dnssec" earliest=-30m
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes DNSSEC Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/dnssec-test)
+- [ThousandEyes DNSSEC Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/)
 - [DNSSEC Deployment Guide — ICANN](https://www.icann.org/resources/pages/dnssec-what-is-it-why-important-2019-03-05-en)
 - [DNSSEC Debugger — Verisign Labs](https://dnssec-debugger.verisignlabs.com/)

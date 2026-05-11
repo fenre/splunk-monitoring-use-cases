@@ -139,7 +139,6 @@ index=rpa sourcetype IN ("uipath:orchestrator","automation_anywhere:bot_insight"
 ## References
 
 - [Splunk Lantern — Use Case Explorer: IT Modernization](https://lantern.splunk.com/Splunk_Platform/UCE)
-- [UiPath Orchestrator OData API Reference (Jobs / QueueItems)](https://docs.uipath.com/orchestrator/reference/about-odata-general-info)
-- [UiPath Automation Cloud — Swagger / Swagger UI for orchestrator endpoints](https://docs.uipath.com/automation-cloud/latest/api-guide/)
-- [Automation Anywhere Documentation — Bot Insight Analytics](https://docs.automationanywhere.com/bundle/enterprise-v2019/page/unattended-monitoring-bot-insights.html)
-- [Splunk Documentation — Modular inputs overview](https://docs.splunk.com/Documentation/Splunk/latest/Admin/Modularinputs)
+- [UiPath Orchestrator OData API Reference (Jobs / QueueItems)](https://docs.uipath.com/automation-cloud/)
+- [Automation Anywhere Documentation — Bot Insight Analytics](https://docs.automationanywhere.com/bundle/enterprise-v2019/)
+- [Splunk Documentation — Modular inputs overview](https://docs.splunk.com/Documentation/Splunk/latest/Admin/)

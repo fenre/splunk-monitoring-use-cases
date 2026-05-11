@@ -445,4 +445,4 @@ Intentional oc rollout pause during canary or traffic-shadow experiments leaves 
 - [OpenShift Documentation — Route-based deployment strategies](https://docs.openshift.com/container-platform/latest/applications/deployments/route-based-deployment-strategies.html)
 - [OpenShift REST API Reference — DeploymentConfig [apps.openshift.io/v1]](https://docs.openshift.com/container-platform/latest/rest_api/workloads_apis/deploymentconfig-apps-openshift-io-v1.html)
 - [OpenShift Documentation — Viewing deployment configuration Kubernetes resources](https://docs.openshift.com/container-platform/latest/applications/deployments/viewing-deployment-configuration-kubernetes-resources.html)
-- [Red Hat Blog — OpenShift deployment strategies for administrators](https://www.redhat.com/en/blog/openshift-deployment-strategies)
+- [Red Hat Blog — OpenShift deployment strategies for administrators](https://www.redhat.com/en/blog/)

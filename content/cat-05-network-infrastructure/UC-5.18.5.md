@@ -77,6 +77,6 @@ Dashboard Studio: KPI row for PEs above warn threshold; timechart of `pct` by `h
 
 ## References
 
-- [Cisco IOS XR MPLS Label Allocation Overview](https://www.cisco.com/c/en/us/td/docs/iosxr/cisco8000/mpls/b-mpls-configuration-guide-c8000/mpls-forwarding.html)
-- [Juniper MPLS Applications User Guide — Label Allocation](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/concept/mpls-forwarding-plane-overview.html)
+- [Cisco IOS XR MPLS Label Allocation Overview](https://www.cisco.com/c/en/us/)
+- [Juniper MPLS Applications User Guide — Label Allocation](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
 - [IETF RFC 3032 — MPLS Label Stack Encoding](https://www.rfc-editor.org/rfc/rfc3032)

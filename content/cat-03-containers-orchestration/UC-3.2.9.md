@@ -475,7 +475,7 @@ Brief 502 or 503 bursts during NGINX Ingress configuration reloads follow every 
 ## References
 
 - [NGINX Ingress Controller — monitoring](https://kubernetes.github.io/ingress-nginx/user-guide/monitoring/)
-- [NGINX Ingress Controller — exporting metrics](https://kubernetes.github.io/ingress-nginx/user-guide/exporting-metrics/)
+- [NGINX Ingress Controller — exporting metrics](https://kubernetes.github.io/ingress-nginx/)
 - [Kubernetes — Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
 - [Kubernetes — Ingress controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/)
 - [HAProxy configuration manual](https://docs.haproxy.org/dev/configuration.html)

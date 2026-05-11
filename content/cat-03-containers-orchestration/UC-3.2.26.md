@@ -357,7 +357,7 @@ Rolling restart of a single etcd member during planned control-plane certificate
 
 - [etcd Operations Guide — Monitoring](https://etcd.io/docs/latest/op-guide/monitoring/)
 - [etcd Operations Guide — Disaster Recovery](https://etcd.io/docs/latest/op-guide/recovery/)
-- [etcd — Runtime configuration (member operations)](https://github.com/etcd-io/etcd/blob/main/Documentation/op-guide/runtime-configuration.md)
+- [etcd — Runtime configuration (member operations)](https://github.com/etcd-io/etcd/blob/main/Documentation/)
 - [Kubernetes — Operating etcd clusters for HA](https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/)
 - [etcd — Metrics reference](https://etcd.io/docs/latest/metrics/)
 - [Kubernetes — kubeadm HA topology (stacked and external etcd)](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/)

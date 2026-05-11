@@ -52,4 +52,4 @@ Table (SLA violations by branch / circuit), Timeline (path-switch events over ti
 ## References
 
 - [Versa Networks documentation](https://docs.versa-networks.com/)
-- [Versa Director API guide](https://docs.versa-networks.com/Solutions/Versa_Director/01_Director_REST_API)
+- [Versa Director API guide](https://docs.versa-networks.com/Solutions/)

@@ -53,4 +53,4 @@ Table (IPv6 events grouped by device), Timeline (RA-Guard events per VLAN), Stat
 
 - [RFC 4861 — Neighbor Discovery for IPv6](https://www.rfc-editor.org/rfc/rfc4861)
 - [RFC 6105 — IPv6 RA-Guard](https://www.rfc-editor.org/rfc/rfc6105)
-- [Cisco IPv6 First-Hop Security](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6_fhsec/configuration/15-2sy/ip6f-15-2sy-book.html)
+- [Cisco IPv6 First-Hop Security](https://www.cisco.com/c/en/us/)

@@ -164,6 +164,6 @@ prefix,expected_origin_as
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes BGP Route Monitoring — AS path visibility](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
-- [NIST — Securing BGP and RPKI](https://www.nist.gov/publications/bgp-secure-routing-extension-bgp-sec-protocol)
+- [ThousandEyes BGP Route Monitoring — AS path visibility](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)
+- [NIST — Securing BGP and RPKI](https://www.nist.gov/publications/)
 - [Cloudflare — How BGP hijacking works and how to prevent it](https://www.cloudflare.com/learning/security/glossary/bgp-hijacking/)

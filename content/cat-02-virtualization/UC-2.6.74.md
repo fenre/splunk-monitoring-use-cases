@@ -52,4 +52,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix — ShareFile audit and logging](https://docs.citrix.com/en-us/citrix-content-collaboration/audit-trail-logs.html)
+- [Citrix — ShareFile audit and logging](https://docs.citrix.com/en-us/)

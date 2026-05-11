@@ -199,7 +199,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="run.googleapis.com/request_count" OR metric.type="run.googleapis.com/container/instance_count"
 | eval metric_type=coalesce(metric.type, 'run.googleapis.com/request_count')
-| stats sum(value) as requests, latest(value) as instances by resource.labels.service_name, metric_type, bin(_time, 5m)
+| bin _time span=5m
+| stats sum(value) as requests, latest(value) as instances by resource.labels.service_name, metric_type, _time
 | eval cold_start_indicator=if(instances=0 AND requests>0, 1, 0)
 | stats sum(requests) as total_requests, sum(cold_start_indicator) as cold_start_events by resource.labels.service_name
 | eval cold_start_pct=round(cold_start_events/total_requests*100, 1)

@@ -521,8 +521,8 @@ Legitimately mesh-exempt workloads include cluster logging agents, eBPF node sec
 
 - [Istio — Sidecar injection](https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/)
 - [Istio — Security overview](https://istio.io/latest/docs/concepts/security/)
-- [Linkerd — Proxy](https://linkerd.io/2.14/features/proxy/)
-- [Cilium — Service mesh](https://docs.cilium.io/en/stable/network/servicemesh/envoy-default-daemonset/)
+- [Linkerd — Proxy](https://linkerd.io/2.14/features/)
+- [Cilium — Service mesh](https://docs.cilium.io/en/stable/network/servicemesh/)
 - [HashiCorp Consul — Connect proxy](https://developer.hashicorp.com/consul/docs/connect/proxy)
-- [kube-state-metrics — Namespace metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/namespace/namespace-metrics.md)
+- [kube-state-metrics — Namespace metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/)
 - [OPA Gatekeeper Library — policy patterns (injection and sidecar governance)](https://open-policy-agent.github.io/gatekeeper-library/website/)

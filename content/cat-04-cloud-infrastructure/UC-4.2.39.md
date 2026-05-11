@@ -188,7 +188,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.EventHub/namespaces" metric_name="CaptureLag"
-| stats latest(average) as lag_ms by resourceId, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(average) as lag_ms by resourceId, _time
 | where lag_ms > 600000
 | eval lag_min=round(lag_ms/60000,1)
 ```

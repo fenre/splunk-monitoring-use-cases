@@ -158,4 +158,4 @@ Upload as `rfc9099_status.csv`. Update linked UC results on a scheduled basis.
 ## References
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (BCP 256)](https://www.rfc-editor.org/rfc/rfc9099)
-- [RFC 9099 Authors' Presentation — IETF 112 (operational context and deployment experience)](https://datatracker.ietf.org/meeting/112/materials/slides-112-v6ops-rfc9099-opsec-01)
+- [RFC 9099 Authors' Presentation — IETF 112 (operational context and deployment experience)](https://datatracker.ietf.org/meeting/)

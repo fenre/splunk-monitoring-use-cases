@@ -74,6 +74,6 @@ Dashboard Studio: KPI for down pseudowires; Sankey optional via stats prep; tabl
 
 ## References
 
-- [Cisco Layer 2 VPNs Configuration Guide — Pseudowire](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/mp_l2_vpns/configuration/xe-16/mp-layer2-xe-16-book/mp-config-layer2-vpns.pdf)
-- [Juniper Layer 2 Circuits and VPNs User Guide](https://www.juniper.net/documentation/us/en/software/junos/layer2-vpns/topics/concept/layer-2-circuit-overview.html)
+- [Cisco Layer 2 VPNs Configuration Guide — Pseudowire](https://www.cisco.com/c/en/us/)
+- [Juniper Layer 2 Circuits and VPNs User Guide](https://www.juniper.net/documentation/)
 - [IETF RFC 4762 — VPLS Using LDP Signaling](https://www.rfc-editor.org/rfc/rfc4762)

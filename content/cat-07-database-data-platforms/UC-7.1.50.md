@@ -50,4 +50,4 @@ Planned step-down elections, compactions, and balanced migrations can look like 
 ## References
 
 - [MongoDB WiredTiger cache tuning](https://www.mongodb.com/docs/manual/administration/analyzing-mongodb-performance/#wiredtiger-cache)
-- [Splunk Add-on for MongoDB](https://splunkbase.splunk.com/app/3212)
+- [Splunk Add-on for MongoDB](https://splunkbase.splunk.com/)

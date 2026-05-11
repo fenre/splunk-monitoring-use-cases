@@ -99,4 +99,4 @@ Table (client × count), map, alert on new ClientAddr.
 
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 - [Add On for Traefik Proxy (Splunkbase)](https://splunkbase.splunk.com/app/6733)
-- [Traefik — Logs and Access Logs](https://doc.traefik.io/traefik/observability/logs-and-access-logs/)
+- [Traefik — Logs and Access Logs](https://doc.traefik.io/traefik/)

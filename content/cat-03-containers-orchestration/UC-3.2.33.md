@@ -446,7 +446,7 @@ Scheduled maintenance windows that are tracked in k8s_approved_drain_windows.csv
 - [kured — Kubernetes Reboot Daemon](https://github.com/weaveworks/kured)
 - [Kubernetes Autoscaler — Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler)
 - [Karpenter — Disruption concepts](https://karpenter.sh/docs/concepts/disruption/)
-- [Google GKE — Surge upgrades for node pools](https://cloud.google.com/kubernetes-engine/docs/concepts/node-pool-upgrades#surge-upgrades)
+- [Google GKE — Surge upgrades for node pools](https://cloud.google.com/kubernetes-engine/docs/concepts/)
 - [Amazon EKS — Managed node group update behavior](https://docs.aws.amazon.com/eks/latest/userguide/managed-node-update-behavior.html)
 - [Microsoft AKS — Upgrade an AKS cluster](https://learn.microsoft.com/en-us/azure/aks/upgrade-cluster)
 - [Cluster API — Upgrading clusters](https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters/)

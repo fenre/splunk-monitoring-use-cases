@@ -104,4 +104,4 @@ Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed.
 ## References
 
 - [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
-- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/)
+- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/)

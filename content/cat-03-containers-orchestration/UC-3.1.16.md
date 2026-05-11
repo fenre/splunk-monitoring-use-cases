@@ -251,7 +251,7 @@ Collector hygiene: cap docker:overlay2_du cardinality on shared CI executors via
     [ search index=oti_containers sourcetype="docker:overlay2_du" earliest=-48h@h latest=now
       | eval host_id=lower(toString(coalesce(host, Host, hostname, host_id, dest, "")))
       | eval container_id=trim(toString(coalesce(container_id, containerId, Id, docker_container_id, "")))
-      | eval volume_name=strcat("overlay2_rw:",substr(container_id,1,12))
+      | eval volume_name="overlay2_rw:".substr(container_id,1,12)
       | eval volume_driver="overlay2"
       | eval mount_point=toString(coalesce(overlay_diff_path, diff_path, overlay_id, layer_id, ""))
       | eval ref_count=1

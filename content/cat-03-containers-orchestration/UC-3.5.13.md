@@ -193,5 +193,4 @@ Sankey diagram of namespace-to-namespace flows, dropped flow table with reasons,
 - [Cilium — Hubble Introduction](https://docs.cilium.io/en/stable/observability/hubble/)
 - [Cilium — Hubble Metrics](https://docs.cilium.io/en/stable/observability/metrics/)
 - [Cilium — Network Policy](https://docs.cilium.io/en/stable/security/policy/)
-- [Cilium — Hubble Relay Architecture](https://docs.cilium.io/en/stable/observability/hubble/)
 - [Splunk Distribution of OpenTelemetry Collector](https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html)

@@ -69,5 +69,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix Cloud Connector — system and connectivity requirements](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/citrix-cloud-connector-installation.html)
-- [Cloud Connector advanced functionality (troubleshooting context)](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-resource-locations/connector-technical-details.html)
+- [Citrix Cloud Connector — system and connectivity requirements](https://docs.citrix.com/en-us/citrix-cloud/)

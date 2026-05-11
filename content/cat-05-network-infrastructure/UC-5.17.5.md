@@ -75,6 +75,6 @@ Lane diagram (custom SVG or matrix panel) showing bypass_pair vs state timeline;
 
 ## References
 
-- [Splunk Documentation — Use cron schedules for alerts](https://docs.splunk.com/Documentation/Splunk/latest/Alert/ScheduleAlerts)
+- [Splunk Documentation — Use cron schedules for alerts](https://docs.splunk.com/Documentation/Splunk/latest/Alert/)
 - [Gigamon Documentation — Hardware platforms and bypass](https://docs.gigamon.com/)
 - [NIST SP 800-53 Rev. 5 — SI-4 System Monitoring (inline tool context)](https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final)

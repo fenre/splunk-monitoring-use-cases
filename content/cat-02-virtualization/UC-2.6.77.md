@@ -66,4 +66,4 @@ Perceived slowness may be an app or profile issue rather than the network; confi
 ## References
 
 - [uberAgent — Process and network metrics](https://splunkbase.splunk.com/app/1448)
-- [Citrix — HDX and session performance](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-adaptive-technologies.html)
+- [Citrix — HDX and session performance](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

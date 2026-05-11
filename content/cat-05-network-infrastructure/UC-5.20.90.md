@@ -161,5 +161,5 @@ index=network (sourcetype="suricata:alert" OR sourcetype="snort:alert" OR source
 ## References
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — IDS/IPS considerations)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Suricata IPv6 Rules Documentation](https://docs.suricata.io/en/latest/rules/ipv6-keywords.html)
+- [Suricata IPv6 Rules Documentation](https://docs.suricata.io/en/latest/rules/)
 - [THC-IPv6 — Attack toolkit for testing IPv6 IDS/IPS detection](https://github.com/vanhauser-thc/thc-ipv6)

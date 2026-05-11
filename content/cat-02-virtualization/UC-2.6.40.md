@@ -76,4 +76,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix App Layering - Monitor and troubleshoot](https://docs.citrix.com/en-us/citrix-app-layering/4/monitor/monitor.html)
+- [Citrix App Layering - Monitor and troubleshoot](https://docs.citrix.com/en-us/citrix-app-layering/4/)

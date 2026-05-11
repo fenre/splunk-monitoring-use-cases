@@ -193,4 +193,4 @@ index=firewall sourcetype=pan:traffic OR sourcetype=cisco:asa
 - [IANA IPv6 Special-Purpose Address Registry](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml)
 - [RFC 7526 — Deprecating the Anycast Prefix for 6to4 Relay Routers (formal 6to4 deprecation)](https://www.rfc-editor.org/rfc/rfc7526)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.7.2 — Transition mechanism filtering)](https://www.rfc-editor.org/rfc/rfc9099)
-- [DISA STIG — Network Device IPv6 (NET-IPV6-032: ULA must not traverse perimeter)](https://www.stigviewer.com/stig/network_ipv6/)
+- [DISA STIG — Network Device IPv6 (NET-IPV6-032: ULA must not traverse perimeter)](https://www.stigviewer.com/)

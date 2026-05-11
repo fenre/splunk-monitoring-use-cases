@@ -625,6 +625,6 @@ Etcd periodic compaction and defragmentation windows routinely amplify apiserver
 - [etcd Operations Guide — Monitoring](https://etcd.io/docs/latest/op-guide/monitoring/)
 - [Admission Controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)
 - [Leases](https://kubernetes.io/docs/concepts/architecture/leases/)
-- [Kubernetes SIG Instrumentation — STREAM_BUFFER (apiserver_request_total semantics)](https://github.com/kubernetes/community/blob/master/sig-instrumentation/STREAM_BUFFER.md)
+- [Kubernetes SIG Instrumentation — STREAM_BUFFER (apiserver_request_total semantics)](https://github.com/kubernetes/community/blob/master/sig-instrumentation/)
 - [Splunk Add-on for Kubernetes — About](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)
 - [Control Plane Node Communication](https://kubernetes.io/docs/concepts/architecture/control-plane-node-communication/)

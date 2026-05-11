@@ -176,4 +176,4 @@ index=network sourcetype="cisco:ios:config" earliest=-2d
 
 - [RFC 7610 — DHCPv6-Shield: Protecting Against Rogue DHCPv6 Servers](https://www.rfc-editor.org/rfc/rfc7610)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2.5 — DHCPv6 Guard recommendation)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Cisco SISF Configuration Guide — DHCPv6 Guard as part of device-tracking](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Configuration Guide — DHCPv6 Guard as part of device-tracking](https://www.cisco.com/c/en/us/)

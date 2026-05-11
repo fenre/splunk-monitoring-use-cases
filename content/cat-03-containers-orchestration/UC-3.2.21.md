@@ -620,6 +620,6 @@ Legitimately slow hooks exist by design: Kyverno may compile policies on first i
 - [kube-state-metrics — README](https://github.com/kubernetes/kube-state-metrics/blob/main/README.md)
 - [Kubernetes — API Priority and Fairness](https://kubernetes.io/docs/concepts/cluster-administration/flow-control/)
 - [Kubernetes API — MutatingWebhookConfiguration v1](https://kubernetes.io/docs/reference/kubernetes-api/extend-resources/mutating-webhook-configuration-v1/)
-- [Kubernetes SIG Auth — Admission signals](https://github.com/kubernetes/community/blob/master/sig-auth/signals/admission/README.md)
+- [Kubernetes SIG Auth — Admission signals](https://github.com/kubernetes/community/blob/master/sig-auth/)
 - [controller-runtime — Manager and metrics](https://github.com/kubernetes-sigs/controller-runtime/blob/main/pkg/manager/manager.go)
 - [Splunk — Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)

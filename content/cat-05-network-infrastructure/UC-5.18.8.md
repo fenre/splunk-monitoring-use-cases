@@ -74,6 +74,6 @@ Dashboard Studio: timeline of TE events overlaid with ISIS metric deltas; bubble
 
 ## References
 
-- [Cisco IOS XR ISIS Configuration Guide — MPLS TE Extensions](https://www.cisco.com/c/en/us/td/docs/iosxr/cisco8000/routing/b-routing-configuration-guide-c8000/is-is.html)
-- [Juniper RSVP and Traffic Engineering User Guide](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/concept/rsvp-traffic-engineering-overview.html)
+- [Cisco IOS XR ISIS Configuration Guide — MPLS TE Extensions](https://www.cisco.com/c/en/us/)
+- [Juniper RSVP and Traffic Engineering User Guide](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
 - [IETF RFC 3630 — Traffic Engineering Extensions for OSPF](https://www.rfc-editor.org/rfc/rfc3630)

@@ -129,5 +129,5 @@ This is the killer query: it finds domains where the resolver (DNS Server test) 
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes DNS Trace Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/dns-trace-test)
-- [Lame Delegations — Understanding broken NS records (ICANN)](https://www.icann.org/resources/pages/lame-delegation-2013-05-01-en)
+- [ThousandEyes DNS Trace Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/)
+- [Lame Delegations — Understanding broken NS records (ICANN)](https://www.icann.org/resources/)

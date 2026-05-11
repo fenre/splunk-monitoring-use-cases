@@ -171,6 +171,6 @@ Horizontal bar chart (usage vs limit by project, color-coded by alert tier), gro
 
 - [Harbor Administration — Project Quotas](https://goharbor.io/docs/2.10.0/administration/configure-project-quotas/)
 - [Harbor Metrics — Prometheus Endpoint](https://goharbor.io/docs/2.10.0/administration/metrics/)
-- [Harbor Administration — Tag Retention Rules](https://goharbor.io/docs/2.10.0/administration/tag-retention-rules/)
+- [Harbor Administration — Tag Retention Rules](https://goharbor.io/docs/2.10.0/administration/)
 - [Splunk OpenTelemetry Collector for Kubernetes](https://github.com/signalfx/splunk-otel-collector-chart)
 - [Splunk REST API Modular Input (Splunkbase 1546)](https://splunkbase.splunk.com/app/1546)

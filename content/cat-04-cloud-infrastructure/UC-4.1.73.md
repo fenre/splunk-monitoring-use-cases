@@ -73,7 +73,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=aws sourcetype="aws:cloudwatch" (namespace="AWS/ApplicationELB" OR namespace="AWS/NetworkELB") metric_name="UnHealthyHostCount"
-| stats latest(Maximum) as unhealthy by LoadBalancer, TargetGroup, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(Maximum) as unhealthy by LoadBalancer, TargetGroup, _time
 | where unhealthy > 0
 | sort - unhealthy
 ```

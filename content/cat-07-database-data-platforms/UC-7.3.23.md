@@ -48,4 +48,4 @@ Planned access reviews, recertification, break-glass accounts, and vendor mainte
 
 ## References
 
-- [Elasticsearch audit logging](https://www.elastic.co/guide/en/elasticsearch/reference/current/audit-logging.html)
+- [Elasticsearch audit logging](https://www.elastic.co/guide/en/elasticsearch/reference/current/)

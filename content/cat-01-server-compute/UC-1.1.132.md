@@ -60,5 +60,5 @@ Loaner laptops and lab units can sit at high cycle counts for years on AC withou
 
 ## References
 
-- [Splunk Documentation: Install the universal forwarder on macOS](https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/InstallonmacOS)
+- [Splunk Documentation: Install the universal forwarder on macOS](https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/)
 - [Splunk Add-on for Unix and Linux (Splunkbase 833)](https://splunkbase.splunk.com/app/833)

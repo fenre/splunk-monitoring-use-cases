@@ -57,6 +57,6 @@ Snapshot space grows with active data changes and retention; short jumps often f
 
 ## References
 
-- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/reportinggraphs/)
+- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/)
 - [TrueNAS CORE/SCALE docs — alerts](https://www.truenas.com/docs/)
 - [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

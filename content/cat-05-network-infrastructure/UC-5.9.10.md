@@ -132,6 +132,6 @@ The ratio of UPDATEs to path changes reveals the nature of the instability: a hi
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
+- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)
 - [RFC 2439 — BGP Route Flap Damping](https://www.rfc-editor.org/rfc/rfc2439)
-- [BGP UPDATE storms and their impact — NANOG presentation](https://www.nanog.org/meetings/nanog67/presentations/monday/Zmijewski_BGP.pdf)
+- [BGP UPDATE storms and their impact — NANOG presentation](https://www.nanog.org/)

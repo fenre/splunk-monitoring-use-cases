@@ -381,7 +381,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | rex field=_raw "(?i)pod-security\.kubernetes\.io/enforce-version\"\\s*:\\s*\"(?<rex_ev>[^\"]+)"
       | eval cur_enforce_version=coalesce(nullif(cur_enforce_version,""), trim(rex_ev))
       | eval signal_lane="psa_namespace_label_snapshot"
-      | eval lane_detail=strcat("enforce=",coalesce(cur_enforce,"none"),";warn=",coalesce(cur_warn,"none"),";audit=",coalesce(cur_audit,"none"),";enforce_version=",coalesce(cur_enforce_version,"none"))
+      | eval lane_detail="enforce=".coalesce(cur_enforce,"none").";warn=".coalesce(cur_warn,"none").";audit=".coalesce(cur_audit,"none").";enforce_version=".coalesce(cur_enforce_version,"none")
       | stats latest(_time) AS _time latest(cur_enforce) AS cur_enforce latest(cur_warn) AS cur_warn latest(cur_audit) AS cur_audit latest(cur_enforce_version) AS cur_enforce_version BY cluster namespace
       | eval workload="namespace_object"
       | eval actor="label_exporter"
@@ -405,7 +405,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval actor=trim(toString(coalesce('user.username', user.username, user_username, "")))
       | rex field=_raw max_match=0 "(?i)openshift\\.io/scc\"\\s*:\\s*\"(?<scc_applied>[^\"]+)\""
       | eval signal_lane="openshift_scc_psa_interaction"
-      | eval lane_detail=strcat("scc_applied=",coalesce(scc_applied,"unknown")," psa_snip=",substr(resp_msg,1,160))
+      | eval lane_detail="scc_applied=".coalesce(scc_applied,"unknown")." psa_snip=".substr(resp_msg,1,160)
       | eval psa_deny=if(resp_code=403 OR match(resp_msg,"forbidden"),1,0)
       | eval psa_warn_audit_only=if(psa_deny=0 AND psa_marker=1,1,0)
       | fields _time cluster namespace workload actor signal_lane lane_detail psa_deny psa_warn_audit_only resp_code verb_tx scc_applied ]
@@ -423,7 +423,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
             | eval desired=trim(toString(coalesce(desired_version, status_desired_version, version_desired, version, "")))
             | eval maj=mvindex(split(desired,"."),0)
             | eval min=mvindex(split(desired,"."),1)
-            | eval cluster_k8s_minor=strcat("v",maj,".",min)
+            | eval cluster_k8s_minor="v".maj.".".min
             | where len(maj)>0 AND len(min)>0
             | stats latest(cluster_k8s_minor) AS cluster_k8s_minor BY cluster ]
       | eval pinned_ver_norm=lower(trim(replace(cur_enforce_version,"^v","")))
@@ -432,7 +432,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval signal_lane="psa_version_label_mismatch"
       | eval workload="namespace_object"
       | eval actor="version_skew_detector"
-      | eval lane_detail=strcat("enforce_version_pin=",cur_enforce_version," cluster_minor=",cluster_k8s_minor)
+      | eval lane_detail="enforce_version_pin=".cur_enforce_version." cluster_minor=".cluster_k8s_minor
       | eval psa_deny=0
       | eval psa_warn_audit_only=0
       | eval resp_code=0
@@ -446,7 +446,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval desired=trim(toString(coalesce(desired_version, status_desired_version, version_desired, version, "")))
       | eval maj=mvindex(split(desired,"."),0)
       | eval min=mvindex(split(desired,"."),1)
-      | eval cluster_k8s_minor=strcat("v",maj,".",min)
+      | eval cluster_k8s_minor="v".maj.".".min
       | where len(maj)>0 AND len(min)>0
       | stats latest(cluster_k8s_minor) AS cluster_k8s_minor latest(desired) AS openshift_desired_version BY cluster ]
 | join type=left max=0 cluster namespace [

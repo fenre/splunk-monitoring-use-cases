@@ -79,5 +79,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [uberAgent volume and disk performance](https://docs.uberagent.com/)
-- [Cache for MCS — Citrix CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/manage-deployment/mcs/mcs-storage.html)
+- [uberAgent volume and disk performance](https://liquidware.com/)
+- [Cache for MCS — Citrix CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/manage-deployment/)

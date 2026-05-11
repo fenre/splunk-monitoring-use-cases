@@ -52,4 +52,4 @@ OpenStack metrics may swing during image builds, large migrations, or control-pl
 
 ## References
 
-- [OpenStack Cinder](https://openstack.org/cinder)
+- [OpenStack Cinder](https://openstack.org/)

@@ -397,7 +397,7 @@ Closing checklist: five em-dash step headers are present exactly as required; St
       | eval sa_ns=""
       | eval sa_name=""
       | fields _time cluster actor signal_lane obj_name role_name role_kind ns sa_ns sa_name resp_code req_uri verb_l res_l ]
-| eval subject_key=case(signal_lane="rbac_group_system_masters_binding", "group:system:masters", len(sa_ns)>0 AND len(sa_name)>0, strcat("sa:", sa_ns, ":", sa_name), true(), strcat("actor:", actor))
+| eval subject_key=case(signal_lane="rbac_group_system_masters_binding", "group:system:masters", len(sa_ns)>0 AND len(sa_name)>0, "sa:".sa_ns.":".sa_name, true(), "actor:".actor)
 | join type=left max=0 cluster, subject_key [
     | inputlookup k8s_cluster_admin_sa_allowlist.csv
     | eval cluster=lower(trim(toString(coalesce(cluster, k8s_cluster, cluster_name, ""))))
@@ -448,7 +448,7 @@ GitOps controllers such as FluxCD and ArgoCD continuously reconcile ClusterRoleB
 ## References
 
 - [Kubernetes — Using RBAC Authorization](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
-- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/audit/)
+- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/)
 - [Kubernetes — Certificate Signing Requests](https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/)
 - [Kubernetes API — ClusterRoleBinding v1](https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/cluster-role-binding-v1/)
 - [Kubernetes — RBAC super-user and system:masters](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#super-user)

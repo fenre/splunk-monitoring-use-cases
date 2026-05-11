@@ -202,8 +202,8 @@ Bar chart of tag counts by repo, stacked by orphan/stale/active; GC freed-storag
 
 ## References
 
-- [Harbor — Tag Retention Rules](https://goharbor.io/docs/latest/administration/tag-retention-rules/)
+- [Harbor — Tag Retention Rules](https://goharbor.io/docs/latest/administration/)
 - [Harbor — Garbage Collection](https://goharbor.io/docs/latest/administration/garbage-collection/)
-- [Harbor — Artifact Management API](https://goharbor.io/docs/latest/build-customize-contribute/configure-swagger/)
+- [Harbor — Artifact Management API](https://goharbor.io/docs/latest/build-customize-contribute/)
 - [Splunk REST API Modular Input (rest_ta)](https://splunkbase.splunk.com/app/1546)
 - [Splunk trendline Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline)

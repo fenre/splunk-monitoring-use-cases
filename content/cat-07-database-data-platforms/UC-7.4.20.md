@@ -48,4 +48,4 @@ Repairs, streaming, and hinted handoff create bursty patterns during normal clus
 
 ## References
 
-- [Apache Cassandra nodetool status](https://cassandra.apache.org/doc/latest/cassandra/tools/nodetool/status.html)
+- [Apache Cassandra nodetool status](https://cassandra.apache.org/doc/latest/cassandra/)

@@ -68,4 +68,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 ## References
 
 - [Citrix Workspace app — technical overview and connectivity](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows.html)
-- [Configure Workspace experience (Citrix DaaS)](https://docs.citrix.com/en-us/citrix-daas-service/integrate-identity-serve-apps-and-data.html)
+- [Configure Workspace experience (Citrix DaaS)](https://docs.citrix.com/en-us/)

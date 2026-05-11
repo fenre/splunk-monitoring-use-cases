@@ -89,7 +89,8 @@ index=aws sourcetype="aws:cloudwatchlogs" ("REPORT RequestId" OR "INIT_START")
 | rex "Init Duration:\s+(?<init_ms>\d+\.?\d*)\s*ms"
 | rex "Duration:\s+(?<duration_ms>\d+\.?\d*)\s*ms"
 | eval cold_start=if(match(_raw, "INIT_START"), 1, 0)
-| stats count as invocations, sum(cold_start) as cold_starts, avg(init_ms) as avg_init_ms, avg(duration_ms) as avg_duration_ms by function_name, bin(_time, 1h)
+| bin _time span=1h
+| stats count as invocations, sum(cold_start) as cold_starts, avg(init_ms) as avg_init_ms, avg(duration_ms) as avg_duration_ms by function_name, _time
 | eval cold_start_pct=round(cold_starts/invocations*100, 1)
 | where cold_start_pct > 10 OR avg_init_ms > 1000
 | table _time function_name invocations cold_starts cold_start_pct avg_init_ms avg_duration_ms

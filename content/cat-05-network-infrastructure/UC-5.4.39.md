@@ -53,5 +53,5 @@ Table (authentication failures by user / MAC, sortable by count), Single-value t
 
 ## References
 
-- [Cisco C9800 client troubleshooting guide](https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/213937-understand-catalyst-9800-wireless-contro.html)
+- [Cisco C9800 client troubleshooting guide](https://www.cisco.com/c/en/us/)
 - [Splunk Common Information Model — Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)

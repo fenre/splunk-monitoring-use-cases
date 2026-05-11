@@ -49,4 +49,4 @@ Spikes or gaps can follow approved maintenance, load tests, or short collection 
 ## References
 
 - [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
-- [PHP-FPM configuration](https://www.php.net/manual/en/fpm.configuration.php#access-format)
+- [PHP-FPM configuration](https://www.php.net/manual/en/)

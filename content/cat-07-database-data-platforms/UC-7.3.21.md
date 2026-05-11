@@ -48,4 +48,4 @@ Planned access reviews, recertification, break-glass accounts, and vendor mainte
 
 ## References
 
-- [MongoDB Auditing](https://www.mongodb.com/docs/manual/administration/auditing/)
+- [MongoDB Auditing](https://www.mongodb.com/docs/manual/administration/)

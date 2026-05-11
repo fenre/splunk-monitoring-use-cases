@@ -396,7 +396,7 @@ Dependency cold-start races on large JVM, Spark, or warehouse images can flip un
 ## References
 
 - [Docker Docs — Dockerfile HEALTHCHECK reference](https://docs.docker.com/reference/dockerfile/#healthcheck)
-- [Docker Docs — docker events CLI reference](https://docs.docker.com/reference/cli/docker/events/)
+- [Docker Docs — docker events CLI reference](https://docs.docker.com/reference/cli/docker/)
 - [Honeycomb — How Honeycomb monitors Kubernetes (probe and workload context)](https://www.honeycomb.io/blog/how-honeycomb-monitors-kubernetes)
 - [Kubernetes Docs — Pod lifecycle: container probes](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes)
 - [Splunk Lantern — Getting Docker log data into Splunk Cloud Platform with OpenTelemetry](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Getting_Docker_log_data_into_Splunk_Cloud_Platform_with_OpenTelemetry)

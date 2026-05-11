@@ -51,4 +51,4 @@ Lag may increase during initial baseline transfers, scheduled resyncs, large vol
 ## References
 
 - [Splunk Add-on for NetApp Data ONTAP (Splunkbase)](https://splunkbase.splunk.com/app/1664)
-- [SnapMirror overview](https://docs.netapp.com/us-en/ontap/snapmirror/index.html)
+- [SnapMirror overview](https://docs.netapp.com/us-en/ontap/)

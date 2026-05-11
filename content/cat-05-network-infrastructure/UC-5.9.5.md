@@ -142,4 +142,4 @@ This join correlates hop count changes with latency metrics from the streaming d
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
 - [ThousandEyes Splunk App — Inputs (Path Visualization collection)](https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs)
-- [ThousandEyes Path Visualization — Understanding network paths](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/agent-to-server-test)
+- [ThousandEyes Path Visualization — Understanding network paths](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/)

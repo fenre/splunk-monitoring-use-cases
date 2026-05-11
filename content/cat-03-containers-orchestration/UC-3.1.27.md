@@ -254,7 +254,7 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps
       | eval issuer_uid="engine_event"
       | eval scheduled=0
       | eval prune_kind=case(match(action_lc,"image:delete"),"image-prune",match(action_lc,"container:destroy"),"container-prune",match(action_lc,"volume:destroy"),"volume-prune",true(),"builder-prune")
-      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|evt")
+      | eval prune_event_id=host_id."|".tostring(round(_time,0))."|evt"
       | eval reclaim_b=null()
       | eval total_b=null()
       | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
@@ -267,7 +267,7 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps
       | eval issuer_uid=toString(coalesce(audit_uid, auid, AUID, "auid_unknown"))
       | eval scheduled=if(match(lr,"cron|ansible-playbook|salt-minion|runner"),1,0)
       | eval prune_kind="cli-prune"
-      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|cli")
+      | eval prune_event_id=host_id."|".tostring(round(_time,0))."|cli"
       | eval reclaim_b=null()
       | eval total_b=null()
       | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b ]
@@ -281,7 +281,7 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps
       | eval issuer_uid="df_exporter"
       | eval scheduled=1
       | eval prune_kind="system-df-snapshot"
-      | eval prune_event_id=strcat(host_id,"|",tostring(round(_time,0)),"|df_",phase)
+      | eval prune_event_id=host_id."|".tostring(round(_time,0))."|df_".phase
       | fields _time host_id lane argv issuer_uid scheduled prune_kind prune_event_id reclaim_b total_b phase ]
 | eval argv_full=coalesce(argv,"")
 | eval argv_lc=lower(argv_full)
@@ -310,7 +310,7 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps
 | eval severity=case(flag_unsafe==1,"UNSAFE-FLAG-COMBO",reclaim_mismatch==1,"RECLAIM-MISMATCH",time_since_last_scheduled>last_run_threshold_hours,"CRON-MISSED",flag_force==1 AND flag_all==1 AND scheduled==0 AND isnotnull(reclaim_actual_gb) AND reclaim_actual_gb>50,"LARGE-MANUAL-PRUNE",true(),"OK")
 | eval action_required=case(severity=="UNSAFE-FLAG-COMBO","require scoped filters before force-all image prune",severity=="CRON-MISSED","repair automation schedule or log shipping",severity=="RECLAIM-MISMATCH","reconcile dry-run text with df JSON pair",severity=="LARGE-MANUAL-PRUNE","attach break-glass record to change ticket",true(),"no immediate action")
 | eval owner=toString(coalesce(platform_owner, fleet_owner,"platform-oncall"))
-| eval flags_compact=strcat(if(flag_force==1,"force|",""),if(flag_all==1,"all|",""),if(flag_until==1,"until|",""),if(flag_dry==1,"dry|",""))
+| eval flags_compact=if(flag_force==1,"force|","").if(flag_all==1,"all|","").if(flag_until==1,"until|","").if(flag_dry==1,"dry|","")
 | table host_id prune_event_id prune_kind issuer_uid argv_full flags_compact flag_unsafe reclaim_predicted_gb reclaim_actual_gb scheduled time_since_last_scheduled expected_cadence_hours last_run_threshold_hours prune_roll_recent severity owner action_required
 | sort - flag_unsafe severity host_id _time
 ```
@@ -336,7 +336,7 @@ Emergency disk-full response teams often run wide manual prunes under incident c
 
 ## References
 
-- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/About)
+- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/)
 - [Docker Docs — docker events CLI reference](https://docs.docker.com/reference/cli/docker/system/events/)
 - [Docker Docs — docker system prune](https://docs.docker.com/reference/cli/docker/system/prune/)
 - [Docker Docs — docker image prune](https://docs.docker.com/reference/cli/docker/image/prune/)

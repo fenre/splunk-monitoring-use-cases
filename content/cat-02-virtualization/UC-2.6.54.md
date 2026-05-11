@@ -77,5 +77,5 @@ Session and launch time spikes may track image updates, profile migrations, or b
 
 ## References
 
-- [Remote Desktop Services and licensing (Microsoft Learn)](https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/remote-desktop-services-terms)
-- [Citrix — supported operating systems and RDS context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html)
+- [Remote Desktop Services and licensing (Microsoft Learn)](https://learn.microsoft.com/en-us/troubleshoot/windows-server/)
+- [Citrix — supported operating systems and RDS context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

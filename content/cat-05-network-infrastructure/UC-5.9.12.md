@@ -171,5 +171,5 @@ This finds prefixes where the best-performing region and worst-performing region
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
+- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)
 - [Submarine Cable Map — shows physical cable routes relevant to regional reachability](https://www.submarinecablemap.com/)

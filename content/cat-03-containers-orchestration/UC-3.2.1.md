@@ -339,7 +339,7 @@ Rolling image refreshes triggered by kubectl set image or GitOps syncs legitimat
 
 - [kube-state-metrics pod metrics including container restart counter](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md)
 - [Kubernetes pod lifecycle and restart behavior](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
-- [Kubernetes kubelet node agent reference](https://kubernetes.io/docs/reference/node/kubelet/)
+- [Kubernetes kubelet node agent reference](https://kubernetes.io/docs/reference/node/)
 - [Kubernetes debug running pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
 - [Assign memory resources and diagnose OOM](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/)
 - [Kubernetes Event v1 API reference](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)

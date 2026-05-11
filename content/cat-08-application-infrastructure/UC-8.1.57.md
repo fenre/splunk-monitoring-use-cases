@@ -36,8 +36,8 @@ index=infrastructure sourcetype="zookeeper:mntr"
 | eval nodes=tonumber(zk_znode_count)
 | bin _time span=1h
 | stats latest(approx) as approx_bytes latest(nodes) as znodes by host, _time
-| streamstats window=24 global=f delta(approx_bytes) as bytes_per_hour by host
-| where bytes_per_hour > 1073741824 OR approx_bytes > 5368709120
+| streamstats window=24 global=f last(approx_bytes) as _prev_bytes_per_hour by host
+| eval bytes_per_hour = approx_bytes - _prev_bytes_per_hour| where bytes_per_hour > 1073741824 OR approx_bytes > 5368709120
 ```
 
 ## Visualization

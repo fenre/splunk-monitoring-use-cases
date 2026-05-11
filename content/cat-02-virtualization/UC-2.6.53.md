@@ -80,5 +80,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Assign machines to users in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delivery-groups-machines.html)
-- [Manage machine catalogs and delivery groups](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-cds.html)
+- [Assign machines to users in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

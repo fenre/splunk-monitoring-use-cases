@@ -110,4 +110,4 @@ Password resets, token expiry, and user mistakes can add login path failures on 
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
-- [Citrix ADC — nFactor authentication](https://docs.citrix.com/en-us/citrix-adc/current-release/aaatm-authentication.html)
+- [Citrix ADC — nFactor authentication](https://docs.citrix.com/en-us/citrix-adc/current-release/)

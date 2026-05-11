@@ -105,4 +105,4 @@ Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and part
 
 ## References
 
-- [Vendor documentation](https://www.haproxy.com/blog/the-four-golden-signals-for-haproxy/)
+- [Vendor documentation](https://www.haproxy.com/blog/)

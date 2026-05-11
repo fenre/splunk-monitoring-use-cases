@@ -70,12 +70,6 @@ index=hardware sourcetype=bmc_health host=*
 | table host link voltage _time
 ```
 
-## CIM SPL
-
-```spl
-N/A — management-network link and BMC health fields are not a CIM data model; use a custom `bmc_health` sourcetype (from `ipmitool lan` or Redfish) or vendor SNMP OIDs.
-```
-
 ## Visualization
 
 Status grid (BMC up/down per host), Table of unreachable BMCs, Single value (count of healthy BMCs).

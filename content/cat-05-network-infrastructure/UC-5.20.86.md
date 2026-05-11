@@ -151,5 +151,5 @@ index=network (sourcetype="cisco:wlc:syslog" OR sourcetype="cisco:ios" OR source
 ## References
 
 - [RFC 7772 — Reducing Energy Consumption of Router Advertisements (BCP 202)](https://www.rfc-editor.org/rfc/rfc7772)
-- [Cisco Catalyst 9800 RA Throttler Configuration Guide](https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/b_wl_9800_cg/ipv6.html)
+- [Cisco Catalyst 9800 RA Throttler Configuration Guide](https://www.cisco.com/c/en/us/)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.5 — wireless RA considerations)](https://www.rfc-editor.org/rfc/rfc9099)

@@ -104,4 +104,4 @@ Long TTLs, slow resolvers, and noisy clients can make DNS vserver health look wo
 ## References
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
-- [Citrix ADC — DNS](https://docs.citrix.com/en-us/citrix-adc/current-release/dns/dns-citrix.html)
+- [Citrix ADC — DNS](https://docs.citrix.com/en-us/citrix-adc/current-release/dns/)

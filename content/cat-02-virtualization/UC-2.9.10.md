@@ -48,4 +48,4 @@ OpenStack metrics may swing during image builds, large migrations, or control-pl
 
 ## References
 
-- [OpenStack Cinder Snapshots](https://docs.openstack.org/cinder/latest/cli/cli-cinder-snapshots.html)
+- [OpenStack Cinder Snapshots](https://docs.openstack.org/cinder/latest/cli/)

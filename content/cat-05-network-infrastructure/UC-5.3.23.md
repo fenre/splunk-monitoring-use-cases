@@ -118,4 +118,4 @@ AppFlow drops, network blips, and exporter restarts can look like a gap in data 
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
 - [CIM: Network_Traffic](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
-- [Citrix ADC — AppFlow overview](https://docs.citrix.com/en-us/citrix-adc/current-release/application-firewall-analytics/appflow-analytics.html)
+- [Citrix ADC — AppFlow overview](https://docs.citrix.com/en-us/citrix-adc/current-release/)

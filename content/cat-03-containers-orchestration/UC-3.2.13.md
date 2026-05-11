@@ -387,14 +387,14 @@ Closing checklist: five plain em-dash step headers present, Step 3 fence matches
       | rex field=_raw "(?im)certmanager_certificate_expiration_timestamp_seconds[^\\n]+\\s+(?<pm_value>[0-9\\.eE+-]+)"
       | rex field=_raw "(?im)namespace\\?=\\?\"(?<cm_ns>[^\"]+)\""
       | rex field=_raw "(?im)name\\?=\\?\"(?<cm_name>[^\"]+)\""
-      | eval cert_path=strcat("cert-manager/",coalesce(cm_ns,"-"),"/",coalesce(cm_name,"unknown"))
+      | eval cert_path="cert-manager/".coalesce(cm_ns,"-")."/".coalesce(cm_name,"unknown")
       | eval pm_epoch=tonumber(pm_value,10)
       | eval not_after_epoch=if(pm_epoch>1000000000, pm_epoch, null())
       | eval notAfter_str=""
-      | eval subject_full=strcat("cn:",coalesce(cm_name,"cert-manager-certificate"))
+      | eval subject_full="cn:".coalesce(cm_name,"cert-manager-certificate")
       | eval issuer_full="cert-manager-controller"
       | eval serial_hex=""
-      | eval fingerprint_sha256=strcat("prom:",cert_path)
+      | eval fingerprint_sha256="prom:".cert_path
       | fields _time lane cluster cert_path not_after_epoch notAfter_str subject_full issuer_full serial_hex fingerprint_sha256 ]
     [ search index=k8s_compliance sourcetype="kube:objects:certs" earliest=-7d@d latest=now
       | eval lane="api_object_snapshot"

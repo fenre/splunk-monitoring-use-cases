@@ -159,5 +159,5 @@ index=network (sourcetype="pan:traffic" OR sourcetype="cisco:asa") earliest=-30d
 
 ## References
 
-- [AICPA — SOC 2 Trust Services Criteria (2017)](https://www.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria.pdf)
+- [AICPA — SOC 2 Trust Services Criteria (2017)](https://www.aicpa.org/)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks](https://www.rfc-editor.org/rfc/rfc9099)

@@ -70,12 +70,6 @@ index=hardware sourcetype=raid_controller host=*
 | table host controller_id status degraded
 ```
 
-## CIM SPL
-
-```spl
-N/A — RAID or HBA controller state is not a CIM data model; use a custom `raid_controller` sourcetype from vendor CLIs (Linux typical).
-```
-
 ## Visualization
 
 Status panel (Optimal/Degraded/Failed), Table of degraded arrays.

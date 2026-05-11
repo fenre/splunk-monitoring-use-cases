@@ -50,4 +50,4 @@ FC port errors can spike during cable replacements, SFP swaps, zoning changes, o
 ## References
 
 - [Splunk Add-on for NetApp Data ONTAP (Splunkbase)](https://splunkbase.splunk.com/app/1664)
-- [NVMe support](https://docs.netapp.com/us-en/ontap/nvme-support/index.html)
+- [NVMe support](https://docs.netapp.com/us-en/ontap/)

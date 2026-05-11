@@ -159,5 +159,5 @@ index=network (sourcetype="cisco:ios:config" OR sourcetype="cisco:iosxe:config")
 ## References
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§3.2 — management plane)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Cisco IOS IPv6 Management Plane Configuration Guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6/configuration/xe-17/ipv6-xe-17-book/ipv6-mgmt-plane.html)
+- [Cisco IOS IPv6 Management Plane Configuration Guide](https://www.cisco.com/c/en/us/)
 - [RFC 6613 — RADIUS over TCP (enables IPv6 transport for RADIUS)](https://www.rfc-editor.org/rfc/rfc6613)

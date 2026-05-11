@@ -66,4 +66,4 @@ Session and launch time spikes may track image updates, profile migrations, or b
 ## References
 
 - [uberAgent — Logon and session performance](https://splunkbase.splunk.com/app/1448)
-- [Citrix — Session launch and logon process](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/logon-processes.html)
+- [Citrix — Session launch and logon process](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

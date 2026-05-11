@@ -136,4 +136,4 @@ Track alert lifecycle to measure MTTR:
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
 - [ThousandEyes Internet Insights](https://docs.thousandeyes.com/product-documentation/internet-insights)
-- [ThousandEyes path visualization](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/views/network-path-visualization)
+- [ThousandEyes path visualization](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)

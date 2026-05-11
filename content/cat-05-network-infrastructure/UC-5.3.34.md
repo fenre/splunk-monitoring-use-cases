@@ -98,4 +98,4 @@ Rehearsals, boot order, and network reachability can make cluster messages noisy
 ## References
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
-- [Citrix ADC — High availability and clustering](https://docs.citrix.com/en-us/citrix-adc/current-release/getting-started-with-citrix-adc/high-availability-citrix.html)
+- [Citrix ADC — High availability and clustering](https://docs.citrix.com/en-us/citrix-adc/current-release/getting-started-with-citrix-adc/)

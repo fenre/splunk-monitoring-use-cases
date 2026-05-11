@@ -210,5 +210,5 @@ Gauge showing soonest expiry (days), certificate inventory table color-coded by 
 - [OpenSSL — s_client Documentation](https://www.openssl.org/docs/man3.0/man1/openssl-s_client.html)
 - [Harbor — HTTPS Configuration](https://goharbor.io/docs/latest/install-config/configure-https/)
 - [Kubernetes — Pull an Image from a Private Registry](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/)
-- [Splunk — Scripted Inputs](https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorchangestofilesanddirectories)
+- [Splunk — Scripted Inputs](https://docs.splunk.com/Documentation/Splunk/latest/Data/)
 - [Splunk eval Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval)

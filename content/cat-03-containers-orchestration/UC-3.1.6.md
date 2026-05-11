@@ -323,11 +323,7 @@ Supplemental engineering notes for long-term owners: when rootless Docker become
       | eval risky_mount_hit=if(match(_raw,"/var/run/docker\\.sock|/var/run/crio\\.sock|/var/run/containerd/containerd\\.sock|\\\"Source\\\":\\\"/proc\\\"|\\\"Source\\\":\\\"/sys\\\"|\\\"Source\\\":\\\"/\\\"|\\\"Source\\\":\\\"/etc\\\""),1,0)
       | eval sec_opt_raw=lower(toString(coalesce(HostConfig_SecurityOpt, host_config_security_opt, SecurityOpt, security_opt, "")))
       | eval unconfined_hit=if(match(sec_opt_raw,"apparmor[=:]unconfined|seccomp[=:]unconfined|selinux.*unconfined|label[=:]disable"),1,0)
-      | eval ns_summary=strcat(
-          if(like(pid_mode,"%host%"),"pid=host|",null()),
-          if(like(ipc_mode,"%host%"),"ipc=host|",null()),
-          if(like(net_mode,"%host%"),"net=host|",null()),
-          if(like(uts_mode,"%host%"),"uts=host|",null()))
+      | eval ns_summary=if(like(pid_mode,"%host%"),"pid=host|",null()).if(like(ipc_mode,"%host%"),"ipc=host|",null()).if(like(net_mode,"%host%"),"net=host|",null()).if(like(uts_mode,"%host%"),"uts=host|",null())
       | eval ns_summary=replace(ns_summary,"\|+$","")
       | eval signal_type="docker_inspect_hostconfig"
       | eval falco_rule=""
@@ -350,10 +346,7 @@ Supplemental engineering notes for long-term owners: when rootless Docker become
       | eval dangerous_hit=if(match(lr,"sys_admin|sys_module|sys_ptrace|net_admin|net_raw|sys_rawio|dac_read_search"),1,0)
       | eval risky_mount_hit=0
       | eval unconfined_hit=if(match(lr,"unconfined|apparmor=unconfined"),1,0)
-      | eval ns_summary=strcat(
-          if(pid_mode=="host","pid=host|",null()),
-          if(ipc_mode=="host","ipc=host|",null()),
-          if(net_mode=="host","net=host|",null()))
+      | eval ns_summary=if(pid_mode=="host","pid=host|",null()).if(ipc_mode=="host","ipc=host|",null()).if(net_mode=="host","net=host|",null())
       | eval ns_summary=replace(ns_summary,"\|+$","")
       | eval signal_type="docker_events_policy_hint"
       | eval falco_rule=""
@@ -478,5 +471,5 @@ Cilium, Calico, kube-proxy, Antrea, and similar node agents sometimes require ho
 - [CIS Docker Benchmark — community program landing (Control 5.4 privileged containers)](https://www.cisecurity.org/benchmark/docker)
 - [MITRE ATT&CK — T1611 Escape to Host](https://attack.mitre.org/techniques/T1611/)
 - [NIST SP 800-190 — Application Container Security Guide](https://csrc.nist.gov/publications/detail/sp/800-190/final)
-- [Falco Docs — Default and custom rules (privileged and capability policies)](https://falco.org/docs/rules/default-custom-rules/)
+- [Falco Docs — Default and custom rules (privileged and capability policies)](https://falco.org/docs/rules/)
 - [Splunk Lantern — Docker data source guidance](https://lantern.splunk.com/Data_Sources/Docker)

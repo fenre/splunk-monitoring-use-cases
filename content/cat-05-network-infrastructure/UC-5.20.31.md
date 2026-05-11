@@ -163,6 +163,6 @@ index=network sourcetype="cisco:ios" "%SISF-4-PAK_DROP"
 
 ## References
 
-- [Cisco SISF Configuration Guide — PAK_DROP events and Reason codes](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Configuration Guide — PAK_DROP events and Reason codes](https://www.cisco.com/c/en/us/)
 - [Cisco Bug CSCvx75602 — SISF false IP_THEFT during HA/VM failover](https://bst.cloudapps.cisco.com/bugsearch/bug/CSCvx75602)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2 — First-hop security deployment guidance)](https://www.rfc-editor.org/rfc/rfc9099)

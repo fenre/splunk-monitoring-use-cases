@@ -35,8 +35,8 @@ index=infrastructure sourcetype="memcached:stats"
 | eval bad=tonumber(cas_badval)
 | bin _time span=5m
 | stats latest(bad) as cas_bad by host, _time
-| streamstats window=2 global=f delta(cas_bad) as cas_bad_delta by host
-| where cas_bad_delta > 100
+| streamstats window=2 global=f last(cas_bad) as _prev_cas_bad_delta by host
+| eval cas_bad_delta = cas_bad - _prev_cas_bad_delta| where cas_bad_delta > 100
 ```
 
 ## Visualization

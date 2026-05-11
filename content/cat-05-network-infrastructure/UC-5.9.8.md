@@ -153,6 +153,6 @@ This gives a fleet-level view: "prefix X is 97% reachable globally, unreachable 
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes BGP Route Monitoring — Understanding BGP tests](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
+- [ThousandEyes BGP Route Monitoring — Understanding BGP tests](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)
 - [ThousandEyes OTel v2 Data Model — BGP metrics](https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2)
-- [BGP Hijacking — NIST RPKI reference](https://www.nist.gov/publications/bgp-secure-routing-extension-bgp-sec-protocol)
+- [BGP Hijacking — NIST RPKI reference](https://www.nist.gov/publications/)

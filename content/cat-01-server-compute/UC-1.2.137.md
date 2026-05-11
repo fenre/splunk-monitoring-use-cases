@@ -60,4 +60,4 @@ Table (host, offset_ms), Histogram (offset distribution), Map (optional site).
 ## References
 
 - [NIST SP 800-52 Rev. 2 — TLS guidance (time synchronization context)](https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/final)
-- [Splunk Universal Forwarder macOS install](https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/InstallonmacOS)
+- [Splunk Universal Forwarder macOS install](https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/)

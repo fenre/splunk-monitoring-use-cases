@@ -311,7 +311,7 @@ Closing: Step 5 lists twelve numbered troubleshooting cases covering collector s
       | eval architecture=trim(toString(coalesce(architecture, platform, oci_platform, "linux/amd64")))
       | eval head_b=tonumber(tostring(coalesce(manifest_head_bytes, content_length, Content_Length, registry_head_bytes, "0")), 10)
       | stats latest(head_b) AS manifest_head_b max(_time) AS head_last BY repository tag architecture ]
-| eval image_key=if(len(image_key)>0, image_key, lower(md5(strcat(repository, ":", tag))))
+| eval image_key=if(len(image_key)>0, image_key, lower(md5(repository.":".tag)))
 | stats
     max(layer_count) AS layer_count
     max(sum_layer_bytes) AS sum_layer_bytes
@@ -394,7 +394,7 @@ Legitimately large ML and AI training images ship multi-gigabyte model weights; 
 
 ## References
 
-- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/About)
+- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/)
 - [Docker Docs — docker history](https://docs.docker.com/engine/reference/commandline/history/)
 - [Docker Docs — Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
 - [Docker Docs — BuildKit](https://docs.docker.com/build/buildkit/)

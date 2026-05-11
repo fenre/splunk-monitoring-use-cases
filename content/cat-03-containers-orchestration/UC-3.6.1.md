@@ -160,7 +160,7 @@ Line chart (daily restarts + 7-day SMA trend over 30 days), stacked area by name
 
 ## References
 
-- [kube-state-metrics — Pod Metrics Reference](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/pod-metrics.md)
+- [kube-state-metrics — Pod Metrics Reference](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/)
 - [Kubernetes — Container Restart Policy](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy)
 - [Splunk OpenTelemetry Collector for Kubernetes — Helm Chart](https://github.com/signalfx/splunk-otel-collector-chart)
 - [Kubernetes — Pod Lifecycle and Termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)

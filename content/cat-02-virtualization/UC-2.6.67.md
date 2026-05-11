@@ -67,4 +67,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Certificate security in Citrix Endpoint Management (modeled overview)](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html)
+- [Certificate security in Citrix Endpoint Management (modeled overview)](https://docs.citrix.com/en-us/citrix-endpoint-management/)

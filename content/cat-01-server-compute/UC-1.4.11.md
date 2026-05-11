@@ -76,12 +76,6 @@ index=hardware sourcetype=boot_config host=*
 | table host current_order expected_order secure_boot
 ```
 
-## CIM SPL
-
-```spl
-N/A — boot order and secure-boot state are not a CIM data model; use a custom `boot_config` sourcetype and a lookup of approved settings.
-```
-
 ## Visualization
 
 Table (host, current vs. expected boot order), Compliance percentage.

@@ -80,5 +80,5 @@ Dashboard Studio: KPI violations last seven days; bar chart by team; drilldown t
 ## References
 
 - [Red Hat Ansible Automation Platform — Role-based access control and auditing](https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/)
-- [HashiCorp Terraform Cloud — Workspace permissions and audit log events](https://developer.hashicorp.com/terraform/cloud-docs/users-teams-organizations/audit-trails)
-- [ITIL — Change management practice summary (Axelos)](https://www.axelos.com/best-practice-solutions/itil)
+- [HashiCorp Terraform Cloud — Workspace permissions and audit log events](https://developer.hashicorp.com/terraform/cloud-docs/)
+- [ITIL — Change management practice summary (Axelos)](https://www.axelos.com/)

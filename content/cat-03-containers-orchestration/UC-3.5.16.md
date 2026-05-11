@@ -191,6 +191,6 @@ Dual-axis timeline (K8s events on primary axis, trace error rate on secondary), 
 
 - [Kubernetes — Events and Event API](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)
 - [OpenTelemetry — Trace Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/general/trace/)
-- [Splunk OTel Collector — k8s_events Receiver](https://docs.splunk.com/observability/en/gdi/opentelemetry/components/k8s-events-receiver.html)
+- [Splunk OTel Collector — k8s_events Receiver](https://docs.splunk.com/observability/en/gdi/opentelemetry/components/)
 - [Splunk — join Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join)
 - [Kubernetes — Resource Management for Pods](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)

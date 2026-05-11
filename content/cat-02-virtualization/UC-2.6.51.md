@@ -79,5 +79,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix StoreFront 1912 and later (planning and networking)](https://docs.citrix.com/en-us/storefront/1912/plan/considerations.html)
-- [Microsoft: IIS log fields](https://learn.microsoft.com/en-us/iis/get-started/whats-new-in-iis-85/iis-85-rewrite-module-logging-rewrite-tracing)
+- [Citrix StoreFront 1912 and later (planning and networking)](https://docs.citrix.com/en-us/storefront/)
+- [Microsoft: IIS log fields](https://learn.microsoft.com/en-us/iis/get-started/whats-new-in-iis-85/)

@@ -75,5 +75,5 @@ Scheduled antivirus scans spike disk latency alarms; benign LDAP constraint viol
 
 ## References
 
-- [Cisco Unity Connection Administration Guide — Diagnostics](https://www.cisco.com/c/en/us/td/docs/voice_ip_comm/connection/15/administration/guide/b_15cucag.pdf)
+- [Cisco Unity Connection Administration Guide — Diagnostics](https://www.cisco.com/c/en/us/)
 - [Splunk Lantern — use case library](https://lantern.splunk.com/)

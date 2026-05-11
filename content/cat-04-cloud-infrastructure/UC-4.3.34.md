@@ -188,7 +188,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="dataflow.googleapis.com/job/system_lag"
-| stats latest(value) as lag_sec by resource.labels.job_name, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(value) as lag_sec by resource.labels.job_name, _time
 | where lag_sec > 300
 | sort - lag_sec
 ```

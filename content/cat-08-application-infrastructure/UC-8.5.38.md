@@ -50,5 +50,5 @@ Response time spikes during JVM garbage collection, connection pool exhaustion, 
 
 ## References
 
-- [Apache ActiveMQ — JDBC Persistence](https://activemq.apache.org/jdbc)
+- [Apache ActiveMQ — JDBC Persistence](https://activemq.apache.org/)
 - [Apache ActiveMQ — Features](https://activemq.apache.org/features)

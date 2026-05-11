@@ -42,21 +42,28 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki:licensesoverview" earliest=-1d
-| stats latest(licensedDeviceCounts) as licensed_counts,
-        latest(expirationDate) as expiry_iso,
-        latest(status) as license_status
-         by organizationId, organizationName
-| eval days_until_expire = round((strptime(expiry_iso,"%Y-%m-%dT%H:%M:%SZ") - now())/86400, 0)
-| where days_until_expire <= 90
+| eval licensed_devices = 0
+| foreach licensedDeviceCounts.* [ eval licensed_devices = licensed_devices + coalesce('<<FIELD>>', 0) ]
+| stats latest(expirationDate) as expiry_str,
+        latest(status) as license_status,
+        latest(licensed_devices) as licensed_devices
+         by organizationId
+| eval expiry_epoch = strptime(expiry_str, "%b %d, %Y %Z")
+| eval days_until_expire = if(isnotnull(expiry_epoch), round((expiry_epoch - now())/86400, 0), -1)
+| eval source_type = "org_summary", license_key = organizationId
+| where days_until_expire >= 0 AND days_until_expire <= 90
+| fields source_type, organizationId, license_key, license_status, licensed_devices, days_until_expire
 | append [
     search index=meraki sourcetype="meraki:licensescotermlicenses" earliest=-1d
-    | stats latest(claimDate) as claimed,
-            latest(expirationDate) as expiry_iso,
-            latest(licenseType) as license_type,
-            latest(state) as state
-             by licenseKey, organizationId
-    | eval days_until_expire = round((strptime(expiry_iso,"%Y-%m-%dT%H:%M:%SZ") - now())/86400, 0)
-    | where days_until_expire <= 90
+    | eval claimed_epoch = strptime(claimedAt, "%Y-%m-%dT%H:%M:%SZ")
+    | eval expire_epoch = claimed_epoch + (tonumber(duration) * 86400)
+    | eval days_until_expire = round((expire_epoch - now())/86400, 0)
+    | stats latest(expired) as license_status,
+            latest(days_until_expire) as days_until_expire
+             by key, organizationId
+    | eval source_type = "individual_license", license_key = key, licensed_devices = 1
+    | where (days_until_expire <= 90 AND days_until_expire >= 0) OR license_status = "true"
+    | fields source_type, organizationId, license_key, license_status, licensed_devices, days_until_expire
   ]
 | sort days_until_expire
 ```
@@ -72,9 +79,14 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:licensesoverview", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by organizationId, organizationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **licensed_devices** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Iterates over multivalue fields with `foreach`.
+- `stats` rolls up events into metrics; results are split **by organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `eval` defines or adjusts **expiry_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.
 - `eval` defines or adjusts **days_until_expire** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where days_until_expire <= 90` — typically the threshold or rule expression for this monitoring goal.
+- `eval` defines or adjusts **source_type** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where days_until_expire >= 0 AND days_until_expire <= 90` — typically the threshold or rule expression for this monitoring goal.
+- Keeps or drops fields with `fields` to shape columns and size.
 - Appends rows from a subsearch with `append`.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -89,21 +101,28 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki:licensesoverview" earliest=-1d
-| stats latest(licensedDeviceCounts) as licensed_counts,
-        latest(expirationDate) as expiry_iso,
-        latest(status) as license_status
-         by organizationId, organizationName
-| eval days_until_expire = round((strptime(expiry_iso,"%Y-%m-%dT%H:%M:%SZ") - now())/86400, 0)
-| where days_until_expire <= 90
+| eval licensed_devices = 0
+| foreach licensedDeviceCounts.* [ eval licensed_devices = licensed_devices + coalesce('<<FIELD>>', 0) ]
+| stats latest(expirationDate) as expiry_str,
+        latest(status) as license_status,
+        latest(licensed_devices) as licensed_devices
+         by organizationId
+| eval expiry_epoch = strptime(expiry_str, "%b %d, %Y %Z")
+| eval days_until_expire = if(isnotnull(expiry_epoch), round((expiry_epoch - now())/86400, 0), -1)
+| eval source_type = "org_summary", license_key = organizationId
+| where days_until_expire >= 0 AND days_until_expire <= 90
+| fields source_type, organizationId, license_key, license_status, licensed_devices, days_until_expire
 | append [
     search index=meraki sourcetype="meraki:licensescotermlicenses" earliest=-1d
-    | stats latest(claimDate) as claimed,
-            latest(expirationDate) as expiry_iso,
-            latest(licenseType) as license_type,
-            latest(state) as state
-             by licenseKey, organizationId
-    | eval days_until_expire = round((strptime(expiry_iso,"%Y-%m-%dT%H:%M:%SZ") - now())/86400, 0)
-    | where days_until_expire <= 90
+    | eval claimed_epoch = strptime(claimedAt, "%Y-%m-%dT%H:%M:%SZ")
+    | eval expire_epoch = claimed_epoch + (tonumber(duration) * 86400)
+    | eval days_until_expire = round((expire_epoch - now())/86400, 0)
+    | stats latest(expired) as license_status,
+            latest(days_until_expire) as days_until_expire
+             by key, organizationId
+    | eval source_type = "individual_license", license_key = key, licensed_devices = 1
+    | where (days_until_expire <= 90 AND days_until_expire >= 0) OR license_status = "true"
+    | fields source_type, organizationId, license_key, license_status, licensed_devices, days_until_expire
   ]
 | sort days_until_expire
 ```

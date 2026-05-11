@@ -188,7 +188,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="redis.googleapis.com/stats/memory/usage_ratio"
-| stats latest(value) as mem_ratio by resource.labels.instance_id, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(value) as mem_ratio by resource.labels.instance_id, _time
 | where mem_ratio > 0.9
 | sort - mem_ratio
 ```

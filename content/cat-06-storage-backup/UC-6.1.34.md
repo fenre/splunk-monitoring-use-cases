@@ -52,4 +52,4 @@ Short spikes during approved changes, maintenance windows, or known batch jobs c
 ## References
 
 - [Pure Storage Unified Add-on for Splunk (Splunkbase)](https://splunkbase.splunk.com/app/5513)
-- [Splunk Connect for Syslog — Pure Storage](https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/PureStorage/pure_storage/)
+- [Splunk Connect for Syslog — Pure Storage](https://splunk.github.io/splunk-connect-for-syslog/main/sources/)

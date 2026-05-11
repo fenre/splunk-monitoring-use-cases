@@ -79,5 +79,5 @@ Short-retention archives pretend novelty after retention rollover. Cloud auto-sc
 
 ## References
 
-- [Splunk — Hunting with NetFlow data](https://www.splunk.com/en_us/blog/learn/network-security-monitoring.html)
+- [Splunk — Hunting with NetFlow data](https://www.splunk.com/en_us/blog/)
 - [MITRE ATT&CK — Lateral Movement](https://attack.mitre.org/tactics/TA0008/)

@@ -48,7 +48,7 @@ index=meraki sourcetype="meraki:audit" earliest=-7d
         values(label) as targets,
         earliest(_time) as first_action,
         latest(_time) as last_action
-         by adminName, organizationName
+         by adminName, organizationId
 | where admin_action_count > 0
 | sort - admin_action_count
 ```
@@ -64,7 +64,7 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:audit", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by adminName, organizationName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `stats` rolls up events into metrics; results are split **by adminName, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - Filters the current rows with `where admin_action_count > 0` — typically the threshold or rule expression for this monitoring goal.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
@@ -85,7 +85,7 @@ index=meraki sourcetype="meraki:audit" earliest=-7d
         values(label) as targets,
         earliest(_time) as first_action,
         latest(_time) as last_action
-         by adminName, organizationName
+         by adminName, organizationId
 | where admin_action_count > 0
 | sort - admin_action_count
 ```

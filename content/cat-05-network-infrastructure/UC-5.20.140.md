@@ -78,4 +78,4 @@ index=network sourcetype="netflow" earliest=-24h
 ## References
 
 - [RFC 6437 — IPv6 Flow Label Specification](https://www.rfc-editor.org/rfc/rfc6437)
-- [IPv6 Flow Labels as Covert Channel — Academic Research](https://doi.org/10.1109/ACSAC.2005.25)
+- [IPv6 Flow Labels as Covert Channel — Academic Research](https://doi.org/)

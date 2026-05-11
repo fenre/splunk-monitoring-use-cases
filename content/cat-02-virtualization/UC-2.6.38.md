@@ -74,4 +74,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Universal Print Server - Citrix](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/print/ups.html)
+- [Universal Print Server - Citrix](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/)

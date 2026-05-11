@@ -377,7 +377,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval node=lower(trim(toString(coalesce(node, nodeName, metadata_name, name, ""))))
       | eval drivers=trim(toString(coalesce(drivers, driver_list, status_drivers, "")))
       | eval lane="csi_node"
-      | eval entity_key=strcat("csinode_",node)
+      | eval entity_key="csinode_".node
       | eval drv_cnt=if(len(drivers)>4, len(split(drivers,",")), if(len(drivers)>0,1,0))
       | eval deg_f=if(drv_cnt==0 OR len(drivers)==0,1,0)
       | eval avail_f=if(deg_f==0,1,0)
@@ -403,7 +403,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval deg_f=if(va_stuck==1 OR snap_fail==1 OR evt_storage==1,1,0)
       | eval avail_f=if(deg_f==0,1,0)
       | eval prog_f=0
-      | eval cond_msg=substr(strcat(reason," ",msg),1,420)
+      | eval cond_msg=substr(reason." ".msg,1,420)
       | eval prog_dwell_min=coalesce(age_min,0)
       | eval ltt_epoch=created
       | where len(entity_key)>0
@@ -419,7 +419,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval deg_f=if(match(mn,"kube_pod_container_status_restarts_total") AND mv>=8,1,0)
       | eval avail_f=if(deg_f==0,1,0)
       | eval prog_f=0
-      | eval cond_msg=strcat(mn,"=",tostring(round(mv,4)))
+      | eval cond_msg=mn."=".tostring(round(mv,4))
       | eval prog_dwell_min=0
       | eval ltt_epoch=null()
       | stats max(_time) AS _time max(mv) AS met_peak max(deg_f) AS deg_f max(avail_f) AS avail_f max(prog_f) AS prog_f first(cond_msg) AS cond_msg max(prog_dwell_min) AS prog_dwell_min first(mn) AS prom_name BY cluster lane entity_key ]
@@ -428,7 +428,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval sc=lower(trim(toString(coalesce(name, metadata_name, storageclass, ""))))
       | eval params=lower(trim(toString(coalesce(parameters_json, parameters, provisioner_parameters, ""))))
       | eval lane="sc_gov"
-      | eval entity_key=strcat("storageclass_",sc)
+      | eval entity_key="storageclass_".sc
       | eval gp3_drift=if(match(sc,"gp3|ebs.csi.aws.com") AND !match(params,"encrypted") AND !match(_raw,"encrypted"),1,0)
       | eval gp3_iops_gap=if(match(sc,"gp3") AND !match(params,"iops") AND !match(_raw,"iops"),1,0)
       | eval deg_f=if(gp3_drift==1 OR gp3_iops_gap==1,1,0)
@@ -443,12 +443,12 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval mn=lower(trim(toString(metric_name)))
       | where like(mn,"csi_%") OR like(mn,"storage_operator%")
       | eval lane="mstats_supp"
-      | eval entity_key=strcat("metric_",mn)
+      | eval entity_key="metric_".mn
       | eval met_peak=mv
       | eval deg_f=if(like(mn,"%degraded%") AND mv>0,1,0)
       | eval avail_f=if(deg_f==0,1,0)
       | eval prog_f=0
-      | eval cond_msg=strcat(mn,"=",tostring(round(mv,6)))
+      | eval cond_msg=mn."=".tostring(round(mv,6))
       | eval prog_dwell_min=0
       | eval ltt_epoch=null()
       | eval prom_name=mn

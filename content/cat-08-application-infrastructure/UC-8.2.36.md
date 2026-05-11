@@ -47,4 +47,4 @@ Queues and broker metrics swing during rebalancing, replay, or maintenance. We a
 ## References
 
 - [RabbitMQ — Disk Alarms](https://www.rabbitmq.com/docs/alarms#disk-alarm)
-- [RabbitMQ — Disk Space](https://www.rabbitmq.com/docs/disk-space)
+- [RabbitMQ — Disk Space](https://www.rabbitmq.com/docs/)

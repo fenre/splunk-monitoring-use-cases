@@ -80,5 +80,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Publish applications in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/publish.html)
-- [Delegating administration and role-based access](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/delegated-administration.html)
+- [Publish applications in CVAD](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

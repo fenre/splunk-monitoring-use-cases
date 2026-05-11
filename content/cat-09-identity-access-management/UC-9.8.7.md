@@ -52,5 +52,5 @@ Gradual growth from new apps, M&A, or seasonality; use baselines and compare wit
 
 ## References
 
-- [BeyondTrust — Privileged Remote Access](https://www.beyondtrust.com/privileged-remote-access)
-- [Splunk Docs — stats functions (percentiles)](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Commonstatsfunctions)
+- [BeyondTrust — Privileged Remote Access](https://www.beyondtrust.com/)
+- [Splunk Docs — stats functions (percentiles)](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/)

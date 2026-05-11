@@ -546,5 +546,5 @@ Deliberately suspended CronJobs during approved winter holiday freezes or financ
 - [kube-state-metrics — CronJob metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/cronjob-metrics.md)
 - [Google Cloud — Run Jobs on GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/jobs)
 - [Amazon EKS — Batch and job workloads](https://docs.aws.amazon.com/eks/latest/userguide/batch-jobs.html)
-- [Microsoft Learn — Run CronJobs on Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/cronjobs)
+- [Microsoft Learn — Run CronJobs on Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/)
 - [Red Hat Documentation — Jobs and CronJobs (OpenShift / ARO)](https://docs.openshift.com/container-platform/4.15/nodes/jobs/nodes-nodes-jobs.html)

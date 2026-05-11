@@ -82,5 +82,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix autoscale and scheduled actions](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/manage-deployments/citrix-autoscale/about-autoscale.html)
-- [Load management — brokering context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/manage-load-balancing.html)
+- [Citrix autoscale and scheduled actions](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/)
+- [Load management — brokering context](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

@@ -54,5 +54,5 @@ Routine privileged access from approved change windows, scheduled maintenance, I
 
 ## References
 
-- [BeyondTrust — Password Safe](https://www.beyondtrust.com/privileged-password-management)
+- [BeyondTrust — Password Safe](https://www.beyondtrust.com/)
 - [Splunk Docs — transaction](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Transaction)

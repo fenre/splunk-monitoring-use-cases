@@ -76,4 +76,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Monitor Citrix with OData](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-221/operations/monitor/odata-connector.html)
+- [Monitor Citrix with OData](https://docs.citrix.com/en-us/)

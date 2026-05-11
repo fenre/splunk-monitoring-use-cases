@@ -420,6 +420,6 @@ Managed Kubernetes layers that roll operating-system security patches through no
 - [Kubernetes Documentation — Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
 - [Kubernetes Documentation — Troubleshoot Clusters](https://kubernetes.io/docs/tasks/debug/debug-cluster/_print/)
 - [Kubernetes Documentation — Leases](https://kubernetes.io/docs/concepts/architecture/leases/)
-- [kube-state-metrics — Node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/node-metrics.md)
+- [kube-state-metrics — Node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/)
 - [Kubernetes Reference — Well-Known Labels, Annotations and Taints](https://kubernetes.io/docs/reference/labels-annotations-taints/#node-kubernetes-io-not-ready)
 - [Splunk Documentation — Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)

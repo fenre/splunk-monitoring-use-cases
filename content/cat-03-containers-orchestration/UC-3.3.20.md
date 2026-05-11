@@ -361,8 +361,8 @@ Case L — clean cluster control test with all certificates beyond ninety days a
       | where cert_degraded=1
       | eval not_after_epoch=null()
       | eval namespace="openshift-cluster-version"
-      | eval secret_name=strcat("clusteroperator__",co_name)
-      | eval cert_subject_cn=strcat("clusteroperator:",co_name)
+      | eval secret_name="clusteroperator__".co_name
+      | eval cert_subject_cn="clusteroperator:".co_name
       | eval cert_issuer="cluster_operator_condition"
       | eval ca_bundle_kind="clusteroperator_cert_hint"
       | eval operator_owner=co_name
@@ -465,4 +465,4 @@ Chained certificate renewals routinely leave multiple PEM leaves in a single tls
 - [Splunkbase — Splunk Add-on for Kubernetes](https://splunkbase.splunk.com/app/3743)
 - [Splunk Lantern — Kubernetes data descriptors](https://lantern.splunk.com/Data_Descriptors/Kubernetes)
 - [Kubernetes Documentation — Metrics for Kubernetes system components](https://kubernetes.io/docs/reference/instrumentation/metrics/)
-- [Red Hat Knowledgebase — OpenShift cluster certificate recovery guidance](https://access.redhat.com/solutions/4906381)
+- [Red Hat Knowledgebase — OpenShift cluster certificate recovery guidance](https://access.redhat.com/solutions/)

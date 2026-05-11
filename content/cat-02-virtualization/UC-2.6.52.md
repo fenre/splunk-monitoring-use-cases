@@ -79,5 +79,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix Virtual Apps and Desktops — product matrix and lifecycle](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/product-lifecycle.html)
-- [Current release VDA requirements](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/system-requirements.html)
+- [Citrix Virtual Apps and Desktops — product matrix and lifecycle](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

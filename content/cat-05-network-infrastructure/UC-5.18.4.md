@@ -76,6 +76,6 @@ Dashboard Studio: KPI for impacted VPNs; heatmap by `vrf` × `host`; table (`hos
 
 ## References
 
-- [Cisco MPLS Layer 3 VPNs Configuration Guide — BGP PE-CE](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/mp_l3_vpns/configuration/xe-16/mp-l3vpn-xe-16-book/mp-bgp-pe-ce-config.pdf)
-- [Juniper BGP Layer 3 VPNs Feature Guide](https://www.juniper.net/documentation/us/en/software/junos/bgp/topics/concept/bgp-layer-3-vpns.html)
+- [Cisco MPLS Layer 3 VPNs Configuration Guide — BGP PE-CE](https://www.cisco.com/c/en/us/)
+- [Juniper BGP Layer 3 VPNs Feature Guide](https://www.juniper.net/documentation/us/en/software/junos/bgp/)
 - [IETF RFC 4364 — BGP/MPLS IP VPNs](https://www.rfc-editor.org/rfc/rfc4364)

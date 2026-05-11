@@ -156,4 +156,4 @@ index=network sourcetype="corelight_zeek" icmpv6_type=134 earliest=-1h
 
 - [RFC 7772 — Reducing Energy Consumption of Router Advertisements (BCP 202 — RA rate limiting guidelines for wireless)](https://www.rfc-editor.org/rfc/rfc7772)
 - [RFC 4861 — Neighbor Discovery for IP version 6 (§6.2.1 — Router Advertisement Interval, MaxRtrAdvInterval default 600s)](https://www.rfc-editor.org/rfc/rfc4861)
-- [Cisco Catalyst 9800 RA Throttler Configuration Guide](https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/b_wl_16_12_cg.html)
+- [Cisco Catalyst 9800 RA Throttler Configuration Guide](https://www.cisco.com/c/en/us/)

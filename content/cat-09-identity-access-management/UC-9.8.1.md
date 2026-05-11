@@ -51,5 +51,5 @@ Policy hits during approved maintenance, vendor remote support, or training sess
 
 ## References
 
-- [BeyondTrust — Privileged Remote Access documentation](https://www.beyondtrust.com/privileged-remote-access)
+- [BeyondTrust — Privileged Remote Access documentation](https://www.beyondtrust.com/)
 - [Splunk Docs — stats](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats)

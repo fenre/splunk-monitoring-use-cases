@@ -66,4 +66,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix — Data loss prevention for ShareFile](https://docs.citrix.com/en-us/citrix-content-collaboration/data-loss-prevention.html)
+- [Citrix — Data loss prevention for ShareFile](https://docs.citrix.com/en-us/)

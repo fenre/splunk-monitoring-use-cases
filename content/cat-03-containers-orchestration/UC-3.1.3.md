@@ -329,6 +329,6 @@ Batch extract-transform-load containers, CI compile farms, and big-data shuffle 
 - [Linux kernel docs — CFS scheduler design](https://docs.kernel.org/scheduler/sched-design-CFS.html)
 - [Linux kernel admin guide — cgroup v2 CPU interface](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#cpu-interface-files)
 - [Docker Docs — CPU limits (--cpus, CFS quota)](https://docs.docker.com/engine/containers/resource_constraints/#cpu)
-- [Brendan Gregg — Linux CFS scheduler and job capacity](http://www.brendangregg.com/blog/2017-11-12/linux-cfs-scheduler-and-job-capacity.html)
+- [Brendan Gregg — Linux CFS scheduler and job capacity](http://www.brendangregg.com/blog/)
 - [Splunk Lantern — Getting Docker log data into Splunk Cloud with OpenTelemetry](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Getting_Docker_log_data_into_Splunk_Cloud_Platform_with_OpenTelemetry)
-- [Kubernetes enhancement — KEP-2625 cgroup v2 optional CPU quota](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/2625-cgroupv2-optional-cpuquota)
+- [Kubernetes enhancement — KEP-2625 cgroup v2 optional CPU quota](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/)

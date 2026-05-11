@@ -78,5 +78,5 @@ Gantt-style table sorted by days_remaining with color tokens for urgency; suppor
 
 ## References
 
-- [NIST SP 1800-16 — TLS Server Certificate Management (practice guide)](https://csrc.nist.gov/publications/detail/sp/1800/16/final)
+- [NIST SP 1800-16 — TLS Server Certificate Management (practice guide)](https://csrc.nist.gov/publications/)
 - [Citrix Product Documentation — Certificates on SD-WAN](https://docs.citrix.com/en-us/citrix-sd-wan/)

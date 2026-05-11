@@ -49,4 +49,4 @@ AOS storage metrics can look worse during background heal, curator, or disk remo
 
 ## References
 
-- [oVirt Engine Audit Log](https://www.ovirt.org/develop/developer-guide/engine/engine-audit-log/)
+- [oVirt Engine Audit Log](https://www.ovirt.org/develop/developer-guide/engine/)

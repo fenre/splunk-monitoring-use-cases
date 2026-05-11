@@ -105,4 +105,4 @@ Application mix changes, guest networks, and cloud moves can re-steer classes wi
 
 ## References
 
-- [Citrix — SD-WAN application quality of service](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/application-qos.html)
+- [Citrix — SD-WAN application quality of service](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/)

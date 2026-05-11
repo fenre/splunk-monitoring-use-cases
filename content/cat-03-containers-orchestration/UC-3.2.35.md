@@ -484,4 +484,4 @@ Legitimately single-zone workloads are expected in single-AZ test clusters, many
 - [Kubernetes — Scheduling Framework](https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/)
 - [Kubernetes descheduler (rebalance skew)](https://github.com/kubernetes-sigs/descheduler)
 - [Kubernetes — Well-Known Labels (topology.kubernetes.io/zone)](https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesiozone)
-- [kube-state-metrics — Node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/node-metrics.md)
+- [kube-state-metrics — Node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/)

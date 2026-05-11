@@ -74,12 +74,6 @@ index=hardware sourcetype=firmware_inventory
 | where bios_current="No"
 ```
 
-## CIM SPL
-
-```spl
-N/A — BIOS and BMC version strings are not a standard CIM compliance view; use a lookup of approved firmware per `model` with your own inventory sourcetype.
-```
-
 ## Visualization
 
 Table (host, model, current vs. expected), Pie chart (compliant %), Bar chart by model.

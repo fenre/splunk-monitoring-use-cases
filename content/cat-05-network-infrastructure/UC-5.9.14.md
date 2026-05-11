@@ -135,5 +135,5 @@ P95 at 200 ms means 5% of lookups take longer than 200 ms — this catches inter
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes DNS Server Test — Resolution time metrics](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/dns-server-test)
+- [ThousandEyes DNS Server Test — Resolution time metrics](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/)
 - [Google Web Performance — DNS lookup impact on page load time](https://web.dev/articles/performance-http2)

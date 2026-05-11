@@ -84,4 +84,4 @@ Spikes or gaps can follow approved maintenance, load tests, or short collection 
 
 ## References
 
-- [Traefik — Logs and Access Logs](https://doc.traefik.io/traefik/observability/logs-and-access-logs/)
+- [Traefik — Logs and Access Logs](https://doc.traefik.io/traefik/)

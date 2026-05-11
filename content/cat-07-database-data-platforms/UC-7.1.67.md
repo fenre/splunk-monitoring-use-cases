@@ -49,5 +49,5 @@ Repairs, streaming, and hinted handoff create bursty patterns during normal clus
 
 ## References
 
-- [Apache Cassandra — compaction](https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/index.html)
+- [Apache Cassandra — compaction](https://cassandra.apache.org/doc/latest/cassandra/)
 - [Splunk Add-on for JMX](https://splunkbase.splunk.com/app/2647)

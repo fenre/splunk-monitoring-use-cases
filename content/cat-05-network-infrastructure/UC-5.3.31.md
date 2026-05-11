@@ -103,4 +103,4 @@ Incompressible or already compressed payloads can make compression savings look 
 ## References
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
-- [Citrix ADC — Compression](https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/compression.html)
+- [Citrix ADC — Compression](https://docs.citrix.com/en-us/citrix-adc/current-release/optimization/)

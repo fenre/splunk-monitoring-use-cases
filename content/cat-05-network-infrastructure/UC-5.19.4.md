@@ -75,5 +75,5 @@ Dashboard Studio: KPI count of hosts with drift signals; treemap by toolchain so
 ## References
 
 - [Batfish documentation — Network validation](https://batfish.readthedocs.io/)
-- [HashiCorp Terraform — Audit logging](https://developer.hashicorp.com/terraform/cloud-docs/users-teams-organizations/audit-trails)
+- [HashiCorp Terraform — Audit logging](https://developer.hashicorp.com/terraform/cloud-docs/)
 - [NAPALM documentation — Cross-vendor network automation](https://napalm.readthedocs.io/)

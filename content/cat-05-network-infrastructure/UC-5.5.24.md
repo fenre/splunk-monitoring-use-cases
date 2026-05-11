@@ -52,4 +52,4 @@ Status grid (per-device health-check state), Table (failed probes sorted by even
 ## References
 
 - [Fortinet FortiGate Add-On for Splunk (Splunkbase app 2846)](https://splunkbase.splunk.com/app/2846)
-- [FortiGate SD-WAN documentation](https://docs.fortinet.com/document/fortigate/latest/sd-wan)
+- [FortiGate SD-WAN documentation](https://docs.fortinet.com/)

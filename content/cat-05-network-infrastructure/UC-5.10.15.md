@@ -73,5 +73,5 @@ Carrier-managed RR withdrawals shrink counts legitimately during congestion rout
 
 ## References
 
-- [CISCO-BGP4-MIB — BGP peer metrics reference](https://www.cisco.com/c/en/us/td/docs/dcn/ios/asr9000/mib/pdf/CISCO-BGP4-MIB.pdf)
+- [CISCO-BGP4-MIB — BGP peer metrics reference](https://www.cisco.com/c/en/us/)
 - [Splunk Lantern — SNMP onboarding best practices](https://lantern.splunk.com/)

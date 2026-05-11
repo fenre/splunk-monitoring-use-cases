@@ -307,7 +307,7 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
       | eval fe_max_sessions=coalesce(fe_max_sessions, fe_sessions, 0)
       | eval fe_sat_ratio=if(fe_max_sessions>0, round(fe_sessions/fe_max_sessions, 4), null())
       | eval lane="fe_sat"
-      | eval backend_key=strcat(cluster,"#",coalesce(proxy,"fe"))
+      | eval backend_key=cluster."#".coalesce(proxy,"fe")
       | fields cluster pod fe_sessions fe_max_sessions fe_sat_ratio lane backend_key ]
     [ | mstats max(_value) AS bk_queue_max WHERE (index=ocp_metrics OR index=ocp_router) metric_name=haproxy_backend_current_queue earliest=-2h@h latest=now span=1m BY cluster pod backend server
       | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
@@ -324,7 +324,7 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
         | eval pod=lower(trim(toString(coalesce(pod, kubernetes_pod_name, pod_name, ""))))
         | eval backend=lower(trim(toString(coalesce(backend, proxy, ""))))
         | eval server=lower(trim(toString(coalesce(server, srv, "")))) ]
-      | eval backend_key=strcat(cluster,"#",coalesce(backend,"bk"),"#",coalesce(server,"srv"))
+      | eval backend_key=cluster."#".coalesce(backend,"bk")."#".coalesce(server,"srv")
       | eval lane="bk_pool"
       | fields cluster pod backend server bk_queue_max bk_queue_limit srv_sessions_peak lane backend_key ]
     [ | mstats max(_value) AS r5xx WHERE (index=ocp_metrics OR index=ocp_router) metric_name=haproxy_backend_http_responses_total earliest=-2h@h latest=now span=1m BY cluster pod backend route code
@@ -345,7 +345,7 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
       | sort cluster pod backend route - _time
       | streamstats window=2 current=t global=f last(xx5_sum) AS prev_xx5 BY cluster pod backend route
       | eval xx5_delta=xx5_sum-coalesce(prev_xx5,xx5_sum)
-      | eval backend_key=strcat(cluster,"#",coalesce(backend,"bk"),"#",coalesce(route,"rt"))
+      | eval backend_key=cluster."#".coalesce(backend,"bk")."#".coalesce(route,"rt")
       | eval lane="xx5"
       | fields cluster pod backend route xx5_sum err_sum xx5_delta lane backend_key ]
     [ search (index=ocp_events OR index=ocp_audit) (sourcetype=ocp_events OR sourcetype=ocp_audit) earliest=-2h@h latest=now
@@ -355,7 +355,7 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
       | where match(msg,"routerreload|reload|ingresscontroller|route\.route\.openshift") OR match(_raw,"RouterReloaded|IngressController")
       | eval reload_hit=1
       | stats sum(reload_hit) AS reload_burst_cnt earliest(_time) AS reload_first latest(_time) AS reload_last BY cluster lane
-      | eval backend_key=strcat(cluster,"#reload")
+      | eval backend_key=cluster."#reload"
       | fields cluster reload_burst_cnt reload_first reload_last lane backend_key ]
     [ | mstats avg(_value) AS cpu_core_avg WHERE (index=ocp_metrics OR index=ocp_router) metric_name=container_cpu_usage_seconds_total earliest=-2h@h latest=now span=1m BY cluster pod namespace container
       | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
@@ -364,10 +364,10 @@ Closing checklist: multisearch lists five arms; coalesce normalizes cluster and 
       | where namespace="openshift-ingress" OR match(pod,"router-default")
       | stats max(cpu_core_avg) AS router_cpu_sat BY cluster pod
       | eval lane="router_cpu"
-      | eval backend_key=strcat(cluster,"#",pod)
+      | eval backend_key=cluster."#".pod
       | fields cluster pod router_cpu_sat lane backend_key ]
 | eval cluster=lower(trim(coalesce(cluster, "unknown_cluster")))
-| eval backend_key=coalesce(backend_key, strcat(cluster,"#agg"))
+| eval backend_key=coalesce(backend_key, cluster."#agg")
 | stats
     max(eval(if(lane=="fe_sat", fe_sat_ratio, null()))) AS fe_sat_ratio
     max(eval(if(lane=="fe_sat", fe_sessions, null()))) AS fe_sessions
@@ -446,6 +446,6 @@ Legitimate canary or blue-green rollouts often emit short-lived bursts of 5xx re
 - [OpenShift Documentation — Ingress Operator](https://docs.openshift.com/container-platform/latest/networking/networking_operators/ingress-operator.html)
 - [OpenShift Documentation — Managing ingress sharding](https://docs.openshift.com/container-platform/latest/networking/configuring_ingress_cluster_traffic/ingress-sharding.html)
 - [OpenShift Documentation — Managing metrics](https://docs.openshift.com/container-platform/latest/monitoring/managing-metrics/managing-metrics.html)
-- [Red Hat Blog — HAProxy tuning and performance optimization](https://www.redhat.com/en/blog/red-hat-openshift-container-platform-4-now-defaults-haproxy-2-0-router)
-- [HAProxy Enterprise — Prometheus metrics and observability](https://www.haproxy.com/documentation/hapee/latest/observability/prometheus/)
+- [Red Hat Blog — HAProxy tuning and performance optimization](https://www.redhat.com/en/blog/)
+- [HAProxy Enterprise — Prometheus metrics and observability](https://www.haproxy.com/documentation/hapee/latest/observability/)
 - [HAProxy Documentation — Configuration manual](https://www.haproxy.com/documentation/haproxy-configuration-manual/latest/)

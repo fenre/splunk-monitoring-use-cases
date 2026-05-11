@@ -184,5 +184,5 @@ index=network (sourcetype="pan:traffic" OR sourcetype="cisco:ios" OR sourcetype=
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.2 — bogon filtering)](https://www.rfc-editor.org/rfc/rfc9099)
 - [RFC 6890 — Special-Purpose IP Address Registries (comprehensive list of special addresses)](https://www.rfc-editor.org/rfc/rfc6890)
-- [Team Cymru Bogon Reference — IPv6 bogon list](https://www.team-cymru.com/bogon-reference)
+- [Team Cymru Bogon Reference — IPv6 bogon list](https://www.team-cymru.com/)
 - [NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§4.3.1 — bogon filtering)](https://csrc.nist.gov/publications/detail/sp/800-119/final)

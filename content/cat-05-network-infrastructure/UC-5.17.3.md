@@ -77,5 +77,5 @@ Status timeline (`splunk.timeline`) per span_id; GIS-style optional rack column;
 ## References
 
 - [Garland Technology — Network TAP resources](https://www.garlandtechnology.com/resources)
-- [Splunk Documentation — Building alerts from searches](https://docs.splunk.com/Documentation/Splunk/latest/Alert/AlertWorkflow)
+- [Splunk Documentation — Building alerts from searches](https://docs.splunk.com/Documentation/Splunk/latest/Alert/)
 - [Cisco Catalyst SPAN configuration guide (mirrored sessions)](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-9/configuration_guide/nmgmt/b_179_nmgmt_9300_cg.pdf)

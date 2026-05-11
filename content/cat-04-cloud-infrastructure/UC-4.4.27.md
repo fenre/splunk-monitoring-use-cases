@@ -86,7 +86,8 @@ index=cloud (sourcetype="aws:billing" OR sourcetype="azure:cost" OR sourcetype="
 | where is_egress=1
 | eval provider=case(sourcetype="aws:billing","aws", sourcetype="azure:cost","azure", sourcetype="gcp:billing","gcp",1=1,"unknown")
 | eval region=coalesce(lineItem_AvailabilityZone, resourceLocation, region)
-| stats sum(cost) as egress_usd by provider, region, bin(_time, 1d)
+| bin _time span=1d
+| stats sum(cost) as egress_usd by provider, region, _time
 | sort -egress_usd
 ```
 

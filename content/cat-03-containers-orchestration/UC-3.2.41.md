@@ -469,7 +469,7 @@ Deliberate scale-to-zero for batch workers, cost-saving off-hours namespaces, or
 - [Kubernetes — EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)
 - [kube-state-metrics — EndpointSlice metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpointslice-metrics.md)
 - [kube-state-metrics — Endpoint metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpoint-metrics.md)
-- [Kubernetes — Debug Services](https://kubernetes.io/docs/tasks/debug-application/debug-service/)
+- [Kubernetes — Debug Services](https://kubernetes.io/docs/tasks/)
 - [Google Kubernetes Engine — Exposing applications](https://cloud.google.com/kubernetes-engine/docs/how-to/exposing-apps)
 - [Amazon EKS — Kubernetes services](https://docs.aws.amazon.com/eks/latest/userguide/network-load-balancing.html)
 - [Azure AKS — Kubernetes network concepts (Services)](https://learn.microsoft.com/en-us/azure/aks/concepts-network#kubernetes-services)

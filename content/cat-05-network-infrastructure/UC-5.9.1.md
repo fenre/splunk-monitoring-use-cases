@@ -183,4 +183,4 @@ The values should match within 1–2 ms (timing differences from when the round 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
 - [ThousandEyes OTel v2 Data Model — Metrics Migration (v1 to v2)](https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2)
 - [ThousandEyes Splunk App — Inputs Documentation](https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs)
-- [ThousandEyes Agent-to-Server Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/agent-to-server-test)
+- [ThousandEyes Agent-to-Server Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/)

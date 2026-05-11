@@ -446,7 +446,7 @@ Legitimate auto-repair after genuine hardware faults or host hypervisor defects 
 
 - [Google Cloud — Repair unhealthy nodes in GKE (node auto-repair)](https://cloud.google.com/kubernetes-engine/docs/how-to/node-auto-repair)
 - [Amazon EKS — Managed node groups (update and recycle behavior)](https://docs.aws.amazon.com/eks/latest/userguide/managed-node-groups.html)
-- [Microsoft Learn — Automatically repair Azure Kubernetes Service nodes](https://learn.microsoft.com/en-us/azure/aks/auto-repair)
+- [Microsoft Learn — Automatically repair Azure Kubernetes Service nodes](https://learn.microsoft.com/en-us/azure/aks/)
 - [Karpenter — Disruption concepts (Drift, Empty, Expired, health)](https://karpenter.sh/docs/concepts/disruption/)
 - [Amazon EKS — Control plane logging (audit and API diagnostics)](https://docs.aws.amazon.com/eks/latest/userguide/control-plane-logs.html)
 - [AWS CloudTrail — Logging EKS API activity](https://docs.aws.amazon.com/eks/latest/userguide/logging-and-monitoring.html)

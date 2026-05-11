@@ -76,5 +76,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Local Host Cache in Citrix Virtual Apps and Desktops](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/manage-deployment/broker.html)
+- [Local Host Cache in Citrix Virtual Apps and Desktops](https://docs.citrix.com/en-us/)
 - [Splunk Add-on for Microsoft Windows](https://splunkbase.splunk.com/app/742)

@@ -53,5 +53,5 @@ Table (missing devices, sortable by site / role), Single-value (overall coverage
 ## References
 
 - [NetBox documentation](https://docs.netbox.dev/)
-- [IP Fabric documentation](https://ipfabric.io/docs/)
+- [IP Fabric documentation](https://ipfabric.io/)
 - [Nautobot documentation](https://docs.nautobot.com/)

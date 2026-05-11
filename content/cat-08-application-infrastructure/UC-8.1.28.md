@@ -86,4 +86,4 @@ Spikes or gaps can follow approved maintenance, load tests, or short collection 
 
 ## References
 
-- [Envoy — Statistics overview](https://www.envoyproxy.io/docs/envoy/latest/operations/statistics)
+- [Envoy — Statistics overview](https://www.envoyproxy.io/docs/envoy/latest/)

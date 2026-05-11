@@ -33,8 +33,8 @@ Poll global status at fixed intervals and compute deltas for counter fields. Val
 ```spl
 index=database sourcetype="mysql:status"
 | timechart span=15m latest(Innodb_log_waits) as innodb_log_waits by host
-| streamstats window=2 global=f delta(innodb_log_waits) as log_waits_delta by host
-| where log_waits_delta > 10
+| streamstats window=2 global=f last(innodb_log_waits) as _prev_log_waits_delta by host
+| eval log_waits_delta = innodb_log_waits - _prev_log_waits_delta| where log_waits_delta > 10
 ```
 
 ## Visualization

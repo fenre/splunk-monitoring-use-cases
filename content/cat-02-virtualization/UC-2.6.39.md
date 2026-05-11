@@ -76,4 +76,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [HDX features - USB, TWAIN, drives](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-2112/hdx/hdx-features-2112.html)
+- [HDX features - USB, TWAIN, drives](https://docs.citrix.com/en-us/)

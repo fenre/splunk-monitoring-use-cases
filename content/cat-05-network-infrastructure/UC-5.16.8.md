@@ -80,5 +80,5 @@ Scatter plot avg_pre_ms vs avg_delta_ms with quadrant thresholds; companion tabl
 
 ## References
 
-- [Splunk Lantern — Synthetic monitoring patterns](https://lantern.splunk.com/Observability_Applications)
+- [Splunk Lantern — Synthetic monitoring patterns](https://lantern.splunk.com/)
 - [Zscaler Help — ZDX Administration Guide](https://help.zscaler.com/zdx)

@@ -497,7 +497,7 @@ Brief Pending pod spikes lasting five to ten seconds during rolling updates or t
 
 - [Kubernetes cluster autoscaling concepts](https://kubernetes.io/docs/concepts/cluster-administration/cluster-autoscaling/)
 - [Cluster Autoscaler FAQ (failure reasons)](https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md)
-- [Cluster Autoscaler event loop proposal](https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/proposals/event_loop.md)
+- [Cluster Autoscaler event loop proposal](https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/proposals/)
 - [Karpenter concepts](https://karpenter.sh/docs/concepts/)
 - [Karpenter troubleshooting](https://karpenter.sh/docs/troubleshooting/)
 - [kube-state-metrics pod metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md)

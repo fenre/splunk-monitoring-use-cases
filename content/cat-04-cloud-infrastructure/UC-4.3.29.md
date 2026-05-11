@@ -188,7 +188,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages"
-| stats latest(value) as backlog by resource.labels.subscription_id, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(value) as backlog by resource.labels.subscription_id, _time
 | where backlog > 10000
 | sort - backlog
 ```

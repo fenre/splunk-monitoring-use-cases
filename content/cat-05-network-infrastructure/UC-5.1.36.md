@@ -42,12 +42,10 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki:switchportsoverview" earliest=-24h
-| stats latest(counts.byStatus.active) as active_ports,
-        latest(counts.byStatus.inactive) as inactive_ports,
-        latest(counts.byStatus.disconnected) as disconnected_ports,
-        latest(counts.byMedia.wired) as wired_ports
-         by network.id, network.name
-| eval total_ports = active_ports + inactive_ports + disconnected_ports
+| stats latest(counts.byStatus.active.total) as active_ports,
+        latest(counts.byStatus.inactive.total) as inactive_ports,
+        latest(counts.total) as total_ports
+         by organizationId
 | eval pct_in_use = round(active_ports*100/total_ports, 1)
 | where pct_in_use > 80
 | sort - pct_in_use
@@ -64,8 +62,7 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:switchportsoverview", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by network.id, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-- `eval` defines or adjusts **total_ports** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `stats` rolls up events into metrics; results are split **by organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - `eval` defines or adjusts **pct_in_use** — often to normalize units, derive a ratio, or prepare for thresholds.
 - Filters the current rows with `where pct_in_use > 80` — typically the threshold or rule expression for this monitoring goal.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
@@ -81,12 +78,10 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki:switchportsoverview" earliest=-24h
-| stats latest(counts.byStatus.active) as active_ports,
-        latest(counts.byStatus.inactive) as inactive_ports,
-        latest(counts.byStatus.disconnected) as disconnected_ports,
-        latest(counts.byMedia.wired) as wired_ports
-         by network.id, network.name
-| eval total_ports = active_ports + inactive_ports + disconnected_ports
+| stats latest(counts.byStatus.active.total) as active_ports,
+        latest(counts.byStatus.inactive.total) as inactive_ports,
+        latest(counts.total) as total_ports
+         by organizationId
 | eval pct_in_use = round(active_ports*100/total_ports, 1)
 | where pct_in_use > 80
 | sort - pct_in_use

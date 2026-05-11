@@ -78,6 +78,6 @@ Dashboard Studio: KPI for hosts breaching session heuristic; `splunk.timechart` 
 
 ## References
 
-- [Cisco IOS XE NETCONF Configuration Guide — Session management](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/guide/b-programmability-cg.html)
+- [Cisco IOS XE NETCONF Configuration Guide — Session management](https://www.cisco.com/c/en/us/)
 - [IETF RFC 6241 — Network Configuration Protocol (NETCONF)](https://www.rfc-editor.org/rfc/rfc6241)
 - [Juniper Junos — NETCONF XML Management Protocol Developer Guide](https://www.juniper.net/documentation/)

@@ -75,6 +75,6 @@ Dashboard Studio: KPI row for tunnels with reservation failures; dual-axis timec
 
 ## References
 
-- [Cisco IOS XR Traffic Engineering Configuration Guide](https://www.cisco.com/c/en/us/td/docs/iosxr/asr9000/ip-addresses-and-services/b-ip-addresses-and-services-configuration-guide-asr9000-xr/traffic-engineering.html)
-- [Juniper RSVP User Guide — MPLS Traffic Engineering](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/example/rsvp-traffic-engineering-configuring.html)
+- [Cisco IOS XR Traffic Engineering Configuration Guide](https://www.cisco.com/c/en/us/)
+- [Juniper RSVP User Guide — MPLS Traffic Engineering](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
 - [IETF RFC 3209 — RSVP-TE Extensions](https://www.rfc-editor.org/rfc/rfc3209)

@@ -213,6 +213,6 @@ Heatmap (namespace x resource type utilization), quota utilization bar chart by 
 
 - [Kubernetes — Resource Quotas](https://kubernetes.io/docs/concepts/policy/resource-quotas/)
 - [Kubernetes — Limit Ranges](https://kubernetes.io/docs/concepts/policy/limit-range/)
-- [kube-state-metrics — ResourceQuota Metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/resourcequota-metrics.md)
+- [kube-state-metrics — ResourceQuota Metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/)
 - [Splunk — trendline Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline)
-- [Splunk OTel Collector — k8sobjects Receiver](https://docs.splunk.com/observability/en/gdi/opentelemetry/components/k8sobjects-receiver.html)
+- [Splunk OTel Collector — k8sobjects Receiver](https://docs.splunk.com/observability/en/gdi/opentelemetry/components/)

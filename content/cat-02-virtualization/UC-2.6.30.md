@@ -80,4 +80,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Machine Creation Services (Citrix) - Provisioning](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/install-configure/mcs.html)
+- [Machine Creation Services (Citrix) - Provisioning](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops-service/install-configure/)

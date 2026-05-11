@@ -262,6 +262,6 @@ PHP-FPM memory growth is rarely benign on a steady-state pool, but several legit
 
 - [Splunk Add-on for Unix and Linux (Splunkbase 833)](https://splunkbase.splunk.com/app/833)
 - [PHP-FPM configuration directives (pm.*, request_terminate_timeout, slowlog)](https://www.php.net/manual/en/install.fpm.configuration.php)
-- [PHP-FPM status page reference (status_path, ?json, ?full)](https://www.php.net/manual/en/install.fpm.status.php)
+- [PHP-FPM status page reference (status_path, ?json, ?full)](https://www.php.net/manual/en/)
 - [Linux cgroups v2 memory controller (memory.current, memory.max, memory.events)](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#memory)
-- [OpenTelemetry Collector — PHP-FPM receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/phpfpmreceiver)
+- [OpenTelemetry Collector — PHP-FPM receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/)

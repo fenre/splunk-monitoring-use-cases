@@ -147,5 +147,5 @@ This pivots the table so each row is an agent and each column is a DNS provider,
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes DNS Server Test](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/dns-server-test)
+- [ThousandEyes DNS Server Test](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/)
 - [DNSPerf — Public DNS resolver performance benchmarks](https://www.dnsperf.com/)

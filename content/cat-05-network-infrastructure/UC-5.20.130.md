@@ -79,4 +79,4 @@ index=network (sourcetype="cisco:ios" OR sourcetype="pan:traffic") earliest=-4h
 
 - [AWS — IPv6 support in VPC](https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html#vpc-ip-addressing)
 - [Azure — IPv6 for Azure Virtual Network](https://docs.microsoft.com/en-us/azure/virtual-network/ipv6-overview)
-- [GCP — IPv6 support](https://cloud.google.com/vpc/docs/using-ipv6)
+- [GCP — IPv6 support](https://cloud.google.com/vpc/docs/)

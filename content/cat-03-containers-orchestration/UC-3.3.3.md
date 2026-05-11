@@ -377,5 +377,5 @@ Canary PipelineRun cancellations during controlled rollouts resemble incidents u
 - [Tekton Triggers — EventListeners](https://tekton.dev/docs/triggers/eventlisteners/)
 - [tektoncd/pipeline — PipelineRun documentation](https://github.com/tektoncd/pipeline/blob/main/docs/pipelineruns.md)
 - [tektoncd/triggers — EventListener documentation](https://github.com/tektoncd/triggers/blob/main/docs/eventlisteners.md)
-- [tektoncd/chains — Tekton Chains documentation](https://github.com/tektoncd/chains/blob/main/docs/README.md)
+- [tektoncd/chains — Tekton Chains documentation](https://github.com/tektoncd/chains/blob/main/docs/)
 - [Red Hat Blog — Introducing the Operator Framework](https://www.redhat.com/en/blog/introducing-operator-framework-building-apps-kubernetes)

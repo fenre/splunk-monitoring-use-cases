@@ -73,12 +73,6 @@ index=hardware sourcetype=raid_status
 | sort -_time
 ```
 
-## CIM SPL
-
-```spl
-N/A — RAID array state is not a standard CIM data model object; use controller CLI output in a custom sourcetype or vendor extension.
-```
-
 ## Visualization
 
 Status indicator per array, Table, Alert panel (critical).

@@ -36,8 +36,8 @@ index=database sourcetype="cassandra:system"
 | eval hints_pending=coalesce(tonumber(total_hints), tonumber(hints_in_progress))
 | where hints_pending > 10000
 | timechart span=15m max(hints_pending) as hints by host
-| streamstats window=3 global=f delta(hints) as hints_delta
-| where hints_delta > 5000
+| streamstats window=3 global=f last(hints) as _prev_hints_delta
+| eval hints_delta = hints - _prev_hints_delta| where hints_delta > 5000
 ```
 
 ## Visualization

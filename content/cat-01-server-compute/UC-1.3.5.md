@@ -73,12 +73,6 @@ index=os sourcetype=macos_crash host=*
 | sort -count
 ```
 
-## CIM SPL
-
-```spl
-N/A — application crash reports from macOS are not a standard CIM object; use raw events with a custom sourcetype and fields extracted from the `.crash` text.
-```
-
 ## Visualization
 
 Table (process, host, count), Bar chart of top crashing apps.

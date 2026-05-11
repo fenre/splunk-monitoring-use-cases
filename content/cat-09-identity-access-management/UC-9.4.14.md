@@ -87,5 +87,5 @@ Policy hits during approved maintenance, vendor remote support, or training sess
 
 ## References
 
-- [Splunk Add-on for CyberArk](https://splunkbase.splunk.com/app/3084)
+- [Splunk Add-on for CyberArk](https://splunkbase.splunk.com/)
 - [CyberArk Privileged Session Manager](https://docs.cyberark.com/)

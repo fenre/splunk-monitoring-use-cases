@@ -74,12 +74,6 @@ index=hardware sourcetype=ecc_errors
 | where weekly_errors > 10
 ```
 
-## CIM SPL
-
-```spl
-N/A — correctable ECC counts from the Linux EDAC driver or related SELs are not a CIM data model; use a custom `ecc_errors` sourcetype (and optionally per-DIMM fields).
-```
-
 ## Visualization
 
 Line chart (errors over time by host), Table (host, DIMM, error count), Trend chart.

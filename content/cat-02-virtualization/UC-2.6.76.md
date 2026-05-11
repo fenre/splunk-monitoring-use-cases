@@ -65,4 +65,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix Workspace app — Lifecycle milestones](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/technical-overview-lifecycle-milestones.html)
+- [Citrix Workspace app — Lifecycle milestones](https://docs.citrix.com/en-us/citrix-workspace-app-for-windows/)

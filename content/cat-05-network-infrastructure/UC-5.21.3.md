@@ -130,4 +130,4 @@ index=network (sourcetype="cisco:ios" OR sourcetype="cisco:iosxe") earliest=-4h
 ## References
 
 - [IEEE 1588-2019 — Precision Time Protocol](https://standards.ieee.org/standard/1588-2019.html)
-- [Cisco — PTP Configuration Guide IOS-XE](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/xe-17/bsm-xe-17-book/bsm-ptp.html)
+- [Cisco — PTP Configuration Guide IOS-XE](https://www.cisco.com/c/en/us/)

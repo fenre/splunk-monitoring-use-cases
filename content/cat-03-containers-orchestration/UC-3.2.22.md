@@ -410,4 +410,4 @@ Developer and chaos namespaces that intentionally run baseline or privileged enf
 - [Kubernetes — Cluster-level Pod Security Standards tutorial](https://kubernetes.io/docs/tutorials/security/cluster-level-pss/)
 - [Kubernetes — Admission controllers (PodSecurity)](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecurity)
 - [Splunk — Add-on for Kubernetes (OTel Collector guidance)](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)
-- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/audit/)
+- [Kubernetes — Auditing](https://kubernetes.io/docs/reference/access-authn-authz/)

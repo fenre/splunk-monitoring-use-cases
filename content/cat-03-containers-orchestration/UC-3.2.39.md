@@ -367,12 +367,12 @@ Planned control-plane upgrades and kubelet rollouts legitimately raise NodeNotRe
 
 ## References
 
-- [Kubernetes — Events in cluster](https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-events/)
+- [Kubernetes — Events in cluster](https://kubernetes.io/docs/concepts/overview/working-with-objects/)
 - [Kubernetes API reference — Event v1](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)
 - [vmware-archive eventrouter (Kubernetes events to sinks)](https://github.com/vmware-archive/eventrouter)
-- [resmoio kubernetes-events-exporter](https://github.com/resmoio/kubernetes-events-exporter)
-- [kube-state-metrics — cluster event metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/event-metrics.md)
+- [resmoio kubernetes-events-exporter](https://github.com/resmoio/)
+- [kube-state-metrics — cluster event metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/)
 - [kubectl reference — get (list events)](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/)
-- [Google Cloud — GKE workload status and events](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-status)
+- [Google Cloud — GKE workload status and events](https://cloud.google.com/kubernetes-engine/docs/how-to/)
 - [Amazon EKS — Logging and monitoring overview](https://docs.aws.amazon.com/eks/latest/userguide/logging-monitoring.html)
 - [Microsoft Learn — Azure Monitor container insights](https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-overview)

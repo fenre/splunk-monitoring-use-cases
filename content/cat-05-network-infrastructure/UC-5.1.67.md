@@ -53,4 +53,4 @@ Table (adjacency changes by router / neighbour), Timeline (SPF triggers per rout
 ## References
 
 - [Cisco IS-IS Configuration Guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_isis/configuration/15-mt/irs-15-mt-book.html)
-- [Junos IS-IS overview](https://www.juniper.net/documentation/us/en/software/junos/is-is/topics/concept/isis-overview.html)
+- [Junos IS-IS overview](https://www.juniper.net/documentation/us/en/software/junos/is-is/)

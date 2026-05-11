@@ -87,4 +87,4 @@ index=network (sourcetype="cisco:ios" OR sourcetype="cisco:iosxe") earliest=-4h
 ## References
 
 - [RFC 6583 — Operational Neighbor Discovery Problems](https://www.rfc-editor.org/rfc/rfc6583)
-- [Cisco — IPv6 Neighbor Discovery Cache Exhaustion Attack Mitigation](https://www.cisco.com/c/en/us/support/docs/ip/ip-version-6-ipv6/212768-ipv6-first-hop-security-best-practice.html)
+- [Cisco — IPv6 Neighbor Discovery Cache Exhaustion Attack Mitigation](https://www.cisco.com/c/en/us/)

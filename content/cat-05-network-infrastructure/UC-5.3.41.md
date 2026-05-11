@@ -97,4 +97,4 @@ Rehearsals, firmware, and line cards can make HA or VRRP messages loud while tra
 
 ## References
 
-- [Citrix — SD-WAN high availability and redundancy](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html)
+- [Citrix — SD-WAN high availability and redundancy](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/)

@@ -181,6 +181,6 @@ index=network sourcetype="cisco:ios" ("%SISF-4-IP_THEFT" OR "%SISF-4-MAC_THEFT")
 
 ## References
 
-- [Cisco SISF Configuration Guide — IP_THEFT and MAC_THEFT event documentation](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Configuration Guide — IP_THEFT and MAC_THEFT event documentation](https://www.cisco.com/c/en/us/)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2 — First-hop security and binding integrity)](https://www.rfc-editor.org/rfc/rfc9099)
 - [Cisco Bug CSCvx75602 — False IP_THEFT events during HA failover (known false positive)](https://bst.cloudapps.cisco.com/bugsearch/bug/CSCvx75602)

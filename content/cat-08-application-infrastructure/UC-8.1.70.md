@@ -36,8 +36,8 @@ index=infrastructure sourcetype="memcached:stats"
 | eval s=tonumber(cmd_set)
 | bin _time span=1m
 | stats latest(g) as gets latest(s) as sets by host, _time
-| streamstats window=2 global=f delta(gets) as get_rps delta(sets) as set_rps by host
-| eval get_rps=round(get_rps/60,0)
+| streamstats window=2 global=f last(gets) as _prev_get_rps last(sets) as _prev_set_rps by host
+| eval get_rps = gets - _prev_get_rps, set_rps = sets - _prev_set_rps| eval get_rps=round(get_rps/60,0)
 | eval set_rps=round(set_rps/60,0)
 | where get_rps > 50000 OR set_rps > 20000
 ```

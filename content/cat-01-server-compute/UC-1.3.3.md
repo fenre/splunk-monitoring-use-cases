@@ -71,12 +71,6 @@ index=os sourcetype=macos_security host=*
 | where gk!="enabled" OR sip!="enabled"
 ```
 
-## CIM SPL
-
-```spl
-N/A — System Integrity Protection and Gatekeeper state are not standard CIM fields; use a custom macOS security posture sourcetype.
-```
-
 ## Visualization
 
 Pie chart (compliant vs. not), Table of non-compliant endpoints.

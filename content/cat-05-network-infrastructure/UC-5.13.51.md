@@ -189,4 +189,4 @@ index=catalyst sourcetype="cisco:dnac:site:topology"
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
 - [Catalyst Center Site Topology API](https://developer.cisco.com/docs/catalyst-center/#!get-site-topology)
 - [Catalyst Center Integration Guide (this repo)](docs/guides/catalyst-center.md)
-- [Catalyst Center Network Hierarchy — Cisco Docs](https://www.cisco.com/c/en/us/td/docs/cloud-systems-management/network-automation-and-management/catalyst-center/design-guide.html)
+- [Catalyst Center Network Hierarchy — Cisco Docs](https://www.cisco.com/c/en/us/)

@@ -79,6 +79,6 @@ Single-value tiles for hosts expiring <45 days; bar chart of lic_util by vendor;
 
 ## References
 
-- [Splunk Documentation — REST API input overview](https://docs.splunk.com/Documentation/Splunk/latest/Data/RESTAPIInputs)
+- [Splunk Documentation — REST API input overview](https://docs.splunk.com/Documentation/Splunk/latest/Data/)
 - [Gigamon Customer Documentation Portal](https://docs.gigamon.com/)
-- [ITIL 4 — Capacity management practice summary (renewal alignment)](https://www.axelos.com/best-practice-solutions/itil)
+- [ITIL 4 — Capacity management practice summary (renewal alignment)](https://www.axelos.com/)

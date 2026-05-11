@@ -481,4 +481,4 @@ Horizontal pod autoscaler bursts can pin pod counts at one hundred percent of ha
 - [Kubernetes admission controllers — ResourceQuota](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#resourcequota)
 - [kube-state-metrics — ResourceQuota metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/resourcequota-metrics.md)
 - [Splunk Add-on for Kubernetes — About](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)
-- [Kubernetes auditing](https://kubernetes.io/docs/reference/access-authn-authz/audit/)
+- [Kubernetes auditing](https://kubernetes.io/docs/reference/access-authn-authz/)

@@ -77,5 +77,5 @@ Dashboard Studio: single-value error-rate KPI; `splunk.timechart` by device grou
 ## References
 
 - [IETF RFC 8040 — RESTCONF Protocol](https://www.rfc-editor.org/rfc/rfc8040)
-- [Cisco Programmability Configuration Guide — RESTCONF](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/guide/b-programmability-cg.html)
+- [Cisco Programmability Configuration Guide — RESTCONF](https://www.cisco.com/c/en/us/)
 - [NGINX access log module reference](https://nginx.org/en/docs/http/ngx_http_log_module.html)

@@ -84,5 +84,5 @@ Routine privileged access from approved change windows, scheduled maintenance, I
 
 ## References
 
-- [Splunk Add-on for CyberArk](https://splunkbase.splunk.com/app/3084)
+- [Splunk Add-on for CyberArk](https://splunkbase.splunk.com/)
 - [CyberArk Splunk integration](https://docs.cyberark.com/)

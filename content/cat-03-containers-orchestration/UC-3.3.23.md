@@ -375,7 +375,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval src_ip=trim(toString(coalesce(mvindex('sourceIPs{}',0), mvindex(sourceIPs,0), "")))
       | eval identity=coalesce(nullif(tgt_user,""), imp_user)
       | eval signal_lane="impersonation_forensics"
-      | eval lane_detail=strcat("actor=",imp_user," target=",coalesce(tgt_user,"self")," apig=",apig)
+      | eval lane_detail="actor=".imp_user." target=".coalesce(tgt_user,"self")." apig=".apig
       | eval priv_ct=0
       | eval dc_res_ns=0
       | eval ipdc_5m=0
@@ -403,7 +403,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eventstats avg(priv_ct) AS id_priv_avg stdev(priv_ct) AS id_priv_std BY identity
       | eval priv_z=if(isnotnull(id_priv_std) AND id_priv_std>0, round((priv_ct-id_priv_avg)/id_priv_std,3), 0)
       | eval signal_lane="priv_write_velocity"
-      | eval lane_detail=strcat("dc_verb=",dc_v," dc_res=",dc_r," dc_ns=",dc_ns," z=",priv_z)
+      | eval lane_detail="dc_verb=".dc_v." dc_res=".dc_r." dc_ns=".dc_ns." z=".priv_z
       | eval imp_user=identity
       | eval tgt_user=""
       | eval legacy_tok=0
@@ -456,7 +456,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | streamstats time_window=5m dc(src_ip) AS ipdc_5m values(src_ip) AS ips_seen BY cluster identity
       | where ipdc_5m>=2
       | eval signal_lane="token_ip_reuse"
-      | eval lane_detail=strcat("distinct_ips=",ipdc_5m," values=",ips_seen)
+      | eval lane_detail="distinct_ips=".ipdc_5m." values=".ips_seen
       | eval imp_user=identity
       | eval tgt_user=""
       | eval priv_ct=0

@@ -193,7 +193,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
  OR (index=azure sourcetype="mscs:azure:metrics" resourceType="Microsoft.Network/expressRouteCircuits" metric_name="BgpPeerStatus")
  OR (index=gcp sourcetype="google:gcp:monitoring" metric.type="vpn.googleapis.com/tunnel_established")
 | eval link_up=case(metric_name="ConnectionState" AND maximum=1,1, metric_name="TunnelState" AND maximum=1,1, metric_name="BgpPeerStatus" AND average>0,1, metric.type="vpn.googleapis.com/tunnel_established" AND value>0,1,1=1,0)
-| stats min(link_up) as healthy by resourceId, resource.labels.*, bin(_time, 5m)
+| bin _time span=5m
+| stats min(link_up) as healthy by resourceId, resource.labels.*, _time
 | where healthy=0
 ```
 

@@ -68,5 +68,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [HDX direct connections (Rendezvous) — product documentation](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-direct-connections.html)
-- [Citrix Gateway and rendezvous (deployment context)](https://docs.citrix.com/en-us/citrix-gateway/13-1-citrix-gateway-federation-integration.html)
+- [HDX direct connections (Rendezvous) — product documentation](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)
+- [Citrix Gateway and rendezvous (deployment context)](https://docs.citrix.com/en-us/citrix-gateway/)

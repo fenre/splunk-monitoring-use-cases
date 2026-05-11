@@ -76,5 +76,5 @@ Developers compiling containers generate noisy handshake variability. Video conf
 
 ## References
 
-- [Cisco Encrypted Traffic Analytics Overview](https://www.cisco.com/c/en/us/products/security/encrypted-traffic-analytics.html)
-- [Splunk Docs — NetFlow Add-on](https://docs.splunk.com/Documentation/NetFlow/latest/NetFlow/Introduction)
+- [Cisco Encrypted Traffic Analytics Overview](https://www.cisco.com/c/en/us/products/security/)
+- [Splunk Docs — NetFlow Add-on](https://docs.splunk.com/Documentation/NetFlow/)

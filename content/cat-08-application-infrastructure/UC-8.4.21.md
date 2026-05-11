@@ -84,4 +84,4 @@ Spikes or gaps can follow approved maintenance, load tests, or short collection 
 
 ## References
 
-- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/)
+- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/)

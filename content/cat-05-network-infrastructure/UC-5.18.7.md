@@ -74,6 +74,6 @@ Dashboard Studio: KPI for failing FECs; timeline colored by severity; map panel 
 
 ## References
 
-- [Cisco IOS XR MPLS OAM Configuration Guide](https://www.cisco.com/c/en/us/td/docs/iosxr/cisco8000/mpls/b-mpls-configuration-guide-c8000/mpls-oam.html)
-- [Juniper MPLS Applications User Guide — MPLS Ping and Traceroute](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/example/ip/MPLS-ping-and-traceroute-configuring.html)
+- [Cisco IOS XR MPLS OAM Configuration Guide](https://www.cisco.com/c/en/us/)
+- [Juniper MPLS Applications User Guide — MPLS Ping and Traceroute](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
 - [IETF RFC 6428 — MPLS On-Demand Connectivity Verification](https://www.rfc-editor.org/rfc/rfc6428)

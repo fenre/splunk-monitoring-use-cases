@@ -73,5 +73,5 @@ Autoscale and capacity events can follow maintenance tags, test floods, or catal
 
 ## References
 
-- [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/citrix-daas-service-delivery-machines/delivery-groups/autoscale-daas.html)
-- [Microsoft Cost Management (export cost data to external tools)](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/analyze-cost-data-azure)
+- [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/)
+- [Microsoft Cost Management (export cost data to external tools)](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/)

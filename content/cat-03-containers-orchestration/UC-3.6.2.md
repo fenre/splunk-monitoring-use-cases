@@ -164,7 +164,7 @@ Dual-axis line chart (critical CVEs + 7-day SMA over 30 days), stacked area by s
 
 ## References
 
-- [Trivy — Container Image Vulnerability Scanner](https://aquasecurity.github.io/trivy/latest/)
+- [Trivy — Container Image Vulnerability Scanner](https://aquasecurity.github.io/trivy/)
 - [Grype — Container Image Vulnerability Scanner](https://github.com/anchore/grype)
 - [Harbor — Vulnerability Scanning Policies](https://goharbor.io/docs/2.10.0/administration/vulnerability-scanning/)
 - [Splunk trendline Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline)

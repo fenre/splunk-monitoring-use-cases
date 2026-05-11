@@ -130,5 +130,5 @@ This shows which specific monitors/ISPs are seeing path changes, narrowing the i
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes BGP Route Monitoring — Path change metrics](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
+- [ThousandEyes BGP Route Monitoring — Path change metrics](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)
 - [BGP Route Instability Analysis — RIPE RIS](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris)

@@ -79,5 +79,5 @@ Planned outages and daylight-saving skew can pause streams. Devices failing over
 
 ## References
 
-- [Splunk Documentation — NetFlow Introduction](https://docs.splunk.com/Documentation/NetFlow/latest/NetFlow/Introduction)
-- [Cisco — NetFlow Export FAQ](https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/ios-netflow/23921-configflowdump.html)
+- [Splunk Documentation — NetFlow Introduction](https://docs.splunk.com/Documentation/NetFlow/)
+- [Cisco — NetFlow Export FAQ](https://www.cisco.com/c/en/us/)

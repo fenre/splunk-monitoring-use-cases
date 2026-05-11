@@ -47,4 +47,4 @@ OpenStack metrics may swing during image builds, large migrations, or control-pl
 
 ## References
 
-- [OpenStack Neutron Floating IPs](https://docs.openstack.org/neutron/latest/admin/config-fip.html)
+- [OpenStack Neutron Floating IPs](https://docs.openstack.org/neutron/latest/admin/)

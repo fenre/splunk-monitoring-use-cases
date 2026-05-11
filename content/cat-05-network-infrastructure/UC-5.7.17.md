@@ -75,4 +75,4 @@ Large file downloads behind caching proxies appear one-way at certain taps. Back
 ## References
 
 - [RFC 791 — Internet Protocol (routing asymmetry context)](https://www.rfc-editor.org/rfc/rfc791)
-- [Splunk — Traffic mirroring and NetFlow best practices](https://docs.splunk.com/Documentation/NetFlow/latest/NetFlow/Introduction)
+- [Splunk — Traffic mirroring and NetFlow best practices](https://docs.splunk.com/Documentation/NetFlow/)

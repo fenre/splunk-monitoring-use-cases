@@ -99,7 +99,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=pam sourcetype="jit:requests"
 | eval same_approver=if(requester=approver,1,0)
-| eval after_hours=if(hour(_time) < 6 OR hour(_time) > 22,1,0)
+| eval after_hours=if(tonumber(strftime(_time, "%H")) < 6 OR tonumber(strftime(_time, "%H")) > 22,1,0)
 | stats count, sum(same_approver) as self_approvals, sum(after_hours) as off_hours by requester
 | where self_approvals > 0 OR off_hours > 5
 | sort -count

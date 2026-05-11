@@ -78,4 +78,4 @@ Session and launch time spikes may track image updates, profile migrations, or b
 
 ## References
 
-- [Session Reliability in CVAD / HDX](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/221/hdx/session-reliability.html)
+- [Session Reliability in CVAD / HDX](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/)

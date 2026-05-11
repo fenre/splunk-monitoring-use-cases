@@ -429,7 +429,7 @@ GitOps or Helm pre-sync init jobs sometimes run one-shot package installs or cur
 ## References
 
 - [Falco documentation](https://falco.org/docs/)
-- [Falco default rules library](https://falco.org/docs/rules/default-rules/)
+- [Falco default rules library](https://falco.org/docs/rules/)
 - [MITRE ATT&CK — Containers matrix](https://attack.mitre.org/matrices/enterprise/containers/)
 - [Splunk Lantern — Building a SOAR playbook for container enrichment](https://lantern.splunk.com/Security_Use_Cases/Advanced_Threat_Detection/Building_a_SOAR_playbook_for_container_enrichment)
 - [Falco releases — CNCF Falco project](https://github.com/falcosecurity/falco/releases)

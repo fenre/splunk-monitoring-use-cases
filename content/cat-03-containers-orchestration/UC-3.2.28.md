@@ -364,7 +364,7 @@ Cron-driven log rotation and brief image pull bursts can flip DiskPressure true 
 
 - [Kubernetes Documentation — Nodes (node conditions)](https://kubernetes.io/docs/concepts/architecture/nodes/)
 - [Kubernetes Documentation — Node pressure eviction](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/)
-- [kube-state-metrics node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/node-metrics.md)
+- [kube-state-metrics node metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/)
 - [Prometheus node_exporter](https://github.com/prometheus/node_exporter)
 - [Kubernetes API reference — Event v1](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)
 - [Splunk Documentation — Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)

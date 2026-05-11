@@ -52,4 +52,4 @@ Status grid (socket health per site, coloured by latest state), Table (recent di
 ## References
 
 - [Cato Networks Events App for Splunk (Splunkbase app 8037)](https://splunkbase.splunk.com/app/8037)
-- [Cato Networks API documentation](https://api.catonetworks.com/)
+- [Cato Networks API documentation](https://www.catonetworks.com/)

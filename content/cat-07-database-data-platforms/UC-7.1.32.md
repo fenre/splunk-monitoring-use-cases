@@ -77,7 +77,7 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ```spl
 index=database sourcetype="dbconnect:backup_chain"
 | sort database_name, backup_finish_date
-| streamstats window=2 previous(last_lsn) as prev_last by database_name
+| streamstats window=2 last(last_lsn) as prev_last by database_name
 | where isnotnull(prev_last) AND first_lsn!=prev_last AND type!=1
 | table database_name backup_finish_date type first_lsn prev_last
 ```

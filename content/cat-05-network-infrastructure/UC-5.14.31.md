@@ -100,4 +100,4 @@ Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and part
 
 ## References
 
-- [Vendor documentation](http://www.squid-cache.org/Doc/config/http_status_codes/)
+- [Vendor documentation](http://www.squid-cache.org/Doc/config/)

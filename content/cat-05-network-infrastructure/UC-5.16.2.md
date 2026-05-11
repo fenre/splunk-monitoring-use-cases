@@ -78,5 +78,5 @@ Heatmap host × vendor with peak_util color scale; adjacent drilldown raw events
 
 ## References
 
-- [Splunk Documentation — Alert on statistics thresholds](https://docs.splunk.com/Documentation/Splunk/latest/Alert/Definealerts)
+- [Splunk Documentation — Alert on statistics thresholds](https://docs.splunk.com/Documentation/Splunk/latest/Alert/)
 - [Citrix SD-WAN WAN Optimization Product Documentation](https://docs.citrix.com/en-us/citrix-sd-wan/)

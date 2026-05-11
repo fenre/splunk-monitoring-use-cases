@@ -42,8 +42,8 @@ Run the following SPL in Search (then save as report or alert; adjust time range
 
 ```spl
 index=meraki sourcetype="meraki:summarytopswitchesbyenergyusage" earliest=-30d
-| stats latest(usage.total) as total_kwh, latest(usage.percentage) as pct_of_org
-         by serial, name, network.name, model
+| stats latest(usage.total) as total_kwh
+         by mac, name, network.name, model
 | eval avg_watts = round(total_kwh*1000/(30*24), 1)
 | sort - total_kwh
 | head 20
@@ -60,7 +60,7 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:summarytopswitchesbyenergyusage", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by serial, name, network.name, model** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `stats` rolls up events into metrics; results are split **by mac, name, network.name, model** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - `eval` defines or adjusts **avg_watts** — often to normalize units, derive a ratio, or prepare for thresholds.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 - Limits the number of rows with `head`.
@@ -76,8 +76,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=meraki sourcetype="meraki:summarytopswitchesbyenergyusage" earliest=-30d
-| stats latest(usage.total) as total_kwh, latest(usage.percentage) as pct_of_org
-         by serial, name, network.name, model
+| stats latest(usage.total) as total_kwh
+         by mac, name, network.name, model
 | eval avg_watts = round(total_kwh*1000/(30*24), 1)
 | sort - total_kwh
 | head 20

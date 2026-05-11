@@ -48,4 +48,4 @@ IGEL and endpoint UMS health can warn during bulk firmware, certificate rotation
 
 ## References
 
-- [Secure Connect Gateway (Dell)](https://www.dell.com/support/kbdoc/en-us/000178280/dell-emc-secure-connect-gateway)
+- [Secure Connect Gateway (Dell)](https://www.dell.com/support/)

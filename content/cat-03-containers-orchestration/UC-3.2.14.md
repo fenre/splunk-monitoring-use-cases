@@ -537,7 +537,7 @@ Brief ImagePullBackOff during cluster-autoscaler scale-out can appear when a new
 - [Kubernetes — Pull an Image from a Private Registry](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/)
 - [Kubernetes — Secrets: imagePullSecrets](https://kubernetes.io/docs/concepts/configuration/secret/#using-imagepullsecrets)
 - [kubectl reference — describe](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#describe)
-- [Kubernetes kubelet types (image pull error semantics)](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/kubelet/pkg/types/types.go)
+- [Kubernetes kubelet types (image pull error semantics)](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/kubelet/pkg/types/)
 - [Docker Docs — Docker Hub download rate limit](https://docs.docker.com/docker-hub/download-rate-limit/)
 - [Kubernetes — Cluster Logging Architecture](https://kubernetes.io/docs/concepts/cluster-administration/logging/)
 - [Splunk Docs — Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)

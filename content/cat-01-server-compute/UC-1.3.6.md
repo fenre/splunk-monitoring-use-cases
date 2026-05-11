@@ -75,12 +75,6 @@ index=os sourcetype=macos_gatekeeper host=*
 | table host xprotect_ver xprotect_date xprotect_age_days
 ```
 
-## CIM SPL
-
-```spl
-N/A — XProtect and Gatekeeper state are not CIM data model fields; the add-on for Unix and Linux is commonly used for Linux host metrics, but this Apple-specific inventory remains a custom sourcetype unless you build your own mapping.
-```
-
 ## Visualization
 
 Table (host, Gatekeeper status, XProtect version), Single value (non-compliant count), Pie chart (enabled vs. disabled).

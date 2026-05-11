@@ -70,4 +70,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix Endpoint Management — supported topologies and sizing context](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam.html)
+- [Citrix Endpoint Management — supported topologies and sizing context](https://docs.citrix.com/en-us/citrix-endpoint-management/)

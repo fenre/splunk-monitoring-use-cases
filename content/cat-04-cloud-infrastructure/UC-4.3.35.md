@@ -188,7 +188,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=gcp sourcetype="google:gcp:monitoring" metric.type="cloudsql.googleapis.com/database/network/connections"
-| stats latest(value) as conns by resource.labels.database_id, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(value) as conns by resource.labels.database_id, _time
 | lookup cloudsql_tier_limits database_id OUTPUT max_connections
 | where conns > max_connections * 0.85
 ```

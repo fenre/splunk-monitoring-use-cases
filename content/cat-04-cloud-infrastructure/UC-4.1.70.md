@@ -73,7 +73,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/Route53" metric_name="HealthCheckStatus"
-| stats latest(Minimum) as healthy by HealthCheckId, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(Minimum) as healthy by HealthCheckId, _time
 | where healthy < 1
 | sort HealthCheckId -_time
 ```

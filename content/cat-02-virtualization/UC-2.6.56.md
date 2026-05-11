@@ -70,4 +70,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 ## References
 
 - [Citrix Analytics Add-on for Splunk (Splunkbase 6280)](https://splunkbase.splunk.com/app/6280)
-- [Citrix Cloud service health (product documentation)](https://docs.citrix.com/en-us/citrix-cloud/overview/citrix-cloud-service-availability.html)
+- [Citrix Cloud service health (product documentation)](https://docs.citrix.com/en-us/citrix-cloud/)

@@ -82,6 +82,6 @@ Dashboard Studio: KPI row for PEs with LSP failures in 24h; middle `splunk.timec
 
 ## References
 
-- [Cisco IOS XR MPLS Configuration Guide — MPLS Traffic Engineering](https://www.cisco.com/c/en/us/td/docs/iosxr/cisco8000/mpls/b-mpls-configuration-guide-c8000/mpls-traffic-engineering.html)
-- [Juniper MPLS Applications User Guide — RSVP Signaling](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/topic-map/mplsvpn-applications.html)
-- [Nokia SR OS Router Configuration Guide — RSVP and MPLS-TE](https://infoproducts.nokia.com/)
+- [Cisco IOS XR MPLS Configuration Guide — MPLS Traffic Engineering](https://www.cisco.com/c/en/us/)
+- [Juniper MPLS Applications User Guide — RSVP Signaling](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
+- [Nokia InfoProducts — SR OS documentation portal](https://infoproducts.nokia.com/)

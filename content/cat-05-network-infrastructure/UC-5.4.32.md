@@ -41,11 +41,13 @@ Ingest wireless client events from Meraki or WLC. Extract association and roam o
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
-index=meraki sourcetype=meraki:accesspoints (event_type="association_failed" OR event_type="roam_failed")
+index=meraki sourcetype="meraki:accesspoints"
+  (meraki_event_type="wpa_deauth" OR meraki_event_type="disassociation")
 | bin _time span=15m
-| stats count by ap_serial, ssid, _time
-| where count > 20
-| sort -count
+| stats count as event_count, dc(clientMac) as unique_clients
+         by deviceSerial, deviceName, ssidName, _time
+| where event_count > 20
+| sort - event_count
 ```
 
 #### Understanding this SPL
@@ -58,10 +60,10 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 
 **Pipeline walkthrough**
 
-- Scopes the data: index=meraki, sourcetype=meraki:accesspoints. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
+- Scopes the data: index=meraki, sourcetype="meraki:accesspoints". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
 - Discretizes time or numeric ranges with `bin`/`bucket`.
-- `stats` rolls up events into metrics; results are split **by ap_serial, ssid, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-- Filters the current rows with `where count > 20` — typically the threshold or rule expression for this monitoring goal.
+- `stats` rolls up events into metrics; results are split **by deviceSerial, deviceName, ssidName, _time** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- Filters the current rows with `where event_count > 20` — typically the threshold or rule expression for this monitoring goal.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -74,11 +76,13 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## SPL
 
 ```spl
-index=meraki sourcetype=meraki:accesspoints (event_type="association_failed" OR event_type="roam_failed")
+index=meraki sourcetype="meraki:accesspoints"
+  (meraki_event_type="wpa_deauth" OR meraki_event_type="disassociation")
 | bin _time span=15m
-| stats count by ap_serial, ssid, _time
-| where count > 20
-| sort -count
+| stats count as event_count, dc(clientMac) as unique_clients
+         by deviceSerial, deviceName, ssidName, _time
+| where event_count > 20
+| sort - event_count
 ```
 
 ## Visualization

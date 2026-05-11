@@ -394,8 +394,8 @@ Security-approved scan-skip annotations on vendor appliance images or emergency 
 ## References
 
 - [Trivy documentation](https://aquasecurity.github.io/trivy/)
-- [Snyk Docs — Snyk Container](https://docs.snyk.io/scan-with-snyk/snyk-container/snyk-container-overview)
-- [Sigstore Cosign — Overview](https://docs.sigstore.dev/cosign/overview/)
+- [Snyk Docs — Snyk Container](https://docs.snyk.io/scan-with-snyk/snyk-container/)
+- [Sigstore Cosign — Overview](https://docs.sigstore.dev/cosign/)
 - [Kubernetes Documentation — Admission Controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)
 - [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
 - [NIST SP 800-190 — Application Container Security Guide](https://csrc.nist.gov/publications/detail/sp/800-190/final)

@@ -153,6 +153,6 @@ index=catalyst sourcetype="cisco:dnac:swim" upgradeStatus="FAILED"
 ## References
 
 - [Cisco Catalyst Add-on for Splunk (Splunkbase 7538)](https://splunkbase.splunk.com/app/7538)
-- [Catalyst Center SWIM — Troubleshooting Image Distribution](https://www.cisco.com/c/en/us/td/docs/cloud-systems-management/network-automation-and-management/catalyst-center/swim-guide.html)
+- [Catalyst Center SWIM — Troubleshooting Image Distribution](https://www.cisco.com/c/en/us/)
 - [Catalyst Center Integration Guide — Custom Scripted Inputs](docs/guides/catalyst-center.md#custom-scripted-inputs)
 - [NIST SP 800-53 Rev. 5 — IR-4 Incident Handling](https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=IR-4)

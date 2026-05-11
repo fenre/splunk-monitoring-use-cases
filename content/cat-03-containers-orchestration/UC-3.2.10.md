@@ -450,4 +450,4 @@ CronJob or Job pods that exit non-zero by design after processing a batch can en
 - [kubectl reference — logs](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#logs)
 - [Kubernetes — Cluster logging architecture](https://kubernetes.io/docs/concepts/cluster-administration/logging/)
 - [Splunk Docs — Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)
-- [Kubernetes — Audit logging](https://kubernetes.io/docs/reference/access-authn-authz/audit/)
+- [Kubernetes — Audit logging](https://kubernetes.io/docs/reference/access-authn-authz/)

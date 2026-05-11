@@ -74,6 +74,6 @@ Dashboard Studio: KPI for PEs with LDP downs in 24h; stacked bar of sessions by 
 
 ## References
 
-- [Cisco IOS Configuration Guides — MPLS Layer 3 VPNs (LDP fundamentals)](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/mp_l3_vpns/configuration/xe-16/mplsd-ios-xe-book.pdf)
-- [Juniper Junos MPLS User Guide — LDP Overview](https://www.juniper.net/documentation/us/en/software/junos/mpls/topics/concept/mpls-ldp-overview.html)
+- [Cisco IOS Configuration Guides — MPLS Layer 3 VPNs (LDP fundamentals)](https://www.cisco.com/c/en/us/)
+- [Juniper Junos MPLS User Guide — LDP Overview](https://www.juniper.net/documentation/us/en/software/junos/mpls/)
 - [IETF RFC 5036 — LDP Specification](https://www.rfc-editor.org/rfc/rfc5036)

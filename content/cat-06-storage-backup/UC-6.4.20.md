@@ -61,5 +61,5 @@ DDB and disk-library free space can dip during compact operations, aux copy, or 
 ## References
 
 - [Commvault Splunk App (Splunkbase)](https://splunkbase.splunk.com/app/5718)
-- [Commvault documentation — Deduplication](https://documentation.commvault.com/commvault/v11/expert/what_is_deduplication.html)
+- [Commvault documentation — Deduplication](https://documentation.commvault.com/)
 - [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

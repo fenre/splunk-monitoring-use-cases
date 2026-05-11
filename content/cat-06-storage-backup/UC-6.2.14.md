@@ -51,4 +51,4 @@ Short spikes during approved changes, maintenance windows, or known batch jobs c
 ## References
 
 - [Commvault Splunk App (Splunkbase)](https://splunkbase.splunk.com/app/5718)
-- [Commvault documentation — Splunk plug-in](https://documentation.commvault.com/commvault/v11/software/articles/splunk_plug_in.html)
+- [Commvault documentation — Splunk plug-in](https://documentation.commvault.com/)

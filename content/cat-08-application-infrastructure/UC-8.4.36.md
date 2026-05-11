@@ -57,4 +57,4 @@ Response time spikes during JVM garbage collection, connection pool exhaustion, 
 ## References
 
 - [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
-- [PHP-FPM configuration](https://www.php.net/manual/en/fpm.configuration.php#access-log)
+- [PHP-FPM configuration](https://www.php.net/manual/en/)

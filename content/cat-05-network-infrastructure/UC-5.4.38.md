@@ -53,4 +53,4 @@ Table (failed APs with cause), Status grid (AP join state per WLC, coloured by h
 ## References
 
 - [Cisco Catalyst 9800 series wireless controllers](https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html)
-- [CAPWAP troubleshooting on Catalyst 9800](https://www.cisco.com/c/en/us/support/docs/wireless/catalyst-9800-series-wireless-controllers/214286-troubleshoot-and-debug-capwap-issues.html)
+- [CAPWAP troubleshooting on Catalyst 9800](https://www.cisco.com/c/en/us/)

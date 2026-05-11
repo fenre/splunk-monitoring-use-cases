@@ -74,4 +74,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Put machines in maintenance - Citrix](https://docs.citrix.com/en-us/citrix-daas/deployment-guides/put-machines-into-maintenance.html)
+- [Put machines in maintenance - Citrix](https://docs.citrix.com/en-us/citrix-daas/)

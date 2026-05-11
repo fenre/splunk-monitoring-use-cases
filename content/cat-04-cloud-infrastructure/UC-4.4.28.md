@@ -189,7 +189,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 (index=azure sourcetype="mscs:azure:audit" (operationName.value="*AADConnect*" OR activityDisplayName="*sync*") activityStatus!="Success")
  OR (index=identity sourcetype="adconnect:health" status!="success")
 | eval connector_name=coalesce(connector_name, resourceGroupName, "aadconnect")
-| stats count by sourcetype, connector_name, bin(_time, 1h)
+| bin _time span=1h
+| stats count by sourcetype, connector_name, _time
 ```
 
 ## CIM SPL

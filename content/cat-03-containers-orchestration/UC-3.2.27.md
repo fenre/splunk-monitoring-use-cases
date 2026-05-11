@@ -543,6 +543,6 @@ Cluster-managed namespaces such as kube-system, kube-public, and kube-node-lease
 - [Kubernetes — Cluster Networking](https://kubernetes.io/docs/concepts/cluster-administration/networking/)
 - [Cilium — Kubernetes Network Policy](https://docs.cilium.io/en/stable/network/kubernetes/policy/)
 - [Tigera Calico — Kubernetes network policy](https://docs.tigera.io/calico/latest/network-policy/get-started/kubernetes-policy)
-- [kube-state-metrics — networkpolicy metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/network/networkpolicy-metrics.md)
+- [kube-state-metrics — networkpolicy metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/)
 - [Kubernetes — Admission Controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)
 - [Kubernetes SIG-Network — Network Policy API](https://github.com/kubernetes-sigs/network-policy-api)

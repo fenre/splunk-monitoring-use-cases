@@ -453,6 +453,6 @@ Operator Lifecycle Manager installs and certified partner operators routinely cr
 - [OpenShift Documentation — Understanding authentication](https://docs.openshift.com/container-platform/latest/authentication/understanding-authentication.html)
 - [Kubernetes Documentation — Using RBAC Authorization](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 - [Kubernetes Documentation — RBAC Good Practices](https://kubernetes.io/docs/concepts/security/rbac-good-practices/)
-- [OpenShift API Reference — package rbac v1](https://github.com/openshift/api/blob/master/rbac/v1/doc.go)
+- [OpenShift API Reference — package rbac v1](https://github.com/openshift/api/blob/master/)
 - [Kubernetes API Reference — ClusterRoleBinding v1](https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/cluster-role-binding-v1/)
 - [Red Hat Documentation Portal — OpenShift Container Platform](https://docs.redhat.com/en/documentation/openshift_container_platform/)

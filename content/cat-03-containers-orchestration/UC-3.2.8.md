@@ -438,6 +438,6 @@ Periodic MVCC compaction every few minutes produces short WAL fsync and commit l
 - [etcd Operations Guide — Performance](https://etcd.io/docs/latest/op-guide/performance/)
 - [etcd Operations Guide — Disaster Recovery](https://etcd.io/docs/latest/op-guide/recovery/)
 - [Kubernetes — Operating etcd clusters](https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/)
-- [etcd — Runtime configuration](https://github.com/etcd-io/etcd/blob/main/Documentation/op-guide/runtime-configuration.md)
+- [etcd — Runtime configuration](https://github.com/etcd-io/etcd/blob/main/Documentation/)
 - [Splunk Add-on for Kubernetes — About](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)
-- [CNCF Blog — multi-cluster Kubernetes lessons](https://www.cncf.io/blog/2019/12/16/lessons-learned-deploying-running-multi-cluster-kubernetes-on-azure/)
+- [CNCF Blog — multi-cluster Kubernetes lessons](https://www.cncf.io/blog/2019/12/16/)

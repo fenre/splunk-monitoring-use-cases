@@ -49,4 +49,4 @@ Planned failovers, network maintenance, or heavy bulk replication can extend lag
 
 ## References
 
-- [Apache Cassandra — Timeouts](https://cassandra.apache.org/doc/latest/cassandra/configuration/cass_yaml.html#request-timeout)
+- [Apache Cassandra — Timeouts](https://cassandra.apache.org/doc/latest/cassandra/)

@@ -67,4 +67,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Device security actions (enterprise mobility — Apple/Android context)](https://docs.citrix.com/en-us/citrix-endpoint-management/citrix-endpoint-mdm-mam/endpoint-management-mdm-mam-cio.html)
+- [Device security actions (enterprise mobility — Apple/Android context)](https://docs.citrix.com/en-us/citrix-endpoint-management/)

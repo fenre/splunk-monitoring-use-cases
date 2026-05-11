@@ -211,5 +211,5 @@ Security event timeline by severity, process tree diagram, binary execution heat
 - [Tetragon — Introduction and Architecture](https://tetragon.io/docs/overview/)
 - [Tetragon — TracingPolicy Reference](https://tetragon.io/docs/concepts/tracing-policy/)
 - [Tetragon — Security Observability Use Cases](https://tetragon.io/docs/use-cases/)
-- [Cilium — eBPF Runtime Security](https://docs.cilium.io/en/stable/security/runtime/)
+- [Cilium — eBPF Runtime Security](https://docs.cilium.io/en/stable/security/)
 - [Splunk — Endpoint Data Model](https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint)

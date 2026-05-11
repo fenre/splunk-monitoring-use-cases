@@ -111,4 +111,4 @@ Rate limits, bad clients, and new API routes can all raise policy hit counts dur
 
 - [Splunk Documentation: Splunk Add-on for Citrix NetScaler](https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler)
 - [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
-- [Citrix ADC — API gateway](https://docs.citrix.com/en-us/citrix-adc/current-release/api-gateway.html)
+- [Citrix ADC — API gateway](https://docs.citrix.com/en-us/citrix-adc/current-release/)

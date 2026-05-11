@@ -80,4 +80,4 @@ Autoscale and capacity events can follow maintenance tags, test floods, or catal
 
 ## References
 
-- [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/citrix-daas-service/monitor/health-data/autoscale.html)
+- [Autoscale in Citrix DaaS](https://docs.citrix.com/en-us/)

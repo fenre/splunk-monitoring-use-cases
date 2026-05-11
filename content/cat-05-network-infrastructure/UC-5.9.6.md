@@ -151,5 +151,5 @@ This variant cross-references path changes with latency variability from the met
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes Path Visualization — Understanding route changes](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/agent-to-server-test)
+- [ThousandEyes Path Visualization — Understanding route changes](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/)
 - [BGP Route Changes and Network Path Instability — RIPE NCC](https://www.ripe.net/publications/docs/ripe-611)

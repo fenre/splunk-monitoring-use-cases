@@ -342,7 +342,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval scc_object=workload
       | eval signal_lane="scc_resource_mutation"
       | eval resp_code=tonumber(tostring(coalesce('responseStatus.code', responseStatus.code, responseStatus_code, "0")), 10)
-      | eval lane_detail=strcat(verb_tx,"_",workload)
+      | eval lane_detail=verb_tx."_".workload
       | fields _time cluster namespace workload actor service_account admitted_scc scc_object signal_lane lane_detail resp_code ]
     [ search (index=ocp_audit OR index=k8s_audit) (sourcetype=ocp_audit OR sourcetype=k8s_audit OR sourcetype=ocp_admission) earliest=-24h@h latest=now
       | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, k8s_cluster_name, ""))))
@@ -360,7 +360,7 @@ Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matc
       | eval admitted_scc=lower(trim(toString(adm_scc)))
       | eval scc_object=""
       | eval signal_lane="scc_pod_admit"
-      | eval lane_detail=strcat("admitted_under_",admitted_scc)
+      | eval lane_detail="admitted_under_".admitted_scc
       | fields _time cluster namespace workload actor service_account admitted_scc scc_object signal_lane lane_detail resp_code ]
     [ search index=ocp_events sourcetype=ocp_events earliest=-24h@h latest=now
       | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, ""))))

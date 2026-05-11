@@ -49,4 +49,4 @@ Queues and broker metrics swing during rebalancing, replay, or maintenance. We a
 
 - [CIM: Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 - [Apache ActiveMQ — Security](https://activemq.apache.org/components/classic/documentation/security)
-- [Apache ActiveMQ — Broker Configuration](https://activemq.apache.org/components/classic/documentation/broker-configuration)
+- [Apache ActiveMQ — Broker Configuration](https://activemq.apache.org/components/classic/documentation/)

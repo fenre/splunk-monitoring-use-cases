@@ -49,4 +49,4 @@ IGEL and endpoint UMS health can warn during bulk firmware, certificate rotation
 
 ## References
 
-- [Dell VxRail Support — vSAN operations](https://www.dell.com/support/product-details/product-id.vxrail)
+- [Dell VxRail Support — vSAN operations](https://www.dell.com/support/)

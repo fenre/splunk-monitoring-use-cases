@@ -145,4 +145,4 @@ You should see three rows per agent pair: one each for `transmit`, `receive`, an
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
 - [ThousandEyes OTel v2 Data Model — Agent-to-Agent metrics and direction attribute](https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2)
-- [ThousandEyes Agent-to-Agent Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/agent-to-agent-test)
+- [ThousandEyes Agent-to-Agent Test Configuration](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/)

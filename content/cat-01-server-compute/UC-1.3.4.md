@@ -76,12 +76,6 @@ index=os sourcetype=macos_sw_vers host=*
 | stats count by is_current
 ```
 
-## CIM SPL
-
-```spl
-N/A — macOS `ProductVersion` from inventory is not a CIM Performance field; use MDM, custom `sw_vers` data, or your own policy lookup for approved builds.
-```
-
 ## Visualization
 
 Table (host, OS version, pending updates), Pie chart (version distribution).

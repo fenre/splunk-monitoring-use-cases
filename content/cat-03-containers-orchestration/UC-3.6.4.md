@@ -180,6 +180,6 @@ Namespace waste score bar chart, memory OOM risk table, CPU request vs actual sc
 
 - [Kubernetes — Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 - [Kubernetes — Resource Requests and Limits Best Practices](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
-- [kube-state-metrics — Pod Resource Metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/pod-metrics.md)
+- [kube-state-metrics — Pod Resource Metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/)
 - [Splunk OpenTelemetry Collector for Kubernetes](https://github.com/signalfx/splunk-otel-collector-chart)
 - [Kubernetes — OOMKilled Troubleshooting](https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/)

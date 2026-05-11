@@ -49,5 +49,5 @@ RAID or vdev state may show degraded briefly during disk replacements before reb
 
 ## References
 
-- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/reportinggraphs/)
+- [TrueNAS SCALE API documentation](https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/)
 - [TrueNAS CORE/SCALE docs — alerts](https://www.truenas.com/docs/)

@@ -81,6 +81,6 @@ Dashboard Studio: KPI rollbacks last thirty days; `splunk.timechart` of daily ro
 
 ## References
 
-- [Cisco IOS Configuration Replace and Rollback — Configuration guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ioswx_backup_restore/configuration/xe-16-9/ios-xe-16-9-book/b-ios-xe-16-9-book_chapter_0100.html)
+- [Cisco IOS Configuration Replace and Rollback — Configuration guide](https://www.cisco.com/c/en/us/)
 - [Ansible documentation — Blocks and rescue/always for error handling](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_blocks.html)
 - [HashiCorp Terraform — State recovery and refused applies](https://developer.hashicorp.com/terraform/cli/commands/state)

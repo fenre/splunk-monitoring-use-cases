@@ -77,6 +77,6 @@ Dashboard Studio: top row single-value tiles for 24h savings_pct per vendor; mid
 
 ## References
 
-- [Splunk Documentation — Get Started with Monitoring Working Examples](https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorWANtraffic)
+- [Splunk Documentation — Get Started with Monitoring Working Examples](https://docs.splunk.com/Documentation/Splunk/latest/Data/)
 - [Riverbed SteelHead Deployment Documentation Portal](https://support.riverbed.com/content/support/software/steelhead.html)
 - [HPE Aruba Networking EdgeConnect (Silver Peak) Documentation](https://www.arubanetworks.com/techdocs/EdgeConnect-Premier-orchestrator/introduction/about-this-guide/)

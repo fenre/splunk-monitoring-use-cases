@@ -150,4 +150,4 @@ index=network sourcetype="cisco:ios" "%SISF" "DAD"
 
 - [RFC 6957 — Duplicate Address Detection Proxy (DAD-Proxy specification)](https://www.rfc-editor.org/rfc/rfc6957)
 - [RFC 4861 — Neighbor Discovery for IP version 6 (§5.4 — Duplicate Address Detection procedure)](https://www.rfc-editor.org/rfc/rfc4861)
-- [Cisco SISF Configuration Guide — DAD Proxy and Binding Table operations](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Configuration Guide — DAD Proxy and Binding Table operations](https://www.cisco.com/c/en/us/)

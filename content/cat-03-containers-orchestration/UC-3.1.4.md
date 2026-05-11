@@ -352,6 +352,6 @@ Java and Scala services intentionally park their heaps near cgroup caps when -Xm
 - [Linux kernel admin guide — cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 - [Linux kernel documentation — Pressure Stall Information](https://docs.kernel.org/accounting/psi.html)
 - [Docker Docs — Container resource constraints](https://docs.docker.com/config/containers/resource_constraints/)
-- [Datadog Engineering — Kubernetes memory monitoring](https://www.datadoghq.com/blog/how-to-monitor-kubernetes-memory-usage/)
+- [Datadog Engineering — Kubernetes memory monitoring](https://www.datadoghq.com/blog/)
 - [Splunk Lantern — Getting Docker log data into Splunk Cloud Platform with OpenTelemetry](https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Getting_Docker_log_data_into_Splunk_Cloud_Platform_with_OpenTelemetry)
-- [OpenTelemetry — Runtime semantic conventions for container metrics](https://opentelemetry.io/docs/specs/semconv/runtime/container-metrics/)
+- [OpenTelemetry — Runtime semantic conventions for container metrics](https://opentelemetry.io/docs/specs/semconv/runtime/)

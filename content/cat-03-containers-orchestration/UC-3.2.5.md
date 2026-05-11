@@ -528,5 +528,5 @@ WaitForFirstConsumer StorageClasses legitimately leave new claims in phase Pendi
 - [VMware vSphere Container Storage Plug-in](https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/index.html)
 - [Rook Ceph documentation](https://rook.io/docs/rook/latest-release/)
 - [Longhorn documentation](https://longhorn.io/docs/)
-- [Portworx on Kubernetes](https://docs.portworx.com/portworx-kubernetes.html)
+- [Portworx on Kubernetes](https://docs.portworx.com/)
 - [Splunk Add-on for Kubernetes — About](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)

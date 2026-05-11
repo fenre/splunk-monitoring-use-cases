@@ -72,5 +72,5 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix Cloud identity providers and authentication](https://docs.citrix.com/en-us/citrix-cloud/citrix-cloud-management/identity-providers-in-citrix-cloud.html)
+- [Citrix Cloud identity providers and authentication](https://docs.citrix.com/en-us/citrix-cloud/)
 - [Splunk add-on: Microsoft Cloud Services (Entra / Azure data)](https://splunkbase.splunk.com/app/3110)

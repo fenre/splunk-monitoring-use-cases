@@ -52,4 +52,4 @@ Session and launch time spikes may track image updates, profile migrations, or b
 
 ## References
 
-- [Citrix — Session Recording architecture and storage](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/session-recording.html)
+- [Citrix — Session Recording architecture and storage](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

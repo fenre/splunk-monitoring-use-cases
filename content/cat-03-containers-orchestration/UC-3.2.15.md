@@ -492,7 +492,7 @@ GPU or accelerator DaemonSets legitimately skip CPU-only nodes when nodeSelector
 - [Kubernetes — DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)
 - [Kubernetes — Perform a Rolling Update on a DaemonSet](https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/)
 - [Kubernetes API Reference — DaemonSet v1 apps](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/daemon-set-v1/)
-- [Kubernetes Community — sig-apps DaemonSet contributor guide](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-apps/daemonset.md)
+- [Kubernetes Community — sig-apps DaemonSet contributor guide](https://github.com/kubernetes/community/blob/master/contributors/devel/)
 - [kube-state-metrics — DaemonSet metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/daemonset-metrics.md)
 - [Kubernetes — Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 - [Amazon EKS — AWS Fargate considerations (DaemonSet limitations)](https://docs.aws.amazon.com/eks/latest/userguide/fargate.html)

@@ -41,16 +41,20 @@ Network operations teams monitor Meraki Dashboard API rate limit events and retr
 Run the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):
 
 ```spl
-index=meraki sourcetype="meraki:apirequestsoverview" earliest=-1h
-| spath
-| stats sum(counts.success) as success_calls,
-        sum(counts.error) as error_calls,
-        sum(counts.total) as total_calls
-         by interval, organizationId
-| eval call_rate_per_min = round(total_calls/(60), 1)
-| eval error_pct = round(error_calls*100/total_calls, 2)
-| where call_rate_per_min > 9 OR error_pct > 5
-| sort - call_rate_per_min
+index=meraki sourcetype="meraki:apirequestsoverview" earliest=-24h
+| foreach responseCodeCounts.2* [ eval success_calls = coalesce(success_calls,0) + coalesce('<<FIELD>>',0) ]
+| foreach responseCodeCounts.4* responseCodeCounts.5* [ eval error_calls = coalesce(error_calls,0) + coalesce('<<FIELD>>',0) ]
+| eval rate_limit_429 = coalesce('responseCodeCounts.429', 0)
+| eval total_calls = success_calls + error_calls
+| stats sum(success_calls) as success_calls,
+        sum(error_calls) as error_calls,
+        sum(rate_limit_429) as rate_limit_429,
+        sum(total_calls) as total_calls
+         by organizationId
+| eval error_pct = if(total_calls>0, round(error_calls*100/total_calls, 2), 0)
+| eval rate_limit_pct = if(total_calls>0, round(rate_limit_429*100/total_calls, 2), 0)
+| where total_calls > 0 AND (error_pct > 5 OR rate_limit_pct > 1)
+| sort - rate_limit_pct
 ```
 
 #### Understanding this SPL
@@ -64,11 +68,14 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:apirequestsoverview", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- Extracts structured paths (JSON/XML) with `spath`.
-- `stats` rolls up events into metrics; results are split **by interval, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
-- `eval` defines or adjusts **call_rate_per_min** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Iterates over multivalue fields with `foreach`.
+- Iterates over multivalue fields with `foreach`.
+- `eval` defines or adjusts **rate_limit_429** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `eval` defines or adjusts **total_calls** — often to normalize units, derive a ratio, or prepare for thresholds.
+- `stats` rolls up events into metrics; results are split **by organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - `eval` defines or adjusts **error_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
-- Filters the current rows with `where call_rate_per_min > 9 OR error_pct > 5` — typically the threshold or rule expression for this monitoring goal.
+- `eval` defines or adjusts **rate_limit_pct** — often to normalize units, derive a ratio, or prepare for thresholds.
+- Filters the current rows with `where total_calls > 0 AND (error_pct > 5 OR rate_limit_pct > 1)` — typically the threshold or rule expression for this monitoring goal.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
 
 
@@ -81,16 +88,20 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 ## SPL
 
 ```spl
-index=meraki sourcetype="meraki:apirequestsoverview" earliest=-1h
-| spath
-| stats sum(counts.success) as success_calls,
-        sum(counts.error) as error_calls,
-        sum(counts.total) as total_calls
-         by interval, organizationId
-| eval call_rate_per_min = round(total_calls/(60), 1)
-| eval error_pct = round(error_calls*100/total_calls, 2)
-| where call_rate_per_min > 9 OR error_pct > 5
-| sort - call_rate_per_min
+index=meraki sourcetype="meraki:apirequestsoverview" earliest=-24h
+| foreach responseCodeCounts.2* [ eval success_calls = coalesce(success_calls,0) + coalesce('<<FIELD>>',0) ]
+| foreach responseCodeCounts.4* responseCodeCounts.5* [ eval error_calls = coalesce(error_calls,0) + coalesce('<<FIELD>>',0) ]
+| eval rate_limit_429 = coalesce('responseCodeCounts.429', 0)
+| eval total_calls = success_calls + error_calls
+| stats sum(success_calls) as success_calls,
+        sum(error_calls) as error_calls,
+        sum(rate_limit_429) as rate_limit_429,
+        sum(total_calls) as total_calls
+         by organizationId
+| eval error_pct = if(total_calls>0, round(error_calls*100/total_calls, 2), 0)
+| eval rate_limit_pct = if(total_calls>0, round(rate_limit_429*100/total_calls, 2), 0)
+| where total_calls > 0 AND (error_pct > 5 OR rate_limit_pct > 1)
+| sort - rate_limit_pct
 ```
 
 ## Visualization

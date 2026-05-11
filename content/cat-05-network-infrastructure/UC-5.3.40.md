@@ -101,4 +101,4 @@ Planned work, long repair windows, and standby links can make link-state logs bu
 
 ## References
 
-- [Citrix — SD-WAN high availability and links](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/high-availability.html)
+- [Citrix — SD-WAN high availability and links](https://docs.citrix.com/en-us/citrix-sd-wan/11-4/)

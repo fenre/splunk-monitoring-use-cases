@@ -225,8 +225,8 @@ When finance questions spend on extra blob storage, translate disk_fill_pct tren
 | where len(mirror_hostname)>2
 | streamstats window=240 current=t global=f sum(eval(if(arm="http", cache_miss, 0))) AS cmiss sum(eval(if(arm="http", cache_hit, 0))) AS chit BY mirror_hostname
 | eval running_miss_ratio=if((chit+cmiss)>0, round(100.0*cmiss/(chit+cmiss), 4), null())
-| streamstats window=3 current=t global=f delta(running_miss_ratio) AS cache_miss_rate_delta BY mirror_hostname
-| bin _time span=60m aligntime=@h
+| streamstats window=3 current=t global=f last(running_miss_ratio) as _prev_cache_miss_rate_delta BY mirror_hostname
+| eval cache_miss_rate_delta = running_miss_ratio - _prev_cache_miss_rate_delta| bin _time span=60m aligntime=@h
 | stats
     count(eval(if(arm="http", 1, null()))) AS http_req
     sum(eval(if(arm="http", is_5xx, 0))) AS http_5xx

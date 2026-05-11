@@ -73,7 +73,8 @@ Add the search to a dashboard or set up alert actions (email, webhook, PagerDuty
 
 ```spl
 index=aws sourcetype="aws:cloudwatch" namespace="AWS/CloudFront" (metric_name="4xxErrorRate" OR metric_name="5xxErrorRate")
-| stats latest(Average) as err_rate by DistributionId, metric_name, bin(_time, 5m)
+| bin _time span=5m
+| stats latest(Average) as err_rate by DistributionId, metric_name, _time
 | where err_rate > 1
 | sort - err_rate
 ```

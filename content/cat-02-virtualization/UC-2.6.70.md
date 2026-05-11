@@ -66,4 +66,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Citrix — StorageZones Controller](https://docs.citrix.com/en-us/citrix-content-collaboration/storage-zones-controller/4-storage-zones-controllers.html)
+- [Citrix — StorageZones Controller](https://docs.citrix.com/en-us/)

@@ -31,7 +31,7 @@ Land sFlow in Splunk with sampling-related information elements preserved; chart
 ## Detailed Implementation
 
 ### Prerequisites
-- Heavy Forwarder or intermediate collector running the Splunk Add-on for NetFlow (1759) with sFlow enabled on UDP ports documented for your deployment; agents on switches and routers exporting sFlow version 5.
+- Heavy Forwarder or intermediate collector running the Splunk Add-on for NetFlow (1838) with sFlow enabled on UDP ports documented for your deployment; agents on switches and routers exporting sFlow version 5.
 - Documented target sampling policy per site (for example 1:512 on edge, 1:4096 on core) and list of agent management addresses expected to send datagrams.
 - Baseline understanding that sFlow exports packet samples and counter samples; byte totals are statistical estimates—health checks focus on consistency of sampling metadata and steady datagram arrival, not absolute precision.
 
@@ -76,5 +76,5 @@ Short maintenance windows, SNMP polling storms, or intermittent routing asymmetr
 
 ## References
 
-- [Splunk Documentation: Get Started with NetFlow](https://docs.splunk.com/Documentation/NetFlow/latest/NetFlow/GetStarted)
+- [Splunk Documentation: Get Started with NetFlow](https://docs.splunk.com/Documentation/NetFlow/)
 - [RFC 3176 — InMon Corporation's sFlow](https://www.rfc-editor.org/rfc/rfc3176)

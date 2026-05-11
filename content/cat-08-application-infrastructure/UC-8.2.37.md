@@ -49,4 +49,4 @@ Queues and broker metrics swing during rebalancing, replay, or maintenance. We a
 ## References
 
 - [Apache ActiveMQ — Configuring Transports](https://activemq.apache.org/components/classic/documentation/configuring-transports)
-- [Apache ActiveMQ — Broker Configuration](https://activemq.apache.org/components/classic/documentation/broker-configuration)
+- [Apache ActiveMQ — Broker Configuration](https://activemq.apache.org/components/classic/documentation/)

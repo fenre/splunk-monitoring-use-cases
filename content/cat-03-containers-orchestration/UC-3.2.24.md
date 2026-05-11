@@ -477,6 +477,6 @@ Legitimate spec.behavior scaleDown policies with long stabilizationWindowSeconds
 - [Kubernetes SIGs — custom-metrics-apiserver](https://github.com/kubernetes-sigs/custom-metrics-apiserver)
 - [kube-state-metrics — HorizontalPodAutoscaler metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md)
 - [Kubernetes — Resource metrics pipeline](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/)
-- [Kubernetes API — Pod metrics (metrics.k8s.io v1beta1)](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/metrics-v1beta1/)
+- [Kubernetes API — Pod metrics (metrics.k8s.io v1beta1)](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/)
 - [KEDA — Concepts (Kubernetes Event-driven Autoscaling)](https://keda.sh/docs/latest/concepts/)
 - [Kubernetes — HorizontalPodAutoscaler v2 API reference](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/horizontal-pod-autoscaler-v2/)

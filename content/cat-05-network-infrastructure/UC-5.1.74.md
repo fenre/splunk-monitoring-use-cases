@@ -51,5 +51,4 @@ Table (VLAN changes by device with raw event line), Timeline (change history ove
 
 ## References
 
-- [Cisco VTP Version 3 — preventing the VTP bomb](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst3850/software/release/16-1/configuration_guide/lyr2/b_161_lyr2_3850_cg/b_161_lyr2_3850_cg_chapter_010001.html)
-- [Cisco VLAN Configuration Guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/lanswitch/configuration/15-mt/lnsw-15-mt-book.html)
+- [Cisco VTP Version 3 — preventing the VTP bomb](https://www.cisco.com/c/en/us/)

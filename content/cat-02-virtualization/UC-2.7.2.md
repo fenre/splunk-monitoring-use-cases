@@ -51,4 +51,4 @@ Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, 
 
 ## References
 
-- [Proxmox VZDump Backup](https://pve.proxmox.com/wiki/VZDump_Backup)
+- [Proxmox VZDump Backup](https://pve.proxmox.com/wiki/)

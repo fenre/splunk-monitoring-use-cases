@@ -80,4 +80,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 ## References
 
 - [NVIDIA vGPU software documentation](https://docs.nvidia.com/grid/index.html)
-- [HDX 3D Pro — Citrix (context for GPU use)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/hdx-3d-pro.html)
+- [HDX 3D Pro — Citrix (context for GPU use)](https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/)

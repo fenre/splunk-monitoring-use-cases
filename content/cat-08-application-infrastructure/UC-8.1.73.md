@@ -36,8 +36,8 @@ index=infrastructure sourcetype="memcached:stats"
 | eval evu=tonumber(evicted_unfetched)
 | bin _time span=5m
 | stats latest(expu) as expired latest(evu) as evicted by host, _time
-| streamstats window=2 global=f delta(expired) as d_exp delta(evicted) as d_ev by host
-| eval ratio=if(d_ev>0, round(d_exp/d_ev,2), null())
+| streamstats window=2 global=f last(expired) as _prev_d_exp last(evicted) as _prev_d_ev by host
+| eval d_exp = expired - _prev_d_exp, d_ev = evicted - _prev_d_ev| eval ratio=if(d_ev>0, round(d_exp/d_ev,2), null())
 | where d_ev > 100 AND (isnull(ratio) OR ratio < 0.5)
 ```
 

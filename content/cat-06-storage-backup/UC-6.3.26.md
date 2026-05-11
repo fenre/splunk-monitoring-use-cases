@@ -58,6 +58,6 @@ Backfill and rebalancing after node changes can move the cluster toward full bef
 
 ## References
 
-- [Ceph Documentation — Monitoring OSDs](https://docs.ceph.com/en/latest/rados/operations/monitoring-osds/)
+- [Ceph Documentation — Monitoring OSDs](https://docs.ceph.com/en/latest/rados/operations/)
 - [Ceph Documentation — Full OSDs](https://docs.ceph.com/en/latest/rados/operations/add-or-rm-osds/)
 - [CIM: Performance](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)

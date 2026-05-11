@@ -68,12 +68,6 @@ index=hardware sourcetype=ipmi:sel ("Power Supply" OR "PS" OR "power_supply") ("
 | sort -_time
 ```
 
-## CIM SPL
-
-```spl
-N/A — power-supply events in the IPMI or BMC SEL are not a CIM data model; use the sourcetype search or a vendor-parsed key/value feed.
-```
-
 ## Visualization
 
 Events timeline, Status indicator per host, Alert panel.

@@ -45,7 +45,7 @@ index=meraki sourcetype="meraki:wirelessdevicespacketlossbydevice" earliest=-24h
 | stats avg(downstream.lossPercentage) as avg_dl_loss,
         avg(upstream.lossPercentage) as avg_ul_loss,
         max(downstream.lossPercentage) as peak_dl_loss
-         by serial, name, network.name
+         by device.serial, device.name, network.name
 | eval client_health = case(
     avg_dl_loss>5 OR avg_ul_loss>5, "Critical",
     avg_dl_loss>2 OR avg_ul_loss>2, "Warning",
@@ -65,7 +65,7 @@ The first pipeline stage scopes events using **index**: meraki; **sourcetype**: 
 **Pipeline walkthrough**
 
 - Scopes the data: index=meraki, sourcetype="meraki:wirelessdevicespacketlossbydevice", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.
-- `stats` rolls up events into metrics; results are split **by serial, name, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
+- `stats` rolls up events into metrics; results are split **by device.serial, device.name, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).
 - `eval` defines or adjusts **client_health** — often to normalize units, derive a ratio, or prepare for thresholds.
 - Filters the current rows with `where client_health != "OK"` — typically the threshold or rule expression for this monitoring goal.
 - Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.
@@ -84,7 +84,7 @@ index=meraki sourcetype="meraki:wirelessdevicespacketlossbydevice" earliest=-24h
 | stats avg(downstream.lossPercentage) as avg_dl_loss,
         avg(upstream.lossPercentage) as avg_ul_loss,
         max(downstream.lossPercentage) as peak_dl_loss
-         by serial, name, network.name
+         by device.serial, device.name, network.name
 | eval client_health = case(
     avg_dl_loss>5 OR avg_ul_loss>5, "Critical",
     avg_dl_loss>2 OR avg_ul_loss>2, "Warning",

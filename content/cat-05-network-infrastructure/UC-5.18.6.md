@@ -74,6 +74,6 @@ Dashboard Studio: KPI for risky commits per day; Sankey-style diagram from actor
 
 ## References
 
-- [Cisco MPLS VPN Route Target Attributes](https://www.cisco.com/c/en/us/support/docs/multiprotocol-label-switching-mpls/mpls/581220008-vpn-route-target-import-export-vrf.htm)
-- [Juniper Routing Instances Overview — VPN Import Policies](https://www.juniper.net/documentation/us/en/software/junos/routing-policy/topics/concept/routing-policy-overview.html)
+- [Cisco MPLS VPN Route Target Attributes](https://www.cisco.com/c/en/us/)
+- [Juniper Routing Instances Overview — VPN Import Policies](https://www.juniper.net/documentation/us/en/software/junos/routing-policy/)
 - [Nokia SR OS Routing Protocols Guide — BGP/MPLS IP VPNs](https://documentation.nokia.com/)

@@ -209,4 +209,4 @@ index=network sourcetype="cisco:ios:config" OR sourcetype="config:running"
 - [RFC 6105 — IPv6 Router Advertisement Guard (RA Guard specification for Layer 2 switches)](https://www.rfc-editor.org/rfc/rfc6105)
 - [RFC 7113 — Implementation Advice for IPv6 Router Advertisement Guard (RA Guard bypass mitigations, extended header handling)](https://www.rfc-editor.org/rfc/rfc7113)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2.4 — RA Guard deployment recommendation)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Cisco SISF Configuration Guide — RA Guard and Device Tracking Policy](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF Configuration Guide — RA Guard and Device Tracking Policy](https://www.cisco.com/c/en/us/)

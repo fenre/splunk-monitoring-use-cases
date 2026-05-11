@@ -78,6 +78,6 @@ Dashboard Studio: KPI row for count of oversubscribed hosts; middle `splunk.time
 
 ## References
 
-- [Splunk Documentation — Splunk Connect for SNMP overview](https://docs.splunk.com/Documentation/SC4SNMP/latest/SC4SNMP/Overview)
+- [Splunk Documentation — Splunk Connect for SNMP overview](https://docs.splunk.com/Documentation/SC4SNMP/)
 - [Gigamon Product Documentation — GigaVUE Fabric Manager](https://docs.gigamon.com/)
 - [Keysight Network Visibility Solutions — Vision portfolio](https://www.keysight.com/us/en/products/network-test/network-visibility-solutions.html)

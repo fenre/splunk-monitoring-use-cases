@@ -407,7 +407,7 @@ Chaos experiments that deliberately drop readiness or inject latency in non-prod
 - [Kubernetes — Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
 - [NGINX Ingress Controller — Troubleshooting](https://kubernetes.github.io/ingress-nginx/troubleshooting/)
 - [Envoy — Access logging](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage)
-- [Contour — Troubleshooting](https://projectcontour.io/docs/v1.30/troubleshooting/)
+- [Contour — Troubleshooting](https://projectcontour.io/docs/)
 - [Google Cloud — GKE Ingress troubleshooting](https://cloud.google.com/kubernetes-engine/docs/troubleshooting/ingress)
 - [Microsoft — Application Gateway Ingress Controller](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
 - [Kubernetes SIGs — AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.7/)

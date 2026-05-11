@@ -71,12 +71,6 @@ index=hardware sourcetype=pcie_link host=*
 | table host slot width speed expected_width expected_speed
 ```
 
-## CIM SPL
-
-```spl
-N/A — PCIe link training width/speed is not a CIM data model; use Linux `lspci`/`sysfs` output or vendor-specific inventory in a custom sourcetype.
-```
-
 ## Visualization
 
 Table (host, slot, current vs. expected), Bar chart of link widths.

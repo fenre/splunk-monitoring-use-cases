@@ -183,8 +183,8 @@ Stacked area chart (event volume by action_class over 24h), single-value tiles (
 
 ## References
 
-- [Harbor Administration — Webhook Notifications](https://goharbor.io/docs/2.10.0/administration/webhook-notifications/)
-- [Harbor API v2.0 — Audit Logs](https://goharbor.io/docs/2.10.0/build-customize-contribute/swagger/)
+- [Harbor Administration — Webhook Notifications](https://goharbor.io/docs/2.10.0/administration/)
+- [Harbor API v2.0 — Audit Logs](https://goharbor.io/docs/2.10.0/build-customize-contribute/)
 - [Docker Distribution Notification Configuration](https://distribution.github.io/distribution/about/notifications/)
 - [Splunk REST API Modular Input (Splunkbase 1546)](https://splunkbase.splunk.com/app/1546)
 - [Splunk HTTP Event Collector (HEC) Reference](https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector)

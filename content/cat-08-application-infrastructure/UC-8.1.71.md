@@ -36,8 +36,8 @@ index=infrastructure sourcetype="memcached:stats"
 | eval bw=tonumber(bytes_written)
 | bin _time span=5m
 | stats latest(br) as bread latest(bw) as bwrite by host, _time
-| streamstats window=2 global=f delta(bread) as read_bps delta(bwrite) as write_bps by host
-| eval read_mbps=round(read_bps/300/1048576,2)
+| streamstats window=2 global=f last(bread) as _prev_read_bps last(bwrite) as _prev_write_bps by host
+| eval read_bps = bread - _prev_read_bps, write_bps = bwrite - _prev_write_bps| eval read_mbps=round(read_bps/300/1048576,2)
 | eval write_mbps=round(write_bps/300/1048576,2)
 | where read_mbps > 800 OR write_mbps > 800
 ```

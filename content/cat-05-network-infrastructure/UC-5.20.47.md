@@ -160,4 +160,4 @@ index=network sourcetype="cisco:ios" earliest=-24h
 
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.2.3 — route filtering recommendations)](https://www.rfc-editor.org/rfc/rfc9099)
 - [RFC 4193 — Unique Local IPv6 Unicast Addresses (fc00::/7 — must not be redistributed to internet)](https://www.rfc-editor.org/rfc/rfc4193)
-- [Cisco IPv6 Route Redistribution Best Practices](https://www.cisco.com/c/en/us/support/docs/ip/ip-routing/200756-understand-ospfv3-to-bgp-redistribution.html)
+- [Cisco IPv6 Route Redistribution Best Practices](https://www.cisco.com/c/en/us/)

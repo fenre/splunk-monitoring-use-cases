@@ -134,4 +134,4 @@ index=network sourcetype="cisco:ios" ("%SISF-4-PAK_DROP" "Source guard") OR "%IP
 ## References
 
 - [RFC 7039 — Source Address Validation Improvement (SAVI) Framework](https://www.rfc-editor.org/rfc/rfc7039)
-- [Cisco SISF — IPv6 Source Guard configuration and PAK_DROP events](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sisf/configuration/xe-17/sisf-xe-17-book.html)
+- [Cisco SISF — IPv6 Source Guard configuration and PAK_DROP events](https://www.cisco.com/c/en/us/)

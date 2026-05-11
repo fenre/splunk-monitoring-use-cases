@@ -76,4 +76,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [uberAgent documentation - HDX/EDT](https://uberagent.com/docs/)
+- [uberAgent documentation - HDX/EDT](https://liquidware.com/)

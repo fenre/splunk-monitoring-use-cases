@@ -67,4 +67,4 @@ Citrix environments often coordinate broker, VDA, gateway, and profile layers; a
 
 ## References
 
-- [Distribute and manage mobile apps in Citrix Endpoint Management](https://docs.citrix.com/en-us/citrix-endpoint-management/mdm-mam/endpoint-management-mdm-mam-mdx-apps.html)
+- [Distribute and manage mobile apps in Citrix Endpoint Management](https://docs.citrix.com/en-us/citrix-endpoint-management/)

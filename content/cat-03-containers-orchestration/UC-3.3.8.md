@@ -325,7 +325,7 @@ Case L — healthy control test: wide notAfter horizons beyond ninety days, cert
       | eval cert_issuer=trim(toString(coalesce(issuer, tls_issuer, issuer_dn, cert_issuer_x509, "")))
       | eval ann=lower(toString(coalesce(annotations, annotations_json, metadata_annotations, "")))
       | eval certmanager_managed=if(match(ann,"cert-manager\\.io") OR match(ann,"certmanager\\.k8s\\.io"),"true","false")
-      | eval cm_join=strcat(cluster,"#",route_namespace,"#",lower(trim(coalesce(backing_secret, route_name, ""))))
+      | eval cm_join=cluster."#".route_namespace."#".lower(trim(coalesce(backing_secret, route_name, "")))
       | eval lane="route_snapshot"
       | fields _time cluster route_namespace route_name hostname tls_termination backing_secret router_shard not_after_epoch cert_subject_cn cert_issuer certmanager_managed cm_join lane ]
     [ search index=openshift (sourcetype="certmanager:metrics" OR sourcetype="prometheus:metrics") earliest=-7d@d latest=now
@@ -338,14 +338,14 @@ Case L — healthy control test: wide notAfter horizons beyond ninety days, cert
       | eval route_name=lower(trim(toString(coalesce(cm_name, name, ""))))
       | eval hostname=""
       | eval tls_termination="certmanager_metric"
-      | eval backing_secret=strcat(coalesce(cm_ns,"-"),"/",coalesce(cm_name,"cm"))
+      | eval backing_secret=coalesce(cm_ns,"-")."/".coalesce(cm_name,"cm")
       | eval router_shard="prometheus"
       | eval pm_epoch=tonumber(pm_value,10)
       | eval not_after_epoch=if(pm_epoch>1000000000, pm_epoch, null())
-      | eval cert_subject_cn=strcat("cm:",coalesce(cm_name,""))
+      | eval cert_subject_cn="cm:".coalesce(cm_name,"")
       | eval cert_issuer="cert-manager-controller"
       | eval certmanager_managed="true"
-      | eval cm_join=strcat(cluster,"#",lower(trim(coalesce(cm_ns,""))),"#",lower(trim(coalesce(cm_name,"")))))
+      | eval cm_join=cluster."#".lower(trim(coalesce(cm_ns,"")))."#".lower(trim(coalesce(cm_name,""))))
       | eval lane="cm_prom"
       | fields _time cluster route_namespace route_name hostname tls_termination backing_secret router_shard not_after_epoch cert_subject_cn cert_issuer certmanager_managed cm_join lane ]
     [ search index=openshift sourcetype="openshift:routerlogs" earliest=-30d@d latest=now
@@ -364,7 +364,7 @@ Case L — healthy control test: wide notAfter horizons beyond ninety days, cert
       | eval cert_subject_cn=""
       | eval cert_issuer=""
       | eval certmanager_managed=""
-      | eval cm_join=strcat("_blast_",cluster,"#",hostname)
+      | eval cm_join="_blast_".cluster."#".hostname
       | fields _time cluster hostname weekly_client_hits lane route_namespace route_name tls_termination backing_secret router_shard not_after_epoch cert_subject_cn cert_issuer certmanager_managed cm_join ]
     [ search index=openshift sourcetype="openshift:secret" earliest=-7d@d latest=now
       | eval cluster=lower(trim(toString(coalesce(cluster, openshift_cluster, cluster_name, cluster_id, ""))))
@@ -384,7 +384,7 @@ Case L — healthy control test: wide notAfter horizons beyond ninety days, cert
       | eval weekly_client_hits=0
       | eval route_name=""
       | eval _time=last_secret_seen
-      | eval cm_join=strcat("_secret_",cluster,"#",route_namespace,"/",backing_secret)
+      | eval cm_join="_secret_".cluster."#".route_namespace."/".backing_secret
       | fields _time cluster route_namespace route_name hostname tls_termination backing_secret router_shard not_after_epoch cert_subject_cn cert_issuer certmanager_managed cm_join lane ]
 | eventstats max(eval(if(lane="blast_agg", weekly_client_hits, null()))) AS weekly_client_hits BY cluster hostname
 | fillnull value=0 weekly_client_hits

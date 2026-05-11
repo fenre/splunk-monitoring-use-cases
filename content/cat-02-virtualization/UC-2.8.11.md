@@ -49,4 +49,4 @@ AOS storage metrics can look worse during background heal, curator, or disk remo
 
 ## References
 
-- [oVirt External Network Providers](https://www.ovirt.org/develop/release-management/features/network/external-network-provider/)
+- [oVirt External Network Providers](https://www.ovirt.org/develop/release-management/features/network/)

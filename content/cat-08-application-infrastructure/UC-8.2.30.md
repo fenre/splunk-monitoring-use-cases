@@ -85,4 +85,4 @@ Pie chart (reason), timechart, table (client IPs if available).
 ## References
 
 - [Splunk Add-on for Microsoft IIS (Splunkbase)](https://splunkbase.splunk.com/app/3185)
-- [Microsoft — Enable HTTP.sys tracing (HTTPERR)](https://learn.microsoft.com/en-us/troubleshoot/developer/webapps/iis/health-diagnostic-tools/http-sys-tracing-enable)
+- [Microsoft — Enable HTTP.sys tracing (HTTPERR)](https://learn.microsoft.com/en-us/troubleshoot/developer/webapps/iis/)

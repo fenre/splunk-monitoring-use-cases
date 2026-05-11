@@ -157,5 +157,5 @@ index=iot (sourcetype="thread:gateway" OR sourcetype="matter:controller" OR sour
 
 - [RFC 4944 — Transmission of IPv6 Packets over IEEE 802.15.4 Networks (6LoWPAN)](https://www.rfc-editor.org/rfc/rfc4944)
 - [RFC 6282 — Compression Format for IPv6 Datagrams over IEEE 802.15.4-Based Networks (6LoWPAN-HC)](https://www.rfc-editor.org/rfc/rfc6282)
-- [Thread Group — Thread Border Router specification](https://www.threadgroup.org/)
+- [Thread Group — Thread protocol consortium](https://www.threadgroup.org/)
 - [Connectivity Standards Alliance — Matter protocol specification](https://csa-iot.org/all-solutions/matter/)

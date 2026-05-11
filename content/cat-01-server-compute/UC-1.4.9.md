@@ -72,12 +72,6 @@ index=hardware sourcetype=ipmi_sdr host=*
 | table _time host sensor_name sensor_reading upper_critical status
 ```
 
-## CIM SPL
-
-```spl
-N/A — SDR and threshold-breach logic are not a CIM data model; use a custom `ipmi_sdr` sourcetype with parsed `sensor_reading` and `upper_*` fields.
-```
-
 ## Visualization
 
 Gauges per sensor, Table of breached sensors, Timeline of SEL events.

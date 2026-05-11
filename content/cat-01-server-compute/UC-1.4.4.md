@@ -70,12 +70,6 @@ index=hardware sourcetype=smart_data
 | sort -Reallocated_Sector_Ct
 ```
 
-## CIM SPL
-
-```spl
-N/A — SMART attributes are not part of a standard CIM data model; use `smartctl` output in a custom sourcetype or vendor disk-health integration.
-```
-
 ## Visualization
 
 Table per disk, Trend line for sector counts, Heatmap of disk health.

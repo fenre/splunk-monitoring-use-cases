@@ -128,5 +128,5 @@ index=network sourcetype="cisco:ios" ("DESTGUARD" OR "destination-guard" OR ("%S
 
 ## References
 
-- [Cisco IPv6 Destination Guard Configuration Guide](https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipv6_fhsec/configuration/xe-17/ip6f-xe-17-book/ip6-dest-guard.html)
+- [Cisco IPv6 Destination Guard Configuration Guide](https://www.cisco.com/c/en/us/)
 - [RFC 6583 — Operational Neighbor Discovery Problems (NDP exhaustion attack that Destination Guard mitigates)](https://www.rfc-editor.org/rfc/rfc6583)

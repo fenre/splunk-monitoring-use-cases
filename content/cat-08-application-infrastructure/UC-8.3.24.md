@@ -86,4 +86,4 @@ Short-lived or staging certificates, planned rotations, and CA delays can look l
 ## References
 
 - [CIM: Web](https://docs.splunk.com/Documentation/CIM/latest/User/Web)
-- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/haproxy-management-guide/latest/observability/logging/)
+- [HAProxy Management Guide — Logging](https://www.haproxy.com/documentation/)

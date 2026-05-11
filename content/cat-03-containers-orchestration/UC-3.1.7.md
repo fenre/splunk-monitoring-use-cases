@@ -311,7 +311,7 @@ Closing: Step 5 lists twelve numbered cases; troubleshooting covers parser drift
 | eval growth_pct_weekly=if(isnotnull(avg_reclaim_7snap) AND avg_reclaim_7snap>0.0001, round(100.0*(reclaimable_total_gb-avg_reclaim_7snap)/avg_reclaim_7snap,2), null())
 | eval owner=toString(coalesce(owner_contact, platform_owner, finops_owner, ""))
 | eval sla_breach_state=case(exempt_ns==1, "EXEMPT", coalesce(sprawl_score,0)>25, "RED-25%+", coalesce(sprawl_score,0)>15, "AMBER-15-25%", coalesce(sprawl_score,0)>5, "YELLOW-5-15%", 1=1, "GREEN")
-| eval cleanup_command=if(exempt_ns==1,"exempt_namespace: coordinate manual reclaim under legal hold", strcat("docker container prune --filter until=", retention_stopped_days, "d --force; docker image prune --force; docker volume prune --force; docker builder prune --filter until=", retention_stopped_days, "d --force"))
+| eval cleanup_command=if(exempt_ns==1,"exempt_namespace: coordinate manual reclaim under legal hold", "docker container prune --filter until=".retention_stopped_days."d --force; docker image prune --force; docker volume prune --force; docker builder prune --filter until=".retention_stopped_days."d --force")
 | table host_id environment cluster sprawl_score reclaimable_total_gb stopped_containers oldest_stopped_age_days dangling_images_count unused_images_count orphan_volumes_count build_cache_gb growth_pct_weekly fleet_p90_reclaim ghost_containers sla_breach_state owner cleanup_command
 | sort - sprawl_score
 ```
@@ -333,7 +333,7 @@ Legitimate stopped-but-named data containers that hold reference datasets offlin
 
 ## References
 
-- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/About)
+- [Splunk Documentation — Splunk Add-on for Docker overview](https://docs.splunk.com/Documentation/AddOns/released/Docker/)
 - [Docker Docs — docker system df](https://docs.docker.com/engine/reference/commandline/system_df/)
 - [Docker Docs — Prune unused Docker objects](https://docs.docker.com/config/pruning/)
 - [Docker Docs — Build garbage collection](https://docs.docker.com/build/cache/garbage-collection/)

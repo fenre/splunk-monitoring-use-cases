@@ -180,7 +180,7 @@ Compliance gauge (% pods with sidecar in injection-enabled namespaces), non-comp
 ## References
 
 - [Istio — Sidecar Injection](https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/)
-- [Istio — Controlling the Injection Policy](https://istio.io/latest/docs/ops/configuration/mesh/injection-concepts/)
+- [Istio — Controlling the Injection Policy](https://istio.io/latest/docs/ops/configuration/mesh/)
 - [Kubernetes — Dynamic Admission Control](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/)
 - [Splunk Connect for Kubernetes](https://github.com/splunk/splunk-connect-for-kubernetes)
 - [Splunk lookup Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Lookup)

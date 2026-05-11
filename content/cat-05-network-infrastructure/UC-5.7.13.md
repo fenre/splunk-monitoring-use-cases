@@ -76,5 +76,5 @@ Large backups and cloud synchronization windows mimic data theft burst patterns.
 
 ## References
 
-- [Splunk Blog — Building Network Insights](https://www.splunk.com/en_us/blog/learn/network-security-monitoring.html)
+- [Splunk Blog — Building Network Insights](https://www.splunk.com/en_us/blog/)
 - [NIST SP 800-53 AU-6 — Audit Record Review](https://csrc.nist.gov/projects/cprt/catalog#/control?version=SP_800_53_5_1_1&control=AU-6)

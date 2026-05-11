@@ -186,6 +186,6 @@ Line chart of daily warnings with 7-day SMA overlay, stacked area by reason, nam
 
 - [Kubernetes — Events API Reference](https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/event-v1/)
 - [Kubernetes — Debug Pods and ReplicaSets](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
-- [Kubernetes — Node Problem Detector](https://kubernetes.io/docs/tasks/debug/debug-cluster/node-problem-detector/)
+- [Kubernetes — Node Problem Detector](https://kubernetes.io/docs/tasks/debug/debug-cluster/)
 - [Splunk Connect for Kubernetes](https://github.com/splunk/splunk-connect-for-kubernetes)
 - [Splunk trendline Command Reference](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline)

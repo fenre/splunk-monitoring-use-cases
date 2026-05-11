@@ -163,5 +163,5 @@ index=network (sourcetype="cisco:sdwan" OR sourcetype="cisco:vmanage") earliest=
 
 ## References
 
-- [Cisco SD-WAN IPv6 Configuration Guide](https://www.cisco.com/c/en/us/td/docs/routers/sdwan/configuration/system-interface/vEdge-20-x/systems-interfaces-book/configure-interfaces.html)
+- [Cisco SD-WAN IPv6 Configuration Guide](https://www.cisco.com/c/en/us/)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.7 — transition and overlay security)](https://www.rfc-editor.org/rfc/rfc9099)

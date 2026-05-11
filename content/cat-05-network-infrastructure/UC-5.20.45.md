@@ -161,4 +161,4 @@ index=network sourcetype="sc4snmp:metric" (metric_name="ipv6.routes_total" OR me
 
 - [APNIC IPv6 Routing Table Size Report — real-time DFZ tracking](https://bgp.potaroo.net/v6/as2.0/index.html)
 - [RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.2.2 — routing table management)](https://www.rfc-editor.org/rfc/rfc9099)
-- [Cisco FIB/TCAM Architecture and Capacity Planning Guide](https://www.cisco.com/c/en/us/support/docs/switches/catalyst-6500-series-switches/65682-tcam-usage-6500.html)
+- [Cisco FIB/TCAM Architecture and Capacity Planning Guide](https://www.cisco.com/c/en/us/)

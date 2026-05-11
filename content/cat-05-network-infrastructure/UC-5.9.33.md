@@ -166,4 +166,4 @@ Look for where the path transitions from ISP/transit prefixes to cloud provider 
 ## References
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
-- [ThousandEyes path visualization](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/views-and-dashboards/path-visualization)
+- [ThousandEyes path visualization](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/)

@@ -35,8 +35,8 @@ index=infrastructure sourcetype="memcached:stats"
 | eval ev=tonumber(evictions)
 | bin _time span=1m
 | stats latest(ev) as evictions_cumulative by host, _time
-| streamstats window=2 global=f delta(evictions_cumulative) as ev_delta by host
-| where ev_delta > 1000
+| streamstats window=2 global=f last(evictions_cumulative) as _prev_ev_delta by host
+| eval ev_delta = evictions_cumulative - _prev_ev_delta| where ev_delta > 1000
 ```
 
 ## Visualization

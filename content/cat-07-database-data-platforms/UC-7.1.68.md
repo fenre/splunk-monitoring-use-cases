@@ -49,4 +49,4 @@ Repairs, bootstraps, and heavy write bursts increase compaction and hinted-hando
 
 ## References
 
-- [Apache Cassandra — nodetool tablestats](https://cassandra.apache.org/doc/latest/cassandra/tools/nodetool/tablestats.html)
+- [Apache Cassandra — nodetool tablestats](https://cassandra.apache.org/doc/latest/cassandra/)

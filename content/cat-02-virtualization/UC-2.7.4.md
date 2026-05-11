@@ -51,4 +51,4 @@ Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, 
 
 ## References
 
-- [QEMU/KVM Migration on Proxmox](https://pve.proxmox.com/wiki/QEMU/KVM_Migration)
+- [QEMU/KVM Migration on Proxmox](https://pve.proxmox.com/wiki/)
