@@ -63,6 +63,7 @@ import difflib
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -1214,7 +1215,7 @@ def _inputs_sha256() -> str:
     return hasher.hexdigest()
 
 
-def _generate_all(check: bool) -> int:
+def _generate_all(check: bool, chain_citations: bool = True) -> int:
     regulations_doc = _load_json(REGULATIONS_PATH)
     extras_doc = _load_json(EXTRAS_PATH)
     gap_report = _load_gap_report()
@@ -1424,6 +1425,19 @@ def _generate_all(check: bool) -> int:
     # Clean orphan pack files that are no longer in PACK_TARGETS
     _prune_orphans(planned)
     print(f"OK: wrote {written} file(s); total planned {len(planned)}.")
+
+    # Re-inject inline <sup class="ref"> markers and the auto-references
+    # footer on the evidence-pack markdown.  Without this chain a
+    # stand-alone write run leaves the working tree with the citation
+    # system stripped from every pack — drift that --check deliberately
+    # hides (see ``_strip_citation_markers``) but which a subsequent
+    # ``git status`` surfaces as ~1000 deleted citation lines.  CI and
+    # the Makefile already enforce this ordering; the chain just makes
+    # the generator self-consistent for ad-hoc local runs.
+    if chain_citations:
+        rc = _chain_doc_references()
+        if rc != 0:
+            return rc
     return 0
 
 
@@ -1563,6 +1577,56 @@ def _check_drift(planned: dict[Path, bytes]) -> list[str]:
     return drift
 
 
+_DOC_REFS_SCRIPT = ROOT / "scripts" / "generate_doc_references.py"
+_EVIDENCE_PACK_GLOB = "docs/evidence-packs/*.md"
+
+
+def _chain_doc_references() -> int:
+    """Re-run ``scripts/generate_doc_references.py`` over the evidence-pack
+    markdown so write mode preserves the auto-citation footer and inline
+    ``<sup class="ref">`` markers that the citation system injects after
+    this generator runs.
+
+    The function shells out via ``subprocess`` rather than importing the
+    script so the modules stay decoupled (the citation generator lives
+    under ``scripts/``, not under the ``splunk_uc`` package).
+
+    Returns the exit code of the chained call. A missing citation
+    generator (e.g. minimal deployment, fork that stripped scripts/)
+    degrades gracefully to a warning + exit 0 so the parent generator
+    still reports success.
+    """
+    if not _DOC_REFS_SCRIPT.exists():
+        print(
+            "WARNING: scripts/generate_doc_references.py not found; "
+            "evidence-pack markdown was written without auto-citation "
+            "markers. Re-run the citation generator manually to restore "
+            "them, or pass --no-citation-chain to silence this warning.",
+            file=sys.stderr,
+        )
+        return 0
+    cmd = [
+        sys.executable,
+        str(_DOC_REFS_SCRIPT),
+        "--only",
+        _EVIDENCE_PACK_GLOB,
+    ]
+    # Run from ROOT so relative paths inside the citation generator
+    # (data/source-references.json, data/source-mappings.json, …)
+    # resolve regardless of the caller's cwd.
+    print(f"Chaining citation regen for {_EVIDENCE_PACK_GLOB} …")
+    result = subprocess.run(cmd, cwd=str(ROOT))
+    if result.returncode != 0:
+        print(
+            "FAIL: scripts/generate_doc_references.py returned exit "
+            f"{result.returncode}; evidence-pack citation markers may be "
+            "incomplete. Re-run the citation generator after fixing the "
+            "underlying error.",
+            file=sys.stderr,
+        )
+    return result.returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1570,9 +1634,24 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Verify generated files match planned output; exit 1 on drift.",
     )
+    parser.add_argument(
+        "--no-citation-chain",
+        action="store_true",
+        help=(
+            "Skip the automatic chain into scripts/generate_doc_references.py "
+            "after writing. By default the citation generator is re-run over "
+            "docs/evidence-packs/*.md so the auto-references footer and "
+            "inline <sup class=\"ref\"> markers stay in sync with the freshly "
+            "written body. Use this flag for debugging or when running inside "
+            "a deployment that lacks the citation generator."
+        ),
+    )
     args = parser.parse_args(argv)
     try:
-        return _generate_all(check=args.check)
+        return _generate_all(
+            check=args.check,
+            chain_citations=not args.no_citation_chain,
+        )
     except Exception as exc:  # pragma: no cover
         print(f"FATAL: {exc}", file=sys.stderr)
         raise
