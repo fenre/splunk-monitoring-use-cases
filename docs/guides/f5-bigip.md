@@ -714,7 +714,7 @@ TRUNCATE = 16384
 
 | Item | Detail |
 |------|--------|
-| **Splunkbase add-on** | [Splunk Add-on for Citrix NetScaler](https://splunkbase.splunk.com/app/2823) |
+| **Splunkbase add-on** | [Splunk Add-on for Citrix NetScaler](https://splunkbase.splunk.com/) |
 | **Sourcetype** | `citrix:netscaler:syslog`, `citrix:netscaler:nitro` (NITRO API) |
 | **Modules** | LB, AppFirewall, ICA Proxy (Citrix Gateway), GSLB, ADM |
 
@@ -1243,7 +1243,7 @@ A: Use ASM "policy_name" or LTM "tenant" fields (BIG-IP partitioning). Combined 
 - [F5 Networks App for Splunk](https://splunkbase.splunk.com/app/2682)
 - [F5 Telemetry Streaming docs](https://clouddocs.f5.com/products/extensions/f5-telemetry-streaming/latest/)
 - [F5 iControl REST docs](https://clouddocs.f5.com/api/icontrol-rest/)
-- [Splunk Add-on for Citrix NetScaler](https://splunkbase.splunk.com/app/2823)
+- [Splunk Add-on for Citrix NetScaler](https://splunkbase.splunk.com/)
 - [F5 ASM logging guide](https://techdocs.f5.com/en-us/bigip-15-1-0/big-ip-asm-implementations/configuring-application-security-event-logging.html)
 
 ---
@@ -1300,7 +1300,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-14"></a>**[14]** github.com. *F5 GitHub*. Retrieved May 11, 2026, from https://github.com/F5Networks/f5-telemetry-streaming/releases
 
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Citrix NetScaler*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2823
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Citrix NetScaler*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *F5 Networks App for Splunk*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2682
 

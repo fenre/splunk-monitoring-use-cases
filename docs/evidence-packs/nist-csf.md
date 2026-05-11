@@ -52,23 +52,23 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`GV.OC-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01) | Organisational context | 0.7 | `partial` | [UC-22.7.8](#uc-22-7-8) |
-| [`GV.RM-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01) | Risk management strategy | 1.0 | `partial` | [UC-22.7.10](#uc-22-7-10) |
-| [`GV.RR-01`](https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01) | Organisational leadership | 0.7 | `partial` | [UC-22.7.11](#uc-22-7-11) |
-| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01) | Asset inventory | 1.0 | `partial` | [UC-22.7.1](#uc-22-7-1), [UC-22.7.16](#uc-22-7-16) |
-| [`ID.RA-01`](https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01) | Risk assessment | 1.0 | `partial` | [UC-22.7.19](#uc-22-7-19) |
-| [`PR.AA-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01) | Authentication | 1.0 | `partial` | [UC-22.7.23](#uc-22-7-23) |
-| [`PR.AA-05`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05) | Access permissions | 1.0 | `full` | [UC-22.7.4](#uc-22-7-4) |
-| [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01) | Data-at-rest protection | 1.0 | `partial` | [UC-22.7.26](#uc-22-7-26) |
-| [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02) | Data-in-transit protection | 1.0 | `partial` | [UC-22.7.27](#uc-22-7-27) |
-| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
-| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `partial` | [UC-22.7.37](#uc-22-7-37) |
-| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `partial` | [UC-22.7.31](#uc-22-7-31) |
-| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `partial` | [UC-22.7.33](#uc-22-7-33) |
-| [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09) | Environment monitoring | 0.7 | `full` | [UC-22.7.5](#uc-22-7-5) |
-| [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01) | Incident management | 1.0 | `partial` | [UC-22.7.39](#uc-22-7-39) |
-| [`RS.AN-03`](https://csrc.nist.gov/pubs/cswp/29/final#RS.AN-03) | Incident analysis | 1.0 | `full` | [UC-22.7.6](#uc-22-7-6) |
-| [`RC.RP-01`](https://csrc.nist.gov/pubs/cswp/29/final#RC.RP-01) | Recovery plan execution | 1.0 | `partial` | [UC-22.7.46](#uc-22-7-46) |
+| [`GV.OC-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.OC-01) | Organisational context | 0.7 | `partial` | [UC-22.7.8](#uc-22-7-8) |
+| [`GV.RM-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.RM-01) | Risk management strategy | 1.0 | `partial` | [UC-22.7.10](#uc-22-7-10) |
+| [`GV.RR-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.RR-01) | Organisational leadership | 0.7 | `partial` | [UC-22.7.11](#uc-22-7-11) |
+| [`ID.AM-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#ID.AM-01) | Asset inventory | 1.0 | `partial` | [UC-22.7.1](#uc-22-7-1), [UC-22.7.16](#uc-22-7-16) |
+| [`ID.RA-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#ID.RA-01) | Risk assessment | 1.0 | `partial` | [UC-22.7.19](#uc-22-7-19) |
+| [`PR.AA-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.AA-01) | Authentication | 1.0 | `partial` | [UC-22.7.23](#uc-22-7-23) |
+| [`PR.AA-05`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.AA-05) | Access permissions | 1.0 | `full` | [UC-22.7.4](#uc-22-7-4) |
+| [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.DS-01) | Data-at-rest protection | 1.0 | `partial` | [UC-22.7.26](#uc-22-7-26) |
+| [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.DS-02) | Data-in-transit protection | 1.0 | `partial` | [UC-22.7.27](#uc-22-7-27) |
+| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
+| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `partial` | [UC-22.7.37](#uc-22-7-37) |
+| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-01) | Network monitoring | 1.0 | `partial` | [UC-22.7.31](#uc-22-7-31) |
+| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `partial` | [UC-22.7.33](#uc-22-7-33) |
+| [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-09) | Environment monitoring | 0.7 | `full` | [UC-22.7.5](#uc-22-7-5) |
+| [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RS.MA-01) | Incident management | 1.0 | `partial` | [UC-22.7.39](#uc-22-7-39) |
+| [`RS.AN-03`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RS.AN-03) | Incident analysis | 1.0 | `full` | [UC-22.7.6](#uc-22-7-6) |
+| [`RC.RP-01`](https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RC.RP-01) | Recovery plan execution | 1.0 | `partial` | [UC-22.7.46](#uc-22-7-46) |
 
 ### 4.1 Contributing UC detail
 
@@ -239,8 +239,8 @@ Self-assessment is the default; organisations typically use a maturity-model app
 
 - **NIST Cybersecurity Framework 2.0** — NIST — [https://www.nist.gov/cyberframework](https://www.nist.gov/cyberframework)
 - **NIST CSF 2.0 Reference Tool** — NIST — [https://csrc.nist.gov/Projects/cybersecurity-framework/Filters](https://csrc.nist.gov/Projects/cybersecurity-framework/Filters)
-- **NIST CSF 2.0 Implementation Examples** — NIST — [https://www.nist.gov/cyberframework/implementation](https://www.nist.gov/cyberframework/implementation)
-- **NIST SP 800-221A Information and Communications Technology (ICT) Risk Outcomes** — NIST — [https://csrc.nist.gov/publications/detail/sp/800-221A/final](https://csrc.nist.gov/publications/detail/sp/800-221A/final)
+- **NIST CSF 2.0 Implementation Examples** — NIST — [https://www.nist.gov/cyberframework](https://www.nist.gov/cyberframework)
+- **NIST SP 800-221A Information and Communications Technology (ICT) Risk Outcomes** — NIST — [https://csrc.nist.gov/pubs/sp/800/221/a/final](https://csrc.nist.gov/pubs/sp/800/221/a/final)
 - **Community Profiles (e.g. Manufacturing, Maritime, SMB)** — NIST — [https://www.nist.gov/cyberframework/community-profiles](https://www.nist.gov/cyberframework/community-profiles)
 
 ## 9. Common audit deficiencies
@@ -360,49 +360,47 @@ python3 scripts/generate_evidence_packs.py --check
 <a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (21)</summary>
+<summary>Additional online sources cited in the document body (20)</summary>
 
 <a id="ref-13"></a>**[13]** csrc.nist.gov. *NIST: Filters*. Retrieved May 11, 2026, from https://csrc.nist.gov/Projects/cybersecurity-framework/Filters
 
-<a id="ref-14"></a>**[14]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework/implementation
+<a id="ref-14"></a>**[14]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/221/a/final
 
-<a id="ref-15"></a>**[15]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-221A/final
+<a id="ref-15"></a>**[15]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework/community-profiles
 
-<a id="ref-16"></a>**[16]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework/community-profiles
+<a id="ref-16"></a>**[16]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.OC-01
 
-<a id="ref-17"></a>**[17]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.OC-01
+<a id="ref-17"></a>**[17]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.RM-01
 
-<a id="ref-18"></a>**[18]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.RM-01
+<a id="ref-18"></a>**[18]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#GV.RR-01
 
-<a id="ref-19"></a>**[19]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#GV.RR-01
+<a id="ref-19"></a>**[19]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#ID.AM-01
 
-<a id="ref-20"></a>**[20]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#ID.AM-01
+<a id="ref-20"></a>**[20]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#ID.RA-01
 
-<a id="ref-21"></a>**[21]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#ID.RA-01
+<a id="ref-21"></a>**[21]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.AA-01
 
-<a id="ref-22"></a>**[22]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-01
+<a id="ref-22"></a>**[22]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.AA-05
 
-<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05
+<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.DS-01
 
-<a id="ref-24"></a>**[24]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01
+<a id="ref-24"></a>**[24]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.DS-02
 
-<a id="ref-25"></a>**[25]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02
+<a id="ref-25"></a>**[25]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#PR.PS-04
 
-<a id="ref-26"></a>**[26]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04
+<a id="ref-26"></a>**[26]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.AE-02
 
-<a id="ref-27"></a>**[27]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02
+<a id="ref-27"></a>**[27]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-01
 
-<a id="ref-28"></a>**[28]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01
+<a id="ref-28"></a>**[28]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-03
 
-<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03
+<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#DE.CM-09
 
-<a id="ref-30"></a>**[30]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09
+<a id="ref-30"></a>**[30]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RS.MA-01
 
-<a id="ref-31"></a>**[31]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01
+<a id="ref-31"></a>**[31]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RS.AN-03
 
-<a id="ref-32"></a>**[32]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RS.AN-03
-
-<a id="ref-33"></a>**[33]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/final#RC.RP-01
+<a id="ref-32"></a>**[32]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final#RC.RP-01
 
 </details>
 

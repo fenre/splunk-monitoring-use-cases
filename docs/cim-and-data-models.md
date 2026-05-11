@@ -41,7 +41,7 @@ The [Splunk CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Overview)
 **Useful links**
 
 - [Accelerate data models](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels)
-- [Data model acceleration and summary range](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Aboutdatamodelacceleration)
+- [Data model acceleration and summary range](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels)
 
 When a use case lists **CIM Models** and has **CIM SPL**, treat “enable Data Model Acceleration for the listed model(s)” as part of the implementation.
 
@@ -133,7 +133,7 @@ after replacing `dest_ip`.
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <details>
-<summary>Additional online sources cited in the document body (6)</summary>
+<summary>Additional online sources cited in the document body (5)</summary>
 
 <a id="ref-7"></a>**[7]** docs.splunk.com. *Splunk CIM*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Overview
 
@@ -143,9 +143,7 @@ after replacing `dest_ip`.
 
 <a id="ref-10"></a>**[10]** docs.splunk.com. *Accelerate data models*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels
 
-<a id="ref-11"></a>**[11]** docs.splunk.com. *Data model acceleration and summary range*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Aboutdatamodelacceleration
-
-<a id="ref-12"></a>**[12]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
+<a id="ref-11"></a>**[11]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
 
 </details>
 

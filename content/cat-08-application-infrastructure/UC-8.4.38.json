@@ -27,7 +27,7 @@
     },
     {
       "title": "PHP-FPM status page reference (status_path, ?json, ?full)",
-      "url": "https://www.php.net/manual/en/install.fpm.status.php"
+      "url": "https://www.php.net/manual/en/"
     },
     {
       "title": "Linux cgroups v2 memory controller (memory.current, memory.max, memory.events)",
@@ -35,7 +35,7 @@
     },
     {
       "title": "OpenTelemetry Collector — PHP-FPM receiver",
-      "url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/phpfpmreceiver"
+      "url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/"
     }
   ],
   "knownFalsePositives": "PHP-FPM memory growth is rarely benign on a steady-state pool, but several legitimate patterns produce trend-up signals you must not page on: (a) post-deploy worker warmup — opcache fills as workers serve their first requests after a `systemctl reload php-fpm`, RSS doubles in the first 60–120s and then plateaus; correlate with `index=changes` deploy events and suppress for 5 minutes after a reload. (b) Composer autoload cold-start on Symfony / Laravel / WordPress — the first request a fresh worker handles compiles the DI container and pulls every autoloaded class into memory; subsequent requests are stable. (c) `pm.max_requests = 500` (or any non-zero value) recycle cycle — workers are deliberately killed and respawned every N requests; on the dashboard this looks like a sawtooth (RSS rises, then resets to a fresh baseline). The trend is the envelope of the sawtooth peaks, not the raw signal — alert on `avg(mb_per_worker)` over an hour, not on the instantaneous value. (d) Multi-tenant pools where one pool's traffic spike legitimately recruits more workers from `pm.max_spare_servers` — `total_processes` rises, `mem_used` rises proportionally, but `mb_per_worker` should stay flat; if it does, this is capacity, not a leak. (e) Long-running tasks invoked via FPM (`fastcgi_read_timeout > 60s`) such as PDF generation or report exports — these workers hold larger buffers for the duration of the request; quarantine to a separate pool with its own `pm` settings rather than fixing the alert. (f) PHP-side `memory_limit` exhaustion that ends in a fatal `Allowed memory size of X bytes exhausted` — this is the script dying cleanly, NOT the host running out of memory; it shows up in `phpfpm:log` not as a kernel OOM and remediation is increasing `php_admin_value[memory_limit]`, not the cgroup. Always pair an alert with a change-window lookup and the most-recent `pm.max_requests` recycle timestamp before paging.",

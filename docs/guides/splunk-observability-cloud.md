@@ -11,7 +11,7 @@ splunkbase_urls:
   - https://github.com/signalfx/splunk-otel-python
   - https://github.com/signalfx/splunk-otel-js
   - https://github.com/signalfx/splunk-otel-go
-  - https://github.com/signalfx/splunk-rum-web
+  - https://github.com/signalfx/splunk-otel-js-web
   - https://github.com/signalfx/splunk-otel-android
   - https://github.com/signalfx/splunk-otel-ios
   - https://docs.splunk.com/observability/en/get-started/welcome.html
@@ -2309,11 +2309,11 @@ input fields.
 - [Google SRE Workbook — Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)
 - [Google SRE — Monitoring distributed systems](https://sre.google/sre-book/monitoring-distributed-systems/)
 - [USE Method (Brendan Gregg)](https://www.brendangregg.com/usemethod.html)
-- [RED Method (Tom Wilkie)](https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/)
+- [RED Method (Tom Wilkie)](https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/)
 
 ### Splunk Lantern
 
-- [Lantern — Splunk Observability Cloud articles](https://lantern.splunk.com/Splunk_Platform/Observability_Cloud)
+- [Lantern — Splunk Observability Cloud articles](https://lantern.splunk.com/)
 
 ### CIM and ITSI integration
 
@@ -2394,7 +2394,7 @@ The full catalog is at
 <a id="ref-21"></a>**[21]** World Wide Web Consortium. (2021, November). *Trace Context, Level 1*. W3C. Retrieved May 11, 2026, from https://www.w3.org/TR/trace-context/
 
 <details>
-<summary>Additional online sources cited in the document body (23)</summary>
+<summary>Additional online sources cited in the document body (21)</summary>
 
 <a id="ref-22"></a>**[22]** docs.splunk.com. *Synthetics*. Retrieved May 11, 2026, from https://docs.splunk.com/observability
 
@@ -2428,19 +2428,15 @@ The full catalog is at
 
 <a id="ref-37"></a>**[37]** sre.google. *Google SRE — Monitoring distributed systems*. Retrieved May 11, 2026, from https://sre.google/sre-book/monitoring-distributed-systems/
 
-<a id="ref-38"></a>**[38]** weave.works. *RED Method (Tom Wilkie)*. Retrieved May 11, 2026, from https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/
+<a id="ref-38"></a>**[38]** lantern.splunk.com. *Lantern — Splunk Observability Cloud articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
-<a id="ref-39"></a>**[39]** lantern.splunk.com. *Lantern — Splunk Observability Cloud articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Observability_Cloud
+<a id="ref-39"></a>**[39]** docs.splunk.com. *Splunk Common Information Model*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
 
-<a id="ref-40"></a>**[40]** docs.splunk.com. *Splunk Common Information Model*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+<a id="ref-40"></a>**[40]** docs.splunk.com. *Splunk ITSI integration with Observability Cloud*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI/latest/Configure/IntegrateITSIwithObservabilityCloud
 
-<a id="ref-41"></a>**[41]** docs.splunk.com. *Splunk ITSI integration with Observability Cloud*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI/latest/Configure/IntegrateITSIwithObservabilityCloud
+<a id="ref-41"></a>**[41]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-42"></a>**[42]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-43"></a>**[43]** github.com. *GitHub: signalfx/splunk-rum-web*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-rum-web
-
-<a id="ref-44"></a>**[44]** docs.splunk.com. *Splunk Observability: Welcome*. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/get-started/welcome.html
+<a id="ref-42"></a>**[42]** docs.splunk.com. *Splunk Observability: Welcome*. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/get-started/welcome.html
 
 </details>
 

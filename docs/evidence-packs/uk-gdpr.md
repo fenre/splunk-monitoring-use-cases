@@ -54,26 +54,26 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `partial` | [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
-| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `partial` | [UC-22.37.1](#uc-22-37-1) |
-| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `partial` | [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
-| [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `partial` | [UC-22.36.1](#uc-22-36-1) |
-| [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
-| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `partial` | [UC-22.36.2](#uc-22-36-2), [UC-22.49.5](#uc-22-49-5) |
-| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `partial` | [UC-22.1.16](#uc-22-1-16) |
-| [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `partial` | [UC-22.36.3](#uc-22-36-3) |
-| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `partial` | [UC-22.1.46](#uc-22-1-46) |
-| [`Art.22`](https://www.legislation.gov.uk/eur/2016/679/article/Art.22) | Automated decision making | 0.7 | `—` | _not yet covered_ |
-| [`Art.25`](https://www.legislation.gov.uk/eur/2016/679/article/Art.25) | Data protection by design and by default | 1.0 | `—` | _not yet covered_ |
-| [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/Art.28) | Processor obligations | 1.0 | `partial` | [UC-22.44.2](#uc-22-44-2) |
-| [`Art.30`](https://www.legislation.gov.uk/eur/2016/679/article/Art.30) | Records of processing | 1.0 | `—` | _not yet covered_ |
-| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `partial` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.3](#uc-22-35-3), [UC-22.41.1](#uc-22-41-1) |
-| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) |
-| [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `partial` | [UC-22.39.3](#uc-22-39-3) |
-| [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/Art.35) | DPIA | 0.7 | `—` | _not yet covered_ |
-| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `partial` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3), [UC-22.38.5](#uc-22-38-5) |
-| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `partial` | [UC-22.38.2](#uc-22-38-2), [UC-22.38.5](#uc-22-38-5) |
-| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2), [UC-22.38.4](#uc-22-38-4) |
+| [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/5) | Principles of processing | 1.0 | `partial` | [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
+| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/6) | Lawful basis | 1.0 | `partial` | [UC-22.37.1](#uc-22-37-1) |
+| [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/7) | Conditions for consent | 0.7 | `partial` | [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
+| [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/15) | Right of access | 1.0 | `partial` | [UC-22.36.1](#uc-22-36-1) |
+| [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
+| [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/17) | Right to erasure | 1.0 | `partial` | [UC-22.36.2](#uc-22-36-2), [UC-22.49.5](#uc-22-49-5) |
+| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/18) | Right to restrict processing | 0.7 | `partial` | [UC-22.1.16](#uc-22-1-16) |
+| [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/20) | Right to data portability | 0.7 | `partial` | [UC-22.36.3](#uc-22-36-3) |
+| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/21) | Right to object | 0.7 | `partial` | [UC-22.1.46](#uc-22-1-46) |
+| [`Art.22`](https://www.legislation.gov.uk/eur/2016/679/article/22) | Automated decision making | 0.7 | `—` | _not yet covered_ |
+| [`Art.25`](https://www.legislation.gov.uk/eur/2016/679/article/25) | Data protection by design and by default | 1.0 | `—` | _not yet covered_ |
+| [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/28) | Processor obligations | 1.0 | `partial` | [UC-22.44.2](#uc-22-44-2) |
+| [`Art.30`](https://www.legislation.gov.uk/eur/2016/679/article/30) | Records of processing | 1.0 | `—` | _not yet covered_ |
+| [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/32) | Security of processing | 1.0 | `partial` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.3](#uc-22-35-3), [UC-22.41.1](#uc-22-41-1) |
+| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) |
+| [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/34) | Breach communication to data subjects | 1.0 | `partial` | [UC-22.39.3](#uc-22-39-3) |
+| [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/35) | DPIA | 0.7 | `—` | _not yet covered_ |
+| [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/44) | International transfers — general principle | 1.0 | `partial` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3), [UC-22.38.5](#uc-22-38-5) |
+| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/45) | Transfers via adequacy decision | 0.7 | `partial` | [UC-22.38.2](#uc-22-38-2), [UC-22.38.5](#uc-22-38-5) |
+| [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2), [UC-22.38.4](#uc-22-38-4) |
 
 ### 4.1 Contributing UC detail
 
@@ -272,7 +272,7 @@ ICO exercises enforcement primarily through monetary-penalty notices (up to GBP 
 
 - **ICO Guide to the UK GDPR** — ICO — [https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/)
 - **ICO Accountability Framework** — ICO — [https://ico.org.uk/for-organisations/accountability-framework/](https://ico.org.uk/for-organisations/accountability-framework/)
-- **ICO International Data Transfer Agreement (IDTA)** — ICO — [https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/international-data-transfer-agreement-and-guidance/](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/international-data-transfer-agreement-and-guidance/)
+- **ICO International Data Transfer Agreement (IDTA)** — ICO — [https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/)
 - **DCMS UK GDPR reform consultation outcomes** — DCMS — [https://www.gov.uk/government/consultations/data-a-new-direction](https://www.gov.uk/government/consultations/data-a-new-direction)
 - **Data (Use and Access) Act 2025 amendments tracker** — UK Government — [https://www.legislation.gov.uk/ukpga/2025](https://www.legislation.gov.uk/ukpga/2025)
 
@@ -408,51 +408,51 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-15"></a>**[15]** ico.org.uk. *ico.org.uk: Accountability Framework*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/accountability-framework/
 
-<a id="ref-16"></a>**[16]** ico.org.uk. *ico.org.uk: International Data Transfer Agreement And Guidance*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/international-data-transfer-agreement-and-guidance/
+<a id="ref-16"></a>**[16]** ico.org.uk. *ico.org.uk: International Transfers*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/
 
 <a id="ref-17"></a>**[17]** gov.uk. *gov.uk: Data A New Direction*. Retrieved May 11, 2026, from https://www.gov.uk/government/consultations/data-a-new-direction
 
 <a id="ref-18"></a>**[18]** legislation.gov.uk. *UK Legislation: 2025*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/ukpga/2025
 
-<a id="ref-19"></a>**[19]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.5
+<a id="ref-19"></a>**[19]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/5
 
-<a id="ref-20"></a>**[20]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.6
+<a id="ref-20"></a>**[20]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/6
 
-<a id="ref-21"></a>**[21]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.7
+<a id="ref-21"></a>**[21]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/7
 
-<a id="ref-22"></a>**[22]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.15
+<a id="ref-22"></a>**[22]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/15
 
-<a id="ref-23"></a>**[23]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.16
+<a id="ref-23"></a>**[23]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/16
 
-<a id="ref-24"></a>**[24]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.17
+<a id="ref-24"></a>**[24]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/17
 
-<a id="ref-25"></a>**[25]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.18
+<a id="ref-25"></a>**[25]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/18
 
-<a id="ref-26"></a>**[26]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.20
+<a id="ref-26"></a>**[26]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/20
 
-<a id="ref-27"></a>**[27]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.21
+<a id="ref-27"></a>**[27]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/21
 
-<a id="ref-28"></a>**[28]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.22
+<a id="ref-28"></a>**[28]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/22
 
-<a id="ref-29"></a>**[29]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.25
+<a id="ref-29"></a>**[29]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/25
 
-<a id="ref-30"></a>**[30]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.28
+<a id="ref-30"></a>**[30]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/28
 
-<a id="ref-31"></a>**[31]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.30
+<a id="ref-31"></a>**[31]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/30
 
-<a id="ref-32"></a>**[32]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.32
+<a id="ref-32"></a>**[32]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/32
 
-<a id="ref-33"></a>**[33]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.33
+<a id="ref-33"></a>**[33]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/33
 
-<a id="ref-34"></a>**[34]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.34
+<a id="ref-34"></a>**[34]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/34
 
-<a id="ref-35"></a>**[35]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.35
+<a id="ref-35"></a>**[35]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/35
 
-<a id="ref-36"></a>**[36]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.44
+<a id="ref-36"></a>**[36]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/44
 
-<a id="ref-37"></a>**[37]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.45
+<a id="ref-37"></a>**[37]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/45
 
-<a id="ref-38"></a>**[38]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/Art.46
+<a id="ref-38"></a>**[38]** legislation.gov.uk. *UK Legislation 2016 c. 679*. Retrieved May 11, 2026, from https://www.legislation.gov.uk/eur/2016/679/article/46
 
 </details>
 

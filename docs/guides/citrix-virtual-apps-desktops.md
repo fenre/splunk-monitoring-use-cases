@@ -894,10 +894,19 @@ index=perfmon_windows sourcetype=Perfmon:Citrix counter="GPU Encoder Utilization
 ```spl
 index=citrix sourcetype=citrix:license:checkout earliest=-30d
 | timechart span=1h max(licenses_in_use) as licenses_used
-| eval licenses_avail = 5000   ` total purchased `
+| eval licenses_avail = 5000
+` total purchased `
 | predict licenses_used algorithm=LLP future_timespan=720
-| eval forecast_breach = if(prediction(licenses_used) > licenses_avail, "BREACH", "OK")
+| eval forecast_breach = if('prediction(licenses_used)' > licenses_avail, "BREACH", "OK")
 ```
+
+> `| predict` emits its forecast as a field whose literal name is
+> `prediction(<source field>)`. Splunk SPL treats parentheses in
+> field names as part of the name, so the field has to be referenced
+> with **single quotes** (Splunk's escape for non-identifier field
+> names): `'prediction(licenses_used)'`. Calling `prediction(...)`
+> directly inside `eval` would be interpreted as an eval function,
+> which does not exist.
 
 ## Troubleshooting
 

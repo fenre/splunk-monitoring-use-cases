@@ -6,8 +6,8 @@ product_aliases: [SQL Server, MSSQL, Oracle DB, Oracle RAC, MySQL, MariaDB, Perc
 ta_name: Splunk DB Connect (DBX), Splunk Add-on for Microsoft SQL Server, Splunk Add-on for Oracle Database
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/2686
-  - https://splunkbase.splunk.com/app/2785
-  - https://splunkbase.splunk.com/app/3068
+  - https://splunkbase.splunk.com/
+  - https://splunkbase.splunk.com/
 indexes:
   - database
   - db
@@ -113,8 +113,8 @@ last_updated: 2026-05-09
 
 1. **Install Splunk DB Connect** ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) on a Heavy Forwarder + indexers + SH.
 2. **Install per-vendor add-ons** as required:
-   - SQL Server: [Splunk_TA_microsoft-sqlserver](https://splunkbase.splunk.com/app/2785)
-   - Oracle: [Splunk Add-on for Oracle Database](https://splunkbase.splunk.com/app/3068)
+   - SQL Server: [Splunk_TA_microsoft-sqlserver](https://splunkbase.splunk.com/)
+   - Oracle: [Splunk Add-on for Oracle Database](https://splunkbase.splunk.com/)
 3. **Create indexes**:
 
     ```ini
@@ -298,8 +298,8 @@ graph LR
 
 | RDBMS | Native TA | Splunkbase | Sourcetypes | Cloud-vetted |
 |-------|----------|-----------|-------------|--------------|
-| **SQL Server** | Splunk_TA_microsoft-sqlserver | [2785](https://splunkbase.splunk.com/app/2785) | `mssql:errorlog`, `mssql:perf`, `mssql:query`, `mssql:audit` | Yes |
-| **Oracle** | Splunk Add-on for Oracle Database | [3068](https://splunkbase.splunk.com/app/3068) | `oracle:alert`, `oracle:audit`, `oracle:listener`, `oracle:awr` | Yes |
+| **SQL Server** | Splunk_TA_microsoft-sqlserver | [2785](https://splunkbase.splunk.com/) | `mssql:errorlog`, `mssql:perf`, `mssql:query`, `mssql:audit` | Yes |
+| **Oracle** | Splunk Add-on for Oracle Database | [3068](https://splunkbase.splunk.com/) | `oracle:alert`, `oracle:audit`, `oracle:listener`, `oracle:awr` | Yes |
 | **MySQL** | (community via DBX) | [DBX 2686](https://splunkbase.splunk.com/app/2686) | `mysql:error`, `mysql:slowquery`, `mysql:status`, `mysql:audit` | Yes (DBX) |
 | **PostgreSQL** | (community via DBX) | [DBX 2686](https://splunkbase.splunk.com/app/2686) | `postgresql:log`, `postgresql:metrics`, `postgresql:replication` | Yes (DBX) |
 
@@ -800,7 +800,7 @@ acceleration.cron_schedule = */5 * * * *
 Validate:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Databases.All_Databases by Databases.vendor_product
+| tstats summariesonly=t count from datamodel=Databases.All_Databases by Databases.vendor_product
 ```
 
 ### Field aliases & calculated fields
@@ -1353,8 +1353,8 @@ A: ITSI for performance + capacity health. ES for security UCs (privileged acces
 ## References
 
 - [Splunk DB Connect (Splunkbase 2686)](https://splunkbase.splunk.com/app/2686)
-- [Splunk Add-on for Microsoft SQL Server (Splunkbase 2785)](https://splunkbase.splunk.com/app/2785)
-- [Splunk Add-on for Oracle Database (Splunkbase 3068)](https://splunkbase.splunk.com/app/3068)
+- [Splunk Add-on for Microsoft SQL Server (Splunkbase 2785)](https://splunkbase.splunk.com/)
+- [Splunk Add-on for Oracle Database (Splunkbase 3068)](https://splunkbase.splunk.com/)
 - [DB Connect documentation](https://docs.splunk.com/Documentation/DBX)
 - [SQL Server DMV reference](https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/system-dynamic-management-views)
 - [Oracle V$ views reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/dynamic-performance-views.html)
@@ -1410,29 +1410,27 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (11)</summary>
+<summary>Additional online sources cited in the document body (10)</summary>
 
 <a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase 2686*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2686
 
-<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunk_TA_microsoft-sqlserver*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2785
+<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunk_TA_microsoft-sqlserver*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Oracle Database*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3068
+<a id="ref-15"></a>**[15]** docs.splunk.com. *DB Connect documentation*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/DBX
 
-<a id="ref-16"></a>**[16]** docs.splunk.com. *DB Connect documentation*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/DBX
+<a id="ref-16"></a>**[16]** learn.microsoft.com. *SQL Server DMV reference*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/system-dynamic-management-views
 
-<a id="ref-17"></a>**[17]** learn.microsoft.com. *SQL Server DMV reference*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/system-dynamic-management-views
+<a id="ref-17"></a>**[17]** docs.oracle.com. *Oracle V$ views reference*. Retrieved May 11, 2026, from https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/dynamic-performance-views.html
 
-<a id="ref-18"></a>**[18]** docs.oracle.com. *Oracle V$ views reference*. Retrieved May 11, 2026, from https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/dynamic-performance-views.html
+<a id="ref-18"></a>**[18]** dev.mysql.com. *MySQL Performance Schema*. Retrieved May 11, 2026, from https://dev.mysql.com/doc/refman/8.0/en/performance-schema.html
 
-<a id="ref-19"></a>**[19]** dev.mysql.com. *MySQL Performance Schema*. Retrieved May 11, 2026, from https://dev.mysql.com/doc/refman/8.0/en/performance-schema.html
+<a id="ref-19"></a>**[19]** postgresql.org. *PostgreSQL pg_stat_statements*. Retrieved May 11, 2026, from https://www.postgresql.org/docs/current/pgstatstatements.html
 
-<a id="ref-20"></a>**[20]** postgresql.org. *PostgreSQL pg_stat_statements*. Retrieved May 11, 2026, from https://www.postgresql.org/docs/current/pgstatstatements.html
+<a id="ref-20"></a>**[20]** cisecurity.org. *CIS Database Benchmarks*. Retrieved May 11, 2026, from https://www.cisecurity.org/cis-benchmarks
 
-<a id="ref-21"></a>**[21]** cisecurity.org. *CIS Database Benchmarks*. Retrieved May 11, 2026, from https://www.cisecurity.org/cis-benchmarks
+<a id="ref-21"></a>**[21]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-22"></a>**[22]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-23"></a>**[23]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-22"></a>**[22]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

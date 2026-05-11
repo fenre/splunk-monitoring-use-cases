@@ -8,7 +8,7 @@ ta_name: Splunk Add-on for Cisco Identity Services (Splunkbase 1915), Splunk Con
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/1915
   - https://splunkbase.splunk.com/app/4250
-  - https://splunkbase.splunk.com/app/1645
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/2757
   - https://github.com/splunk/splunk-connect-for-syslog
 indexes:
@@ -392,7 +392,7 @@ Key MessageCode ranges within `cisco:ise:syslog`:
 | **87000–87999** | TrustSec / SXP | 87000 (SGT push), 87001 (SXP peer up), 87010 (SGT mapping changed) |
 | **94000–94099** | pxGrid | 94001 (Subscriber connected), 94002 (Topic published) |
 
-Reference: Cisco ISE 3.4 [Message Codes Reference](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/b_ISE_admin_34_logging.html).
+Reference: Cisco ISE 3.4 [Message Codes Reference](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html).
 
 ---
 
@@ -661,8 +661,9 @@ anomaly, UC-17.1.35 cloud-relay TLS health.
 ## pxGrid Cloud (3.2+)
 
 ISE 3.2+ supports pxGrid Cloud, exposing context to SaaS consumers
-(e.g., Cisco Secure Cloud Insights, third-party SaaS) via Cisco-hosted
-relay. Splunk-side considerations:
+(e.g., Cisco Attack Surface Management — formerly Cisco Secure Cloud
+Insights, end-of-sale August 2024 — and third-party SaaS) via
+Cisco-hosted relay. Splunk-side considerations:
 
 - pxGrid Cloud uses TLS via internet — enable from ISE Administration
   → pxGrid Services → Settings → Enable pxGrid Cloud
@@ -1129,13 +1130,14 @@ steps:
 ### MTTC measurement (UC-17.1.82)
 
 ```spl
-# End-to-end MTTC: Notable fired → ISE ANC applied → NAD enforced
+# End-to-end MTTC: Notable fired -> ISE ANC applied -> NAD enforced
 index=notable earliest=-7d severity=high
 | eval notable_time = _time
 | join orig_src_mac [search `ise_anc_event` MessageCode=86001 earliest=-7d
                      | rename src_mac AS orig_src_mac, _time AS anc_time]
 | eval mttc_seconds = anc_time - notable_time
-| stats avg(mttc_seconds) AS avg_mttc p95(mttc_seconds) AS p95_mttc max(mttc_seconds) AS max_mttc count BY day(notable_time)
+| eval day = strftime(notable_time, "%Y-%m-%d")
+| stats avg(mttc_seconds) AS avg_mttc p95(mttc_seconds) AS p95_mttc max(mttc_seconds) AS max_mttc count BY day
 ```
 
 NIS2 / DORA require MTTC tracking; UC-22.2.59 wraps for evidence.
@@ -1615,18 +1617,18 @@ Cisco-hosted relay rather than direct PSN/PAN. Latency +50-200ms.
 ### Cisco
 
 - [Cisco ISE 3.4 Administration Guide](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html)
-- [Cisco ISE 3.4 Message Codes Reference](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/b_ISE_admin_34_logging.html)
+- [Cisco ISE 3.4 Message Codes Reference](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html)
 - [Cisco TrustSec Configuration Guide](https://www.cisco.com/c/en/us/support/security/identity-services-engine/products-installation-and-configuration-guides-list.html)
-- [Cisco AI Endpoint Analytics](https://www.cisco.com/c/en/us/products/cloud-systems-management/dna-spaces/ai-endpoint-analytics.html)
-- [Cisco SNS-3700 Series Datasheet](https://www.cisco.com/c/en/us/products/collateral/security/secure-network-server/datasheet-c78-744213.html)
-- [Cisco ISE Data Connect Deployment Guide](https://www.cisco.com/c/en/us/td/docs/security/ise/data-connect/Cisco_ISE_Data_Connect.html)
+- [Cisco AI Endpoint Analytics](https://www.cisco.com/c/en/us/solutions/enterprise-networks/dna-spaces/index.html)
+- [Cisco SNS-3700 Series Datasheet](https://www.cisco.com/c/en/us/products/security/identity-services-engine/index.html)
+- [Cisco ISE Data Connect Deployment Guide](https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html)
 - [pxGrid 2.0 Specification](https://github.com/cisco-pxgrid/pxgrid-rest-ws)
 
 ### Splunk
 
 - [Splunk Add-on for Cisco Identity Services (Splunkbase 1915)](https://splunkbase.splunk.com/app/1915)
 - [Splunk SOAR Cisco ISE App (Splunkbase 4250)](https://splunkbase.splunk.com/app/4250)
-- [Splunk Add-on for Cisco WLC (Splunkbase 1645)](https://splunkbase.splunk.com/app/1645)
+- [Splunk Add-on for Cisco WLC (Splunkbase 1645)](https://splunkbase.splunk.com/)
 - [Splunk Connect for Syslog (SC4S)](https://github.com/splunk/splunk-connect-for-syslog)
 - [Splunk Common Information Model — Authentication](https://docs.splunk.com/Documentation/CIM/latest/User/Authentication)
 
@@ -1639,7 +1641,7 @@ Cisco-hosted relay rather than direct PSN/PAN. Latency +50-200ms.
 
 ### Lantern
 
-- [Splunk Lantern — NAC and 802.1X articles](https://lantern.splunk.com/Splunk_Platform/Network/Authentication)
+- [Splunk Lantern — NAC and 802.1X articles](https://lantern.splunk.com/)
 
 ---
 
@@ -1691,45 +1693,41 @@ The full catalog is at
 <a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (19)</summary>
+<summary>Additional online sources cited in the document body (17)</summary>
 
 <a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunk Add-on for Cisco Identity Services (Splunkbase 1915)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1915
 
-<a id="ref-14"></a>**[14]** cisco.com. *Message Codes Reference*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4/b_ISE_admin_34_logging.html
+<a id="ref-14"></a>**[14]** cisco.com. *Message Codes Reference*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html
 
-<a id="ref-15"></a>**[15]** cisco.com. *Cisco ISE 3.4 Administration Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/security/ise/3-4/admin_guide/b_ise_admin_3_4.html
+<a id="ref-15"></a>**[15]** cisco.com. *Cisco TrustSec Configuration Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/products-installation-and-configuration-guides-list.html
 
-<a id="ref-16"></a>**[16]** cisco.com. *Cisco TrustSec Configuration Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/products-installation-and-configuration-guides-list.html
+<a id="ref-16"></a>**[16]** cisco.com. *Cisco AI Endpoint Analytics*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/solutions/enterprise-networks/dna-spaces/index.html
 
-<a id="ref-17"></a>**[17]** cisco.com. *Cisco AI Endpoint Analytics*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/cloud-systems-management/dna-spaces/ai-endpoint-analytics.html
+<a id="ref-17"></a>**[17]** cisco.com. *Cisco SNS-3700 Series Datasheet*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/security/identity-services-engine/index.html
 
-<a id="ref-18"></a>**[18]** cisco.com. *Cisco SNS-3700 Series Datasheet*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/collateral/security/secure-network-server/datasheet-c78-744213.html
+<a id="ref-18"></a>**[18]** github.com. *pxGrid 2.0 Specification*. Retrieved May 11, 2026, from https://github.com/cisco-pxgrid/pxgrid-rest-ws
 
-<a id="ref-19"></a>**[19]** cisco.com. *Cisco ISE Data Connect Deployment Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/security/ise/data-connect/Cisco_ISE_Data_Connect.html
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunk SOAR Cisco ISE App (Splunkbase 4250)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4250
 
-<a id="ref-20"></a>**[20]** github.com. *pxGrid 2.0 Specification*. Retrieved May 11, 2026, from https://github.com/cisco-pxgrid/pxgrid-rest-ws
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunk Add-on for Cisco WLC (Splunkbase 1645)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunk SOAR Cisco ISE App (Splunkbase 4250)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4250
+<a id="ref-21"></a>**[21]** github.com. *Splunk Connect for Syslog (SC4S)*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
 
-<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunk Add-on for Cisco WLC (Splunkbase 1645)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1645
+<a id="ref-22"></a>**[22]** docs.splunk.com. *Splunk Common Information Model — Authentication*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Authentication
 
-<a id="ref-23"></a>**[23]** github.com. *Splunk Connect for Syslog (SC4S)*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
+<a id="ref-23"></a>**[23]** rfc-editor.org. *RFC 7170 — TEAP*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc7170
 
-<a id="ref-24"></a>**[24]** docs.splunk.com. *Splunk Common Information Model — Authentication*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Authentication
+<a id="ref-24"></a>**[24]** rfc-editor.org. *RFC 5176 — Dynamic Authorization (CoA)*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc5176
 
-<a id="ref-25"></a>**[25]** rfc-editor.org. *RFC 7170 — TEAP*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc7170
+<a id="ref-25"></a>**[25]** rfc-editor.org. *RFC 3580 — IEEE 802.1X RADIUS Usage*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc3580
 
-<a id="ref-26"></a>**[26]** rfc-editor.org. *RFC 5176 — Dynamic Authorization (CoA)*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc5176
+<a id="ref-26"></a>**[26]** oasis-open.org. *STIX / TAXII 2.x*. Retrieved May 11, 2026, from https://www.oasis-open.org/standards#stixv2.0
 
-<a id="ref-27"></a>**[27]** rfc-editor.org. *RFC 3580 — IEEE 802.1X RADIUS Usage*. Retrieved May 11, 2026, from https://www.rfc-editor.org/rfc/rfc3580
+<a id="ref-27"></a>**[27]** lantern.splunk.com. *Splunk Lantern — NAC and 802.1X articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
-<a id="ref-28"></a>**[28]** oasis-open.org. *STIX / TAXII 2.x*. Retrieved May 11, 2026, from https://www.oasis-open.org/standards#stixv2.0
+<a id="ref-28"></a>**[28]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-29"></a>**[29]** lantern.splunk.com. *Splunk Lantern — NAC and 802.1X articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Network/Authentication
-
-<a id="ref-30"></a>**[30]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-31"></a>**[31]** splunkbase.splunk.com. *Splunkbase app #2757*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2757
+<a id="ref-29"></a>**[29]** splunkbase.splunk.com. *Splunkbase app #2757*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2757
 
 </details>
 

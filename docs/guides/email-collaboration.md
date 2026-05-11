@@ -1126,8 +1126,8 @@ A: Both offer per-meeting metrics. Zoom dashboard is quite rich; Webex Control H
 - [Cisco Webex TA (Splunkbase 5050)](https://splunkbase.splunk.com/app/5050)
 - [Microsoft 365 Management Activity API documentation](https://docs.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-reference)
 - [Google Workspace Reports API](https://developers.google.com/admin-sdk/reports)
-- [Zoom Marketplace API](https://marketplace.zoom.us/docs/api-reference/zoom-api/)
-- [CUCM CDR documentation](https://www.cisco.com/c/en/us/td/docs/voice_ip_comm/cucm/service/12_5_1/cdrdef/cucm_b_cdr-administration-guide-1251.html)
+- [Zoom Marketplace API](https://developers.zoom.us/docs/api/)
+- [CUCM CDR documentation](https://www.cisco.com/c/en/us/support/unified-communications/unified-communications-manager-callmanager/products-installation-and-configuration-guides-list.html)
 - [CIM: Email](https://docs.splunk.com/Documentation/CIM/latest/User/Email)
 
 ---
@@ -1194,9 +1194,9 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-19"></a>**[19]** developers.google.com. *Google Workspace Reports API*. Retrieved May 11, 2026, from https://developers.google.com/admin-sdk/reports
 
-<a id="ref-20"></a>**[20]** marketplace.zoom.us. *Zoom Marketplace API*. Retrieved May 11, 2026, from https://marketplace.zoom.us/docs/api-reference/zoom-api/
+<a id="ref-20"></a>**[20]** developers.zoom.us. *Zoom Marketplace API*. Retrieved May 11, 2026, from https://developers.zoom.us/docs/api/
 
-<a id="ref-21"></a>**[21]** cisco.com. *CUCM CDR documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/voice_ip_comm/cucm/service/12_5_1/cdrdef/cucm_b_cdr-administration-guide-1251.html
+<a id="ref-21"></a>**[21]** cisco.com. *CUCM CDR documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/unified-communications/unified-communications-manager-callmanager/products-installation-and-configuration-guides-list.html
 
 <a id="ref-22"></a>**[22]** docs.splunk.com. *CIM: Email*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Email
 

@@ -11,7 +11,7 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/4055
   - https://splunkbase.splunk.com/app/2686
-  - https://splunkbase.splunk.com/app/4105
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/3088
   - https://splunkbase.splunk.com/app/3457
   - https://splunkbase.splunk.com/app/3036
@@ -881,15 +881,15 @@ index=cmp_gdpr sourcetype="cmp:gdpr:dsar"
 - EU AI Act 2024/1689 — https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 - EU CSRD 2022/2464 + ESRS — https://eur-lex.europa.eu/eli/dir/2022/2464/oj
 - NIST CSF 2.0 — https://www.nist.gov/cyberframework
-- NIST SP 800-53 r5 — https://csrc.nist.gov/publications/detail/sp/800-53/rev-5
+- NIST SP 800-53 r5 — https://csrc.nist.gov/pubs/sp/800/53/r5/final
 - NIST SP 800-171 r3 + 800-218 SSDF + 800-207 ZTA
 - FedRAMP — https://www.fedramp.gov/
 - CMMC 2.0 — https://dodcio.defense.gov/CMMC/
 - COSO Internal Control — https://www.coso.org/
-- COSO ERM — https://www.coso.org/erm
+- COSO ERM — https://www.coso.org/enterprise-risk-management
 - ISACA COBIT 2019 — https://www.isaca.org/cobit
-- IIA Three Lines Model — https://www.theiia.org/three-lines-model
-- ITIL v4 (Axelos) — https://www.axelos.com/best-practice-solutions/itil
+- IIA Three Lines Model — https://www.theiia.org/en/about-us/
+- ITIL v4 (Axelos) — https://www.axelos.com/
 - ISO 20000-1:2018 service management
 - ISO 22301 BCMS
 - ISO 31000 risk management
@@ -898,7 +898,7 @@ index=cmp_gdpr sourcetype="cmp:gdpr:dsar"
 - KubeCost / OpenCost — https://www.opencost.io/
 - GHG Protocol — https://ghgprotocol.org/
 - TCFD — https://www.fsb-tcfd.org/
-- IFRS S1 + S2 (ISSB) — https://www.ifrs.org/issb/
+- IFRS S1 + S2 (ISSB) — https://www.ifrs.org/groups/international-sustainability-standards-board/
 
 ### Splunk documentation
 
@@ -983,7 +983,7 @@ For corrections or additions, file an issue with `domain-compliance`,
 
 <a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #2686*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2686
 
-<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #4105*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4105
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #3088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
 
@@ -1001,7 +1001,7 @@ For corrections or additions, file an issue with `domain-compliance`,
 
 <a id="ref-28"></a>**[28]** eur-lex.europa.eu. *EU Directive 2022/2464*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/dir/2022/2464/oj
 
-<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Rev 5*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-53/rev-5
+<a id="ref-29"></a>**[29]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/53/r5/final
 
 <a id="ref-30"></a>**[30]** fedramp.gov. *fedramp.gov*. Retrieved May 11, 2026, from https://www.fedramp.gov/
 
@@ -1009,13 +1009,13 @@ For corrections or additions, file an issue with `domain-compliance`,
 
 <a id="ref-32"></a>**[32]** coso.org. *coso.org*. Retrieved May 11, 2026, from https://www.coso.org/
 
-<a id="ref-33"></a>**[33]** coso.org. *coso.org: Erm*. Retrieved May 11, 2026, from https://www.coso.org/erm
+<a id="ref-33"></a>**[33]** coso.org. *coso.org: Enterprise Risk Management*. Retrieved May 11, 2026, from https://www.coso.org/enterprise-risk-management
 
 <a id="ref-34"></a>**[34]** isaca.org. *isaca.org: Cobit*. Retrieved May 11, 2026, from https://www.isaca.org/cobit
 
-<a id="ref-35"></a>**[35]** theiia.org. *theiia.org: Three Lines Model*. Retrieved May 11, 2026, from https://www.theiia.org/three-lines-model
+<a id="ref-35"></a>**[35]** theiia.org. *theiia.org: About Us*. Retrieved May 11, 2026, from https://www.theiia.org/en/about-us/
 
-<a id="ref-36"></a>**[36]** axelos.com. *axelos.com: Itil*. Retrieved May 11, 2026, from https://www.axelos.com/best-practice-solutions/itil
+<a id="ref-36"></a>**[36]** axelos.com. *axelos.com*. Retrieved May 11, 2026, from https://www.axelos.com/
 
 <a id="ref-37"></a>**[37]** finops.org. *finops.org: Framework*. Retrieved May 11, 2026, from https://www.finops.org/framework/
 
@@ -1027,7 +1027,7 @@ For corrections or additions, file an issue with `domain-compliance`,
 
 <a id="ref-41"></a>**[41]** fsb-tcfd.org. *fsb-tcfd.org*. Retrieved May 11, 2026, from https://www.fsb-tcfd.org/
 
-<a id="ref-42"></a>**[42]** ifrs.org. *ifrs.org: Issb*. Retrieved May 11, 2026, from https://www.ifrs.org/issb/
+<a id="ref-42"></a>**[42]** ifrs.org. *ifrs.org: International Sustainability Standards Board*. Retrieved May 11, 2026, from https://www.ifrs.org/groups/international-sustainability-standards-board/
 
 </details>
 

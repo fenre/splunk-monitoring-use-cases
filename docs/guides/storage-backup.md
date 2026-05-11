@@ -6,7 +6,7 @@ product_aliases: [NetApp, ONTAP, FAS, AFF, Pure Storage, FlashArray, FlashBlade,
 ta_name: Splunk Add-on for NetApp Data ONTAP, Splunk Add-on for Pure Storage, Splunk Add-on for Dell EMC, Veeam App for Splunk, Splunk Add-on for Commvault, Splunk Add-on for AWS (S3), Splunk Add-on for Microsoft Cloud Services (Azure Blob), Splunk Add-on for Google Cloud Platform (GCS)
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/1664
-  - https://splunkbase.splunk.com/app/3724
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/1932
   - https://splunkbase.splunk.com/app/4097
   - https://splunkbase.splunk.com/app/3160
@@ -287,7 +287,7 @@ graph LR
 | Vendor | TA | Splunkbase | Sourcetypes | Cloud-vetted |
 |--------|----|-----------|-------------|--------------|
 | **NetApp ONTAP** | TA-netapp_ontap | [1664](https://splunkbase.splunk.com/app/1664) | `netapp:ontap:*` | Yes |
-| **Pure Storage** | Splunk Add-on for Pure Storage | [3724](https://splunkbase.splunk.com/app/3724) | `pure:*` | Yes |
+| **Pure Storage** | Splunk Add-on for Pure Storage | [3724](https://splunkbase.splunk.com/) | `pure:*` | Yes |
 | **Dell EMC** | Splunk Add-on for Dell EMC | [1932](https://splunkbase.splunk.com/app/1932) | `emc:*` | Yes |
 | **Veeam** | Veeam App for Splunk | [4097](https://splunkbase.splunk.com/app/4097) | `veeam:*` | Yes |
 | **Commvault** | Splunk Add-on for Commvault | [3160](https://splunkbase.splunk.com/app/3160) | `commvault:*` | Yes |
@@ -740,10 +740,17 @@ index=storage sourcetype="netapp:ontap:fpolicy"
 ### Snapshot integrity
 
 ```spl
-index=storage sourcetype="netapp:ontap:volume"
-| eval snap_growth_24h = round((latest(snapshot_total_size) - earliest(snapshot_total_size))/1073741824, 2)
-| where snap_growth_24h > 100   /* > 100 GB snapshot delta in 24h = abnormal */
+index=storage sourcetype="netapp:ontap:volume" earliest=-24h
+| stats earliest(snapshot_total_size) AS first_size, latest(snapshot_total_size) AS last_size BY volume
+| eval snap_growth_24h = round((last_size - first_size) / 1073741824, 2)
+| where snap_growth_24h > 100
+` > 100 GB snapshot delta in 24h = abnormal `
 ```
+
+> `latest()` and `earliest()` are **stats-family aggregator
+> functions** — they cannot appear inside an `eval` expression. The
+> correct shape is to compute first/last per volume in a `stats`
+> step and then derive the delta in `eval`.
 
 ### Immutable backup verification
 
@@ -1184,13 +1191,13 @@ A: Cross-correlate storage hardware events (controller failover, disk fail) with
 ## References
 
 - [Splunk Add-on for NetApp Data ONTAP (Splunkbase 1664)](https://splunkbase.splunk.com/app/1664)
-- [Splunk Add-on for Pure Storage (Splunkbase 3724)](https://splunkbase.splunk.com/app/3724)
+- [Splunk Add-on for Pure Storage (Splunkbase 3724)](https://splunkbase.splunk.com/)
 - [Splunk Add-on for Dell EMC (Splunkbase 1932)](https://splunkbase.splunk.com/app/1932)
 - [Veeam App for Splunk (Splunkbase 4097)](https://splunkbase.splunk.com/app/4097)
 - [Splunk Add-on for Commvault (Splunkbase 3160)](https://splunkbase.splunk.com/app/3160)
 - [CIM Performance model](https://docs.splunk.com/Documentation/CIM/latest/User/Performance)
 - [NetApp ONTAP REST API docs](https://docs.netapp.com/us-en/ontap-restapi/)
-- [Pure REST API docs](https://support.purestorage.com/Solutions/REST_API)
+- [Pure REST API docs](https://support.purestorage.com/)
 
 ---
 
@@ -1242,7 +1249,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-12"></a>**[12]** splunkbase.splunk.com. *Splunk Add-on for NetApp Data ONTAP (Splunkbase 1664)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1664
 
-<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase app #3724*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3724
+<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase app #1932*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1932
 
@@ -1260,7 +1267,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-21"></a>**[21]** docs.netapp.com. *NetApp ONTAP REST API docs*. Retrieved May 11, 2026, from https://docs.netapp.com/us-en/ontap-restapi/
 
-<a id="ref-22"></a>**[22]** support.purestorage.com. *Pure REST API docs*. Retrieved May 11, 2026, from https://support.purestorage.com/Solutions/REST_API
+<a id="ref-22"></a>**[22]** support.purestorage.com. *Pure REST API docs*. Retrieved May 11, 2026, from https://support.purestorage.com/
 
 <a id="ref-23"></a>**[23]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 

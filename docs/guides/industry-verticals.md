@@ -7,7 +7,7 @@ ta_name: Splunk OT Security Add-on, Splunk Industrial Asset Intelligence (IAI), 
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/5151
   - https://splunkbase.splunk.com/app/4942
-  - https://splunkbase.splunk.com/app/4945
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/5601
   - https://splunkbase.splunk.com/app/3088
 indexes:
@@ -1005,7 +1005,7 @@ A: 3 years minimum (CALEA in US, varies elsewhere).
 - [Splunk Industrial Asset Intelligence (Splunkbase 4942)](https://splunkbase.splunk.com/app/4942)
 - [NERC CIP Standards](https://www.nerc.com/pa/Stand/Pages/ReliabilityStandards.aspx)
 - [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/index.html)
-- [TSA Pipeline Security Directives](https://www.tsa.gov/news/press/releases/pipeline-security-directives)
+- [TSA Pipeline Security Directives](https://www.tsa.gov/news)
 - [HL7 International](https://www.hl7.org/)
 - [3GPP 5G Specifications](https://www.3gpp.org/)
 
@@ -1069,7 +1069,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-18"></a>**[18]** nerc.com. *NERC CIP Standards*. Retrieved May 11, 2026, from https://www.nerc.com/pa/Stand/Pages/ReliabilityStandards.aspx
 
-<a id="ref-19"></a>**[19]** tsa.gov. *TSA Pipeline Security Directives*. Retrieved May 11, 2026, from https://www.tsa.gov/news/press/releases/pipeline-security-directives
+<a id="ref-19"></a>**[19]** tsa.gov. *TSA Pipeline Security Directives*. Retrieved May 11, 2026, from https://www.tsa.gov/news
 
 <a id="ref-20"></a>**[20]** hl7.org. *HL7 International*. Retrieved May 11, 2026, from https://www.hl7.org/
 
@@ -1079,7 +1079,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-23"></a>**[23]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
-<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #4945*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4945
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunkbase app #5601*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5601
 

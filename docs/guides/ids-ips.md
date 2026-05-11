@@ -5,7 +5,7 @@ product: Intrusion Detection / Prevention Systems — Snort, Suricata, Zeek (pas
 product_aliases: [IDS, IPS, NIDS, NIPS, HIDS, intrusion detection, intrusion prevention, Snort, Suricata, Zeek, Bro, Sourcefire, Cisco Firepower, FTD, FMC, Palo Alto Threat Prevention, FortiGate IPS, Check Point IPS, TippingPoint, Trellix IPS, McAfee NSP, signature-based detection, behavior-based detection]
 ta_name: TA-suricata, Splunk Add-on for Snort, Cisco Secure Firewall Add-on, Splunk Add-on for Palo Alto Networks, Splunk Add-on for Fortinet FortiGate, Splunk Add-on for Check Point OPSEC LEA, Zeek/Bro Add-on for Splunk
 splunkbase_urls:
-  - https://splunkbase.splunk.com/app/3441
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/340
   - https://splunkbase.splunk.com/app/3449
   - https://splunkbase.splunk.com/app/2757
@@ -137,7 +137,7 @@ last_updated: 2026-05-09
     index = ids
     INDEXED_EXTRACTIONS = json
     ```
-3. Install [TA-suricata (Splunkbase 3441)](https://splunkbase.splunk.com/app/3441) on indexers + SH for CIM mapping.
+3. Install [TA-suricata (Splunkbase 3441)](https://splunkbase.splunk.com/) on indexers + SH for CIM mapping.
 4. Validate: `index=ids sourcetype="suricata:eve:alert" earliest=-15m | stats count by alert.severity`
 
 ### Cisco Firepower / FTD
@@ -299,7 +299,7 @@ graph LR
 
 | Platform | TA | Splunkbase | Sourcetypes | Cloud-vetted |
 |---------|----|-----------|-------------|--------------|
-| **Suricata** | TA-suricata | [3441](https://splunkbase.splunk.com/app/3441) | `suricata:eve:alert`, `suricata:eve:json` | Yes |
+| **Suricata** | TA-suricata | [3441](https://splunkbase.splunk.com/) | `suricata:eve:alert`, `suricata:eve:json` | Yes |
 | **Snort** | Splunk Add-on for Snort | [340](https://splunkbase.splunk.com/app/340) | `snort:alert`, `snort:fast`, `snort:json` | Yes |
 | **Cisco Firepower** | Cisco Secure Firewall Add-on | [3449](https://splunkbase.splunk.com/app/3449) | `cisco:firepower:syslog` | Yes |
 | **Palo Alto** | Splunk Add-on for Palo Alto | [2757](https://splunkbase.splunk.com/app/2757) | `pan:threat`, `pan:wildfire` | Yes |
@@ -1092,7 +1092,7 @@ A: (1) Identify top noisy signatures, (2) Either disable, suppress (per-source/d
 <a id="references"></a>
 ## References
 
-- [TA-suricata (Splunkbase 3441)](https://splunkbase.splunk.com/app/3441)
+- [TA-suricata (Splunkbase 3441)](https://splunkbase.splunk.com/)
 - [Splunk Add-on for Snort (Splunkbase 340)](https://splunkbase.splunk.com/app/340)
 - [Cisco Secure Firewall Add-on (Splunkbase 3449)](https://splunkbase.splunk.com/app/3449)
 - [Splunk_TA_paloalto (Splunkbase 2757)](https://splunkbase.splunk.com/app/2757)
@@ -1159,7 +1159,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <details>
 <summary>Additional online sources cited in the document body (14)</summary>
 
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *TA-suricata (Splunkbase 3441)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3441
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *TA-suricata (Splunkbase 3441)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #340*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/340
 

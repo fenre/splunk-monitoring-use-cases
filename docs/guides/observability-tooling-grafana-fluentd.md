@@ -1288,7 +1288,7 @@ Filter all searches by `org_id`. Build per-org dashboards. Use
 
 ### Lantern
 
-- [Splunk Lantern — Observability stack articles](https://lantern.splunk.com/Splunk_Platform/Observability)
+- [Splunk Lantern — Observability stack articles](https://lantern.splunk.com/)
 
 ---
 
@@ -1369,7 +1369,7 @@ The full catalog is at
 
 <a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunk Add-on for Prometheus / OpenMetrics*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4923
 
-<a id="ref-26"></a>**[26]** lantern.splunk.com. *Splunk Lantern — Observability stack articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Observability
+<a id="ref-26"></a>**[26]** lantern.splunk.com. *Splunk Lantern — Observability stack articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
 <a id="ref-27"></a>**[27]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 

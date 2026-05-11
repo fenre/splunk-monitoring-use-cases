@@ -620,7 +620,7 @@ The `TA-cisco_ios` add-on ships a much larger `props.conf` / `transforms.conf` w
 Validate with `tstats`:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Change.All_Changes where vendor="Cisco" by sourcetype
+| tstats summariesonly=t count from datamodel=Change.All_Changes where vendor="Cisco" by sourcetype
 ```
 
 ---
@@ -910,7 +910,7 @@ OR (index=netflow sourcetype="netflow" earliest=-15m@m)
 Validation:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Network_Traffic where vendor="Cisco" by sourcetype, action
+| tstats summariesonly=t count from datamodel=Network_Traffic where vendor="Cisco" by sourcetype, action
 | sort -count
 ```
 
@@ -1396,7 +1396,7 @@ A: IPv6 events use the same mnemonics — no separate parsing needed. `BGP-5-ADJ
 | Splunkbase: TA-cisco_ios | [splunkbase.splunk.com/app/1352](https://splunkbase.splunk.com/app/1352) |
 | Splunk Connect for Syslog (SC4S) | [splunk.github.io/splunk-connect-for-syslog](https://splunk.github.io/splunk-connect-for-syslog/) |
 | Splunk Connect for SNMP (SC4SNMP) | [splunk.github.io/splunk-connect-for-snmp](https://splunk.github.io/splunk-connect-for-snmp/) |
-| Cisco IOS syslog mnemonics | [cisco.com — Error Message Decoder](https://cway.cisco.com/mnemonics/) |
+| Cisco IOS syslog mnemonics | [cisco.com — Error Message Decoder](https://www.cisco.com/c/en/us/support/index.html) |
 | OpenConfig YANG models | [openconfig.net/projects/models](https://www.openconfig.net/projects/models/) |
 | Splunk Lantern (Cisco) | [lantern.splunk.com](https://lantern.splunk.com) (search "cisco") |
 | Cisco Networks Add-on docs | [docs.splunk.com/Documentation/AddOns](https://docs.splunk.com/Documentation/AddOns) (search "Cisco Networks") |
@@ -1461,7 +1461,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-17"></a>**[17]** splunk.github.io. *Splunk Connect for SNMP (SC4SNMP)*. Retrieved May 11, 2026, from https://splunk.github.io/splunk-connect-for-snmp/
 
-<a id="ref-18"></a>**[18]** cway.cisco.com. *cisco.com — Error Message Decoder*. Retrieved May 11, 2026, from https://cway.cisco.com/mnemonics/
+<a id="ref-18"></a>**[18]** cisco.com. *cisco.com — Error Message Decoder*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/index.html
 
 <a id="ref-19"></a>**[19]** openconfig.net. *openconfig.net/projects/models*. Retrieved May 11, 2026, from https://www.openconfig.net/projects/models/
 

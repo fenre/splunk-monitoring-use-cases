@@ -664,16 +664,28 @@ index=cspm OR index=serverless OR index=multicloud earliest=-1d@d latest=@d
 | collect index=multicloud_summary sourcetype=multicloud:trending
 ```
 
-### Configuration — Executive scorecard via accelerated data model
+### Configuration — Executive scorecard via the summary index
 
-Build a Performance data model on `multicloud_summary` with
-acceleration enabled. Use `tstats` for board-tier dashboards (sub-1s
-load times):
+Query the `multicloud_summary` index directly for board-tier
+dashboards. Most production deployments will not need an accelerated
+data model on top of the summary index because the daily roll-up
+already keeps cardinality and event volume small; the `index=` form
+below resolves in well under a second on a single indexer:
 
 ```spl
-| tstats count from datamodel=Multicloud_Trending where earliest=-30d@d
-  by Multicloud_Trending.provider, Multicloud_Trending.severity
+index=multicloud_summary sourcetype=multicloud:trending earliest=-30d@d
+| stats sum(count) as findings by provider, severity
 ```
+
+> Want sub-second board loads on a multi-tenant search head? Build a
+> custom Splunk data model named e.g. `multicloud_trending` on
+> `index=multicloud_summary` (Settings -> Data models -> New), enable
+> acceleration with a 30-day backfill, then swap the `index=` line
+> above for the equivalent `| tstats summariesonly=t count from
+> datamodel=multicloud_trending by multicloud_trending.provider,
+> multicloud_trending.severity`. The data model name is yours to
+> pick — it is **not** part of Splunk CIM 6.x — so anything you
+> configure under Settings -> Data models will work.
 
 ## Sizing and Capacity Planning
 

@@ -1242,8 +1242,15 @@ For more sophisticated detection with seasonality:
 | `normalize_cost`
 | timechart span=1d sum(cost_usd) AS daily_spend BY service_code
 | apply ec2_density_model
-| where IsOutlier(daily_spend.AmazonEC2) = 1
+| where 'IsOutlier(daily_spend.AmazonEC2)' = 1
 ```
+
+> `| apply` (MLTK DensityFunction) materialises its scoring output as
+> a field whose literal name is `IsOutlier(<source field>)`. The
+> parentheses are part of the field name, so the field has to be
+> referenced in single quotes — Splunk's escape for non-identifier
+> field names. Without the quotes, `where IsOutlier(...)` looks like
+> an eval function call (none exists).
 
 ---
 
@@ -1884,7 +1891,7 @@ account team for capacity additions.
 
 ### License management
 
-- [Microsoft Graph licensing API](https://learn.microsoft.com/en-us/graph/api/resources/licensing-api-overview)
+- [Microsoft Graph licensing API](https://learn.microsoft.com/en-us/graph/)
 - [Salesforce User License](https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_objects_userlicense.htm)
 - [Snowflake account_usage](https://docs.snowflake.com/en/sql-reference/account-usage)
 - [Databricks system tables (billing)](https://docs.databricks.com/en/admin/system-tables/billing.html)
@@ -1893,14 +1900,14 @@ account team for capacity additions.
 
 ### Splunk
 
-- [Splunk Workload Pricing](https://www.splunk.com/en_us/products/pricing/workload-pricing-faqs.html)
+- [Splunk Workload Pricing](https://www.splunk.com/en_us/products/pricing.html)
 - [Splunk Enterprise admin docs (license manager and pools)](https://docs.splunk.com/Documentation/Splunk/latest/Admin)
 - [Splunk DB Connect](https://splunkbase.splunk.com/app/2686)
 - [Splunk MLTK](https://splunkbase.splunk.com/app/2890)
 
 ### Lantern
 
-- [Splunk Lantern — FinOps articles](https://lantern.splunk.com/Splunk_Platform/Cost_Capacity)
+- [Splunk Lantern — FinOps articles](https://lantern.splunk.com/)
 
 ---
 
@@ -1991,7 +1998,7 @@ The full catalog is at
 
 <a id="ref-31"></a>**[31]** splunkbase.splunk.com. *Splunk Add-on for GCP*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
 
-<a id="ref-32"></a>**[32]** learn.microsoft.com. *Microsoft Graph licensing API*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/graph/api/resources/licensing-api-overview
+<a id="ref-32"></a>**[32]** learn.microsoft.com. *Microsoft Graph licensing API*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/graph/
 
 <a id="ref-33"></a>**[33]** developer.salesforce.com. *Salesforce User License*. Retrieved May 11, 2026, from https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/sforce_api_objects_userlicense.htm
 
@@ -2003,7 +2010,7 @@ The full catalog is at
 
 <a id="ref-37"></a>**[37]** docs.servicenow.com. *ServiceNow SAM*. Retrieved May 11, 2026, from https://docs.servicenow.com/bundle/washingtondc-it-asset-management/page/product/asset-management/concept/c_SoftwareAssetManagement.html
 
-<a id="ref-38"></a>**[38]** splunk.com. *Splunk Workload Pricing*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/products/pricing/workload-pricing-faqs.html
+<a id="ref-38"></a>**[38]** splunk.com. *Splunk Workload Pricing*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/products/pricing.html
 
 <a id="ref-39"></a>**[39]** docs.splunk.com. *Splunk Enterprise admin docs (license manager and pools)*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Admin
 
@@ -2011,7 +2018,7 @@ The full catalog is at
 
 <a id="ref-41"></a>**[41]** splunkbase.splunk.com. *Splunk MLTK*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2890
 
-<a id="ref-42"></a>**[42]** lantern.splunk.com. *Splunk Lantern — FinOps articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Cost_Capacity
+<a id="ref-42"></a>**[42]** lantern.splunk.com. *Splunk Lantern — FinOps articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
 <a id="ref-43"></a>**[43]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 

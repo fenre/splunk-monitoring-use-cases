@@ -1266,7 +1266,7 @@ phases:
 
 ### Operator references
 
-- Catalyst SD-WAN Design Guide — https://www.cisco.com/c/en/us/td/docs/solutions/CVD/SDWAN/
+- Catalyst SD-WAN Design Guide — https://www.cisco.com/c/en/us/solutions/enterprise-networks/sd-wan/index.html
 - Meraki Best Practices — https://documentation.meraki.com/
 - Aruba EdgeConnect Best Practices — Aruba Validated Reference Designs
 - Cisco SD-WAN Hardening Guide
@@ -1387,7 +1387,7 @@ For corrections or additions, file an issue with `cat-5.5` or
 
 <a id="ref-40"></a>**[40]** splunk.github.io. *splunk.github.io: Splunk Connect For Syslog*. Retrieved May 11, 2026, from https://splunk.github.io/splunk-connect-for-syslog/
 
-<a id="ref-41"></a>**[41]** cisco.com. *Cisco: Sdwan*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/solutions/CVD/SDWAN/
+<a id="ref-41"></a>**[41]** cisco.com. *Cisco: Index*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/solutions/enterprise-networks/sd-wan/index.html
 
 <a id="ref-42"></a>**[42]** documentation.meraki.com. *Cisco Meraki*. Retrieved May 11, 2026, from https://documentation.meraki.com/
 

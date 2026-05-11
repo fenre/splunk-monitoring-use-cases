@@ -1664,7 +1664,7 @@ Legacy environments may have:
 | Olaf Hartong sysmon-modular | [github.com/olafhartong/sysmon-modular](https://github.com/olafhartong/sysmon-modular) |
 | Windows Event Forwarding (Microsoft) | [docs.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection](https://docs.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection) |
 | Microsoft Audit Policy Recommendations | [docs.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations](https://docs.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations) |
-| CIS Microsoft Windows Server Benchmarks | [cisecurity.org/cis-benchmarks/cis-benchmarks-microsoft-windows-server](https://www.cisecurity.org/cis-benchmarks/) |
+| CIS Microsoft Windows Server Benchmarks | [cisecurity.org/cis-benchmarks/cis-benchmarks-microsoft-windows-server](https://www.cisecurity.org/cis-benchmarks) |
 | Splunk CIM<sup class="ref">[<a href="#ref-8">8</a>]</sup> | [docs.splunk.com/Documentation/CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Overview) |
 
 ---
@@ -1737,7 +1737,7 @@ This guide is part of the [Splunk Monitoring Use Cases](https://github.com/fenre
 
 <a id="ref-22"></a>**[22]** docs.microsoft.com. *docs.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations*. Retrieved May 11, 2026, from https://docs.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations
 
-<a id="ref-23"></a>**[23]** cisecurity.org. *cisecurity.org/cis-benchmarks/cis-benchmarks-microsoft-windows-server*. Retrieved May 11, 2026, from https://www.cisecurity.org/cis-benchmarks/
+<a id="ref-23"></a>**[23]** cisecurity.org. *cisecurity.org/cis-benchmarks/cis-benchmarks-microsoft-windows-server*. Retrieved May 11, 2026, from https://www.cisecurity.org/cis-benchmarks
 
 <a id="ref-24"></a>**[24]** docs.splunk.com. *docs.splunk.com/Documentation/CIM*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Overview
 

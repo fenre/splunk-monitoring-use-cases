@@ -9,7 +9,7 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/1876
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/3088
-  - https://splunkbase.splunk.com/app/3203
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/3088
 indexes:
   - database
@@ -1064,7 +1064,7 @@ A: 1 year for most; 7 years for SOX/financial reporting context.
 - [Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)](https://splunkbase.splunk.com/app/3110)
 - [Splunk Add-on for Google Cloud Platform (Splunkbase 3088)](https://splunkbase.splunk.com/app/3088)
 - [MongoDB Audit](https://www.mongodb.com/docs/manual/core/auditing/)
-- [Cassandra Audit Logging](https://cassandra.apache.org/doc/latest/cassandra/operating/audit_logging.html)
+- [Cassandra Audit Logging](https://cassandra.apache.org/doc/latest/cassandra/managing/operating/audit_logging.html)
 - [Snowflake ACCOUNT_USAGE](https://docs.snowflake.com/en/sql-reference/account-usage)
 
 ---
@@ -1131,7 +1131,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-19"></a>**[19]** mongodb.com. *MongoDB Audit*. Retrieved May 11, 2026, from https://www.mongodb.com/docs/manual/core/auditing/
 
-<a id="ref-20"></a>**[20]** cassandra.apache.org. *Cassandra Audit Logging*. Retrieved May 11, 2026, from https://cassandra.apache.org/doc/latest/cassandra/operating/audit_logging.html
+<a id="ref-20"></a>**[20]** cassandra.apache.org. *Cassandra Audit Logging*. Retrieved May 11, 2026, from https://cassandra.apache.org/doc/latest/cassandra/managing/operating/audit_logging.html
 
 <a id="ref-21"></a>**[21]** docs.snowflake.com. *Snowflake ACCOUNT_USAGE*. Retrieved May 11, 2026, from https://docs.snowflake.com/en/sql-reference/account-usage
 
@@ -1139,7 +1139,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-23"></a>**[23]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
-<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #3203*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3203
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 </details>
 

@@ -5,7 +5,7 @@ product: Network flow telemetry — NetFlow v5/v9, IPFIX, sFlow, Zeek (Bro), Spl
 product_aliases: [NetFlow, IPFIX, sFlow, jFlow, cflowd, flow data, flow export, Zeek, Bro, network metadata, Splunk Stream, conn.log, NetFlow Optimizer]
 ta_name: Splunk Add-on for NetFlow, Splunk Stream, Zeek/Bro Add-on for Splunk
 splunkbase_urls:
-  - https://splunkbase.splunk.com/app/1759
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/5234
   - https://splunkbase.splunk.com/app/1617
 indexes:
@@ -89,7 +89,7 @@ last_updated: 2026-05-09
 
 ### NetFlow (fastest)
 
-1. Install [Splunk Add-on for NetFlow (Splunkbase 1759)](https://splunkbase.splunk.com/app/1759) on a Heavy Forwarder.
+1. Install [Splunk Add-on for NetFlow (Splunkbase 1759)](https://splunkbase.splunk.com/) on a Heavy Forwarder.
 2. Configure HF to listen on UDP/2055 (or 9995/9996):
 
     ```ini
@@ -1091,7 +1091,7 @@ A: 30 days for threat hunting; 90 days for forensics (typical breach detection t
 <a id="references"></a>
 ## References
 
-- [Splunk Add-on for NetFlow (Splunkbase 1759)](https://splunkbase.splunk.com/app/1759)
+- [Splunk Add-on for NetFlow (Splunkbase 1759)](https://splunkbase.splunk.com/)
 - [Splunk Stream (Splunkbase 5234)](https://splunkbase.splunk.com/app/5234)
 - [Zeek/Bro Splunk Add-on (Splunkbase 1617)](https://splunkbase.splunk.com/app/1617)
 - [Network_Traffic CIM model](https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic)
@@ -1149,7 +1149,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <details>
 <summary>Additional online sources cited in the document body (9)</summary>
 
-<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunk Add-on for NetFlow (Splunkbase 1759)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1759
+<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunk Add-on for NetFlow (Splunkbase 1759)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunk Stream (Splunkbase 5234)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5234
 

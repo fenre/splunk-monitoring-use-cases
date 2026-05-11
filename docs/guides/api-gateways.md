@@ -1146,7 +1146,7 @@ A: For external-facing yes (terminate at gateway, re-encrypt internal). For mesh
 - [HAProxy documentation](https://www.haproxy.com/documentation/)
 - [Traefik documentation](https://doc.traefik.io/traefik/)
 - [OpenTelemetry](https://opentelemetry.io/)
-- [Splunk APM (Observability Cloud)](https://www.splunk.com/en_us/products/apm.html)
+- [Splunk APM (Observability Cloud)](https://www.splunk.com/en_us/products/splunk-apm.html)
 - [OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/)
 
 ---
@@ -1221,7 +1221,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-23"></a>**[23]** opentelemetry.io. *OpenTelemetry*. Retrieved May 11, 2026, from https://opentelemetry.io/
 
-<a id="ref-24"></a>**[24]** splunk.com. *Splunk APM (Observability Cloud)*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/products/apm.html
+<a id="ref-24"></a>**[24]** splunk.com. *Splunk APM (Observability Cloud)*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/products/splunk-apm.html
 
 <a id="ref-25"></a>**[25]** owasp.org. *OWASP API Security Top 10*. Retrieved May 11, 2026, from https://owasp.org/API-Security/editions/2023/en/0x11-t10/
 

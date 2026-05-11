@@ -923,7 +923,7 @@ steps:
 - [OSCAL specification (NIST)](https://pages.nist.gov/OSCAL/)
 - [GDPR full text (EUR-Lex)](https://eur-lex.europa.eu/eli/reg/2016/679/oj)
 - [NIST CSF 2.0](https://www.nist.gov/cyberframework)
-- [NIST 800-53 Rev. 5](https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final)
+- [NIST 800-53 Rev. 5](https://csrc.nist.gov/pubs/sp/800/53/r5/final)
 - [PCI-DSS v4.0](https://www.pcisecuritystandards.org/document_library/)
 - [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/index.html)
 - [SOC 2 TSC](https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2)
@@ -937,7 +937,7 @@ steps:
 
 - [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263)
 - [Splunk Enterprise Security Content Update (ESCU)](https://splunkbase.splunk.com/app/3449)
-- [Splunk Lantern — Compliance articles](https://lantern.splunk.com/Splunk_Platform/Compliance)
+- [Splunk Lantern — Compliance articles](https://lantern.splunk.com/)
 
 ---
 
@@ -1013,7 +1013,7 @@ The full catalog is at
 
 <a id="ref-22"></a>**[22]** pages.nist.gov. *OSCAL*. Retrieved May 11, 2026, from https://pages.nist.gov/OSCAL/
 
-<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST 800-53 Rev. 5*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final
+<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST 800-53 Rev. 5*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/53/r5/final
 
 <a id="ref-24"></a>**[24]** pcisecuritystandards.org. *PCI-DSS v4.0*. Retrieved May 11, 2026, from https://www.pcisecuritystandards.org/document_library/
 
@@ -1025,7 +1025,7 @@ The full catalog is at
 
 <a id="ref-28"></a>**[28]** splunkbase.splunk.com. *Splunk Enterprise Security Content Update (ESCU)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3449
 
-<a id="ref-29"></a>**[29]** lantern.splunk.com. *Splunk Lantern — Compliance articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Compliance
+<a id="ref-29"></a>**[29]** lantern.splunk.com. *Splunk Lantern — Compliance articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
 <a id="ref-30"></a>**[30]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 

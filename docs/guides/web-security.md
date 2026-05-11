@@ -8,7 +8,7 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/3088
   - https://splunkbase.splunk.com/app/3866
   - https://splunkbase.splunk.com/app/3658
-  - https://splunkbase.splunk.com/app/2887
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/4088
 indexes:
   - proxy
@@ -280,7 +280,7 @@ graph LR
 | **Cisco Umbrella** | Splunk Add-on for Cisco Umbrella | [3088](https://splunkbase.splunk.com/app/3088) | `cisco:umbrella`, `cisco:umbrella:dns`, `cisco:umbrella:proxy` |
 | **Zscaler ZIA** | Splunk Add-on for Zscaler | [3866](https://splunkbase.splunk.com/app/3866) | `zscaler:web`, `zscaler:nss`, `zscaler:zia:web` |
 | **Cisco WSA** | Splunk Add-on for Cisco WSA | [3658](https://splunkbase.splunk.com/app/3658) | `cisco:wsa:squid`, `cisco:wsa:w3c` |
-| **Forcepoint Web** | Splunk Add-on for Forcepoint | [2887](https://splunkbase.splunk.com/app/2887) | `forcepoint:web:syslog`, `forcepoint:syslog` |
+| **Forcepoint Web** | Splunk Add-on for Forcepoint | [2887](https://splunkbase.splunk.com/) | `forcepoint:web:syslog`, `forcepoint:syslog` |
 | **Symantec ProxySG (Blue Coat)** | (custom syslog via SC4S) | n/a | `bluecoat:proxysg`, `symantec:proxysg` |
 | **Netskope** | (custom REST input) | n/a | `netskope:web` |
 | **Trellix Web Gateway** | (custom syslog via SC4S) | n/a | `trellix:webgateway` |
@@ -904,7 +904,7 @@ A: CASB (Netskope, McAfee MVISION, Microsoft Defender for Cloud Apps) sits above
 - [Splunk Add-on for Cisco Umbrella (Splunkbase 3088)](https://splunkbase.splunk.com/app/3088)
 - [Splunk Add-on for Zscaler (Splunkbase 3866)](https://splunkbase.splunk.com/app/3866)
 - [Splunk Add-on for Cisco WSA (Splunkbase 3658)](https://splunkbase.splunk.com/app/3658)
-- [Splunk Add-on for Forcepoint (Splunkbase 2887)](https://splunkbase.splunk.com/app/2887)
+- [Splunk Add-on for Forcepoint (Splunkbase 2887)](https://splunkbase.splunk.com/)
 - [Splunk Add-on for Squid (Splunkbase 4088)](https://splunkbase.splunk.com/app/4088)
 - [Cisco Umbrella documentation](https://docs.umbrella.com/)
 - [Zscaler documentation](https://help.zscaler.com/zia)
@@ -973,7 +973,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #3658*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3658
 
-<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #2887*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2887
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #4088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4088
 

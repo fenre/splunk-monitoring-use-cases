@@ -56,7 +56,7 @@ A UC meets the bar when **every** statement below is true:
 
 - The SPL targets the indexes, sourcetypes, and fields named in `dataSources`. No invented field names, no `myindex`, no `your_lookup_here`.
 - The SPL produces a row-per-evidence-gap output with stable column names (typically `_time, owner, status, evidence_id, clause, affected_asset, hours_open` or domain-specific columns).
-- Where a CIM data model is available, populate `cimSpl` with the `tstats summariesonly=true` variant and call out tradeoffs in `detailedImplementation` Step 2.
+- Where a CIM data model is available, populate `cimSpl` with the `tstats summariesonly=t` variant and call out tradeoffs in `detailedImplementation` Step 2.
 
 ### 2.5 `knownFalsePositives` is specific and named
 

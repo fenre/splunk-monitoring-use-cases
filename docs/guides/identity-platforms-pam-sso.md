@@ -9,9 +9,9 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/4055
   - https://splunkbase.splunk.com/app/4346
-  - https://splunkbase.splunk.com/app/5275
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/6135
-  - https://splunkbase.splunk.com/app/5099
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/5580
   - https://splunkbase.splunk.com/app/742
 indexes:
@@ -995,7 +995,7 @@ For corrections or additions, file an issue with `cat-9.2` through
 <a id="ref-16"></a>**[16]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (9)</summary>
+<summary>Additional online sources cited in the document body (8)</summary>
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #6553*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/6553
 
@@ -1005,15 +1005,13 @@ For corrections or additions, file an issue with `cat-9.2` through
 
 <a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #4346*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4346
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #5275*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5275
+<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunkbase app #6135*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/6135
 
-<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #5099*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5099
+<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #5580*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5580
 
-<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #5580*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5580
-
-<a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunkbase app #742*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/742
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #742*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/742
 
 </details>
 

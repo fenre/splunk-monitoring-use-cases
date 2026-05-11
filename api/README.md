@@ -60,7 +60,7 @@ api/
 
 For the full endpoint catalogue and `curl` examples, see the generated
 `api/v1/README.md` after running `python3 build.py`, or the live deployment
-at <https://fenre.github.io/splunk-monitoring-use-cases/api/v1/>.
+at <https://fenre.github.io/splunk-monitoring-use-cases/api/v1/manifest.json>.
 
 ## Why is the data gitignored?
 
@@ -110,7 +110,7 @@ api/
 <details>
 <summary>Additional online sources cited in the document body (1)</summary>
 
-<a id="ref-3"></a>**[3]** fenre.github.io. *fenre.github.io: V1*. Retrieved May 11, 2026, from https://fenre.github.io/splunk-monitoring-use-cases/api/v1/
+<a id="ref-3"></a>**[3]** fenre.github.io. *fenre.github.io: Manifest.Json*. Retrieved May 11, 2026, from https://fenre.github.io/splunk-monitoring-use-cases/api/v1/manifest.json
 
 </details>
 

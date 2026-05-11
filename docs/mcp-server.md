@@ -514,7 +514,7 @@ server's static JSON reads.
 
 ## Security model
 
-Aligned with the [CoSAI MCP security guidance](https://www.coalitionforsecureai.org/wp-content/uploads/2025/10/CoSAI_MCP_Security_AISC1.pdf) (the same guidance encoded into the workspace-level
+Aligned with the [CoSAI MCP security guidance](https://www.coalitionforsecureai.org/) (the same guidance encoded into the workspace-level
 `codeguard-0-mcp-security` rule that ships with this project's Cursor
 configuration):
 
@@ -654,13 +654,6 @@ in-memory JSON-RPC integration pattern.
 <a id="ref-4"></a>**[4]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
 <a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
-
-<details>
-<summary>Additional online sources cited in the document body (1)</summary>
-
-<a id="ref-6"></a>**[6]** coalitionforsecureai.org. *CoSAI MCP security guidance*. Retrieved May 11, 2026, from https://www.coalitionforsecureai.org/wp-content/uploads/2025/10/CoSAI_MCP_Security_AISC1.pdf
-
-</details>
 
 ### Related repository documents
 

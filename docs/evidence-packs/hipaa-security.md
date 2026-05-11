@@ -394,7 +394,7 @@ OCR performs both complaint-driven investigations (most common) and periodic OCR
 ## 8. Authoritative guidance
 
 - **HHS HIPAA Security Rule Guidance** — HHS OCR — [https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
-- **NIST SP 800-66 Rev.2 Implementing the HIPAA Security Rule** — NIST — [https://csrc.nist.gov/publications/detail/sp/800-66/rev-2/final](https://csrc.nist.gov/publications/detail/sp/800-66/rev-2/final)
+- **NIST SP 800-66 Rev.2 Implementing the HIPAA Security Rule** — NIST — [https://csrc.nist.gov/pubs/sp/800/66/r2/final](https://csrc.nist.gov/pubs/sp/800/66/r2/final)
 - **HHS OCR Audit Protocol (2016/2020)** — HHS OCR — [https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/audit/protocol/index.html](https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/audit/protocol/index.html)
 - **HHS OCR Resolution Agreements & Civil Money Penalties** — HHS OCR — [https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/agreements/index.html](https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/agreements/index.html)
 - **ONC SAFER Guides (Safe EHR implementation)** — ONC — [https://www.healthit.gov/topic/safety/safer-guides](https://www.healthit.gov/topic/safety/safer-guides)
@@ -521,7 +521,7 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-13"></a>**[13]** hhs.gov. *U.S. HHS: Index*. Retrieved May 11, 2026, from https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html
 
-<a id="ref-14"></a>**[14]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-66/rev-2/final
+<a id="ref-14"></a>**[14]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/66/r2/final
 
 <a id="ref-15"></a>**[15]** hhs.gov. *U.S. HHS: Index*. Retrieved May 11, 2026, from https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/audit/protocol/index.html
 

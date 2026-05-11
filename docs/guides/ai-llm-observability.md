@@ -1376,9 +1376,14 @@ runs into `index=rag_eval` and detects drift > 5 points week-over-week.
 ```spl
 index=rag_eval sourcetype=rag:eval:run earliest=-30d
 | timechart span=1d avg(faithfulness) AS faith avg(answer_relevance) AS rel BY model
-| eval faith_drift = faith - lag(faith, 7)
+| streamstats global=f window=8 current=f first(faith) AS faith_7d_ago
+| eval faith_drift = faith - faith_7d_ago
 | where abs(faith_drift) > 0.05
 ```
+
+> Splunk has no `lag()` function — it is a SQL window-function pattern.
+> The Splunk equivalent is `streamstats current=f window=N first(field)`,
+> which exposes the value from `N` rows back as a new field.
 
 ---
 
@@ -1910,8 +1915,8 @@ cross-product correlation, and ITSI integration.
 ### OpenTelemetry GenAI
 
 - [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
-- [OpenTelemetry GenAI traces](https://opentelemetry.io/docs/specs/semconv/gen-ai/llm-spans/)
-- [OpenTelemetry GenAI metrics](https://opentelemetry.io/docs/specs/semconv/gen-ai/llm-metrics/)
+- [OpenTelemetry GenAI traces](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- [OpenTelemetry GenAI metrics](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 - [OpenTelemetry GenAI events](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/)
 
 ### Provider documentation
@@ -2008,7 +2013,7 @@ The full catalog is at
 <a id="ref-14"></a>**[14]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (34)</summary>
+<summary>Additional online sources cited in the document body (32)</summary>
 
 <a id="ref-15"></a>**[15]** docs.splunk.com. *Splunk Observability Cloud docs (APM, AI/LLM observability)*. Retrieved May 11, 2026, from https://docs.splunk.com/observability
 
@@ -2022,61 +2027,57 @@ The full catalog is at
 
 <a id="ref-20"></a>**[20]** opentelemetry.io. *OpenTelemetry GenAI semantic conventions*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/
 
-<a id="ref-21"></a>**[21]** opentelemetry.io. *OpenTelemetry GenAI traces*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/llm-spans/
+<a id="ref-21"></a>**[21]** opentelemetry.io. *OpenTelemetry GenAI events*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
 
-<a id="ref-22"></a>**[22]** opentelemetry.io. *OpenTelemetry GenAI metrics*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/llm-metrics/
+<a id="ref-22"></a>**[22]** learn.microsoft.com. *Azure OpenAI Service diagnostic logs*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/monitoring
 
-<a id="ref-23"></a>**[23]** opentelemetry.io. *OpenTelemetry GenAI events*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
+<a id="ref-23"></a>**[23]** learn.microsoft.com. *Azure OpenAI content filtering*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter
 
-<a id="ref-24"></a>**[24]** learn.microsoft.com. *Azure OpenAI Service diagnostic logs*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/monitoring
+<a id="ref-24"></a>**[24]** docs.aws.amazon.com. *AWS Bedrock model invocation logging*. Retrieved May 11, 2026, from https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html
 
-<a id="ref-25"></a>**[25]** learn.microsoft.com. *Azure OpenAI content filtering*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/content-filter
+<a id="ref-25"></a>**[25]** docs.aws.amazon.com. *AWS Bedrock Guardrails*. Retrieved May 11, 2026, from https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html
 
-<a id="ref-26"></a>**[26]** docs.aws.amazon.com. *AWS Bedrock model invocation logging*. Retrieved May 11, 2026, from https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html
+<a id="ref-26"></a>**[26]** cloud.google.com. *Google Vertex AI logging*. Retrieved May 11, 2026, from https://cloud.google.com/vertex-ai/docs/general/audit-logging
 
-<a id="ref-27"></a>**[27]** docs.aws.amazon.com. *AWS Bedrock Guardrails*. Retrieved May 11, 2026, from https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html
+<a id="ref-27"></a>**[27]** learn.microsoft.com. *Microsoft Purview Audit (Premium) — Copilot*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/purview/audit-copilot
 
-<a id="ref-28"></a>**[28]** cloud.google.com. *Google Vertex AI logging*. Retrieved May 11, 2026, from https://cloud.google.com/vertex-ai/docs/general/audit-logging
+<a id="ref-28"></a>**[28]** docs.github.com. *GitHub Copilot audit log streaming*. Retrieved May 11, 2026, from https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-activity-in-your-enterprise/reviewing-audit-logs-for-your-enterprise/streaming-the-audit-log-for-your-enterprise
 
-<a id="ref-29"></a>**[29]** learn.microsoft.com. *Microsoft Purview Audit (Premium) — Copilot*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/purview/audit-copilot
+<a id="ref-29"></a>**[29]** owasp.org. *OWASP Top 10 for Large Language Model Applications*. Retrieved May 11, 2026, from https://owasp.org/www-project-top-10-for-large-language-model-applications/
 
-<a id="ref-30"></a>**[30]** docs.github.com. *GitHub Copilot audit log streaming*. Retrieved May 11, 2026, from https://docs.github.com/en/enterprise-cloud@latest/admin/monitoring-activity-in-your-enterprise/reviewing-audit-logs-for-your-enterprise/streaming-the-audit-log-for-your-enterprise
+<a id="ref-30"></a>**[30]** artificialintelligenceact.eu. *EU AI Act — official text*. Retrieved May 11, 2026, from https://artificialintelligenceact.eu/
 
-<a id="ref-31"></a>**[31]** owasp.org. *OWASP Top 10 for Large Language Model Applications*. Retrieved May 11, 2026, from https://owasp.org/www-project-top-10-for-large-language-model-applications/
+<a id="ref-31"></a>**[31]** iso.org. *ISO/IEC 42001:2023 — AI management systems*. Retrieved May 11, 2026, from https://www.iso.org/standard/81230.html
 
-<a id="ref-32"></a>**[32]** artificialintelligenceact.eu. *EU AI Act — official text*. Retrieved May 11, 2026, from https://artificialintelligenceact.eu/
+<a id="ref-32"></a>**[32]** docs.litellm.ai. *LiteLLM proxy*. Retrieved May 11, 2026, from https://docs.litellm.ai/docs/proxy/quick_start
 
-<a id="ref-33"></a>**[33]** iso.org. *ISO/IEC 42001:2023 — AI management systems*. Retrieved May 11, 2026, from https://www.iso.org/standard/81230.html
+<a id="ref-33"></a>**[33]** python.langchain.com. *LangChain*. Retrieved May 11, 2026, from https://python.langchain.com/
 
-<a id="ref-34"></a>**[34]** docs.litellm.ai. *LiteLLM proxy*. Retrieved May 11, 2026, from https://docs.litellm.ai/docs/proxy/quick_start
+<a id="ref-34"></a>**[34]** docs.llamaindex.ai. *LlamaIndex*. Retrieved May 11, 2026, from https://docs.llamaindex.ai/
 
-<a id="ref-35"></a>**[35]** python.langchain.com. *LangChain*. Retrieved May 11, 2026, from https://python.langchain.com/
+<a id="ref-35"></a>**[35]** langchain-ai.github.io. *LangGraph*. Retrieved May 11, 2026, from https://langchain-ai.github.io/langgraph/
 
-<a id="ref-36"></a>**[36]** docs.llamaindex.ai. *LlamaIndex*. Retrieved May 11, 2026, from https://docs.llamaindex.ai/
+<a id="ref-36"></a>**[36]** learn.microsoft.com. *Microsoft Semantic Kernel*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/semantic-kernel/
 
-<a id="ref-37"></a>**[37]** langchain-ai.github.io. *LangGraph*. Retrieved May 11, 2026, from https://langchain-ai.github.io/langgraph/
+<a id="ref-37"></a>**[37]** microsoft.github.io. *AutoGen*. Retrieved May 11, 2026, from https://microsoft.github.io/autogen/
 
-<a id="ref-38"></a>**[38]** learn.microsoft.com. *Microsoft Semantic Kernel*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/semantic-kernel/
+<a id="ref-38"></a>**[38]** docs.helicone.ai. *Helicone*. Retrieved May 11, 2026, from https://docs.helicone.ai/
 
-<a id="ref-39"></a>**[39]** microsoft.github.io. *AutoGen*. Retrieved May 11, 2026, from https://microsoft.github.io/autogen/
+<a id="ref-39"></a>**[39]** portkey.ai. *Portkey*. Retrieved May 11, 2026, from https://portkey.ai/docs/
 
-<a id="ref-40"></a>**[40]** docs.helicone.ai. *Helicone*. Retrieved May 11, 2026, from https://docs.helicone.ai/
+<a id="ref-40"></a>**[40]** docs.smith.langchain.com. *LangSmith*. Retrieved May 11, 2026, from https://docs.smith.langchain.com/
 
-<a id="ref-41"></a>**[41]** portkey.ai. *Portkey*. Retrieved May 11, 2026, from https://portkey.ai/docs/
+<a id="ref-41"></a>**[41]** docs.ragas.io. *RAGAS evaluation framework*. Retrieved May 11, 2026, from https://docs.ragas.io/
 
-<a id="ref-42"></a>**[42]** docs.smith.langchain.com. *LangSmith*. Retrieved May 11, 2026, from https://docs.smith.langchain.com/
+<a id="ref-42"></a>**[42]** trulens.org. *TruLens*. Retrieved May 11, 2026, from https://www.trulens.org/
 
-<a id="ref-43"></a>**[43]** docs.ragas.io. *RAGAS evaluation framework*. Retrieved May 11, 2026, from https://docs.ragas.io/
+<a id="ref-43"></a>**[43]** docs.confident-ai.com. *DeepEval*. Retrieved May 11, 2026, from https://docs.confident-ai.com/
 
-<a id="ref-44"></a>**[44]** trulens.org. *TruLens*. Retrieved May 11, 2026, from https://www.trulens.org/
+<a id="ref-44"></a>**[44]** promptfoo.dev. *Promptfoo*. Retrieved May 11, 2026, from https://www.promptfoo.dev/
 
-<a id="ref-45"></a>**[45]** docs.confident-ai.com. *DeepEval*. Retrieved May 11, 2026, from https://docs.confident-ai.com/
+<a id="ref-45"></a>**[45]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-46"></a>**[46]** promptfoo.dev. *Promptfoo*. Retrieved May 11, 2026, from https://www.promptfoo.dev/
-
-<a id="ref-47"></a>**[47]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-48"></a>**[48]** github.com. *GitHub: signalfx/splunk-otel-collector*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
+<a id="ref-46"></a>**[46]** github.com. *GitHub: signalfx/splunk-otel-collector*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
 
 </details>
 

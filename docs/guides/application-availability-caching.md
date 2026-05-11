@@ -6,7 +6,7 @@ product_aliases: [cache, caching, in-memory cache, IMDG, in-memory data grid, di
 ta_name: Splunk_TA_redis (community), Splunk_TA_nix, Splunk Stream (Splunkbase 1809), Splunk Add-on for NGINX (TA-nginx), Splunk Add-on for Apache (TA-apache), Splunk Synthetic Monitoring (cloud), Splunk RUM (cloud), Splunk Distribution of OpenTelemetry Collector, Splunk Add-on for OpenTelemetry, Splunk Add-on for HashiCorp Vault (community), Splunk Add-on for Envoy (community)
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/1809
-  - https://splunkbase.splunk.com/app/1622
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/833
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/5601
@@ -990,7 +990,7 @@ For corrections or additions, file an issue with `cat-8.5` or
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase app #1809*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1809
 
-<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #1622*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1622
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #833*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/833
 

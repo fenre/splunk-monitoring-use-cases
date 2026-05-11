@@ -684,7 +684,7 @@ acceleration.cron_schedule = */5 * * * *
 Validate:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Web.Web
+| tstats summariesonly=t count from datamodel=Web.Web
   by sourcetype, vendor_product
 | sort -count
 ```

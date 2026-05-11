@@ -5,7 +5,7 @@ product: Container platforms beyond vanilla Kubernetes — Docker Engine and Doc
 product_aliases: [Docker, Docker Engine, Docker Daemon, dockerd, containerd, runc, CRI-O, Compose, Docker Compose, docker-compose, Buildx, BuildKit, Docker Swarm, OpenShift, OCP, OpenShift Container Platform, OpenShift Dedicated, OSD, ROSA, ARO, OpenShift on AWS, Azure Red Hat OpenShift, OpenShift on IBM Cloud, OpenShift on bare metal, MicroShift, OpenShift Local, CodeReady Containers, OpenShift Operator, OLM, Operator Lifecycle Manager, OperatorHub, ClusterVersion, CVO, Cluster Version Operator, MCO, Machine Config Operator, OVN-Kubernetes, Multus CNI, Tekton Pipelines, OpenShift Pipelines, OpenShift GitOps, ArgoCD, Container registry, Harbor, Project Quay, Quay.io, RHQuay, ECR, Amazon Elastic Container Registry, ACR, Azure Container Registry, GCR, Google Container Registry, GAR, Google Artifact Registry, Artifactory, JFrog, Sonatype Nexus, Docker Hub, Trivy, Clair, Grype, Snyk, Anchore, Aqua, Prisma Cloud, Sysdig Secure, Falco, OPA, Open Policy Agent, Kyverno, Service Mesh, Istio, Tetrate, Solo.io Gloo, Linkerd, Consul Connect, Consul Service Mesh, OSM, Open Service Mesh, App Mesh, Envoy, sidecar, ingress gateway, egress gateway, mTLS, certificate rotation, traffic shifting, canary, fault injection, virtual service, destination rule, Knative, Knative Serving, Knative Eventing, Cloud Run, Cloud Run for Anthos, Fargate, AWS Fargate, ECS Fargate, EKS Fargate, Azure Container Apps, Container Apps, Azure Container Instances, ACI, AWS App Runner, App Runner, IBM Code Engine, scale-to-zero, KEDA, Knative autoscaler, request-driven scaling]
 ta_name: Splunk Connect for Docker (Splunkbase 3303), Splunk OpenShift App, Splunk OpenTelemetry Collector for Kubernetes, Splunk Connect for Kubernetes (Splunkbase 3743), Splunk Add-on for Unix and Linux (Splunkbase 833), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Azure (Splunkbase 3757), Splunk Add-on for Google Cloud Platform (Splunkbase 3088), Splunk Add-on for JFrog Artifactory, Splunk HEC for Harbor / Quay webhooks
 splunkbase_urls:
-  - https://splunkbase.splunk.com/app/3303
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/3743
   - https://splunkbase.splunk.com/app/833
   - https://splunkbase.splunk.com/app/1876
@@ -1067,7 +1067,7 @@ For corrections or additions, file an issue with the `cat-3.1`,
 <details>
 <summary>Additional online sources cited in the document body (6)</summary>
 
-<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase app #3303*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3303
+<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase app #3743*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3743
 

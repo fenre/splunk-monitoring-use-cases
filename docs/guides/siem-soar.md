@@ -1352,10 +1352,10 @@ A: Both are leaders. ES wins on rapid correlation, RBA maturity, on-prem flexibi
 - [Splunk Security Essentials (Splunkbase 3435)](https://splunkbase.splunk.com/app/3435)
 - [ES Content Update (Splunkbase 3449)](https://splunkbase.splunk.com/app/3449)
 - [Splunk Attack Range](https://github.com/splunk/attack_range)
-- [Splunk SURGe blog](https://www.splunk.com/en_us/blog/learn/security-research.html)
+- [Splunk SURGe blog](https://www.splunk.com/en_us/blog/security.html)
 - [MITRE ATT&CK framework](https://attack.mitre.org/)
 - [CIM Reference](https://docs.splunk.com/Documentation/CIM/latest/User/Overview)
-- [Splunk Lantern: SIEM Use Cases](https://lantern.splunk.com/Security/UCE)
+- [Splunk Lantern: SIEM Use Cases](https://lantern.splunk.com/)
 
 ---
 
@@ -1417,7 +1417,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-18"></a>**[18]** U.S. General Services Administration / FedRAMP PMO. (2023). *FedRAMP Security Controls Baseline, Rev. 5* (Rev. 5). FedRAMP Program Management Office. https://www.fedramp.gov/rev5/baselines/
 
 <details>
-<summary>Additional online sources cited in the document body (11)</summary>
+<summary>Additional online sources cited in the document body (10)</summary>
 
 <a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunk Enterprise Security (Splunkbase 263)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/263
 
@@ -1431,15 +1431,13 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunk Security Essentials (Splunkbase 3435)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3435
 
-<a id="ref-25"></a>**[25]** splunk.com. *Splunk SURGe blog*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/blog/learn/security-research.html
+<a id="ref-25"></a>**[25]** splunk.com. *Splunk SURGe blog*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/blog/security.html
 
 <a id="ref-26"></a>**[26]** docs.splunk.com. *CIM Reference*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Overview
 
-<a id="ref-27"></a>**[27]** lantern.splunk.com. *Splunk Lantern: SIEM Use Cases*. Retrieved May 11, 2026, from https://lantern.splunk.com/Security/UCE
+<a id="ref-27"></a>**[27]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-28"></a>**[28]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-29"></a>**[29]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-28"></a>**[28]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

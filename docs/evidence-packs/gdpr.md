@@ -452,7 +452,7 @@ Supervisory authorities and external auditors test GDPR compliance through a com
 
 - **European Data Protection Board Guidelines** — EDPB — [https://edpb.europa.eu/our-work-tools/our-documents/guidelines_en](https://edpb.europa.eu/our-work-tools/our-documents/guidelines_en)
 - **ICO Guide to the UK GDPR** — ICO (UK) — [https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/)
-- **CNIL Guide de la sécurité des données personnelles** — CNIL (France) — [https://www.cnil.fr/fr/la-securite-des-donnees-personnelles](https://www.cnil.fr/fr/la-securite-des-donnees-personnelles)
+- **CNIL Guide de la sécurité des données personnelles** — CNIL (France) — [https://www.cnil.fr/](https://www.cnil.fr/)
 - **BfDI GDPR Compliance Resources** — BfDI (Germany) — [https://www.bfdi.bund.de/EN/Home/home_node.html](https://www.bfdi.bund.de/EN/Home/home_node.html)
 - **EDPB Guidelines 9/2022 on personal data breach notification** — EDPB — [https://edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-92022-personal-data-breach-notification-under_en](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-92022-personal-data-breach-notification-under_en)
 
@@ -580,7 +580,7 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-14"></a>**[14]** ico.org.uk. *ico.org.uk: Uk Gdpr Guidance And Resources*. Retrieved May 11, 2026, from https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/
 
-<a id="ref-15"></a>**[15]** cnil.fr. *cnil.fr: La Securite Des Donnees Personnelles*. Retrieved May 11, 2026, from https://www.cnil.fr/fr/la-securite-des-donnees-personnelles
+<a id="ref-15"></a>**[15]** cnil.fr. *cnil.fr*. Retrieved May 11, 2026, from https://www.cnil.fr/
 
 <a id="ref-16"></a>**[16]** bfdi.bund.de. *bfdi.bund.de: Home Node*. Retrieved May 11, 2026, from https://www.bfdi.bund.de/EN/Home/home_node.html
 

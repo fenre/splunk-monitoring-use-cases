@@ -37,7 +37,7 @@ The following NIST materials are in the US public domain. Where this project ing
   Licence: MITRE ATT&CK Terms of Use, <https://attack.mitre.org/resources/terms-of-use/>.
   Source: <https://github.com/mitre/cti>
 - **MITRE D3FEND** — countermeasure graph.
-  Licence: CC BY 4.0 + trademark notice, <https://d3fend.mitre.org/terms-of-use>.
+  Licence: CC BY 4.0 + trademark notice, <https://d3fend.mitre.org/about/>.
 
 ### 3.3 Atomic Red Team (Apache License 2.0)
 
@@ -196,7 +196,7 @@ Legal concerns about the licence, attribution, or redistribution of any content 
 
 <a id="ref-14"></a>**[14]** github.com. *GitHub: mitre/cti*. Retrieved May 11, 2026, from https://github.com/mitre/cti
 
-<a id="ref-15"></a>**[15]** d3fend.mitre.org. *MITRE D3FEND (Terms Of Use)*. Retrieved May 11, 2026, from https://d3fend.mitre.org/terms-of-use
+<a id="ref-15"></a>**[15]** d3fend.mitre.org. *MITRE D3FEND (About)*. Retrieved May 11, 2026, from https://d3fend.mitre.org/about/
 
 <a id="ref-16"></a>**[16]** github.com. *GitHub: redcanaryco/atomic-red-team*. Retrieved May 11, 2026, from https://github.com/redcanaryco/atomic-red-team/blob/master/LICENSE.txt
 

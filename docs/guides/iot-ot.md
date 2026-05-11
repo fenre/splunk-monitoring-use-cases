@@ -10,7 +10,7 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/3088
   - https://splunkbase.splunk.com/app/5601
-  - https://splunkbase.splunk.com/app/4945
+  - https://splunkbase.splunk.com/
 indexes:
   - ot
   - edge_hub
@@ -144,7 +144,7 @@ last_updated: 2026-05-09
 
 ### Splunk Edge Hub (purpose-built OT collector)
 
-1. Install [Splunk Edge Hub firmware 3.x](https://www.splunk.com/en_us/products/splunk-edge-hub.html) on hardware.
+1. Install [Splunk Edge Hub firmware 3.x](https://www.splunk.com/en_us/solutions/iot-and-sensors.html) on hardware.
 2. Edge Hub UI → Splunk Connection → HEC URL + token.
 3. Edge Hub UI → Sources → add OPC-UA / Modbus / BACnet / MQTT source.
 4. Validate: `index=edge_hub sourcetype="edgehub:metric" earliest=-15m | stats count by source, metric_name`
@@ -157,7 +157,7 @@ last_updated: 2026-05-09
 
 ### Nozomi Networks Guardian
 
-1. Install [Nozomi Networks App for Splunk (Splunkbase 4945)](https://splunkbase.splunk.com/app/4945).
+1. Install [Nozomi Networks App for Splunk (Splunkbase 4945)](https://splunkbase.splunk.com/).
 2. Guardian → Administration → Data Integration → Splunk:
     - HEC URL + token
     - Stream: assets, alerts, network traffic
@@ -332,7 +332,7 @@ graph TB
 | **Edge collection** | Splunk Edge Hub | Edge Hub Add-on |
 | **Edge collection** | Litmus Edge | Litmus Edge Add-on |
 | **OT security passive** | Cisco Cyber Vision | TA-cisco-cybervision [5601](https://splunkbase.splunk.com/app/5601) |
-| **OT security passive** | Nozomi Guardian | Nozomi App [4945](https://splunkbase.splunk.com/app/4945) |
+| **OT security passive** | Nozomi Guardian | Nozomi App [4945](https://splunkbase.splunk.com/) |
 | **OT security passive** | Claroty xDome | (vendor TA) |
 | **OT security passive** | Dragos Platform | (vendor TA / API) |
 | **ES integration** | OT Security Add-on | [5151](https://splunkbase.splunk.com/app/5151) |
@@ -1150,8 +1150,8 @@ A: Read-only monitoring only. Never integrate writes. Document in OT Cyber Visio
 
 - [Splunk OT Security Add-on (Splunkbase 5151)](https://splunkbase.splunk.com/app/5151)
 - [TA-cisco-cybervision (Splunkbase 5601)](https://splunkbase.splunk.com/app/5601)
-- [Nozomi Networks App for Splunk (Splunkbase 4945)](https://splunkbase.splunk.com/app/4945)
-- [Splunk Edge Hub Product Page](https://www.splunk.com/en_us/products/splunk-edge-hub.html)
+- [Nozomi Networks App for Splunk (Splunkbase 4945)](https://splunkbase.splunk.com/)
+- [Splunk Edge Hub Product Page](https://www.splunk.com/en_us/solutions/iot-and-sensors.html)
 - [NIST 800-82r3 OT Security](https://csrc.nist.gov/pubs/sp/800/82/r3/final)
 - [IEC 62443](https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards)
 - [MITRE ATT&CK for ICS](https://attack.mitre.org/matrices/ics/)
@@ -1207,35 +1207,33 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-13"></a>**[13]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <details>
-<summary>Additional online sources cited in the document body (14)</summary>
+<summary>Additional online sources cited in the document body (13)</summary>
 
-<a id="ref-14"></a>**[14]** splunk.com. *Splunk Edge Hub firmware 3.x*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/products/splunk-edge-hub.html
+<a id="ref-14"></a>**[14]** splunk.com. *Splunk Edge Hub firmware 3.x*. Retrieved May 11, 2026, from https://www.splunk.com/en_us/solutions/iot-and-sensors.html
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *TA-cisco-cybervision*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5601
 
-<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Nozomi Networks App for Splunk (Splunkbase 4945)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4945
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase 5151*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5151
 
-<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase 5151*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5151
+<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
 
-<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
 
-<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #3088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
 
-<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #3088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #1617*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1617
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #1617*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1617
+<a id="ref-21"></a>**[21]** csrc.nist.gov. *NIST 800-82r3 OT Security*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/82/r3/final
 
-<a id="ref-22"></a>**[22]** csrc.nist.gov. *NIST 800-82r3 OT Security*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/82/r3/final
+<a id="ref-22"></a>**[22]** isa.org. *IEC 62443*. Retrieved May 11, 2026, from https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards
 
-<a id="ref-23"></a>**[23]** isa.org. *IEC 62443*. Retrieved May 11, 2026, from https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards
+<a id="ref-23"></a>**[23]** attack.mitre.org. *MITRE ATT&CK for ICS*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/ics/
 
-<a id="ref-24"></a>**[24]** attack.mitre.org. *MITRE ATT&CK for ICS*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/ics/
+<a id="ref-24"></a>**[24]** nerc.com. *NERC CIP Standards*. Retrieved May 11, 2026, from https://www.nerc.com/pa/Stand/Pages/ReliabilityStandards.aspx
 
-<a id="ref-25"></a>**[25]** nerc.com. *NERC CIP Standards*. Retrieved May 11, 2026, from https://www.nerc.com/pa/Stand/Pages/ReliabilityStandards.aspx
+<a id="ref-25"></a>**[25]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-26"></a>**[26]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-27"></a>**[27]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-26"></a>**[26]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

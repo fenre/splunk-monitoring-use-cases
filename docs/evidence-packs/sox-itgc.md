@@ -428,7 +428,7 @@ AS 2201 uses a top-down, risk-based approach: identify the significant financial
 ## 8. Authoritative guidance
 
 - **PCAOB AS 2201 Audit of Internal Control Over Financial Reporting** — PCAOB — [https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201)
-- **COSO Internal Control — Integrated Framework (2013)** — COSO — [https://www.coso.org/Pages/ic.aspx](https://www.coso.org/Pages/ic.aspx)
+- **COSO Internal Control — Integrated Framework (2013)** — COSO — [https://www.coso.org/internal-control](https://www.coso.org/internal-control)
 - **COBIT 2019 / COBIT 5 (as ITGC framework)** — ISACA — [https://www.isaca.org/resources/cobit](https://www.isaca.org/resources/cobit)
 - **SEC Commission Guidance Regarding Management's Report on Internal Control Over Financial Reporting** — SEC — [https://www.sec.gov/rules/interp/2007/33-8810.pdf](https://www.sec.gov/rules/interp/2007/33-8810.pdf)
 - **PCAOB inspection reports** — PCAOB — [https://pcaobus.org/oversight/inspections](https://pcaobus.org/oversight/inspections)
@@ -547,7 +547,7 @@ python3 scripts/generate_evidence_packs.py --check
 <details>
 <summary>Additional online sources cited in the document body (4)</summary>
 
-<a id="ref-10"></a>**[10]** coso.org. *coso.org: Ic.Aspx*. Retrieved May 11, 2026, from https://www.coso.org/Pages/ic.aspx
+<a id="ref-10"></a>**[10]** coso.org. *coso.org: Internal Control*. Retrieved May 11, 2026, from https://www.coso.org/internal-control
 
 <a id="ref-11"></a>**[11]** isaca.org. *isaca.org: Cobit*. Retrieved May 11, 2026, from https://www.isaca.org/resources/cobit
 

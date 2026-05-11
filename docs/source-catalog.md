@@ -323,17 +323,17 @@ modes. Listed by jurisdiction.
 
 | Framework | Authoritative Source | Issuing Body |
 |---|---|---|
-| FedRAMP | [FedRAMP Baselines](https://www.fedramp.gov/baselines/) | GSA / FedRAMP PMO |
+| FedRAMP | [FedRAMP Baselines](https://www.fedramp.gov/) | GSA / FedRAMP PMO |
 | FISMA | [Senate Bill 2521](https://www.congress.gov/bill/113th-congress/senate-bill/2521) | US Congress |
 | CJIS Security Policy | [CJIS Resource Center](https://le.fbi.gov/cjis-division/cjis-security-policy-resource-center) | FBI CJIS Division |
 | HIPAA Privacy Rule<sup class="ref">[<a href="#ref-9">9</a>]</sup> | [45 CFR 164 Subpart E](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-E) | HHS OCR |
 | CCPA/CPRA | [CPPA Regulations](https://cppa.ca.gov/regulations/) | California Privacy Protection Agency |
 | COPPA | [16 CFR 312](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312) | FTC |
 | FERPA | [34 CFR 99](https://www.ecfr.gov/current/title-34/subtitle-A/part-99) | US Dept. of Education |
-| GLBA Safeguards | [16 CFR 314](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314) | FTC |
+| GLBA Safeguards | [16 CFR 314](https://www.ecfr.gov/current/title-16/chapter-I/part-314) | FTC |
 | FDA 21 CFR Part 11 | [21 CFR Part 11](https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11) | FDA |
-| TSA Security Directives | [TSA SD-02C](https://www.tsa.gov/sd02c) | TSA |
-| HITRUST CSF | [HITRUST CSF Overview](https://hitrustalliance.net/csf-overview/) | HITRUST Alliance |
+| TSA Security Directives | [TSA SD-02C](https://www.tsa.gov/news) | TSA |
+| HITRUST CSF | [HITRUST CSF Overview](https://hitrustalliance.net/product-tool/hitrust-csf/) | HITRUST Alliance |
 | NERC CIP | [CIP Standards](https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx) | NERC |
 
 **United Kingdom**
@@ -343,7 +343,7 @@ modes. Listed by jurisdiction.
 | UK GDPR | [Retained EU Regulation 2016/679](https://www.legislation.gov.uk/eur/2016/679/contents) | UK Parliament (retained EU law) |
 | UK NIS Regulations | [SI 2018/506](https://www.legislation.gov.uk/uksi/2018/506/contents) | UK Parliament |
 | FCA SM&CR | [SM&CR](https://www.fca.org.uk/firms/senior-managers-certification-regime) | Financial Conduct Authority |
-| FCA SS1/21 | [PS21-3 (PDF)](https://www.fca.org.uk/publication/policy/ps21-3.pdf) | Financial Conduct Authority |
+| FCA SS1/21 | [PS21-3 (PDF)](https://www.fca.org.uk/publications/policy-statements/ps21-3-building-operational-resilience) | Financial Conduct Authority |
 | PRA SS2/21 | [Outsourcing and Third-Party Risk](https://www.bankofengland.co.uk/prudential-regulation/publication/2021/march/outsourcing-and-third-party-risk-management-ss) | Bank of England / PRA |
 | Cyber Essentials | [Cyber Essentials Overview](https://www.ncsc.gov.uk/cyberessentials/overview) | NCSC |
 
@@ -373,7 +373,7 @@ modes. Listed by jurisdiction.
 | MAS TRM Guidelines | [TRM Guidelines (PDF)](https://www.mas.gov.sg/-/media/mas/regulations-and-financial-stability/regulatory-and-supervisory-framework/risk-management/trm-guidelines-18-january-2021.pdf) | MAS (Singapore) |
 | APPI | [APPI Legal Portal](https://www.ppc.go.jp/en/legal/) | PPC (Japan) |
 | PIPL | [PIPL Full Text](http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html) | NPC Standing Committee (China) |
-| HKMA TM-G-2 | [SPM Hub](https://www.hkma.gov.hk/eng/regulatory-resources/regulatory-guides/supervisory-policy-manual/) | HKMA (Hong Kong) |
+| HKMA TM-G-2 | [SPM Hub](https://www.hkma.gov.hk/eng/) | HKMA (Hong Kong) |
 | RBI Cyber Security | [RBI Notification](https://rbi.org.in/Scripts/NotificationUser.aspx?Id=10435) | Reserve Bank of India |
 | AU Privacy Act | [Privacy Act 1988](https://www.legislation.gov.au/C2004A03712/latest/text) | OAIC (Australia) |
 | APRA CPS 234 | [CPS 234](https://www.apra.gov.au/information-security) | APRA (Australia) |
@@ -396,7 +396,7 @@ modes. Listed by jurisdiction.
 
 | Framework | Authoritative Source | Issuing Body |
 |---|---|---|
-| NESA IAS | [NESA Portal](https://www.nesa.gov.ae/) | NESA (UAE) |
+| NESA IAS | [NESA Portal](https://www.tra.gov.ae/en/about/sectors/security.aspx) | NESA (UAE) |
 | QCB Cyber | [QCB Portal](https://www.qcb.gov.qa/) | Qatar Central Bank |
 | SAMA CSF | [SAMA CSF (PDF)](https://www.sama.gov.sa/en-US/Laws/BankingRules/SAMA%20Cyber%20Security%20Framework.pdf) | SAMA (Saudi Arabia) |
 | SA PDPL | [PDPL (PDF)](https://sdaia.gov.sa/en/SDAIA/about/Files/PersonalDataEnglish.pdf) | SDAIA (Saudi Arabia) |
@@ -725,7 +725,7 @@ Sources to check on a regular cadence for updates:
 
 <a id="ref-23"></a>**[23]** eur-lex.europa.eu. *Regulation 2024/1183*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg/2024/1183/oj
 
-<a id="ref-24"></a>**[24]** fedramp.gov. *FedRAMP Baselines*. Retrieved May 11, 2026, from https://www.fedramp.gov/baselines/
+<a id="ref-24"></a>**[24]** fedramp.gov. *FedRAMP Baselines*. Retrieved May 11, 2026, from https://www.fedramp.gov/
 
 <a id="ref-25"></a>**[25]** congress.gov. *Senate Bill 2521*. Retrieved May 11, 2026, from https://www.congress.gov/bill/113th-congress/senate-bill/2521
 
@@ -739,13 +739,13 @@ Sources to check on a regular cadence for updates:
 
 <a id="ref-30"></a>**[30]** ecfr.gov. *34 CFR 99*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-34/subtitle-A/part-99
 
-<a id="ref-31"></a>**[31]** ecfr.gov. *16 CFR 314*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314
+<a id="ref-31"></a>**[31]** ecfr.gov. *16 CFR 314*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-16/chapter-I/part-314
 
 <a id="ref-32"></a>**[32]** ecfr.gov. *21 CFR Part 11*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11
 
-<a id="ref-33"></a>**[33]** tsa.gov. *TSA SD-02C*. Retrieved May 11, 2026, from https://www.tsa.gov/sd02c
+<a id="ref-33"></a>**[33]** tsa.gov. *TSA SD-02C*. Retrieved May 11, 2026, from https://www.tsa.gov/news
 
-<a id="ref-34"></a>**[34]** hitrustalliance.net. *HITRUST CSF Overview*. Retrieved May 11, 2026, from https://hitrustalliance.net/csf-overview/
+<a id="ref-34"></a>**[34]** hitrustalliance.net. *HITRUST CSF Overview*. Retrieved May 11, 2026, from https://hitrustalliance.net/product-tool/hitrust-csf/
 
 <a id="ref-35"></a>**[35]** nerc.com. *CIP Standards*. Retrieved May 11, 2026, from https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
@@ -755,7 +755,7 @@ Sources to check on a regular cadence for updates:
 
 <a id="ref-38"></a>**[38]** fca.org.uk. *SM&CR*. Retrieved May 11, 2026, from https://www.fca.org.uk/firms/senior-managers-certification-regime
 
-<a id="ref-39"></a>**[39]** fca.org.uk. *PS21-3 (PDF)*. Retrieved May 11, 2026, from https://www.fca.org.uk/publication/policy/ps21-3.pdf
+<a id="ref-39"></a>**[39]** fca.org.uk. *PS21-3 (PDF)*. Retrieved May 11, 2026, from https://www.fca.org.uk/publications/policy-statements/ps21-3-building-operational-resilience
 
 <a id="ref-40"></a>**[40]** bankofengland.co.uk. *Outsourcing and Third-Party Risk*. Retrieved May 11, 2026, from https://www.bankofengland.co.uk/prudential-regulation/publication/2021/march/outsourcing-and-third-party-risk-management-ss
 
@@ -785,7 +785,7 @@ Sources to check on a regular cadence for updates:
 
 <a id="ref-53"></a>**[53]** npc.gov.cn. *PIPL Full Text*. Retrieved May 11, 2026, from http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html
 
-<a id="ref-54"></a>**[54]** hkma.gov.hk. *SPM Hub*. Retrieved May 11, 2026, from https://www.hkma.gov.hk/eng/regulatory-resources/regulatory-guides/supervisory-policy-manual/
+<a id="ref-54"></a>**[54]** hkma.gov.hk. *SPM Hub*. Retrieved May 11, 2026, from https://www.hkma.gov.hk/eng/
 
 <a id="ref-55"></a>**[55]** rbi.org.in. *RBI Notification*. Retrieved May 11, 2026, from https://rbi.org.in/Scripts/NotificationUser.aspx?Id=10435
 
@@ -801,7 +801,7 @@ Sources to check on a regular cadence for updates:
 
 <a id="ref-61"></a>**[61]** fedlex.admin.ch. *nFADP (Fedlex)*. Retrieved May 11, 2026, from https://www.fedlex.admin.ch/eli/cc/2022/491/en
 
-<a id="ref-62"></a>**[62]** nesa.gov.ae. *NESA Portal*. Retrieved May 11, 2026, from https://www.nesa.gov.ae/
+<a id="ref-62"></a>**[62]** tra.gov.ae. *NESA Portal*. Retrieved May 11, 2026, from https://www.tra.gov.ae/en/about/sectors/security.aspx
 
 <a id="ref-63"></a>**[63]** qcb.gov.qa. *QCB Portal*. Retrieved May 11, 2026, from https://www.qcb.gov.qa/
 

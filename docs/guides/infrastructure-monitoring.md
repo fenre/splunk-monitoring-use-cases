@@ -1686,12 +1686,20 @@ index=vmware sourcetype="vmware:perf" counter="cpu.ready.summation"
 ### NetApp ONTAP capacity prediction (UC-6.1.1)
 
 ```spl
-index=netapp sourcetype="netapp:ontap:rest" 
+index=netapp sourcetype="netapp:ontap:rest"
 | stats max(used_bytes) as used by aggregate, _time span=1d
 | timechart span=1d max(used) as used by aggregate
 | predict used_aggregate1 future_timespan=180 algorithm=LL
-| where lower95(prediction(used_aggregate1)) > 0.85 * size_aggregate1
+| where 'lower95(used_aggregate1)' > 0.85 * size_aggregate1
 ```
+
+> `| predict` emits three side-channel fields per forecast:
+> `prediction(<field>)`, `lower95(<field>)`, and `upper95(<field>)`.
+> The parentheses are part of the field name, so each one has to be
+> referenced with single quotes — Splunk's escape for non-identifier
+> field names. The earlier formulation `lower95(prediction(...))`
+> implied a nested function call (none exists) and would never
+> compile.
 
 ### Cisco UCS critical-fault aging
 
@@ -1849,7 +1857,7 @@ index=cisco_ucs sourcetype="cisco:ucs:fault" severity IN ("critical", "major")
 - EU NIS2 Directive<sup class="ref">[<a href="#ref-3">3</a>]</sup> — https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 - EU DORA — https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 - NIST CSF 2.0 — https://www.nist.gov/cyberframework
-- NIST SP 800-53 r5 — https://csrc.nist.gov/publications/detail/sp/800-53/rev-5
+- NIST SP 800-53 r5 — https://csrc.nist.gov/pubs/sp/800/53/r5/final
 - NIST SP 800-92 (log management) + 800-184 (ransomware recovery) + 800-207 (ZTA)
 - FedRAMP — https://www.fedramp.gov/
 - DISA STIGs — https://public.cyber.mil/stigs/
@@ -2019,7 +2027,7 @@ For corrections or additions, file an issue with `domain-infrastructure`,
 
 <a id="ref-31"></a>**[31]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework
 
-<a id="ref-32"></a>**[32]** csrc.nist.gov. *NIST: Rev 5*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-53/rev-5
+<a id="ref-32"></a>**[32]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/53/r5/final
 
 <a id="ref-33"></a>**[33]** fedramp.gov. *fedramp.gov*. Retrieved May 11, 2026, from https://www.fedramp.gov/
 

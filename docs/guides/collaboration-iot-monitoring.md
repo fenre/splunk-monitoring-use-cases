@@ -12,8 +12,8 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/4991
   - https://splunkbase.splunk.com/app/4992
   - https://splunkbase.splunk.com/app/5781
-  - https://splunkbase.splunk.com/app/2898
-  - https://splunkbase.splunk.com/app/4955
+  - https://splunkbase.splunk.com/
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/5403
   - https://splunkbase.splunk.com/app/3457
 indexes:
@@ -796,11 +796,15 @@ index=mail_o365 sourcetype="ms:o365:messageTrace"
 | timechart span=15m count by Status
 | join _time
   [ search index=mail_o365 sourcetype="ms:o365:messageTrace" earliest=-30d
-    | timechart span=15m count
-    | rename count as historical_count ]
-| eval median_30d = streamstats median(historical_count) as median_30d
+    | timechart span=15m count as historical_count
+    | streamstats global=f window=2880 median(historical_count) as median_30d ]
 | eval anomaly = if(count > median_30d * 3, "ALERT", "OK")
 ```
+
+> The 30-day trailing median is computed inside the subsearch with
+> `streamstats window=2880` (2880 = 30 days x 24 h x 4 15-min buckets).
+> `streamstats` is a top-level SPL command, not an `eval` function —
+> it must appear as its own pipe segment.
 
 ### OT Asset Inventory Drift (UC-14.9.1)
 
@@ -940,14 +944,14 @@ index=uc_ucm sourcetype="cisco:ucm:cdr" originalCallingPartyNumber=*
 ### Standards and frameworks (with stable URLs)
 
 - ISA/IEC 62443 — https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards
-- NIST SP 800-82 r3 — https://csrc.nist.gov/publications/detail/sp/800-82/rev-3/final
+- NIST SP 800-82 r3 — https://csrc.nist.gov/pubs/sp/800/82/r3/final
 - NERC CIP — https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 - TSA Pipeline Security Directive — https://www.tsa.gov/
 - EPA America's Water Infrastructure Act — https://www.epa.gov/waterresilience/awia-section-2013
 - FDA 21 CFR Part 11 — https://www.fda.gov/regulatory-information/
 - MITRE ATT&CK for ICS — https://attack.mitre.org/matrices/ics/
 - ENISA OT recommendations — https://www.enisa.europa.eu/
-- ASHRAE 188 — https://www.ashrae.org/technical-resources/standards-and-guidelines/standards-addenda/standard-188-2015
+- ASHRAE 188 — https://www.ashrae.org/technical-resources/bookstore
 - F-Gas Regulation EU 2024/573 — https://eur-lex.europa.eu/eli/reg/2024/573/oj
 - IEC 61508 + 61511 + 62443 functional/process/cyber safety
 - Purdue Reference Architecture — ISA-95 + Purdue model
@@ -1038,7 +1042,7 @@ For corrections or additions, file an issue with `domain-collaboration`,
 <a id="ref-11"></a>**[11]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (23)</summary>
+<summary>Additional online sources cited in the document body (22)</summary>
 
 <a id="ref-12"></a>**[12]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
 
@@ -1052,39 +1056,37 @@ For corrections or additions, file an issue with `domain-collaboration`,
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #5781*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5781
 
-<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #2898*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2898
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
-<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #4955*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4955
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #5403*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5403
 
-<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #5403*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5403
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #3457*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3457
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #3457*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3457
+<a id="ref-21"></a>**[21]** isa.org. *isa.org: Isa Iec 62443 Series Of Standards*. Retrieved May 11, 2026, from https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards
 
-<a id="ref-22"></a>**[22]** isa.org. *isa.org: Isa Iec 62443 Series Of Standards*. Retrieved May 11, 2026, from https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards
+<a id="ref-22"></a>**[22]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/pubs/sp/800/82/r3/final
 
-<a id="ref-23"></a>**[23]** csrc.nist.gov. *NIST: Final*. Retrieved May 11, 2026, from https://csrc.nist.gov/publications/detail/sp/800-82/rev-3/final
+<a id="ref-23"></a>**[23]** tsa.gov. *tsa.gov*. Retrieved May 11, 2026, from https://www.tsa.gov/
 
-<a id="ref-24"></a>**[24]** tsa.gov. *tsa.gov*. Retrieved May 11, 2026, from https://www.tsa.gov/
+<a id="ref-24"></a>**[24]** epa.gov. *epa.gov: Awia Section 2013*. Retrieved May 11, 2026, from https://www.epa.gov/waterresilience/awia-section-2013
 
-<a id="ref-25"></a>**[25]** epa.gov. *epa.gov: Awia Section 2013*. Retrieved May 11, 2026, from https://www.epa.gov/waterresilience/awia-section-2013
+<a id="ref-25"></a>**[25]** fda.gov. *fda.gov: Regulatory Information*. Retrieved May 11, 2026, from https://www.fda.gov/regulatory-information/
 
-<a id="ref-26"></a>**[26]** fda.gov. *fda.gov: Regulatory Information*. Retrieved May 11, 2026, from https://www.fda.gov/regulatory-information/
+<a id="ref-26"></a>**[26]** attack.mitre.org. *MITRE ATT&CK Knowledge Base*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/ics/
 
-<a id="ref-27"></a>**[27]** attack.mitre.org. *MITRE ATT&CK Knowledge Base*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/ics/
+<a id="ref-27"></a>**[27]** enisa.europa.eu. *enisa.europa.eu*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/
 
-<a id="ref-28"></a>**[28]** enisa.europa.eu. *enisa.europa.eu*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/
+<a id="ref-28"></a>**[28]** ashrae.org. *ashrae.org: Bookstore*. Retrieved May 11, 2026, from https://www.ashrae.org/technical-resources/bookstore
 
-<a id="ref-29"></a>**[29]** ashrae.org. *ashrae.org: Standard 188 2015*. Retrieved May 11, 2026, from https://www.ashrae.org/technical-resources/standards-and-guidelines/standards-addenda/standard-188-2015
+<a id="ref-29"></a>**[29]** eur-lex.europa.eu. *EU Regulation 2024/573*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg/2024/573/oj
 
-<a id="ref-30"></a>**[30]** eur-lex.europa.eu. *EU Regulation 2024/573*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg/2024/573/oj
+<a id="ref-30"></a>**[30]** cisco.com. *Cisco: Cyber Vision*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/security/cyber-vision/
 
-<a id="ref-31"></a>**[31]** cisco.com. *Cisco: Cyber Vision*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/security/cyber-vision/
+<a id="ref-31"></a>**[31]** cisco.com. *Cisco: Edge Intelligence*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/cloud-systems-management/edge-intelligence/
 
-<a id="ref-32"></a>**[32]** cisco.com. *Cisco: Edge Intelligence*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/cloud-systems-management/edge-intelligence/
+<a id="ref-32"></a>**[32]** help.webex.com. *help.webex.com*. Retrieved May 11, 2026, from https://help.webex.com/
 
-<a id="ref-33"></a>**[33]** help.webex.com. *help.webex.com*. Retrieved May 11, 2026, from https://help.webex.com/
-
-<a id="ref-34"></a>**[34]** developer.webex.com. *developer.webex.com*. Retrieved May 11, 2026, from https://developer.webex.com/
+<a id="ref-33"></a>**[33]** developer.webex.com. *developer.webex.com*. Retrieved May 11, 2026, from https://developer.webex.com/
 
 </details>
 

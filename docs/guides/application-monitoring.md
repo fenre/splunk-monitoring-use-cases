@@ -7,9 +7,9 @@ product: Splunk Application Performance Monitoring (APM) + Splunk Real User Moni
 product_aliases: [application performance monitoring, APM, application performance management, distributed tracing, OpenTelemetry, OTel, OTLP, OTel collector, OpenTelemetry Collector, oc, otelcol, otel-contrib, jaeger, zipkin, w3c trace context, traceparent, tracestate, b3, baggage, span attributes, span events, span links, span kind, span status, span duration, span tracing, instrumentation, auto-instrumentation, manual instrumentation, OpenTracing, OpenCensus, RUM, Real User Monitoring, real-user monitoring, synthetic monitoring, synthetic checks, browser monitoring, mobile monitoring, mobile RUM, web vitals, Core Web Vitals, LCP, FCP, FID, CLS, INP, TTFB, FCP, largest contentful paint, first contentful paint, first input delay, cumulative layout shift, interaction to next paint, time to first byte, navigation timing API, performance API, page weight, JavaScript error tracking, error rate, exception rate, latency p95, p99, p99.9, tail latency, golden signals, RED method, USE method, four golden signals, latency traffic errors saturation, throughput, error rate, RPS, requests per second, RPM, requests per minute, transactions per second, TPS, concurrent users, active users, MAU, DAU, MAU/DAU, AppDynamics, AppD, Cisco AppDynamics, AppDynamics Controller, Dynatrace, Dynatrace OneAgent, ActiveGate, New Relic, New Relic APM, New Relic Browser, New Relic Mobile, New Relic Synthetics, New Relic Pixie, Datadog, Datadog APM, dd-trace, Datadog Synthetics, Datadog Browser RUM, Datadog Mobile RUM, Datadog DBM, Database Monitoring, Datadog Profiling, Honeycomb, Honeycomb Beelines, Honeycomb BubbleUp, Lightstep, Lightstep Microsatellites, ServiceNow Lightstep, AWS X-Ray, X-Ray, AWS App Mesh, AWS App Runner, GCP Cloud Trace, GCP Cloud Profiler, GCP Cloud Monitoring, Azure Application Insights, Azure Monitor, Application Insights, AppInsights, Elastic APM, Elastic Observability, Pinpoint, Naver Pinpoint, SkyWalking, Apache SkyWalking, Sentry, Sentry Performance Monitoring, Sentry Browser Monitoring, Bugsnag, Rollbar, Raygun, AlwaysOn Profiling, continuous profiling, profiling, pprof, async profiler, async-profiler, jfr, JDK flight recorder, jvm profiling, GO profiling, Python profiling, py-spy, eBPF profiling, Polar Signals Parca, Pyroscope, Grafana Pyroscope, performance flamegraph, flame graph, JVM heap, JVM GC, garbage collection, GC pause, G1GC, G1 garbage collector, ZGC, Shenandoah, CMS, ParallelGC, SerialGC, JVM tuning, JVM heap dump, jcmd, jmap, jstack, jstat, JVisualVM, JConsole, JMX, Java Management Extensions, JMX exporter, jolokia, jmxterm, JMC, JDK Mission Control, eclipse MAT, Memory Analyzer Tool, OQL, OutOfMemoryError, OOMKilled, Tomcat, Apache Tomcat, JBoss, JBoss EAP, WildFly, GlassFish, Payara, IBM WebSphere, WAS, WebSphere Liberty, IBM Liberty, OpenLiberty, Open Liberty, Oracle WebLogic, WebLogic Server, Spring Boot, Spring Framework, Spring Cloud, Quarkus, Micronaut, Vert.x, Akka, Akka HTTP, Play Framework, gRPC, grpc, gRPC server, gRPC client, gRPC streaming, http/2, HTTP/3, QUIC, GraphQL, REST, RESTful, OpenAPI, OpenAPI 3.0, OpenAPI 3.1, Swagger, Swagger UI, AsyncAPI, gRPC-web, websocket, WebSockets, Server-Sent Events, SSE, EventSource, Kafka, Apache Kafka, KRaft, MSK, Amazon MSK, Confluent, Confluent Cloud, Confluent Platform, ksqlDB, KSQL, Kafka Streams, Kafka Connect, Schema Registry, Confluent Schema Registry, Apicurio, Strimzi, Kafka MirrorMaker, MirrorMaker2, mirrormaker 2, RabbitMQ, RabbitMQ Streams, ActiveMQ, ActiveMQ Artemis, IBM MQ, IBM Webesphere MQ, MQSeries, NATS, NATS JetStream, Apache Pulsar, Pulsar Functions, Apache Camel, Camel, AWS SQS, SQS, AWS SNS, SNS, AWS Kinesis Data Streams, Kinesis, AWS Kinesis Firehose, Firehose, AWS EventBridge, EventBridge, AWS MSK Serverless, GCP Pub/Sub, Pub/Sub, Azure Service Bus, Azure Event Hubs, Azure Event Grid, Solace, Solace PubSub+, Tibco EMS, Apache Pulsar, NSQ, ZeroMQ, MQTT, MQTT 3, MQTT 5, EMQX, HiveMQ, Mosquitto, Eclipse Mosquitto, Apache ActiveMQ Artemis, IBM Cloud Pak for Integration, NGINX, NGINX Plus, NGINX Ingress, NGINX Open Source, OpenResty, Apache HTTPD, Apache HTTP Server, mod_status, mod_proxy, mod_jk, HAProxy, HAProxy Enterprise, Traefik, Traefik 2, Traefik Mesh, Envoy, Envoy Proxy, Istio, Istio service mesh, Linkerd, Linkerd 2, Consul Connect, Consul Service Mesh, Cilium Service Mesh, Kuma, Open Service Mesh, OSM, AWS App Mesh, AWS Service Mesh, GKE Anthos Service Mesh, ASM, Azure Service Fabric Mesh, IIS, Microsoft IIS, IIS 10, IIS Manager, ASP.NET, ASP.NET Core, .NET Core, .NET 6, .NET 7, .NET 8, ASP.NET Web API, .NET MVC, Web Forms, IIS Application Pool, ASP.NET worker process, w3wp, Windows Worker Process, ASP.NET Core Module, ANCM, ASP.NET Core in-process, ASP.NET Core out-of-process, Kestrel, Kestrel server, IIS Express, IIS Reverse Proxy, IIS as front-end, MySQL, MySQL 8, MariaDB, Percona Server, Percona, MySQL replication, semi-sync replication, GTID replication, MySQL Group Replication, Galera, Percona XtraDB, MySQL InnoDB, MySQL InnoDB Cluster, MySQL ProxySQL, ProxySQL, MaxScale, MariaDB MaxScale, ProxySQL HA, MySQL Router, MySQL Shell, mysqlsh, MySQL slow query log, performance_schema, sys schema, mysqltuner, mysqltuner.pl, mysqlpump, mysqldump, xtrabackup, Percona XtraBackup, mariabackup, MyDumper, mydumper, myloader, gh-ost, gh-ost online schema change, pt-online-schema-change, pt-toolkit, Percona Toolkit, PostgreSQL, postgres, postgres 14, postgres 15, postgres 16, postgres 17, pg_stat_statements, pg_stat_activity, pg_stat_user_tables, pg_stat_user_indexes, pg_stat_replication, pg_stat_wal_receiver, pg_stat_archiver, pg_stat_bgwriter, pg_stat_database, pg_stat_database_conflicts, pg_buffercache, pg_freespacemap, auto_explain, auto-explain, pgaudit, pgBouncer, pgPool, Pgpool, Citus, Citus distributed PostgreSQL, EnterpriseDB, EDB, Greenplum, Vertica, TimescaleDB, hyperscale Citus, AWS RDS for PostgreSQL, Azure Database for PostgreSQL, GCP Cloud SQL for PostgreSQL, AlloyDB, Aurora, Amazon Aurora, Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v2, Babelfish, RDS Proxy, Azure SQL, Azure SQL Database, Azure SQL Managed Instance, SQL MI, Azure Synapse, Synapse Dedicated SQL, Synapse Serverless SQL, Cloud SQL, Cloud Spanner, Spanner, Cloud Bigtable, Bigtable, Firestore, Firestore Native, Datastore, Cosmos DB, Azure Cosmos DB, Cosmos DB Core SQL, Cosmos DB MongoDB API, Cosmos DB Cassandra API, Cosmos DB Gremlin API, DynamoDB, Amazon DynamoDB, DynamoDB Streams, DynamoDB Accelerator, DAX, ElastiCache, AWS ElastiCache, ElastiCache for Redis, ElastiCache for Memcached, MemoryDB, Amazon MemoryDB, MongoDB, MongoDB Atlas, Atlas, MongoDB Replica Set, MongoDB Sharded Cluster, MongoDB Enterprise, MongoDB Ops Manager, mongostat, mongotop, mongosh, mongo shell, mongoexport, mongoimport, Cassandra, Apache Cassandra, ScyllaDB, ScyllaDB Cloud, DataStax Astra, DataStax Enterprise, DSE, OpsCenter, nodetool, cqlsh, sstable, Couchbase, Couchbase Server, Couchbase Capella, N1QL, SQL++, FTS, Riak, Aerospike, Neo4j, Neo4j AuraDB, Neo4j Bloom, Cypher, Gremlin, ArangoDB, OrientDB, Janusgraph, JanusGraph, TigerGraph, MarkLogic, AllegroGraph, Snowflake, Snowflake Cortex, Snowpark, Snowflake Streams, Snowflake Tasks, BigQuery, GCP BigQuery, BQ, BigQuery Omni, BigQuery ML, Looker, Looker Studio, BigQuery slot, slot reservation, edition pricing, Databricks, Databricks SQL, Delta Lake, Delta, Photon, Unity Catalog, MLflow, Delta Live Tables, DLT, Databricks Lakehouse, lakehouse, Apache Iceberg, Iceberg, Apache Hudi, Hudi, Trino, Presto, Trino on AWS, AWS Athena, Amazon Athena, Athena, Athena Workgroups, Hive, Apache Hive, Hadoop, HDFS, Apache Hadoop, MapReduce, YARN, Cloudera CDP, Cloudera, Hortonworks, MapR, AWS EMR, EMR, Elastic MapReduce, GCP Dataproc, Dataproc, Azure HDInsight, HDInsight, Spark, Apache Spark, PySpark, Spark Streaming, Spark Structured Streaming, Spark SQL, Spark MLlib, GraphX, Flink, Apache Flink, Flink CDC, ksqlDB, Materialize, Apache Beam, Beam, Dataflow, GCP Dataflow, Apache Airflow, Airflow, Astronomer, Cloud Composer, MWAA, AWS MWAA, Managed Workflows for Apache Airflow, Prefect, Dagster, Mage AI, Luigi, Apache Oozie, Apache NiFi, NiFi, Apache StreamSets, StreamSets, dbt, dbt Cloud, dbt Core, Elasticsearch, Elastic, ELK, Elastic Stack, Logstash, Beats, Filebeat, Metricbeat, Auditbeat, Heartbeat, Packetbeat, OpenSearch, AWS OpenSearch Service, AWS Elasticsearch Service, OSS Elasticsearch, OpenSearch Dashboards, ECK, Elastic Cloud Kubernetes, ECE, Elastic Cloud Enterprise, Solr, Apache Solr, Elasticsearch index, shard, replica, primary shard, replica shard, snapshot, ILM, index lifecycle management, ISM, index state management, RUM, real user monitoring, browser RUM, mobile RUM, single-page app, SPA, server-side rendering, SSR, client-side rendering, CSR, hydration, web vitals, Core Web Vitals, LCP, FCP, FID, CLS, INP, TTFB, navigation timing, resource timing, performance API, performance observer, GitHub Actions, GitHub, GitHub Enterprise, GHE, GitHub Enterprise Cloud, GHEC, GitLab, GitLab CE, GitLab EE, GitLab CI/CD, GitLab Runner, Bitbucket, Bitbucket Server, Bitbucket Cloud, Bitbucket Pipelines, Atlassian, Jira, Jira Cloud, Jira Software, Jira Service Management, Confluence, Trello, Asana, ClickUp, Linear, Shortcut, Monday.com, Notion, GitLens, Sourcegraph, GitKraken, Tower, Tower Git, Jenkins, Jenkins X, Jenkins Pipeline, Jenkinsfile, CloudBees, CloudBees Jenkins, CircleCI, Travis CI, TeamCity, JetBrains TeamCity, Bamboo, Atlassian Bamboo, GoCD, ThoughtWorks GoCD, Spinnaker, Argo, Argo CD, ArgoCD, Argo Workflows, Argo Rollouts, Argo Events, Tekton, Tekton Pipelines, Flux, Flux CD, FluxCD, Werf, Werf Inc., GitLab AutoDevOps, Auto DevOps, Auto Deploy, Buddy CI, Buddy Works, Drone CI, drone.io, Concourse CI, Concourse, Codefresh, Harness, Harness CD, Harness CI, Octopus Deploy, Spinnaker, Spinnaker on AWS, Wavefront, Tanzu Observability, AWS CodePipeline, CodePipeline, AWS CodeBuild, CodeBuild, AWS CodeDeploy, CodeDeploy, AWS CodeCommit, CodeCommit, AWS CodeArtifact, CodeArtifact, AWS CodeGuru, CodeGuru, GCP Cloud Build, Cloud Build, GCP Cloud Deploy, Cloud Deploy, GCP Artifact Registry, Artifact Registry, GCP Container Registry, GCR, Azure DevOps, Azure DevOps Pipelines, ADO, Azure Pipelines, Azure Repos, Azure Boards, Azure Test Plans, Azure Artifacts, Maven Central, Maven, Apache Maven, Maven repository, Gradle, Apache Ivy, npm, npmjs.com, npm registry, npm packages, npm install, npm audit, yarn, yarnpkg, pnpm, RubyGems, gem, gemfury, Bundler, pip, PyPI, conda, anaconda, miniconda, mamba, micromamba, poetry, pipenv, pipx, NuGet, NuGet.org, dotnet pack, dotnet publish, GoLang modules, Go modules, go.mod, go.sum, Cargo, Rust crate, crates.io, JFrog Artifactory, Artifactory, JFrog Xray, Xray, JFrog Pipelines, JFrog Distribution, JFrog Mission Control, Sonatype Nexus, Nexus Repository, Nexus IQ, Sonatype IQ Server, Sonatype Lifecycle, Anchore, Anchore Enterprise, Aqua Security, Trivy, Aqua Trivy, Snyk, Snyk Container, Snyk Code, Snyk Open Source, Snyk Infrastructure as Code, Snyk Cloud, WhiteSource, Mend, Mend.io, Black Duck, Synopsys, Coverity, FOSSA, Veracode, Checkmarx, SonarQube, SonarCloud, Sonar Lint, Bandit, ESLint, Detekt, Brakeman, semgrep, Semgrep, OWASP ZAP, ZAP, Burp Suite, Burp, GitGuardian, TruffleHog, gitleaks, detect-secrets, Whispers, Hashicorp Vault, OpenSSF Scorecard, scorecard, Sigstore, cosign, Rekor, Fulcio, in-toto, SLSA, Supply-chain Levels for Software Artifacts, attestation, provenance, SBOM, software bill of materials, CycloneDX, CycloneDX SBOM, SPDX, SPDX SBOM, Anchore Syft, Syft, Anchore Grype, Grype, Snyk SBOM, Anchore SBOM, GitHub Dependabot, Dependabot, RenovateBot, Renovate Bot, Whitesource Renovate, GitHub Advanced Security, GHAS, CodeQL, GitHub CodeQL, secret scanning, Dependabot security updates, Dependabot version updates, branch protection, branch protection rules, required reviewers, required status checks, signed commits, GPG signing, SSH commit signing, Sigstore signing, GitHub Actions OIDC, OIDC GitHub Actions, GitLab OIDC, environment, environment protection rules, deployment environment, infrastructure as code, IaC, Terraform, Hashicorp Terraform, Terraform Cloud, Terraform Enterprise, TFC, TFE, terragrunt, Pulumi, Pulumi Cloud, AWS CDK, CDK, AWS SAM, SAM, GCP Deployment Manager, Azure ARM, ARM templates, Bicep, Azure Bicep, CloudFormation, AWS CloudFormation, OpenTofu, OpenTofu Foundation, Crossplane, ArgoCD ApplicationSet, Helm, Helm chart, Helm 3, Kustomize, Kpt, Cluster API, ClusterAPI, Karmada, KubeFed, Kubernetes Federation, GitOps, gitops, OpenGitOps, Argo CD ApplicationSet, Flux Kustomization, Flux HelmRelease, Argo Rollouts canary, blue-green deployment, blue/green, canary deployment, canary release, progressive delivery, feature flag, feature toggle, LaunchDarkly, Split.io, ConfigCat, Unleash, Flagsmith, OpenFeature, OpenFeature spec, OpenFeature SDK, A/B testing, A/B test, multivariate test, MVT, error budget, error budgets, SLO, service level objective, SLA, service level agreement, SLI, service level indicator, burn rate, multi-window burn rate, multiwindow burn rate, two-window burn rate, six-window burn rate, error budget burn rate, alerting on burn rates, alerting on SLOs, golden signals, Brendan Gregg USE method, RED method, Tom Wilkie RED method, Site Reliability Engineering, SRE, sre, Google SRE, Google SRE workbook, Site Reliability Workbook, postmortem, blameless postmortem, post-mortem, root cause analysis, RCA, 5 whys, fishbone, Ishikawa, fault tree, failure mode and effect analysis, FMEA, Splunk ITSI, IT Service Intelligence, ITSI service tree, ITSI KPI, ITSI entity, ITSI episode, ITSI episode review, ITSI Glass Table, ITSI Predictive Analytics, adaptive thresholding, anomaly detection, ITSI episode policy, episode policy, ITSI service template, content pack, ITSI content pack, content pack for monitoring and alerting, CMA, AIOps, AI Ops, ML Ops, MLOps, ServiceNow, ServiceNow ITSM, ServiceNow ITOM, ServiceNow CMDB, ServiceNow Now Platform, ServiceNow Discovery, ServiceNow Service Mapping, ServiceNow Event Management, ServiceNow Performance Analytics, ServiceNow Operational Intelligence, ServiceNow OI, BMC Helix, BMC Remedy, ITIL v4, ITIL 4, ITIL Practitioner, AXELOS ITIL, ServiceNow CSDM, Common Service Data Model, Cherwell, Ivanti Service Manager, Freshservice, Jira Service Management, JSM, Jira Software, ManageEngine ServiceDesk Plus, SolarWinds Service Desk, TopDesk, Atera, ConnectWise Manage, Halo, Halo PSA, Asset Panda, MS Sentinel, Microsoft Sentinel, ServiceNow ITOM, ITOM Visibility, AppDynamics, Cisco AppDynamics, AppD Controller, AppD Browser RUM, AppD Mobile RUM, AppD Synthetic, AppD Cloud Native Visibility, ITRS Geneos, Geneos, Moogsoft, Moogsoft AIOps, BigPanda, OpsRamp, Lights On, Datadog Watchdog, Watchdog, Splunk On-Call, On-Call, VictorOps, PagerDuty, Pager Duty, OpsGenie, Atlassian Opsgenie, xMatters, FireHydrant, FireHydrant Status, Statuspage, Atlassian Statuspage, Better Stack, Status.io, Cachet, Cachet HQ]
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/2882
-  - https://splunkbase.splunk.com/app/2980
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/4239
-  - https://splunkbase.splunk.com/app/2950
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/2882
   - https://splunkbase.splunk.com/app/3010
@@ -737,14 +737,21 @@ exhaust 2% of monthly budget in 1h, which is a clear incident.
 
 ```spl
 | from datamodel:Performance.All_Performance
-| where status="success" 
 | stats count as total_requests, count(eval(status="success" AND duration<200)) as fast_success_requests by service, _time span=5m
 | eval slo_target = 0.999
 | eval error_rate_5m = 1 - (fast_success_requests / total_requests)
 | eval budget_consumed_5m = (error_rate_5m / (1 - slo_target))
-| eval burn_rate_1h = mvavg(budget_consumed_5m, 12)
+| streamstats global=f window=12 avg(budget_consumed_5m) AS burn_rate_1h BY service
 | where burn_rate_1h > 14.4
 ```
+
+> The 1-hour burn-rate is a moving average over twelve 5-minute
+> buckets, expressed in Splunk with `streamstats window=12 avg(...)`.
+> Splunk has no `mvavg()` eval function — the multi-value variants
+> are `mvcount`, `mvfilter`, `mvfind`, `mvindex`, `mvjoin`, `mvmap`,
+> `mvrange`, `mvsort`, `mvzip`, `mv_to_json_array`, and `split`. Use
+> `streamstats` (or `eval avg = mvreduce(mv, sum)/mvcount(mv)`) for
+> averages.
 
 ---
 
@@ -969,13 +976,18 @@ proximity window.
 
 ```spl
 index=app_db sourcetype="postgres:pg_stat_statements"
-| eval baseline_ms = mvfirst(mvexpand(weekly_baseline_ms)), current_ms = mean_exec_time
+| eval baseline_ms = mvindex(weekly_baseline_ms, 0), current_ms = mean_exec_time
 | where current_ms > 2 * baseline_ms AND calls > 100
 | stats sum(calls) as total_calls, avg(current_ms) as avg_current, avg(baseline_ms) as avg_baseline by query
 | eval regression_factor = avg_current / avg_baseline
 | sort - regression_factor
 | head 25
 ```
+
+> Splunk has no `mvfirst()` eval function. The canonical way to pull
+> the first value of a multi-value field is `mvindex(field, 0)`.
+> Likewise, `mvexpand` is a top-level SPL command — not an eval
+> function — so it cannot appear inside `eval`.
 
 ### Kafka consumer lag with predicted exhaustion time
 
@@ -1112,9 +1124,9 @@ map**, not the implementation.
 
 ### Vendor documentation
 
-- Splunk Application Performance Monitoring<sup class="ref">[<a href="#ref-1">1</a>]</sup> (APM) — https://docs.splunk.com/Observability/apm
-- Splunk Real User Monitoring<sup class="ref">[<a href="#ref-11">11</a>]</sup> (RUM) — https://docs.splunk.com/Observability/rum
-- Splunk Synthetic Monitoring — https://docs.splunk.com/Observability/synthetics
+- Splunk Application Performance Monitoring<sup class="ref">[<a href="#ref-1">1</a>]</sup> (APM) — https://docs.splunk.com/observability/en/apm/intro-to-apm.html
+- Splunk Real User Monitoring<sup class="ref">[<a href="#ref-11">11</a>]</sup> (RUM) — https://docs.splunk.com/observability/en/rum/intro-to-rum.html
+- Splunk Synthetic Monitoring — https://docs.splunk.com/observability/en/synthetics/intro-synthetics.html
 - Splunk Distribution of OpenTelemetry Collector — https://github.com/signalfx/splunk-otel-collector
 - Splunk DB Connect — https://docs.splunk.com/Documentation/DBX
 - Splunk ITSI documentation — https://docs.splunk.com/Documentation/ITSI/latest/Configure/KPIoverview
@@ -1126,7 +1138,7 @@ map**, not the implementation.
 - W3C Trace Context — https://www.w3.org/TR/trace-context/
 - MySQL slow query log documentation — https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html
 - PostgreSQL pg_stat_statements — https://www.postgresql.org/docs/current/pgstatstatements.html
-- ITIL v4 (Axelos) — https://www.axelos.com/best-practice-solutions/itil
+- ITIL v4 (Axelos) — https://www.axelos.com/
 
 ### Standards and frameworks
 
@@ -1200,65 +1212,59 @@ For corrections or additions, file an issue with `domain-application`,
 <a id="ref-15"></a>**[15]** Wilkie, T. (2018, April). *Monitoring Microservices The RED Way*. Grafana Labs (originally Weaveworks Engineering Blog). https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/
 
 <details>
-<summary>Additional online sources cited in the document body (29)</summary>
+<summary>Additional online sources cited in the document body (26)</summary>
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #2882*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2882
 
-<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #2980*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2980
+<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #4239*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4239
 
-<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #2950*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2950
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
 
-<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #3110*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3110
+<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunkbase app #3010*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3010
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #3010*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3010
+<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunkbase app #3719*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3719
 
-<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunkbase app #3719*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3719
+<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunkbase app #4181*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4181
 
-<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #4181*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4181
+<a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #4647*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4647
 
-<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #4647*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4647
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #5256*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5256
 
-<a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunkbase app #5256*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/5256
+<a id="ref-25"></a>**[25]** splunkbase.splunk.com. *Splunkbase app #3274*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3274
 
-<a id="ref-26"></a>**[26]** splunkbase.splunk.com. *Splunkbase app #3274*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3274
+<a id="ref-26"></a>**[26]** splunkbase.splunk.com. *Splunkbase app #3457*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3457
 
-<a id="ref-27"></a>**[27]** splunkbase.splunk.com. *Splunkbase app #3457*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3457
+<a id="ref-27"></a>**[27]** docs.splunk.com. *Splunk Observability: Intro Synthetics*. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/synthetics/intro-synthetics.html
 
-<a id="ref-28"></a>**[28]** docs.splunk.com. *docs.splunk.com: Apm*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability/apm
+<a id="ref-28"></a>**[28]** github.com. *GitHub: signalfx/splunk-otel-collector*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
 
-<a id="ref-29"></a>**[29]** docs.splunk.com. *docs.splunk.com: Rum*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability/rum
+<a id="ref-29"></a>**[29]** docs.splunk.com. *Splunk DBX*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/DBX
 
-<a id="ref-30"></a>**[30]** docs.splunk.com. *docs.splunk.com: Synthetics*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability/synthetics
+<a id="ref-30"></a>**[30]** docs.splunk.com. *Splunk ITSI: Kpioverview*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI/latest/Configure/KPIoverview
 
-<a id="ref-31"></a>**[31]** github.com. *GitHub: signalfx/splunk-otel-collector*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
+<a id="ref-31"></a>**[31]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability
 
-<a id="ref-32"></a>**[32]** docs.splunk.com. *Splunk DBX*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/DBX
+<a id="ref-32"></a>**[32]** splunkbase.splunk.com. *Splunkbase app #1928*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1928
 
-<a id="ref-33"></a>**[33]** docs.splunk.com. *Splunk ITSI: Kpioverview*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI/latest/Configure/KPIoverview
+<a id="ref-33"></a>**[33]** opentelemetry.io. *OpenTelemetry: Semconv*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/
 
-<a id="ref-34"></a>**[34]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability
+<a id="ref-34"></a>**[34]** opentelemetry.io. *OpenTelemetry: Gen Ai*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/
 
-<a id="ref-35"></a>**[35]** splunkbase.splunk.com. *Splunkbase app #1928*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1928
+<a id="ref-35"></a>**[35]** w3.org. *W3C: Trace Context*. Retrieved May 11, 2026, from https://www.w3.org/TR/trace-context/
 
-<a id="ref-36"></a>**[36]** opentelemetry.io. *OpenTelemetry: Semconv*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/
+<a id="ref-36"></a>**[36]** dev.mysql.com. *dev.mysql.com: Slow Query Log*. Retrieved May 11, 2026, from https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html
 
-<a id="ref-37"></a>**[37]** opentelemetry.io. *OpenTelemetry: Gen Ai*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/gen-ai/
+<a id="ref-37"></a>**[37]** postgresql.org. *postgresql.org: Pgstatstatements*. Retrieved May 11, 2026, from https://www.postgresql.org/docs/current/pgstatstatements.html
 
-<a id="ref-38"></a>**[38]** w3.org. *W3C: Trace Context*. Retrieved May 11, 2026, from https://www.w3.org/TR/trace-context/
+<a id="ref-38"></a>**[38]** axelos.com. *axelos.com*. Retrieved May 11, 2026, from https://www.axelos.com/
 
-<a id="ref-39"></a>**[39]** dev.mysql.com. *dev.mysql.com: Slow Query Log*. Retrieved May 11, 2026, from https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html
+<a id="ref-39"></a>**[39]** sre.google. *sre.google: Books*. Retrieved May 11, 2026, from https://sre.google/books/
 
-<a id="ref-40"></a>**[40]** postgresql.org. *postgresql.org: Pgstatstatements*. Retrieved May 11, 2026, from https://www.postgresql.org/docs/current/pgstatstatements.html
+<a id="ref-40"></a>**[40]** cloud.google.com. *Google Cloud: Devops*. Retrieved May 11, 2026, from https://cloud.google.com/devops
 
-<a id="ref-41"></a>**[41]** axelos.com. *axelos.com: Itil*. Retrieved May 11, 2026, from https://www.axelos.com/best-practice-solutions/itil
-
-<a id="ref-42"></a>**[42]** sre.google. *sre.google: Books*. Retrieved May 11, 2026, from https://sre.google/books/
-
-<a id="ref-43"></a>**[43]** cloud.google.com. *Google Cloud: Devops*. Retrieved May 11, 2026, from https://cloud.google.com/devops
-
-<a id="ref-44"></a>**[44]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework
+<a id="ref-41"></a>**[41]** nist.gov. *NIST Cybersecurity Framework*. Retrieved May 11, 2026, from https://www.nist.gov/cyberframework
 
 </details>
 

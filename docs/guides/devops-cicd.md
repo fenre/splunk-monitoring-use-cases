@@ -6,7 +6,7 @@ product_aliases: [Jenkins, GitHub Actions, GHA, GitLab CI, GitLab pipelines, Bit
 ta_name: Splunk App for Jenkins, Splunk Add-on for GitHub, Splunk Add-on for GitLab, Splunk Add-on for AWS (CodePipeline / CodeBuild), Splunk Add-on for Microsoft Cloud Services (Azure DevOps), Splunk_TA_aws (CloudTrail for IaC), Custom HEC inputs (webhook-based for most CI/CD)
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/3332
-  - https://splunkbase.splunk.com/app/2849
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/4865
   - https://splunkbase.splunk.com/app/1876
   - https://splunkbase.splunk.com/app/3110
@@ -1085,7 +1085,7 @@ A: Combine GitHub Advanced Security + Dependabot + custom Splunk lookup of allow
 ## References
 
 - [Splunk App for Jenkins (Splunkbase 3332)](https://splunkbase.splunk.com/app/3332)
-- [Splunk Add-on for GitHub (Splunkbase 2849)](https://splunkbase.splunk.com/app/2849)
+- [Splunk Add-on for GitHub (Splunkbase 2849)](https://splunkbase.splunk.com/)
 - [Splunk Add-on for GitLab (Splunkbase 4865)](https://splunkbase.splunk.com/app/4865)
 - [DORA Report 2024](https://dora.dev/research/)
 - [SLSA Framework](https://slsa.dev/)
@@ -1146,7 +1146,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk App for Jenkins (Splunkbase 3332)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3332
 
-<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk Add-on for GitHub (Splunkbase 2849)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2849
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk Add-on for GitHub (Splunkbase 2849)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunk Add-on for GitLab (Splunkbase 4865)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4865
 

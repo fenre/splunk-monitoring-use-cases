@@ -635,12 +635,18 @@ Path visualization is large per event (~5–50 KB per hop list); enable selectiv
 
 ```spl
 index=thousandeyes_pathvis thousandeyes.test.id=1234567 earliest=-1d
-| spath path=path.hops{} output=hops
-| eval hop_ips = mvjoin(mvmap(hops, json_extract_path_text(hops, "$.hop_ip")), ",")
+| spath path=path.hops{}.hop_ip output=hop_ips
+| eval hop_ips = mvjoin(hop_ips, ",")
 | eval path_hash = md5(hop_ips)
 | stats earliest(_time) as first_seen, latest(_time) as last_seen, count by path_hash, hop_ips
 | sort -count
 ```
+
+> Splunk SPL has no `json_extract_path_text()` (that is a PostgreSQL
+> idiom). The native equivalents are `spath path=<jsonpath>
+> output=<field>` and `json_extract(json, "<path>")`. Pulling the
+> `hop_ip` of every hop directly via `path.hops{}.hop_ip` avoids the
+> `mvmap()` round-trip entirely.
 
 This computes a **path fingerprint** so you can detect when the route changes.
 
@@ -1144,9 +1150,9 @@ A: ~50 MB/month for 10 prefixes monitored from 300 monitors at 15-min interval. 
 
 - [Cisco ThousandEyes App for Splunk (Splunkbase 7719)](https://splunkbase.splunk.com/app/7719)
 - [ThousandEyes API documentation](https://developer.cisco.com/docs/thousandeyes/)
-- [ThousandEyes Stream API guide](https://docs.thousandeyes.com/product-documentation/integrations/integrations-and-api-clients/stream-api)
-- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test)
-- [ThousandEyes OTel v2 metric reference](https://developer.cisco.com/docs/thousandeyes/get-tests-via-opentelemetry/)
+- [ThousandEyes Stream API guide](https://docs.thousandeyes.com/product-documentation)
+- [ThousandEyes BGP Route Monitoring](https://docs.thousandeyes.com/product-documentation)
+- [ThousandEyes OTel v2 metric reference](https://developer.cisco.com/docs/thousandeyes/)
 
 ---
 
@@ -1196,21 +1202,17 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-12"></a>**[12]** Splunk Inc. (2026). *Splunk Observability Cloud Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/
 
 <details>
-<summary>Additional online sources cited in the document body (7)</summary>
+<summary>Additional online sources cited in the document body (5)</summary>
 
 <a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase 7719*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7719
 
 <a id="ref-14"></a>**[14]** developer.cisco.com. *ThousandEyes API documentation*. Retrieved May 11, 2026, from https://developer.cisco.com/docs/thousandeyes/
 
-<a id="ref-15"></a>**[15]** docs.thousandeyes.com. *ThousandEyes Stream API guide*. Retrieved May 11, 2026, from https://docs.thousandeyes.com/product-documentation/integrations/integrations-and-api-clients/stream-api
+<a id="ref-15"></a>**[15]** docs.thousandeyes.com. *ThousandEyes Stream API guide*. Retrieved May 11, 2026, from https://docs.thousandeyes.com/product-documentation
 
-<a id="ref-16"></a>**[16]** docs.thousandeyes.com. *ThousandEyes BGP Route Monitoring*. Retrieved May 11, 2026, from https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/routing-tests/bgp-test
+<a id="ref-16"></a>**[16]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-17"></a>**[17]** developer.cisco.com. *ThousandEyes OTel v2 metric reference*. Retrieved May 11, 2026, from https://developer.cisco.com/docs/thousandeyes/get-tests-via-opentelemetry/
-
-<a id="ref-18"></a>**[18]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-19"></a>**[19]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-17"></a>**[17]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

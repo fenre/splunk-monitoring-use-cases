@@ -1233,7 +1233,7 @@ A: Sawtooth pattern with rising baseline (see SPL above). Or compare 7-day basel
 
 - [TA-jmx (Splunkbase 2647)](https://splunkbase.splunk.com/app/2647)
 - [Splunk OpenTelemetry Collector](https://github.com/signalfx/splunk-otel-collector)
-- [Splunk APM docs](https://docs.splunk.com/observability/apm/)
+- [Splunk APM docs](https://docs.splunk.com/observability/en/apm/intro-to-apm.html)
 - [Splunk OTel .NET](https://github.com/signalfx/splunk-otel-dotnet)
 - [Splunk OTel Java](https://github.com/signalfx/splunk-otel-java)
 - [Splunk OTel Node.js](https://github.com/signalfx/splunk-otel-js)
@@ -1292,27 +1292,25 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-14"></a>**[14]** Wilkie, T. (2018, April). *Monitoring Microservices The RED Way*. Grafana Labs (originally Weaveworks Engineering Blog). https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/
 
 <details>
-<summary>Additional online sources cited in the document body (10)</summary>
+<summary>Additional online sources cited in the document body (9)</summary>
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *TA-jmx (Splunkbase 2647)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2647
 
 <a id="ref-16"></a>**[16]** github.com. *Splunk OpenTelemetry Collector*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
 
-<a id="ref-17"></a>**[17]** docs.splunk.com. *Splunk APM docs*. Retrieved May 11, 2026, from https://docs.splunk.com/observability/apm/
+<a id="ref-17"></a>**[17]** github.com. *Splunk OTel .NET*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-dotnet
 
-<a id="ref-18"></a>**[18]** github.com. *Splunk OTel .NET*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-dotnet
+<a id="ref-18"></a>**[18]** github.com. *Splunk OTel Java*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-java
 
-<a id="ref-19"></a>**[19]** github.com. *Splunk OTel Java*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-java
+<a id="ref-19"></a>**[19]** github.com. *Splunk OTel Node.js*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-js
 
-<a id="ref-20"></a>**[20]** github.com. *Splunk OTel Node.js*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-js
+<a id="ref-20"></a>**[20]** github.com. *Splunk OTel Python*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-python
 
-<a id="ref-21"></a>**[21]** github.com. *Splunk OTel Python*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-python
+<a id="ref-21"></a>**[21]** opentelemetry.io. *OpenTelemetry spec*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/
 
-<a id="ref-22"></a>**[22]** opentelemetry.io. *OpenTelemetry spec*. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/
+<a id="ref-22"></a>**[22]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-23"></a>**[23]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-24"></a>**[24]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-23"></a>**[23]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

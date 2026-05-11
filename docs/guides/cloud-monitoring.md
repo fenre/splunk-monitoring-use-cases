@@ -14,7 +14,7 @@ splunkbase_urls:
   - https://splunkbase.splunk.com/app/5557
   - https://splunkbase.splunk.com/app/3110
   - https://splunkbase.splunk.com/app/4501
-  - https://splunkbase.splunk.com/app/4500
+  - https://splunkbase.splunk.com/
 indexes:
   - cloud_aws_cloudtrail
   - cloud_aws_cloudwatch
@@ -945,7 +945,7 @@ index=cloud_finops_chargeback sourcetype="kubecost:export"
 - AWS GuardDuty — https://docs.aws.amazon.com/guardduty/
 - AWS Security Hub — https://docs.aws.amazon.com/securityhub/
 - AWS Well-Architected Framework — https://aws.amazon.com/architecture/well-architected/
-- AWS Well-Architected Lenses — https://aws.amazon.com/architecture/well-architected/lenses/
+- AWS Well-Architected Lenses — https://aws.amazon.com/architecture/well-architected/
 - Azure Monitor<sup class="ref">[<a href="#ref-8">8</a>]</sup> — https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log
 - Microsoft Defender for Cloud — https://learn.microsoft.com/en-us/azure/defender-for-cloud/
 - Azure Well-Architected Framework — https://learn.microsoft.com/en-us/azure/well-architected/
@@ -973,7 +973,7 @@ index=cloud_finops_chargeback sourcetype="kubecost:export"
 - Cloud Security Alliance Cloud Controls Matrix CCM v4 — https://cloudsecurityalliance.org/research/cloud-controls-matrix/
 - CIS AWS Foundations Benchmark — https://www.cisecurity.org/benchmark/amazon_web_services
 - CIS Microsoft Azure Foundations Benchmark — https://www.cisecurity.org/benchmark/azure
-- CIS Google Cloud Platform Foundations Benchmark — https://www.cisecurity.org/benchmark/google_cloud
+- CIS Google Cloud Platform Foundations Benchmark — https://www.cisecurity.org/cis-benchmarks
 - CIS Kubernetes Benchmark — https://www.cisecurity.org/benchmark/kubernetes
 - CIS Docker Benchmark — https://www.cisecurity.org/benchmark/docker
 - NIST SP 800-204 (Microservices) + 800-207 (ZTA) + 800-209 (Storage) + 800-210 (Cloud-native)
@@ -1047,7 +1047,7 @@ For corrections or additions, file an issue with `domain-cloud`,
 <a id="ref-16"></a>**[16]** Wilkie, T. (2018, April). *Monitoring Microservices The RED Way*. Grafana Labs (originally Weaveworks Engineering Blog). https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/
 
 <details>
-<summary>Additional online sources cited in the document body (37)</summary>
+<summary>Additional online sources cited in the document body (36)</summary>
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #3088*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
 
@@ -1063,7 +1063,7 @@ For corrections or additions, file an issue with `domain-cloud`,
 
 <a id="ref-23"></a>**[23]** splunkbase.splunk.com. *Splunkbase app #4501*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4501
 
-<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase app #4500*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4500
+<a id="ref-24"></a>**[24]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-25"></a>**[25]** docs.aws.amazon.com. *AWS Documentation: Cloudtrail User Guide*. Retrieved May 11, 2026, from https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html
 
@@ -1075,53 +1075,51 @@ For corrections or additions, file an issue with `domain-cloud`,
 
 <a id="ref-29"></a>**[29]** aws.amazon.com. *AWS: Well Architected*. Retrieved May 11, 2026, from https://aws.amazon.com/architecture/well-architected/
 
-<a id="ref-30"></a>**[30]** aws.amazon.com. *AWS: Lenses*. Retrieved May 11, 2026, from https://aws.amazon.com/architecture/well-architected/lenses/
+<a id="ref-30"></a>**[30]** learn.microsoft.com. *Microsoft Learn: Activity Log*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log
 
-<a id="ref-31"></a>**[31]** learn.microsoft.com. *Microsoft Learn: Activity Log*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log
+<a id="ref-31"></a>**[31]** learn.microsoft.com. *Microsoft Learn: Defender For Cloud*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/defender-for-cloud/
 
-<a id="ref-32"></a>**[32]** learn.microsoft.com. *Microsoft Learn: Defender For Cloud*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/defender-for-cloud/
+<a id="ref-32"></a>**[32]** learn.microsoft.com. *Microsoft Learn: Well Architected*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/well-architected/
 
-<a id="ref-33"></a>**[33]** learn.microsoft.com. *Microsoft Learn: Well Architected*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/azure/well-architected/
+<a id="ref-33"></a>**[33]** cloud.google.com. *Google Cloud: Export*. Retrieved May 11, 2026, from https://cloud.google.com/logging/docs/export
 
-<a id="ref-34"></a>**[34]** cloud.google.com. *Google Cloud: Export*. Retrieved May 11, 2026, from https://cloud.google.com/logging/docs/export
+<a id="ref-34"></a>**[34]** cloud.google.com. *Google Cloud: Security Command Center*. Retrieved May 11, 2026, from https://cloud.google.com/security-command-center
 
-<a id="ref-35"></a>**[35]** cloud.google.com. *Google Cloud: Security Command Center*. Retrieved May 11, 2026, from https://cloud.google.com/security-command-center
+<a id="ref-35"></a>**[35]** cloud.google.com. *Google Cloud: Framework*. Retrieved May 11, 2026, from https://cloud.google.com/architecture/framework
 
-<a id="ref-36"></a>**[36]** cloud.google.com. *Google Cloud: Framework*. Retrieved May 11, 2026, from https://cloud.google.com/architecture/framework
+<a id="ref-36"></a>**[36]** etcd.io. *etcd.io: Monitoring*. Retrieved May 11, 2026, from https://etcd.io/docs/v3.5/op-guide/monitoring/
 
-<a id="ref-37"></a>**[37]** etcd.io. *etcd.io: Monitoring*. Retrieved May 11, 2026, from https://etcd.io/docs/v3.5/op-guide/monitoring/
+<a id="ref-37"></a>**[37]** istio.io. *istio.io: Metrics*. Retrieved May 11, 2026, from https://istio.io/latest/docs/tasks/observability/metrics/
 
-<a id="ref-38"></a>**[38]** istio.io. *istio.io: Metrics*. Retrieved May 11, 2026, from https://istio.io/latest/docs/tasks/observability/metrics/
+<a id="ref-38"></a>**[38]** docs.openshift.com. *OpenShift: Monitoring Overview*. Retrieved May 11, 2026, from https://docs.openshift.com/container-platform/latest/monitoring/monitoring-overview.html
 
-<a id="ref-39"></a>**[39]** docs.openshift.com. *OpenShift: Monitoring Overview*. Retrieved May 11, 2026, from https://docs.openshift.com/container-platform/latest/monitoring/monitoring-overview.html
+<a id="ref-39"></a>**[39]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
 
-<a id="ref-40"></a>**[40]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
+<a id="ref-40"></a>**[40]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/observability
 
-<a id="ref-41"></a>**[41]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/observability
+<a id="ref-41"></a>**[41]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability
 
-<a id="ref-42"></a>**[42]** docs.splunk.com. *docs.splunk.com: Observability*. Retrieved May 11, 2026, from https://docs.splunk.com/Observability
+<a id="ref-42"></a>**[42]** finops.org. *finops.org: Framework*. Retrieved May 11, 2026, from https://www.finops.org/framework/
 
-<a id="ref-43"></a>**[43]** finops.org. *finops.org: Framework*. Retrieved May 11, 2026, from https://www.finops.org/framework/
+<a id="ref-43"></a>**[43]** focus.finops.org. *focus.finops.org*. Retrieved May 11, 2026, from https://focus.finops.org/
 
-<a id="ref-44"></a>**[44]** focus.finops.org. *focus.finops.org*. Retrieved May 11, 2026, from https://focus.finops.org/
+<a id="ref-44"></a>**[44]** opencost.io. *opencost.io*. Retrieved May 11, 2026, from https://www.opencost.io/
 
-<a id="ref-45"></a>**[45]** opencost.io. *opencost.io*. Retrieved May 11, 2026, from https://www.opencost.io/
+<a id="ref-45"></a>**[45]** cloudsecurityalliance.org. *cloudsecurityalliance.org: Cloud Controls Matrix*. Retrieved May 11, 2026, from https://cloudsecurityalliance.org/research/cloud-controls-matrix/
 
-<a id="ref-46"></a>**[46]** cloudsecurityalliance.org. *cloudsecurityalliance.org: Cloud Controls Matrix*. Retrieved May 11, 2026, from https://cloudsecurityalliance.org/research/cloud-controls-matrix/
+<a id="ref-46"></a>**[46]** cisecurity.org. *cisecurity.org: Amazon Web Services*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/amazon_web_services
 
-<a id="ref-47"></a>**[47]** cisecurity.org. *cisecurity.org: Amazon Web Services*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/amazon_web_services
+<a id="ref-47"></a>**[47]** cisecurity.org. *cisecurity.org: Azure*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/azure
 
-<a id="ref-48"></a>**[48]** cisecurity.org. *cisecurity.org: Azure*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/azure
+<a id="ref-48"></a>**[48]** cisecurity.org. *cisecurity.org: Cis Benchmarks*. Retrieved May 11, 2026, from https://www.cisecurity.org/cis-benchmarks
 
-<a id="ref-49"></a>**[49]** cisecurity.org. *cisecurity.org: Google Cloud*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/google_cloud
+<a id="ref-49"></a>**[49]** cisecurity.org. *cisecurity.org: Kubernetes*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/kubernetes
 
-<a id="ref-50"></a>**[50]** cisecurity.org. *cisecurity.org: Kubernetes*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/kubernetes
+<a id="ref-50"></a>**[50]** cisecurity.org. *cisecurity.org: Docker*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/docker
 
-<a id="ref-51"></a>**[51]** cisecurity.org. *cisecurity.org: Docker*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/docker
+<a id="ref-51"></a>**[51]** attack.mitre.org. *MITRE ATT&CK Knowledge Base*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/enterprise/cloud/
 
-<a id="ref-52"></a>**[52]** attack.mitre.org. *MITRE ATT&CK Knowledge Base*. Retrieved May 11, 2026, from https://attack.mitre.org/matrices/enterprise/cloud/
-
-<a id="ref-53"></a>**[53]** landscape.cncf.io. *landscape.cncf.io*. Retrieved May 11, 2026, from https://landscape.cncf.io/
+<a id="ref-52"></a>**[52]** landscape.cncf.io. *landscape.cncf.io*. Retrieved May 11, 2026, from https://landscape.cncf.io/
 
 </details>
 

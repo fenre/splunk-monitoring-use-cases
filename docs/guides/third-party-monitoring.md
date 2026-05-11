@@ -5,11 +5,11 @@ product: Third-party monitoring tool integration with Splunk — legacy NMS (Nag
 product_aliases: [Nagios, Nagios Core, Nagios XI, Icinga, Icinga 2, Zabbix, SolarWinds, SolarWinds NPM, SolarWinds SAM, Nimsoft, CA Nimsoft, DX UIM, SCOM, System Center Operations Manager, BMC TrueSight, Patrol, Tivoli, Netcool, OMNIbus, OpenView, OpManager, PRTG, WhatsUp Gold, LibreNMS, Centreon, Sensu, Datadog, Dynatrace, New Relic, AppDynamics, Elastic, Grafana, Grafana Cloud, Prometheus, Cortex, Mimir, Thanos, Honeycomb, Lightstep, PagerDuty, Opsgenie, VictorOps, xMatters, SNMP trap, syslog, webhook, HEC, Splunk On-Call, monitoring consolidation, single pane of glass, MELT bridge, third-party monitoring]
 ta_name: Splunk Add-on for Nagios Core, Zabbix Add-on For Splunk (Splunkbase 6037), Icinga2 passive checks, Splunk Add-on for SolarWinds (Splunkbase 1923), Splunk_TA_microsoft-scom (deprecated; use Operations Manager Web API), Splunk Add-on for SNMP traps (Splunkbase 1851), Splunk Connect for Syslog (SC4S), Splunk Add-on for Datadog (community), Splunk Add-on for Prometheus / OpenMetrics, Splunk Add-on for OpenTelemetry, Splunk PagerDuty App, Splunk Opsgenie App, Splunk Add-on for Microsoft Teams (community), generic webhook to HEC
 splunkbase_urls:
-  - https://splunkbase.splunk.com/app/1851
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/1923
   - https://splunkbase.splunk.com/app/6037
   - https://splunkbase.splunk.com/app/4923
-  - https://splunkbase.splunk.com/app/4533
+  - https://splunkbase.splunk.com/
   - https://github.com/splunk/splunk-connect-for-syslog
   - https://splunkbase.splunk.com/app/2757
 indexes:
@@ -1375,7 +1375,7 @@ Then the CIM Alerts data model auto-includes all of them.
 
 ```spl
 # Cross-tool dashboard panel
-| tstats summariesonly=true count FROM datamodel=Alerts WHERE Alerts.severity=critical earliest=-1h
+| tstats summariesonly=t count FROM datamodel=Alerts WHERE Alerts.severity=critical earliest=-1h
         BY Alerts.app, Alerts.severity, Alerts.dest
 ```
 
@@ -1809,14 +1809,14 @@ Input wrapper before forwarding to HEC.
 
 ### Splunk add-ons
 
-- [Splunk Add-on for Nagios Core](https://splunkbase.splunk.com/app/1944)
+- [Splunk Add-on for Nagios Core](https://splunkbase.splunk.com/)
 - [Zabbix Add-on for Splunk (Splunkbase 6037)](https://splunkbase.splunk.com/app/6037)
 - [Splunk Add-on for SolarWinds (Splunkbase 1923)](https://splunkbase.splunk.com/app/1923)
-- [Splunk Add-on for SNMP (Splunkbase 1851)](https://splunkbase.splunk.com/app/1851)
-- [Splunk_TA_AppDynamics (Splunkbase 4533)](https://splunkbase.splunk.com/app/4533)
+- [Splunk Add-on for SNMP (Splunkbase 1851)](https://splunkbase.splunk.com/)
+- [Splunk_TA_AppDynamics (Splunkbase 4533)](https://splunkbase.splunk.com/)
 - [Splunk Add-on for OpenTelemetry (Splunkbase 4923)](https://splunkbase.splunk.com/app/4923)
-- [Splunk PagerDuty App](https://splunkbase.splunk.com/app/1378)
-- [Splunk Opsgenie App](https://splunkbase.splunk.com/app/4521)
+- [Splunk PagerDuty App](https://splunkbase.splunk.com/)
+- [Splunk Opsgenie App](https://splunkbase.splunk.com/)
 
 ### SC4S
 
@@ -1829,7 +1829,7 @@ Input wrapper before forwarding to HEC.
 - [Zabbix API](https://www.zabbix.com/documentation/current/en/manual/api)
 - [Icinga 2 API](https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/)
 - [SolarWinds Orion SDK](https://github.com/solarwinds/OrionSDK)
-- [SCOM Web API](https://docs.microsoft.com/en-us/system-center/scom/manage-mp-applications)
+- [SCOM Web API](https://learn.microsoft.com/en-us/system-center/scom/)
 - [Datadog Events API](https://docs.datadoghq.com/api/latest/events/)
 - [Dynatrace Problem API](https://docs.dynatrace.com/docs/dynatrace-api/environment-api/problems/)
 - [New Relic NerdGraph](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/)
@@ -1898,59 +1898,51 @@ The full catalog is at
 <a id="ref-14"></a>**[14]** Splunk Inc. (2026). *Splunk Observability Cloud Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/
 
 <details>
-<summary>Additional online sources cited in the document body (26)</summary>
+<summary>Additional online sources cited in the document body (22)</summary>
 
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Nagios Core*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1944
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Nagios Core*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Zabbix Add-on for Splunk (Splunkbase 6037)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/6037
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunk Add-on for SolarWinds (Splunkbase 1923)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1923
 
-<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunk Add-on for SNMP (Splunkbase 1851)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1851
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunk Add-on for OpenTelemetry (Splunkbase 4923)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4923
 
-<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunk_TA_AppDynamics (Splunkbase 4533)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4533
+<a id="ref-19"></a>**[19]** github.com. *Splunk Connect for Syslog GitHub*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
 
-<a id="ref-20"></a>**[20]** splunkbase.splunk.com. *Splunk Add-on for OpenTelemetry (Splunkbase 4923)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4923
+<a id="ref-20"></a>**[20]** splunk.github.io. *SC4S documentation*. Retrieved May 11, 2026, from https://splunk.github.io/splunk-connect-for-syslog/
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunk PagerDuty App*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1378
+<a id="ref-21"></a>**[21]** nagios.org. *Nagios Core docs*. Retrieved May 11, 2026, from https://www.nagios.org/documentation/
 
-<a id="ref-22"></a>**[22]** splunkbase.splunk.com. *Splunk Opsgenie App*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4521
+<a id="ref-22"></a>**[22]** zabbix.com. *Zabbix API*. Retrieved May 11, 2026, from https://www.zabbix.com/documentation/current/en/manual/api
 
-<a id="ref-23"></a>**[23]** github.com. *Splunk Connect for Syslog GitHub*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
+<a id="ref-23"></a>**[23]** icinga.com. *Icinga 2 API*. Retrieved May 11, 2026, from https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/
 
-<a id="ref-24"></a>**[24]** splunk.github.io. *SC4S documentation*. Retrieved May 11, 2026, from https://splunk.github.io/splunk-connect-for-syslog/
+<a id="ref-24"></a>**[24]** github.com. *SolarWinds Orion SDK*. Retrieved May 11, 2026, from https://github.com/solarwinds/OrionSDK
 
-<a id="ref-25"></a>**[25]** nagios.org. *Nagios Core docs*. Retrieved May 11, 2026, from https://www.nagios.org/documentation/
+<a id="ref-25"></a>**[25]** learn.microsoft.com. *SCOM Web API*. Retrieved May 11, 2026, from https://learn.microsoft.com/en-us/system-center/scom/
 
-<a id="ref-26"></a>**[26]** zabbix.com. *Zabbix API*. Retrieved May 11, 2026, from https://www.zabbix.com/documentation/current/en/manual/api
+<a id="ref-26"></a>**[26]** docs.datadoghq.com. *Datadog Events API*. Retrieved May 11, 2026, from https://docs.datadoghq.com/api/latest/events/
 
-<a id="ref-27"></a>**[27]** icinga.com. *Icinga 2 API*. Retrieved May 11, 2026, from https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/
+<a id="ref-27"></a>**[27]** docs.dynatrace.com. *Dynatrace Problem API*. Retrieved May 11, 2026, from https://docs.dynatrace.com/docs/dynatrace-api/environment-api/problems/
 
-<a id="ref-28"></a>**[28]** github.com. *SolarWinds Orion SDK*. Retrieved May 11, 2026, from https://github.com/solarwinds/OrionSDK
+<a id="ref-28"></a>**[28]** docs.newrelic.com. *New Relic NerdGraph*. Retrieved May 11, 2026, from https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/
 
-<a id="ref-29"></a>**[29]** docs.microsoft.com. *SCOM Web API*. Retrieved May 11, 2026, from https://docs.microsoft.com/en-us/system-center/scom/manage-mp-applications
+<a id="ref-29"></a>**[29]** developer.pagerduty.com. *PagerDuty REST API*. Retrieved May 11, 2026, from https://developer.pagerduty.com/api-reference/
 
-<a id="ref-30"></a>**[30]** docs.datadoghq.com. *Datadog Events API*. Retrieved May 11, 2026, from https://docs.datadoghq.com/api/latest/events/
+<a id="ref-30"></a>**[30]** docs.opsgenie.com. *Opsgenie REST API*. Retrieved May 11, 2026, from https://docs.opsgenie.com/docs/api-overview
 
-<a id="ref-31"></a>**[31]** docs.dynatrace.com. *Dynatrace Problem API*. Retrieved May 11, 2026, from https://docs.dynatrace.com/docs/dynatrace-api/environment-api/problems/
+<a id="ref-31"></a>**[31]** help.victorops.com. *Splunk On-Call (VictorOps) API*. Retrieved May 11, 2026, from https://help.victorops.com/knowledge-base/api/
 
-<a id="ref-32"></a>**[32]** docs.newrelic.com. *New Relic NerdGraph*. Retrieved May 11, 2026, from https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/
+<a id="ref-32"></a>**[32]** prometheus.io. *Prometheus Remote Write spec*. Retrieved May 11, 2026, from https://prometheus.io/docs/concepts/remote_write_spec/
 
-<a id="ref-33"></a>**[33]** developer.pagerduty.com. *PagerDuty REST API*. Retrieved May 11, 2026, from https://developer.pagerduty.com/api-reference/
+<a id="ref-33"></a>**[33]** openmetrics.io. *OpenMetrics specification*. Retrieved May 11, 2026, from https://openmetrics.io/
 
-<a id="ref-34"></a>**[34]** docs.opsgenie.com. *Opsgenie REST API*. Retrieved May 11, 2026, from https://docs.opsgenie.com/docs/api-overview
+<a id="ref-34"></a>**[34]** github.com. *OTel Collector Prometheus receiver*. Retrieved May 11, 2026, from https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver
 
-<a id="ref-35"></a>**[35]** help.victorops.com. *Splunk On-Call (VictorOps) API*. Retrieved May 11, 2026, from https://help.victorops.com/knowledge-base/api/
+<a id="ref-35"></a>**[35]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-36"></a>**[36]** prometheus.io. *Prometheus Remote Write spec*. Retrieved May 11, 2026, from https://prometheus.io/docs/concepts/remote_write_spec/
-
-<a id="ref-37"></a>**[37]** openmetrics.io. *OpenMetrics specification*. Retrieved May 11, 2026, from https://openmetrics.io/
-
-<a id="ref-38"></a>**[38]** github.com. *OTel Collector Prometheus receiver*. Retrieved May 11, 2026, from https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver
-
-<a id="ref-39"></a>**[39]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-40"></a>**[40]** splunkbase.splunk.com. *Splunkbase app #2757*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2757
+<a id="ref-36"></a>**[36]** splunkbase.splunk.com. *Splunkbase app #2757*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2757
 
 </details>
 

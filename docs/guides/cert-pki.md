@@ -472,7 +472,7 @@ CT logs are public append-only logs of every cert issued by participating CAs (w
 ### Tools
 
 - [crt.sh](https://crt.sh) — free, simple
-- [SSLMate's cert-spotter](https://github.com/SSLMate/cert-spotter) — CLI watcher
+- [SSLMate's cert-spotter](https://github.com/SSLMate/certspotter) — CLI watcher
 - [Google CT API](https://github.com/google/certificate-transparency-go)
 
 ### cert-spotter integration
@@ -1037,7 +1037,7 @@ A: Public append-only logs of cert issuance. Most CAs participate. You can monit
 - [HashiCorp Vault PKI documentation](https://developer.hashicorp.com/vault/docs/secrets/pki)
 - [Microsoft AD CS documentation](https://docs.microsoft.com/en-us/windows-server/identity/ad-cs/active-directory-certificate-services-overview)
 - [Let's Encrypt documentation](https://letsencrypt.org/docs/)
-- [SSLMate cert-spotter](https://github.com/SSLMate/cert-spotter)
+- [SSLMate cert-spotter](https://github.com/SSLMate/certspotter)
 - [Venafi TLS Protect](https://venafi.com/tls-protect/)
 - [crt.sh CT log search](https://crt.sh/)
 - [CA/Browser Forum Baseline Requirements](https://cabforum.org/baseline-requirements/)
@@ -1097,7 +1097,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-14"></a>**[14]** crt.sh. *crt.sh*. Retrieved May 11, 2026, from https://crt.sh
 
-<a id="ref-15"></a>**[15]** github.com. *SSLMate's cert-spotter*. Retrieved May 11, 2026, from https://github.com/SSLMate/cert-spotter
+<a id="ref-15"></a>**[15]** github.com. *SSLMate's cert-spotter*. Retrieved May 11, 2026, from https://github.com/SSLMate/certspotter
 
 <a id="ref-16"></a>**[16]** github.com. *Google CT API*. Retrieved May 11, 2026, from https://github.com/google/certificate-transparency-go
 

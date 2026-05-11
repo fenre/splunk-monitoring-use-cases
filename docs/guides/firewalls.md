@@ -745,7 +745,7 @@ After CIM mapping (Network_Traffic / Web / Authentication models), every vendor 
 Once any of the supported vendor TAs are installed, CIM mapping is automatic. Validate:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Network_Traffic.All_Traffic
+| tstats summariesonly=t count from datamodel=Network_Traffic.All_Traffic
   by sourcetype, vendor, vendor_product, action
 | sort -count
 ```
@@ -1243,9 +1243,9 @@ A: Those are covered in the [AWS Guide](aws.md) and [Azure Guide](azure.md) unde
 - [Splunk_TA_checkpoint](https://splunkbase.splunk.com/app/5402)
 - [Splunk_TA_juniper](https://splunkbase.splunk.com/app/2847)
 - [Splunk Connect for Syslog (SC4S)](https://splunk.github.io/splunk-connect-for-syslog/)
-- [Palo Alto syslog field reference (KB)](https://docs.paloaltonetworks.com/pan-os/latest/pan-os-admin/monitoring/use-syslog-for-monitoring/syslog-field-descriptions.html)
+- [Palo Alto syslog field reference (KB)](https://docs.paloaltonetworks.com/pan-os)
 - [Fortinet log reference](https://docs.fortinet.com/document/fortigate/latest/fortios-log-message-reference)
-- [Cisco Firepower eStreamer guide](https://www.cisco.com/c/en/us/td/docs/security/firepower/640/api/eStreamer/eStreamerIntegrationGuide.html)
+- [Cisco Firepower eStreamer guide](https://www.cisco.com/c/en/us/support/security/defense-center/series.html)
 - [Check Point Log Exporter guide (sk122323)](https://supportcontent.checkpoint.com/solutions?id=sk122323)
 
 ---
@@ -1300,7 +1300,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 <a id="ref-14"></a>**[14]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
-<summary>Additional online sources cited in the document body (15)</summary>
+<summary>Additional online sources cited in the document body (14)</summary>
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Palo Alto Networks*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/491
 
@@ -1320,17 +1320,15 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-23"></a>**[23]** splunk.github.io. *Splunk Connect for Syslog (SC4S)*. Retrieved May 11, 2026, from https://splunk.github.io/splunk-connect-for-syslog/
 
-<a id="ref-24"></a>**[24]** docs.paloaltonetworks.com. *Palo Alto syslog field reference (KB)*. Retrieved May 11, 2026, from https://docs.paloaltonetworks.com/pan-os/latest/pan-os-admin/monitoring/use-syslog-for-monitoring/syslog-field-descriptions.html
+<a id="ref-24"></a>**[24]** docs.fortinet.com. *Fortinet log reference*. Retrieved May 11, 2026, from https://docs.fortinet.com/document/fortigate/latest/fortios-log-message-reference
 
-<a id="ref-25"></a>**[25]** docs.fortinet.com. *Fortinet log reference*. Retrieved May 11, 2026, from https://docs.fortinet.com/document/fortigate/latest/fortios-log-message-reference
+<a id="ref-25"></a>**[25]** cisco.com. *Cisco Firepower eStreamer guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/defense-center/series.html
 
-<a id="ref-26"></a>**[26]** cisco.com. *Cisco Firepower eStreamer guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/security/firepower/640/api/eStreamer/eStreamerIntegrationGuide.html
+<a id="ref-26"></a>**[26]** supportcontent.checkpoint.com. *Check Point Log Exporter guide (sk122323)*. Retrieved May 11, 2026, from https://supportcontent.checkpoint.com/solutions?id=sk122323
 
-<a id="ref-27"></a>**[27]** supportcontent.checkpoint.com. *Check Point Log Exporter guide (sk122323)*. Retrieved May 11, 2026, from https://supportcontent.checkpoint.com/solutions?id=sk122323
+<a id="ref-27"></a>**[27]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-28"></a>**[28]** github.com. *Splunk Monitoring Use Cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
-
-<a id="ref-29"></a>**[29]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
+<a id="ref-28"></a>**[28]** github.com. *Open an issue*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new
 
 </details>
 

@@ -1524,26 +1524,26 @@ products with different TAs.
 
 ### Cisco ACI
 
-- [Cisco APIC REST API Configuration Guide](https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide-50x.html)
+- [Cisco APIC REST API Configuration Guide](https://www.cisco.com/c/en/us/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html)
 - [Splunk Add-on for Cisco ACI](https://splunkbase.splunk.com/app/4022)
-- [ACI Fault Management Reference](https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/aci-fault-management-reference.html)
+- [ACI Fault Management Reference](https://www.cisco.com/c/en/us/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html)
 
 ### Cisco Nexus Dashboard
 
-- [Cisco Nexus Dashboard documentation](https://www.cisco.com/c/en/us/support/cloud-systems-management/nexus-dashboard/series.html)
-- [Cisco Nexus Dashboard Insights](https://www.cisco.com/c/en/us/products/cloud-systems-management/nexus-dashboard/insights.html)
+- [Cisco Nexus Dashboard documentation](https://www.cisco.com/c/en/us/products/data-center-analytics/nexus-dashboard/index.html)
+- [Cisco Nexus Dashboard Insights](https://www.cisco.com/c/en/us/products/data-center-analytics/nexus-dashboard/index.html)
 - [Splunk Add-on for Cisco Nexus](https://splunkbase.splunk.com/app/6876)
 - [Cisco DC Networking App for Splunk](https://splunkbase.splunk.com/app/7777)
 
 ### VMware NSX
 
 - [VMware NSX 4.2 Administration Guide](https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/administration-guide.html)
-- [VMware NSX 4.2 API Reference](https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/api-reference.html)
+- [VMware NSX 4.2 API Reference](https://techdocs.broadcom.com/us/en/vmware-cis/nsx.html)
 - [Splunk Add-on for VMware NSX-T](https://splunkbase.splunk.com/app/4856)
 
 ### Kubernetes CNI
 
-- [Cilium Hubble OTLP exporter](https://docs.cilium.io/en/stable/observability/hubble/exporters/)
+- [Cilium Hubble OTLP exporter](https://docs.cilium.io/en/stable/observability/hubble/)
 - [Calico Cloud and OSS](https://docs.tigera.io/)
 - [Splunk Connect for Kubernetes](https://github.com/splunk/splunk-connect-for-kubernetes)
 
@@ -1562,7 +1562,7 @@ products with different TAs.
 
 ### Splunk Lantern
 
-- [Splunk Lantern — Network monitoring articles](https://lantern.splunk.com/Splunk_Platform/Network)
+- [Splunk Lantern — Network monitoring articles](https://lantern.splunk.com/)
 
 ---
 
@@ -1611,57 +1611,53 @@ The full catalog is at
 <a id="ref-11"></a>**[11]** U.S. General Services Administration / FedRAMP PMO. (2023). *FedRAMP Security Controls Baseline, Rev. 5* (Rev. 5). FedRAMP Program Management Office. https://www.fedramp.gov/rev5/baselines/
 
 <details>
-<summary>Additional online sources cited in the document body (25)</summary>
+<summary>Additional online sources cited in the document body (23)</summary>
 
-<a id="ref-12"></a>**[12]** cisco.com. *Cisco APIC REST API Configuration Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide-50x.html
+<a id="ref-12"></a>**[12]** cisco.com. *Cisco APIC REST API Configuration Guide*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/cloud-systems-management/application-policy-infrastructure-controller-apic/index.html
 
 <a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunk Add-on for Cisco ACI*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4022
 
-<a id="ref-14"></a>**[14]** cisco.com. *ACI Fault Management Reference*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/aci-fault-management-reference.html
+<a id="ref-14"></a>**[14]** cisco.com. *Cisco Nexus Dashboard documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/data-center-analytics/nexus-dashboard/index.html
 
-<a id="ref-15"></a>**[15]** cisco.com. *Cisco Nexus Dashboard documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/cloud-systems-management/nexus-dashboard/series.html
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Cisco Nexus*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/6876
 
-<a id="ref-16"></a>**[16]** cisco.com. *Cisco Nexus Dashboard Insights*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/products/cloud-systems-management/nexus-dashboard/insights.html
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Cisco DC Networking App for Splunk*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7777
 
-<a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunk Add-on for Cisco Nexus*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/6876
+<a id="ref-17"></a>**[17]** techdocs.broadcom.com. *VMware NSX 4.2 Administration Guide*. Retrieved May 11, 2026, from https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/administration-guide.html
 
-<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Cisco DC Networking App for Splunk*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7777
+<a id="ref-18"></a>**[18]** techdocs.broadcom.com. *VMware NSX 4.2 API Reference*. Retrieved May 11, 2026, from https://techdocs.broadcom.com/us/en/vmware-cis/nsx.html
 
-<a id="ref-19"></a>**[19]** techdocs.broadcom.com. *VMware NSX 4.2 Administration Guide*. Retrieved May 11, 2026, from https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/administration-guide.html
+<a id="ref-19"></a>**[19]** splunkbase.splunk.com. *Splunk Add-on for VMware NSX-T*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4856
 
-<a id="ref-20"></a>**[20]** techdocs.broadcom.com. *VMware NSX 4.2 API Reference*. Retrieved May 11, 2026, from https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/api-reference.html
+<a id="ref-20"></a>**[20]** docs.cilium.io. *Cilium Hubble OTLP exporter*. Retrieved May 11, 2026, from https://docs.cilium.io/en/stable/observability/hubble/
 
-<a id="ref-21"></a>**[21]** splunkbase.splunk.com. *Splunk Add-on for VMware NSX-T*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4856
+<a id="ref-21"></a>**[21]** docs.tigera.io. *Calico Cloud and OSS*. Retrieved May 11, 2026, from https://docs.tigera.io/
 
-<a id="ref-22"></a>**[22]** docs.cilium.io. *Cilium Hubble OTLP exporter*. Retrieved May 11, 2026, from https://docs.cilium.io/en/stable/observability/hubble/exporters/
+<a id="ref-22"></a>**[22]** github.com. *Splunk Connect for Kubernetes*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-kubernetes
 
-<a id="ref-23"></a>**[23]** docs.tigera.io. *Calico Cloud and OSS*. Retrieved May 11, 2026, from https://docs.tigera.io/
+<a id="ref-23"></a>**[23]** arista.com. *Arista CloudVision documentation*. Retrieved May 11, 2026, from https://www.arista.com/en/products/eos/eos-cloudvision
 
-<a id="ref-24"></a>**[24]** github.com. *Splunk Connect for Kubernetes*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-kubernetes
+<a id="ref-24"></a>**[24]** juniper.net. *Juniper Apstra documentation*. Retrieved May 11, 2026, from https://www.juniper.net/documentation/product/us/en/apstra/
 
-<a id="ref-25"></a>**[25]** arista.com. *Arista CloudVision documentation*. Retrieved May 11, 2026, from https://www.arista.com/en/products/eos/eos-cloudvision
+<a id="ref-25"></a>**[25]** arubanetworks.com. *Aruba CX Fabric Composer*. Retrieved May 11, 2026, from https://www.arubanetworks.com/products/network-management-operations/fabric-composer/
 
-<a id="ref-26"></a>**[26]** juniper.net. *Juniper Apstra documentation*. Retrieved May 11, 2026, from https://www.juniper.net/documentation/product/us/en/apstra/
+<a id="ref-26"></a>**[26]** openvswitch.org. *Open vSwitch / OVN*. Retrieved May 11, 2026, from https://www.openvswitch.org/
 
-<a id="ref-27"></a>**[27]** arubanetworks.com. *Aruba CX Fabric Composer*. Retrieved May 11, 2026, from https://www.arubanetworks.com/products/network-management-operations/fabric-composer/
+<a id="ref-27"></a>**[27]** github.com. *OpenConfig models*. Retrieved May 11, 2026, from https://github.com/openconfig/public
 
-<a id="ref-28"></a>**[28]** openvswitch.org. *Open vSwitch / OVN*. Retrieved May 11, 2026, from https://www.openvswitch.org/
+<a id="ref-28"></a>**[28]** github.com. *gNMI specification*. Retrieved May 11, 2026, from https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md
 
-<a id="ref-29"></a>**[29]** github.com. *OpenConfig models*. Retrieved May 11, 2026, from https://github.com/openconfig/public
+<a id="ref-29"></a>**[29]** github.com. *Splunk OpenTelemetry Collector — gNMI receiver*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
 
-<a id="ref-30"></a>**[30]** github.com. *gNMI specification*. Retrieved May 11, 2026, from https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md
+<a id="ref-30"></a>**[30]** lantern.splunk.com. *Splunk Lantern — Network monitoring articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/
 
-<a id="ref-31"></a>**[31]** github.com. *Splunk OpenTelemetry Collector — gNMI receiver*. Retrieved May 11, 2026, from https://github.com/signalfx/splunk-otel-collector
+<a id="ref-31"></a>**[31]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
 
-<a id="ref-32"></a>**[32]** lantern.splunk.com. *Splunk Lantern — Network monitoring articles*. Retrieved May 11, 2026, from https://lantern.splunk.com/Splunk_Platform/Network
+<a id="ref-32"></a>**[32]** splunkbase.splunk.com. *Splunkbase app #1810*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1810
 
-<a id="ref-33"></a>**[33]** github.com. *github.com/fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases
+<a id="ref-33"></a>**[33]** splunkbase.splunk.com. *Splunkbase app #2847*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2847
 
-<a id="ref-34"></a>**[34]** splunkbase.splunk.com. *Splunkbase app #1810*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1810
-
-<a id="ref-35"></a>**[35]** splunkbase.splunk.com. *Splunkbase app #2847*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2847
-
-<a id="ref-36"></a>**[36]** github.com. *GitHub: splunk/splunk-connect-for-syslog*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
+<a id="ref-34"></a>**[34]** github.com. *GitHub: splunk/splunk-connect-for-syslog*. Retrieved May 11, 2026, from https://github.com/splunk/splunk-connect-for-syslog
 
 </details>
 

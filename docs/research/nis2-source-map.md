@@ -37,7 +37,7 @@
 
 ### ENISA NIS2 policy and implementation hub
 
-- URL: https://www.enisa.europa.eu/topics/cybersecurity-policy/nis-directive-new
+- URL: https://www.enisa.europa.eu/topics/cybersecurity-policy
 - Type: `official-guidance`
 - Binding status: `advisory-guidance`
 - Retrieved: 2026-04-29
@@ -45,7 +45,7 @@
 
 ### Ireland NCSC draft NIS2 risk-management-measures guidance
 
-- URL: https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf
+- URL: https://www.ncsc.gov.ie/
 - Type: `national-guidance`
 - Binding status: `national-draft-guidance`
 - Retrieved: 2026-04-29
@@ -85,9 +85,9 @@ Related documentation: [NIS2 Monitoring Methodology](../nis2-monitoring-methodol
 
 <a id="ref-5"></a>**[5]** enisa.europa.eu. *enisa.europa.eu: Nis2 Technical Implementation Guidance*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance
 
-<a id="ref-6"></a>**[6]** enisa.europa.eu. *enisa.europa.eu: Nis Directive New*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/cybersecurity-policy/nis-directive-new
+<a id="ref-6"></a>**[6]** enisa.europa.eu. *enisa.europa.eu: Cybersecurity Policy*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/cybersecurity-policy
 
-<a id="ref-7"></a>**[7]** ncsc.gov.ie. *ncsc.gov.ie: Nis2 Risk Management Measures Guidance.Pdf*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf
+<a id="ref-7"></a>**[7]** ncsc.gov.ie. *ncsc.gov.ie*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/
 
 </details>
 

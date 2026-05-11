@@ -535,7 +535,7 @@ For lookup enrichment:
 ### Pattern 1 — Time-bucketed accelerated search
 
 ```spl
-| tstats summariesonly=true count from datamodel=Web.Web
+| tstats summariesonly=t count from datamodel=Web.Web
   WHERE earliest=-5m latest=now status>=400
   by host, service
 | eval kpi_value = count
@@ -561,7 +561,7 @@ index=app_logs earliest=-5m latest=now
 ### Best practices
 
 - **Use `tstats` or `mstats`** wherever possible — orders of magnitude faster
-- **Use `summariesonly=true`** with accelerated data models
+- **Use `summariesonly=t`** with accelerated data models
 - **Limit time range** to the KPI search interval (default 5 min)
 - **Always group by entity_key field** — required for ITSI
 - **Set search interval ≥ data update frequency** (don't run KPI every min if data only updates every 5 min)

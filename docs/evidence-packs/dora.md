@@ -509,7 +509,7 @@ Supervisory-testing and independent-audit model. National competent authorities 
 ## 8. Authoritative guidance
 
 - **Regulation (EU) 2022/2554 (DORA)** — EU Council + Parliament — [https://eur-lex.europa.eu/eli/reg/2022/2554/oj](https://eur-lex.europa.eu/eli/reg/2022/2554/oj)
-- **DORA Level-2 Regulatory Technical Standards (RTS) and ITS** — ESAs (ESMA/EBA/EIOPA) — [https://www.esma.europa.eu/rules/dora](https://www.esma.europa.eu/rules/dora)
+- **DORA Level-2 Regulatory Technical Standards (RTS) and ITS** — ESAs (ESMA/EBA/EIOPA) — [https://www.esma.europa.eu/](https://www.esma.europa.eu/)
 - **Commission Delegated Regulation (EU) 2024/1774 on ICT risk management** — European Commission — [https://eur-lex.europa.eu/eli/reg_del/2024/1774/oj](https://eur-lex.europa.eu/eli/reg_del/2024/1774/oj)
 - **Commission Delegated Regulation (EU) 2024/1772 on ICT incident classification and reporting** — European Commission — [https://eur-lex.europa.eu/eli/reg_del/2024/1772/oj](https://eur-lex.europa.eu/eli/reg_del/2024/1772/oj)
 - **Commission Delegated Regulation (EU) 2025/302 on TLPT** — European Commission — [https://eur-lex.europa.eu/eli/reg_del/2025/302/oj](https://eur-lex.europa.eu/eli/reg_del/2025/302/oj)
@@ -638,7 +638,7 @@ python3 scripts/generate_evidence_packs.py --check
 <details>
 <summary>Additional online sources cited in the document body (4)</summary>
 
-<a id="ref-15"></a>**[15]** esma.europa.eu. *esma.europa.eu: Dora*. Retrieved May 11, 2026, from https://www.esma.europa.eu/rules/dora
+<a id="ref-15"></a>**[15]** esma.europa.eu. *esma.europa.eu*. Retrieved May 11, 2026, from https://www.esma.europa.eu/
 
 <a id="ref-16"></a>**[16]** eur-lex.europa.eu. *EUR-Lex: Oj*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_del/2024/1774/oj
 

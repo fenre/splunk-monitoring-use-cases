@@ -6,7 +6,7 @@ product_aliases: [WAF, web application firewall, edge security, Cloudflare, Clou
 ta_name: Cloudflare App for Splunk (Splunkbase 4501), Splunk Add-on for Akamai (Splunkbase 1922), Splunk Add-on for Amazon Web Services (Splunkbase 1876), Splunk Add-on for Microsoft Azure (Splunkbase 3757), Splunk Add-on for Imperva, Splunk Add-on for F5 BIG-IP (Splunkbase 2680), Splunk Add-on for Fastly NG WAF, Forcepoint Insights SIEM App for Splunk (Splunkbase 8053), Akamai Guardicore Add-on for Splunk (Splunkbase 7426), Splunk Add-on for Illumio (Splunkbase 4178), Splunk Add-on for VMware NSX, Splunk Add-on for Cisco Secure Workload (Splunkbase 5042)
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/4501
-  - https://splunkbase.splunk.com/app/1922
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/1876
   - https://splunkbase.splunk.com/app/3757
   - https://splunkbase.splunk.com/app/2680
@@ -875,7 +875,7 @@ For corrections or additions, file an issue with `cat-17.4`,
 
 <a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase app #4501*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/4501
 
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase app #1922*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1922
+<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #1876*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1876
 

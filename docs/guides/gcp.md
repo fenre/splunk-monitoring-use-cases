@@ -845,7 +845,7 @@ Use SCC findings as KPI inputs for ITSI security services. Critical findings pag
 Validate:
 
 ```spl
-| tstats summariesonly=true count from datamodel=Change.All_Changes 
+| tstats summariesonly=t count from datamodel=Change.All_Changes 
   where vendor="Google Cloud Platform" by action, change_type
 ```
 
@@ -1281,9 +1281,9 @@ A: Cloud Logging = log events (audit, app logs). Cloud Monitoring = numeric metr
 ## References
 
 - [Splunk Add-on for Google Cloud Platform](https://splunkbase.splunk.com/app/3088)
-- [Splunk App for Google Cloud Platform (dashboards)](https://splunkbase.splunk.com/app/3217)
+- [Splunk App for Google Cloud Platform (dashboards)](https://splunkbase.splunk.com/)
 - [GCP Cloud Audit Logs documentation](https://cloud.google.com/logging/docs/audit)
-- [GCP Pub/Sub log routing](https://cloud.google.com/logging/docs/routing/pubsub)
+- [GCP Pub/Sub log routing](https://cloud.google.com/logging/docs/export/configure_export_v2)
 - [CIS GCP Foundations Benchmark](https://www.cisecurity.org/benchmark/google_cloud_computing_platform)
 - [Splunk + GCP reference architecture](https://cloud.google.com/architecture/exporting-stackdriver-logging-for-splunk)
 
@@ -1343,11 +1343,11 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunk Add-on for Google Cloud Platform*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3088
 
-<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk App for Google Cloud Platform (dashboards)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3217
+<a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunk App for Google Cloud Platform (dashboards)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-17"></a>**[17]** cloud.google.com. *GCP Cloud Audit Logs documentation*. Retrieved May 11, 2026, from https://cloud.google.com/logging/docs/audit
 
-<a id="ref-18"></a>**[18]** cloud.google.com. *GCP Pub/Sub log routing*. Retrieved May 11, 2026, from https://cloud.google.com/logging/docs/routing/pubsub
+<a id="ref-18"></a>**[18]** cloud.google.com. *GCP Pub/Sub log routing*. Retrieved May 11, 2026, from https://cloud.google.com/logging/docs/export/configure_export_v2
 
 <a id="ref-19"></a>**[19]** cisecurity.org. *CIS GCP Foundations Benchmark*. Retrieved May 11, 2026, from https://www.cisecurity.org/benchmark/google_cloud_computing_platform
 

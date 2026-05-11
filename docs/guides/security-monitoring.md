@@ -936,13 +936,18 @@ risk modifiers (UCs that fired) and the analyst disposition.
 
 ```spl
 index=sec_vpn sourcetype=cisco:asa:syslog (722051 OR 113004 OR 113005)
-| eval src_country = iplocation(src_ip)
+| iplocation src_ip
+| rename Country AS src_country
 | stats values(src_country) as countries, dc(src_country) as country_count, min(_time) as first_seen, max(_time) as last_seen by user
 | eval time_diff = last_seen - first_seen
 | where country_count > 1 AND time_diff < 3600
 | eval risk_score = 60, risk_modifier = "geo_impossible_vpn", technique_id = "T1078"
 | collect index=risk
 ```
+
+> `iplocation` is a top-level SPL command, not an `eval` function.
+> It adds `Country`, `City`, `Region`, `lat`, `lon` (and more) fields
+> per row; rename whichever you need afterwards.
 
 ### ESCU coverage by ATT&CK technique
 
@@ -967,8 +972,15 @@ index=notable earliest=-30d
     | stats latest(disposition) as analyst_disposition by event_id
   ]
 | stats count by analyst_disposition
-| eval pct = round(100 * count / mvfirst(mvexpand(count)) , 1)
+| eventstats sum(count) AS total
+| eval pct = round(100 * count / total, 1)
 ```
+
+> `eventstats` adds a global aggregate (`total`) onto every row
+> without collapsing the result set, then `eval` derives the
+> percentage. Splunk has no `mvfirst()` eval function — the
+> first value of a multi-value field is `mvindex(field, 0)` —
+> and `mvexpand` is a top-level command, never an eval call.
 
 ### Cross-vendor MFA failure correlation
 

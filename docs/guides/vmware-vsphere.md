@@ -1313,8 +1313,8 @@ Don't migrate to OTel-only until the OTel receiver matches DCN coverage for even
 | `Splunk_TA_vmware` documentation | [Splunkbase: Splunk Add-on for VMware](https://splunkbase.splunk.com/app/3215) and [docs.splunk.com/Documentation/AddOns](https://docs.splunk.com/Documentation/AddOns) |
 | Splunk OpenTelemetry Collector | [github.com/signalfx/splunk-otel-collector](https://github.com/signalfx/splunk-otel-collector) |
 | OTel vcenter receiver | [github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/vcenterreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/vcenterreceiver) |
-| vSphere API documentation | [developer.broadcom.com/xapis/vsphere-management-sdk](https://developer.broadcom.com/xapis/vsphere-management-sdk/latest/) |
-| ESXi Syslog Configuration | [knowledge.broadcom.com](https://knowledge.broadcom.com/external/article/345077) |
+| vSphere API documentation | [developer.broadcom.com/xapis/vsphere-management-sdk](https://developer.broadcom.com/sdks/vsphere-management-sdk/latest/) |
+| ESXi Syslog Configuration | [knowledge.broadcom.com](https://knowledge.broadcom.com/) |
 | VMware PowerCLI | [developer.broadcom.com/powercli](https://developer.broadcom.com/powercli) |
 | CIS VMware vSphere Benchmark | [cisecurity.org/benchmark/vmware](https://www.cisecurity.org/benchmark/vmware) |
 
@@ -1376,9 +1376,9 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-16"></a>**[16]** docs.splunk.com. *docs.splunk.com/Documentation/AddOns*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/AddOns
 
-<a id="ref-17"></a>**[17]** developer.broadcom.com. *developer.broadcom.com/xapis/vsphere-management-sdk*. Retrieved May 11, 2026, from https://developer.broadcom.com/xapis/vsphere-management-sdk/latest/
+<a id="ref-17"></a>**[17]** developer.broadcom.com. *developer.broadcom.com/xapis/vsphere-management-sdk*. Retrieved May 11, 2026, from https://developer.broadcom.com/sdks/vsphere-management-sdk/latest/
 
-<a id="ref-18"></a>**[18]** knowledge.broadcom.com. *knowledge.broadcom.com*. Retrieved May 11, 2026, from https://knowledge.broadcom.com/external/article/345077
+<a id="ref-18"></a>**[18]** knowledge.broadcom.com. *knowledge.broadcom.com*. Retrieved May 11, 2026, from https://knowledge.broadcom.com/
 
 <a id="ref-19"></a>**[19]** developer.broadcom.com. *developer.broadcom.com/powercli*. Retrieved May 11, 2026, from https://developer.broadcom.com/powercli
 

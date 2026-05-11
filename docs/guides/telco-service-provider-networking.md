@@ -6,8 +6,8 @@ product_aliases: [telco, telecom, telecommunications, service provider, SP, MNO,
 ta_name: Splunk App for Telecommunications, Splunk Add-on for Cisco IOS (TA-cisco_ios), Splunk Add-on for Juniper (Splunk_TA_juniper), Splunk Stream (1809), Splunk Connect for Syslog (SC4S), Splunk Connect for SNMP (SC4SNMP), Cisco ThousandEyes App for Splunk (Splunkbase 7719), Splunk Add-on for Cisco UCM CAR/CDR (custom), Splunk Add-on for Microsoft Teams Calling, Splunk Add-on for Avaya Aura
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/1809
-  - https://splunkbase.splunk.com/app/1622
-  - https://splunkbase.splunk.com/app/2845
+  - https://splunkbase.splunk.com/
+  - https://splunkbase.splunk.com/
   - https://splunkbase.splunk.com/app/7719
 indexes:
   - telco
@@ -898,15 +898,13 @@ For corrections or additions, file an issue with `cat-5.10`,
 <a id="ref-11"></a>**[11]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <details>
-<summary>Additional online sources cited in the document body (4)</summary>
+<summary>Additional online sources cited in the document body (3)</summary>
 
 <a id="ref-12"></a>**[12]** splunkbase.splunk.com. *Splunkbase app #1809*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1809
 
-<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase app #1622*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1622
+<a id="ref-13"></a>**[13]** splunkbase.splunk.com. *Splunkbase*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
-<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase app #2845*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2845
-
-<a id="ref-15"></a>**[15]** splunkbase.splunk.com. *Splunkbase app #7719*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7719
+<a id="ref-14"></a>**[14]** splunkbase.splunk.com. *Splunkbase app #7719*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7719
 
 </details>
 

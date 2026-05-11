@@ -967,7 +967,7 @@ A: Yes — Meraki Air Marshal categorises this. Alternatively, build SPL based o
 - [Cisco Networks Add-on (Splunkbase 1352)](https://splunkbase.splunk.com/app/1352)
 - [Aruba Networks Add-on (Splunkbase 4668)](https://splunkbase.splunk.com/app/4668)
 - [HPE Aruba ClearPass App (Splunkbase 7865)](https://splunkbase.splunk.com/app/7865)
-- [Cisco Catalyst 9800 syslog reference](https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/b_wl_17_3_cg.html)
+- [Cisco Catalyst 9800 syslog reference](https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html)
 - [Meraki Dashboard API reference](https://developer.cisco.com/meraki/api-v1/)
 - [PCI-DSS 4.0 Wireless requirements](https://www.pcisecuritystandards.org/document_library/)
 
@@ -1029,7 +1029,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-16"></a>**[16]** splunkbase.splunk.com. *Splunkbase app #7865*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7865
 
-<a id="ref-17"></a>**[17]** cisco.com. *Cisco Catalyst 9800 syslog reference*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/config-guide/b_wl_17_3_cg.html
+<a id="ref-17"></a>**[17]** cisco.com. *Cisco Catalyst 9800 syslog reference*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html
 
 <a id="ref-18"></a>**[18]** developer.cisco.com. *Meraki Dashboard API reference*. Retrieved May 11, 2026, from https://developer.cisco.com/meraki/api-v1/
 
