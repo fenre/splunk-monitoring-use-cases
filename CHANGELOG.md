@@ -26,6 +26,14 @@ the release notes block in `index.html` by hand.
   `.json` companion pairs are tracked in lockstep). Drift in the
   markdown twins now blocks the PR. `rg "^\s*continue-on-error:\s*true"
   .github` returns zero matches across the entire workflows directory.
+- **Refresh `ROADMAP.md` to v8.2.0.** The "Current release" section had
+  drifted three minor versions stale (still v7.1 from 2026-04-20).
+  Demoted v7.1 into "Previous releases" and wrote a tight v8.2.0
+  summary at the top. Renamed the in-progress and backlog headings
+  forward to v8.3 / v8.4+ to satisfy the `audit-roadmap-consistency`
+  contract; replaced the two remaining "v7.2 target" body-text
+  references with version-agnostic phrasing. `audit-roadmap-consistency
+  --check` passes.
 
 ## [8.2.0] - 2026-05-11
 

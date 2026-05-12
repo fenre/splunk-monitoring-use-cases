@@ -6,6 +6,52 @@
 
 ## Current release
 
+**v8.2.0 — Scripts Taxonomy Closed** *(shipped 2026-05-11)*
+
+Theme: **`scripts/` is no longer the canonical entry point.** v8.2.0
+closes the Phase 6 "scripts taxonomy" rebuild — every recurring script
+under `scripts/` previously had a sibling implementation under
+`src/splunk_uc/` plus a thin compatibility shim. With the dispatcher
+exercised continuously by CI, the shims are now retired and the
+package is the single Python surface.
+
+- **`python -m splunk_uc <verb>`** is the single dispatcher for 83
+  audits / generators / ingestors / migrations / feasibility tools /
+  utilities. The 85 sibling shims under `scripts/` were deleted in
+  one pass.
+- **`splunk-uc` console script** wired via `pyproject.toml`
+  (`[project.scripts]`); `pip install -e .` exposes the CLI globally.
+  Tier 4 packaging shape lives at
+  `[tool.hatch.build.targets.wheel].packages = ["src/splunk_uc"]`.
+- **128 callers rewired in one pass** — workflows, Makefile,
+  pre-commit hook, MCP server, tests, docs, templates,
+  `AGENTS.md` / `README.md` / `CONTRIBUTING.md`.
+- **76 deliberate Python files** remain in `scripts/` — underscore-
+  prefixed one-shots, content-burndown helpers, gitignored Splunk-
+  deployment generators, doc generators. All catalogued in
+  [`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md).
+- **F1 / F2 / F3 / F4 / F6 / F7 / F9 / F11 / F15** from the
+  [`Repo Health Check plan`](docs/health-check-2026-progress.md) all
+  resolved at v8.2.0 (with F7 closed 2026-05-12).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.2.0 release notes
+and the v8.0 → v8.2 line.
+
+### Shipped outcomes
+
+- One canonical CLI entry point (`splunk-uc <verb>`) for the entire
+  build / audit / generate / ingest surface; legacy `python3
+  scripts/foo.py` invocations no longer work.
+- Foundation in place for `mypy --strict` ratchets and a future PyPI
+  publish (the latter is P9 work; the infrastructure is ready).
+- The catalog now counts **7,677 UCs** across **23 categories /
+  239 subcategories / 69 mapped regulations / 106 equipment slugs /
+  18 schemas**.
+
+---
+
+## Previous releases
+
 **v7.1 — Non-Technical Everywhere** *(shipped 2026-04-20)*
 
 Theme: **"every use case is explainable without jargon, everywhere, in
@@ -17,39 +63,19 @@ behind a single disclosure.
 - New required-at-runtime `grandmaExplanation` field on every UC
   sidecar (schema v1.6.1, 20–400 chars, `we` voice, no Splunk/SPL/CIM/
   MITRE/TA acronyms) — populated deterministically by
-  [`python3 -m splunk_uc generate-grandma-explanations`](python3 -m splunk_uc generate-grandma-explanations)
-  from the existing title/description/value copy
+  `python3 -m splunk_uc generate-grandma-explanations` from the
+  existing title/description/value copy
 - Non-technical view now renders `grandmaExplanation` as the primary
   UC text on UC cards, search results, subcategory lists, recently-added,
   and at the top of the UC detail panel; technical sections (SPL, CIM,
   MITRE, data sources, etc.) collapse behind a single *Show technical
   details* disclosure that follows the mode toggle
-- Sidebar subcategory clicks and hash deep-links stay in non-technical
-  mode (new `renderNonTechnicalSubcategory` path + `restoreFromHash`
-  fixes); UC rows in non-technical area lists are now clickable and
-  prefer the per-UC `ge` over curated `why` copy
-- CI guard: `python3 -m splunk_uc generate-grandma-explanations --check` runs on
-  every PR and blocks merge if any UC sidecar is missing the field
-- Runtime fallback in `tools/build/build.py` for markdown-only UCs so the UI never
-  shows an empty plain-language card even before a UC sidecar lands
-- Authoring and maintenance guide at [`docs/grandma-explanations.md`](docs/grandma-explanations.md);
-  full narrative in [`docs/v7.1-release-report.md`](docs/v7.1-release-report.md)
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v7.1 release notes.
-
-### Shipped outcomes
-
-- Non-technical users see a coherent jargon-free summary on every UC
-  surface, not just the subset (~10 %) previously covered by curated
-  `why` lines
-- The technical view is unchanged — collapsed sections expand by default,
-  preserving the v7.0 detail panel layout
-- Drift is impossible: adding a UC without regenerating plain-language
-  copy fails CI before merge
-
----
-
-## Previous releases
+- CI guard: `python3 -m splunk_uc generate-grandma-explanations --check`
+  runs on every PR and blocks merge if any UC sidecar is missing the
+  field
+- Authoring and maintenance guide at
+  [`docs/grandma-explanations.md`](docs/grandma-explanations.md); full
+  narrative in [`docs/v7.1-release-report.md`](docs/v7.1-release-report.md)
 
 **v7.0 — Per-UC Content Architecture** *(shipped 2026-04-19)*
 
@@ -72,7 +98,7 @@ introduced the current Python stdlib-only build pipeline (`tools/build/build.py`
 - New schemas (`schemas/v2/`) — `catalog-index` and `search-index`
 - Architecture contract (`docs/architecture.md`), URL scheme
   (`docs/url-scheme.md`), schema versioning (`docs/schema-versioning.md`)
-- The catalog now counts **7,364** UCs across 23 categories *(see [`CHANGELOG.md`](CHANGELOG.md) for the count at v7.0 ship)*
+- The catalog counted **7,364** UCs across 23 categories at v7.0 ship *(see [`CHANGELOG.md`](CHANGELOG.md); current count at HEAD is 7,677 — see the v8.2.0 entry above)*
 
 ### v6.x — monolithic markdown pipeline *(historical)*
 
@@ -132,11 +158,22 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
-## Next up: v7.2 — Gold Standard Content Uplift *(in progress)*
+## Next up: v8.3 — Gold Standard content uplift continues *(in progress)*
+
+> The Gold Standard infrastructure shipped progressively over v7.2 →
+> v7.4.x → v8.0; the *content* uplift itself is a continuous program
+> that runs in parallel with platform work. Current distribution as of
+> 2026-05-12: 724 Gold (9.4%) / 38 Silver (0.5%) / 6,106 Bronze (79.5%)
+> / 809 below profile (10.5%) across 7,677 UCs. The goal is to grow
+> Gold and Silver year-over-year while keeping the non-blocking
+> summary gate visible in CI (see `audit-gold-profile --summary` in
+> `validate.yml`). The platform infrastructure side of v8.3 is the
+> [Repo Health Check plan](docs/health-check-2026-progress.md) work,
+> tracked separately; this section covers the content side.
 
 With the v7.0 per-UC architecture and the v7.1 non-technical rewrite in
-place, **v7.2 elevates content quality across the entire catalog** to match
-the standard set by the Catalyst Center<sup class="ref">[<a href="#ref-2">2</a>]</sup> subcategory (5.13). The guiding
+place, **this program elevates content quality across the entire catalog**
+to match the standard set by the Catalyst Center<sup class="ref">[<a href="#ref-2">2</a>]</sup> subcategory (5.13). The guiding
 principle: *quality is operational utility, not field-count compliance;
 fewer excellent UCs beat many shallow ones.*
 
@@ -176,7 +213,7 @@ subcategory, human review via PR:
 3. `audit_gold_profile.py` validates depth and flags gaps
 4. PR review ensures product knowledge accuracy
 
-### Additional v7.2 targets
+### Ongoing content-uplift targets
 
 - **Top-200 sample-event coverage** — Expand the `samples/` tree from 15
   fixtures to 200, targeting the most-used UCs identified by dashboard
@@ -193,16 +230,16 @@ subcategory, human review via PR:
 - **Phase E SME-uplift continuation** — Walk the remaining tier-1 +
   tier-2 clause coverage entries from `assurance: contributing` to
   `partial` / `full` via SME judgment.  Phase E v6.1 lifted global
-  assurance-adjusted coverage to 59.89 %; the realistic v7.2 target is
+  assurance-adjusted coverage to 59.89 %; the current target is
   ≥75 % tier-1 / ≥55 % tier-2 without artificial uplift.
 - **`grandmaExplanation` hand-polish pass** — Deterministic generator
-  text is "good enough to ship"; v7.2 adds a curator review loop to
-  raise quality (voice, warmth, concreteness) on the 500 most-viewed
-  UCs without regenerating the rest.
+  text is "good enough to ship"; the curator review loop raises
+  quality (voice, warmth, concreteness) on the 500 most-viewed UCs
+  without regenerating the rest.
 
 ---
 
-## v7.3+ backlog *(no fixed date)*
+## v8.4+ backlog *(no fixed date)*
 
 The following ideas are under consideration but not yet scheduled. Pull
 requests or issues advocating for any of them are welcome.
