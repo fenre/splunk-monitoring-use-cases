@@ -246,6 +246,16 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
+          # PR-5 hotfix (2026-05-12): the audits-content unit-test pass loads
+          # ``tests/scripts/test_equipment_lib_properties.py`` which imports
+          # ``hypothesis`` for property-based testing. ``hypothesis`` (and the
+          # rest of the test stack: pytest, pytest-cov, pytest-asyncio, respx)
+          # is declared in pyproject.toml's ``[test]`` extras. Using the
+          # composite's ``install-extras`` input keeps the dependency
+          # declaration in pyproject.toml (single source of truth) instead of
+          # drifting through inline ``pip install pytest …`` lists. See
+          # docs/scripts-taxonomy.md §extras-management.
+          install-extras: "test"
 
       - name: Unit tests (build pipeline + audits)
         # pyproject.toml's [tool.pytest.ini_options] declares
@@ -264,10 +274,16 @@ jobs:
         # PR-5 (2026-05-12): the coverage report is captured as JSON so
         # the per-file coverage budget audit (next step) can ratchet
         # against ``data/baselines/coverage-vX.Y.Z.json``.
+        #
+        # PR-5 hotfix (2026-05-12): test dependencies (pytest, pytest-cov,
+        # pytest-asyncio, hypothesis, respx) are now installed by the
+        # ``Set up Python`` step above via ``install-extras: "test"``. The
+        # previous inline ``pip install pytest pytest-cov pytest-asyncio``
+        # silently dropped ``hypothesis`` and broke property-based tests
+        # under ``tests/scripts/``.
         env:
           PYTHONPATH: src
         run: |
-          pip install pytest pytest-cov pytest-asyncio
           pytest tests/build/ tests/scripts/ -v \
             --cov=tools.build --cov=splunk_uc \
             --cov-report=term-missing \
@@ -1045,10 +1061,30 @@ jobs:
         with:
           install-audits: "true"
 
+      - name: Build catalog (required by generate-api-surface)
+        # PR-5 hotfix (2026-05-12): ``generate-api-surface`` calls
+        # ``_resolve_catalog_path()`` and returns the catalog as
+        # ``[]`` (empty) when neither ``dist/catalog.json`` nor the
+        # legacy root ``catalog.json`` exists. With no use cases, the
+        # downstream ``recommender/uc-thin.json`` is empty, and every
+        # MCP catalog-loading test asserts ``count >= 20`` (categories)
+        # or ``totalMatched >= 1`` (search) against an empty catalog
+        # → 11 hard failures.  ``tools/build/build.py --out dist``
+        # writes the SSOT ``dist/catalog.json`` so the next step
+        # populates ``api/v1/`` with the full 7 677 UCs and the MCP
+        # tests can resolve their fixtures.
+        # Cross-job artefact independence: the mcp job builds its own
+        # ``dist/`` rather than depending on audits-build (per
+        # ci-architecture.md §86-88).
+        run: python3 tools/build/build.py --out dist
+
       - name: Generate api/v1 tree (required by MCP drift guard)
         # Cross-job artefact independence: the mcp job regenerates
         # api/v1 locally rather than depending on audits-build (per
         # ci-architecture.md §86-88). ~5 seconds, deterministic.
+        # Requires ``dist/catalog.json`` from the previous step;
+        # see ``_resolve_catalog_path()`` in
+        # ``src/splunk_uc/generators/api_surface.py``.
         run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
 
       - name: Install MCP server (splunk-uc-mcp) for drift guard + tests
@@ -1138,6 +1174,20 @@ jobs:
         # populated ``dist/``). Build dist/ here so the perf-a11y
         # gate observes the same files locally and in CI.
         run: python3 tools/build/build.py --out dist
+
+      - name: Generate api/v1 tree (required by Phase 4.5e OSCAL gate)
+        # PR-5 hotfix (2026-05-12): ``api/v1/oscal/component-definitions/``
+        # is a build artefact, gitignored under ``api/*`` in
+        # ``.gitignore`` (see line 116). The OSCAL round-trip gate
+        # (``audit-oscal-roundtrip --check``) globs ``*.json`` from
+        # that directory and renders a report; with no files present
+        # the regenerated report has ``files_examined: 0`` and
+        # drifts from the committed ``reports/oscal-roundtrip.json``
+        # (which captured ``files_examined: 1`` for UC-22.35.1).
+        # ``generate-api-surface`` writes the OSCAL component
+        # definitions (and the rest of ``api/v1/``) from the freshly
+        # built ``dist/catalog.json`` above. ~5 seconds, deterministic.
+        run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
 
       - name: Recommender frontend unit tests
         # Node --test runs tests/recommender/match.test.mjs which
