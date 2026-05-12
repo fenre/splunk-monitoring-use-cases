@@ -42,7 +42,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTENT_DIR = REPO_ROOT / "content"
 
-# The 5 section patterns from scripts/audit_gold_profile.py — we must
+# The 5 section patterns from python3 -m splunk_uc audit-gold-profile — we must
 # satisfy all 5 to reach "Gold" tier on the section count.
 SECTION_PATTERNS = [
     re.compile(r"(?:prerequisite|step\s*0|before\s+you\s+begin)", re.IGNORECASE),

@@ -2,7 +2,7 @@
 
 > Status: **required** for any change to
 > `data/regulations-watch.json`, `schemas/regulations-watch.schema.json`,
-> `scripts/audit_regulatory_change_watch.py`, or the `.github/workflows/regulatory-watch.yml` job.
+> `python3 -m splunk_uc audit-regulatory-change-watch`, or the `.github/workflows/regulatory-watch.yml` job.
 >
 > Scope: tier-1 regulations plus the MITRE ATT&CK / D3FEND crosswalks we rely on.
 
@@ -19,7 +19,7 @@ stale.
 | --- | --- |
 | `data/regulations-watch.json` | Ledger of every regulation we track, the detection strategy, and the last observed state. |
 | `schemas/regulations-watch.schema.json` | JSON Schema (Draft 2020-12) that governs the ledger. |
-| `scripts/audit_regulatory_change_watch.py` | Audit + fetch + freeze tool. Three modes: `--check` (hermetic CI), `--fetch` (network probe), `--freeze` (seed/reset timestamps). |
+| `python3 -m splunk_uc audit-regulatory-change-watch` | Audit + fetch + freeze tool. Three modes: `--check` (hermetic CI), `--fetch` (network probe), `--freeze` (seed/reset timestamps). |
 | `.github/workflows/validate.yml` | Runs `--check` on every pull request; fails CI when the ledger is too stale. |
 | `.github/workflows/regulatory-watch.yml` | Runs `--fetch` weekly (Monday 09:00 UTC), commits the refreshed ledger, and opens a GitHub issue when upstream changes are detected. |
 | `reports/regulatory-change-watch.json` | Latest fetch snapshot — bundled into the QA-gates artifact. |
@@ -73,7 +73,7 @@ frameworks, and anything else where a slow cadence is acceptable.
 2. Decide if the staleness is benign (the weekly job silently failed, but
    no upstream changes exist) or material (the publisher changed and we
    have not yet adopted the change).
-3. Run `python3 scripts/audit_regulatory_change_watch.py --fetch` locally.
+3. Run `python3 -m splunk_uc audit-regulatory-change-watch --fetch` locally.
    Requires network access. The script is hermetic: it mutates only
    `data/regulations-watch.json` and `reports/regulatory-change-watch.json`.
 4. Commit the refreshed ledger alongside your PR.
@@ -116,7 +116,7 @@ is observed. Rotate through the following steps:
 
 3. Ensure `regulationId` is either in `data/regulations.json` frameworks[]
    **or** in the MITRE allow-list (`mitre-attack-enterprise`, `d3fend`).
-4. Run `python3 scripts/audit_regulatory_change_watch.py --check` and
+4. Run `python3 -m splunk_uc audit-regulatory-change-watch --check` and
    `--fetch` to confirm both gates pass.
 5. Open the PR with a peer + legal + SME signoff noting the addition.
 
@@ -138,16 +138,16 @@ is observed. Rotate through the following steps:
 
 ```bash
 # Hermetic gate (no network)
-python3 scripts/audit_regulatory_change_watch.py --check
+python3 -m splunk_uc audit-regulatory-change-watch --check
 
 # Seed/reset the ledger in bulk
-python3 scripts/audit_regulatory_change_watch.py --freeze
+python3 -m splunk_uc audit-regulatory-change-watch --freeze
 
 # Probe every entry against its publisher (requires network)
-python3 scripts/audit_regulatory_change_watch.py --fetch
+python3 -m splunk_uc audit-regulatory-change-watch --fetch
 
 # Fail if any probe errored (for the scheduled workflow's strict mode)
-python3 scripts/audit_regulatory_change_watch.py --fetch --strict
+python3 -m splunk_uc audit-regulatory-change-watch --fetch --strict
 ```
 
 The audit honours the `stalenessPolicy` block, so a shorter deadline

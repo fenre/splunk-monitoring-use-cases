@@ -1,4 +1,4 @@
-"""Unit tests for the JSON backend in ``scripts/audit_uc_structure.py``.
+"""Unit tests for the JSON backend in ``python3 -m splunk_uc audit-uc-structure``.
 
 Repo-overhaul plan §P1 step 3 (2026-05-08): the audit gained a JSON
 corpus backend. These tests pin the field rules that backend enforces

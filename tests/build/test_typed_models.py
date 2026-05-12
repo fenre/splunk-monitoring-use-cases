@@ -4,7 +4,7 @@ Repo-overhaul plan §P4 step 2 (2026-05-08): the typed models in
 ``tools/build/models.py`` must mirror three sources of truth:
 
 1. ``schemas/uc.schema.json`` — the JSON Schema used by
-   ``scripts/audit_uc_structure.py`` to validate every UC sidecar.
+   ``python3 -m splunk_uc audit-uc-structure`` to validate every UC sidecar.
 2. ``catalog.json`` — the wire format consumed by the static UI,
    ``api/cat-N.json``, ``data.js``, and external integrations.
 3. ``data/regulations.json`` — the cat-22 framework taxonomy.

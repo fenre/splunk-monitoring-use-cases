@@ -306,7 +306,7 @@ Core fields + `detailedImplementation` (3+ sections),
 
 ## After writing
 
-1. **Validate:** Run `python3 scripts/audit_gold_profile.py --files <changed files>`
+1. **Validate:** Run `python3 -m splunk_uc audit-gold-profile --files <changed files>`
 2. **Fix failures** — the audit checks for shallow content, not just missing fields
 3. **Update counts:** If UCs were added or consolidated, update
    `useCaseCount` in `_category.json` subcategory entries

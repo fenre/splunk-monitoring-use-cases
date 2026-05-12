@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_license_inventory.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-license-inventory``.
 
 Repo-overhaul plan §P11 (2026-05-09): the license auditor backstops
 the legal-review story every time a new dependency lands. These tests
@@ -57,7 +57,7 @@ def _load_audit_module() -> ModuleType:
 
     P6 (scripts taxonomy, 2026-05-09) relocated the implementation
     to ``src/splunk_uc/audits/license_inventory.py``; the original
-    ``scripts/audit_license_inventory.py`` is now a thin shim. Tests
+    ``python3 -m splunk_uc audit-license-inventory`` is now a thin shim. Tests
     that ``monkeypatch.setattr`` module-level constants (``REPO_ROOT``,
     ``_PYPROJECT_FILES``, ``_INVENTORY_PATH``, ``_INVENTORY_MD_PATH``,
     ``build_inventory``) MUST do so on the implementation module —

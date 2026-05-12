@@ -155,7 +155,7 @@ What landed:
    `implementation`, `visualization`, `cimModels`,
    `grandmaExplanation`).
 2. **20 regenerated markdown companions** via
-   `scripts/generate_md_from_json.py`.
+   `python3 -m splunk_uc generate-md-from-json`.
 3. **`_category.json` updated**: subcategory `useCaseCount`
    ratchets — 5.1: 66 → 75; 5.4: 37 → 40; 5.5: 20 → 25;
    5.6: 17 → 19; 5.8: 28 → 29. Category total: 700 → 720.

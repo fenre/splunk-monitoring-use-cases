@@ -208,7 +208,7 @@ def _tool_definitions() -> list[Tool]:
     """Return the full v1 tool surface.
 
     Keep the list literal so the CI drift guard (see
-    ``scripts/audit_mcp_tool_schemas.py``) can import it without starting
+    ``python3 -m splunk_uc audit-mcp-tool-schemas``) can import it without starting
     an event loop.
     """
 

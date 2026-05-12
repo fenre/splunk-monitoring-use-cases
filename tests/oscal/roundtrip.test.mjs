@@ -105,7 +105,7 @@ function listComponentDefinitionFiles() {
 test('oscal-roundtrip.json has the expected top-level shape', () => {
   assert.ok(
     fs.existsSync(REPORT_PATH),
-    `reports/oscal-roundtrip.json not found - run \`python3 scripts/audit_oscal_roundtrip.py\` first`,
+    `reports/oscal-roundtrip.json not found - run \`python3 -m splunk_uc audit-oscal-roundtrip\` first`,
   );
   const raw = fs.readFileSync(REPORT_PATH, 'utf8');
   const payload = JSON.parse(raw);
@@ -277,7 +277,7 @@ test('every component-definition file is itself canonically serialised', () => {
     assert.equal(
       original,
       canonical,
-      `${path.relative(REPO, file)} is not byte-equal to its canonical serialisation (run scripts/audit_oscal_roundtrip.py)`,
+      `${path.relative(REPO, file)} is not byte-equal to its canonical serialisation (run python3 -m splunk_uc audit-oscal-roundtrip)`,
     );
   }
 });

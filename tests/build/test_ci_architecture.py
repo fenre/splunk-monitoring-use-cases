@@ -106,7 +106,7 @@ def test_doc_documents_pinning_policy(doc_text: str) -> None:
     """The SHA-pinning rationale must remain in the doc.
 
     This is the human-readable counterpart to the automated audit at
-    ``scripts/audit_action_pins.py``. Without it, future contributors
+    ``python3 -m splunk_uc audit-action-pins``. Without it, future contributors
     will hit the audit failure and not understand why tag-only pins
     are forbidden.
     """

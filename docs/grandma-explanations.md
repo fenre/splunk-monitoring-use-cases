@@ -1,6 +1,6 @@
 # Plain-language explanations (`grandmaExplanation`)
 
-> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.6.1 · **Writer:** `python -m splunk_uc generate-grandma-explanations` (legacy [`scripts/generate_grandma_explanations.py`](../scripts/generate_grandma_explanations.py) shim still works during soak) · **CI guard:** `python -m splunk_uc generate-grandma-explanations --check`
+> **Status:** shipped v7.1 (2026-04-20) · **Schema:** `uc.schema.json` v1.6.1 · **Writer:** `python -m splunk_uc generate-grandma-explanations` (legacy [`python3 -m splunk_uc generate-grandma-explanations`](../scripts/generate_grandma_explanations.py) shim still works during soak) · **CI guard:** `python -m splunk_uc generate-grandma-explanations --check`
 
 Every use case in the catalogue carries a short, jargon-free "explain it
 to my grandma" sentence in the sidecar field `grandmaExplanation`
@@ -102,7 +102,7 @@ the existing curated copy and then curator-polishable.
 of this field. It is deterministic (byte-for-byte identical output on
 re-runs at the same catalogue state) and curator-respecting (existing
 non-empty values are never touched unless `--force` is passed). The
-legacy `scripts/generate_grandma_explanations.py` shim still works
+legacy `python3 -m splunk_uc generate-grandma-explanations` shim still works
 during the soak window before the legacy `scripts/` tree is retired.
 
 ### Common invocations

@@ -1,6 +1,6 @@
 // Phase 4.5f perf + a11y gate — drift guard tests.
 //
-// This file is the Node-side companion to scripts/audit_perf_a11y.py.
+// This file is the Node-side companion to python3 -m splunk_uc audit-perf-a11y.
 // It deliberately does NOT re-run axe-core (the Python orchestrator
 // already handles that via tests/a11y/run-axe.mjs).  Instead, it
 // verifies a handful of invariants on the committed report so that
@@ -70,7 +70,7 @@ const ALLOWED_A11Y_IMPACTS = new Set([
 function loadReport() {
   assert.ok(
     fs.existsSync(REPORT_PATH),
-    `${path.relative(REPO, REPORT_PATH)} missing — run scripts/audit_perf_a11y.py`,
+    `${path.relative(REPO, REPORT_PATH)} missing — run python3 -m splunk_uc audit-perf-a11y`,
   );
   const raw = fs.readFileSync(REPORT_PATH, 'utf8');
   let parsed;
@@ -355,7 +355,7 @@ test('perf-a11y report: is canonically serialised', () => {
   assert.equal(
     raw,
     canonical,
-    'reports/perf-a11y.json is not canonically serialised — regenerate with scripts/audit_perf_a11y.py',
+    'reports/perf-a11y.json is not canonically serialised — regenerate with python3 -m splunk_uc audit-perf-a11y',
   );
 });
 

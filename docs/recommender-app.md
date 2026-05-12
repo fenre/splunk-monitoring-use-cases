@@ -28,7 +28,7 @@ This document covers:
 
 As of v9.0 this repository releases **one** Splunk app, generated from
 the source of truth by
-[`scripts/generate_recommender_app.py`](../scripts/generate_recommender_app.py):
+[`python3 -m splunk_uc generate-recommender-app`](../scripts/generate_recommender_app.py):
 
 | App | Audience | What it ships | Cloud-safe? |
 | --- | -------- | ------------- | ------------ |
@@ -103,7 +103,7 @@ each release ships one signed `.spl` archive with a SHA-256 sidecar:
 Or build from source:
 
 ```bash
-python3 scripts/generate_recommender_app.py
+python3 -m splunk_uc generate-recommender-app
 scripts/package_splunk_apps.sh dist/
 ```
 
@@ -126,7 +126,7 @@ AppInspect readiness for `splunk-uc-recommender`:
 - `metadata/default.meta` keeps saved searches private.
 - All 670+ bundled compliance searches ship with
   `disabled = 1` and `is_scheduled = 0`, so nothing runs on install.
-- Output of `python3 scripts/audit_splunk_cloud_compat.py` reports
+- Output of `python3 -m splunk_uc audit-splunk-cloud-compat` reports
   zero pack-level findings on this app.
 
 ## Operator UI
@@ -251,7 +251,7 @@ Cadence:
 The four recommender indexes live under
 [`api/v1/recommender/`](../api/v1/recommender/) in the repo and are
 served by GitHub Pages. They are generated from `catalog.json` by
-[`scripts/generate_api_surface.py`](../scripts/generate_api_surface.py).
+[`python3 -m splunk_uc generate-api-surface`](../scripts/generate_api_surface.py).
 
 ### `sourcetype-index.json`
 
@@ -309,7 +309,7 @@ served by GitHub Pages. They are generated from `catalog.json` by
 ```
 
 All four are regenerated deterministically. The repository's CI job
-runs `python3 scripts/generate_api_surface.py --check` to reject drift.
+runs `python3 -m splunk_uc generate-api-surface --check` to reject drift.
 
 ## Security model
 
@@ -346,14 +346,14 @@ runs `python3 scripts/generate_api_surface.py --check` to reject drift.
 
 Every file in `splunk-apps/splunk-uc-recommender/` is **generated**.
 Source of truth is
-[`scripts/generate_recommender_app.py`](../scripts/generate_recommender_app.py).
+[`python3 -m splunk_uc generate-recommender-app`](../scripts/generate_recommender_app.py).
 
 ```bash
 # Regenerate the recommender app.
-python3 scripts/generate_recommender_app.py
+python3 -m splunk_uc generate-recommender-app
 
 # CI drift guard — exits 1 if any generated file is out of sync.
-python3 scripts/generate_recommender_app.py --check
+python3 -m splunk_uc generate-recommender-app --check
 ```
 
 The script writes UTF-8 with LF line endings, pins its timestamps to
@@ -365,8 +365,8 @@ JSON keys so regenerated trees are byte-identical.
 Same story for the four recommender JSON indexes:
 
 ```bash
-python3 scripts/generate_api_surface.py          # write
-python3 scripts/generate_api_surface.py --check  # CI drift guard
+python3 -m splunk_uc generate-api-surface          # write
+python3 -m splunk_uc generate-api-surface --check  # CI drift guard
 ```
 
 Outputs land under `api/v1/recommender/` and are committed to the
@@ -398,7 +398,7 @@ alongside the generator's `--check` run.
 | Recommend page spins forever | Browser cannot reach `https://fenre.github.io` | Confirm egress; the UI will surface the fetch error after the first timeout. |
 | "Refusing to fetch …" error | Settings override points outside the allow-list | Clear the override in Settings or choose a URL under `https://fenre.github.io`. |
 | Empty inventory tables | Scans not yet run | Wait 30 minutes after install, or trigger **Manual scan** from the Settings page. |
-| "Recommender could not load: HTTP 404" | GitHub Pages hasn't published the latest API | Run `python3 scripts/generate_api_surface.py` locally and commit. |
+| "Recommender could not load: HTTP 404" | GitHub Pages hasn't published the latest API | Run `python3 -m splunk_uc generate-api-surface` locally and commit. |
 | TA modular input fails on Cloud | Modular inputs are blocked on Splunk Cloud Classic | Install the TA only on Enterprise search heads. |
 
 For anything else, file a bug under

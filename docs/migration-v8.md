@@ -178,7 +178,7 @@ under the same tolerant-consumer rule.
   `tests/e2e/recommender.spec.ts`. Gated on the existing
   `UC_TEST_SPLUNK_PASSWORD` secret — forks without secrets stay green.
 
-A new dashboard-SPL audit (`scripts/audit_dashboard_spl.py`) extracts
+A new dashboard-SPL audit (`python3 -m splunk_uc audit-dashboard-spl`) extracts
 every `<query>` from every Simple XML view in the recommender app,
 expands `$tokens$` from `<input>` defaults, and dispatches each
 panel against a live splunkd in `exec_mode=blocking`, asserting

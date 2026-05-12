@@ -1,23 +1,30 @@
 # `splunk_uc` package and `python -m splunk_uc <verb>` dispatcher
 
-Repo-overhaul plan §P6 (scripts taxonomy), 2026-05-09.
+Repo-overhaul plan §P6 (scripts taxonomy). Phase 6 **closed 2026-05-11**
+in v8.2.0 — Tier 1 + Tier 2 migrations landed across April/May 2026,
+Tier 3 (legacy shim deletion) and Tier 4 (`splunk-uc` console script
++ Hatchling packaging) closed in a single coordinated push on
+2026-05-11. The dispatcher (`python3 -m splunk_uc <verb>` or, after
+`pip install -e .`, `splunk-uc <verb>`) is now the **only** canonical
+entry point for recurring catalogue tasks.
 
 ## Why
 
-The repository has accumulated 120+ ad-hoc scripts under `scripts/`
+The repository had accumulated 120+ ad-hoc scripts under `scripts/`
 covering audits, generators, migrations, ingestion, and feasibility
-analyses. Discoverability is poor (no help index), invocation is
-inconsistent (some need `pip install`, some don't), and the layout
-makes it hard to reason about which scripts are still load-bearing.
+analyses. Discoverability was poor (no help index), invocation was
+inconsistent (some needed `pip install`, some didn't), and the layout
+made it hard to reason about which scripts were still load-bearing.
 
-P6 introduces a single Python package — `splunk_uc` — at
-`src/splunk_uc/` with five subpackages aligned with the
-established script categories. A unified `python -m splunk_uc <verb>`
-dispatcher resolves verb names to their implementations through a
-small registry. The migration is incremental: each batch moves
-N scripts at a time and leaves thin shims at the old `scripts/<name>.py`
-paths so existing CI workflows and Makefile targets keep working
-unchanged.
+P6 introduced a single Python package — `splunk_uc` — at
+`src/splunk_uc/` with six subpackages aligned with the established
+script categories. A unified `python3 -m splunk_uc <verb>` dispatcher
+resolves verb names to their implementations through a small registry.
+The migration ran in tiers: Tier 1 audits, Tier 2 generators + ingest
++ feasibility + migrations + tools, all backed by thin compatibility
+shims at the old `scripts/<name>.py` paths so existing callers kept
+working throughout the soak. **The shims were deleted in v8.2.0** —
+the soak is over.
 
 ## Layout
 
@@ -35,18 +42,20 @@ src/splunk_uc/
 
 ## Invocation
 
-The package is not yet `pip install -e`-d in CI. Until it is, the
-canonical invocation puts `src/` on `PYTHONPATH` on demand. Both
-shells work:
+Two equivalent invocations:
 
-    # Through the dispatcher (preferred, exercises the new CLI surface):
+    # Without installing — put src/ on PYTHONPATH on demand:
     PYTHONPATH=src python3 -m splunk_uc --help
     PYTHONPATH=src python3 -m splunk_uc audit-reproducibility
     PYTHONPATH=src python3 -m splunk_uc audit-reproducibility --first-build-only
 
-    # Through the legacy shim path (still works for one release of soak):
-    python3 scripts/audit_build_reproducibility.py
-    python3 scripts/audit_build_reproducibility.py --first-build-only
+    # After `pip install -e .` — the `splunk-uc` console script is on $PATH:
+    splunk-uc --help
+    splunk-uc audit-reproducibility
+    splunk-uc audit-reproducibility --first-build-only
+
+The legacy `python3 scripts/<name>.py` shim paths **no longer exist**;
+they were deleted in v8.2.0 when Phase 6 closed.
 
 The Makefile sets `PYTHONPATH=src` automatically via the `SPLUNK_UC`
 variable so `make audit-reproducibility` and `make

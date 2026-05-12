@@ -31,7 +31,7 @@ The identifier therefore needs to be:
 - `Y` — subcategory ordinal within the category (integer, starting at 1).
 - `Z` — use-case ordinal within the subcategory (integer, starting at 1, **gap-free**).
 
-Two rules are enforced by [`scripts/audit_uc_ids.py`](../../scripts/audit_uc_ids.py):
+Two rules are enforced by [`python3 -m splunk_uc audit-uc-ids`](../../scripts/audit_uc_ids.py):
 
 1. **Uniqueness.** No two UCs anywhere in the repo share an ID.
 2. **Gap-free ordering.** Within a subcategory, `Z` values are `1, 2, 3, ...` with no gaps. When a UC is deleted, all following UCs in the same subcategory are renumbered in the same PR.
@@ -67,8 +67,8 @@ The `UC-` prefix is present in human-readable contexts (markdown headings, relea
 ## Links
 
 - Implementation: [`build.py:parse_category_file()`](../../build.py)
-- Enforcement: [`scripts/audit_uc_ids.py`](../../scripts/audit_uc_ids.py)
-- Cross-ref tracking: [`scripts/audit_changelog_uc_refs.py`](../../scripts/audit_changelog_uc_refs.py), [`scripts/audit_non_technical_sync.py`](../../scripts/audit_non_technical_sync.py)
+- Enforcement: [`python3 -m splunk_uc audit-uc-ids`](../../scripts/audit_uc_ids.py)
+- Cross-ref tracking: [`python3 -m splunk_uc audit-changelog-uc-refs`](../../scripts/audit_changelog_uc_refs.py), [`python3 -m splunk_uc audit-non-technical-sync`](../../scripts/audit_non_technical_sync.py)
 - Superseded by: —
 
 ---

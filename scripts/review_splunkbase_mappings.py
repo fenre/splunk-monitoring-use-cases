@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SME review helper for the v9.0 ``splunkbaseApps[]`` migration.
 
-Companion to ``scripts/generate_splunkbase_mappings.py``. The migration
+Companion to ``python3 -m splunk_uc generate-splunkbase-mappings``. The migration
 generator proposes a ``splunkbaseApps[]`` array for every UC, flagging each
 entry with ``requiresSmeReview: true``. This script supports the human
 review pass that clears those flags. Process documented in

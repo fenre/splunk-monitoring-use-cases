@@ -2,7 +2,7 @@
 """Sync ``data/splunkbase-catalog.json`` from the public Splunkbase REST API.
 
 The recommender app (``splunk-uc-recommender``) and the v9.0 migration generator
-(``scripts/generate_splunkbase_mappings.py``) consume this catalog to render the
+(``python3 -m splunk_uc generate-splunkbase-mappings``) consume this catalog to render the
 per-card "Required Splunkbase apps" section and to compute install-guidance
 status. The catalog is checked into the repository so that:
 

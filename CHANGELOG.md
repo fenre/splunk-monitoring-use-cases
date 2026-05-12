@@ -12,6 +12,116 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.2.0] - 2026-05-11
+
+### Phase 6 closed — Tier 3 shims deleted, Tier 4 packaging infrastructure landed
+
+Theme: **`scripts/` is no longer the canonical entry point.** Pre-v8.2.0
+every recurring script under `scripts/` had a sibling implementation
+under `src/splunk_uc/` and a thin compatibility shim that put `src/` on
+`sys.path` and re-exported the public surface. The shims existed for a
+soak window so external callers (workflows, Makefile targets, the
+pre-commit hook, the MCP server, docs, the build pipeline) could
+migrate to the dispatcher one PR at a time. With every Tier 1 and
+Tier 2 migration landed and the dispatcher exercised continuously by
+CI, the soak window is closed.
+
+What changed:
+
+- **Deleted every Tier 1 + Tier 2 + helper shim under `scripts/`.**
+  85 files removed (84 verb shims + 1 ingest helper) covering audits,
+  generators, ingest, feasibility, migrations, and tools. The empty
+  `scripts/ingest/` directory and its now-obsolete `__init__.py` /
+  `README.md` are gone with them. `scripts/feasibility/` retains only
+  `oscal_validate.mjs` (the Node-based OSCAL Component Definition
+  validator; not a Python shim).
+- **Rewired every caller in one pass.** 128 caller files updated to
+  invoke the dispatcher directly. Substitutions applied uniformly:
+  `python3 scripts/foo.py` → `python3 -m splunk_uc foo-verb`,
+  `python scripts/foo.py` → `python -m splunk_uc foo-verb`,
+  `$(PYTHON) scripts/foo.py` → `$(PYTHON) -m splunk_uc foo-verb`,
+  bare-path `scripts/foo.py` references → `python3 -m splunk_uc foo-verb`.
+  Caller directories swept: `.github/`, `mcp/`, `tools/`, `tests/`,
+  `docs/`, `templates/`, `schemas/`, `splunk-apps/`, `.cursor/`,
+  `scripts/` (sibling one-shots), plus root-level
+  `Makefile` / `.pre-commit-config.yaml` / `README.md` / `AGENTS.md`
+  / `AGENTS-EXAMPLES.md` / `CONTRIBUTING.md` / `SECURITY.md` /
+  `ROADMAP.md` / `CODEBASE-DIAGRAM.md` / `GOVERNANCE.md` /
+  `pyproject.toml`. The pre-commit hook
+  (`.pre-commit-config.yaml`) now invokes
+  `python3 -m splunk_uc validate-uc-schema-staged` directly.
+- **What stays in `scripts/`** (76 Python files, deliberate):
+  the underscore-prefixed one-shots (`_catalog_*.py`,
+  `_meraki_*.py`, etc.); the tier-uplift / content-fix scripts
+  that will be deleted wholesale at the end of their content
+  burndown (`uplift_*.py`, `assurance_gap_fix.py`,
+  `fix_cim_dataset_hallucinations.py`, `rewrite_meraki_*.py`,
+  `regen_di_for_ucs.py`, `enrich_di_gold*.py`, `uc_quality_fix.py`);
+  the burndown helpers and snapshot tools (`build_es.py`,
+  `build_ta.py`, `build_provenance.py`, `snapshot_metrics.py`,
+  `samples_index.py`, `parse_uc_catalog.py`, `simulate_controltest.py`,
+  `sync_splunkbase_catalog.py`, `review_splunkbase_mappings.py`,
+  `augment_regulation_api.py`, `stamp_ledger_release.py`,
+  `run_uc_tests.py`); the gitignored Splunk-deployment generators
+  (`generate_catalog_dashboard.py`, `generate_uc_dashboards.py`,
+  `deploy_dashboard_studio_rest.py`); the library helper
+  `equipment_lib.py` (used by `splunk_uc.generators.equipment_tags`
+  via a `sys.path` insert); and three pure documentation generators
+  (`generate_backlinks.py`, `generate_doc_references.py`,
+  `audit_auto_gen_provenance.py`) that operate on the markdown corpus
+  rather than the UC sidecars. All are gitignored or one-shot under
+  the migration eligibility rule in `docs/scripts-taxonomy.md`.
+- **Tier 4 packaging infrastructure.** `pyproject.toml` now describes
+  the `splunk-uc` package as installable:
+  `[tool.hatch.build.targets.wheel].packages = ["src/splunk_uc"]`
+  plus an exclude for `__pycache__`; `[tool.hatch.build.targets.sdist]`
+  ships `src/splunk_uc/**/*.py`, the schemas, `README.md`, `VERSION`,
+  and `LICENSE`. A `[project.scripts]` entry binds the
+  `splunk-uc` console command to `splunk_uc.__main__:main` so
+  `pip install -e .` exposes the dispatcher as a first-class CLI.
+  `[tool.ruff.lint.per-file-ignores]` and `[tool.mypy].files` /
+  `[tool.coverage.run].source` are widened to include
+  `src/splunk_uc/`. **No PyPI publish in this release** — that is
+  P9 work; the infrastructure exists so any maintainer can
+  `pip install -e .` locally and the wheel build is exercised by CI
+  on demand.
+- **Test fixups required by the deletion sweep.** Two test modules
+  imported deleted shims directly: `tests/scripts/test_audit_build_reproducibility.py`
+  dropped its dual-surface (shim `abr` + implementation `impl`)
+  import pattern and now aliases `abr = impl` since both pointed at
+  the same module body anyway. `tests/build/test_scripts.py`
+  switched `importlib.import_module("generate_recommender_app")` to
+  `importlib.import_module("splunk_uc.generators.recommender_app")`.
+  Four parametrized cases in `tests/scripts/test_audit_coverage_budget.py`
+  reverted from over-rewritten test fixtures (`python3 -m splunk_uc audit-X`)
+  back to the historical path forms (`scripts/audit_X.py`) — these are
+  classifier test data, not real invocations; the classifier matches
+  on the legacy path patterns to bucket coverage-report file paths.
+- **Verification.** `make audit` clean across every audit; `make build`
+  emits the full `dist/` tree (33,130 files, 897.1 MiB, 12-stage
+  telemetry); full pytest suite reports **660 passing tests**, 0
+  failed, in ~71 s. Dispatcher verb count: **83** (49 audits + 16
+  generators + 6 ingest + 4 feasibility + 3 migrations + 5 tools) —
+  emitted live by `splunk_uc._registry._REGISTRY` at HEAD; earlier
+  batch narratives quoted "82" and "84" with different cluster splits,
+  reconciled against the live registry here.
+
+Why this matters:
+
+- The legacy shim surface is gone. There is exactly one way to invoke
+  any recurring catalogue task: `python3 -m splunk_uc <verb>`
+  (with `PYTHONPATH=src` if you haven't `pip install -e .`'d the
+  package, or `splunk-uc <verb>` if you have).
+- The migration eligibility rule (`docs/scripts-taxonomy.md`) is
+  enforced by absence: every file under `src/splunk_uc/` is committed,
+  recurring, and reachable via the dispatcher; every file remaining
+  under `scripts/` is a one-shot, a content-fix helper, a burndown
+  tool, a gitignored generator, or a library helper.
+- The `splunk-uc` console entry point is wired through the standard
+  Python packaging surface, so a future PyPI publish is a one-line
+  configuration change (toggle `[project].dynamic` / lock down
+  classifiers in `pyproject.toml`) rather than a refactor.
+
 ### Legacy `use-cases/` markdown corpus retired — single-system content tree + CI guard
 
 Theme: **the dual-content era is over.** Pre-v8.2.0 the repo carried

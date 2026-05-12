@@ -13,18 +13,18 @@
 
 | # | Spike | Script | Outcome | Time-boxed | Actual |
 |---|---|---|---|---:|---:|
-| 0.5a | OLIR / OSCAL catalogue ingest | `scripts/feasibility/olir_ingest_proof.py` | **PASS** | 4 h | 3 h |
-| 0.5b | OSCAL generation + validation | `scripts/feasibility/oscal_generate_proof.py` + `scripts/feasibility/oscal_validate.mjs` | **PASS** (via Ajv) | 4 h | 6 h (incl. Python validator false start) |
-| 0.5c | UC authoring ergonomics | `scripts/feasibility/validate_exemplar_uc.py` | **PASS** | 2 h | 2 h |
-| 0.5d | Splunk-app POC | `scripts/feasibility/splunk_app_poc.py` | **PASS** (shape-check) | 4 h | 2 h |
+| 0.5a | OLIR / OSCAL catalogue ingest | `python3 -m splunk_uc feasibility-olir-ingest-proof` | **PASS** | 4 h | 3 h |
+| 0.5b | OSCAL generation + validation | `python3 -m splunk_uc feasibility-oscal-generate-proof` + `scripts/feasibility/oscal_validate.mjs` | **PASS** (via Ajv) | 4 h | 6 h (incl. Python validator false start) |
+| 0.5c | UC authoring ergonomics | `python3 -m splunk_uc feasibility-validate-exemplar` | **PASS** | 2 h | 2 h |
+| 0.5d | Splunk-app POC | `python3 -m splunk_uc feasibility-splunk-app-poc` | **PASS** (shape-check) | 4 h | 2 h |
 
 Every output is reproducible from a clean clone:
 
 ```bash
-.venv-feasibility/bin/python scripts/feasibility/olir_ingest_proof.py
-.venv-feasibility/bin/python scripts/feasibility/oscal_generate_proof.py
-.venv-feasibility/bin/python scripts/feasibility/validate_exemplar_uc.py
-.venv-feasibility/bin/python scripts/feasibility/splunk_app_poc.py
+.venv-feasibility/bin/python -m splunk_uc feasibility-olir-ingest-proof
+.venv-feasibility/bin/python -m splunk_uc feasibility-oscal-generate-proof
+.venv-feasibility/bin/python -m splunk_uc feasibility-validate-exemplar
+.venv-feasibility/bin/python -m splunk_uc feasibility-splunk-app-poc
 ```
 
 ---
@@ -93,7 +93,7 @@ Definition from a UC JSON sidecar and validate it against the
 authoritative schema.
 
 **Exemplar input.** `use-cases/cat-22/uc-22.35.1.json`
-**Generator.** `scripts/feasibility/oscal_generate_proof.py`
+**Generator.** `python3 -m splunk_uc feasibility-oscal-generate-proof`
 **Output.** `data/crosswalks/oscal/component-definition-uc-22.35.1.json`
 **Validator.** `scripts/feasibility/oscal_validate.mjs` (Node + Ajv)
 
@@ -138,7 +138,7 @@ compliance catalogue.
 
 **Schema.** `schemas/uc.schema.json`
 **Exemplar.** `use-cases/cat-22/uc-22.35.1.json`
-**Validator.** `scripts/feasibility/validate_exemplar_uc.py` (Python
+**Validator.** `python3 -m splunk_uc feasibility-validate-exemplar` (Python
 `jsonschema` 4.26.0 with Draft 2020-12)
 
 **Result.**
@@ -175,7 +175,7 @@ Phase 0.1 interviews will confirm or reshape the vocabulary; see
 **Goal.** Prove that given a conformant JSON sidecar we can
 deterministically emit an AppInspect-shaped Splunk app.
 
-**Generator.** `scripts/feasibility/splunk_app_poc.py`
+**Generator.** `python3 -m splunk_uc feasibility-splunk-app-poc`
 **Output.** `build/poc/SplunkAppForComplianceUseCases/`
 **Shape-check validators** (performed in-script):
 * Required files present (app.conf, savedsearches.conf, default.meta,

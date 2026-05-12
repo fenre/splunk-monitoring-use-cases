@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/generate_stewardship_digest.py``.
+"""Unit tests for ``python3 -m splunk_uc generate-stewardship-digest``.
 
 Repo-overhaul plan §P8 step 4 (2026-05-09): the digest is the
 release-over-release stewardship report. The tests pin the contract
@@ -43,7 +43,7 @@ SCHEMA_PATH = REPO_ROOT / "schemas" / "v2" / "stewardship-digest.schema.json"
 
 # Tests import the implementation module directly so monkeypatched module-level
 # state propagates through the closure cleanly. The shim at
-# scripts/generate_stewardship_digest.py would only re-export the public API
+# python3 -m splunk_uc generate-stewardship-digest would only re-export the public API
 # at import time, which would not pick up later patches against helpers like
 # ``_walk_sidecars`` or ``_previous_snapshot``.
 if str(SRC_DIR) not in sys.path:

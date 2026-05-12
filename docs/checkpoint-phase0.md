@@ -19,7 +19,7 @@ deliverables:
 | Sub-phase | Goal | Output | Status |
 |---|---|---|---|
 | 0.1 Auditor discovery | Build the research apparatus to get auditor requirements into Phase 1 with primary-source rigour. | `docs/auditor-research/*` (guide + survey + recruitment + findings template) | **READY**, fieldwork not yet conducted |
-| 0.2 Content inventory & gap analysis | Know exactly what regulatory surface the existing catalogue has and what it is missing. | `scripts/inventory_ucs.py`, `data/inventory/*`, `data/regulations.draft.json`, `docs/content-gap-analysis.md` | **COMPLETE** |
+| 0.2 Content inventory & gap analysis | Know exactly what regulatory surface the existing catalogue has and what it is missing. | `python3 -m splunk_uc inventory-ucs`, `data/inventory/*`, `data/regulations.draft.json`, `docs/content-gap-analysis.md` | **COMPLETE** |
 | 0.5 Feasibility spikes | Prove the tooling works before Phase 1 invests in schema + content. | `scripts/feasibility/*`, `vendor/*`, `data/crosswalks/*`, `docs/feasibility-spike-results.md` | **COMPLETE, all PASS** |
 
 Why there is no 0.3 / 0.4 in this report: those were Phase 0 subtasks
@@ -66,7 +66,7 @@ above are the minimum apparatus to prevent that failure mode.
 ## 3. Content inventory and gap summary (0.2 summary)
 
 Full report: `docs/content-gap-analysis.md`.
-Regeneration: `python3 scripts/inventory_ucs.py --stats && python3 scripts/gap_analysis.py`.
+Regeneration: `python3 -m splunk_uc inventory-ucs --stats && python3 -m splunk_uc gap-analysis`.
 
 ### 3.1 Headline numbers
 
@@ -110,7 +110,7 @@ scheduled for promotion in Phase 1.3.
 
 ### 3.4 Quality caveat
 
-The inventory relies on `scripts/inventory_ucs.py` parsing `### UC-`
+The inventory relies on `python3 -m splunk_uc inventory-ucs` parsing `### UC-`
 headers and `Regulations:` bullets. Tags that use alternative
 phrasings ("Relevant regulations:", "Compliance:") are not captured;
 `gap_analysis.py` normalises known aliases but only for the tier-1
@@ -269,12 +269,12 @@ Once §5 is signed off, Phase 1.1 schema work is unblocked.
 All Phase 0 artefacts are under version control and reproducible:
 
 ```bash
-.venv-feasibility/bin/python scripts/inventory_ucs.py --stats
-.venv-feasibility/bin/python scripts/gap_analysis.py
-.venv-feasibility/bin/python scripts/feasibility/olir_ingest_proof.py
-.venv-feasibility/bin/python scripts/feasibility/oscal_generate_proof.py
-.venv-feasibility/bin/python scripts/feasibility/validate_exemplar_uc.py
-.venv-feasibility/bin/python scripts/feasibility/splunk_app_poc.py
+.venv-feasibility/bin/python -m splunk_uc inventory-ucs --stats
+.venv-feasibility/bin/python -m splunk_uc gap-analysis
+.venv-feasibility/bin/python -m splunk_uc feasibility-olir-ingest-proof
+.venv-feasibility/bin/python -m splunk_uc feasibility-oscal-generate-proof
+.venv-feasibility/bin/python -m splunk_uc feasibility-validate-exemplar
+.venv-feasibility/bin/python -m splunk_uc feasibility-splunk-app-poc
 ```
 
 Re-running the above from this commit must produce identical output

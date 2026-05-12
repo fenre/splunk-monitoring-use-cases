@@ -14,7 +14,7 @@ Produces release artefacts from data/provenance/mapping-ledger.json:
 
 The in-repo copy (data/provenance/mapping-ledger.json) remains with
 signature.state="unsigned" so PR builds continue to validate deterministically
-via scripts/audit_mapping_ledger.py. Only the release artefact carries the
+via python3 -m splunk_uc audit-mapping-ledger. Only the release artefact carries the
 attested envelope.
 
 Why stamp *before* attestation?
@@ -152,7 +152,7 @@ def stamp_ledger(dry_run: bool) -> dict[str, Any]:
     if not LEDGER_SRC.exists():
         print(
             f"FATAL: source ledger not found at {LEDGER_SRC.relative_to(ROOT)}. "
-            "Run scripts/generate_mapping_ledger.py before stamping.",
+            "Run python3 -m splunk_uc generate-mapping-ledger before stamping.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -235,7 +235,7 @@ def write_manifest(
         f"  --owner {md['repository'].split('/', 1)[0]} \\\n"
         f"  --bundle {BUNDLE_FILENAME}\n\n"
         f"# 2. Re-derive the merkle root yourself\n"
-        f"python3 scripts/audit_mapping_ledger.py --verify-signature\n"
+        f"python3 -m splunk_uc audit-mapping-ledger --verify-signature\n"
         f"```\n\n"
         f"Expected output: `PASS: mapping ledger OK ({entry_count:,} entries, "
         f"merkle root {merkle[:16]}…, signature=attested)`.\n\n"

@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_action_pins.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-action-pins``.
 
 Repo-overhaul plan §P2.5 (2026-05-08): the action-pin auditor is a
 single point of failure for our supply-chain trust chain — if it stops
@@ -60,7 +60,7 @@ def _load_audit_module():
 
     P6 (scripts taxonomy, 2026-05-09) relocated the implementation
     to ``src/splunk_uc/audits/action_pins.py`` with a thin shim at
-    the original ``scripts/audit_action_pins.py`` path. Tests that
+    the original ``python3 -m splunk_uc audit-action-pins`` path. Tests that
     monkeypatch module-level state (``Path``, ``__file__``,
     ``resolve_tag_sha``) MUST reach the implementation module so
     the patches propagate into the function closures — patching
@@ -386,7 +386,7 @@ class _StubPath:
     yields the fixture root, not the real repo.
 
     P6 (scripts taxonomy, 2026-05-09) moved the audit body from
-    ``scripts/audit_action_pins.py`` (depth 1) to
+    ``python3 -m splunk_uc audit-action-pins`` (depth 1) to
     ``src/splunk_uc/audits/action_pins.py`` (depth 3). The
     implementation now reads ``parents[3]``; the stub exposes all
     four parent levels so the test continues to redirect into the

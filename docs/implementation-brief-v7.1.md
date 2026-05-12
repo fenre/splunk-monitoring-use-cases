@@ -59,7 +59,7 @@ images, blockquotes, or nested lists.
 ### 3. Delete .md companion files
 
 The `content/cat-*/UC-*.md` files are generated from JSON by
-`scripts/generate_md_from_json.py`. They are NOT read by the build — the build
+`python3 -m splunk_uc generate-md-from-json`. They are NOT read by the build — the build
 reads JSON directly. They caused a staleness bug where the panel showed garbage
 because the `.md` was stale while the JSON was gold-standard. Delete all companion
 `.md` files that are no longer needed for authoring and retire the generation script.
@@ -151,7 +151,7 @@ unchanged.
 ### Files to delete
 - `index2.html`
 - `content/cat-*/UC-*.md` (companion markdown files targeted for deletion in this plan)
-- `scripts/generate_md_from_json.py` (delete in P1; the legacy
+- `python3 -m splunk_uc generate-md-from-json` (delete in P1; the legacy
   `scripts/_archived/` copy was removed in the Phase 0 hygiene pass).
 
 ### Files to modify

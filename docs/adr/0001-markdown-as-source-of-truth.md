@@ -55,7 +55,7 @@ The markdown is the canonical form. If a generated file disagrees with the markd
 ## Links
 
 - Implementation: [`build.py:parse_category_file()`](../../build.py)
-- Validation: [`scripts/audit_uc_structure.py`](../../scripts/audit_uc_structure.py)
+- Validation: [`python3 -m splunk_uc audit-uc-structure`](../../scripts/audit_uc_structure.py)
 - Field taxonomy: [docs/use-case-fields.md](../use-case-fields.md)
 - Superseded by: [ADR-0007: JSON sidecars as source of truth for UC content](0007-json-as-source-of-truth.md)
 

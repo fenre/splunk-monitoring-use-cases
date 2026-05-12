@@ -76,8 +76,8 @@ for the build stages.
 1. **Schema:** Every UC JSON sidecar must validate against `schemas/uc.schema.json`.
 2. **Quality tiers:** Gold / Silver / Bronze — see `.cursor/rules/gold-standard-authoring.mdc` and `docs/gold-standard-template.md`.
 3. **Required fields (JSON):** `id`, `title`, `criticality`, `difficulty`, `monitoringType`, `value`, `app`, `dataSources`, `spl`, `implementation`, `visualization`, `cimModels`, `grandmaExplanation`.
-4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `python -m splunk_uc generate-grandma-explanations` (legacy `scripts/generate_grandma_explanations.py` shim still works during soak).
-5. **Validation:** Run `make audit` (or `python3 scripts/audit_uc_structure.py --full`) and `make build` before committing.
+4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `python -m splunk_uc generate-grandma-explanations` (legacy `python3 -m splunk_uc generate-grandma-explanations` shim still works during soak).
+5. **Validation:** Run `make audit` (or `python3 -m splunk_uc audit-uc-structure --full`) and `make build` before committing.
 
 ## MCP tools available
 
@@ -139,8 +139,8 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - SPL hallucination audit (unknown commands, invalid eval functions)
 - Build freshness (regenerate and diff)
 - Version triple consistency (`VERSION` ↔ `CHANGELOG.md` ↔ `index.html`)
-- Roadmap consistency (`scripts/audit_roadmap_consistency.py --check`)
-- License inventory (`scripts/audit_license_inventory.py --check`)
+- Roadmap consistency (`python3 -m splunk_uc audit-roadmap-consistency --check`)
+- License inventory (`python3 -m splunk_uc audit-license-inventory --check`)
 - Metrics history snapshot (`scripts/snapshot_metrics.py --check` — fails when `VERSION` is bumped without a matching `data/metrics-history/<VERSION>.json`)
 - Metrics shape (`dist/metrics.json` validates against `schemas/v2/metrics.schema.json` on every reproducible build)
 - Stewardship digest schema (PR smoke-test of `python -m splunk_uc generate-stewardship-digest` against `schemas/v2/stewardship-digest.schema.json`; weekly refresh in `.github/workflows/stewardship.yml`)
@@ -166,7 +166,7 @@ make audit-reproducibility-fast                     # single --reproducible buil
 make splunk-uc-help                                 # show the python -m splunk_uc CLI help
 PYTHONPATH=src python3 -m splunk_uc --help          # canonical splunk_uc dispatcher entry point (P6)
 PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations  # fill missing plain-language fields
-python3 scripts/splunk_fortune.py                   # random UC "fortune cookie"
+python3 -m splunk_uc splunk-fortune                   # random UC "fortune cookie"
 PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate implementation ordering
 ```
 

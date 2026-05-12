@@ -4,7 +4,7 @@ Per-schema lifecycle log. Contract: see [`docs/schema-versioning.md`](../../docs
 
 | Version | Released | Stability | Notes                                                                                                                                                                                                                                                                  |
 |---------|----------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.0.0   | 2026-Q2  | stable    | Initial release (catalogue v8.1). Defines the weekly stewardship digest emitted by `scripts/generate_stewardship_digest.py` (repo-overhaul plan §P8 step 4). Snapshots release-over-release deltas in catalogue counts, quality-tier mix, coverage, leaderboard movers, audit warnings, and stale-UC review backlog. CI-gated by `tests/scripts/test_generate_stewardship_digest.py`. Adding fields is non-breaking; renaming or removing a field is a major bump. |
+| 1.0.0   | 2026-Q2  | stable    | Initial release (catalogue v8.1). Defines the weekly stewardship digest emitted by `python3 -m splunk_uc generate-stewardship-digest` (repo-overhaul plan §P8 step 4). Snapshots release-over-release deltas in catalogue counts, quality-tier mix, coverage, leaderboard movers, audit warnings, and stale-UC review backlog. CI-gated by `tests/scripts/test_generate_stewardship_digest.py`. Adding fields is non-breaking; renaming or removing a field is a major bump. |
 
 ## Stability commitment
 

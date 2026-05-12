@@ -28,7 +28,7 @@ Operational evidence should prefer machine-verifiable records over screenshots: 
 
 ## Testability
 
-High-value UCs include positive and negative control-test scenarios and fixture references under `sample-data/`. The no-gap audit is `python3 scripts/audit_nis2_no_gap.py` and fails when matrix rows or NIS2 UC compliance entries lose source traceability, evidence artifacts, owners, assurance rationale, or official source URLs.
+High-value UCs include positive and negative control-test scenarios and fixture references under `sample-data/`. The no-gap audit is `python3 -m splunk_uc audit-nis2-no-gap` and fails when matrix rows or NIS2 UC compliance entries lose source traceability, evidence artifacts, owners, assurance rationale, or official source URLs.
 
 Self-validation evidence is tracked in `docs/nis2-self-validation.md`. The deep coverage overview is exposed inside the canonical compliance story page at `compliance-story.html?reg=nis2` (rendered from `api/v1/compliance/story/nis2.json`); it summarises source coverage, assurance limits, review confidence, control-family rollups, and legal-boundary rows for the repository compliance section.
 

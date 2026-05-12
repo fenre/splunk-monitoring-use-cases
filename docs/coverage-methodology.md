@@ -9,7 +9,7 @@ Monitoring Use Cases catalogue measures regulatory coverage**. It is the
 contract between:
 
 - the UC authors (who claim coverage in `compliance[]` entries),
-- the audit script `scripts/audit_compliance_mappings.py` (which computes
+- the audit script `python3 -m splunk_uc audit-compliance-mappings` (which computes
   the metrics and blocks merges on drift), and
 - downstream consumers (dashboards, scorecards, AI agents, auditors).
 
@@ -201,7 +201,7 @@ cleanup ships.
 
 Any failure in the unconditional bucket, or any new finding in the
 baselineable bucket, returns non-zero from
-`scripts/audit_compliance_mappings.py` and blocks the merge.
+`python3 -m splunk_uc audit-compliance-mappings` and blocks the merge.
 
 ### 6.2 Release-blocking gates
 
@@ -240,7 +240,7 @@ The UC catalogue carries a UC-level `status` field defined in
 - *(unset)* — legacy, migrated from markdown before Phase 1.3. Treated as
   `community` for coverage purposes.
 
-Rules applied by `scripts/audit_compliance_mappings.py`:
+Rules applied by `python3 -m splunk_uc audit-compliance-mappings`:
 
 - UCs with `status == "draft"` are **fully excluded** from every
   coverage numerator. Their mappings still validate, but do not count.
@@ -305,7 +305,7 @@ definition of any metric, or the gate rules requires:
 
 ## 11. Reference implementation
 
-The normative implementation is `scripts/audit_compliance_mappings.py`.
+The normative implementation is `python3 -m splunk_uc audit-compliance-mappings`.
 Any interpreter of this document (dashboards, AI agents, external
 scorecards) **must** cross-check against the script's output and file
 a ticket if it diverges. The script is the tie-breaker.
@@ -335,7 +335,7 @@ Every other code (schema errors, unknown regulations, unknown versions,
 missing rationale, golden-test failures) is unconditional and cannot be
 baselined. The set of baselineable codes is defined by the
 `BASELINEABLE_CODES` constant in
-`scripts/audit_compliance_mappings.py` and is deliberately narrow.
+`python3 -m splunk_uc audit-compliance-mappings` and is deliberately narrow.
 
 ### 12.3 Fingerprints
 
@@ -375,7 +375,7 @@ On every audit run:
   errors reduces the baseline automatically on the next
   `--update-baseline` run.
 - **Fixing migration debt**: fix the UC(s), then run
-  `python scripts/audit_compliance_mappings.py --update-baseline` and
+  `python -m splunk_uc audit-compliance-mappings --update-baseline` and
   commit the shrunk baseline. Reviewers check that the line-count
   dropped.
 - **Force-regenerate after a grammar change**: if

@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_coverage_budget.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-coverage-budget``.
 
 The auditor classifies files into three tiers (tier-1, tier-2,
 tier-3) and ratchets per-file coverage against a committed baseline.
@@ -109,7 +109,11 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         # Tier 1 excludes (one-shot generators inside tools/build/)
         ("tools/build/migrate_legacy.py", "tier3"),
         ("tools/build/generate_phase4_5.py", "tier3"),
-        # Tier 2 (audit CLIs + named exceptions)
+        # Tier 2 (audit CLIs + named exceptions). These strings are
+        # *path-shaped test fixtures* fed into the classifier — not real
+        # invocations — because the classifier matches on
+        # ``scripts/audit_*.py`` / ``src/splunk_uc/audits/*.py`` patterns
+        # to bucket coverage-report file paths.
         ("scripts/audit_uc_structure.py", "tier2"),
         ("scripts/audit_action_pins.py", "tier2"),
         ("scripts/audit_compliance_mappings.py", "tier2"),
@@ -118,15 +122,15 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         ("scripts/build_ta.py", "tier2"),
         # Tier 3 (one-shot helpers — always exempt)
         ("scripts/uplift_iso27001_tier_bcd.py", "tier3"),
-        ("scripts/migrate_compliance_phase4.py", "tier3"),
+        ("python3 -m splunk_uc migrate-compliance-phase4", "tier3"),
         ("scripts/_draft_uc_18_1_15.py", "tier3"),
         ("scripts/backfill_cim_models.py", "tier3"),
         ("scripts/enrich_di_gold.py", "tier3"),
-        ("scripts/generate_md_from_json.py", "tier3"),
+        ("python3 -m splunk_uc generate-md-from-json", "tier3"),
         # P6 Tier 2 batch 5: generate_recommender_app.py is now a shim;
         # the implementation moved to src/splunk_uc/generators/recommender_app.py.
-        ("scripts/generate_recommender_app.py", "tier3"),
-        ("scripts/ingest_all.py", "tier3"),
+        ("python3 -m splunk_uc generate-recommender-app", "tier3"),
+        ("python3 -m splunk_uc ingest-all", "tier3"),
         ("scripts/ingest/source_a.py", "tier3"),
         # Anything outside the included paths is tier-3
         ("mcp/src/splunk_uc_mcp/server.py", "tier3"),

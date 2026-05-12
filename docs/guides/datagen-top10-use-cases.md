@@ -44,7 +44,7 @@ This guide shows how to simulate **realistic, searchable** events for ten high-v
 |----------|---------|
 | [eventgen_data/manifest-top10.json](../../eventgen_data/manifest-top10.json) | Machine-readable rows for these 10 UCs |
 | [eventgen_data/samples/](../../eventgen_data/samples/) | Redacted sample lines per **log family** (Cribl “Create Datagen File”) |
-| [scripts/generate_manifest_samples.py](../../scripts/generate_manifest_samples.py) | Emit NDJSON for Splunk HEC from the manifest |
+| [python3 -m splunk_uc generate-manifest-samples](../../scripts/generate_manifest_samples.py) | Emit NDJSON for Splunk HEC from the manifest |
 | [scripts/parse_uc_catalog.py](../../scripts/parse_uc_catalog.py) | Full-catalog UC list → `manifest-all.json` |
 | [config/uc_to_log_family.json](../../config/uc_to_log_family.json) | Category → default `log_family` for automation |
 
@@ -166,7 +166,7 @@ If you have **golden JSONL**, [EchoLake](https://github.com/daveherrald/echolake
 
 ## Automation (scripted, no AI required)
 
-- **Manifest + HEC NDJSON**: `python3 scripts/generate_manifest_samples.py --manifest eventgen_data/manifest-top10.json --output /tmp/top10.ndjson` then POST to HEC (or use as Cribl file source).
+- **Manifest + HEC NDJSON**: `python3 -m splunk_uc generate-manifest-samples --manifest eventgen_data/manifest-top10.json --output /tmp/top10.ndjson` then POST to HEC (or use as Cribl file source).
 - **Full catalog manifest**: `python3 scripts/parse_uc_catalog.py --output eventgen_data/manifest-all.json` (uses [config/uc_to_log_family.json](../../config/uc_to_log_family.json) for default `log_family` per category).
 - **Splunk index + dashboard**: use REST for index/HEC tokens; [scripts/deploy_dashboard_studio_rest.py](../../scripts/deploy_dashboard_studio_rest.py) for Dashboard Studio in **index** mode (see [dashboards/README.md](../../dashboards/README.md)).
 - **CI**: [.github/workflows/uc-manifest.yml](../../.github/workflows/uc-manifest.yml) regenerates and validates `manifest-all.json` on each push/PR.
@@ -328,7 +328,7 @@ requires discipline:
 
 - [eventgen_data/manifest-top10.json](../../eventgen_data/manifest-top10.json)
 - [eventgen_data/samples/](../../eventgen_data/samples/)
-- [scripts/generate_manifest_samples.py](../../scripts/generate_manifest_samples.py)
+- [python3 -m splunk_uc generate-manifest-samples](../../scripts/generate_manifest_samples.py)
 - [scripts/parse_uc_catalog.py](../../scripts/parse_uc_catalog.py)
 - [config/uc_to_log_family.json](../../config/uc_to_log_family.json)
 - [.github/workflows/uc-manifest.yml](../../.github/workflows/uc-manifest.yml)

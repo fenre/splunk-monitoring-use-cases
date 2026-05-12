@@ -36,4 +36,6 @@ def test_build_ta_parse_quickstart():
 
 
 def test_import_generate_recommender_app():
-    importlib.import_module("generate_recommender_app")
+    # Phase 6 closure (2026-05-11): the legacy ``scripts/generate_recommender_app.py``
+    # shim is gone; the implementation lives under ``splunk_uc.generators``.
+    importlib.import_module("splunk_uc.generators.recommender_app")

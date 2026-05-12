@@ -2,16 +2,16 @@
 """Augment ``api/v1/compliance/regulations/*.json`` with story-layer fields.
 
 Introduced by the Regulation-to-UC Story Redesign (Phase 2b). Reads the
-reverse-index artefacts emitted by ``scripts/generate_clause_index.py``
+reverse-index artefacts emitted by ``python3 -m splunk_uc generate-clause-index``
 and injects per-version ``clauseCoverageMatrix[]`` plus correctly-populated
 ``clausesReferencedByCatalogue[]`` and ``useCasesTaggingThisVersion[]``
 into every regulation and per-version-slice file already on disk.
 
 Why a post-processor rather than an extension of
-``scripts/generate_api_surface.py``: that generator's UC loader iterates the
+``python3 -m splunk_uc generate-api-surface``: that generator's UC loader iterates the
 JSON SSOT under ``content/cat-*/UC-*.json``, but the regulation surface needs
 extra story-layer fields that depend on the reverse-index artefacts emitted
-by ``scripts/generate_clause_index.py``. Augmenting in a separate pass keeps
+by ``python3 -m splunk_uc generate-clause-index``. Augmenting in a separate pass keeps
 the blast radius to regulation endpoints and matches the incremental pattern
 used for equipment and scorecard data.
 
@@ -39,8 +39,8 @@ Outputs: same regulation files, but each version object gains:
 * ``coverageSummary``              — totals per ``coverageState`` label plus
                                      priority-weighted coverage percentage.
 
-Design invariants mirror ``scripts/generate_api_surface.py`` and
-``scripts/generate_clause_index.py``:
+Design invariants mirror ``python3 -m splunk_uc generate-api-surface`` and
+``python3 -m splunk_uc generate-clause-index``:
 
 * Deterministic JSON (``sort_keys=True``, ``indent=2``, UTF-8, trailing
   newline, sorted lists).
@@ -106,7 +106,7 @@ def load_clause_index(clauses_dir: pathlib.Path | None = None) -> list[dict[str,
     base = clauses_dir or CLAUSES_DIR
     path = base / "index.json"
     if not path.exists():
-        raise SystemExit(f"ERROR: {path} missing. Run scripts/generate_clause_index.py first.")
+        raise SystemExit(f"ERROR: {path} missing. Run python3 -m splunk_uc generate-clause-index first.")
     idx = _load_json(path)
     rows = idx.get("clauses") or []
     if not isinstance(rows, list):
@@ -411,7 +411,7 @@ def augment_all(
             rel = reg_root.relative_to(REPO_ROOT)
         except ValueError:
             rel = reg_root
-        raise SystemExit(f"ERROR: {rel} missing. Run scripts/generate_api_surface.py first.")
+        raise SystemExit(f"ERROR: {rel} missing. Run python3 -m splunk_uc generate-api-surface first.")
     # When called from generate_api_surface.py we receive an explicit
     # clauses_dir rooted at the temp output tree; ad-hoc callers keep
     # the default ``api/v1/compliance/clauses`` path.

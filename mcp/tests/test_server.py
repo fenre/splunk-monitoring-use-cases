@@ -57,7 +57,7 @@ class TestToolDefinitions:
             assert tool.description and len(tool.description) >= 20
 
     def test_slug_regexes_are_frozen(self) -> None:
-        # The drift guard (scripts/audit_mcp_tool_schemas.py) also asserts
+        # The drift guard (python3 -m splunk_uc audit-mcp-tool-schemas) also asserts
         # this list end-to-end against the runtime tool surface; the local
         # length check here just stops a future contributor from silently
         # removing a regex without bumping the audit script in lock-step.

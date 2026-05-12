@@ -102,13 +102,13 @@ The catalog is a three-level tree: **Category → Subcategory → Use Case**. Ev
 - **Use Case ID `X.Y.Z`** — dotted triple. Within a subcategory, `Z` starts at `1` and increments without gaps.
 - **Full UC-ID** is `UC-X.Y.Z` (with the `UC-` prefix) whenever the ID is rendered for humans; the `UC-` prefix is dropped in JSON keys.
 
-Uniqueness is enforced repo-wide by [`scripts/audit_uc_ids.py`](../scripts/audit_uc_ids.py). The gap-free rule is a deliberate design choice: gaps imply removed content that a catalog consumer may still have a reference to, which would silently break their integration. When a UC is removed, all UCs below it in its subcategory are renumbered in the same PR.
+Uniqueness is enforced repo-wide by [`python3 -m splunk_uc audit-uc-ids`](../scripts/audit_uc_ids.py). The gap-free rule is a deliberate design choice: gaps imply removed content that a catalog consumer may still have a reference to, which would silently break their integration. When a UC is removed, all UCs below it in its subcategory are renumbered in the same PR.
 
 ### 4.3 Field taxonomy
 
 Every UC carries a set of typed fields. Fields fall into four classes:
 
-- **Required** — must be present and non-empty on every UC. Enforced by [`scripts/audit_uc_structure.py`](../scripts/audit_uc_structure.py).
+- **Required** — must be present and non-empty on every UC. Enforced by [`python3 -m splunk_uc audit-uc-structure`](../scripts/audit_uc_structure.py).
 - **Optional catalogued** — appear on some UCs, parsed into the JSON schema, surfaced in the dashboard.
 - **Optional quality** — references, false positives, MITRE, detection type, reviewer, last-reviewed date. Target coverage tracked in [§8 Quality system](#8-quality-system).
 - **Derived** — auto-assigned during catalog load in [`tools/build/parse_content.py`](../tools/build/parse_content.py) (equipment IDs, pillar, premium-app inference, regulation merge, and related post-processing).
@@ -151,7 +151,7 @@ content/
     └── UC-X.Y.Z.json                # canonical structured UC (required)
 ```
 
-Optional long-form markdown companions may exist alongside specific UCs where curators split prose from JSON. UC IDs in filenames and `_category.json` must stay in sync; [`scripts/audit_uc_ids.py`](../scripts/audit_uc_ids.py) enforces uniqueness and ordering rules across all `content/cat-*/UC-*.json` files.
+Optional long-form markdown companions may exist alongside specific UCs where curators split prose from JSON. UC IDs in filenames and `_category.json` must stay in sync; [`python3 -m splunk_uc audit-uc-ids`](../scripts/audit_uc_ids.py) enforces uniqueness and ordering rules across all `content/cat-*/UC-*.json` files.
 
 ### 5.2 Authoring shape
 
@@ -191,7 +191,7 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 
 ### 5.3 Required fields
 
-`scripts/audit_uc_structure.py --full` checks markdown sources where still present; canonical **`content/cat-*/UC-*.json`** files are validated primarily by `schemas/uc.schema.json` during `tools/build/build.py` parse. The bullets below remain the human authoring checklist (mirrored in JSON properties):
+`python3 -m splunk_uc audit-uc-structure --full` checks markdown sources where still present; canonical **`content/cat-*/UC-*.json`** files are validated primarily by `schemas/uc.schema.json` during `tools/build/build.py` parse. The bullets below remain the human authoring checklist (mirrored in JSON properties):
 
 | Field | Allowed values |
 |---|---|
@@ -255,7 +255,7 @@ The full curator rubric, legal syntax, and downstream surfaces are documented in
 **Validation & enforcement.** Three independent gates guard the graph:
 
 1. Catalog build (`make build` / [`tools/build/build.py`](../tools/build/build.py)) — runs prerequisite validation over the assembled catalog (unknown ids, cycles, wave monotonicity); prints a deterministic `Waves:` summary.
-2. [`scripts/audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) — per-UC shape checks against the committed `catalog.json` (`wv ∈ {crawl, walk, run}`, `pre[]` entries match the `UC-X.Y.Z` grammar, no self-references, no duplicates).
+2. [`python3 -m splunk_uc audit-catalog-schema`](../scripts/audit_catalog_schema.py) — per-UC shape checks against the committed `catalog.json` (`wv ∈ {crawl, walk, run}`, `pre[]` entries match the `UC-X.Y.Z` grammar, no self-references, no duplicates).
 3. `python -m splunk_uc audit-prerequisites` (implementation: [`src/splunk_uc/audits/prerequisites.py`](../src/splunk_uc/audits/prerequisites.py)) — standalone graph audit: re-runs every invariant against the committed `catalog.json`, emits a deterministic JSON report at `reports/prerequisites-audit.json`, and `--check` diffs the regenerated report against the committed file. This is the **artefact-diffable CI gate** — reviewers can download the report as an action artefact and inspect the full forward/reverse graph without re-running Python locally. `--strict` promotes wave-monotonicity warnings to hard errors (used by `release.yml`).
 
 **Runtime surfaces.** The fields are projected into:
@@ -505,7 +505,7 @@ Errors return a canonical `{"error", "message"}` envelope wrapped in
 a `CallToolResult(isError=True)` so agents have an unambiguous
 `isError` signal without having to introspect the JSON payload.
 
-**Audit gates.** `scripts/audit_mcp_tool_schemas.py` exercises every
+**Audit gates.** `python3 -m splunk_uc audit-mcp-tool-schemas` exercises every
 tool against the committed `api/v1/*.json` tree and validates each
 response against its declared `outputSchema`. The guard also freezes
 the slug regex set, asserts the 10 tools are declared with non-empty

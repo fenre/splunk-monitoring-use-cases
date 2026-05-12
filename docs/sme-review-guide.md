@@ -52,7 +52,7 @@ following are true for a UC sidecar under `content/cat-*/UC-*.json`:
   POPIA, AU Privacy, KVKK, NIST 800-171, FedRAMP, NIST SSDF,
   IEC 62443, NERC CIP, TISAX, CSA CCM, SWIFT CSCF, etc.).
 - Derivative content propagated by
-  `scripts/generate_phase3_3_derivatives.py`. Derivatives inherit the
+  `python3 -m splunk_uc generate-phase3-3-derivatives`. Derivatives inherit the
   parent's SME review — the derivation is mechanical and one-way
   (assurance never rises).
 - UC sidecar edits that change metadata only (primer text, `notes`,
@@ -207,7 +207,7 @@ without warnings relevant to the UC's deployment target?
 
 **How to check.**
 
-1. Run `scripts/audit_splunk_cloud_compat.py` locally; the SME
+1. Run `python3 -m splunk_uc audit-splunk-cloud-compat` locally; the SME
    confirms the UC has no `severity=fail` entries.
 2. Inspect the SPL for AppInspect-incompatible constructs:
    - Custom scripted commands (`| script …`, `| custom_cmd …`) are

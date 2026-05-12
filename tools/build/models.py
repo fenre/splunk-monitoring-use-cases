@@ -148,7 +148,7 @@ class ComplianceMapping(TypedDict, total=False):
     (v1.7.0). Required keys (``regulation``, ``version``, ``clause``,
     ``mode``, ``assurance``, ``assurance_rationale``) are not enforced
     by ``TypedDict`` — runtime validation lives in
-    ``scripts/audit_compliance_mappings.py``.
+    ``python3 -m splunk_uc audit-compliance-mappings``.
     """
 
     regulation: RegulationId
@@ -238,7 +238,7 @@ class UseCase(TypedDict, total=False):
     The schema-required fields are ``id`` and ``title``. ``TypedDict``'s
     ``total=False`` makes everything structurally optional; runtime
     validation against ``schemas/uc.schema.json`` lives in
-    ``scripts/audit_uc_structure.py``.
+    ``python3 -m splunk_uc audit-uc-structure``.
 
     Field names mirror ``schemas/uc.schema.json`` 1:1 — including the
     ``$schema`` key (which is a TypedDict alias because ``$`` is not a

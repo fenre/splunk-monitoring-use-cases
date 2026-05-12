@@ -1,5 +1,5 @@
 // Tests for the recommender.js AMD module produced by
-// scripts/generate_recommender_app.py. We run them against the
+// python3 -m splunk_uc generate-recommender-app. We run them against the
 // generated file (not a copy) so that any change to the scoring or
 // the URL sanitiser is exercised in CI.
 //

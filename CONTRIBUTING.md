@@ -18,11 +18,11 @@ Open `dist/index.html` in a browser (via `make serve`, or any static server root
 
 - **Category directories:** `content/cat-XX-descriptive-name/` containing `UC-X.Y.Z.json` files, where `XX` is the two-digit category.
 - **UC files:** `UC-X.Y.Z.json` with `id` (`X.Y.Z`) and `title` fields — category `X`, subcategory `Y`, use case `Z`.
-- **ID rules (`scripts/audit_uc_ids.py`):** `X` must match the directory’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). The `id` values (and thus `UC-X.Y.Z`) must be unique repo-wide.
+- **ID rules (`python3 -m splunk_uc audit-uc-ids`):** `X` must match the directory’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). The `id` values (and thus `UC-X.Y.Z`) must be unique repo-wide.
 
 ### Required UC fields (CI)
 
-Structure and enums are enforced against [`schemas/uc.schema.json`](schemas/uc.schema.json). `scripts/audit_uc_structure.py` and the build treat that schema (plus CI rules) as the contract. The table below lists JSON properties commonly required for catalog UCs; see the schema for the full required/optional set and valid `monitoringType` values.
+Structure and enums are enforced against [`schemas/uc.schema.json`](schemas/uc.schema.json). `python3 -m splunk_uc audit-uc-structure` and the build treat that schema (plus CI rules) as the contract. The table below lists JSON properties commonly required for catalog UCs; see the schema for the full required/optional set and valid `monitoringType` values.
 
 | JSON property | Notes |
 |--------|--------|
@@ -140,7 +140,7 @@ review via Pull Requests:
 
 1. **Author** — The Cursor rule at `.cursor/rules/gold-standard-authoring.mdc`
    guides agents to produce operationally deep content
-2. **Audit** — `python3 scripts/audit_gold_profile.py --files <changed files>`
+2. **Audit** — `python3 -m splunk_uc audit-gold-profile --files <changed files>`
    validates depth, not just field presence
 3. **Generate .md** — `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files <changed files>`
    regenerates companion markdown from JSON (JSON is the single source of truth)
@@ -150,7 +150,7 @@ review via Pull Requests:
 ### JSON is the source of truth
 
 Never edit `.md` files directly under `content/`. They are auto-generated from
-JSON by `python -m splunk_uc generate-md-from-json` (legacy `scripts/generate_md_from_json.py` shim still works during soak). Edit only the `.json` files.
+JSON by `python -m splunk_uc generate-md-from-json` (legacy `python3 -m splunk_uc generate-md-from-json` shim still works during soak). Edit only the `.json` files.
 
 ### Consolidation
 
@@ -163,7 +163,7 @@ with tuning guidance. See the template guide for detailed merge/keep criteria.
 Run locally before opening a PR (validates UC JSON under **`content/cat-*/UC-*.json`**):
 
 ```bash
-python3 scripts/audit_uc_ids.py && python3 scripts/audit_uc_structure.py --full
+python3 -m splunk_uc audit-uc-ids && python3 -m splunk_uc audit-uc-structure --full
 ```
 
 | Script | What it checks |

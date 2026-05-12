@@ -161,15 +161,15 @@ Each pack record is the source of truth for facts in that family. When authoring
 6. **Author the `detailedImplementation`** following the 5-section structure. Pull from the pack's `kfps` and `troubleshooting` lists for that section. Add UC-specific thresholds, runbooks, and rationale.
 7. **Build `controlTest`** with a positive and negative narrative. Drop a `sample-data/uc-X.Y.Z-fixture.json` that exercises the positive case.
 8. **Validate**:
-   - `python3 scripts/audit_gold_profile.py --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
+   - `python3 -m splunk_uc audit-gold-profile --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
    - `PYTHONPATH=src python3 -m splunk_uc audit-gold-profile-v2 --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
-   - `python3 scripts/audit_uc_structure.py --full`
+   - `python3 -m splunk_uc audit-uc-structure --full`
 9. **Regenerate** dependent artifacts:
-   - `python3 scripts/generate_equipment_tags.py` (writes `equipment[]` / `equipmentModels[]` from your prose)
+   - `python3 -m splunk_uc generate-equipment-tags` (writes `equipment[]` / `equipmentModels[]` from your prose)
    - `PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations` if the field is empty
    - `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
 10. **Run the no-gap audit** to confirm the matrix is still complete:
-    - `python3 scripts/audit_nis2_no_gap.py`
+    - `python3 -m splunk_uc audit-nis2-no-gap`
 
 ---
 
@@ -295,18 +295,18 @@ After all batches:
 
 ```bash
 # Full regeneration
-python3 scripts/generate_evidence_packs.py
-python3 scripts/generate_story_payload.py
-python3 scripts/generate_api_surface.py
+python3 -m splunk_uc generate-evidence-packs
+python3 -m splunk_uc generate-story-payload
+python3 -m splunk_uc generate-api-surface
 
 # Full audit sweep
-python3 scripts/audit_compliance_mappings.py
-python3 scripts/audit_compliance_gaps.py
-python3 scripts/audit_uc_structure.py
-python3 scripts/audit_catalog_schema.py
-python3 scripts/audit_repo_consistency.py
-python3 scripts/audit_non_technical_sync.py
-python3 scripts/audit_placeholders.py
+python3 -m splunk_uc audit-compliance-mappings
+python3 -m splunk_uc audit-compliance-gaps
+python3 -m splunk_uc audit-uc-structure
+python3 -m splunk_uc audit-catalog-schema
+python3 -m splunk_uc audit-repo-consistency
+python3 -m splunk_uc audit-non-technical-sync
+python3 -m splunk_uc audit-placeholders
 ```
 
 ### 8.4 Final scorecard (NIS2 achieved)
@@ -361,7 +361,7 @@ Use this checklist when starting a new regulation uplift. Copy the table into a 
 
 - Bar definition: `docs/gold-standard-template.md`
 - Profile schema: `schemas/uc-profile-gold.json`
-- Legacy audit: `scripts/audit_gold_profile.py`
+- Legacy audit: `python3 -m splunk_uc audit-gold-profile`
 - Tightened audit: `python -m splunk_uc audit-gold-profile-v2`
   (implementation: `src/splunk_uc/audits/gold_profile_v2.py`)
 - NIS2 domain packs: `data/nis2-domain-packs.json`

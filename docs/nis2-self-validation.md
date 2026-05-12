@@ -4,7 +4,7 @@ This record captures the validation evidence for the best-in-class NIS2<sup clas
 
 ## Validation Summary
 
-- NIS2 no-gap audit (`scripts/audit_nis2_no_gap.py`) passes against the 149-row matrix and the NIS2 compliance entries on every NIS2-tagged UC.
+- NIS2 no-gap audit (`python3 -m splunk_uc audit-nis2-no-gap`) passes against the 149-row matrix and the NIS2 compliance entries on every NIS2-tagged UC.
 - NIS2 gold-profile audit passes for every NIS2-tagged UC JSON file under `content/cat-22-regulatory-compliance/UC-22.2.*.json`.
 - `catalog.json` schema validation passes.
 - The compliance-story endpoint `api/v1/compliance/story/nis2.json` carries a `deepCoverage` block computed directly from `data/per-regulation/nis2-coverage-expansion.json` and `data/nis2-source-map.json`; the same canonical surface used for every other regulation renders that block at `compliance-story.html?reg=nis2`.
@@ -13,17 +13,17 @@ This record captures the validation evidence for the best-in-class NIS2<sup clas
 ## Commands Run
 
 ```bash
-python3 scripts/audit_nis2_no_gap.py
-python3 scripts/audit_gold_profile.py --check --files <NIS2 UC JSON files>
-python3 scripts/generate_evidence_packs.py
-python3 scripts/generate_api_surface.py
+python3 -m splunk_uc audit-nis2-no-gap
+python3 -m splunk_uc audit-gold-profile --check --files <NIS2 UC JSON files>
+python3 -m splunk_uc generate-evidence-packs
+python3 -m splunk_uc generate-api-surface
 python3 scripts/augment_regulation_api.py
-python3 scripts/generate_clause_index.py
-python3 scripts/generate_story_payload.py
-python3 scripts/audit_compliance_mappings.py
-python3 scripts/audit_compliance_gaps.py
-python3 scripts/audit_catalog_schema.py
-python3 scripts/audit_splunk_cloud_compat.py
+python3 -m splunk_uc generate-clause-index
+python3 -m splunk_uc generate-story-payload
+python3 -m splunk_uc audit-compliance-mappings
+python3 -m splunk_uc audit-compliance-gaps
+python3 -m splunk_uc audit-catalog-schema
+python3 -m splunk_uc audit-splunk-cloud-compat
 ```
 
 ## Spot Checks

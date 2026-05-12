@@ -7,22 +7,25 @@
 #
 # The `splunk-uc-mcp` package keeps its own `mcp/pyproject.toml` because
 # it ships to PyPI as a self-contained MCP server. Everything else
-# (build pipeline, audits, scripts, tests) is configured here.
+# (audits, generators, ingest, migrations, feasibility, tools) is
+# packaged here as the `splunk-uc` distribution.
 #
-# Status today: this file is configuration-only. The repo is not yet
-# packaged as an installable wheel because the build pipeline still
-# uses `from build import …` imports that resolve via runtime
-# `sys.path` manipulation in `tools/build/build.py`. Wheel packaging is
-# deferred to a follow-up PR (`p6-scripts-taxonomy` reorganises
-# `scripts/` and `tools/build/` into `src/splunk_uc/…`, at which point
-# `[tool.hatch.build.targets.wheel]` becomes meaningful here).
+# Phase 6 closure (2026-05-11): `src/splunk_uc/` is now the SSOT for
+# the 83-verb CLI dispatcher. The legacy `scripts/<name>.py` shims have
+# been deleted; every caller invokes the dispatcher via
+# `python3 -m splunk_uc <verb>` (or the `splunk-uc` console-script after
+# `pip install -e .`). The build pipeline (`tools/build/`) stays in its
+# own tree because it is not a CLI surface — it is consumed by
+# `python3 tools/build/build.py --out dist` and by the wheel target
+# below for the editable install.
 #
-# Until then, install for development with::
+# Install for development with::
 #
-#     pip install -e ".[build,audits,dev]"
+#     pip install -e ".[audits,dev,test]"
 #
-# which installs the runtime + audit + dev tool dependencies without
-# attempting to build a wheel.
+# After install the `splunk-uc` console-script is on PATH and the
+# legacy `PYTHONPATH=src python3 -m splunk_uc` invocation is no longer
+# required (both forms continue to work).
 
 [build-system]
 requires = ["hatchling>=1.21"]
@@ -123,32 +126,47 @@ Changelog = "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/CHAN
 path = "VERSION"
 pattern = "^(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)\\s*$"
 
-# The wheel target ships only the ``tools/build/`` package today,
-# rebased to a top-level ``build`` package so ``from build import …``
-# resolves the same in an installed wheel as it does when running the
-# pipeline in-tree via ``python tools/build/build.py``. The legacy
-# repo-root ``build.py`` is excluded — it is scheduled for deletion in
-# P1 step 5b. After that, P6 will rename the package to ``splunk_uc``
-# and this section becomes ``packages = ["src/splunk_uc"]``.
+# Phase 6 closure (2026-05-11): the wheel ships the ``splunk_uc``
+# package as the canonical CLI surface. The package is fully self-
+# contained — every audit / generator / ingest / migration / feasibility
+# / tool verb is reachable through ``splunk-uc <verb>`` after
+# ``pip install -e .`` (or via ``python -m splunk_uc <verb>``).
+#
+# ``tools/build/`` deliberately stays out of the wheel: it is the static-
+# site build pipeline, not a CLI surface, and is invoked directly with
+# ``python3 tools/build/build.py --out dist``. Bundling it would conflate
+# two distinct contracts (catalogue tooling vs. site build) and force
+# downstream `pip install splunk-uc` consumers to accept the build
+# pipeline's evolving internal shape as part of the package's stable
+# surface.
 [tool.hatch.build.targets.wheel]
-sources = ["tools"]
-packages = ["tools/build"]
+packages = ["src/splunk_uc"]
 exclude = [
-  "tools/build/__pycache__",
-  "tools/build/templates/.gitkeep",
+  "src/splunk_uc/__pycache__",
+  "src/splunk_uc/**/__pycache__",
 ]
 
 # Source distribution mirrors the repo layout so a ``pip install <sdist>``
 # can rebuild from VERSION.
 [tool.hatch.build.targets.sdist]
 include = [
-  "tools/build/**/*.py",
-  "scripts/**/*.py",
+  "src/splunk_uc/**/*.py",
   "README.md",
   "VERSION",
+  "LICENSE",
   "pyproject.toml",
   "schemas/**/*.json",
 ]
+
+# -----------------------------------------------------------------------------
+# Console-script entry point (Phase 6 Tier 4, 2026-05-11).
+# -----------------------------------------------------------------------------
+# After ``pip install -e .`` the ``splunk-uc`` command is on PATH and
+# dispatches to the same CLI as ``python -m splunk_uc``. Both forms are
+# guaranteed to work; CI keeps using ``python3 -m splunk_uc <verb>``
+# because it does not require an editable install step.
+[project.scripts]
+splunk-uc = "splunk_uc.__main__:main"
 
 # -----------------------------------------------------------------------------
 # Pytest — single config across tests/ and mcp/tests/ for IDE & CI parity.
@@ -224,6 +242,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["B011", "F401"]  # pytest patterns
 "scripts/**/*.py" = ["E402"]         # post-sys.path imports are intentional
+"src/splunk_uc/**/*.py" = ["E402"]   # post-sys.path imports are intentional
 "tools/build/build.py" = ["E402"]    # post-sys.path imports are intentional
 
 [tool.ruff.format]
@@ -248,13 +267,12 @@ check_untyped_defs = true
 disallow_untyped_decorators = false
 ignore_missing_imports = true
 files = [
+  "src/splunk_uc",
   "tools/build",
   "scripts",
   "tests",
 ]
-exclude = [
-  "build\\.py$",   # legacy script, scheduled for deletion (P1 step 5b)
-]
+exclude = []
 
 # Per-module strictness gradient. Tighten as P4 step 2 lands typed models.
 [[tool.mypy.overrides]]
@@ -285,11 +303,10 @@ warn_return_any = true
 # -----------------------------------------------------------------------------
 [tool.coverage.run]
 branch = true
-source = ["tools/build", "scripts", "mcp/src"]
+source = ["src/splunk_uc", "tools/build", "scripts", "mcp/src"]
 omit = [
   "tests/*",
   "mcp/tests/*",
-  "build.py",         # legacy, scheduled for deletion
   "tools/build/migrate_*.py",
   "tools/build/generate_*.py",
 ]

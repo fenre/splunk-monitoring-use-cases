@@ -38,7 +38,7 @@ The plan in §11 of the repo-overhaul (P-schemas) tracks the residual gaps:
 * `regulation.schema.json`, `crosswalk.schema.json`, `evidence-pack.schema.json`,
   and `manifest.schema.json` are referenced by `tools/build/render_*` but are
   not yet committed under `schemas/`. Their shape today is captured implicitly
-  by the generators in `scripts/generate_api_surface.py`.
+  by the generators in `python3 -m splunk_uc generate-api-surface`.
 * `schemas/stix/` is reserved for the planned STIX 2.1 export but does not
   yet exist on disk.
 * `schemas/changelogs/` is the planned home for per-schema CHANGELOG files.
@@ -213,7 +213,7 @@ Source-of-truth files in `content/cat-NN-slug/UC-X.Y.Z.json` are validated by
 the loader in `tools/build/parse_content.py` (Draft 2020-12 against
 `schemas/uc.schema.json`) before any build runs. Validation failure blocks
 the PR via the structure audit and the pre-commit hook
-`scripts/validate_uc_schema_staged.py` (Phase 0).
+`python3 -m splunk_uc validate-uc-schema-staged` (Phase 0).
 
 ## Distribution
 

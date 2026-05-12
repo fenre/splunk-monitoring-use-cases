@@ -1,6 +1,6 @@
 // Phase 4.5f — axe-core runner for the perf + a11y gate.
 //
-// Spawned as a subprocess by scripts/audit_perf_a11y.py.  We take a
+// Spawned as a subprocess by python3 -m splunk_uc audit-perf-a11y.  We take a
 // list of HTML files on the command line, load each one into a fresh
 // jsdom window (scripts OFF — we audit the STATIC HTML that ships to
 // users, not the JS-rendered runtime DOM), run axe-core with the
@@ -66,7 +66,7 @@
 //     }
 //
 // The runner never fails on axe violations itself — it is a pure data
-// emitter.  The Python orchestrator (scripts/audit_perf_a11y.py)
+// emitter.  The Python orchestrator (python3 -m splunk_uc audit-perf-a11y)
 // interprets severity, applies allowlists, and decides whether to
 // fail CI.  This separation of concerns keeps the Node helper tiny
 // and testable.

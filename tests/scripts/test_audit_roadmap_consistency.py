@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_roadmap_consistency.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-roadmap-consistency``.
 
 Repo-overhaul plan §P11 (2026-05-09): ``ROADMAP.md`` is the public
 front door for "where is this project going?". A regression here is
@@ -43,7 +43,7 @@ def _load_audit_module() -> ModuleType:
 
     P6 (scripts taxonomy, 2026-05-09) relocated the implementation to
     ``src/splunk_uc/audits/roadmap_consistency.py``; the original
-    ``scripts/audit_roadmap_consistency.py`` is now a thin shim.
+    ``python3 -m splunk_uc audit-roadmap-consistency`` is now a thin shim.
 
     Tests that monkeypatch module-level constants (``VERSION_FILE``,
     ``CHANGELOG_MD``) MUST go through the implementation module rather

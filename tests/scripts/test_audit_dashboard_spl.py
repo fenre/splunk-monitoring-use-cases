@@ -1,4 +1,4 @@
-"""Unit tests for ``scripts/audit_dashboard_spl.py``.
+"""Unit tests for ``python3 -m splunk_uc audit-dashboard-spl``.
 
 These tests run without any live Splunk. They cover the token-expansion
 logic that turns ``$status_filter$`` into the actual SPL substring sent
@@ -201,7 +201,7 @@ class PanelCollectionTests(unittest.TestCase):
         views = repo_root / "splunk-apps/splunk-uc-recommender/default/data/ui/views"
         if not views.is_dir():
             self.skipTest(
-                "recommender app not generated; run scripts/generate_recommender_app.py first"
+                "recommender app not generated; run python3 -m splunk_uc generate-recommender-app first"
             )
 
         all_panels = []

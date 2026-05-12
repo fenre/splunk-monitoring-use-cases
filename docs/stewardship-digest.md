@@ -4,7 +4,7 @@
 
 The **stewardship digest** is a small JSON + markdown twin emitted by
 `python -m splunk_uc generate-stewardship-digest` (legacy
-[`scripts/generate_stewardship_digest.py`](../scripts/generate_stewardship_digest.py)
+[`python3 -m splunk_uc generate-stewardship-digest`](../scripts/generate_stewardship_digest.py)
 shim still works during soak)
 that distils three recurring stewardship questions into a single
 artefact:
@@ -36,7 +36,7 @@ to keep the schema honest.
 | `dist/stewardship-digest.md` | Human-friendly twin (drop into release notes verbatim). |
 | `schemas/v2/stewardship-digest.schema.json` | JSON Schema 2020-12 contract. |
 | `.github/workflows/stewardship.yml` | Mondays 08:00 UTC scheduled run. |
-| `src/splunk_uc/generators/stewardship_digest.py` (verb `generate-stewardship-digest`; legacy `scripts/generate_stewardship_digest.py` shim) | Stdlib-only generator. |
+| `src/splunk_uc/generators/stewardship_digest.py` (verb `generate-stewardship-digest`; legacy `python3 -m splunk_uc generate-stewardship-digest` shim) | Stdlib-only generator. |
 | `tests/scripts/test_generate_stewardship_digest.py` | 55 unit tests. |
 
 ## How to regenerate locally
@@ -113,7 +113,7 @@ sections are omitted.
 
 1. `make build` so `dist/metrics.json` reflects current `content/`.
 2. Capture `WARN :` lines from
-   `scripts/audit_roadmap_consistency.py --check` and thread them
+   `python3 -m splunk_uc audit-roadmap-consistency --check` and thread them
    through the generator's `--audit-warning name=message` flag.
 3. Run `python -m splunk_uc generate-stewardship-digest` (no
    `--reference-date`, so the issue carries today's date).

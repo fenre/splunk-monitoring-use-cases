@@ -123,7 +123,7 @@ authoritative source.
 **Fail modes.** Typos in technique IDs (`T110`, `T11110`); OSCAL
 control IDs from the wrong catalog (e.g., NIST 800-53<sup class="ref">[<a href="#ref-6">6</a>]</sup> Rev 4 when the
 framework says Rev 5); symmetric index not regenerated
-(`scripts/generate_api_surface.py --check` will flag this).
+(`python3 -m splunk_uc generate-api-surface --check` will flag this).
 
 ### 3.4 Provenance
 
@@ -164,7 +164,7 @@ Splunk Security Content commit.
 **Fail modes.** Derived entry claims higher assurance than the parent;
 inheritance mode mismatched with the graph; parent clause that no
 longer exists in the parent version (indicates the author forgot to
-re-run `scripts/generate_phase3_3_derivatives.py --check`).
+re-run `python3 -m splunk_uc generate-phase3-3-derivatives --check`).
 
 ### 3.6 Build hygiene
 
@@ -174,10 +174,10 @@ re-run `scripts/generate_phase3_3_derivatives.py --check`).
 
 ```bash
 make build
-python3 scripts/audit_compliance_mappings.py
-python3 scripts/generate_api_surface.py --check
-python3 scripts/generate_recommender_app.py --check
-python3 scripts/regenerate_cat22_ntv.py --check
+python3 -m splunk_uc audit-compliance-mappings
+python3 -m splunk_uc generate-api-surface --check
+python3 -m splunk_uc generate-recommender-app --check
+python3 -m splunk_uc migrate-cat22-ntv --check
 node --test tests/scorecard/render.test.mjs tests/recommender/match.test.mjs
 ```
 
@@ -189,7 +189,7 @@ reviewer confirms the author has seen the output locally.
 Every PR that triggers the gate appends a signoff record to
 `data/provenance/peer-review-signoffs.json`. The record is validated
 against `schemas/peer-review-signoff.schema.json` by
-`scripts/audit_peer_review_signoffs.py`; a PR that touches the gated
+`python3 -m splunk_uc audit-peer-review-signoffs`; a PR that touches the gated
 paths **without** appending a record fails CI.
 
 Example record:

@@ -141,9 +141,9 @@ duplication problems above.
 - `tools/build/test_legacy_artifacts_parity.py` — asserts catalog.json
   and llms*.txt are byte-identical between two consecutive builds
   from the same SSOT inputs.
-- `scripts/audit_repo_consistency.py` — asserts no new duplicates are
+- `python3 -m splunk_uc audit-repo-consistency` — asserts no new duplicates are
   introduced. Extended in P1 to cover JS twin generation.
-- `scripts/audit_non_technical_sync.py` — asserts every category in
+- `python3 -m splunk_uc audit-non-technical-sync` — asserts every category in
   `non-technical-view.js` exists in the Python source and vice versa.
 
 ## Alternatives considered

@@ -153,7 +153,7 @@ release tarballs.
 - `tests/build/test_legacy_artifacts_parity.py:test_legacy_artefacts_not_in_project_static_files`
   — pins that the build pipeline doesn't accidentally re-add
   generated names to `_PROJECT_STATIC_FILES`.
-- `scripts/audit_repo_consistency.py` — extended in P1 step 5c to
+- `python3 -m splunk_uc audit-repo-consistency` — extended in P1 step 5c to
   fail if `./catalog.json`, `./data.js`, or `./llms*.txt` reappear
   at the project root.
 - `tests/build/test_legacy_artifacts_parity.py` — byte-reproducible
@@ -190,8 +190,8 @@ as a transitional staging during one release, then:
 
 - **P1 step 5c** (`p1-delete-legacy-final`) deletes the project-root
   copies, repoints the consumers (`scripts/equipment_lib.py`,
-  `scripts/audit_repo_consistency.py`, `scripts/audit_splunk_cloud_compat.py`,
-  `scripts/generate_api_surface.py`, `tools/capture_baselines.py`),
+  `python3 -m splunk_uc audit-repo-consistency`, `python3 -m splunk_uc audit-splunk-cloud-compat`,
+  `python3 -m splunk_uc generate-api-surface`, `tools/capture_baselines.py`),
   and updates the CI watchlist + path triggers.
 - **P5 (`p5-data-js-retire`)** deletes `dist/data.js` once the apps/web/
   pages no longer need it.

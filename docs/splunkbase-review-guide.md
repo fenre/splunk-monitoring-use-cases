@@ -5,7 +5,7 @@
 > **Audience**: project maintainers and Splunk engineers familiar with
 > the Splunkbase<sup class="ref">[<a href="#ref-1">1</a>]</sup> app catalog and the equipment slug → TA mapping.
 > **What this is**. A concise rubric for reviewing the Splunkbase-app
-> mappings that `scripts/generate_splunkbase_mappings.py` proposes for
+> mappings that `python3 -m splunk_uc generate-splunkbase-mappings` proposes for
 > every UC. SME sign-off is the gate that flips a proposed mapping
 > from "machine-drafted" to "human-verified" and unlocks the recommender
 > app's per-card "Required Splunkbase apps" UI from a hedged "Splunkbase
@@ -78,7 +78,7 @@ The signoff command:
   app required" (typical for UCs that lean on built-in indexes or
   forwarders only). This is a valid sign-off state.
 * **Hand-editing after sign-off**. The migration generator
-  (`scripts/generate_splunkbase_mappings.py`) preserves any UC whose
+  (`python3 -m splunk_uc generate-splunkbase-mappings`) preserves any UC whose
   `splunkbaseApps[]` has at least one entry without `requiresSmeReview:
   true`. Once you have signed off, your edits are stable.
 

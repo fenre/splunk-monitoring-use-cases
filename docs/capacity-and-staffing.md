@@ -272,7 +272,7 @@ When a transition out of reduced or solo mode is declared:
    periods can let drift accumulate (especially in markdown
    companions, cat-22 primer dates, and SBOM artefacts). The audit
    tells you what to fix first.
-2. **Re-run `python3 scripts/audit_action_pins.py`.** Pinned action
+2. **Re-run `python3 -m splunk_uc audit-action-pins`.** Pinned action
    SHAs go stale during low-activity periods; renew them before
    layering new feature work on top.
 3. **Resume the highest-leverage deferred phase.** Look up the

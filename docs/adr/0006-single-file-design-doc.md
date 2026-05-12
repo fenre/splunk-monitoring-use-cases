@@ -43,7 +43,7 @@ When a single section exceeds ~1,500 words OR when the file exceeds ~15,000 word
 ## Links
 
 - Implementation: [docs/DESIGN.md](../DESIGN.md)
-- Freshness audit (planned): [`scripts/audit_design_doc_freshness.py`](../../scripts/audit_design_doc_freshness.py)
+- Freshness audit (planned): [`python3 -m splunk_uc audit-design-doc-freshness`](../../scripts/audit_design_doc_freshness.py)
 - Superseded by: —
 
 ---

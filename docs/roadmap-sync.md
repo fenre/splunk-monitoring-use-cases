@@ -8,7 +8,7 @@
 
 The single source of truth for the project's direction is
 [`ROADMAP.md`](../ROADMAP.md) at the repo root. The
-[`scripts/audit_roadmap_consistency.py`](../scripts/audit_roadmap_consistency.py)
+[`python3 -m splunk_uc audit-roadmap-consistency`](../scripts/audit_roadmap_consistency.py)
 auditor enforces structural integrity, validates repo-relative links,
 and exposes a JSON snapshot that downstream automation (a GitHub
 Project v2 board, an external dashboard, an MCP `list_roadmap_items`
@@ -163,7 +163,7 @@ will consume.
 
 ## See also
 
-* [`scripts/audit_roadmap_consistency.py`](../scripts/audit_roadmap_consistency.py) — the auditor.
+* [`python3 -m splunk_uc audit-roadmap-consistency`](../scripts/audit_roadmap_consistency.py) — the auditor.
 * [`tests/scripts/test_audit_roadmap_consistency.py`](../tests/scripts/test_audit_roadmap_consistency.py) — 25 unit tests.
 * [`ROADMAP.md`](../ROADMAP.md) — the source of truth.
 * [`docs/migration-status.md`](migration-status.md) — `p11-roadmap-board` tracking entry.

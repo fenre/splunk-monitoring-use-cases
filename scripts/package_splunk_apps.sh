@@ -82,7 +82,7 @@ fi
 for id in "${APP_IDS[@]}"; do
     if [ ! -f "${APPS_DIR}/${id}/app.manifest" ]; then
         echo "error: ${APPS_DIR}/${id}/app.manifest not found" >&2
-        echo "       (run python3 scripts/generate_recommender_app.py first" >&2
+        echo "       (run python3 -m splunk_uc generate-recommender-app first" >&2
         echo "        to materialise the unified recommender app)" >&2
         exit 1
     fi

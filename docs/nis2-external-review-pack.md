@@ -12,7 +12,7 @@ This pack is intended for later review by counsel, auditors, regulators, or comp
 - Catalogue rollups: `docs/compliance-coverage.md` and `reports/compliance-coverage.json`.
 - Maturity benchmark: `docs/nis2-maturity-benchmark.md`.
 - Self-validation record: `docs/nis2-self-validation.md`.
-- Validation: `scripts/audit_nis2_no_gap.py`, `scripts/audit_compliance_mappings.py`, UC structure audits, and fixture references under `sample-data/`.
+- Validation: `python3 -m splunk_uc audit-nis2-no-gap`, `python3 -m splunk_uc audit-compliance-mappings`, UC structure audits, and fixture references under `sample-data/`.
 
 ## Known limitations and legal-review questions
 

@@ -59,7 +59,7 @@ adjacent to `Criticality` / `Difficulty` so reviewers see them first.
 
 | Field | Parser behaviour |
 |---|---|
-| `Wave:` | Case-insensitive. Accepts `crawl`, `walk`, `run`. Emoji prefixes (e.g. `🟢 crawl`) and the words *Foundation* / *Intermediate* / *Advanced* are accepted as synonyms and normalised to `crawl` / `walk` / `run`. Any other string is stored verbatim and rejected by `scripts/audit_catalog_schema.py` with the UC id in the error. |
+| `Wave:` | Case-insensitive. Accepts `crawl`, `walk`, `run`. Emoji prefixes (e.g. `🟢 crawl`) and the words *Foundation* / *Intermediate* / *Advanced* are accepted as synonyms and normalised to `crawl` / `walk` / `run`. Any other string is stored verbatim and rejected by `python3 -m splunk_uc audit-catalog-schema` with the UC id in the error. |
 | `Prerequisite UCs:` | Comma-, whitespace-, or bullet-separated list of `UC-X.Y.Z` tokens. Prose around the tokens is ignored. Tokens that do not match the `UC-\d+\.\d+\.\d+` grammar are silently dropped at parse time **and** rejected by the schema audit, so the build fails twice on typos. Use `N/A` (or omit the line) when the UC has no prerequisites. |
 
 Aliases recognised for the prerequisite field: `Prerequisite UC:`,

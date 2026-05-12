@@ -271,7 +271,7 @@ listed below.
    SHA-256-hashed in `data/provenance/ingest-manifest.json`. Legal
    attribution is documented in `LEGAL.md`.
 5. **Verification.** Coverage is auditable via
-   `scripts/audit_compliance_mappings.py` (baseline in
+   `python3 -m splunk_uc audit-compliance-mappings` (baseline in
    `tests/golden/audit-baseline.json`). Clause-string formats are
    validated by the `clauseGrammar` regex in each framework version.
 
@@ -431,7 +431,7 @@ modes. Listed by jurisdiction.
 | Legal attribution | `LEGAL.md` | Per-source licensing and attribution requirements |
 | Coverage methodology | `docs/coverage-methodology.md` | How coverage percentages, priority weights, and assurance levels are calculated |
 | Regulatory primer | `docs/regulatory-primer.md` | Reader-facing overview with supervisory authority table and appendices |
-| Audit baseline | `tests/golden/audit-baseline.json` | CI-enforced baseline for `scripts/audit_compliance_mappings.py` |
+| Audit baseline | `tests/golden/audit-baseline.json` | CI-enforced baseline for `python3 -m splunk_uc audit-compliance-mappings` |
 
 ### Community & Partner Resources
 
@@ -456,18 +456,18 @@ published obligation texts.
 
 | Endpoint | Generator | Status | Notes |
 |---|---|---|---|
-| `compliance/index.json` | `scripts/generate_api_surface.py` | ✅ USED | Catalogue-wide rollup: regulations covered, tier counts, average assurance |
-| `compliance/coverage.json` | `scripts/generate_api_surface.py` | ✅ USED | Per-regulation coverage-matrix summary |
-| `compliance/gaps.json` | `scripts/generate_api_surface.py` | ✅ USED | Every `uncovered` common-clause, sorted by priority weight |
+| `compliance/index.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Catalogue-wide rollup: regulations covered, tier counts, average assurance |
+| `compliance/coverage.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Per-regulation coverage-matrix summary |
+| `compliance/gaps.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Every `uncovered` common-clause, sorted by priority weight |
 | `compliance/regulations/{id}.json` | `scripts/augment_regulation_api.py` | ✅ USED | Per-framework detail + `clauseCoverageMatrix[]` per version (v7.1) |
-| `compliance/regulations/{id}@{version}.json` | `scripts/generate_api_surface.py` | ✅ USED | Per-version pointer with jurisdiction / tags |
-| `compliance/clauses/index.json` | `scripts/generate_clause_index.py` | ✅ USED | Flat registry of 994 clauses (coverage state, covering UCs, `obligationText`, priority weight) |
-| `compliance/clauses/{clauseId}.json` | `scripts/generate_clause_index.py` | ✅ USED | Per-clause reverse index &mdash; every UC that covers this clause with `controlObjective` + `evidenceArtifact` |
-| `compliance/story/{regulationId}.json` | `scripts/generate_story_payload.py` | ✅ USED | Unified buyer/auditor/implementer narrative; 70 payloads shipped |
-| `compliance/story/index.json` | `scripts/generate_story_payload.py` | ✅ USED | Story-landing rollup |
-| `compliance/ucs/index.json` | `scripts/generate_api_surface.py` | ✅ USED | Compact list of compliance-tagged UCs |
-| `compliance/ucs/{ucId}.json` | `scripts/generate_api_surface.py` | ✅ USED | Full UC sidecar (canonical form) &mdash; **7,364** per-UC JSON exports under `api/v1/` |
-| `oscal/` catalogues + components | `scripts/generate_api_surface.py` | ✅ USED | OSCAL-flavoured exports for GRC tooling ingestion |
+| `compliance/regulations/{id}@{version}.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Per-version pointer with jurisdiction / tags |
+| `compliance/clauses/index.json` | `python3 -m splunk_uc generate-clause-index` | ✅ USED | Flat registry of 994 clauses (coverage state, covering UCs, `obligationText`, priority weight) |
+| `compliance/clauses/{clauseId}.json` | `python3 -m splunk_uc generate-clause-index` | ✅ USED | Per-clause reverse index &mdash; every UC that covers this clause with `controlObjective` + `evidenceArtifact` |
+| `compliance/story/{regulationId}.json` | `python3 -m splunk_uc generate-story-payload` | ✅ USED | Unified buyer/auditor/implementer narrative; 70 payloads shipped |
+| `compliance/story/index.json` | `python3 -m splunk_uc generate-story-payload` | ✅ USED | Story-landing rollup |
+| `compliance/ucs/index.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Compact list of compliance-tagged UCs |
+| `compliance/ucs/{ucId}.json` | `python3 -m splunk_uc generate-api-surface` | ✅ USED | Full UC sidecar (canonical form) &mdash; **7,364** per-UC JSON exports under `api/v1/` |
+| `oscal/` catalogues + components | `python3 -m splunk_uc generate-api-surface` | ✅ USED | OSCAL-flavoured exports for GRC tooling ingestion |
 
 ### Audience surfaces (HTML pages served next to `index.html`)
 
@@ -486,7 +486,7 @@ Auditor-facing markdown packs. **13 packs** ship in v7.3, one per
 tier-1 regulation plus the major tier-2 frameworks. Each pack now
 ships a &ldquo;Live views&rdquo; block linking the reader to the
 buyer narrative, the auditor clause navigator, and the JSON twin.
-Generator: `scripts/generate_evidence_packs.py`.
+Generator: `python3 -m splunk_uc generate-evidence-packs`.
 
 | Pack | Regulation | Status |
 |---|---|---|
@@ -508,7 +508,7 @@ Generator: `scripts/generate_evidence_packs.py`.
 The Model Context Protocol server exposes the catalogue to LLM clients
 (Claude, GPT, Gemini, Mistral) via JSON-RPC with stable output
 schemas. Install with `pip install -e mcp/[test]`. Drift-guarded by
-`scripts/audit_mcp_tool_schemas.py` in CI.
+`python3 -m splunk_uc audit-mcp-tool-schemas` in CI.
 
 | Tool | Status | Notes |
 |---|---|---|

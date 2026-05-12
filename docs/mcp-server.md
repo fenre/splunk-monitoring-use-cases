@@ -96,10 +96,10 @@ Key design choices:
   base URL is locked to an allow-list regex, path traversal is
   explicitly rejected, and every response is capped at 10 MB.
 - **Static JSON data plane**. Every catalogue artefact is pre-built by
-  `scripts/generate_api_surface.py` and shipped with the repository.
+  `python3 -m splunk_uc generate-api-surface` and shipped with the repository.
   The MCP server never computes anything expensive — it slices
   pre-cached static JSON.
-- **Drift-guarded**. `scripts/audit_mcp_tool_schemas.py` exercises
+- **Drift-guarded**. `python3 -m splunk_uc audit-mcp-tool-schemas` exercises
   every tool against the live `api/v1` tree at CI time and validates
   the result against the tool's declared outputSchema. A field rename
   on either side of the pipe fails the pull request.
@@ -555,7 +555,7 @@ pytest -q               # 291 tests, <2s cold cache
 | [`src/splunk_uc_mcp/tools/*.py`](../mcp/src/splunk_uc_mcp/tools/) | One module per tool (schema + handler). |
 | [`src/splunk_uc_mcp/resources/uri_scheme.py`](../mcp/src/splunk_uc_mcp/resources/uri_scheme.py) | Custom URI parser for the 4 URI families. |
 | [`tests/`](../mcp/tests/) | Pytest suite: unit tests for every tool/resource + an in-memory JSON-RPC server test. |
-| [`scripts/audit_mcp_tool_schemas.py`](../scripts/audit_mcp_tool_schemas.py) | CI drift guard — exercises every tool against the live `api/v1` tree and validates outputs. |
+| [`python3 -m splunk_uc audit-mcp-tool-schemas`](../scripts/audit_mcp_tool_schemas.py) | CI drift guard — exercises every tool against the live `api/v1` tree and validates outputs. |
 | [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) | Installs the package, runs tests, and runs the drift guard on every PR. |
 
 ### Adding a new tool
@@ -565,7 +565,7 @@ pytest -q               # 291 tests, <2s cold cache
 2. Re-export from `tools/__init__.py`.
 3. Register in `server.py`'s `_tool_definitions()` and `_tool_dispatch()`.
 4. Write unit tests + a synthetic-catalog fixture case.
-5. Add the tool to `scripts/audit_mcp_tool_schemas.py`'s `_PROBE_ARGS`.
+5. Add the tool to `python3 -m splunk_uc audit-mcp-tool-schemas`'s `_PROBE_ARGS`.
 
 The drift guard will catch you if the output schema and the real
 `api/v1` shape disagree — fix one or the other and push.
@@ -596,7 +596,7 @@ Common causes:
 
 ### "CatalogValidationError: --catalog-root … does not contain api/v1/manifest.json"
 
-Run `python3 scripts/generate_api_surface.py` from the repo root
+Run `python3 -m splunk_uc generate-api-surface` from the repo root
 to materialise the `api/v1/` tree. It is gitignored by default
 because the committed tree can drift.
 
@@ -606,7 +606,7 @@ The drift guard should have caught this in CI. If you're seeing it
 locally:
 
 ```bash
-python3 scripts/audit_mcp_tool_schemas.py --verbose
+python3 -m splunk_uc audit-mcp-tool-schemas --verbose
 ```
 
 It reports the exact tool and the JSON pointer of the mismatch. Fix

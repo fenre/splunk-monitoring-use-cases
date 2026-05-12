@@ -43,7 +43,7 @@ The composite actions reduce that to **two** pin sites. Centralisation:
 - Makes Renovate / Dependabot bumps a one-file change.
 - Surfaces upstream advisories early — bumping a SHA in one place
   triggers the audit + structural tests once, not eleven times.
-- Makes [`scripts/audit_action_pins.py`](../scripts/audit_action_pins.py)'s job
+- Makes [`python3 -m splunk_uc audit-action-pins`](../scripts/audit_action_pins.py)'s job
   smaller — it now walks both `.github/workflows/*.yml` *and*
   `.github/actions/*/action.yml` and the surface area is smaller.
 - Makes the tests in [`tests/build/test_composite_actions.py`](../tests/build/test_composite_actions.py)
@@ -62,7 +62,7 @@ Tag-only references (e.g. `@v4`) are forbidden because:
   means they can only bump a pin when the upstream releases a new
   version (rather than silently inheriting a force-push).
 
-The audit at [`scripts/audit_action_pins.py`](../scripts/audit_action_pins.py)
+The audit at [`python3 -m splunk_uc audit-action-pins`](../scripts/audit_action_pins.py)
 enforces both the SHA-pinning and the SHA↔tag-comment integrity.
 [Three classes of attack](../SECURITY.md) are caught:
 
@@ -96,7 +96,7 @@ audit dependencies install. No `npm ci`.
 |----------------------------------------------|-----------------------------------------------------|
 | Schema metadata validation                   | `tools/audits/schema_meta.py`                       |
 | Asset drift (inline blocks vs `src/`)        | `tools/audits/asset_drift.py`                       |
-| GitHub Actions pin audit                     | `scripts/audit_action_pins.py`                      |
+| GitHub Actions pin audit                     | `python3 -m splunk_uc audit-action-pins`                      |
 | Non-technical view JS syntax                 | `node -e` over `non-technical-view.js`              |
 | Docs-UC map JS syntax                        | `node -e` over `docs-uc-map.js`                     |
 | Version consistency                          | inline shell over `VERSION` ↔ `CHANGELOG.md` ↔ `index.html` |
@@ -120,7 +120,7 @@ Major sub-areas:
   not regress more than 1.0pp from the baseline. New tier-1 files
   must clear a 60% floor; new tier-2 files must clear 40%. Tier-3
   (one-shot uplift / migration / generator helpers) is exempt by
-  design; see `scripts/audit_coverage_budget.py` for the full
+  design; see `python3 -m splunk_uc audit-coverage-budget` for the full
   classification policy and §P16 of the overhaul plan.
 - **Legacy orphan UC audit** (`audit_legacy_orphans.py --check`).
   Lists UCs that exist in `use-cases/cat-*.md` but have no JSON SSOT
@@ -188,10 +188,10 @@ Decoupled from the other jobs because `mcp/` has its own
 
 | Step                                      | Script / command                                              |
 |-------------------------------------------|---------------------------------------------------------------|
-| Generate api/v1 tree                      | `scripts/generate_api_surface.py`                             |
+| Generate api/v1 tree                      | `python3 -m splunk_uc generate-api-surface`                             |
 | Install MCP server (editable)             | `pip install -e mcp/[test]`                                   |
 | MCP server unit tests (291 tests, --cov)  | `pytest mcp/tests --cov-fail-under=70`                        |
-| MCP tool schema drift guard               | `scripts/audit_mcp_tool_schemas.py`                           |
+| MCP tool schema drift guard               | `python3 -m splunk_uc audit-mcp-tool-schemas`                           |
 
 **When this job fails:** an MCP-only change broke a tool's
 `outputSchema`. The drift guard names the offending tool + field.
@@ -209,9 +209,9 @@ the npm-installed Node deps.
 | Phase 4.5c sandbox validation Node drift guard    | `node --test tests/sandbox/validate.test.mjs`   |
 | Phase 4.5d ATT&CK<sup class="ref">[<a href="#ref-2">2</a>]</sup> simulation gate (Python)        | `scripts/simulate_controltest.py --check`       |
 | Phase 4.5d ATT&CK simulation Node drift guard     | `node --test tests/attack/simulate.test.mjs`    |
-| Phase 4.5e OSCAL round-trip gate (Python)         | `scripts/audit_oscal_roundtrip.py --check`      |
+| Phase 4.5e OSCAL round-trip gate (Python)         | `python3 -m splunk_uc audit-oscal-roundtrip --check`      |
 | Phase 4.5e OSCAL round-trip Node drift guard      | `node --test tests/oscal/roundtrip.test.mjs`    |
-| Phase 4.5f perf + a11y audit gate (Python)        | `scripts/audit_perf_a11y.py --check`            |
+| Phase 4.5f perf + a11y audit gate (Python)        | `python3 -m splunk_uc audit-perf-a11y --check`            |
 | Phase 4.5f perf + a11y Node drift guard           | `node --test tests/a11y/perfa11y.test.mjs`      |
 
 **When this job fails:** UI / render regression. The Node tests

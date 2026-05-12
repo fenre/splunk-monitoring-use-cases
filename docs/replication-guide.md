@@ -337,7 +337,7 @@ pages:
 The single biggest long-term risk for a replicated fork is **drift between the design document and the code**. The upstream repo mitigates this with:
 
 - A CI gate that runs `make build` and fails if any generated file would change. Your fork should inherit this.
-- `scripts/audit_design_doc_freshness.py` (optional, non-gating) that checks `DESIGN.md` section headings against a canonical list and verifies every linked file resolves.
+- `python3 -m splunk_uc audit-design-doc-freshness` (optional, non-gating) that checks `DESIGN.md` section headings against a canonical list and verifies every linked file resolves.
 - An ADR workflow that requires a new ADR for any change that contradicts an existing ADR.
 - A single `VERSION` file as the source of truth, with CI enforcing triple-sync (`VERSION` ↔ top `CHANGELOG.md` entry ↔ top release-notes block).
 

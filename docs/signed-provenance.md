@@ -4,7 +4,7 @@
 > `data/provenance/mapping-ledger.json`, `schemas/mapping-ledger.schema.json`,
 > `src/splunk_uc/generators/mapping_ledger.py`
 > (verb: `python -m splunk_uc generate-mapping-ledger`; legacy
-> `scripts/generate_mapping_ledger.py` shim still works during soak),
+> `python3 -m splunk_uc generate-mapping-ledger` shim still works during soak),
 > `src/splunk_uc/audits/mapping_ledger.py`
 > (verb: `python -m splunk_uc audit-mapping-ledger`),
 > `scripts/stamp_ledger_release.py`, or the ledger-signing steps in
@@ -79,7 +79,7 @@ the ledger establishes the truth of the record.
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schemas/mapping-ledger.schema.json`               | JSON Schema (Draft 2020-12) that governs the ledger. Defines entry shape, canonicalisation contract, and the `oneOf` signature envelope (`unsigned` or `attested`).                                                                                                                                        |
 | `data/provenance/mapping-ledger.json`              | The in-repo ledger. Always `signature.state = "unsigned"` on `main` (so PR CI is deterministic); the attested copy lives in `dist/` at release time.                                                                                                                                                       |
-| `python -m splunk_uc generate-mapping-ledger` (impl. `src/splunk_uc/generators/mapping_ledger.py`; legacy `scripts/generate_mapping_ledger.py` shim) | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
+| `python -m splunk_uc generate-mapping-ledger` (impl. `src/splunk_uc/generators/mapping_ledger.py`; legacy `python3 -m splunk_uc generate-mapping-ledger` shim) | Deterministic generator. Walks every `content/cat-*/UC-*.json`, canonicalises regulation names against `data/regulations.json`, probes git history in a single bulk `git log` pass, snapshots peer/legal/SME signoffs, hashes each entry, and emits the sorted-leaf merkle root. `--check` mode diff-gates. |
 | `python -m splunk_uc audit-mapping-ledger`        | Independent verifier (implementation: `src/splunk_uc/audits/mapping_ledger.py`). Re-reads the ledger, recomputes all `canonicalHash`es and the `merkleRoot`, validates against the schema, performs referential integrity against current sidecars, and — when `--verify-signature` is passed — shells out to `gh attestation verify` against the Sigstore bundle. |
 | `scripts/stamp_ledger_release.py`                  | Release-time stamper. Copies the in-repo ledger to `dist/mapping-ledger.json` and flips `signature.state` from `unsigned` to `attested` _before_ Sigstore attestation (because attestation binds the file-at-rest).                                                                                         |
 | `.github/workflows/validate.yml`                   | Runs `--check` (regeneration drift) and the audit on every pull request. Uploads the ledger as part of the `qa-gates` artifact.                                                                                                                                                                             |
@@ -110,7 +110,7 @@ Every entry follows the same shape. Abbreviated from a real entry:
 ```
 
 Derivative entries (propagated by
-`scripts/generate_phase3_3_derivatives.py`) additionally carry a
+`python3 -m splunk_uc generate-phase3-3-derivatives`) additionally carry a
 `derivationSource` block pointing at the parent regulation, version,
 and clause. The derivationSource participates in the hash — mutating
 the parent pointer is a different ledger entry.

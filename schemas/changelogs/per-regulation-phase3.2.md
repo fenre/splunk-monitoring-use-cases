@@ -4,7 +4,7 @@ Per-schema lifecycle log. Contract: see [`docs/schema-versioning.md`](../../docs
 
 | Version | Released  | Stability | Notes                                                                                                  |
 |---------|-----------|-----------|--------------------------------------------------------------------------------------------------------|
-| 1.0.0   | 2025-Q4   | stable    | Initial release for Phase 3.2. Authoritative manifest shape for cross-cutting UCs outside cat-22 with multi-regulation clause-level `compliance[]`. Read by `scripts/generate_phase3_2_cross_cutting.py`. |
+| 1.0.0   | 2025-Q4   | stable    | Initial release for Phase 3.2. Authoritative manifest shape for cross-cutting UCs outside cat-22 with multi-regulation clause-level `compliance[]`. Read by `python3 -m splunk_uc generate-phase3-2-cross-cutting`. |
 
 ## Stability commitment
 

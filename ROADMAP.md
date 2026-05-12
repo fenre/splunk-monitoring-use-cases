@@ -17,7 +17,7 @@ behind a single disclosure.
 - New required-at-runtime `grandmaExplanation` field on every UC
   sidecar (schema v1.6.1, 20–400 chars, `we` voice, no Splunk/SPL/CIM/
   MITRE/TA acronyms) — populated deterministically by
-  [`scripts/generate_grandma_explanations.py`](scripts/generate_grandma_explanations.py)
+  [`python3 -m splunk_uc generate-grandma-explanations`](python3 -m splunk_uc generate-grandma-explanations)
   from the existing title/description/value copy
 - Non-technical view now renders `grandmaExplanation` as the primary
   UC text on UC cards, search results, subcategory lists, recently-added,
@@ -28,7 +28,7 @@ behind a single disclosure.
   mode (new `renderNonTechnicalSubcategory` path + `restoreFromHash`
   fixes); UC rows in non-technical area lists are now clickable and
   prefer the per-UC `ge` over curated `why` copy
-- CI guard: `scripts/generate_grandma_explanations.py --check` runs on
+- CI guard: `python3 -m splunk_uc generate-grandma-explanations --check` runs on
   every PR and blocks merge if any UC sidecar is missing the field
 - Runtime fallback in `tools/build/build.py` for markdown-only UCs so the UI never
   shows an empty plain-language card even before a UC sidecar lands
@@ -154,7 +154,7 @@ Infrastructure shipped:
 - **Cursor authoring rule** (`.cursor/rules/gold-standard-authoring.mdc`) —
   AI authoring contract guiding agents to product-specific depth, not
   template filling
-- **Depth audit** (`scripts/audit_gold_profile.py`) — quality gate measuring
+- **Depth audit** (`python3 -m splunk_uc audit-gold-profile`) — quality gate measuring
   substance, detecting shallow boilerplate and consolidation candidates
 - **Build-time quality scores** — per-UC depth score and tier with actionable
   gap descriptions injected by `parse_content.py`, aggregated per subcategory
@@ -163,7 +163,7 @@ Infrastructure shipped:
   summaries, and a dedicated Quality review tab
 - **Scorecard integration** — content depth is now a 20% weighted dimension
   in `generate_scorecard.py`
-- **Markdown generation** (`scripts/generate_md_from_json.py`) — JSON is the
+- **Markdown generation** (`python3 -m splunk_uc generate-md-from-json`) — JSON is the
   single source of truth; companion `.md` under `content/`, when present, is optional
 
 ### Content uplift workflow

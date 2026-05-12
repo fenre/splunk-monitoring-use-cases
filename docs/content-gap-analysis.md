@@ -3,8 +3,8 @@
 > **Status:** Phase 0.2 snapshot, generated 2026-04-16 from
 > `data/inventory/ucs.csv` and `data/inventory/gap-analysis.json`.
 > **Sources:**
->   * Inventory — `python3 scripts/inventory_ucs.py --stats`
->   * Gap analysis — `python3 scripts/gap_analysis.py`
+>   * Inventory — `python3 -m splunk_uc inventory-ucs --stats`
+>   * Gap analysis — `python3 -m splunk_uc gap-analysis`
 > **Regenerate:** run the two scripts in order; they are deterministic.
 > **Purpose:** characterise the existing catalogue's regulatory coverage
 > so Phase 1 knows exactly where to invest content work.
@@ -237,9 +237,9 @@ describe measurement, not detection, and arguably do not belong in the
 ## 8. Provenance
 
 * Inventory CSV — `data/inventory/ucs.csv`, produced by
-  `scripts/inventory_ucs.py`.
+  `python3 -m splunk_uc inventory-ucs`.
 * Gap-analysis JSON — `data/inventory/gap-analysis.json`, produced by
-  `scripts/gap_analysis.py`.
+  `python3 -m splunk_uc gap-analysis`.
 * Regulations index — `data/regulations.draft.json`.
 * Both scripts are deterministic: rerun to regenerate this analysis.
 

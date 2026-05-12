@@ -114,7 +114,7 @@ reviewers should be aware of:
   listener), eliminating the entire class of remote-network attack
   surfaces.  Tool inputs and outputs are JSON-Schema-validated against
   the schemas defined inline in `mcp/src/splunk_uc_mcp/tools/`, with a CI guard
-  (`scripts/audit_mcp_tool_schemas.py`) that fails the build if the
+  (`python3 -m splunk_uc audit-mcp-tool-schemas`) that fails the build if the
   shipped schemas drift from the runtime ones.
 - Swagger UI assets are self-hosted under `vendor/swagger-ui/` with
   SHA-256 checksums in `vendor/swagger-ui/checksums.txt` to guard against CDN

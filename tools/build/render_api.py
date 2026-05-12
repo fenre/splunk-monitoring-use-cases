@@ -17,7 +17,7 @@ once the schema is marked ``stable``.
 v7.0-dev behaviour
 ------------------
 The legacy ``build.py`` already writes ``api/cat-N.json`` and
-``api/index.json``, and ``scripts/generate_api_surface.py`` writes
+``api/index.json``, and ``python3 -m splunk_uc generate-api-surface`` writes
 ``api/v1/``. We trust the legacy pass for those files (they're mirrored
 into ``dist/api/`` by ``_mirror_legacy_root_into_dist``). This module
 adds the v7-native artefacts on top:
