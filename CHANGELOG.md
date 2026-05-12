@@ -17,6 +17,15 @@ the release notes block in `index.html` by hand.
   repo-overhaul plan, with file:line evidence at HEAD `a36aa4db4`
   (v8.2.0). Becomes the permanent reference to prevent rework on
   already-closed plan items.
+- **Close F7 (CI quality gates no longer non-blocking).** Removed both
+  `continue-on-error: true` flags from `.github/workflows/validate.yml`
+  — the one on `audit-gold-profile --summary` (which was always
+  redundant, since `--summary` exits 0 by design) and the one on
+  `generate-md-from-json --check` (which was a transition-period
+  allowance that is no longer needed now that all 7,677 `.md` /
+  `.json` companion pairs are tracked in lockstep). Drift in the
+  markdown twins now blocks the PR. `rg "^\s*continue-on-error:\s*true"
+  .github` returns zero matches across the entire workflows directory.
 
 ## [8.2.0] - 2026-05-11
 

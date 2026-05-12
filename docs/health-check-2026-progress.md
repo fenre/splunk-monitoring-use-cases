@@ -39,7 +39,7 @@ gitleaks as separate workflows).
 | F4 | H | ADR-0001 says markdown canonical; DESIGN.md says JSON | DONE | `docs/adr/0001-markdown-as-source-of-truth.md` carries `Superseded by: ADR-0007: JSON sidecars as source of truth for UC content`. |
 | F5 | H | ~3,300 modified files in working tree | DONE | Working tree clean at HEAD post v8.2.0 commit. |
 | F6 | H | `audit_uc_structure.py` scans `use-cases/cat-*.md` | DONE | `src/splunk_uc/audits/uc_structure.py:4` walks `content/cat-*/UC-*.json` (JSON SSOT per ADR-0007). The legacy `use-cases/` corpus itself was retired in v8.2.0 (CHANGELOG entry "Legacy `use-cases/` markdown corpus retired"). |
-| F7 | H | Quality gates run `continue-on-error: true` | **NOT DONE** | `.github/workflows/validate.yml:513` (`audit-gold-profile --summary`) and `:521` (`generate-md-from-json --check`) both still carry the flag. Two gates remaining. |
+| F7 | H | Quality gates run `continue-on-error: true` | **DONE** (2026-05-12) | Verified locally: `audit-gold-profile --summary` exits 0 by design (printing 9.4% gold / 0.5% silver / 79.5% bronze / 10.5% none across 7,677 UCs), and `generate-md-from-json --check` exits 0 (`All 7677 .md files are up-to-date.`). Both `continue-on-error: true` lines removed from `.github/workflows/validate.yml`; explanatory `F7 (2026-05-12)` comments added in their place. `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. |
 | F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | **NOT DONE — got slightly worse** | Now **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline). Still **33 `innerHTML` sinks**, still **1 `unsafe-inline`** in CSP. |
 | F9 | H | No CodeQL / dependency-review / SBOM | DONE (mostly) | `.github/workflows/codeql.yml` + `dependency-review.yml` + `gitleaks.yml` all present as separate workflows. SBOM via `anchore/sbom-action` in `release.yml` — verify in P2.5 audit. |
 | F10 | H | `secrets.env` not in `.cursorignore` | **NOT DONE** | `.cursorignore` covers generated artefacts (`catalog.json`, `data.js`, `dist/`, etc.) but does NOT list `secrets.env`, `secrets.env.local`, `.env`, `.env.local`. |
@@ -53,7 +53,7 @@ gitleaks as separate workflows).
 | F18 | L | Root `openapi.yaml` legacy vs. `api/v1/openapi.yaml` canonical | **NOT DONE** | Both still exist: `./openapi.yaml` 20,371 bytes, `./api/v1/openapi.yaml` 7,602 bytes. Root not yet marked `**LEGACY**` at top or scheduled for v8 deletion. |
 | F19 | M | 7 other workflows unaudited | PARTIAL | 14 workflows now total (added: `codeql`, `dependency-review`, `gitleaks`, `splunkbase-sync`, `stewardship` since plan). No formal per-workflow audit doc (`docs/workflow-audit.md` does not exist). |
 | F20 | M | Thin test coverage (10 Python + 5 mjs) | DONE on count, **NOT** on % | **47 test files / 660 collected tests** in `tests/` + `mcp/tests/`. The "<10 tests" plan baseline is far surpassed. P16 coverage % targets not yet baselined; `data/baselines/coverage-v7.4.2.json` does not exist (per F20 in plan §11). |
-| F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** | **7,677 `.md` + 7,677 `.json` matched pairs** under `content/cat-*/UC-*.{md,json}`. Markdown corpus still committed. `--check` gate for parity still runs `continue-on-error: true` (overlaps with F7). |
+| F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** | **7,677 `.md` + 7,677 `.json` matched pairs** under `content/cat-*/UC-*.{md,json}`. Markdown corpus still committed. `--check` gate for parity is now blocking (F7 closed 2026-05-12) but the markdown files themselves are still committed — F21 is about removing them from git, not the gate. |
 | F22 | L | Two parallel sample regimes (95 dirs + 97 files) | **NOT DONE** | **94 `samples/UC-*/` directories + 97 `sample-data/uc-*-fixture.json` files** (numbers shifted slightly). P12's "pick one" first deliverable not yet done. |
 | F23 | L | 12+ schemas, no governance plan | PARTIAL | **18 schemas** under `schemas/` (up from "12+"): the 9 in plan, plus `coverage-baseline`, `baselines`, `license-inventory`, and the `v2/` tree (`catalog-index`, `metrics-history-index`, `stewardship-digest`, `search-index`, `build-telemetry`, `metrics`). Schema lineage ADR not yet authored. |
 
@@ -63,7 +63,7 @@ gitleaks as separate workflows).
 |---|---|---|
 | **P0** Hygiene + secrets hardening | PARTIAL | `.cursorignore` ✓, pre-commit ✓ (`.pre-commit-config.yaml`), archived script dirs gone ✓. **Gaps:** F10 (no `secrets.env` in `.cursorignore`), `data/baselines/v7.4.x.json` baselines file not visible — verify or back-author. |
 | **P1** One build pipeline | DONE | Legacy `build.py` deleted (v8.0.0); `use-cases/` retired (v8.2.0); F1/F2/F3 all resolved. Vestigial `reset_legacy_module_cache()` stub at `tools/build/parse_content.py:1058` is minor dead code. |
-| **P2** CI overhaul | PARTIAL | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. **Gaps:** `validate.yml` not split into 6–8 parallel jobs (F12); two `continue-on-error: true` gates remain (F7); no `data/baselines/` wall-clock baseline visible. |
+| **P2** CI overhaul | PARTIAL | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true` directives left across `.github/workflows/`. **Gaps:** `validate.yml` not split into 6–8 parallel jobs (F12); no `data/baselines/` wall-clock baseline visible. |
 | **P2.5** Audit other 7 workflows | NOT DONE | No `docs/workflow-audit.md`; 14 workflows total now; SHA-pinning status of third-party actions not verified per-workflow. |
 | **P3** ADR + docs reconciliation | DONE (mostly) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓; `docs/architecture-2027.md` not created (was "proposed" in plan). |
 | **P4** Typed Python pipeline | PARTIAL | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **Gaps:** `mypy --strict` not yet enabled globally; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
@@ -121,14 +121,11 @@ findings but should not be lost:
    "Current release" from v7.1 to v8.2.0. Plus the `reset_legacy_module_cache()`
    + stale-docstring cleanup. Plus delete `dist-content/` /
    `dist-legacy/` local directories.
-2. **Medium win (~50–100 line PR):** Close **F7** by:
-   - First: run `python3 -m splunk_uc audit-gold-profile --summary`
-     and `python3 -m splunk_uc generate-md-from-json --check` locally
-     and confirm both pass (i.e. backlogs are truly zero).
-   - Then: remove the two `continue-on-error: true` flags in
-     `validate.yml:513` and `:521`.
-   - If either backlog is non-zero, implement the §8 "warn-with-budget"
-     pattern as a small Python helper instead of blanket allow.
+2. ~~**Medium win (~50–100 line PR):** Close **F7**.~~ **Done
+   2026-05-12** — both backlogs were already zero, so the
+   `continue-on-error: true` flags on `audit-gold-profile --summary`
+   and `generate-md-from-json --check` were dropped from
+   `validate.yml`. See CHANGELOG `[Unreleased]` for the bullet.
 3. **Plan's headline next PR (~500 lines):** **Phase 2 main work** —
    split `validate.yml` into 6–8 parallel jobs per the plan §P2 sketch.
    This is PR-5 from §9 of the plan. Largest single impact remaining.
