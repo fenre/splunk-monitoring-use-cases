@@ -300,8 +300,23 @@ jobs:
         env:
           PYTHONPATH: src
         run: |
+          # PR-5 hotfix #2 (2026-05-12): use a filesystem PATH for the
+          # ``tools/build`` filter (``--cov=tools/build``) instead of a
+          # dotted MODULE name (``--cov=tools.build``). The tests under
+          # ``tests/build/`` insert ``tools/`` into ``sys.path`` and
+          # ``from build import build_info``, so the imported module
+          # identity is ``build.build_info`` (not ``tools.build.
+          # build_info``). With a module-name filter, coverage.py knows
+          # the file lives at ``tools/build/build_info.py`` and includes
+          # it in the JSON, but records 0% executed lines because the
+          # collected tracing is against the ``build.*`` identity →
+          # every tier-1 file reports 0.0% and the per-file ratchet
+          # blocks the build. Switching to a path filter sidesteps the
+          # mismatch; ``splunk_uc`` still uses the module-name form
+          # because tests import it as ``splunk_uc.X`` (matching the
+          # package layout under ``src/``).
           pytest tests/build/ tests/scripts/ -v \
-            --cov=tools.build --cov=splunk_uc \
+            --cov=tools/build --cov=splunk_uc \
             --cov-report=term-missing \
             --cov-report=json:coverage-report.json
 
