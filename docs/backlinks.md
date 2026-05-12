@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_193 pages indexed; 120 have at least one inbound link; 391 unique source→target edges._
+_194 pages indexed; 120 have at least one inbound link; 391 unique source→target edges._
 
 ---
 
@@ -788,6 +788,10 @@ _No inbound links yet._
 - [`docs/guides/datacenter-fabric-sdn.md`](guides/datacenter-fabric-sdn.md)
 
 ## `docs/handoff-phase6-tier2.md`
+
+_No inbound links yet._
+
+## `docs/health-check-2026-progress.md`
 
 _No inbound links yet._
 
