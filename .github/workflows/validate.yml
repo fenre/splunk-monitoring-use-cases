@@ -478,6 +478,21 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-repo-consistency
 
+      - name: Build catalog (required by catalog-schema + downstream regen guards)
+        # PR-5 hotfix #7 (2026-05-12): every downstream step from
+        # ``Catalog schema validation`` onwards reads ``dist/catalog.json``
+        # (preferred per ADR-0009 / P1 step 5c) or the legacy
+        # ``catalog.json`` fallback at the repo root. The old monolithic
+        # workflow built the catalogue once early on; PR-5's partition
+        # only built it in the ``mcp`` job because the build was wired
+        # to ``Generate api/v1 tree``. Reintroduce a discrete build
+        # step here so ``audit-catalog-schema``, ``audit-prerequisites``,
+        # ``audit-quality-metadata``, every ``regen-check`` step, and
+        # the gold-standard / Markdown-freshness guards all see a
+        # populated catalogue. The build is single-pass and reused by
+        # all subsequent steps in the same job.
+        run: python3 tools/build/build.py --out dist
+
       - name: Catalog schema validation
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
