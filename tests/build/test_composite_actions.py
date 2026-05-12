@@ -244,20 +244,22 @@ def test_setup_node_exposes_install_deps() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(
-    reason=(
-        "deferred to v8.x: only some workflows use the composite "
-        "setup-python action; the migration of link-check / pages / "
-        "regulatory-watch / release / traffic / uc-manifest / uc-tests / "
-        "validate to ./.github/actions/setup-python is the gating fix."
-    )
-)
 def test_no_workflow_pins_setup_python_directly() -> None:
     """No workflow may pin ``actions/setup-python`` directly anymore.
 
     Repo-overhaul plan §P2 centralised the SHA in the composite action.
     Re-introducing a direct pin in a workflow re-creates the comment-drift
     bug class the centralisation was designed to eliminate.
+
+    History
+    -------
+    Originally skipped pending the §P2-F19 migration of the remaining
+    nine workflows (``build-reproducibility``, ``link-check``, ``pages``,
+    ``regulatory-watch``, ``release``, ``stewardship``, ``traffic``,
+    ``uc-manifest``, ``uc-tests``) to ``./.github/actions/setup-python``.
+    F19 (2026-05-12) completes that migration: every workflow now
+    consumes the composite action, so the skip marker is removed and
+    the guard becomes the lock-in.
     """
     workflows_dir = REPO_ROOT / ".github" / "workflows"
     offenders = []

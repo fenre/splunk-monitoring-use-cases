@@ -12,6 +12,28 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close F19 (composite-action migration complete).** Every workflow
+  under `.github/workflows/*.yml` now consumes
+  `./.github/actions/setup-python` instead of pinning
+  `actions/setup-python@<sha>` directly. Nine remaining call-sites
+  migrated in this commit (`build-reproducibility`, `link-check`,
+  `pages`, `regulatory-watch`, `release`, `stewardship`, `traffic`,
+  `uc-manifest`, `uc-tests`); the other three (`validate`, `codeql`,
+  `splunkbase-sync`) had already been migrated under §P2 / PR-5. The
+  three workflows that previously open-coded `pip install
+  jsonschema==4.23.0` (`stewardship`, `regulatory-watch`,
+  `build-reproducibility`) now request `install-audits: "true"` and
+  inherit the requirements-ci.txt pin — same package, same version,
+  centralised. `uc-tests` likewise drops its open-coded
+  `pip install "pyyaml>=6.0"` in favour of the pinned `PyYAML==6.0.2`
+  shipped via `install-audits`. The previously-skipped guard
+  `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly`
+  becomes the lock-in: any future PR that re-introduces a raw
+  `actions/setup-python@<sha>` pin in any workflow fails the test in
+  the `audits-content` job. `python3 -m splunk_uc audit-action-pins`
+  reports 16/16 (action, tag, SHA) tuples verified against GitHub
+  upstream, and `tests/build/test_composite_actions.py` (19 tests) +
+  `tests/build/test_validate_workflow_partition.py` (72 tests) pass.
 - **Add `docs/health-check-2026-progress.md`** — verified plan-progress
   audit covering every finding F1–F23 and every phase P0–P19 from the
   repo-overhaul plan, with file:line evidence at HEAD `a36aa4db4`

@@ -38,6 +38,14 @@ across 9 workflows — every Renovate bump fanned out across the tree
 and the comment-drift class of bug (someone bumps the SHA without
 updating the `# vX.Y.Z` comment) silently grew.
 
+§P2-F19 (May 12 2026) completed the migration: every workflow under
+`.github/workflows/*.yml` now consumes `./.github/actions/setup-python`
+(and `./.github/actions/setup-node` where applicable). The active guard
+at `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly`
+keeps it that way — a future PR that re-introduces a raw
+`actions/setup-python@<sha>` pin in any workflow file fails the test
+in the `audits-content` job.
+
 The composite actions reduce that to **two** pin sites. Centralisation:
 
 - Makes Renovate / Dependabot bumps a one-file change.
