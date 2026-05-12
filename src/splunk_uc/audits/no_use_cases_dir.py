@@ -77,6 +77,7 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         "docs/migration-build-parity.md",
         "docs/migration-status.md",
         "docs/handoff-phase6-tier2.md",
+        "docs/health-check-2026-progress.md",
         "docs/replication-guide.md",
         "docs/scripts-taxonomy.md",
         "docs/splunk-apps-use-cases-comparison.md",
