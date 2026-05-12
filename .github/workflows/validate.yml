@@ -257,6 +257,22 @@ jobs:
           # docs/scripts-taxonomy.md §extras-management.
           install-extras: "test"
 
+      - name: Install MCP subpackage (required by audit-license-inventory)
+        # PR-5 hotfix #2 (2026-05-12): ``tests/scripts/test_audit_license_
+        # inventory.py`` drives ``splunk_uc.audits.license_inventory.main()``
+        # end-to-end. The auditor imports every declared dependency to
+        # validate the licence inventory; ``mcp`` is declared in
+        # ``mcp/pyproject.toml`` as a runtime dep of the ``splunk-uc-mcp``
+        # subpackage and is NOT pulled in by ``pip install -e ".[test]"``
+        # against the root pyproject. Without it the audit raises
+        #     audit_license_inventory: the following declared dependencies are
+        #     not importable in the running interpreter: mcp.
+        # …and the three end-to-end tests (write, check-pass, check-drift)
+        # fail. Install the MCP subpackage so the auditor's import-check
+        # walks every dependency successfully. The mcp job also installs
+        # this for its own test suite (different concern, same line).
+        run: pip install --disable-pip-version-check -e 'mcp/[test]'
+
       - name: Unit tests (build pipeline + audits)
         # pyproject.toml's [tool.pytest.ini_options] declares
         # ``asyncio_mode``, so pytest-asyncio must be importable or
