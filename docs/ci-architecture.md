@@ -122,14 +122,14 @@ Major sub-areas:
   (one-shot uplift / migration / generator helpers) is exempt by
   design; see `python3 -m splunk_uc audit-coverage-budget` for the full
   classification policy and §P16 of the overhaul plan.
-- **Legacy orphan UC audit** (`audit_legacy_orphans.py --check`).
-  Lists UCs that exist in `use-cases/cat-*.md` but have no JSON SSOT
-  counterpart under `content/`. Phase A (migrate the 20 originally
-  surveyed orphans) completed on 2026-05-09; the gate is now
-  `--check`, meaning any UC that exists only in the legacy tree
-  fails the build. See `docs/use-cases-burndown.md` for Phase B
-  (move `use-cases/` → `content-legacy/` for one-minor-release soak)
-  and Phase C (delete `content-legacy/`).
+- **Legacy use-cases/ guard** (`audit-no-use-cases-dir --check`).
+  Hard-fails CI if the retired ``use-cases/cat-*.md`` directory is
+  recreated or if a non-allowlisted tracked file gains a fresh
+  ``use-cases/`` path reference. Replaces the v9.x
+  ``audit-legacy-orphans`` verb that diagnosed UCs missing a JSON
+  SSOT sidecar — no longer meaningful after the v8.2.0 retirement
+  (2026-05-11) of the entire legacy markdown corpus. See
+  ``docs/use-cases-burndown.md`` for the migration history.
 - Per-UC structure (audit_uc_ids, audit_uc_structure, audit_spl_*,
   audit_mitre_taxonomy, audit_monitoring_type, audit_cim_spl_alignment,
   audit_known_fp).

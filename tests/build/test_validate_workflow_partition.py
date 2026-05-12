@@ -49,21 +49,12 @@ from typing import Any
 import pytest
 import yaml
 
-# v8.0.0 scope-down: the parallel-job split of validate.yml was drafted
-# alongside the v9.0 plan but the corresponding workflow refactor was
-# deferred. Re-enable this whole module by removing the skip marker
-# below in the same PR that lands the five-job split (lint /
-# audits-content / audits-build / mcp / frontend) in
-# `.github/workflows/validate.yml`. Until then the structural
-# assertions fail because the workflow is still a single ``validate``
-# job; that's exactly what the test is designed to catch, so skipping
-# rather than weakening keeps the assertion-of-desired-state intact.
-pytestmark = pytest.mark.skip(
-    reason=(
-        "deferred to v8.x: validate.yml is still a single job. "
-        "Re-enable in the PR that lands the five-job parallel split."
-    )
-)
+# v8.x: PR-5 (2026-05-12) landed the five-job parallel split of
+# validate.yml — ``lint`` / ``audits-content`` / ``audits-build`` /
+# ``mcp`` / ``frontend``. The structural assertions in this module are
+# now the contract between the workflow and any future re-partition,
+# refactor, or hand-edit. Restoring the skip marker is forbidden — the
+# whole point of this module is to keep CI honest about the partition.
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATE_YML = REPO_ROOT / ".github" / "workflows" / "validate.yml"
@@ -95,7 +86,13 @@ CRITICAL_STEP_NAMES = [
     # Content audits
     "Unit tests (build pipeline",  # P16 renamed to "...build pipeline + audits)"; substring match
     "Coverage budget audit",
-    "Legacy orphan UC audit",  # P1 step 7 burndown ratchet
+    # v8.2.0 (2026-05-11) retired the legacy ``use-cases/cat-*.md``
+    # corpus, which made the original ``audit-legacy-orphans`` verb
+    # meaningless (nothing left to be orphaned from). The replacement
+    # ``audit-no-use-cases-dir`` runs in audits-content as
+    # ``Legacy use-cases/ guard (v8.2.0 retirement)`` and serves the
+    # same intent: prevent legacy markdown orphans from accumulating.
+    "Legacy use-cases/ guard",
     "UC ID uniqueness",
     "UC structure validation",
     "SPL grammar linter",

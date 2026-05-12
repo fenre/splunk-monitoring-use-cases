@@ -521,17 +521,23 @@ def test_main_export_writes_snapshot_with_stable_keys(
     )
 
 
-def test_main_strict_version_fails_on_drift(audit: ModuleType) -> None:
-    """``--strict-version`` flips the live drift to a hard failure.
+def test_main_strict_version_passes_now_that_roadmap_is_fresh(
+    audit: ModuleType,
+) -> None:
+    """``--strict-version`` returns 0 once ROADMAP and VERSION agree.
 
-    Sanity-check that strict mode is wired correctly: today's
-    ROADMAP.md ships v7.1 against a VERSION of 9.2.0, so strict mode
-    must exit 1.
+    Pre-2026-05-12 history: ROADMAP.md claimed v7.1 as the current
+    release while VERSION had advanced to v8.2.0, so this test asserted
+    that ``--strict-version`` *failed* on the drift. The 2026-05-12
+    ROADMAP refresh (commit ``f47b4f0be``) promoted v8.2.0 to the
+    "Current release" slot. The test is now an anti-regression guard:
+    if ``--strict-version`` starts failing again, ROADMAP.md has fallen
+    behind VERSION and needs to be refreshed before merge.
     """
     rc = audit.main(["--strict-version"])
-    assert rc == 1, (
-        "expected --strict-version to fail today; if this passes, the "
-        "ROADMAP refresh shipped — promote validate.yml to use --strict-version"
+    assert rc == 0, (
+        "expected --strict-version to pass; ROADMAP.md must advertise "
+        "the same version as the VERSION file. Refresh ROADMAP.md."
     )
 
 

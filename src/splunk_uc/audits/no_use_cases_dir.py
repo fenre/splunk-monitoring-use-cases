@@ -122,6 +122,12 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         # ── Tests with intentional comments referencing migration ─────────
         "tests/golden/compliance-mappings.yaml",
         "tests/sandbox/validate.test.mjs",
+        # PR-5 (2026-05-12) added a ``"Legacy use-cases/ guard"`` critical
+        # step name to this partition test contract. The literal substring
+        # has to be the contract because that is exactly what is matched
+        # against the workflow step name. The accompanying comment block
+        # documents the v8.2.0 retirement of the original verb.
+        "tests/build/test_validate_workflow_partition.py",
         # ── This audit module — the allowlist itself mentions the path ────
         "tests/scripts/test_audit_no_use_cases_dir.py",
     }

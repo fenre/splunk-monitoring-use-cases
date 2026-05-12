@@ -272,14 +272,15 @@ def test_no_workflow_pins_setup_python_directly() -> None:
     )
 
 
-@pytest.mark.skip(
-    reason=(
-        "deferred to v8.x: validate.yml still pins setup-node directly. "
-        "Same migration as test_no_workflow_pins_setup_python_directly."
-    )
-)
 def test_no_workflow_pins_setup_node_directly() -> None:
-    """No workflow may pin ``actions/setup-node`` directly anymore."""
+    """No workflow may pin ``actions/setup-node`` directly anymore.
+
+    Repo-overhaul plan §P2 (PR-5, 2026-05-12): ``validate.yml`` was
+    the only direct setup-node pin site; it now routes through
+    ``./.github/actions/setup-node``. Re-introducing a direct pin in
+    any workflow re-creates the comment-drift bug class the
+    centralisation was designed to eliminate.
+    """
     workflows_dir = REPO_ROOT / ".github" / "workflows"
     offenders = []
     for wf in sorted(workflows_dir.glob("*.yml")):
