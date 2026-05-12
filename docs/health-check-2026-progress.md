@@ -88,14 +88,24 @@ gitleaks as separate workflows).
 These are smaller items spotted during verification that aren't full plan
 findings but should not be lost:
 
-1. **ROADMAP.md is 3 minor versions stale.** "Current release" still says
-   v7.1 (line 9); we are now at v8.2.0. Should be refreshed in the next
-   doc PR.
-2. **`reset_legacy_module_cache()` vestigial stub** at
-   `tools/build/parse_content.py:1058` and its `__all__` export — dead
-   code remaining after F1 closure. Plus stale docstrings in
-   `tools/build/build.py:39-43` and `tools/build/enrichment.py:5-11`
-   still describe the deleted `_legacy_module()` flow.
+1. ~~**ROADMAP.md is 3 minor versions stale.**~~ **Resolved 2026-05-12** —
+   refreshed "Current release" to v8.2.0; demoted v7.1 into "Previous
+   releases"; bumped the in-progress / backlog headings forward to v8.3
+   / v8.4+ so `audit-roadmap-consistency --check` keeps passing. Two
+   "v7.2 target" body references swapped for version-agnostic phrasing.
+   See commit `f47b4f0be`.
+2. ~~**`reset_legacy_module_cache()` vestigial stub**~~ **Resolved 2026-05-12** —
+   removed the dead function and its `__all__` export from
+   `tools/build/parse_content.py`, dropped the now-unused
+   `_LOADER_LEGACY` constant from the same file, rewrote the stale
+   docstring in `tools/build/enrichment.py` (was: "without going
+   through the deprecated `_legacy_module()` dynamic import"), and
+   removed the obsolete "Transitional behaviour (v7.0-dev)" block
+   from `tools/build/build.py` that described loading root `build.py`
+   via `importlib`. `rg "reset_legacy_module_cache|_LOADER_LEGACY|_legacy_build"`
+   returns 0 matches across `tools/ src/ mcp/ tests/ scripts/`.
+   `tests/build/` 272 tests pass; parse stage loads cleanly (23 / 23 /
+   106 / 7,677). See the same chore-bundle PR.
 3. **`dist-content/`, `dist-legacy/`** still on local disk
    (gitignored, but disk clutter). `make clean-tree` target from P0
    doesn't yet exist.
@@ -117,10 +127,14 @@ findings but should not be lost:
 
 1. **Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,
    `secrets.env.local`, `.env`, `.env.local`, `mcp/.pytest_cache/`,
-   `__pycache__/` to `.cursorignore`. Plus refresh `ROADMAP.md`
-   "Current release" from v7.1 to v8.2.0. Plus the `reset_legacy_module_cache()`
-   + stale-docstring cleanup. Plus delete `dist-content/` /
-   `dist-legacy/` local directories.
+   `__pycache__/` to `.cursorignore` (requires a manual edit by the
+   maintainer because `.cursorignore` is locked against agent writes).
+   ~~Plus refresh `ROADMAP.md` "Current release" from v7.1 to v8.2.0.~~
+   **Done 2026-05-12 (commit `f47b4f0be`).**
+   ~~Plus the `reset_legacy_module_cache()` + stale-docstring
+   cleanup.~~ **Done 2026-05-12 (same chore bundle).**
+   Plus delete `dist-content/` / `dist-legacy/` local directories
+   (`rm -rf` only; both are already in `.gitignore`).
 2. ~~**Medium win (~50–100 line PR):** Close **F7**.~~ **Done
    2026-05-12** — both backlogs were already zero, so the
    `continue-on-error: true` flags on `audit-gold-profile --summary`

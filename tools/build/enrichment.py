@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""tools.build.enrichment — content enrichment logic extracted from root build.py.
+"""tools.build.enrichment — single SSOT for content enrichment.
 
-This module contains ALL shared enrichment functions, constants, and data
-structures originally in the repository-root ``build.py`` (the v6 build
-script). It is imported by ``parse_content.py`` to post-process use-case
-records (ESCU detection, equipment tagging, pillar assignment, regulation
-assignment, etc.) without going through the deprecated ``_legacy_module()``
-dynamic import.
+This module owns every shared enrichment function, constant, and data
+structure used during catalog build: ``EQUIPMENT``, ``CAT_GROUPS``,
+``SPLUNK_APPS``, ESCU detection, equipment tagging, pillar assignment,
+regulation assignment, narration helpers, etc. ``parse_content`` imports
+from here to post-process loaded UC records.
 
-Do NOT import this module from the repository-root ``build.py``. If you
-need to share logic, import from *here* — this is the single source of
-truth for enrichment constants and helpers.
+History note: this module was originally extracted from the repository-
+root ``build.py`` (the v6 monolith). That root ``build.py`` was retired
+in v8.0.0; ``tools/build/build.py`` is the only build entrypoint now,
+and this file is its single enrichment source.
 """
 
 import glob

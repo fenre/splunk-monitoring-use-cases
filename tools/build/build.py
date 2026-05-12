@@ -33,14 +33,6 @@ With `--reproducible`:
 * LC_ALL is set to "C"
 CI runs the full build twice and asserts byte-identical output.
 
-Transitional behaviour (v7.0-dev)
----------------------------------
-While the per-stage native renderers are landing, parts of the pipeline
-still rely on the v6 root ``build.py``. Legacy parsing loads that module
-through ``parse_content._legacy_module()``, which imports root ``build.py``
-via ``importlib`` (as a Python module), not by spawning it as a subprocess.
-As each native renderer ships, the corresponding section of the legacy pass
-is short-circuited; v7.1 removes the legacy pass entirely.
 """
 
 from __future__ import annotations

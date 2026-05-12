@@ -118,7 +118,6 @@ def _validate_uc_json(
 
 _LOADER_ENV = "SPLUNK_UC_LOADER"
 _LOADER_CONTENT = "content"
-_LOADER_LEGACY = "legacy"  # retained for legacy CI scripts; behaves identically.
 _LOADER_DEFAULT = _LOADER_CONTENT
 
 
@@ -1055,20 +1054,11 @@ def loader_kind() -> str:
     return _resolve_loader_kind()
 
 
-def reset_legacy_module_cache() -> None:
-    """Drop the cached legacy module. Required for env-var-flip tests."""
-    global _LEGACY
-    _LEGACY = None
-    sys.modules.pop("_legacy_build", None)
-
-
-# Catch any future re-export needs without cluttering the public surface.
 __all__ = [
     "Catalog",
     "empty",
     "load",
     "loader_kind",
-    "reset_legacy_module_cache",
 ]
 
 

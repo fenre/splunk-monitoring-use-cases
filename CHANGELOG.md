@@ -34,6 +34,22 @@ the release notes block in `index.html` by hand.
   contract; replaced the two remaining "v7.2 target" body-text
   references with version-agnostic phrasing. `audit-roadmap-consistency
   --check` passes.
+- **Drop the vestigial `_legacy_module()` references left over from
+  F1 closure.** Removed `reset_legacy_module_cache()` from
+  `tools/build/parse_content.py` (function body, `__all__` entry, and
+  the dependent `_LOADER_LEGACY` constant — all dead since the root
+  `build.py` was deleted in v8.0.0). Rewrote the stale module
+  docstring in `tools/build/enrichment.py` so it no longer references
+  the "deprecated `_legacy_module()` dynamic import" and the
+  prohibition on importing from root `build.py` (root `build.py` does
+  not exist any more). Removed the obsolete "Transitional behaviour
+  (v7.0-dev)" block from `tools/build/build.py` that described loading
+  the v6 root `build.py` via `importlib`. Net: 30 lines deleted, 12
+  added (docstring rewrite). `rg
+  "reset_legacy_module_cache|_LOADER_LEGACY|_legacy_build"` returns
+  zero matches across `tools/ src/ mcp/ tests/ scripts/`.
+  `tests/build/` (272 tests) still passes and `parse_content.load()`
+  still returns 23 categories / 106 equipment / 7,677 UCs.
 
 ## [8.2.0] - 2026-05-11
 
