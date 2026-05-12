@@ -12,6 +12,12 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Add `docs/health-check-2026-progress.md`** — verified plan-progress
+  audit covering every finding F1–F23 and every phase P0–P19 from the
+  repo-overhaul plan, with file:line evidence at HEAD `a36aa4db4`
+  (v8.2.0). Becomes the permanent reference to prevent rework on
+  already-closed plan items.
+
 ## [8.2.0] - 2026-05-11
 
 ### Phase 6 closed — Tier 3 shims deleted, Tier 4 packaging infrastructure landed
