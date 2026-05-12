@@ -334,6 +334,10 @@ See [`GOVERNANCE.md`](GOVERNANCE.md) for the full decision-making process.
 
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
+### Related repository documents
+
+- [`docs/health-check-2026-progress.md`](docs/health-check-2026-progress.md)
+
 ### Cited by
 
 - [`docs/enterprise-deployment.md`](docs/enterprise-deployment.md)
