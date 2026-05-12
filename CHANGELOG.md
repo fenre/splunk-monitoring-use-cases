@@ -12,6 +12,25 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close F10 (`.cursorignore` covers secrets / dotenv files).** Added an
+  explicit "Secrets and local environment overrides" block at the end of
+  `.cursorignore` listing `secrets.env`, `secrets.env.local`, `.env`,
+  `.env.local`, and `.env.*.local`. `.gitignore` lines 88-90 already
+  block these from commits; the new block ensures the Cursor agent's
+  own index also excludes them, so a stray `Read` / search request
+  cannot surface credentials. Verified at HEAD: `secrets.env` exists
+  locally (1085 bytes), is gitignored, and is now `.cursorignore`'d as
+  well.
+- **Refresh `docs/health-check-2026-progress.md` (4 closures recorded).**
+  Updated F10 (NOT DONE → DONE), F12 (NOT DONE → DONE, PR-5 commit
+  `62c95b5e0`), F18 (NOT DONE → DONE, root `openapi.yaml` already
+  carries the `**Status: legacy (hand-maintained)**` block at line 16),
+  and F19 (PARTIAL → DONE, PR #8 commit `85b680f5d`). Rolled P0 and P2
+  status forward; bumped P2.5 from NOT DONE to PARTIAL (composite
+  migration done, per-workflow audit doc still missing). Added drift
+  ledger entries 6 (F10), 7 (F19), and 8 (dependency-graph manual
+  enablement that unblocked the dependency-review gate on PR #8 and
+  the open Dependabot PRs #2/#3/#7).
 - **Close F19 (composite-action migration complete).** Every workflow
   under `.github/workflows/*.yml` now consumes
   `./.github/actions/setup-python` instead of pinning
