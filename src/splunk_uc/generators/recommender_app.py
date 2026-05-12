@@ -4967,10 +4967,24 @@ def _render(out_root: pathlib.Path) -> dict[str, pathlib.Path]:
 
 
 def _strip_timestamp_lines(content: bytes) -> bytes:
-    """Remove lines that only carry the generatedAt timestamp."""
+    """Remove lines that only carry generator-stamped timestamps.
+
+    The generator derives every timestamp from
+    ``_deterministic_timestamp()``, which itself reads
+    ``git log -1 --format=%ct``. Because HEAD shifts the moment a
+    regeneration commit lands, ``generatedAt`` / ``Generated:`` /
+    ``releaseDate`` lines look stale to the next ``--check`` run. They
+    are bookkeeping fields, not content; ignore them when comparing
+    the freshly generated tree against the on-disk tree so a stale
+    bump-then-commit cadence does not flap CI.
+    """
     lines = content.split(b"\n")
     return b"\n".join(
-        line for line in lines if b"generatedAt" not in line and b"Generated:" not in line
+        line
+        for line in lines
+        if b"generatedAt" not in line
+        and b"Generated:" not in line
+        and b'"releaseDate"' not in line
     )
 
 
