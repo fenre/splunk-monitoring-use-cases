@@ -117,11 +117,21 @@ TIER_1_EXCLUDES = (
 # tier-2 ratcheting on it is meaningless; coverage now follows the
 # implementation under ``src/splunk_uc/`` (covered by the dispatcher
 # tests + dedicated package tests as they are added).
+#
+# F18-coverage-tier-rules (2026-05-12): the splunk_uc package migration
+# moved every ``scripts/audit_*.py`` into ``src/splunk_uc/audits/`` and
+# every ``scripts/generate_*.py`` (Tier 2 ones) into
+# ``src/splunk_uc/generators/``. The bare ``scripts/`` regexes still
+# match the legacy paths during the soak window; the new ``src/``
+# regexes pick up the migrated implementations so the tier-2 ratchet
+# starts protecting the new locations.
 TIER_2_INCLUDES = (
     re.compile(r"^scripts/audit_.*\.py$"),
     re.compile(r"^scripts/equipment_lib\.py$"),
     re.compile(r"^scripts/build_es\.py$"),
     re.compile(r"^scripts/build_ta\.py$"),
+    re.compile(r"^src/splunk_uc/audits/.*\.py$"),
+    re.compile(r"^src/splunk_uc/generators/.*\.py$"),
 )
 
 # Tier 3 (everything else under scripts/) is documented exempt.
