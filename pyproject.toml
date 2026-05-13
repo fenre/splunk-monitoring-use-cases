@@ -297,28 +297,27 @@ disallow_untyped_defs = true
 disallow_any_explicit = false   # `Any` is a legitimate escape hatch in obligationModel
 warn_return_any = true
 
-# splunk_uc.audits.* is the P4 first canary for repo-wide --strict.
-# At 2026-05-13 every audit module (51 source files, ~18 kLOC) passes
-# `mypy --strict src/splunk_uc/audits/` with zero errors. Pin strict mode
-# here so any new audit module or refactor that introduces an untyped
-# def, an implicit Any, or an un-parameterised generic fails CI immediately
-# rather than silently regressing into the broader type-debt backlog.
+# splunk_uc.* — the entire package is the P4 type-debt-burndown floor.
+# Surveyed 2026-05-13 (canaries #1 audits, #2 generators, #3 ingest):
+# every module under ``src/splunk_uc/`` passes ``mypy --strict`` at HEAD —
+# 94 source files total, ~25 kLOC, zero errors. Subpackage roll-up:
+#
+#   splunk_uc.audits.*         51 modules   (#1 canary, 2026-05-13)
+#   splunk_uc.generators.*     17 modules   (#2 canary, 2026-05-13)
+#   splunk_uc.ingest.*          8 modules   (#3 canary, 2026-05-13)
+#   splunk_uc.feasibility.*     5 modules
+#   splunk_uc.migrations.*      4 modules
+#   splunk_uc.tools.*           6 modules
+#   splunk_uc top-level         3 modules   (__init__, __main__, _registry)
+#
+# The package-wide override below replaces the previous per-canary
+# overrides (``splunk_uc.audits.*`` and ``splunk_uc.generators.*``)
+# with a single contract that pins the strict bar for the whole namespace.
+# Any new module or refactor that introduces an untyped def, an
+# implicit Any, or an un-parameterised generic anywhere under
+# ``src/splunk_uc/`` fails CI immediately.
 [[tool.mypy.overrides]]
-module = "splunk_uc.audits.*"
-strict = true
-disallow_untyped_defs = true
-warn_return_any = true
-
-# splunk_uc.generators.* is the P4 second canary (2026-05-13). All 17
-# generator modules (~5 kLOC) pass `mypy --strict src/splunk_uc/generators/`
-# with zero errors after a one-line fix (parameterising one `set` literal in
-# `recommender_app._gsa_load_ucs`). Same contract as the audits override:
-# strict mode is pinned here so any future drift fails CI immediately.
-# The next §P4 canary target is `splunk_uc.ingest.*` (or whichever is the
-# next-largest under-typed package once the audits + generators floor is
-# locked).
-[[tool.mypy.overrides]]
-module = "splunk_uc.generators.*"
+module = "splunk_uc.*"
 strict = true
 disallow_untyped_defs = true
 warn_return_any = true
