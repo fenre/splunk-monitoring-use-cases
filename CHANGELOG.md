@@ -12,6 +12,28 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §P3 — absorb the "proposed `docs/architecture-2027.md`"
+  placeholder.** The plan §P3 row carried a final hanging item:
+  the plan proposed authoring `docs/architecture-2027.md` as a
+  forward-looking architectural sketch alongside the locked v7.0.0
+  contract in `docs/architecture.md`. In practice, the project's
+  forward-looking architectural work has been going into two
+  authoritative homes — `ROADMAP.md` (release-aligned forward plan,
+  kept in sync with `VERSION` by the `audit-roadmap-consistency`
+  audit) and `docs/adr/` (numbered-on-acceptance ADRs, cadence
+  demonstrated by ADR-0010 + ADR-0011 + ADR-0012 all landing
+  2026-05-13). Authoring a third doc would either duplicate those
+  contracts or sit empty as a placeholder — and the "ADRs are
+  numbered on acceptance, not reserved" principle from
+  [`ADR-0011 §"Alternatives considered"`](docs/adr/0011-schema-lineage-governance.md)
+  point C applies equally to dated-architecture docs. This PR
+  adds a §"Forward-looking work" section to `docs/architecture.md`
+  that documents the two-doc pattern explicitly, then flips the
+  P3 row in `docs/health-check-2026-progress.md` from
+  `DONE (mostly)` to `DONE (2026-05-13)`. No new doc files are
+  created; one paragraph is added to the existing locked
+  architecture contract.
+
 - **§P10 first step — a11y landmark + `<h1>` fix for `index.html`
   and `scorecard.html`.** Now that F8 (Frontend Hardening) is closed,
   the §P10 phase (Performance + a11y hardening) can finally start.
