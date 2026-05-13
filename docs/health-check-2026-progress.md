@@ -35,7 +35,7 @@ documentation-only "next-deliverable" tier has been drained in the
 - **P4 second canary** closed by `mypy --strict src/splunk_uc/generators/` going green and being CI-gated (2026-05-13).
 - **P4 package-wide floor** closed by `mypy --strict src/splunk_uc/` going green (94 source files, every subpackage) and being CI-gated (2026-05-13).
 - **P14 per-category CODEOWNERS routing** scaffolded (2026-05-13): 23-category roster in `.github/CODEOWNERS` + 6-case structural test in `tests/build/test_codeowners.py`.
-- **F8** moved from `H NOT DONE` to `H PARTIAL` by [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md) (every `innerHTML` site catalogued). **PR-A landed 2026-05-13** — the 7 static-option `innerHTML` sites have been collapsed into `_resetEquipmentModelSelect()`; `grep -nE '\.innerHTML\s*=' index.html | wc -l` dropped from 29 → 22.
+- **F8** moved from `H NOT DONE` to `H DONE — pending PR-C (P10 follow-up)` by [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md) (every `innerHTML` site catalogued). **PR-A + PR-B both landed 2026-05-13** — PR-A collapsed the 7 static-option `innerHTML` sites into `_resetEquipmentModelSelect()` (29 → 22); PR-B then rewrote the only `+=` per-iteration loop, the data-sizing summary write, and both `<br><span …>` append sites via three new DOM-construction helpers (`_appendEquipmentModelOption`, `_makeInventoryLink`, `_appendSizingHintSpan`). At PR-B head: `grep -nE '\.innerHTML\s*=' index.html | wc -l` = **21**, `grep -nE '\.innerHTML\s*\+=' index.html | wc -l` = **0** code sites (one comment-only match remains in the helper docstring). F8 close criteria satisfied; PR-C (virtual-scroll renderer `<template>`-clone rewrite) tracked as the explicit known-cost follow-up under P10.
 - **F23** closed by [ADR-0011](adr/0011-schema-lineage-governance.md) (schema lineage governance ratified; contract doc refreshed).
 - **F13** closed (and loose-end ledger #3) by the new `make clean-tree` target — every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) nukeable in one command.
 - **F14** closed by reclassification — the surviving `scripts/_*.py` underscore-prefixed files are content-burndown one-shots formally ratified by the v8.2.0 CHANGELOG narrative (lines 174-181 and 432-443) and exempted from the dispatcher migration. The original "clutter" (`api/v1/_evidence-packs-bak/`) has been gone since v8.2.0.
@@ -43,8 +43,9 @@ documentation-only "next-deliverable" tier has been drained in the
 - **F22 follow-on** (deferred by ADR-0010) closed by [ADR-0012](adr/0012-sample-data-canonical-shape.md) — phase3 (`positive` / `negative`) ratified as the canonical `sample-data/` shape; phase2 and phase-legacy deprecated. Mechanical migration of the 39 empty phase2 placeholders + the 1 misclassified phase-legacy file is the documented follow-on.
 
 The next recommended sequence in the plan now moves into §P5
-(frontend rebuild — F8 PR-A and PR-B), §P8 (observability) and §P12
-(content quality, including the deferred sample-data shape ADR).
+(frontend rebuild — F8 PR-C remains as the explicit P10 follow-up,
+PR-A + PR-B landed), §P8 (observability) and §P12 (content quality,
+including the deferred sample-data shape ADR).
 
 ## Findings (F1–F23)
 
@@ -57,7 +58,7 @@ The next recommended sequence in the plan now moves into §P5
 | F5 | H | ~3,300 modified files in working tree | DONE | Working tree clean at HEAD post v8.2.0 commit. |
 | F6 | H | `audit_uc_structure.py` scans `use-cases/cat-*.md` | DONE | `src/splunk_uc/audits/uc_structure.py:4` walks `content/cat-*/UC-*.json` (JSON SSOT per ADR-0007). The legacy `use-cases/` corpus itself was retired in v8.2.0 (CHANGELOG entry "Legacy `use-cases/` markdown corpus retired"). |
 | F7 | H | Quality gates run `continue-on-error: true` | **DONE** (2026-05-12) | Verified locally: `audit-gold-profile --summary` exits 0 by design (printing 9.4% gold / 0.5% silver / 79.5% bronze / 10.5% none across 7,677 UCs), and `generate-md-from-json --check` exits 0 (`All 7677 .md files are up-to-date.`). Both `continue-on-error: true` lines removed from `.github/workflows/validate.yml`; explanatory `F7 (2026-05-12)` comments added in their place. `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. |
-| F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | PARTIAL — inventory + PR-A landed 2026-05-13 | At HEAD `b3f0da75a`: **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline), originally **29 `.innerHTML =` sinks** (the plan's "33" included four overview-roadmap sites since inlined into the build), **0** `eval` / `new Function` / `document.write` calls, and **1 CSP meta tag with `'unsafe-inline'` on both `script-src` *and* `style-src`** (not just `style-src` — the plan baseline understated this). Authored [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md), a single-page bounded scope: one row per `innerHTML` site (categorised A-E), per-helper escape audit (`esc`, `buildMitreDdList`, `_invBuildBody`), CSP `'unsafe-inline'` accounting (2 inline `<script>`, 104 inline `on*=` handlers; 1 inline `<style>`, 42 inline `style="…"` attrs), and a three-PR migration plan (PR-A: collapse 7 static-option sites; PR-B: rewrite 3 `+=` append sites; PR-C: virtual-scroll `<template>`-clone refactor). **PR-A landed 2026-05-13** — the seven static-option Category-A sites now route through one `_resetEquipmentModelSelect(ms)` helper (created via `document.createElement`/`replaceChildren`, not raw HTML); innerHTML sink count is now **22** (was 29). PR-B remains as the second F8 close criterion; PR-C is the explicit known-cost follow-up; CSP `'unsafe-inline'` tightening folds into the existing **P10** phase (Performance + a11y hardening) which already names F8 as its prerequisite. |
+| F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | DONE — PR-A + PR-B landed 2026-05-13 (PR-C tracked under P10) | At HEAD `b3f0da75a`: **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline), originally **29 `.innerHTML =` sinks** (the plan's "33" included four overview-roadmap sites since inlined into the build), **0** `eval` / `new Function` / `document.write` calls, and **1 CSP meta tag with `'unsafe-inline'` on both `script-src` *and* `style-src`** (not just `style-src` — the plan baseline understated this). Authored [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md), a single-page bounded scope: one row per `innerHTML` site (categorised A-E), per-helper escape audit (`esc`, `buildMitreDdList`, `_invBuildBody`), CSP `'unsafe-inline'` accounting (2 inline `<script>`, 104 inline `on*=` handlers; 1 inline `<style>`, 42 inline `style="…"` attrs), and a three-PR migration plan. **PR-A landed 2026-05-13** — the seven static-option Category-A sites now route through one `_resetEquipmentModelSelect(ms)` helper (created via `document.createElement`/`replaceChildren`, not raw HTML); innerHTML sink count: 29 → 22. **PR-B landed 2026-05-13** — three new DOM-construction helpers (`_appendEquipmentModelOption`, `_makeInventoryLink`, `_appendSizingHintSpan`) replace the only `innerHTML +=` per-iteration loop, the Category-D `innerHTML = summary` write, and both `innerHTML += '<br><span …>'` append sites. The two inline `onclick="event.preventDefault();openInventoryModal()"` HTML attributes are gone (rebound via `addEventListener`). Final counter movement: `.innerHTML =` sites = **21**, `.innerHTML +=` code sites = **0** (one comment-only match remains in a helper docstring); index.html = 651,770 bytes, perf-a11y headroom 65,030 / 716,800 (~9% slack). F8 close criteria satisfied; PR-C (virtual-scroll renderer `<template>`-clone refactor) is the explicit known-cost follow-up and CSP `'unsafe-inline'` tightening both fold into the existing **P10** phase (Performance + a11y hardening) which already names F8 as its prerequisite. |
 | F9 | H | No CodeQL / dependency-review / SBOM | DONE (mostly) | `.github/workflows/codeql.yml` + `dependency-review.yml` + `gitleaks.yml` all present as separate workflows. SBOM via `anchore/sbom-action` in `release.yml` — verify in P2.5 audit. |
 | F10 | H | `secrets.env` not in `.cursorignore` | **DONE** (2026-05-12) | `.cursorignore` now carries an explicit "Secrets and local environment overrides" block listing `secrets.env`, `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`. `.gitignore` lines 88-90 already block them from commits; the new entries also hide them from the Cursor agent's index so a stray `Read` cannot surface credentials. |
 | F11 | M | `scripts/` 105 files, no taxonomy, archived trees | DONE | 76 deliberate Python files remain in `scripts/`, mapped to taxonomy in `docs/scripts-taxonomy.md`. Archived trees (`scripts/_archived/`, `scripts/archive/`) deleted. Closed in v8.2.0 (P6 closure). |
@@ -253,20 +254,30 @@ findings but should not be lost:
    `build-reproducibility.yml`) and cross-links the new audit doc.
 7. ~~**F8 (~no code, 1 PR):** Inventory the `index.html`
    `innerHTML` sites and produce a bounded migration plan.~~
-   **Done 2026-05-13** —
+   **Done 2026-05-13 — inventory PLUS PR-A and PR-B both landed.**
    [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md)
    ratifies the inventory at HEAD `b3f0da75a`: **29** `.innerHTML =`
    sinks (not 33; the plan's number predates the v7→v8 overview-roadmap
    inlining), one row per site with category and migration cost, helper
    audit of `esc` / `buildMitreDdList` / `_invBuildBody`, CSP `'unsafe-inline'`
    accounting (it's on *both* `script-src` and `style-src` — the plan
-   baseline understated this), and a three-PR migration plan
-   (**PR-A**: collapse 7 static-option sites; **PR-B**: rewrite 3 `+=`
-   append sites; **PR-C**: virtual-scroll `<template>`-clone refactor).
-   PR-A + PR-B land the F8 close; PR-C is the explicit known-cost
-   follow-up; CSP `'unsafe-inline'` tightening folds into the existing
-   **P10** phase (Performance + a11y hardening) which already names F8
-   as its prerequisite.
+   baseline understated this), and a three-PR migration plan. **PR-A**
+   collapsed all 7 static-option Category-A sites into the
+   `_resetEquipmentModelSelect(ms)` helper (29 → 22 `.innerHTML =`
+   sinks). **PR-B** added three more DOM-construction helpers
+   (`_appendEquipmentModelOption`, `_makeInventoryLink`,
+   `_appendSizingHintSpan`), rewrote the only `innerHTML +=`
+   per-iteration loop, replaced the Category-D `innerHTML = summary`
+   write with `textContent = summary`, and migrated both
+   `innerHTML += '<br><span …>'` append sites — including rebinding the
+   two inline `onclick` HTML attributes to `addEventListener` clicks.
+   Final counts: **21** `.innerHTML =` sinks, **0** `innerHTML +=` code
+   sites (one comment-only match remains in a helper docstring).
+   F8 close criteria are satisfied with PR-A + PR-B. **PR-C** (the
+   virtual-scroll renderer `<template>`-clone refactor) is the
+   explicit known-cost follow-up and CSP `'unsafe-inline'` tightening
+   both fold into the existing **P10** phase (Performance + a11y
+   hardening) which already names F8 as its prerequisite.
 8. ~~**F23 (~no code, 1 PR):** Author the schema lineage ADR so the
    already-built governance (contract doc + per-schema changelogs +
    the two CI audits) has a visible decision record.~~

@@ -12,6 +12,34 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§F8 PR-B — rewrite the only `innerHTML +=` loop, the data-sizing
+  summary write, and both `<br><span …>` append sites via three new
+  DOM-construction helpers.** Together with PR-A, this lands the **F8
+  Frontend Hardening close criteria** (PR-C — the virtual-scroll
+  renderer `<template>`-clone refactor — and CSP `'unsafe-inline'`
+  tightening both fold into the existing P10 phase). Three new
+  helpers (`_appendEquipmentModelOption`, `_makeInventoryLink`,
+  `_appendSizingHintSpan`) replace four sinks:
+  the `eq.models.forEach(function(m) { ms.innerHTML += '<option …>'; })`
+  per-iteration loop (the only `innerHTML +=` loop in the file —
+  implicit re-parse on every iteration gone, label set via
+  `textContent`); the `countEl.innerHTML = summary` write (now
+  `textContent = summary` because the summary is plain numeric
+  counts); and both `countEl.innerHTML += '<br><span …>… <a
+  onclick="event.preventDefault();openInventoryModal()">My
+  Equipment</a> …</span>'` append sites — including rebinding the
+  two inline `onclick` HTML attributes to `addEventListener` clicks
+  via `_makeInventoryLink`. Final F8 counter movement: `grep -nE
+  '\.innerHTML\s*=' index.html | wc -l` = **21** (was 22 after PR-A,
+  29 before F8), and `grep -nE '\.innerHTML\s*\+=' index.html | wc -l`
+  code sites = **0** (only a docstring-comment match remains). Net
+  effect on `index.html`: ~50 LOC added (three helpers + four
+  rewritten sites), +1,888 bytes raw (perf-a11y headroom 66,918 →
+  65,030; budget unchanged at 716,800, still ~9% slack). F8 inventory
+  doc PR-B section annotated `DONE 2026-05-13`; progress doc F8 row
+  flipped from "PARTIAL — PR-A landed" to "DONE — PR-A + PR-B landed";
+  `reports/perf-a11y.json` refreshed for the new size.
+
 - **§F8 PR-A — collapse 7 static-option `innerHTML` sites into one
   helper.** First of the two PRs that together close F8 (the second is
   PR-B, rewriting the three `+=` append sites). All seven copies of

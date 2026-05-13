@@ -71,6 +71,47 @@ function _resetEquipmentModelSelect(ms) {
   opt.textContent = 'All models';
   ms.replaceChildren(opt);
 }
+// Append one <option value="m.id">m.label</option> to the equipment-model
+// <select> by building the node via createElement (label set via
+// textContent, never parsed as HTML). Replaces the only `+= '<option …>'`
+// loop in the file — see docs/f8-frontend-hardening-inventory.md §PR-B.
+function _appendEquipmentModelOption(ms, model) {
+  if (!ms || !model) return;
+  var opt = document.createElement('option');
+  opt.value = String(model.id == null ? '' : model.id);
+  opt.textContent = String(model.label == null ? '' : model.label);
+  ms.appendChild(opt);
+}
+// Build a small "My Equipment" inline link with an addEventListener-based
+// click handler. Replaces inline `onclick="event.preventDefault();
+// openInventoryModal()"` HTML attributes that were previously built via
+// `innerHTML += '…<a onclick=…>…</a>…'` — see PR-B inventory entry.
+function _makeInventoryLink(label) {
+  var a = document.createElement('a');
+  a.href = '#';
+  a.style.color = 'var(--cisco-blue)';
+  a.style.textDecoration = 'underline';
+  a.textContent = String(label);
+  a.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    openInventoryModal();
+  });
+  return a;
+}
+// Append a `<br><span class=hint>…</span>` block to `parent`, where the
+// span body is constructed by the `build(span)` callback via DOM
+// methods. Used by the two `countEl.innerHTML += '<br><span …>…</span>'`
+// sites in the data-sizing summary — see PR-B inventory entry.
+function _appendSizingHintSpan(parent, build) {
+  if (!parent) return;
+  parent.appendChild(document.createElement('br'));
+  var span = document.createElement('span');
+  span.style.fontSize = '11px';
+  span.style.color = 'var(--text-tertiary)';
+  span.style.fontWeight = '400';
+  build(span);
+  parent.appendChild(span);
+}
 function stripMd(s) {
   if (!s) return '';
   return String(s).replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
