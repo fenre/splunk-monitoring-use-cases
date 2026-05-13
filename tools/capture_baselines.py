@@ -38,13 +38,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Files whose gzipped + raw byte sizes we track. These are the user-facing
 # downloads on the GitHub Pages bundle plus the largest committed sources.
 # Per ADR-0009 and P1 step 5c, the canonical home for the generated
-# artefacts (data.js, catalog.json, llms*.txt) is dist/. The legacy
-# project-root copies are scheduled for deletion; if they're still in
-# the tree they will silently shadow this list, but the dist/ copies
-# are the SSOT-derived ones we want to track.
+# artefacts (catalog.json, llms*.txt) is dist/. The legacy project-root
+# copies are gone in v8.x; the dist/ copies are the SSOT-derived ones
+# we want to track.
+#
+# Note: the v6/v7-era ``dist/data.js`` artefact is no longer produced
+# by the build (`tools/build/build.py` actively evicts any stale copy);
+# it was removed from this list in v8.2.0 to avoid recording a
+# perpetual ``null`` entry in every captured baseline. The size delta
+# is captured for posterity by ``data/baselines/v7.4.2.json`` (≈43 MiB
+# raw / ≈3.7 MiB gzipped) versus its absence from ``v8.2.0.json``.
 TRACKED_FILES = [
     "index.html",
-    "dist/data.js",
     "dist/catalog.json",
     "scorecard.html",
     "compliance-story.html",

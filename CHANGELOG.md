@@ -12,6 +12,24 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close P0 + P2 baseline gaps (capture v8.2.0 wall-clock anchor).**
+  Captured [`data/baselines/v8.2.0.json`](data/baselines/v8.2.0.json)
+  at HEAD `d4a5cc677` (post-PR #18 squash), giving reviewers a
+  current-version anchor next to the v7.4.2 historical floor.
+  The capture validates against
+  [`schemas/baselines.schema.json`](schemas/baselines.schema.json).
+  Pruned the dead `dist/data.js` entry from
+  `tools/capture_baselines.py:TRACKED_FILES` (the build pipeline
+  evicts any stale copy at
+  [`tools/build/build.py` lines 475-480](tools/build/build.py)) so
+  future captures don't perpetually record `null` for an artefact
+  that no longer ships. Added a new `make baseline` target so the
+  `docs/baselines-howto.md` quick-start (`make baseline`) is no
+  longer aspirational. Two P0 / P2 "remaining gap" rows in
+  `docs/health-check-2026-progress.md` flip from PARTIAL to DONE
+  (2026-05-13); a follow-on ADR-0013 (Q4-2026 target) will add the
+  optional regression-detection audit verb against the latest
+  baseline.
 - **Close F22 (two parallel sample regimes — ADR-0010).** Authored
   [`docs/adr/0010-sample-and-sample-data-co-exist.md`](docs/adr/0010-sample-and-sample-data-co-exist.md)
   ratifying the existing split: `samples/UC-X.Y.Z/` is the canonical
