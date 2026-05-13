@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_198 pages indexed; 125 have at least one inbound link; 415 unique source→target edges._
+_199 pages indexed; 126 have at least one inbound link; 422 unique source→target edges._
 
 ---
 
@@ -137,6 +137,7 @@ _No inbound links yet._
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -169,6 +170,7 @@ _No inbound links yet._
 ## `docs/adr/0010-sample-and-sample-data-co-exist.md`
 
 - [`docs/DESIGN.md`](DESIGN.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`samples/README.md`](../samples/README.md)
@@ -177,9 +179,17 @@ _No inbound links yet._
 
 - [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/DESIGN.md`](DESIGN.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`docs/schema-versioning.md`](schema-versioning.md)
+
+## `docs/adr/0012-sample-data-canonical-shape.md`
+
+- [`CHANGELOG.md`](../CHANGELOG.md)
+- [`docs/DESIGN.md`](DESIGN.md)
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `docs/adr/README.md`
 
