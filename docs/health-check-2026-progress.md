@@ -64,7 +64,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 | **P0** Hygiene + secrets hardening | PARTIAL | `.cursorignore` ✓ (with explicit secrets / dotenv block — F10 closed 2026-05-12), pre-commit ✓ (`.pre-commit-config.yaml`), archived script dirs gone ✓. **Remaining gap:** `data/baselines/v7.4.x.json` baselines file not visible — verify or back-author. |
 | **P1** One build pipeline | DONE | Legacy `build.py` deleted (v8.0.0); `use-cases/` retired (v8.2.0); F1/F2/F3 all resolved. Vestigial `reset_legacy_module_cache()` stub at `tools/build/parse_content.py:1058` is minor dead code. |
 | **P2** CI overhaul | DONE (mostly) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap:** no `data/baselines/` wall-clock baseline file checked in to track future regressions. |
-| **P2.5** Audit other 7 workflows | PARTIAL | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. **Remaining:** no `docs/workflow-audit.md` summary doc; 14 workflows in inventory but no per-workflow purpose / trigger / SLA / SHA-pin map captured in a single artefact. |
+| **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | DONE (mostly) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓; `docs/architecture-2027.md` not created (was "proposed" in plan). |
 | **P4** Typed Python pipeline | PARTIAL | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **Gaps:** `mypy --strict` not yet enabled globally; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
 | **P5** Frontend rebuild | NOT STARTED | No `apps/web/`. F8/F16/F17 all unresolved. |
@@ -145,6 +145,15 @@ findings but should not be lost:
    maintainer action). The previously-failing `Dependency review` check
    on PR #8 now passes, and the same fix unblocked the three open
    Dependabot PRs (#2, #3, #7) which had been failing on the same gate.
+9. **All Dependabot security alerts cleared.** On 2026-05-12 — 13
+   the 10 Dependabot alerts (9 HIGH, 1 MEDIUM) surfaced by the
+   newly-enabled dependency graph were closed via four merged PRs:
+   `mcp` 1.8.1→1.27.1 (3 HIGH), `basic-ftp` 5.2.0→5.3.1 (4 HIGH),
+   `fast-uri` 3.1.0→3.1.2 (2 HIGH), `ip-address` 10.1.0→10.2.0
+   (1 MEDIUM). `gh api repos/.../dependabot/alerts` returns zero
+   open alerts at HEAD. The npm-deps group hygiene bump (PR #17,
+   2026-05-13) covers the remaining 5 dev-dependency upgrades plus
+   the matching `reports/perf-a11y.json` snapshot refresh.
 
 ## Recommended next actions, in size order
 
@@ -178,25 +187,30 @@ findings but should not be lost:
 5. **Lay P12 groundwork (~no code, 1 PR):** Pick one of the two sample
    regimes (F22). The plan §P12 first deliverable says the choice
    itself is the deliverable.
-6. **P2.5 (~no code, 1 PR):** Author `docs/workflow-audit.md` — a
-   single-page table listing every workflow under `.github/workflows/`
-   with purpose, trigger, on-PR-vs-cron, third-party `uses:` digest
-   pins, and current cadence. Composite-action migration is already
-   complete (F19, 2026-05-12); the missing piece is the human-readable
-   inventory.
+6. ~~**P2.5 (~no code, 1 PR):** Author `docs/workflow-audit.md`.~~
+   **Done 2026-05-13** — `docs/workflow-audit.md` checked in with a
+   14-row inventory, weekly-cadence calendar, third-party SHA-pin map
+   covering all 14 distinct external action references, and a
+   "How to keep this doc honest" maintainer guide. The companion
+   `docs/ci-architecture.md` has been extended with the two
+   previously-missing rows (`stewardship.yml`,
+   `build-reproducibility.yml`) and cross-links the new audit doc.
 7. **`docs/health-check-2026-progress.md`** (this file) refreshed every
    minor version to keep "what's done" honest.
 
 ## Method note
 
 Status here is derived from: actual file contents at HEAD (post
-2026-05-12 closures, latest main is `85b680f5d`); the v8.2.0 CHANGELOG
-narrative + the `[Unreleased]` section; the `docs/migration-status.md`
-ledger; `git log --oneline -30`; live `wc -l` on the workflow / build
-files; the `gh pr checks 8` rollup on PR #8 (CI partition wall-clock
-evidence); `pytest --collect-only`; and direct grep / glob of the repo.
-No claim above is based on the plan's self-reported state at
-plan-writing time without verification at HEAD.
+2026-05-12 + 2026-05-13 closures, latest main carries PR #17 squash-merge);
+the v8.2.0 CHANGELOG narrative + the `[Unreleased]` section; the
+`docs/migration-status.md` ledger; `git log --oneline -30`; live
+`wc -l` on the workflow / build files; the `gh pr checks 8` rollup on
+PR #8 (CI partition wall-clock evidence); the post-PR-#13/#17
+`gh api repos/.../dependabot/alerts` rollup (0 open at HEAD); the
+`docs/workflow-audit.md` 14-row inventory generated from a direct
+sweep of `.github/workflows/*.yml`; `pytest --collect-only`; and
+direct grep / glob of the repo. No claim above is based on the plan's
+self-reported state at plan-writing time without verification at HEAD.
 
 ---
 

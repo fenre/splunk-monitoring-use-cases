@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_194 pages indexed; 121 have at least one inbound link; 392 unique source→target edges._
+_195 pages indexed; 122 have at least one inbound link; 394 unique source→target edges._
 
 ---
 
@@ -249,6 +249,7 @@ _No inbound links yet._
 ## `docs/ci-architecture.md`
 
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
+- [`docs/workflow-audit.md`](workflow-audit.md)
 
 ## `docs/cim-and-data-models.md`
 
@@ -1037,6 +1038,10 @@ _No inbound links yet._
 ## `docs/v7.1-release-report.md`
 
 - [`README.md`](../README.md)
+
+## `docs/workflow-audit.md`
+
+- [`docs/ci-architecture.md`](ci-architecture.md)
 
 ## `eventgen_data/README.md`
 
