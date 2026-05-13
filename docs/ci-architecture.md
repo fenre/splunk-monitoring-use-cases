@@ -434,6 +434,7 @@ hard — the tests are the contract.
 
 ### Cited by
 
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
 - [`docs/workflow-audit.md`](workflow-audit.md)
 

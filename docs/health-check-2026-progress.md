@@ -40,7 +40,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 | F5 | H | ~3,300 modified files in working tree | DONE | Working tree clean at HEAD post v8.2.0 commit. |
 | F6 | H | `audit_uc_structure.py` scans `use-cases/cat-*.md` | DONE | `src/splunk_uc/audits/uc_structure.py:4` walks `content/cat-*/UC-*.json` (JSON SSOT per ADR-0007). The legacy `use-cases/` corpus itself was retired in v8.2.0 (CHANGELOG entry "Legacy `use-cases/` markdown corpus retired"). |
 | F7 | H | Quality gates run `continue-on-error: true` | **DONE** (2026-05-12) | Verified locally: `audit-gold-profile --summary` exits 0 by design (printing 9.4% gold / 0.5% silver / 79.5% bronze / 10.5% none across 7,677 UCs), and `generate-md-from-json --check` exits 0 (`All 7677 .md files are up-to-date.`). Both `continue-on-error: true` lines removed from `.github/workflows/validate.yml`; explanatory `F7 (2026-05-12)` comments added in their place. `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. |
-| F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | **NOT DONE — got slightly worse** | Now **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline). Still **33 `innerHTML` sinks**, still **1 `unsafe-inline`** in CSP. |
+| F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | PARTIAL — inventory authored 2026-05-13 | At HEAD `b3f0da75a`: **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline), **29 `.innerHTML =` sinks** (the plan's "33" included four overview-roadmap sites since inlined into the build), **0** `eval` / `new Function` / `document.write` calls, and **1 CSP meta tag with `'unsafe-inline'` on both `script-src` *and* `style-src`** (not just `style-src` — the plan baseline understated this). Authored [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md), a single-page bounded scope: one row per `innerHTML` site (categorised A-E), per-helper escape audit (`esc`, `buildMitreDdList`, `_invBuildBody`), CSP `'unsafe-inline'` accounting (2 inline `<script>`, 104 inline `on*=` handlers; 1 inline `<style>`, 42 inline `style="…"` attrs), and a three-PR migration plan (PR-A: collapse 7 static-option sites; PR-B: rewrite 3 `+=` append sites; PR-C: virtual-scroll `<template>`-clone refactor). PR-A + PR-B are the F8 close criteria; PR-C is the explicit known-cost follow-up; CSP `'unsafe-inline'` tightening folds into the existing **P10** phase (Performance + a11y hardening) which already names F8 as its prerequisite. |
 | F9 | H | No CodeQL / dependency-review / SBOM | DONE (mostly) | `.github/workflows/codeql.yml` + `dependency-review.yml` + `gitleaks.yml` all present as separate workflows. SBOM via `anchore/sbom-action` in `release.yml` — verify in P2.5 audit. |
 | F10 | H | `secrets.env` not in `.cursorignore` | **DONE** (2026-05-12) | `.cursorignore` now carries an explicit "Secrets and local environment overrides" block listing `secrets.env`, `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`. `.gitignore` lines 88-90 already block them from commits; the new entries also hide them from the Cursor agent's index so a stray `Read` cannot surface credentials. |
 | F11 | M | `scripts/` 105 files, no taxonomy, archived trees | DONE | 76 deliberate Python files remain in `scripts/`, mapped to taxonomy in `docs/scripts-taxonomy.md`. Archived trees (`scripts/_archived/`, `scripts/archive/`) deleted. Closed in v8.2.0 (P6 closure). |
@@ -208,7 +208,23 @@ findings but should not be lost:
    `docs/ci-architecture.md` has been extended with the two
    previously-missing rows (`stewardship.yml`,
    `build-reproducibility.yml`) and cross-links the new audit doc.
-7. **`docs/health-check-2026-progress.md`** (this file) refreshed every
+7. ~~**F8 (~no code, 1 PR):** Inventory the `index.html`
+   `innerHTML` sites and produce a bounded migration plan.~~
+   **Done 2026-05-13** —
+   [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md)
+   ratifies the inventory at HEAD `b3f0da75a`: **29** `.innerHTML =`
+   sinks (not 33; the plan's number predates the v7→v8 overview-roadmap
+   inlining), one row per site with category and migration cost, helper
+   audit of `esc` / `buildMitreDdList` / `_invBuildBody`, CSP `'unsafe-inline'`
+   accounting (it's on *both* `script-src` and `style-src` — the plan
+   baseline understated this), and a three-PR migration plan
+   (**PR-A**: collapse 7 static-option sites; **PR-B**: rewrite 3 `+=`
+   append sites; **PR-C**: virtual-scroll `<template>`-clone refactor).
+   PR-A + PR-B land the F8 close; PR-C is the explicit known-cost
+   follow-up; CSP `'unsafe-inline'` tightening folds into the existing
+   **P10** phase (Performance + a11y hardening) which already names F8
+   as its prerequisite.
+8. **`docs/health-check-2026-progress.md`** (this file) refreshed every
    minor version to keep "what's done" honest.
 
 ## Method note
@@ -242,9 +258,11 @@ self-reported state at plan-writing time without verification at HEAD.
 ### Related repository documents
 
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 
 ### Cited by
 
 - [`ROADMAP.md`](../ROADMAP.md)
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 
 <!-- END-AUTOGENERATED-SOURCES -->

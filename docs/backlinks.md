@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_196 pages indexed; 123 have at least one inbound link; 399 unique source→target edges._
+_197 pages indexed; 124 have at least one inbound link; 404 unique source→target edges._
 
 ---
 
@@ -256,6 +256,7 @@ _No inbound links yet._
 
 ## `docs/ci-architecture.md`
 
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
 - [`docs/workflow-audit.md`](workflow-audit.md)
 
@@ -384,6 +385,11 @@ _No inbound links yet._
 ## `docs/external-consumer-matrix.md`
 
 - [`docs/ci-architecture.md`](ci-architecture.md)
+
+## `docs/f8-frontend-hardening-inventory.md`
+
+- [`CHANGELOG.md`](../CHANGELOG.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `docs/feasibility-spike-results.md`
 
@@ -803,6 +809,7 @@ _No inbound links yet._
 ## `docs/health-check-2026-progress.md`
 
 - [`ROADMAP.md`](../ROADMAP.md)
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 
 ## `docs/implementation-brief-v7.1.md`
 
@@ -1050,6 +1057,7 @@ _No inbound links yet._
 ## `docs/workflow-audit.md`
 
 - [`docs/ci-architecture.md`](ci-architecture.md)
+- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 
 ## `eventgen_data/README.md`
 
