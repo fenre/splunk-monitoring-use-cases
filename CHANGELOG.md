@@ -12,6 +12,31 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Inventory F8 (`index.html` front-end hardening) into a bounded
+  migration plan.** Authored
+  [docs/f8-frontend-hardening-inventory.md](docs/f8-frontend-hardening-inventory.md),
+  a single-page audit at HEAD `b3f0da75a` of the 29 `.innerHTML =` sinks
+  in `index.html` (the plan baseline said 33; the four sites in the dead
+  overview-roadmap block were inlined into the build pipeline during the
+  v7→v8 migration). Every sink gets one row in §2 with category A-E,
+  target element, RHS shape, an untrusted-input verdict, and a
+  migration-cost estimate. §4 audits the three helper functions that
+  drive the dynamic-HTML sites (`esc` line 3582, `buildMitreDdList`
+  line 4273, `_invBuildBody` line 6120) and confirms every dynamic value
+  is `esc()`-escaped today. §5 reframes the CSP situation: the meta tag
+  carries `'unsafe-inline'` on **both** `script-src` *and* `style-src`
+  (not just `style-src` as the plan baseline suggested), held up by 2
+  inline `<script>` blocks, 104 inline `on*=` handlers, 1 inline `<style>`,
+  and 42 inline `style="…"` attributes. §6 sets the F8 close criteria —
+  three PRs (PR-A collapses the 7 identical `<option>` literals into a
+  helper, PR-B rewrites the 3 `+=` append sites, PR-C is the
+  virtual-scroll `<template>`-clone refactor) — and explicitly defers
+  CSP `'unsafe-inline'` tightening to the existing **P10** phase
+  (Performance + a11y hardening) which already names F8 as its
+  prerequisite. `docs/health-check-2026-progress.md`
+  flips F8 from "NOT DONE — got slightly worse" to **PARTIAL — inventory
+  authored 2026-05-13** with the fresh numbers and the migration plan
+  citation.
 - **Close §P4 first canary (`mypy --strict` on `src/splunk_uc/audits/`).**
   51 audit source files now pass `mypy --strict` with zero errors at
   HEAD. Pinned the strict bar via a new `pyproject.toml` override
