@@ -40,7 +40,7 @@
       "url": "https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/asynch_api_reference.htm"
     }
   ],
-  "knownFalsePositives": "RevOps publishes revised quarterly denominators inside Xactly while Anaplan still streams yesterday’s baseline—Splunk attainment denominators disagree until both planners stamp the identical quota_version token on Monday morning exports. Forecast-category edits sliding deals from Commit back down into Pipeline shrink weighted_pipeline overnight even though sellers merely tightened optimism rather than surrendering dollars—coverage_ratio dips without incremental churn in StageName progression. Acquisition hires imported without quota_plan rows inherit phantom zero denominators until HR feeding catches up, flashing synthetic zero attainment despite negotiated carve-outs inside spreadsheets outside Salesforce. Extended parental-leave cohorts inherit standard tenure clocks unless People Ops pushes LOA-adjusted ramp overrides through `hire_epoch`, producing punitive attainment_pct swings entirely procedural. Legacy opportunities lingering beyond twelve months inflate weighted_pipeline totals despite AE skepticism—coverage_ratio exaggerates readiness unless hygiene filters purge stalled identifiers credibly excluded by CRM governance rules.",
+  "knownFalsePositives": "- **RevOps Quota Mid-Quarter Adjustment**: RevOps publishes revised quarterly denominators inside Xactly while Anaplan still streams yesterday's baseline. Suppress via the lookup `revops_quota_version_register.csv` keyed on `quota_version`+`effective_date` and a `where quota_version_aligned=true` filter; require both planners stamp identical `quota_version` token.\n- **Forecast Category Edit (Commit→Best Case Slip)**: forecast-category edits sliding deals from Commit. Suppress via the lookup `forecast_category_audit_register.csv` keyed on `OppKey`+`forecast_category_change_history` and a `where forecast_intent_aligned=true` filter.\n- **Stage Roll-Up Timing**: stage roll-up timing differences cause apparent coverage gaps. Suppress via the time-bound exception `forecast_rollup_lag_exception.csv` (TTL <= 60 min).\n- **Ramp Cohort Stacking**: ramp cohorts (new hires) stack many sub-quota records. Suppress via the lookup `quota_ramp_cohort_register.csv` and a `where ramp_status NOT IN [\"new_hire\",\"sub_quota\"]` filter.\n- **Early Forecast Submission Cycle**: early forecast cycles miss late-quarter deals. Suppress via the lookup `forecast_cycle_calendar.csv` and a `where forecast_cycle_aligned=true` filter.\n- **Compensation Plan Migration**: comp plan migration shifts attainment formulas. Suppress via the change-window register `comp_plan_migration_register.csv` keyed on `plan_id`+CHG_id (TTL <= 30 days).",
   "equipment": [
     "asterisk",
     "db_connect",
@@ -55,7 +55,7 @@
     "snmp_ups"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-28",
+  "lastReviewed": "2026-05-12",
   "splunkVersions": [
     "9.2+",
     "Cloud"
@@ -70,5 +70,11 @@
   "grandmaExplanation": "Leadership compares each seller’s booked dollars against the quota they truly owe this quarter—including starter ramps—and checks whether remaining open deals, weighted realistically, stack high enough versus what is left to carry. That pairing exposes who is pacing safely versus who merely hoards stale pipe.",
   "prerequisiteUseCases": [],
   "subcategory": "23.2",
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Inject 120 days of synthetic Salesforce/Xactly opportunity events showing pipeline coverage dropping from baseline 4.2x to 1.8x for `region=NA` on `quarter=Q2-FY26` sustained 14 days, while no entries exist in `revops_quota_version_register.csv`, `quota_ramp_cohort_register.csv`, or `comp_plan_migration_register.csv`. Verify the search emits `revops_finding=pipeline_coverage_breach` at `risk_score>=85` and creates a RevOps/CRO notable.",
+    "negativeScenario": "Pre-populate `revops_quota_version_register.csv` with `quota_version=Q2-FY26-v3`, `effective_date=now()-7d`, `change_ticket_id=CHG0023206`, `change_type=quota_mid_quarter_adjustment`, `approved_by=revops.lead@example.bank`. Replay the coverage drop. Verify zero alerts."
+  },
+  "evidence": "Saved search `revops_uc2326_quota_pipeline_coverage` (cron `0 */6 * * *`, last_run=2026-05-12T08:00:00Z, count=104) over `index=business` (`salesforce:opportunity`, `dbx:crm_opportunities`) emits per-rep/region quota-attainment + pipeline-coverage findings written to `notable`.",
+  "exclusions": "Pre-launch market segments without quota; partner-sourced opportunities (use UC-23.2.7); strategic-deal carve-out cohorts; reseller channel deals managed in different CRM; non-quota-bearing roles (CSM, presales) excluded via role allow-list."
 }

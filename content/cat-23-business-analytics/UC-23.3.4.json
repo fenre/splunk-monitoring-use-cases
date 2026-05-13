@@ -30,9 +30,17 @@
     {
       "title": "Google Search Central — Search performance report (clicks, impressions, queries)",
       "url": "https://support.google.com"
+    },
+    {
+      "title": "Splunk Common Information Model — Web Data Model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+    },
+    {
+      "title": "Google Search Status Dashboard — Core Updates History",
+      "url": "https://status.search.google.com/"
     }
   ],
-  "knownFalsePositives": "A broad Google Search algorithm update can depress clicks and impressions in Search Console while your first-party Splunk session counts stay flat — the causal story is ranking and SERP volatility off-site, not a broken web-server feed or Splunk outage. Earned-media spikes (major press, broadcast, podcast) lift brand queries; organic Splunk rows rise with no matching on-site content change, and bounce can look high if readers land once and leave satisfied. Geo-IP database refreshes sometimes re-home mobile carrier ranges; analytics geography mixes swing while Apache sees identical subnets — resembling a regional acquisition shift without marketing intention. Country-domain redirect chains (`google.de` versus `google.com`) strip or reshape referers during tests — Direct rises briefly until hostname dictionaries absorb both ccTLDs and parent domains. Aggressive privacy modes null referers or strip query strings — Paid and Organic buckets shrink while Direct grows though invoices still reflect spend; reconcile against ad consoles rather than paging infra. Browser extensions and DNS-layer filters occasionally strip UTMs before navigation completes — Paid classification empties independent of bid strategy. Email or messaging opens using stripped preview frames yield clicks without meaningful referer — Splunk reads Direct though UTMs occasionally survive — blended tests confuse unless tagging lands on final HTTPS URLs. Mobile deep links jump straight into apps — landing URIs omit UTMs entirely unless SDK handlers append parameters server-side — Splunk understates attributed campaigns versus vendor dashboards. Single-page-app navigations after the first HTML fetch generate zero extra combined-log rows — engagement ratios diverge from analytics suites counting route transitions.",
+  "knownFalsePositives": "- **Google Search Algorithm Updates**: a broad Google Search Core Update depresses Search Console clicks and impressions while first-party Splunk session counts stay flat. Suppress via the change-window register `seo_algorithm_update_register.csv` keyed on `google_update_id`+`update_window` (TTL <= 21 days from `update_release`) and a `where NOT seo_algorithm_change_active` filter; require Marketing-SEO team attestation (citing Google Search Status Dashboard).\n- **Earned-Media / PR Spikes**: major press, broadcast, podcast inflate referrer counts without a real channel-quality change. Suppress via the change-window register `pr_earned_media_register.csv` keyed on `pr_event_id`+`region` (TTL <= 14 days from `pr_event_date`) and a `where NOT earned_media_active` filter; require Comms-Team sign-off.\n- **Bot / LLM Crawler Inflation**: GoogleBot, BingBot, GPTBot, ClaudeBot, PerplexityBot crawl-rate spikes inflate session counts. Suppress via the lookup `web_user_agent_bot_register.csv` keyed on `useragent_pattern`+`crawler_class` and a `where bot_classification=\"human\"` filter; require IP reverse-DNS verification before excluding.\n- **Branded vs Non-Branded Keyword Drift**: a brand-led campaign reshapes the branded/non-branded ratio without a real SEO change. Suppress via the change-window register `seo_branded_campaign_register.csv` keyed on `campaign_id`+`flight_window` (TTL <= 30 days from `flight_start`) and a `where NOT branded_campaign_active` filter.\n- **Server-Side Rendering / SPA Migration**: a Next.js / Nuxt deploy changes how Apache logs `uri_path` for paginated content. Suppress via the change-window register `seo_ssr_migration_register.csv` keyed on `ssr_release_id`+CHG_id (TTL <= 7 days post-release) and a `where NOT ssr_migration_active` filter.",
   "equipment": [
     "apache"
   ],
@@ -40,7 +48,7 @@
     "apache_httpd"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-27",
+  "lastReviewed": "2026-05-12",
   "splunkVersions": [
     "9.2+",
     "Cloud"
@@ -50,5 +58,11 @@
   "grandmaExplanation": "We count real visits from your web-server diary lines and sort them by whether people came from search sites, clicked tagged ads, followed social links, or typed the address with no referral. That tells you where audiences originate before you spend more on ads or fixing pages.",
   "prerequisiteUseCases": [],
   "subcategory": "23.3",
-  "wave": "crawl"
+  "wave": "crawl",
+  "controlTest": {
+    "positiveScenario": "Inject 30 days of synthetic Apache `access_combined_wcookie` plus Search Console webhook events for 1.2M sessions across 8 sites. Days 1-15 use baseline: organic-share=42%, branded/non-branded ratio=35/65, Search Console impressions=4.8M/week; days 16-30 force organic-share to 18% via Algorithm Update, branded/non-branded shifts to 60/40, impressions drop 64%. Confirm the saved search `seo_traffic_anomaly_v3` fires with `severity=high`, `notable_index=notable`, attaches `seo_signal=organic_share_collapse`, drives a SOAR playbook (`seo_remediation_v2`) creating a SEO incident in Jira, and notifies Head-of-SEO via PagerDuty integration.",
+    "negativeScenario": "Pre-populate `seo_algorithm_update_register.csv` with `google_update_id=CORE_UPDATE_2025_11`, `update_window=2025-11-15_to_2025-12-06`, `change_start=now()-3d`, `change_end=now()+18d`, `change_ticket_id=CHG0020714`, `approver=head_seo@example.com`, `expected_organic_share_drop_pct=24`. Replay 21 days of synthetic events with organic-share dropping 24% within the registered window. Confirm `seo_traffic_anomaly_v3` does NOT fire (eval `seo_algorithm_change_active=1` excludes the cohort from organic-share calculations). Confirm the audit dashboard `SEOTrafficExceptions` records the suppression with reason=`google_core_update` and SHA-256 hash."
+  },
+  "evidence": "Dashboard Studio panel `SEOTrafficExec` archived weekly to `evidence_index` with `evidence_type=seo_traffic_health` and a SHA-256 hash. Saved-search run history exported via `| rest /services/saved/searches/seo_traffic_anomaly_v3` with `latest_runtime_iso`. Search Console / GA4 webhook signature-verification logs cross-referenced with referrer events. ServiceNow CHG records linked from change-window registers; SOAR `seo_remediation_v2` execution log retained 13 months in `index=audit`.",
+  "exclusions": "Paid-search performance tracked in UC-23.3.5. Mobile-app store SEO (App Store / Google Play) excluded — covered by UC-23.6.4. International SEO geo-routing performance handled in UC-23.5.1. Content syndication via Outbrain / Taboola excluded (covered by UC-23.3.6)."
 }
