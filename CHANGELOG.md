@@ -12,6 +12,19 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §F14 by reclassification.** The original "clutter" pattern
+  flagged in F14 (`api/v1/_evidence-packs-bak/`) was deleted in
+  v8.2.0; the residual `scripts/_*.py` underscore-prefixed files (17
+  at HEAD: 5 `_catalog_*`, 7 `_meraki_*`, plus `_draft_uc_18_1_15`,
+  `_fix_broken_fixture_refs`, `_patch_catalog_guide_fields`,
+  `_regulation_wisdom`, `_wire_batch7`) are not clutter — they are
+  content-burndown one-shots formally exempted by the v8.2.0
+  CHANGELOG migration narrative ("What stays in `scripts/`"
+  §Deliberate, and "Deliberately **not** migrated (documented
+  exemption)" §Migration). F14's row in
+  `docs/health-check-2026-progress.md` is now flipped from `PARTIAL`
+  to `DONE (reclassified)` with the rationale spelled out inline; no
+  files moved.
 - **`make clean-tree` target — closes §F13 and loose-end #3.** Adds a
   one-liner Makefile target that removes every gitignored
   build-output directory in one go: `dist/`, `dist1/`, `dist2/`,
