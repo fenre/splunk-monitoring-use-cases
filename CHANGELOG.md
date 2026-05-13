@@ -12,6 +12,26 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§P4 package-wide floor — `mypy --strict src/splunk_uc/` locked
+  green.** Closes the §P4 type-debt-burndown work that was scoped
+  inside the `splunk_uc.*` namespace. Two canaries earlier the same
+  day landed strict-mode lockdowns for `splunk_uc.audits.*` (51
+  files) and `splunk_uc.generators.*` (17 files); a follow-on
+  survey now shows that the four remaining subpackages
+  (`ingest`, `feasibility`, `migrations`, `tools`) and the three
+  top-level modules (`__init__`, `__main__`, `_registry`) were
+  **already strict-clean** at HEAD — zero new fixes needed. The
+  two per-canary overrides are therefore consolidated into a single
+  `[[tool.mypy.overrides]] module = "splunk_uc.*"` block, and the
+  `validate.yml` `lint` job's mypy step is rewired to lint the whole
+  package in one command: **94 source files, ~25 kLOC, every module
+  under `src/splunk_uc/` type-clean under `--strict`**, zero remaining
+  canaries inside the package. The progress doc §P4 row (table +
+  Quick-wins block + canary closure note) is updated to reflect that
+  the package-wide floor is locked; the remaining §P4 work is the
+  build pipeline (`tools/build/*`) and the legacy `build.py`
+  entrypoint, both of which still carry per-module loosened overrides.
+
 - **§P4 second canary — `mypy --strict src/splunk_uc/generators/`
   locked green.** Extends the type-debt burndown started 2026-05-13
   with the audits canary. All 17 generator modules (`gap_analysis`,
@@ -30,8 +50,8 @@ the release notes block in `index.html` by hand.
   job's strict step now lints `splunk_uc.audits.*` + `splunk_uc.generators.*`
   together (68 source files, ~23 kLOC type-clean). Progress doc
   (`docs/health-check-2026-progress.md` §P4 row + Quick-wins block)
-  updated to reflect the closure. Zero runtime behaviour changed.
-  Next §P4 burndown target: `splunk_uc.ingest.*`.
+  updated to reflect the closure. *(Superseded by the package-wide
+  floor entry above, which landed in the same session.)*
 
 - **§P11 OSS release polish — partial closure.** Reclassifies the
   plan §P11 row from `NOT STARTED` to `PARTIAL` and fixes the one
