@@ -146,6 +146,7 @@ version, then is deleted.
 - [`docs/adr/0001-markdown-as-source-of-truth.md`](0001-markdown-as-source-of-truth.md)
 - [`docs/adr/0008-canonical-constants.md`](0008-canonical-constants.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](0009-generated-artefact-policy.md)
+- [`docs/adr/0010-sample-and-sample-data-co-exist.md`](0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/capacity-and-staffing.md`](../capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](../external-consumer-matrix.md)

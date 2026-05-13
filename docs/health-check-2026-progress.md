@@ -231,6 +231,10 @@ self-reported state at plan-writing time without verification at HEAD.
 
 <a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
 
+### Related repository documents
+
+- [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+
 ### Cited by
 
 - [`ROADMAP.md`](../ROADMAP.md)
