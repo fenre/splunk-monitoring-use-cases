@@ -720,6 +720,7 @@ Architecture Decision Records live under [`docs/adr/`](adr/). Each ADR follows t
 | [ADR-0009](adr/0009-generated-artefact-policy.md) | Generated artefacts are uncommitted by default; published via Pages or Releases with provenance | Accepted |
 | [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) | `samples/` and `sample-data/` are separate, complementary regimes (closes F22) | Accepted |
 | [ADR-0011](adr/0011-schema-lineage-governance.md) | Schema lineage governance — ratify the lifecycle contract (closes F23) | Accepted |
+| [ADR-0012](adr/0012-sample-data-canonical-shape.md) | `sample-data/` canonical shape is the top-level `positive` / `negative` array (closes F22 follow-on) | Accepted |
 
 ---
 
@@ -826,6 +827,7 @@ This list is exhaustive for the purpose of adding content, automations, or expor
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/architecture.md`](architecture.md)
 - [`docs/catalog-schema.md`](catalog-schema.md)
 - [`docs/implementation-ordering.md`](implementation-ordering.md)

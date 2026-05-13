@@ -266,6 +266,7 @@ question optimises for the wrong thing.
 ### Cited by
 
 - [`docs/DESIGN.md`](../DESIGN.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](0012-sample-data-canonical-shape.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/health-check-2026-progress.md`](../health-check-2026-progress.md)
 - [`docs/schema-versioning.md`](../schema-versioning.md)

@@ -148,6 +148,7 @@ version, then is deleted.
 - [`docs/adr/0009-generated-artefact-policy.md`](0009-generated-artefact-policy.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](0011-schema-lineage-governance.md)
+- [`docs/adr/0012-sample-data-canonical-shape.md`](0012-sample-data-canonical-shape.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/capacity-and-staffing.md`](../capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](../external-consumer-matrix.md)

@@ -12,6 +12,24 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §F22 follow-on — `sample-data/` canonical shape ratified.**
+  Authored [ADR-0012](docs/adr/0012-sample-data-canonical-shape.md),
+  which picks the **phase3** (`positive` / `negative`) shape as the
+  canonical envelope for every fixture under `sample-data/`.
+  Empirical basis: 57 of 97 fixtures already use phase3 and all 57
+  are populated with real evidence data; the 39 phase2
+  (`events_positive` / `events_negative`) fixtures are *all* empty
+  placeholders; the single phase-legacy
+  (`positiveCase` / `negativeCase`) file is a misclassified SPL
+  fixture that belongs in `samples/UC-22.35.1/` per ADR-0010. The
+  ADR rewrites `sample-data/README.md` to declare phase3 canonical
+  with an authoring template, deprecates the other two shapes,
+  cross-links from `docs/health-check-2026-progress.md` §F22 +
+  `docs/DESIGN.md` §15, and documents the mechanical migration
+  (rename two keys in 39 files, relocate 1 file to `samples/`) as
+  the follow-on PR. F22 itself stays DONE; the deferred schema-
+  shape rationalisation that ADR-0010 punted is now also closed.
+
 ### Use case uplift
 
 - **UC-22.45.x — backup integrity / BCP cluster lifted to Gold tier.**
