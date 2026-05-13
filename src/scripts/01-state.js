@@ -60,6 +60,17 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Reset the equipment-model <select> to a single "All models" placeholder.
+// Replaces seven identical innerHTML='<option ...>...</option>' writes
+// across the file — see docs/f8-frontend-hardening-inventory.md §PR-A.
+// Built via createElement so the option text is not parsed as HTML.
+function _resetEquipmentModelSelect(ms) {
+  if (!ms) return;
+  var opt = document.createElement('option');
+  opt.value = '';
+  opt.textContent = 'All models';
+  ms.replaceChildren(opt);
+}
 function stripMd(s) {
   if (!s) return '';
   return String(s).replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
