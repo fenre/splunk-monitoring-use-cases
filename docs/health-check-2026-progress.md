@@ -34,6 +34,7 @@ documentation-only "next-deliverable" tier has been drained in the
 - **P4 first canary** closed by `mypy --strict src/splunk_uc/audits/` going green and being CI-gated.
 - **F8** moved from `H NOT DONE` to `H PARTIAL` by [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md) (every `innerHTML` site catalogued; PR-A/PR-B remain as the F8 close).
 - **F23** closed by [ADR-0011](adr/0011-schema-lineage-governance.md) (schema lineage governance ratified; contract doc refreshed).
+- **F13** closed (and loose-end ledger #3) by the new `make clean-tree` target — every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) nukeable in one command.
 
 The next recommended sequence in the plan now moves into §P5
 (frontend rebuild — F8 PR-A and PR-B), §P8 (observability) and §P12
@@ -55,7 +56,7 @@ The next recommended sequence in the plan now moves into §P5
 | F10 | H | `secrets.env` not in `.cursorignore` | **DONE** (2026-05-12) | `.cursorignore` now carries an explicit "Secrets and local environment overrides" block listing `secrets.env`, `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`. `.gitignore` lines 88-90 already block them from commits; the new entries also hide them from the Cursor agent's index so a stray `Read` cannot surface credentials. |
 | F11 | M | `scripts/` 105 files, no taxonomy, archived trees | DONE | 76 deliberate Python files remain in `scripts/`, mapped to taxonomy in `docs/scripts-taxonomy.md`. Archived trees (`scripts/_archived/`, `scripts/archive/`) deleted. Closed in v8.2.0 (P6 closure). |
 | F12 | M | `validate.yml` 953 lines, single-job, 18 `--check` guards, slow | **DONE** (2026-05-12) | commit `62c95b5e0` (PR-5) split the monolithic job into **5 parallel jobs**: `lint` (line 115), `audits-content` (line 233), `audits-build` (line 866), `mcp` (line 1097), `frontend` (line 1187). File grew to 1,366 lines because each job carries its own setup/install block, but wall-clock time dropped — the longest critical path is now `audits-content` (~7m32s on PR #8) instead of the prior ~20m sequential run. Structural test `tests/build/test_validate_workflow_partition.py` keeps the partition wired. |
-| F13 | M | `dist-before/` 6,449-entry stale snapshot | PARTIAL | `dist-before/` gone ✓. But `dist-content/` and `dist-legacy/` still present on disk (gitignored, but ~200 MB of dev clutter). |
+| F13 | M | `dist-before/` 6,449-entry stale snapshot | DONE | `dist-before/` gone ✓ (and `.gitignore:36` keeps it out for good). `dist-content/` and `dist-legacy/` remain *gitignored* on disk for the migration-parity workflow, but loose-end ledger #3 closed 2026-05-13 by adding `make clean-tree` which nukes every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) in one command. No tracked clutter remains. |
 | F14 | M | `api/v1/_evidence-packs-bak/`, `_draft_uc_*`, `_fix_*` clutter | PARTIAL | `api/v1/_evidence-packs-bak/` gone ✓. But `scripts/_draft_uc_18_1_15.py`, `scripts/_fix_broken_fixture_refs.py`, `scripts/_meraki_*.py`, etc. retained — explicitly listed as deliberate "one-shots" in v8.2.0 CHANGELOG narrative. |
 | F15 | M | No repo-wide `pyproject.toml` for build pipeline | DONE | `pyproject.toml` with `[project]`, `[project.scripts]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.coverage]`, `[tool.pytest]` configs. `splunk-uc` console script wired (v8.2.0 P6 Tier 4). |
 | F16 | M | Frontend committed HTML rewritten by Python; no test runner | **NOT DONE** | `index.html` still 645 KB committed-and-rewritten. No `apps/web/` directory. No Vite / TS bundler. Frontend rebuild (P5) not started. |
@@ -116,9 +117,15 @@ findings but should not be lost:
    returns 0 matches across `tools/ src/ mcp/ tests/ scripts/`.
    `tests/build/` 272 tests pass; parse stage loads cleanly (23 / 23 /
    106 / 7,677). See the same chore-bundle PR.
-3. **`dist-content/`, `dist-legacy/`** still on local disk
+3. ~~**`dist-content/`, `dist-legacy/`** still on local disk
    (gitignored, but disk clutter). `make clean-tree` target from P0
-   doesn't yet exist.
+   doesn't yet exist.~~ **Resolved 2026-05-13** — `make clean-tree`
+   target added to the `Makefile`; nukes `dist/`, `dist1/`, `dist2/`,
+   `dist-content/`, `dist-legacy/`, `dist-before/`, and `.build-tmp/`.
+   Every directory in the list is matched by an explicit `.gitignore`
+   entry (lines 26-36 of `.gitignore` at HEAD) so the target only
+   ever touches local-only build output; nothing tracked is at risk.
+   Listed under `make help` so it's discoverable.
 4. **CHANGELOG narrative count typo** in v8.2.0 entry was fixed in this
    commit ("two" → "three" pure documentation generators).
 5. **Plan baselines have shifted** since the plan was written
@@ -174,8 +181,12 @@ findings but should not be lost:
    **Done 2026-05-12 (commit `f47b4f0be`).**
    ~~Plus the `reset_legacy_module_cache()` + stale-docstring
    cleanup.~~ **Done 2026-05-12 (same chore bundle).**
-   Plus delete `dist-content/` / `dist-legacy/` local directories
-   (`rm -rf` only; both are already in `.gitignore`).
+   ~~Plus delete `dist-content/` / `dist-legacy/` local directories
+   (`rm -rf` only; both are already in `.gitignore`).~~
+   **Done 2026-05-13** — `make clean-tree` target added to the
+   `Makefile`; cleans every gitignored build-output dir (`dist/`,
+   `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`,
+   `.build-tmp/`) in one go and shows up under `make help`.
 2. ~~**Medium win (~50–100 line PR):** Close **F7**.~~ **Done
    2026-05-12** — both backlogs were already zero, so the
    `continue-on-error: true` flags on `audit-gold-profile --summary`
