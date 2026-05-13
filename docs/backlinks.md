@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_197 pages indexed; 124 have at least one inbound link; 404 unique source→target edges._
+_198 pages indexed; 125 have at least one inbound link; 413 unique source→target edges._
 
 ---
 
@@ -136,6 +136,7 @@ _No inbound links yet._
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -146,6 +147,7 @@ _No inbound links yet._
 
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -157,6 +159,7 @@ _No inbound links yet._
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -168,6 +171,13 @@ _No inbound links yet._
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`samples/README.md`](../samples/README.md)
+
+## `docs/adr/0011-schema-lineage-governance.md`
+
+- [`CHANGELOG.md`](../CHANGELOG.md)
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+- [`docs/schema-versioning.md`](schema-versioning.md)
 
 ## `docs/adr/README.md`
 
@@ -963,6 +973,7 @@ _No inbound links yet._
 
 ## `docs/schema-versioning.md`
 
+- [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
 
 ## `docs/scorecard.md`
@@ -1058,6 +1069,7 @@ _No inbound links yet._
 
 - [`docs/ci-architecture.md`](ci-architecture.md)
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `eventgen_data/README.md`
 

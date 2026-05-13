@@ -1,8 +1,10 @@
 # Schema Versioning Policy
 
-> **Status:** Locked at v7.0.0. This document governs every JSON Schema in
-> `schemas/` and every schema-validated artefact emitted to `dist/`. The HTTP/JSON
-> API surface that consumes these schemas is governed separately by
+> **Status:** Locked at v7.0.0. Ratified by
+> [ADR-0011](adr/0011-schema-lineage-governance.md) on 2026-05-13. This
+> document governs every JSON Schema in `schemas/` and every
+> schema-validated artefact emitted to `dist/`. The HTTP/JSON API surface
+> that consumes these schemas is governed separately by
 > [`api-versioning.md`](api-versioning.md); URL stability is governed by
 > [`url-scheme.md`](url-scheme.md).
 
@@ -14,40 +16,54 @@ data against our schemas — and trust that those schemas evolve predictably.
 
 ## Where schemas live
 
-The actual on-disk layout (regenerate by running `find schemas -type f`):
+The actual on-disk layout at HEAD (2026-05-13). Regenerate by running
+`find schemas -name '*.schema.json' | sort`. The inventory currently
+holds **18** schemas, 12 at the top level and 6 under `v2/`:
 
 ```
 schemas/
   baselines.schema.json                Repo-overhaul baseline captures (data/baselines/v*.json)
   category.schema.json                 Per-category metadata (_category.json)
+  coverage-baseline.schema.json        Coverage-tracking baseline (data/coverage-baseline.json)
   evidence-pack-extras.schema.json     Auditor-facing evidence packs (cat-22)
   legal-review-signoff.schema.json     Legal review ledger entries
+  license-inventory.schema.json        Dependency-license rollup (data/license-inventory.json)
   mapping-ledger.schema.json           UC ↔ regulation mapping ledger
   peer-review-signoff.schema.json      Peer review ledger entries
   per-regulation-phase3.2.schema.json  Per-regulation Phase 3.2 metadata bundle
   regulations-watch.schema.json        Regulatory-watch nightly diff format
   sme-review-signoff.schema.json       SME review ledger entries
-  uc-profile-gold.json                 Gold-tier authoring profile
+  uc-profile-gold.json                 Gold-tier authoring profile (NOT a JSON Schema; ignored by schema_meta)
   uc.schema.json                       Use case (the central authoring schema)
-  oscal/v1.1.1/                        Pinned NIST OSCAL fragments (component-definition)
-  v2/                                  Schemas serving /api/v2 (catalog-index, search-index)
+  oscal/v1.1.1/                        Pinned NIST OSCAL fragments (component-definition, vendored upstream)
+  v2/
+    build-telemetry.schema.json        Per-build stage timing (dist/build-telemetry.json, non-reproducible builds only)
+    catalog-index.schema.json          /api/v2/catalog-index.json
+    metrics.schema.json                Catalogue health snapshot (dist/metrics.json)
+    metrics-history-index.schema.json  Release-to-release trend index (data/metrics-history/index.json)
+    search-index.schema.json           /api/v2/search-index.json
+    stewardship-digest.schema.json     Weekly stewardship digest (dist/stewardship-digest.{json,md})
 ```
 
-The plan in §11 of the repo-overhaul (P-schemas) tracks the residual gaps:
+Schemas referenced but **not** yet committed (tracked as residual gaps):
 
-* `regulation.schema.json`, `crosswalk.schema.json`, `evidence-pack.schema.json`,
-  and `manifest.schema.json` are referenced by `tools/build/render_*` but are
-  not yet committed under `schemas/`. Their shape today is captured implicitly
-  by the generators in `python3 -m splunk_uc generate-api-surface`.
-* `schemas/stix/` is reserved for the planned STIX 2.1 export but does not
-  yet exist on disk.
-* `schemas/changelogs/` is the planned home for per-schema CHANGELOG files.
-  Until it is created, the global [`CHANGELOG.md`](../CHANGELOG.md) records
-  schema changes alphabetically per release.
+* `regulation.schema.json`, `crosswalk.schema.json`,
+  `evidence-pack.schema.json`, and `manifest.schema.json` are referenced
+  by `tools/build/render_*` but live as Python type hints rather than
+  JSON files. Their shape today is captured implicitly by the
+  generators in `python3 -m splunk_uc generate-api-surface`.
+* `schemas/stix/` is reserved for the planned STIX 2.1 export but does
+  not yet exist on disk.
+* `schemas/changelogs/` is the **live** home for per-schema CHANGELOG
+  files. At HEAD it carries **18 changelogs** — one per committed
+  schema. The v7.0.0 baseline of this document described it as
+  "planned"; that is stale.
 
-Every schema in `schemas/` MUST include the metadata headers listed below. The CI
-audit (`tools/audits/schema_meta.py`, planned) will block merges that omit
-them; the audit is currently advisory while the metadata backfill lands.
+Every schema in `schemas/` MUST include the metadata headers listed below.
+The CI audit `tools/audits/schema_meta.py` is **live** in
+`.github/workflows/validate.yml` and blocks merges that omit them. The
+v7.0.0 baseline of this document described the audit as advisory; that
+is stale.
 
 ## Required schema metadata
 
@@ -159,19 +175,23 @@ schema body changed but the changelog didn't, CI fails.
 
 ## Automated breaking-change detection
 
-`tools/audits/schema_diff.py` runs in CI on every PR:
+`tools/audits/schema_diff.py` runs in CI on every PR that touches
+`schemas/**` (validate.yml job `lint`, the
+`Audit — schema diff` step). At HEAD it resolves the baseline tag
+dynamically from `git describe --tags --abbrev=0`:
 
 ```bash
-python3 tools/audits/schema_diff.py \
-  --baseline-tag v7.0.0 \
-  --head HEAD \
-  --schemas schemas/
+BASELINE_TAG="$(git describe --tags --abbrev=0)"
+python3 tools/audits/schema_diff.py --baseline-tag "${BASELINE_TAG}"
 ```
+
+If the repository has no `v*` tag yet, the step prints a workflow
+notice and exits 0 (no baseline ref to compare against).
 
 The audit:
 
 1. Walks every `schemas/**/*.schema.json`.
-2. Loads the baseline copy from `git show v7.0.0:schemas/...`.
+2. Loads the baseline copy from `git show <baseline-tag>:schemas/...`.
 3. Computes a structural diff (property add/remove, type change, enum change,
    constraint tighten/loosen, `$ref` chain change, `$id` change).
 4. Classifies each change as additive, breaking, or metadata-only per the table
@@ -186,7 +206,8 @@ The audit:
      least 12 months — see [`api-versioning.md`](api-versioning.md)).
 6. Cross-checks the schema's `x-changelog` for an entry covering the new version.
 
-`tools/audits/schema_meta.py` runs alongside it and asserts every schema in
+`tools/audits/schema_meta.py` runs alongside it in the `lint` job
+(`Schema metadata validation` step) and asserts every schema in
 `schemas/` declares the full required-metadata set above.
 
 Both audits are blocking gates in `.github/workflows/validate.yml`.
@@ -203,7 +224,13 @@ state plus planned additions:
 | `dist/category/<slug>/index.json` | `schemas/category.schema.json` | Live |
 | `dist/api/v2/catalog-index.json` | `schemas/v2/catalog-index.schema.json` | Live |
 | `dist/api/v2/search-index.json` | `schemas/v2/search-index.schema.json` | Live |
+| `dist/metrics.json` | `schemas/v2/metrics.schema.json` | Live |
+| `data/metrics-history/index.json` | `schemas/v2/metrics-history-index.schema.json` | Live |
+| `dist/stewardship-digest.json` | `schemas/v2/stewardship-digest.schema.json` | Live |
+| `dist/build-telemetry.json` | `schemas/v2/build-telemetry.schema.json` | Live (non-reproducible builds only) |
 | `data/baselines/v<VERSION>.json` | `schemas/baselines.schema.json` | Live (Phase 0) |
+| `data/coverage-baseline.json` | `schemas/coverage-baseline.schema.json` | Live |
+| `data/license-inventory.json` | `schemas/license-inventory.schema.json` | Live |
 | `dist/uc/UC-X.Y.Z/oscal.json` | `schemas/oscal/component-definition.schema.json` | Planned |
 | `dist/uc/UC-X.Y.Z/stix.json` | `schemas/stix/bundle.schema.json` | Planned (STIX export) |
 | `dist/regulation/<slug>/index.json` | `schemas/regulation.schema.json` | Planned (regulation schema) |
@@ -307,6 +334,10 @@ is effective from **catalogue 7.0.0**.
 ### Supporting sources
 
 <a id="ref-1"></a>**[1]** Bray, T. (Ed.). (2017, December). *The JavaScript Object Notation (JSON) Data Interchange Format*. Internet Engineering Task Force. RFC 8259 / STD 90. https://www.rfc-editor.org/rfc/rfc8259
+
+### Related repository documents
+
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 
 ### Cited by
 

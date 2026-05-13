@@ -24,10 +24,20 @@ The plan's first four PRs from §9 ("Where to start") have all landed:
 | PR-6 (P1 step 3 — delete legacy `build.py`) | DONE | v8.0.0 |
 | PR-8 (§P2-F19 composite `setup-python` migration) | **DONE** (2026-05-12) | commit `85b680f5d` — every `.github/workflows/*.yml` now consumes `./.github/actions/setup-python`; guard test `test_no_workflow_pins_setup_python_directly` unskipped |
 
-All six §9 ("Where to start") plan PRs have now landed. The next
-recommended sequence in the plan moves into §P5 (frontend rebuild,
-F8/F16/F17) and §P2.5 (per-workflow audit document under
-`docs/workflow-audit.md`), neither of which is started yet.
+All six §9 ("Where to start") plan PRs have now landed. The
+documentation-only "next-deliverable" tier has been drained in the
+2026-05-13 sprint:
+
+- **F22** closed by [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) (sample-regime split ratified).
+- **P2.5** closed by [docs/workflow-audit.md](workflow-audit.md) (14-workflow inventory + cadence + pin map).
+- **P0 + P2 baselines** closed by `data/baselines/v8.2.0.json` + the new `make baseline` target.
+- **P4 first canary** closed by `mypy --strict src/splunk_uc/audits/` going green and being CI-gated.
+- **F8** moved from `H NOT DONE` to `H PARTIAL` by [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md) (every `innerHTML` site catalogued; PR-A/PR-B remain as the F8 close).
+- **F23** closed by [ADR-0011](adr/0011-schema-lineage-governance.md) (schema lineage governance ratified; contract doc refreshed).
+
+The next recommended sequence in the plan now moves into §P5
+(frontend rebuild — F8 PR-A and PR-B), §P8 (observability) and §P12
+(content quality, including the deferred sample-data shape ADR).
 
 ## Findings (F1–F23)
 
@@ -55,7 +65,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 | F20 | M | Thin test coverage (10 Python + 5 mjs) | DONE on count, **NOT** on % | **47 test files / 660 collected tests** in `tests/` + `mcp/tests/`. The "<10 tests" plan baseline is far surpassed. P16 coverage % targets not yet baselined; `data/baselines/coverage-v7.4.2.json` does not exist (per F20 in plan §11). |
 | F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** | **7,677 `.md` + 7,677 `.json` matched pairs** under `content/cat-*/UC-*.{md,json}`. Markdown corpus still committed. `--check` gate for parity is now blocking (F7 closed 2026-05-12) but the markdown files themselves are still committed — F21 is about removing them from git, not the gate. |
 | F22 | L | Two parallel sample regimes (95 dirs + 97 files) | **DONE** (2026-05-13) | **94 `samples/UC-*/` directories + 97 `sample-data/uc-*-fixture.json` files.** The §P12 "pick one" framing was wrong on close inspection: the two regimes serve different purposes (raw-event SPL validation vs. compliance-control evidence fixtures) and merging them creates a worse failure mode in both directions. [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) (2026-05-13) ratifies the split, mechanically forbids cross-tree references, cross-links both READMEs to the ADR, and defers the schema-shape rationalisation inside `sample-data/` (three observed shapes today — `positive`/`negative`, `events_positive`/`events_negative`, and `positiveCase`/`negativeCase`) to follow-on ADR-0011. |
-| F23 | L | 12+ schemas, no governance plan | PARTIAL | **18 schemas** under `schemas/` (up from "12+"): the 9 in plan, plus `coverage-baseline`, `baselines`, `license-inventory`, and the `v2/` tree (`catalog-index`, `metrics-history-index`, `stewardship-digest`, `search-index`, `build-telemetry`, `metrics`). Schema lineage ADR not yet authored. |
+| F23 | L | 12+ schemas, no governance plan | **DONE** (2026-05-13) | **18 schemas** under `schemas/` (up from "12+"): the 9 in plan, plus `coverage-baseline`, `baselines`, `license-inventory`, and the `v2/` tree (`catalog-index`, `metrics-history-index`, `stewardship-digest`, `search-index`, `build-telemetry`, `metrics`). Governance plan **already** in place at HEAD: contract doc [`docs/schema-versioning.md`](schema-versioning.md) defines required metadata (`$schema`, `$id`, `version`, `x-stability`, `x-since`, `x-changelog`), semver bump rules, breaking-change table, 12-month parallel-major window, distribution and migration plan; 18/18 schemas carry the full metadata set (verified by `tools/audits/schema_meta.py`, live in CI at `validate.yml` line 137); 18/18 schemas have a per-schema changelog under [`schemas/changelogs/`](../schemas/changelogs); breaking-change detection live via `tools/audits/schema_diff.py` (validate.yml line 413). F23 closed 2026-05-13 by [ADR-0011](adr/0011-schema-lineage-governance.md) — ratifies the contract, refreshes the inventory in `schema-versioning.md` (11 → 18 schemas; planned-vs-live audits relabelled), and documents the residual `$id` host-name drift as a tracked follow-on (not a F23 blocker). |
 
 ## Phases (P0–P19)
 
@@ -63,7 +73,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 |---|---|---|
 | **P0** Hygiene + secrets hardening | **DONE** (2026-05-13) | `.cursorignore` ✓ (with explicit secrets / dotenv block — F10 closed 2026-05-12), pre-commit ✓ (`.pre-commit-config.yaml`), archived script dirs gone ✓, **and** `data/baselines/v7.4.2.json` confirmed in tree (was always there; the prior "v7.4.x not visible" claim was glob-pattern noise). Companion `data/baselines/v8.2.0.json` captured at HEAD `d4a5cc677` (2026-05-13) so we have **two anchored data points** to compare against. `tools/capture_baselines.py` TRACKED_FILES list pruned of the dead `dist/data.js` entry (the build evicts it; see `tools/build/build.py:478-480`) so future captures don't carry a perpetual `null`. New `make baseline` target wired so the `docs/baselines-howto.md` instructions are no longer aspirational. |
 | **P1** One build pipeline | DONE | Legacy `build.py` deleted (v8.0.0); `use-cases/` retired (v8.2.0); F1/F2/F3 all resolved. Vestigial `reset_legacy_module_cache()` stub at `tools/build/parse_content.py:1058` is minor dead code. |
-| **P2** CI overhaul | **DONE** (2026-05-13) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap (P2-baselines, 2026-05-13):** closed by `data/baselines/v8.2.0.json` at HEAD `d4a5cc677` — gives reviewers a current-version anchor next to the historical v7.4.2 floor. (A future audit verb that fails CI on regression against the latest baseline is filed as ADR-0013, Q4-2026 target — not blocking the P2 close.) |
+| **P2** CI overhaul | **DONE** (2026-05-13) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap (P2-baselines, 2026-05-13):** closed by `data/baselines/v8.2.0.json` at HEAD `d4a5cc677` — gives reviewers a current-version anchor next to the historical v7.4.2 floor. (A future audit verb that fails CI on regression against the latest baseline is tracked as a follow-on ADR, Q4-2026 target — not blocking the P2 close. ADR number assigned at authorship time; previous "ADR-0013" placeholder was retired when ADR-0011 absorbed the schema-lineage slot.) |
 | **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | DONE (mostly) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓; `docs/architecture-2027.md` not created (was "proposed" in plan). |
 | **P4** Typed Python pipeline | PARTIAL (canary green) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` is green at HEAD (51 source files, 0 errors); pyproject override `[[tool.mypy.overrides]] module = "splunk_uc.audits.*"` pins the strict bar so future drift fails CI; new step `mypy --strict (P4 canary — src/splunk_uc/audits/)` wired into `validate.yml`'s `lint` job. **Remaining gaps:** strict mode not yet enabled for the rest of `src/splunk_uc/` (next: `generators.*`); no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
@@ -199,7 +209,8 @@ findings but should not be lost:
    the split (both regimes co-exist with formally distinct purposes
    and mechanically forbidden cross-tree references). The
    schema-shape rationalisation inside `sample-data/` is deferred
-   to follow-on ADR-0011 (Q3-2026 target).
+   to a follow-on ADR (Q3-2026 target; number assigned at
+   authorship).
 6. ~~**P2.5 (~no code, 1 PR):** Author `docs/workflow-audit.md`.~~
    **Done 2026-05-13** — `docs/workflow-audit.md` checked in with a
    14-row inventory, weekly-cadence calendar, third-party SHA-pin map
@@ -224,7 +235,21 @@ findings but should not be lost:
    follow-up; CSP `'unsafe-inline'` tightening folds into the existing
    **P10** phase (Performance + a11y hardening) which already names F8
    as its prerequisite.
-8. **`docs/health-check-2026-progress.md`** (this file) refreshed every
+8. ~~**F23 (~no code, 1 PR):** Author the schema lineage ADR so the
+   already-built governance (contract doc + per-schema changelogs +
+   the two CI audits) has a visible decision record.~~
+   **Done 2026-05-13** —
+   [ADR-0011](adr/0011-schema-lineage-governance.md) ratifies
+   `docs/schema-versioning.md` as the lifecycle contract, refreshes
+   the schemas inventory from 11 → 18 entries, marks the previously
+   "planned" `schema_meta.py` / `schema_diff.py` audits as live (they
+   have been since v7.4 — `validate.yml` lines 137 / 413), and tracks
+   the residual `$id` host-name drift (five conventions across the
+   18 schemas) as a follow-on, not a F23 blocker. ADR-0011 absorbed
+   the "ADR-0011 (sample-data shape)" placeholder slot promised by
+   ADR-0010 because ADRs are numbered by acceptance, not by
+   reservation — see ADR-0011 §"Alternatives considered" point C.
+9. **`docs/health-check-2026-progress.md`** (this file) refreshed every
    minor version to keep "what's done" honest.
 
 ## Method note
@@ -258,7 +283,9 @@ self-reported state at plan-writing time without verification at HEAD.
 ### Related repository documents
 
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
+- [`docs/workflow-audit.md`](workflow-audit.md)
 
 ### Cited by
 

@@ -12,6 +12,39 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §F23 — schema lineage governance ratified.** Authored
+  [ADR-0011](docs/adr/0011-schema-lineage-governance.md), which
+  ratifies [docs/schema-versioning.md](docs/schema-versioning.md) as
+  the canonical lifecycle contract for every JSON Schema in the
+  repository. Audit confirms the governance is already operational:
+  18 schemas at HEAD (12 top-level + 6 under `v2/`); all 18 declare
+  the full required-metadata set (`$schema`, `$id`, `version`,
+  `x-stability`, `x-since`, `x-changelog`) — verified by
+  [tools/audits/schema_meta.py](tools/audits/schema_meta.py), live in
+  CI at `.github/workflows/validate.yml` line 137; all 18 have a
+  per-schema changelog under
+  [schemas/changelogs/](schemas/changelogs); breaking-change detection
+  is live via [tools/audits/schema_diff.py](tools/audits/schema_diff.py)
+  (validate.yml line 413, baseline tag resolved from
+  `git describe --tags --abbrev=0`). The ADR refreshes the inventory
+  in `docs/schema-versioning.md` (11 → 18 schemas; the four `v2/`
+  schemas previously labelled "planned" are now marked live), updates
+  the validation table to include `dist/metrics.json`,
+  `data/metrics-history/index.json`, `dist/stewardship-digest.json`,
+  `dist/build-telemetry.json`, `data/coverage-baseline.json`, and
+  `data/license-inventory.json`, removes the stale "planned" marker
+  from `schema_meta.py` / `schema_diff.py`, and documents the
+  residual `$id` host-name drift (five different hostnames across
+  the 18 schemas, plus two typos — `regulations-watch.schema.json`
+  uses `fsudmann` instead of `fenre`, and
+  `metrics-history-index.schema.json` is missing `.github.io`) as
+  tracked follow-on work, not a F23 close blocker. ADR-0011 absorbed
+  the placeholder ADR-0011 slot promised by ADR-0010 for sample-data
+  shape rationalisation (ADRs are numbered by acceptance, not by
+  reservation); ADR-0010's references and
+  `docs/health-check-2026-progress.md`'s P2 row were de-referenced
+  accordingly. F23 flips from `L PARTIAL` to `L DONE (2026-05-13)`
+  in `docs/health-check-2026-progress.md`.
 - **Inventory F8 (`index.html` front-end hardening) into a bounded
   migration plan.** Authored
   [docs/f8-frontend-hardening-inventory.md](docs/f8-frontend-hardening-inventory.md),
