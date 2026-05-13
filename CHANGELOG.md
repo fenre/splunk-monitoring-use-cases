@@ -12,6 +12,22 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close F22 (two parallel sample regimes — ADR-0010).** Authored
+  [`docs/adr/0010-sample-and-sample-data-co-exist.md`](docs/adr/0010-sample-and-sample-data-co-exist.md)
+  ratifying the existing split: `samples/UC-X.Y.Z/` is the canonical
+  home for raw-event SPL fixtures consumed by `uc-tests.yml` and
+  `samples_index.py`; `sample-data/uc-<id>-fixture.json` is the
+  canonical home for compliance-control evidence fixtures referenced
+  by `controlTest.fixtureRef` on cat-22 UC sidecars. The ADR
+  mechanically forbids cross-tree references and defers the
+  schema-shape rationalisation inside `sample-data/` (three observed
+  shapes today — `positive`/`negative`, `events_positive`/`events_negative`,
+  and `positiveCase`/`negativeCase`) to follow-on ADR-0011 (Q3-2026
+  target). Both `samples/README.md` and `sample-data/README.md` now
+  open with a cross-link to the other tree and a citation of ADR-0010,
+  so a new contributor cannot accidentally guess "the wrong" tree.
+  `docs/adr/README.md` indexes the new ADR. `docs/health-check-2026-progress.md`
+  flips F22 from NOT DONE to DONE (2026-05-13).
 - **Close §P2.5 (workflow audit doc).** Added
   [`docs/workflow-audit.md`](docs/workflow-audit.md), a single-page
   reference covering every workflow under `.github/workflows/` (now 14

@@ -1,6 +1,6 @@
 # sample-data/
 
-JSON fixtures used as **control-test evidence** for compliance-oriented use cases, especially in category 22. They are distinct from the `samples/` tree (per-UC Splunk log fixtures + manifests).
+JSON fixtures used as **control-test evidence** for compliance-oriented use cases, especially in category 22. They are distinct from the [`samples/`](../samples/README.md) tree (per-UC Splunk log fixtures + manifests). Their split — and the contract that this tree owns compliance-evidence fixtures while `samples/` owns raw-event SPL fixtures — is ratified in [ADR-0010](../docs/adr/0010-sample-and-sample-data-co-exist.md).
 
 ## What exists today
 

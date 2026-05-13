@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_195 pages indexed; 122 have at least one inbound link; 394 unique source→target edges._
+_196 pages indexed; 123 have at least one inbound link; 399 unique source→target edges._
 
 ---
 
@@ -135,6 +135,7 @@ _No inbound links yet._
 - [`docs/adr/0001-markdown-as-source-of-truth.md`](adr/0001-markdown-as-source-of-truth.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
+- [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -155,11 +156,18 @@ _No inbound links yet._
 
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
+- [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
 - [`docs/north-star-scorecard.md`](north-star-scorecard.md)
 - [`docs/rollback-playbook.md`](rollback-playbook.md)
+
+## `docs/adr/0010-sample-and-sample-data-co-exist.md`
+
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+- [`samples/README.md`](../samples/README.md)
 
 ## `docs/adr/README.md`
 
