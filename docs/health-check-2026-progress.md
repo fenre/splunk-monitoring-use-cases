@@ -33,6 +33,7 @@ documentation-only "next-deliverable" tier has been drained in the
 - **P0 + P2 baselines** closed by `data/baselines/v8.2.0.json` + the new `make baseline` target.
 - **P4 first canary** closed by `mypy --strict src/splunk_uc/audits/` going green and being CI-gated.
 - **P4 second canary** closed by `mypy --strict src/splunk_uc/generators/` going green and being CI-gated (2026-05-13).
+- **P4 package-wide floor** closed by `mypy --strict src/splunk_uc/` going green (94 source files, every subpackage) and being CI-gated (2026-05-13).
 - **F8** moved from `H NOT DONE` to `H PARTIAL` by [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md) (every `innerHTML` site catalogued; PR-A/PR-B remain as the F8 close).
 - **F23** closed by [ADR-0011](adr/0011-schema-lineage-governance.md) (schema lineage governance ratified; contract doc refreshed).
 - **F13** closed (and loose-end ledger #3) by the new `make clean-tree` target — every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) nukeable in one command.
@@ -81,7 +82,7 @@ The next recommended sequence in the plan now moves into §P5
 | **P2** CI overhaul | **DONE** (2026-05-13) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap (P2-baselines, 2026-05-13):** closed by `data/baselines/v8.2.0.json` at HEAD `d4a5cc677` — gives reviewers a current-version anchor next to the historical v7.4.2 floor. (A future audit verb that fails CI on regression against the latest baseline is tracked as a follow-on ADR, Q4-2026 target — not blocking the P2 close. ADR number assigned at authorship time; previous "ADR-0013" placeholder was retired when ADR-0011 absorbed the schema-lineage slot.) |
 | **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | DONE (mostly) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓; `docs/architecture-2027.md` not created (was "proposed" in plan). |
-| **P4** Typed Python pipeline | PARTIAL (canary green) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` is green at HEAD (51 source files, 0 errors); pyproject override `[[tool.mypy.overrides]] module = "splunk_uc.audits.*"` pins the strict bar so future drift fails CI; new step `mypy --strict (P4 canary — src/splunk_uc/audits/)` wired into `validate.yml`'s `lint` job. **Second canary closed 2026-05-13:** `mypy --strict src/splunk_uc/generators/` is green at HEAD (17 source files, 0 errors after a one-line `set[str]` parameterisation in `recommender_app._gsa_load_ucs`); a second pyproject override `module = "splunk_uc.generators.*"` pins it, and the CI step now lints `splunk_uc.audits.*` + `splunk_uc.generators.*` together (68 source files, ~23 kLOC type-clean under `--strict`). **Remaining gaps:** strict mode not yet enabled for the rest of `src/splunk_uc/` (next: `ingest.*`); no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
+| **P4** Typed Python pipeline | PARTIAL (package floor locked) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` (51 source files, 0 errors). **Second canary closed 2026-05-13:** `mypy --strict src/splunk_uc/generators/` (17 source files, 0 errors after a one-line `set[str]` fix in `recommender_app._gsa_load_ucs`). **Package-wide floor closed 2026-05-13:** survey showed every remaining subpackage (`ingest`, `feasibility`, `migrations`, `tools`) plus the three top-level modules was already strict-clean; the two per-canary overrides were consolidated into a single `[[tool.mypy.overrides]] module = "splunk_uc.*"` block and the CI step now lints the whole package — **94 source files, ~25 kLOC, every module under `src/splunk_uc/` type-clean under `--strict`**. **Remaining gaps:** the build pipeline (`tools/build/*`) and the legacy `build.py` entrypoint still carry per-module loosened overrides; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
 | **P5** Frontend rebuild | NOT STARTED | No `apps/web/`. F8/F16/F17 all unresolved. |
 | **P6** Scripts taxonomy | DONE | Just closed in v8.2.0 (commit `a36aa4db4`). 83-verb dispatcher + Tier 4 packaging. |
 | **P7** Server-side search + API gateway | NOT STARTED | — |
@@ -221,7 +222,17 @@ findings but should not be lost:
    step extended to lint both packages (68 source files total). The
    only typing change needed was a single `set` → `set[str]`
    parameterisation in `recommender_app._gsa_load_ucs`; zero runtime
-   behaviour changed. Next P4 canary target: `splunk_uc.ingest.*`.
+   behaviour changed.
+   **Package-wide floor done 2026-05-13** — survey of the remaining
+   subpackages (`ingest`, `feasibility`, `migrations`, `tools`) and
+   the three top-level modules showed every file was already
+   strict-clean. The two per-canary overrides were consolidated into
+   a single `[[tool.mypy.overrides]] module = "splunk_uc.*"` block,
+   and the CI step now lints the whole package — **94 source files,
+   ~25 kLOC, every module under `src/splunk_uc/` type-clean under
+   `--strict`**, zero remaining canaries inside the package. The
+   remaining §P4 work is the build pipeline (`tools/build/*`) and
+   `build.py`; both still carry per-module loosened overrides.
 5. ~~**Lay P12 groundwork (~no code, 1 PR):** Pick one of the two
    sample regimes (F22). The plan §P12 first deliverable says the
    choice itself is the deliverable.~~ **Done 2026-05-13** —
