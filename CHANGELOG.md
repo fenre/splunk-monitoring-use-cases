@@ -52,6 +52,24 @@ the release notes block in `index.html` by hand.
   SOC 2, SOX-ITGC), compliance-coverage / -gaps reports, sandbox-validation
   + ATT&CK-simulation reports, and the splunk-uc-recommender app.
 
+- **Close §F20 (coverage baseline already exists) + flip §P16 to
+  PARTIAL.** Earlier revisions of
+  `docs/health-check-2026-progress.md` carried the caveat "P16
+  coverage % targets not yet baselined; `data/baselines/coverage-v7.4.2.json`
+  does not exist" — but that's wrong at HEAD:
+  [`data/baselines/coverage-v9.1.0.json`](data/baselines/coverage-v9.1.0.json)
+  is a real, schema-validated, in-use coverage baseline (4,093
+  covered lines / 19,606 statements / 19.76% total; 24 tier-1
+  `tools/build/` modules + 68 tier-2 `src/splunk_uc/audits` +
+  `src/splunk_uc/generators` modules + 26 tier-3 exempt files).
+  `src/splunk_uc/audits/coverage_budget.py` consumes it as the
+  no-regression contract, and
+  `tests/scripts/test_audit_coverage_budget.py::test_committed_baseline_version_matches_VERSION`
+  locks the file's version field. The **v9.1.0** filename is the
+  forward-looking floor convention (`schemas/changelogs/coverage-baseline.md`
+  documents the rationale). F20 → DONE (reclassified); P16 → PARTIAL
+  (baseline locked, but raising per-tier floors + adopting mutation
+  testing + property-based testing is the actual P16 burndown work).
 - **Close §F14 by reclassification.** The original "clutter" pattern
   flagged in F14 (`api/v1/_evidence-packs-bak/`) was deleted in
   v8.2.0; the residual `scripts/_*.py` underscore-prefixed files (17
