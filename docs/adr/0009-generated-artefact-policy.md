@@ -235,6 +235,7 @@ new addition requires updating the table.
 - [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/0008-canonical-constants.md`](0008-canonical-constants.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](0010-sample-and-sample-data-co-exist.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](0011-schema-lineage-governance.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/capacity-and-staffing.md`](../capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](../external-consumer-matrix.md)

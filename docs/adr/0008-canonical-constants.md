@@ -198,6 +198,7 @@ duplication problems above.
 
 - [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](0009-generated-artefact-policy.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](0011-schema-lineage-governance.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/capacity-and-staffing.md`](../capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](../external-consumer-matrix.md)

@@ -151,11 +151,15 @@ Concretely:
   ADR-0010 is the single document that explains that — both READMEs
   cite it explicitly to keep that understanding discoverable.
 - The schema-shape rationalisation inside `sample-data/` is **not**
-  done by this ADR; it is deferred to ADR-0011 (Q3-2026 target). The
-  three shapes co-exist until then. Authors of new fixtures should
-  prefer the top-level `positive` / `negative` shape because it has
-  the broadest consumer support today, but the audit does not
-  currently reject the other two shapes.
+  done by this ADR; it is deferred to a follow-on ADR (Q3-2026
+  target). The three shapes co-exist until then. Authors of new
+  fixtures should prefer the top-level `positive` / `negative` shape
+  because it has the broadest consumer support today, but the audit
+  does not currently reject the other two shapes. (When ADR-0010 was
+  authored, that follow-on was tentatively numbered ADR-0011;
+  ADR-0011 has since been used for the schema lineage governance
+  ratification — see ADR-0011 §"Alternatives considered" point C.
+  The follow-on will take the next available number when authored.)
 
 ### Neutral
 
@@ -176,12 +180,15 @@ performed in the same PR:
    this ADR; flip `docs/health-check-2026-progress.md` §F22 from
    `NOT DONE` to `DONE` (with the migration-plan caveat); add the
    ADR to `docs/adr/README.md`'s index.
-2. **Follow-on PR (ADR-0011, ~Q3-2026).** Choose between the three
+2. **Follow-on PR (~Q3-2026).** Choose between the three
    `sample-data/` shapes. Most likely outcome: the top-level
    `positive` / `negative` shape is ratified; the
    `events_positive` / `events_negative` and `positiveCase` /
-   `negativeCase` shapes are migrated to the canonical shape.
-3. **Follow-on PR (ADR-0012, ~Q4-2026).** Extend
+   `negativeCase` shapes are migrated to the canonical shape. The
+   follow-on ADR will take the next available number when it is
+   authored (ADR-0011 has since been used for schema lineage
+   governance).
+3. **Follow-on PR (~Q4-2026).** Extend
    `python3 -m splunk_uc audit-sandbox-validation` with the
    cross-tree-reference guard so the split is enforced in CI, not
    just in this ADR. (The guard is mechanically simple — match the
@@ -222,6 +229,7 @@ under §P12.
 
 ### Cited by
 
+- [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/health-check-2026-progress.md`](../health-check-2026-progress.md)
 - [`samples/README.md`](../../samples/README.md)
