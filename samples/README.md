@@ -1,6 +1,6 @@
 # samples/
 
-Per-use-case sample **log fixtures** and manifests for validating catalog SPL (Splunk search) against realistic raw events. This tree is separate from `sample-data/` (JSON compliance fixtures referenced by `controlTest.fixtureRef`).
+Per-use-case sample **log fixtures** and manifests for validating catalog SPL (Splunk search) against realistic raw events. This tree is separate from [`sample-data/`](../sample-data/README.md) (JSON compliance fixtures referenced by `controlTest.fixtureRef`). Their split — and the contract that this tree owns SPL validation while `sample-data/` owns compliance-evidence fixtures — is ratified in [ADR-0010](../docs/adr/0010-sample-and-sample-data-co-exist.md).
 
 ## Layout
 

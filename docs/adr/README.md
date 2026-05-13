@@ -26,6 +26,7 @@ We use the [MADR 3.0](https://adr.github.io/madr/) template (simplified).
 | [ADR-0007](0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
 | [ADR-0008](0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
 | [ADR-0009](0009-generated-artefact-policy.md) | Generated artefacts are uncommitted by default; published via Pages or Releases with provenance | Accepted |
+| [ADR-0010](0010-sample-and-sample-data-co-exist.md) | `samples/` and `sample-data/` are separate, complementary regimes (closes F22) | Accepted |
 
 ## When to write an ADR
 

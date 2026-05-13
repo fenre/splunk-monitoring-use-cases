@@ -54,7 +54,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 | F19 | M | 7 other workflows unaudited | **DONE** (2026-05-12) | Closed by PR #8 (commit `85b680f5d`): every workflow under `.github/workflows/*.yml` now consumes `./.github/actions/setup-python`. The previously skipped guard `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly` is unskipped and runs in the `audits-content` job, so any future direct `actions/setup-python@<sha>` pin in a workflow fails CI. The 14-workflow inventory itself moves into P2.5 below — that is the remaining work, not F19. |
 | F20 | M | Thin test coverage (10 Python + 5 mjs) | DONE on count, **NOT** on % | **47 test files / 660 collected tests** in `tests/` + `mcp/tests/`. The "<10 tests" plan baseline is far surpassed. P16 coverage % targets not yet baselined; `data/baselines/coverage-v7.4.2.json` does not exist (per F20 in plan §11). |
 | F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** | **7,677 `.md` + 7,677 `.json` matched pairs** under `content/cat-*/UC-*.{md,json}`. Markdown corpus still committed. `--check` gate for parity is now blocking (F7 closed 2026-05-12) but the markdown files themselves are still committed — F21 is about removing them from git, not the gate. |
-| F22 | L | Two parallel sample regimes (95 dirs + 97 files) | **NOT DONE** | **94 `samples/UC-*/` directories + 97 `sample-data/uc-*-fixture.json` files** (numbers shifted slightly). P12's "pick one" first deliverable not yet done. |
+| F22 | L | Two parallel sample regimes (95 dirs + 97 files) | **DONE** (2026-05-13) | **94 `samples/UC-*/` directories + 97 `sample-data/uc-*-fixture.json` files.** The §P12 "pick one" framing was wrong on close inspection: the two regimes serve different purposes (raw-event SPL validation vs. compliance-control evidence fixtures) and merging them creates a worse failure mode in both directions. [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) (2026-05-13) ratifies the split, mechanically forbids cross-tree references, cross-links both READMEs to the ADR, and defers the schema-shape rationalisation inside `sample-data/` (three observed shapes today — `positive`/`negative`, `events_positive`/`events_negative`, and `positiveCase`/`negativeCase`) to follow-on ADR-0011. |
 | F23 | L | 12+ schemas, no governance plan | PARTIAL | **18 schemas** under `schemas/` (up from "12+"): the 9 in plan, plus `coverage-baseline`, `baselines`, `license-inventory`, and the `v2/` tree (`catalog-index`, `metrics-history-index`, `stewardship-digest`, `search-index`, `build-telemetry`, `metrics`). Schema lineage ADR not yet authored. |
 
 ## Phases (P0–P19)
@@ -184,9 +184,14 @@ findings but should not be lost:
 4. **Phase 4 first canary (~150 lines):** Enable `mypy --strict` on
    `src/splunk_uc/audits/` only (already typed-ish after the v8.2.0
    migration); ratchet outward in subsequent PRs.
-5. **Lay P12 groundwork (~no code, 1 PR):** Pick one of the two sample
-   regimes (F22). The plan §P12 first deliverable says the choice
-   itself is the deliverable.
+5. ~~**Lay P12 groundwork (~no code, 1 PR):** Pick one of the two
+   sample regimes (F22). The plan §P12 first deliverable says the
+   choice itself is the deliverable.~~ **Done 2026-05-13** —
+   [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) ratifies
+   the split (both regimes co-exist with formally distinct purposes
+   and mechanically forbidden cross-tree references). The
+   schema-shape rationalisation inside `sample-data/` is deferred
+   to follow-on ADR-0011 (Q3-2026 target).
 6. ~~**P2.5 (~no code, 1 PR):** Author `docs/workflow-audit.md`.~~
    **Done 2026-05-13** — `docs/workflow-audit.md` checked in with a
    14-row inventory, weekly-cadence calendar, third-party SHA-pin map
