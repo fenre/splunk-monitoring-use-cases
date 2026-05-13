@@ -57,11 +57,11 @@ _EU Digital Operational Resilience Act_
 | `Art.9` | Protection and prevention | 1.00 | ✔ 7 | full | 17.1.29, 17.1.36, 17.1.40, 17.1.44, 22.11.97, 22.3.1, 22.41.3 |
 | `Art.10` | Detection | 1.00 | ✔ 5 | full | 17.1.33, 22.3.1, 22.3.47, 22.3.7, 22.8.33 |
 | `Art.11` | Response and recovery | 1.00 | ✔ 3 | contributing | 22.3.1, 22.3.5, 22.3.8 |
-| `Art.12` | Backup policies and recovery methods | 1.00 | ✔ 7 | full | 17.1.47, 22.3.1, 22.3.5, 22.3.9, 22.35.3, 22.45.1, 22.45.3 |
+| `Art.12` | Backup policies and recovery methods | 1.00 | ✔ 9 | full | 17.1.47, 22.3.1, 22.3.5, 22.3.9, 22.35.3, 22.45.1, 22.45.2, 22.45.3 |
 | `Art.17` | ICT-related incident management process | 1.00 | ✔ 12 | full | 17.1.30, 17.1.42, 17.1.80, 17.1.82, 22.3.2, 22.3.23, 22.3.31, 22.3.44 |
 | `Art.18` | Classification of ICT-related incidents | 1.00 | ✔ 2 | contributing | 22.3.11, 22.3.2 |
 | `Art.19` | Reporting of major ICT-related incidents | 1.00 | ✔ 4 | full | 22.3.12, 22.3.2, 22.3.38, 22.39.1 |
-| `Art.24` | Digital operational-resilience testing | 0.70 | ✔ 7 | full | 22.11.105, 22.3.25, 22.3.27, 22.3.28, 22.3.3, 22.3.39, 22.3.45 |
+| `Art.24` | Digital operational-resilience testing | 0.70 | ✔ 8 | full | 22.11.105, 22.3.25, 22.3.27, 22.3.28, 22.3.3, 22.3.39, 22.3.45, 22.45.5 |
 | `Art.26` | Threat-led penetration testing | 0.70 | ✔ 2 | contributing | 22.3.17, 22.3.3 |
 | `Art.28` | ICT third-party risk | 1.00 | ✔ 9 | full | 17.1.60, 17.1.62, 22.3.4, 22.3.40, 22.38.3, 22.44.1, 22.44.2, 22.44.3 |
 
@@ -117,7 +117,7 @@ _HIPAA Security Rule_
 | `§164.308(a)(4)` | Information access management | 1.00 | ✔ 1 | full | 22.10.21 |
 | `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 4 | full | 17.1.53, 22.10.6, 22.46.1, 22.6.53 |
 | `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 3 | partial | 22.10.56, 22.10.7, 22.39.1 |
-| `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 3 | full | 17.1.47, 22.10.8, 22.45.2 |
+| `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 3 | partial | 17.1.47, 22.10.8, 22.45.2 |
 | `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | partial | 22.10.9 |
 | `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | partial | 22.10.31 |
 | `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 4 | full | 17.1.50, 22.10.29, 22.49.1, 22.49.2 |
@@ -126,7 +126,7 @@ _HIPAA Security Rule_
 | `§164.312(b)` | Audit controls | 1.00 | ✔ 5 | partial | 10.12.16, 17.1.43, 22.10.17, 22.10.36, 22.10.58 |
 | `§164.312(c)(1)` | Integrity | 1.00 | ✔ 3 | full | 22.10.18, 22.10.27, 22.35.2 |
 | `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 4 | contributing | 17.1.38, 22.10.19, 22.10.23, 22.10.42 |
-| `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 7 | full | 17.1.31, 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.8.31, 22.8.38 |
+| `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 8 | full | 17.1.31, 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.45.4, 22.8.31, 22.8.38 |
 
 ### ISO 27001 — `iso-27001`
 
@@ -203,7 +203,7 @@ _EU NIS2 Directive_
 | `Art.21(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 3 | contributing | 22.2.21, 22.2.22, 22.2.32 |
 | `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 6 | partial | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6 |
 | `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 13 | partial | 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67, 17.1.80 |
-| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 12 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
+| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 13 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
 | `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 15 | full | 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51, 17.1.55, 17.1.66, 17.1.68 |
 | `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 9 | partial | 17.1.41, 17.1.49, 17.1.53, 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.2.51 |
 | `Art.21(2)(f)` | Policies and procedures effectiveness | 1.00 | ✔ 5 | partial | 22.2.39, 22.2.43, 22.2.51, 22.2.57, 22.2.9 |
@@ -270,7 +270,7 @@ _NIST SP 800-53 Rev. 5_
 | `AU-12` | Audit record generation | 1.00 | ✔ 4 | contributing | 17.1.30, 17.1.43, 17.1.58, 22.14.11 |
 | `CM-2` | Baseline configuration | 1.00 | ✔ 4 | full | 22.14.52, 22.42.2, 5.13.56, 5.13.57 |
 | `CM-6` | Configuration settings | 1.00 | ✔ 8 | full | 22.11.92, 22.14.56, 22.42.2, 5.13.28, 5.13.29, 5.13.30, 5.13.31, 5.13.33 |
-| `CP-9` | System backup | 1.00 | ✔ 5 | full | 17.1.47, 22.14.79, 22.45.1, 22.45.2, 22.45.3 |
+| `CP-9` | System backup | 1.00 | ✔ 4 | full | 17.1.47, 22.14.79, 22.45.1, 22.45.3 |
 | `IA-2` | Identification and authentication (users) | 1.00 | ✔ 3 | full | 22.11.96, 22.11.98, 22.14.26 |
 | `IA-5` | Authenticator management | 1.00 | ✔ 2 | contributing | 17.1.44, 22.14.29 |
 | `IR-4` | Incident handling | 1.00 | ✔ 7 | partial | 17.1.42, 17.1.56, 17.1.80, 22.14.45, 22.6.51, 22.6.52, 5.13.58 |

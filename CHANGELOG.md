@@ -12,6 +12,46 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Use case uplift
+
+- **UC-22.45.x — backup integrity / BCP cluster lifted to Gold tier.**
+  Rewrote the five UCs in subcategory 22.45 (backup integrity, recovery
+  testing, and business-continuity rehearsal) from Bronze-tier
+  placeholders to full Gold-standard sidecars with vendor-specific data
+  collection, production-grade SPL, and runbook-quality
+  `detailedImplementation` sections. Coverage:
+  [UC-22.45.1](content/cat-22-regulatory-compliance/UC-22.45.1.json)
+  (restore-test RPO/RTO SLO compliance — Veeam SureBackup gold path
+  plus Commvault / NetBackup / Rubrik / Cohesity / PowerProtect /
+  AWS Backup / Azure Backup HEC fallbacks),
+  [UC-22.45.2](content/cat-22-regulatory-compliance/UC-22.45.2.json)
+  (immutable-storage tamper / lock-violation / checksum-failure
+  detection — Veeam Hardened Repository, AWS S3 Object Lock,
+  Azure Immutable Blob, Commvault HyperScale X, Rubrik Atlas immutability,
+  Cohesity DataLock, PowerProtect Cyber Recovery),
+  [UC-22.45.3](content/cat-22-regulatory-compliance/UC-22.45.3.json)
+  (regulated-workload backup-coverage gap),
+  [UC-22.45.4](content/cat-22-regulatory-compliance/UC-22.45.4.json)
+  (backup repository TLS posture — testssl.sh, Tenable, Qualys SSL Labs,
+  Microsoft Defender for Cloud), and
+  [UC-22.45.5](content/cat-22-regulatory-compliance/UC-22.45.5.json)
+  (BCP/DR rehearsal cadence evidence — ServiceNow GRC IRM, Archer IRM,
+  OneTrust GRC, Resolver, DocuSign). Audit confirms all five at Gold
+  with depth score 95/100 average. Regulatory mappings cover NIST 800-53
+  CP-9 / CP-9(3) / CP-9(8) / CP-4, HIPAA Security
+  §164.308(a)(7) / §164.312(e)(1), DORA Art.12 / Art.24, NIS2 Art.21(2)(c),
+  ISO 27001 A.5.30, SOC 2 A1.2, SOX-ITGC, and PCI-DSS 4.2.1 / 9.4.3 —
+  with MITRE ATT&CK alignment (T1490, T1485, T1486, T1040, T1557.002)
+  where security-relevant. Each UC ships a fixture-replay test plan,
+  RFC3161 evidence signing path, ServiceNow GRC integration, and
+  vendor-specific troubleshooting (Veeam SureBackup virtual-lab
+  sizing, Commvault DST timezone bug, NetBackup OpsCenter rate
+  limits, AWS Backup cross-region timestamp quirks, Azure Backup
+  pre/post-script exclusion). Regenerated mapping ledger
+  (merkle root `da57d2e8…`), evidence packs (DORA, HIPAA, NIST 800-53,
+  SOC 2, SOX-ITGC), compliance-coverage / -gaps reports, sandbox-validation
+  + ATT&CK-simulation reports, and the splunk-uc-recommender app.
+
 - **Close §F14 by reclassification.** The original "clutter" pattern
   flagged in F14 (`api/v1/_evidence-packs-bak/`) was deleted in
   v8.2.0; the residual `scripts/_*.py` underscore-prefixed files (17
@@ -36,6 +76,7 @@ the release notes block in `index.html` by hand.
   findings table — `dist-before/` itself has been gone since the
   v8.2.0 cycle, and the residual `dist-content/` / `dist-legacy/`
   disk clutter now has a one-command escape hatch.
+
 - **Close §F23 — schema lineage governance ratified.** Authored
   [ADR-0011](docs/adr/0011-schema-lineage-governance.md), which
   ratifies [docs/schema-versioning.md](docs/schema-versioning.md) as
