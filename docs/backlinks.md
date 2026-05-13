@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_199 pages indexed; 126 have at least one inbound link; 422 unique source→target edges._
+_199 pages indexed; 126 have at least one inbound link; 421 unique source→target edges._
 
 ---
 
@@ -186,7 +186,6 @@ _No inbound links yet._
 
 ## `docs/adr/0012-sample-data-canonical-shape.md`
 
-- [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
