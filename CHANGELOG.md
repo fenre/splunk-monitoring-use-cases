@@ -12,6 +12,45 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§P10 first step — a11y landmark + `<h1>` fix for `index.html`
+  and `scorecard.html`.** Now that F8 (Frontend Hardening) is closed,
+  the §P10 phase (Performance + a11y hardening) can finally start.
+  This PR lands the smallest, most-real a11y fix from the live
+  `reports/perf-a11y.json` audit: the `region` warning on
+  `index.html` ("All page content should be contained by landmarks"
+  — flagged on `#search-input`) and the `page-has-heading-one`
+  "incomplete" finding on both pages. Three changes:
+  (1) A new `.visually-hidden` CSS utility (10-line clip-path
+  + position:absolute pattern from the HTML5 Boilerplate /
+  Bootstrap canon) is added to `src/styles/05-helpers.css` and
+  mirrored in `index.html`'s inline `<style>` block (so asset
+  drift stays clean); a parallel copy is added to `scorecard.html`.
+  (2) Each page gains exactly one visually-hidden `<h1>` — inside
+  `<header>` on `index.html` (so it lives in the implicit
+  `role="banner"` landmark) and inside `<main>` on `scorecard.html`
+  (so it lives in the `role="main"` landmark). Sighted users see
+  no visual change; screen readers now hear "Heading level 1,
+  Splunk Monitoring Use Cases Catalog" (or "Catalogue Compliance
+  Scorecard" on scorecard). (3) The two search-bar wrappers in
+  `index.html` (`#main-search-bar` and `#mobile-search-bar`) gain
+  `role="search"` + a distinguishing `aria-label`, so the
+  `#search-input` and `#mobile-search-input` are now contained by
+  search landmarks — the `region` violation that the F8 closure
+  re-anchored is now gone. Net effect on the perf-a11y report:
+  `index.html` warnings drops from 1 → **0**, violations stays
+  at 0; `index.html` raw size goes from 651,770 → **652,653**
+  bytes (+883 bytes, budget unchanged at 716,800, ~8.95%
+  headroom); `scorecard.html` 51,012 → **51,570** bytes (+558,
+  budget 65,536, ~21.31% headroom). The remaining `landmark-one-main`
+  and `page-has-heading-one` "incomplete" findings are
+  jsdom-limitation artifacts (axe-core can't reliably introspect
+  JS-populated landmarks under jsdom — see
+  `tests/a11y/run-axe.mjs`); both pages now have the required
+  landmarks at HTML-source level. Progress doc §P10 row flipped
+  from `NOT STARTED` to `PARTIAL (a11y landmarks + h1 fix)`;
+  `reports/perf-a11y.json` regenerated against the new bytes /
+  axe results.
+
 - **§F8 PR-B — rewrite the only `innerHTML +=` loop, the data-sizing
   summary write, and both `<br><span …>` append sites via three new
   DOM-construction helpers.** Together with PR-A, this lands the **F8
