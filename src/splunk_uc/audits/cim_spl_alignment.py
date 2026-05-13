@@ -24,7 +24,7 @@ import argparse
 import re
 import sys
 from collections import Counter
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from splunk_uc.audits._uc_walk import get_list_field, get_text_field, iter_uc_sidecars
 
@@ -93,7 +93,7 @@ def _extract_datamodels_from_spl(spl: str) -> set[str]:
     return names
 
 
-def _check_uc(uc_id: str, file: str, payload: dict) -> list[Finding]:
+def _check_uc(uc_id: str, file: str, payload: dict[str, Any]) -> list[Finding]:
     findings: list[Finding] = []
     declared_models = get_list_field(payload, "cimModels")
     if not declared_models:
