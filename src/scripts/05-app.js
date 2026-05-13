@@ -759,7 +759,7 @@ function onEquipmentChange() {
   if (eq && eq.models && eq.models.length) {
     mw.style.display = 'flex';
     _resetEquipmentModelSelect(ms);
-    eq.models.forEach(function(m) { ms.innerHTML += '<option value="' + esc(m.id) + '">' + esc(m.label) + '</option>'; });
+    eq.models.forEach(function(m) { _appendEquipmentModelOption(ms, m); });
     selectedEquipmentId = val;
   } else {
     mw.style.display = 'none';
@@ -901,19 +901,31 @@ function _updateSizingTray() {
       if (hasDsaSources) {
         summary += ' \u2014 ' + dsaSources.size + ' data source' + (dsaSources.size !== 1 ? 's' : '') + ' for sizing';
       }
-      countEl.innerHTML = summary;
+      countEl.textContent = summary;
       if (!hasDsaSources && count > 0 && invCount === 0) {
-        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
-          + 'These use cases don\u2019t have data sources mapped yet. Add equipment via '
-          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + ' to include data sources, or open the <a href="' + _dataSizingURL('') + '" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
-          + ' to select industrial data sources directly.</span>';
+        _appendSizingHintSpan(countEl, function(span) {
+          span.appendChild(document.createTextNode('These use cases don\u2019t have data sources mapped yet. Add equipment via '));
+          span.appendChild(_makeInventoryLink('My Equipment'));
+          span.appendChild(document.createTextNode(' to include data sources, or open the '));
+          var aDs = document.createElement('a');
+          aDs.href = _dataSizingURL('');
+          aDs.target = '_blank';
+          aDs.style.color = 'var(--cisco-blue)';
+          aDs.style.textDecoration = 'underline';
+          aDs.textContent = 'Data Sizing Tool';
+          span.appendChild(aDs);
+          span.appendChild(document.createTextNode(' to select industrial data sources directly.'));
+        });
       } else if (ucsUnmapped > 0 && hasDsaSources) {
-        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
-          + ucsUnmapped + ' of ' + count + ' selected use case' + (count !== 1 ? 's' : '') + ' don\u2019t have data sources mapped. '
-          + 'Their data volume can be estimated by adding relevant equipment in '
-          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + '.</span>';
+        _appendSizingHintSpan(countEl, function(span) {
+          span.appendChild(document.createTextNode(
+            ucsUnmapped + ' of ' + count + ' selected use case' + (count !== 1 ? 's' : '') +
+            ' don\u2019t have data sources mapped. ' +
+            'Their data volume can be estimated by adding relevant equipment in '
+          ));
+          span.appendChild(_makeInventoryLink('My Equipment'));
+          span.appendChild(document.createTextNode('.'));
+        });
       }
     } else {
       countEl.textContent = 'Select use cases or inventory to estimate data sizing';
