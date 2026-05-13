@@ -298,7 +298,10 @@ findings but should not be lost:
 ## Method note
 
 Status here is derived from: actual file contents at HEAD (post
-2026-05-12 + 2026-05-13 closures, latest main carries PR #17 squash-merge);
+2026-05-12 + 2026-05-13 closures, latest main carries the F8 PR-B
+squash-merge `c947c5a61` — the trailing edge of the 2026-05-13 sprint
+that landed PR-A `82d59ccbd`, PR-B `c947c5a61`, and the §P14
+per-category CODEOWNERS scaffold `7be03f4c0`);
 the v8.2.0 CHANGELOG narrative + the `[Unreleased]` section; the
 `docs/migration-status.md` ledger; `git log --oneline -30`; live
 `wc -l` on the workflow / build files; the `gh pr checks 8` rollup on
