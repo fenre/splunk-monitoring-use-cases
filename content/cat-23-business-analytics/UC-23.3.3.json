@@ -52,7 +52,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ScaleHTTPEventCollector"
     }
   ],
-  "knownFalsePositives": "Privacy-enhanced mailbox vendors prefetch invisible pixels minutes post-send — Splunk logs mimic curiosity bursts absent incremental link taps unless analysts overlay click-centric companion tiles beside headline charts. TLS handshake retries inside Asian transit carriers occasionally duplicate webhook deliveries seconds apart — transient bounce_evt duplication resembles harsh reputation swings until dedupe macros keyed on sg_message_id collapse repeats. Bulk seasonal sends aligned to retail peaks inflate baseline comparisons against SaaS-heavy Splunk cohorts — dashboards resemble ESP outages although cohort mixes shifted toward bargain hunters opening everything yet clicking nothing substantive. Warehouse CDC lag replaying ninety-day unsubscribe horizons backward collapses unsubscribe velocity histograms tied to legal holds unrelated to creative merit — Splunk timelines resemble orchestrated churn rather than dated audience fatigue unless immutable snapshots isolate immutable weekly extracts before Legal revises CRM consent artifacts retroactively.",
+  "knownFalsePositives": "- **Mailbox Pre-Fetch Pixel Loads**: Apple Mail / Gmail privacy proxies prefetch invisible pixels minutes post-send, creating curiosity bursts absent incremental link taps. Suppress via the lookup `email_pixel_prefetch_register.csv` keyed on `mail_client_id`+`prefetch_signature` and a `where NOT mailbox_prefetch_event` filter; require Marketing Operations to verify pixel-load patterns against IP allow-list (Apple privacy proxy ranges, Gmail Postmaster Tools).\n- **TLS Handshake Retries**: Asian transit carriers occasionally duplicate webhook deliveries from Marketo / SendGrid / Customer.io. Suppress via the lookup `email_webhook_dedup_register.csv` keyed on `webhook_signature_hash`+`event_id`+`recipient_hash` (TTL <= 5 minutes) and a `where webhook_dedup_status=\"unique\"` filter.\n- **List-Hygiene / Suppression-Sync Lag**: Salesforce / HubSpot suppression-list sync delays cause sends to unsubscribed contacts. Suppress via the lookup `email_suppression_sync_register.csv` keyed on `recipient_hash`+`sync_window_id` (TTL <= 6 h) and a `where suppression_sync_complete=true` filter; require GDPR-attestation field on register row.\n- **Bounce-Rate Signal from Bot Vendors**: Barracuda, Mimecast, Proofpoint occasionally classify legitimate marketing as spam. Suppress via the lookup `email_security_vendor_bounce_register.csv` keyed on `recipient_domain`+`bounce_classification` and a `where bounce_type!=\"vendor_filter\"` filter; cap suppression by `_time` window <= 7 days.\n- **Test / Internal Sends**: agency / QA test sends inflate engagement metrics. Suppress via the allow-list `email_qa_send_register.csv` keyed on `recipient_hash`+`campaign_id` (TTL <= 14 days, owner = Email QA Lead, ServiceNow CHG ticket required) and a `where NOT email_qa_test_send` filter.",
   "equipment": [
     "db_connect",
     "servicenow",
@@ -62,7 +62,7 @@
     "db_connect_salesforce"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-28",
+  "lastReviewed": "2026-05-12",
   "splunkVersions": [
     "9.2+",
     "Cloud"
@@ -83,5 +83,11 @@
   "grandmaExplanation": "We follow ordinary newsletters people asked for—whether anyone bothers tapping buttons, quietly walks away from lists, or warns providers mail feels shady—so storytellers freshen wording before noisy gripes pile up.",
   "prerequisiteUseCases": [],
   "subcategory": "23.3",
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Inject 14 days of synthetic Marketo / SendGrid / Customer.io engagement events for 240,000 recipients across 12 campaigns. Days 1-7 use baseline open-rate=24%, click-rate=4.8%, click-to-MQL=18%; days 8-14 force open-rate to 41% (Apple Mail prefetch) but click-rate drops to 1.2% (real-engagement collapse). Confirm the saved search `email_engagement_anomaly_v3` fires with `severity=high`, `notable_index=notable`, attaches `engagement_anomaly_pattern=open_inflated_clicks_collapsed`, drives a SOAR playbook (`email_remediation_v2`) that pauses the affected campaign and notifies Email-Operations Lead via PagerDuty.",
+    "negativeScenario": "Pre-populate `email_pixel_prefetch_register.csv` with `mail_client_id=APPLE_MAIL_PRIVACY_PROXY`, `prefetch_signature=apple_proxy_v1`, `change_start=now()-7d`, `change_end=now()+7d`, `change_ticket_id=CHG0020912`, `approver=email_ops@example.com`, `expected_open_rate_uplift_pct=85`. Replay 7 days of synthetic events with open-rate at 41% across Apple Mail recipients but click-to-MQL ratio normal at 17%. Confirm `email_engagement_anomaly_v3` does NOT fire (eval `mailbox_prefetch_event=1` excludes the cohort from open-rate calculations). Confirm the audit dashboard `EmailEngagementExceptions` logs the suppression with reason=`apple_mail_prefetch` and SHA-256 hash."
+  },
+  "evidence": "Dashboard Studio panel `EmailEngagementExec` archived weekly to `evidence_index` with `evidence_type=email_engagement_health` and a SHA-256 hash. Saved-search run history exported via `| rest /services/saved/searches/email_engagement_anomaly_v3` with `latest_runtime_iso` and result fingerprints. Marketo / SendGrid / Customer.io HMAC-SHA256 webhook signature-verification logs cross-referenced with engagement events. ServiceNow CHG records linked from change-window registers; SOAR `email_remediation_v2` execution log retained 13 months in `index=audit`.",
+  "exclusions": "Transactional emails (order-receipt, shipping notification) tracked separately in UC-23.1.6. SMS / WhatsApp marketing engagement out of scope (covered by UC-23.6.5). Push-notification engagement (Firebase / OneSignal) tracked in UC-23.6.4. Compliance suppression for HIPAA / GDPR opt-out audited in UC-23.9.3."
 }

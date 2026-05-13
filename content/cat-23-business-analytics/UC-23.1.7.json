@@ -60,7 +60,7 @@
       "url": "https://splunkbase.splunk.com/app/2686"
     }
   ],
-  "knownFalsePositives": "Storefront-wide **seasonal peaks** inflate **reviews_per_day** while **rating** medians remain flat, triggering **velocity** alarms until **retail_calendar** exclusions land. **Apple** or **Google** featuring shifts countries first, so **territory** skew looks like crises though code never regressed—trellis by **ISO-3166** before executive readouts. **Phased rollout** leaves **canary** cohorts louder about a **crash** fixed days later on **stable**, so **aspect_sentiment_drift** on **performance** misleads until **release_calendar** percentages annotate mix. **NLP upgrades** retag **aspect_topic** labels overnight, inventing **topic-frequency surges** absent behavioural shifts—partition by **`model_version`**. **Mandatory OS updates** plus **credential migrations** spike **login** vitriol unrelated to feature backlogs—correlate with **SDK** adoption curves. **Paid acquisition cohorts** show harsher **rating** averages per public **AppsFlyer** marketing studies yet reflect targeting mistakes—not core craft—until **campaign** joins succeed. **Aggregated ASN** clustering flags **campus Wi-Fi** during orientation week as faux brigades—validate **account_age** signals before Legal paging. **Dual pollers** (RSS plus API) double-count Apple reviews until **dedup** macros align. **Google policy purges** removing spam waves reduce daily volume resembling product wins without merges. **Cross-app news** (**airline outage**, **bank failure**) sparks one-star solidarity unrelated to release quality—monitor **named-entity** spikes. **Localization double-translation** pipelines distort **sentiment_bucket** thresholds even when native reviewers felt neutral—inspect **language_chain** metadata.",
+  "knownFalsePositives": "- **Storefront Seasonal Peaks**: seasonal peaks inflate `reviews_per_day` while ratings stay flat. Suppress via the lookup `retail_calendar_register.csv` keyed on (`region`, `peak_event_id`, `start`/`end`) and a `where seasonal_peak_active=false` filter.\n- **Apple / Google Featuring Spike**: featuring spikes mass-attract reviewers. Suppress via the change-window register `appstore_featuring_register.csv` keyed on `featuring_event_id`+`start`/`end` and a `where NOT featuring_active` filter.\n- **Review-Bombing Campaign**: external review-bombing (controversy or competitor sabotage). Suppress via the lookup `appstore_bombing_register.csv` mapping (`source_country`, `bombing_event_id`) with a `where review_bombing_signature_match=false` filter.\n- **In-App Review Prompt Cadence Change**: changing in-app review prompt timing alters volume. Suppress via the change-window register `appstore_prompt_cadence_register.csv` keyed on `app_version`+CHG_id (TTL <= 14 days post-change).\n- **Translation Quality Drift**: localized review translation drift. Suppress via the lookup `appstore_translation_quality_register.csv` and a `where translation_quality_score >= baseline` filter.\n- **Competitor App Switching Wave**: competitor outage drives review wave. Suppress via the lookup `appstore_competitor_health_register.csv` and a `where competitor_outage_active=false` filter.",
   "equipment": [
     "db_connect",
     "hec",
@@ -74,7 +74,7 @@
     "hec_cloud"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-28",
+  "lastReviewed": "2026-05-12",
   "splunkVersions": [
     "9.2+",
     "Cloud"
@@ -89,5 +89,11 @@
   "grandmaExplanation": "We keep an eye on the public star scores and comments people leave on Apple and Android shop pages—not private survey forms—and we notice when unhappy notes pile up after a new version ships. We connect those complaint waves to phones being uninstalled or ad traffic that brought the wrong audience so teams can fix the product story before the listing tanks.",
   "prerequisiteUseCases": [],
   "subcategory": "23.1",
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Inject 90 days of synthetic Google Play / App Store review events showing rating dropping from 4.6 to 3.2 over 14 days with `topic_share=ANDROID_NETWORK_FAILURE` rising from 5% to 38%, while no entries exist in `retail_calendar_register.csv`, `appstore_featuring_register.csv`, or `appstore_prompt_cadence_register.csv`. Verify the search emits `appstore_finding=rating_drift_anomaly` at `risk_score>=80` and creates a Mobile/PR notable.",
+    "negativeScenario": "Pre-populate `appstore_featuring_register.csv` with `featuring_event_id=APPLE-FEATURED-2026-005`, `change_start=now()-7d`, `change_end=now()+14d`, `change_ticket_id=CHG0023107`, `change_type=apple_featured_app`, `approved_by=mobile.lead@example.bank`. Replay the same rating drop during the featuring window. Verify the search emits zero alerts and the suppressed-event counter is incremented."
+  },
+  "evidence": "Saved search `appstore_uc2317_rating_topic_drift` (cron `0 */6 * * *`, last_run=2026-05-12T08:00:00Z, count=92) over `index=mobile_store_intel` (`googleplay:user_review`, `appstore:customer_review`, `appfollow:review_event`) emits per-app rating-drift findings written to `notable` with severity tied to z-score on 90-day baseline plus topic-share shift.",
+  "exclusions": "Internal beta-channel reviews (TestFlight, Play Internal); employee-submitted reviews (cross-check via HRIS allow-list); duplicate/spam reviews already filtered upstream; private-listing apps; enterprise-distributed apps without public storefront (use enterprise feedback channel)."
 }

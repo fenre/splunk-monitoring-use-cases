@@ -40,7 +40,7 @@
       "url": "https://www.forrester.com/blogs/category/b2b-marketing/"
     }
   ],
-  "knownFalsePositives": "Quarterly MAP scoring-model refreshes compress everyone below the “new MQL” bar until nurture catches up — Splunk shows a sharp lead→MQL dip that mirrors governance, not macro demand; seasonal webinar bursts inflate early-stage counts while downstream acceptance queues stay flat, resembling leakage though reps simply triaged backlog Monday morning; Salesforce sandbox refreshes replay historic Lead IDs with fresh `_time`, briefly doubling funnel denominators until dedupe keys activate; duplicate Lead rows after CSV imports without `Email` uniqueness lift totals_leads without matched lifecycle progression; territory round-robin freezes during holidays mimic SQL slump though inbound quality held steady; ABM accounts that bypass lead stages entirely leave MAP-derived funnel silent while Opportunities still appear — exclude ABM cohort in parallel panels when comparing MAP-centric ratios.",
+  "knownFalsePositives": "- **MAP Scoring-Model Refresh**: Marketo / Eloqua / Pardot scoring-model rebuild compresses everyone below the 'new MQL' bar until nurture catches up. Suppress via the change-window register `marketing_automation_scoring_register.csv` keyed on `scoring_model_id`+`schema_version`+CHG_id (TTL <= 30 days post-release) and a `where NOT scoring_model_change_active` filter.\n- **Webinar / Event-Burst Inflation**: a single large webinar floods early-stage MQLs while downstream acceptance queues stay flat, resembling leakage. Suppress via the change-window register `marketing_event_register.csv` keyed on `event_id`+`webinar_platform` (TTL <= 21 days from `event_date`) and a `where NOT event_burst_active` filter; require Field-Marketing Lead sign-off.\n- **Data-Cloud Sync Lag**: Salesforce Data Cloud / HubSpot CRM extract lag breaks the join between MQL and SAL/SQL stages. Suppress via the lookup `crm_extract_sync_lag_register.csv` keyed on `crm_source`+`extract_window_id` (TTL <= 6 h) and a `where crm_sync_complete=true` filter; require warehouse watermark audit before alerting.\n- **Pipeline Hygiene Sweeps**: bulk close-lost on stale opps inflates leakage indicators. Suppress via the change-window register `crm_pipeline_hygiene_register.csv` keyed on `crm_change_id`+`scope` (TTL <= 7 days post-sweep) and a `where NOT pipeline_hygiene_active` filter.\n- **Field Mapping / Lifecycle-Stage Renames**: HubSpot lifecycle-stage renames or Salesforce field-mapping changes invalidate macros. Suppress via the lookup `lifecycle_stage_taxonomy_register.csv` keyed on `field_name`+`field_version` and a `where lifecycle_taxonomy_aligned=true` filter; freeze taxonomy edits monthly with ServiceNow CHG attestation.",
   "equipment": [
     "db_connect",
     "dell_emc",
@@ -51,7 +51,7 @@
     "oracle_oracle_db"
   ],
   "status": "verified",
-  "lastReviewed": "2026-04-28",
+  "lastReviewed": "2026-05-12",
   "splunkVersions": [
     "9.2+",
     "Cloud"
@@ -61,5 +61,11 @@
   "grandmaExplanation": "We watch how many interested people move step by step from first raising their hand through marketing vetting, sales vetting, a real deal, and finally a signed win — broken out by where they came from — so we see where the pinch is instead of arguing from gut feelings.",
   "prerequisiteUseCases": [],
   "subcategory": "23.3",
-  "wave": "walk"
+  "wave": "walk",
+  "controlTest": {
+    "positiveScenario": "Inject 90 days of synthetic Marketo lead events plus Salesforce opportunity records for 25,000 leads / $48M pipeline. Days 1-45 use baseline conversion: lead->MQL=22%, MQL->SAL=58%, SAL->SQL=64%, SQL->closed-won=24%. Days 46-90 force MQL->SAL to drop to 19% (a -39% relative drop) while lead volume stays flat. Confirm the saved search `lead_to_revenue_funnel_drop_v3` fires with `severity=high`, `notable_index=notable`, attaches `bottleneck_stage=mql_to_sal`, `pipeline_at_risk=$8.6M`, drives a SOAR playbook (`l2r_remediation_v2`) creating a Salesforce CRM case, and notifies VP-Sales via PagerDuty integration.",
+    "negativeScenario": "Pre-populate `marketing_automation_scoring_register.csv` with `scoring_model_id=MQL_V3_2025`, `schema_version=v3`, `change_start=now()-7d`, `change_end=now()+23d`, `change_ticket_id=CHG0019712`, `approver=marketing_ops_lead@example.com`, `expected_mql_drop_pct=35`. Replay 30 days of synthetic events with MQL counts dropping 35% during the registered window. Confirm `lead_to_revenue_funnel_drop_v3` does NOT fire (eval `scoring_model_change_active=1` excludes the cohort from MQL aggregations). Confirm the audit dashboard `L2RFunnelExceptions` records the suppression with reason=`scoring_model_refresh` and SHA-256 hash."
+  },
+  "evidence": "Dashboard Studio panel `LeadToRevenueExec` archived weekly to `evidence_index` with `evidence_type=lead_revenue_funnel_health` and a SHA-256 hash. Saved-search run history exported via `| rest /services/saved/searches/lead_to_revenue_funnel_drop_v3` with `latest_runtime_iso` and result fingerprints. Marketo / Salesforce HMAC-SHA256 webhook signature-verification logs cross-referenced with funnel events. ServiceNow CHG records linked from change-window registers; quarterly RevOps sign-off retained 13 months in `index=audit`.",
+  "exclusions": "ABM (Account-Based Marketing) target-account engagement scoring (Demandbase / 6sense) excluded — handled in UC-23.3.6. Field-events booth-scan engagement out of scope (covered by UC-23.3.7). Customer-marketing post-sale expansion / cross-sell tracked in UC-23.5.6. Subscription renewal scoring (Gainsight) excluded — measured in UC-23.1.7."
 }
