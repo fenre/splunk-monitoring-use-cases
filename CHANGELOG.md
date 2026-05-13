@@ -12,6 +12,22 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §P4 first canary (`mypy --strict` on `src/splunk_uc/audits/`).**
+  51 audit source files now pass `mypy --strict` with zero errors at
+  HEAD. Pinned the strict bar via a new `pyproject.toml` override
+  (`[[tool.mypy.overrides]] module = "splunk_uc.audits.*"` with
+  `strict = true`, `disallow_untyped_defs = true`,
+  `warn_return_any = true`), so any future drift — untyped def,
+  implicit `Any`, un-parameterised generic — fails CI immediately.
+  The only typing changes needed were three `dict` →
+  `dict[str, Any]` parameterisations in two modules:
+  [`src/splunk_uc/audits/monitoring_type.py`](src/splunk_uc/audits/monitoring_type.py)
+  (`_has_real_mitre_mapping`, `_check_uc`) and
+  [`src/splunk_uc/audits/cim_spl_alignment.py`](src/splunk_uc/audits/cim_spl_alignment.py)
+  (`_check_uc`). Zero runtime behaviour changed. New CI step
+  `mypy --strict (P4 canary — src/splunk_uc/audits/)` lives in the
+  `lint` job of `.github/workflows/validate.yml`. The next §P4
+  burndown target is `src/splunk_uc/generators/*`.
 - **Close P0 + P2 baseline gaps (capture v8.2.0 wall-clock anchor).**
   Captured [`data/baselines/v8.2.0.json`](data/baselines/v8.2.0.json)
   at HEAD `d4a5cc677` (post-PR #18 squash), giving reviewers a

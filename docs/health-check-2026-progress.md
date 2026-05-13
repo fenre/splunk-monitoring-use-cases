@@ -66,7 +66,7 @@ F8/F16/F17) and §P2.5 (per-workflow audit document under
 | **P2** CI overhaul | **DONE** (2026-05-13) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap (P2-baselines, 2026-05-13):** closed by `data/baselines/v8.2.0.json` at HEAD `d4a5cc677` — gives reviewers a current-version anchor next to the historical v7.4.2 floor. (A future audit verb that fails CI on regression against the latest baseline is filed as ADR-0013, Q4-2026 target — not blocking the P2 close.) |
 | **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | DONE (mostly) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓; `docs/architecture-2027.md` not created (was "proposed" in plan). |
-| **P4** Typed Python pipeline | PARTIAL | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **Gaps:** `mypy --strict` not yet enabled globally; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
+| **P4** Typed Python pipeline | PARTIAL (canary green) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` is green at HEAD (51 source files, 0 errors); pyproject override `[[tool.mypy.overrides]] module = "splunk_uc.audits.*"` pins the strict bar so future drift fails CI; new step `mypy --strict (P4 canary — src/splunk_uc/audits/)` wired into `validate.yml`'s `lint` job. **Remaining gaps:** strict mode not yet enabled for the rest of `src/splunk_uc/` (next: `generators.*`); no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
 | **P5** Frontend rebuild | NOT STARTED | No `apps/web/`. F8/F16/F17 all unresolved. |
 | **P6** Scripts taxonomy | DONE | Just closed in v8.2.0 (commit `a36aa4db4`). 83-verb dispatcher + Tier 4 packaging. |
 | **P7** Server-side search + API gateway | NOT STARTED | — |
@@ -181,9 +181,17 @@ findings but should not be lost:
    partition wired. PR #8 (`85b680f5d`) then closed §P2-F19 by
    migrating all 9 remaining workflows onto the composite
    `./.github/actions/setup-python` action.
-4. **Phase 4 first canary (~150 lines):** Enable `mypy --strict` on
+4. ~~**Phase 4 first canary (~150 lines):** Enable `mypy --strict` on
    `src/splunk_uc/audits/` only (already typed-ish after the v8.2.0
-   migration); ratchet outward in subsequent PRs.
+   migration); ratchet outward in subsequent PRs.~~ **Done 2026-05-13**
+   — 51 source files green under `mypy --strict`, pyproject override
+   pinned (`[[tool.mypy.overrides]] module = "splunk_uc.audits.*"`),
+   `validate.yml` `lint` job now runs the gate per PR. The only
+   typing changes needed were three `dict` → `dict[str, Any]`
+   parameterisations in two modules (`monitoring_type.py`,
+   `cim_spl_alignment.py`); zero runtime behaviour changed. Next P4
+   canary target: `splunk_uc.generators.*` (~ same module-count
+   order of magnitude).
 5. ~~**Lay P12 groundwork (~no code, 1 PR):** Pick one of the two
    sample regimes (F22). The plan §P12 first deliverable says the
    choice itself is the deliverable.~~ **Done 2026-05-13** —

@@ -25,7 +25,7 @@ import argparse
 import re
 import sys
 from collections import Counter
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from splunk_uc.audits._uc_walk import get_list_field, iter_uc_sidecars
 
@@ -78,7 +78,7 @@ class Finding(NamedTuple):
     snippet: str = ""
 
 
-def _has_real_mitre_mapping(payload: dict) -> bool:
+def _has_real_mitre_mapping(payload: dict[str, Any]) -> bool:
     techniques = get_list_field(payload, "attackTechniques")
     for tok in techniques:
         if not isinstance(tok, str):
@@ -91,7 +91,7 @@ def _has_real_mitre_mapping(payload: dict) -> bool:
     return False
 
 
-def _check_uc(uc_id: str, file: str, payload: dict) -> list[Finding]:
+def _check_uc(uc_id: str, file: str, payload: dict[str, Any]) -> list[Finding]:
     findings: list[Finding] = []
     tokens = [t for t in get_list_field(payload, "monitoringType") if isinstance(t, str)]
 
