@@ -185,6 +185,9 @@ function buildSandbox(base, search) {
     setTimeout, clearTimeout,
     setInterval, clearInterval,
     encodeURIComponent, decodeURIComponent,
+    URL, // applyView/applyFilters wrap this in try/catch but provide the symbol so they update the URL too
+    history: { replaceState() {} },
+    navigator: { clipboard: { writeText() { return Promise.resolve(); } } },
     fetch: (url, init) => {
       const u = /^https?:/.test(url) ? url : base + "/" + url.replace(/^\//, "");
       return fetch(u, init);
@@ -289,15 +292,25 @@ async function runDetailMode(base, src, regId) {
   const seen = narrativeHeadings.filter((h) => html.indexOf(h) !== -1);
   assert(seen.length >= 2, "detail view has at least two narrative cards (got " + seen.length + "): " + seen.join(", "));
 
-  // ---- coverage ring + legend ----------------------------------------
-  assert(html.indexOf("cs-coverage-panel") !== -1,
-    "detail view renders the coverage panel");
+  // ---- coverage hero (3-up KPI strip + ring + legend) ----------------
+  assert(html.indexOf("cs-coverage-hero") !== -1,
+    "detail view renders the coverage hero panel (3-number KPI strip + ring)");
   assert(html.indexOf("cs-ring") !== -1,
-    "coverage panel includes the ring visual");
+    "coverage hero includes the ring visual");
   assert(html.indexOf("cs-legend-item") !== -1,
-    "coverage panel includes a legend");
+    "coverage hero is followed by a legend");
   assert(/--pct-full:\s*[\d.]+%/.test(html),
     "coverage ring receives a computed --pct-full CSS variable");
+  assert((html.match(/class="cs-kpi /g) || []).length >= 3,
+    "coverage hero renders the 3 KPI cards (full, partial, priority-weighted)");
+
+  // ---- trust ribbon and audience-aware section visibility ------------
+  assert(html.indexOf("cs-trust-ribbon") !== -1,
+    "detail view renders the trust ribbon (catalogue version, generated-at, provenance)");
+  assert(html.indexOf("cs-view-mobile-bar") !== -1,
+    "detail view renders the mobile audience-toggle fallback");
+  assert(html.indexOf('data-cs-show=') !== -1,
+    "detail view tags sections with data-cs-show for audience-aware visibility");
 
   // ---- highlights -----------------------------------------------------
   // GDPR's payload has five full-coverage highlights — assert at least one.
@@ -306,12 +319,16 @@ async function runDetailMode(base, src, regId) {
     "detail view renders at least one highlight card (got " + highlightCount + ")");
   assert(html.indexOf("cs-killer-uc") !== -1,
     "highlight cards link to their killer UC");
+  assert(html.indexOf("cs-permalink") !== -1,
+    "cards expose a per-clause permalink chip");
 
   // ---- gaps (may be empty for covered-in-full regs like GDPR) --------
   const hasGaps = html.indexOf('class="cs-gap-card"') !== -1;
-  const hasEmpty = html.indexOf("cs-empty-gaps") !== -1;
+  // The new empty-state replaces .cs-empty-gaps with .cs-empty-bright
+  // ("No outstanding gaps") for the all-covered case.
+  const hasEmpty = html.indexOf("cs-empty-bright") !== -1;
   assert(hasGaps || hasEmpty,
-    "detail view either renders gap cards or an 'no gaps' empty state");
+    "detail view either renders gap cards or the bright 'no outstanding gaps' empty state");
 
   // ---- playbook -------------------------------------------------------
   assert(html.indexOf("cs-playbook") !== -1,
@@ -320,6 +337,12 @@ async function runDetailMode(base, src, regId) {
     "playbook entries use <details> for collapsible rows");
   assert(html.indexOf("cs-playbook-uc-link") !== -1,
     "playbook entries link through to specific UCs");
+  assert(html.indexOf("cs-pb-toolbar") !== -1,
+    "playbook is wrapped in a filter toolbar (search + chip groups)");
+  assert(html.indexOf("cs-pb-section") !== -1,
+    "playbook is bucketed by coverage state (Deploy now / Deepen / Triangulating / Outstanding)");
+  assert(html.indexOf('id="cs-pb-search"') !== -1,
+    "playbook toolbar exposes a search input");
 
   // ---- related resources ---------------------------------------------
   assert(html.indexOf("cs-related") !== -1,
