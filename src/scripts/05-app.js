@@ -379,7 +379,7 @@ function applyInventory() {
   var ms = document.getElementById('equipment-model-select');
   var mw = document.getElementById('equipment-model-wrap');
   if (es) es.value = '';
-  if (ms) ms.innerHTML = '<option value="">All models</option>';
+  _resetEquipmentModelSelect(ms);
   if (mw) mw.style.display = 'none';
   closeInventoryModal();
   _updateSizingTray();
@@ -597,7 +597,7 @@ function goHome() {
   var ms = document.getElementById('equipment-model-select');
   var mw = document.getElementById('equipment-model-wrap');
   if (es) es.value = '';
-  if (ms) ms.innerHTML = '<option value="">All models</option>';
+  _resetEquipmentModelSelect(ms);
   if (mw) mw.style.display = 'none';
   inventorySelections = [];
   try { localStorage.removeItem(INVENTORY_STORAGE_KEY); } catch (e) {}
@@ -758,12 +758,12 @@ function onEquipmentChange() {
   var ms = document.getElementById('equipment-model-select');
   if (eq && eq.models && eq.models.length) {
     mw.style.display = 'flex';
-    ms.innerHTML = '<option value="">All models</option>';
+    _resetEquipmentModelSelect(ms);
     eq.models.forEach(function(m) { ms.innerHTML += '<option value="' + esc(m.id) + '">' + esc(m.label) + '</option>'; });
     selectedEquipmentId = val;
   } else {
     mw.style.display = 'none';
-    ms.innerHTML = '<option value="">All models</option>';
+    _resetEquipmentModelSelect(ms);
     selectedEquipmentId = val;
   }
   if (inventorySelections.length) { inventorySelections = []; _saveInventory(); _updateInventoryBadge(); }
@@ -868,7 +868,7 @@ function clearUCSelections() {
   var ms = document.getElementById('equipment-model-select');
   var mw = document.getElementById('equipment-model-wrap');
   if (es) es.value = '';
-  if (ms) ms.innerHTML = '<option value="">All models</option>';
+  _resetEquipmentModelSelect(ms);
   if (mw) mw.style.display = 'none';
   _updateSizingTray();
   document.querySelectorAll('.uc-select-cb input[type="checkbox"], .uc-tbl-cb input[type="checkbox"]').forEach(function(cb) { cb.checked = false; });

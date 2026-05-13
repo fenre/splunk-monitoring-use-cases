@@ -12,6 +12,48 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§F8 PR-A — collapse 7 static-option `innerHTML` sites into one
+  helper.** First of the two PRs that together close F8 (the second is
+  PR-B, rewriting the three `+=` append sites). All seven copies of
+  `ms.innerHTML = '<option value="">All models</option>'` in
+  `index.html` now route through one `_resetEquipmentModelSelect(ms)`
+  helper that builds the placeholder option via
+  `document.createElement` + `replaceChildren`, not raw HTML strings.
+  Behaviour-equivalent: the equipment-model-select reset still leaves
+  exactly one `"All models"` placeholder option in the DOM at every
+  call site; the in-place `+=` per-model loop at one of the seven
+  sites is untouched (it belongs to PR-B). Net effect on `index.html`:
+  ~11 LOC added (helper + comment), seven lines rewritten in place,
+  +279 bytes raw (perf-a11y budget headroom drops from 67,197 → 66,918
+  bytes; budget itself unchanged at 716,800). The
+  `grep -nE '\.innerHTML\s*=' index.html | wc -l` invariant from the F8
+  inventory drops from **29 → 22** in one go. F8 inventory doc
+  (`docs/f8-frontend-hardening-inventory.md` §PR-A) annotated as
+  `DONE 2026-05-13`; progress doc F8 row + headline bullet updated to
+  reflect the new sink count; `reports/perf-a11y.json` `actual_bytes`
+  / `headroom_bytes` for `index.html` refreshed for the new size.
+
+- **§P14 per-category CODEOWNERS routing scaffold.** Reclassifies the
+  plan §P14 row from `NOT STARTED` to `PARTIAL` by locking the first
+  half of the deliverable: per-category content stewardship.
+  `.github/CODEOWNERS` previously routed every UC under `/content/`
+  to the lead maintainer via a single catch-all rule, which made
+  domain-aligned reviewer assignment impossible — every cat-22
+  compliance edit and every cat-04 cloud-infrastructure edit pinged
+  the same person. This PR adds one `/content/cat-NN-<slug>/` row
+  per category (all 23), still pointing at `@fenre` until
+  co-maintainers join, but the *shape* is now locked: onboarding a
+  new owner is a one-line swap, not a structural refactor. A
+  matching structural test (`tests/build/test_codeowners.py`, 6
+  cases) enforces (a) every `content/cat-NN-<slug>/` directory has
+  a matching CODEOWNERS row, (b) no row uses a placeholder like
+  `@TODO`, (c) the `/content/` catch-all precedes the per-category
+  rules (CODEOWNERS resolves last-match-wins so order is
+  load-bearing), (d) the file exists, is non-empty, and carries
+  both a default `*` rule and a `/content/` catch-all. Progress
+  doc Quick-wins block + §P14 row updated. Still open under P14:
+  per-category scorecards (the second half of the deliverable).
+
 - **§P4 package-wide floor — `mypy --strict src/splunk_uc/` locked
   green.** Closes the §P4 type-debt-burndown work that was scoped
   inside the `splunk_uc.*` namespace. Two canaries earlier the same

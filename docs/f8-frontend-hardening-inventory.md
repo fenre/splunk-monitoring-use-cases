@@ -232,10 +232,20 @@ Three PRs, ordered by risk-adjusted value. PR-A + PR-B land the F8
 close; PR-C is the explicit known-cost follow-up. CSP tightening
 folds into phase **P10** (see §5) and is *not* in F8 scope.
 
-### PR-A (zero-risk, ≤15 LOC): collapse the 7 Category A sites
+### PR-A (zero-risk, ≤15 LOC): collapse the 7 Category A sites — **DONE 2026-05-13**
 
-Replace the seven copies of `ms.innerHTML = '<option value="">All models</option>'`
-with one helper:
+~~Replace the seven copies of `ms.innerHTML = '<option value="">All models</option>'`
+with one helper:~~
+
+Landed as the F8 PR-A commit (this branch). The helper now lives just
+below `esc()` near line 3617 and the seven call sites at (post-edit)
+lines 4634, 4660, 6297, 6515, 6687, 6692, 6786 all dispatch through it.
+`grep -nE '\.innerHTML\s*=' index.html | wc -l` dropped from **29 → 22**;
+no change to a11y, no change to user-facing behaviour. The `ms.innerHTML
+= '<option value="">All models</option>'` pattern is now invariant-
+violated by the structure of the helper — adding it back would require
+re-introducing a raw-HTML string write, which is the exact thing P10
+will gate against once Trusted Types lands.
 
 ```javascript
 function _resetEquipmentModelSelect(ms) {
@@ -247,11 +257,11 @@ function _resetEquipmentModelSelect(ms) {
 }
 ```
 
-Then call `_resetEquipmentModelSelect(ms)` at lines 4594, 4620, 6259,
-6477, 6638, 6643, 6748. Net: ~6 LOC added, ~7 LOC removed, behaviour
-identical, no XSS surface reduction but the file gets one less
-"raw HTML string" pattern to grep for. Bonus: makes the equipment-
-model-select reset semantics introspectable from a single source.
+Net: ~11 LOC added (the helper + comment), 7 lines rewritten in place
+(each `ms.innerHTML = '<option ...>'` → `_resetEquipmentModelSelect(ms)`).
+The file gets one less "raw HTML string" pattern to grep for. Bonus: the
+equipment-model-select reset semantics are now introspectable from a
+single source.
 
 ### PR-B (low-risk, ~50 LOC): fix the two Category D `+=` sites
 

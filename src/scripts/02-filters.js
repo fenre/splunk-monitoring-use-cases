@@ -838,7 +838,7 @@ function clearEquipmentFilter() {
   var ms = document.getElementById('equipment-model-select');
   var mw = document.getElementById('equipment-model-wrap');
   if (es) es.value = '';
-  if (ms) ms.innerHTML = '<option value="">All models</option>';
+  _resetEquipmentModelSelect(ms);
   if (mw) mw.style.display = 'none';
   if (typeof reRender === 'function') reRender();
 }
@@ -864,7 +864,7 @@ function clearAllFilters() {
   var ms = document.getElementById('equipment-model-select');
   var mw = document.getElementById('equipment-model-wrap');
   if (es) es.value = '';
-  if (ms) ms.innerHTML = '<option value="">All models</option>';
+  _resetEquipmentModelSelect(ms);
   if (mw) mw.style.display = 'none';
   if (inventorySelections.length) { inventorySelections = []; try { localStorage.removeItem(INVENTORY_STORAGE_KEY); } catch (e2) {} }
   _updateInventoryBadge();
