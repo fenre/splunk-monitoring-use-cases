@@ -290,11 +290,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.42.1.json`](../../content/cat-22-regulatory-compliance/UC-22.42.1.json)
 <a id='uc-22-45-3'></a>
-- **UC-22.45.3** — Backup completeness — unprotected workloads with regulated data
-  - Control family: `backup-restore-evidence`
-  - Owner: `Head of IT Operations`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.45.3.json`](../../content/cat-22-regulatory-compliance/UC-22.45.3.json)
+- **UC-22.45.3** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
 <a id='uc-22-47-2'></a>
 - **UC-22.47.2** — Repeat audit findings — same control deficiency across consecutive audit cycles
   - Control family: `policy-to-control-traceability`

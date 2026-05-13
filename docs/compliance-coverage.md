@@ -1,6 +1,6 @@
 # Compliance coverage report
 
-_Generated: 2026-05-11T09:35:17Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-05-13T10:49:40Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
@@ -8,7 +8,7 @@ Status: **passed**
 
 * UC files checked: **7677**
 * UC files valid:   **7677**
-* Compliance entries: **2343**
+* Compliance entries: **2347**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
@@ -16,13 +16,13 @@ Status: **passed**
 
 * Clause coverage %: **100.0**
 * Priority-weighted %: **100.0**
-* Assurance-adjusted %: **66.2637**
+* Assurance-adjusted %: **66.1264**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 74.5221 |
+| tier-1 | 100.0 | 100.0 | 74.2945 |
 | tier-2 | 100.0 | 100.0 | 53.7342 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -57,7 +57,7 @@ Status: **passed**
 | gdpr | 100.0 | 100.0 | 68.6111 |
 | glba | 100.0 | 100.0 | 50.0 |
 | hipaa-privacy | 100.0 | 100.0 | 44.8529 |
-| hipaa-security | 100.0 | 100.0 | 68.4783 |
+| hipaa-security | 100.0 | 100.0 | 64.8551 |
 | hitrust | 100.0 | 100.0 | 75.0 |
 | hkma-tm-g-2 | 100.0 | 100.0 | 50.0 |
 | iec-62443 | 100.0 | 100.0 | 63.5135 |
@@ -128,7 +128,7 @@ Status: **passed**
 | GDPR@2016/679 | 1 | 100.0 | 100.0 | 73.2659 |
 | GLBA@16 CFR 314 (2023 amendments) | 2 | 100.0 | 100.0 | 50.0 |
 | HIPAA Privacy@current | 2 | 100.0 | 100.0 | 44.8529 |
-| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 68.4783 |
+| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 64.8551 |
 | HITRUST@v11 | 2 | 100.0 | 100.0 | 75.0 |
 | HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 50.0 |
 | IEC 62443@2013-ongoing | 2 | 100.0 | 100.0 | 63.5135 |

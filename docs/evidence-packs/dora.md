@@ -42,7 +42,7 @@ Over 20 types of financial entities: credit institutions, investment firms, paym
 - **Clauses tracked**: 14
 - **Clauses covered by at least one UC**: 14 / 14 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 63
+- **Contributing UCs**: 65
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -59,11 +59,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.9`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.9) | Protection and prevention | 1.0 | `full` | [UC-17.1.29](#uc-17-1-29), [UC-17.1.36](#uc-17-1-36), [UC-17.1.40](#uc-17-1-40), [UC-17.1.44](#uc-17-1-44), [UC-22.11.97](#uc-22-11-97), [UC-22.3.1](#uc-22-3-1) (+1 more) |
 | [`Art.10`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.10) | Detection | 1.0 | `full` | [UC-17.1.33](#uc-17-1-33), [UC-22.3.1](#uc-22-3-1), [UC-22.3.47](#uc-22-3-47), [UC-22.3.7](#uc-22-3-7), [UC-22.8.33](#uc-22-8-33) |
 | [`Art.11`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.11) | Response and recovery | 1.0 | `contributing` | [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.8](#uc-22-3-8) |
-| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-17.1.47](#uc-17-1-47), [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1) (+1 more) |
+| [`Art.12`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.12) | Backup policies and recovery methods | 1.0 | `full` | [UC-17.1.47](#uc-17-1-47), [UC-22.3.1](#uc-22-3-1), [UC-22.3.5](#uc-22-3-5), [UC-22.3.9](#uc-22-3-9), [UC-22.35.3](#uc-22-35-3), [UC-22.45.1](#uc-22-45-1) (+2 more) |
 | [`Art.17`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.17) | ICT-related incident management process | 1.0 | `full` | [UC-17.1.30](#uc-17-1-30), [UC-17.1.42](#uc-17-1-42), [UC-17.1.80](#uc-17-1-80), [UC-17.1.82](#uc-17-1-82), [UC-22.3.2](#uc-22-3-2), [UC-22.3.23](#uc-22-3-23) (+2 more) |
 | [`Art.18`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.18) | Classification of ICT-related incidents | 1.0 | `contributing` | [UC-22.3.11](#uc-22-3-11), [UC-22.3.2](#uc-22-3-2) |
 | [`Art.19`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.19) | Reporting of major ICT-related incidents | 1.0 | `full` | [UC-22.3.12](#uc-22-3-12), [UC-22.3.2](#uc-22-3-2), [UC-22.3.38](#uc-22-3-38), [UC-22.39.1](#uc-22-39-1) |
-| [`Art.24`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.24) | Digital operational-resilience testing | 0.7 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.3.25](#uc-22-3-25), [UC-22.3.27](#uc-22-3-27), [UC-22.3.28](#uc-22-3-28), [UC-22.3.3](#uc-22-3-3), [UC-22.3.39](#uc-22-3-39) (+1 more) |
+| [`Art.24`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.24) | Digital operational-resilience testing | 0.7 | `full` | [UC-22.11.105](#uc-22-11-105), [UC-22.3.25](#uc-22-3-25), [UC-22.3.27](#uc-22-3-27), [UC-22.3.28](#uc-22-3-28), [UC-22.3.3](#uc-22-3-3), [UC-22.3.39](#uc-22-3-39) (+2 more) |
 | [`Art.26`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.26) | Threat-led penetration testing | 0.7 | `contributing` | [UC-22.3.17](#uc-22-3-17), [UC-22.3.3](#uc-22-3-3) |
 | [`Art.28`](https://eur-lex.europa.eu/eli/reg/2022/2554/oj#Art.28) | ICT third-party risk | 1.0 | `full` | [UC-17.1.60](#uc-17-1-60), [UC-17.1.62](#uc-17-1-62), [UC-22.3.4](#uc-22-3-4), [UC-22.3.40](#uc-22-3-40), [UC-22.38.3](#uc-22-38-3), [UC-22.44.1](#uc-22-44-1) (+2 more) |
 
@@ -418,17 +418,29 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.44.3.json`](../../content/cat-22-regulatory-compliance/UC-22.44.3.json)
 <a id='uc-22-45-1'></a>
-- **UC-22.45.1** — Backup restore test evidence — RPO/RTO SLA compliance per tier
+- **UC-22.45.1** — Backup restore-test evidence — RPO/RTO SLO compliance per recovery tier
   - Control family: `backup-restore-evidence`
   - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.45.1.json`](../../content/cat-22-regulatory-compliance/UC-22.45.1.json)
+<a id='uc-22-45-2'></a>
+- **UC-22.45.2** — Backup immutability and air-gap integrity — tamper, lock-violation, and checksum-failure detection
+  - Control family: `backup-restore-evidence`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.45.2.json`](../../content/cat-22-regulatory-compliance/UC-22.45.2.json)
 <a id='uc-22-45-3'></a>
-- **UC-22.45.3** — Backup completeness — unprotected workloads with regulated data
+- **UC-22.45.3** — Backup coverage gap — regulated workloads with no successful backup in the protection window
   - Control family: `backup-restore-evidence`
   - Owner: `Head of IT Operations`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.45.3.json`](../../content/cat-22-regulatory-compliance/UC-22.45.3.json)
+<a id='uc-22-45-5'></a>
+- **UC-22.45.5** — Business-continuity rehearsal evidence — overdue BCP/DR exercises per business unit with signed attestation
+  - Control family: `backup-restore-evidence`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.45.5.json`](../../content/cat-22-regulatory-compliance/UC-22.45.5.json)
 <a id='uc-22-6-46'></a>
 - **UC-22.6.46** — ISO/IEC 27001:2022<sup class="ref">[<a href="#ref-8">8</a>]</sup> Clause 6.1 — Risk-assessment evidence: live risk register decay
   - Control family: `board-exec-reporting`
