@@ -3626,6 +3626,47 @@ function _resetEquipmentModelSelect(ms) {
   opt.textContent = 'All models';
   ms.replaceChildren(opt);
 }
+// Append one <option value="m.id">m.label</option> to the equipment-model
+// <select> by building the node via createElement (label set via
+// textContent, never parsed as HTML). Replaces the only `+= '<option …>'`
+// loop in the file — see docs/f8-frontend-hardening-inventory.md §PR-B.
+function _appendEquipmentModelOption(ms, model) {
+  if (!ms || !model) return;
+  var opt = document.createElement('option');
+  opt.value = String(model.id == null ? '' : model.id);
+  opt.textContent = String(model.label == null ? '' : model.label);
+  ms.appendChild(opt);
+}
+// Build a small "My Equipment" inline link with an addEventListener-based
+// click handler. Replaces inline `onclick="event.preventDefault();
+// openInventoryModal()"` HTML attributes that were previously built via
+// `innerHTML += '…<a onclick=…>…</a>…'` — see PR-B inventory entry.
+function _makeInventoryLink(label) {
+  var a = document.createElement('a');
+  a.href = '#';
+  a.style.color = 'var(--cisco-blue)';
+  a.style.textDecoration = 'underline';
+  a.textContent = String(label);
+  a.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    openInventoryModal();
+  });
+  return a;
+}
+// Append a `<br><span class=hint>…</span>` block to `parent`, where the
+// span body is constructed by the `build(span)` callback via DOM
+// methods. Used by the two `countEl.innerHTML += '<br><span …>…</span>'`
+// sites in the data-sizing summary — see PR-B inventory entry.
+function _appendSizingHintSpan(parent, build) {
+  if (!parent) return;
+  parent.appendChild(document.createElement('br'));
+  var span = document.createElement('span');
+  span.style.fontSize = '11px';
+  span.style.color = 'var(--text-tertiary)';
+  span.style.fontWeight = '400';
+  build(span);
+  parent.appendChild(span);
+}
 function stripMd(s) {
   if (!s) return '';
   return String(s).replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
@@ -6677,7 +6718,7 @@ function onEquipmentChange() {
   if (eq && eq.models && eq.models.length) {
     mw.style.display = 'flex';
     _resetEquipmentModelSelect(ms);
-    eq.models.forEach(function(m) { ms.innerHTML += '<option value="' + esc(m.id) + '">' + esc(m.label) + '</option>'; });
+    eq.models.forEach(function(m) { _appendEquipmentModelOption(ms, m); });
     selectedEquipmentId = val;
   } else {
     mw.style.display = 'none';
@@ -6819,19 +6860,31 @@ function _updateSizingTray() {
       if (hasDsaSources) {
         summary += ' \u2014 ' + dsaSources.size + ' data source' + (dsaSources.size !== 1 ? 's' : '') + ' for sizing';
       }
-      countEl.innerHTML = summary;
+      countEl.textContent = summary;
       if (!hasDsaSources && count > 0 && invCount === 0) {
-        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
-          + 'These use cases don\u2019t have data sources mapped yet. Add equipment via '
-          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + ' to include data sources, or open the <a href="' + _dataSizingURL('') + '" target="_blank" style="color:var(--cisco-blue);text-decoration:underline">Data Sizing Tool</a>'
-          + ' to select industrial data sources directly.</span>';
+        _appendSizingHintSpan(countEl, function(span) {
+          span.appendChild(document.createTextNode('These use cases don\u2019t have data sources mapped yet. Add equipment via '));
+          span.appendChild(_makeInventoryLink('My Equipment'));
+          span.appendChild(document.createTextNode(' to include data sources, or open the '));
+          var aDs = document.createElement('a');
+          aDs.href = _dataSizingURL('');
+          aDs.target = '_blank';
+          aDs.style.color = 'var(--cisco-blue)';
+          aDs.style.textDecoration = 'underline';
+          aDs.textContent = 'Data Sizing Tool';
+          span.appendChild(aDs);
+          span.appendChild(document.createTextNode(' to select industrial data sources directly.'));
+        });
       } else if (ucsUnmapped > 0 && hasDsaSources) {
-        countEl.innerHTML += '<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400">'
-          + ucsUnmapped + ' of ' + count + ' selected use case' + (count !== 1 ? 's' : '') + ' don\u2019t have data sources mapped. '
-          + 'Their data volume can be estimated by adding relevant equipment in '
-          + '<a href="#" onclick="event.preventDefault();openInventoryModal()" style="color:var(--cisco-blue);text-decoration:underline">My Equipment</a>'
-          + '.</span>';
+        _appendSizingHintSpan(countEl, function(span) {
+          span.appendChild(document.createTextNode(
+            ucsUnmapped + ' of ' + count + ' selected use case' + (count !== 1 ? 's' : '') +
+            ' don\u2019t have data sources mapped. ' +
+            'Their data volume can be estimated by adding relevant equipment in '
+          ));
+          span.appendChild(_makeInventoryLink('My Equipment'));
+          span.appendChild(document.createTextNode('.'));
+        });
       }
     } else {
       countEl.textContent = 'Select use cases or inventory to estimate data sizing';

@@ -263,19 +263,101 @@ The file gets one less "raw HTML string" pattern to grep for. Bonus: the
 equipment-model-select reset semantics are now introspectable from a
 single source.
 
-### PR-B (low-risk, ~50 LOC): fix the two Category D `+=` sites
+### PR-B (low-risk, ~50 LOC): fix the Category D `+=` and `=` sites — **DONE 2026-05-13**
 
-Rewrite the `countEl.innerHTML += '<br><span …>…</span>'` blocks at
-lines 6783 and 6789 to build the auxiliary `<span>` via `document.
-createElement` and append it to `countEl`. The `summary` string written
-to `innerHTML` on line 6781 already only contains numeric strings and
-spaces — but folding it into the DOM-build path removes the implicit
-re-parse that `+=` triggers.
+Landed as the F8 PR-B commit (this branch, stacked on PR-A). Three new
+helpers now live just below `_resetEquipmentModelSelect` near line 3633:
 
-Same for the `eq.models.forEach(function(m) { ms.innerHTML += '<option …>'; })`
-loop at line 6639: rewrite as `ms.append(document.createElement('option'))`
-inside the loop. This is the only loop in the file that issues a fresh
-`innerHTML` write per iteration; the perf win is small but real.
+```javascript
+function _appendEquipmentModelOption(ms, model) {
+  if (!ms || !model) return;
+  var opt = document.createElement('option');
+  opt.value = String(model.id == null ? '' : model.id);
+  opt.textContent = String(model.label == null ? '' : model.label);
+  ms.appendChild(opt);
+}
+function _makeInventoryLink(label) {
+  var a = document.createElement('a');
+  a.href = '#';
+  a.style.color = 'var(--cisco-blue)';
+  a.style.textDecoration = 'underline';
+  a.textContent = String(label);
+  a.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    openInventoryModal();
+  });
+  return a;
+}
+function _appendSizingHintSpan(parent, build) {
+  if (!parent) return;
+  parent.appendChild(document.createElement('br'));
+  var span = document.createElement('span');
+  span.style.fontSize = '11px';
+  span.style.color = 'var(--text-tertiary)';
+  span.style.fontWeight = '400';
+  build(span);
+  parent.appendChild(span);
+}
+```
+
+Four sink rewrites:
+
+- **Per-model option loop** (was line 6639 on the audit head, post-PR-A
+  line 6680). The `eq.models.forEach(function(m) { ms.innerHTML += …; })`
+  loop is replaced by
+  `eq.models.forEach(function(m) { _appendEquipmentModelOption(ms, m); });`.
+  This eliminates the only `innerHTML +=` loop in the file — the implicit
+  re-parse on every iteration is gone, and the model label is now set via
+  `textContent` (never parsed as HTML).
+- **Data-sizing summary write** (was line 6781 on the audit head, post-
+  PR-A line 6822). `countEl.innerHTML = summary;` → `countEl.textContent
+  = summary;`. The `summary` is numeric counts joined with " selected" /
+  " — N data source(s) for sizing", so `textContent` is correct.
+- **First sizing hint** (was line 6783, post-PR-A line 6824).
+  `countEl.innerHTML += '<br><span …>… <a onclick=…>My Equipment</a> …
+  <a href=…>Data Sizing Tool</a> …</span>'` → `_appendSizingHintSpan(…,
+  function(span) { … })`. The "My Equipment" inline link no longer uses
+  an inline `onclick` HTML attribute; it now binds via
+  `addEventListener` inside `_makeInventoryLink`.
+- **Second sizing hint** (was line 6789, post-PR-A line 6830). Same
+  rewrite pattern, simpler body (one inline link, no Data Sizing Tool
+  link). Counts (`ucsUnmapped`, `count`) flow into the span via a
+  single `createTextNode` so the numbers can never be parsed as HTML.
+
+Counter movement after PR-B (post-edit at this branch head):
+
+- `grep -nE '\.innerHTML\s*=' index.html | wc -l`: **22 → 21**
+  (one fewer `=` site at the old line 6781).
+- `grep -nE '\.innerHTML\s*\+=' index.html | wc -l`: **3 → 0** code
+  sites (the only residual match is the docstring comment line in the
+  `_appendSizingHintSpan` helper). With PR-B landed, **all `+=` /
+  `innerHTML`-extension writes in the file are gone**; the only ways
+  to add new HTML to a node are now `createElement` + `appendChild` /
+  `replaceChildren`, or one of the controlled `innerHTML =`
+  category-C sites that route through `esc()`.
+- `index.html` size: 649,882 B → **651,770 B** (+1,888 B, three new
+  helper functions + four rewritten call sites).
+- `index.html` perf-a11y headroom: 66,918 B → **65,030 B**; budget
+  unchanged at 716,800 B. Still ~9% slack.
+
+Defense-in-depth wins beyond the F8 grep counter:
+
+1. The two inline `onclick="event.preventDefault();
+   openInventoryModal()"` HTML attributes on the "My Equipment" links
+   are gone. Those were the *only* two inline-handler attributes
+   bound at runtime by `innerHTML +=` writes — the rest of the 104
+   inline handlers tracked in §4 are baked into the `<head>` /
+   static parts of `index.html` and can be migrated as part of P10.
+2. Every per-iteration model label and the every "X of Y" count is
+   now set via `textContent` or `createTextNode`, not interpolated
+   into an HTML string. Even though catalog `model.id` / `model.label`
+   never contained HTML metacharacters in the audit-head sample,
+   the migration tightens that invariant from "must call `esc()`"
+   to "the data path physically can't reach a parser".
+
+F8 close criteria now satisfied: PR-A + PR-B landed. PR-C (the
+virtual-scroll-renderer `<template>` rewrite) remains the explicit
+known-cost follow-up tracked in the next subsection, not blocking F8.
 
 ### PR-C (medium-risk, ~500 LOC): replace HTML-string concatenation with `<template>` cloning in the virtual-scroll renderer
 
