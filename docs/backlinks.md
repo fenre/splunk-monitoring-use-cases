@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_198 pages indexed; 125 have at least one inbound link; 413 unique source→target edges._
+_198 pages indexed; 125 have at least one inbound link; 415 unique source→target edges._
 
 ---
 
@@ -168,6 +168,7 @@ _No inbound links yet._
 
 ## `docs/adr/0010-sample-and-sample-data-co-exist.md`
 
+- [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`samples/README.md`](../samples/README.md)
@@ -175,6 +176,7 @@ _No inbound links yet._
 ## `docs/adr/0011-schema-lineage-governance.md`
 
 - [`CHANGELOG.md`](../CHANGELOG.md)
+- [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`docs/schema-versioning.md`](schema-versioning.md)

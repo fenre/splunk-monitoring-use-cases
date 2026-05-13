@@ -229,6 +229,7 @@ under §P12.
 
 ### Cited by
 
+- [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/health-check-2026-progress.md`](../health-check-2026-progress.md)
 - [`samples/README.md`](../../samples/README.md)

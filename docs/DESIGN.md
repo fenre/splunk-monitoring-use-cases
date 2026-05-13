@@ -718,6 +718,8 @@ Architecture Decision Records live under [`docs/adr/`](adr/). Each ADR follows t
 | [ADR-0007](adr/0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
 | [ADR-0008](adr/0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
 | [ADR-0009](adr/0009-generated-artefact-policy.md) | Generated artefacts are uncommitted by default; published via Pages or Releases with provenance | Accepted |
+| [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) | `samples/` and `sample-data/` are separate, complementary regimes (closes F22) | Accepted |
+| [ADR-0011](adr/0011-schema-lineage-governance.md) | Schema lineage governance — ratify the lifecycle contract (closes F23) | Accepted |
 
 ---
 
@@ -822,6 +824,8 @@ This list is exhaustive for the purpose of adding content, automations, or expor
 - [`docs/adr/0007-json-as-source-of-truth.md`](adr/0007-json-as-source-of-truth.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
+- [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
+- [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/architecture.md`](architecture.md)
 - [`docs/catalog-schema.md`](catalog-schema.md)
 - [`docs/implementation-ordering.md`](implementation-ordering.md)
