@@ -12,6 +12,27 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§P4 second canary — `mypy --strict src/splunk_uc/generators/`
+  locked green.** Extends the type-debt burndown started 2026-05-13
+  with the audits canary. All 17 generator modules (`gap_analysis`,
+  `recommender_app`, `evidence_packs`, `stewardship_digest`, `mapping_ledger`,
+  `splunkbase_mappings`, `clause_index`, `equipment_tags`,
+  `grandma_explanations`, `manifest_samples`, `md_from_json`,
+  `phase3_1_backfill`, `phase3_2_cross_cutting`, `phase3_3_derivatives`,
+  `scorecard`, `story_payload`, plus `__init__`) now pass
+  `mypy --strict` with zero errors after a single one-line fix:
+  `seen_ids: set` → `seen_ids: set[str]` in
+  `recommender_app._gsa_load_ucs`. Pyproject gains a second
+  `[[tool.mypy.overrides]] module = "splunk_uc.generators.*"`
+  override (`strict = true`, `disallow_untyped_defs = true`,
+  `warn_return_any = true`) that mirrors the audits one so any future
+  drift in either package fails CI per PR. The `validate.yml` `lint`
+  job's strict step now lints `splunk_uc.audits.*` + `splunk_uc.generators.*`
+  together (68 source files, ~23 kLOC type-clean). Progress doc
+  (`docs/health-check-2026-progress.md` §P4 row + Quick-wins block)
+  updated to reflect the closure. Zero runtime behaviour changed.
+  Next §P4 burndown target: `splunk_uc.ingest.*`.
+
 - **§P11 OSS release polish — partial closure.** Reclassifies the
   plan §P11 row from `NOT STARTED` to `PARTIAL` and fixes the one
   real bug under it: the `.devcontainer/devcontainer.json`

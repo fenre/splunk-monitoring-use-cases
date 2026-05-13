@@ -109,7 +109,7 @@ def _gsa_uc_sort_key(uc: Mapping[str, Any]) -> tuple[int, ...]:
 
 
 def _gsa_load_ucs() -> list[dict[str, Any]]:
-    seen_ids: set = set()
+    seen_ids: set[str] = set()
     items: list[dict[str, Any]] = []
 
     def _ingest(root: pathlib.Path, glob: str) -> None:
