@@ -161,9 +161,28 @@
     var stubCat = (window.DATA || []).find(function(c) { return c.i === catId; });
     if (!stubCat) return;
 
+    // cat-22 (regulatory compliance) intentionally emits duplicate sub
+    // entries on the same id (e.g. "22.3" appears twice — DORA core +
+    // DORA-extended-clauses). _populateGlobalsFromIndex resolves those
+    // down to ONE canonical bucket per id (last-write-wins via
+    // subIndex[]), so the merge has to mirror that: build the lookup
+    // keyed by sub.i (last wins), seed _ucMap once per *bucket*, walk
+    // every fullSub against the canonical bucket, and only delete
+    // _ucMap in a single final pass after all of catFull.s has been
+    // processed. The previous implementation deleted _ucMap inside
+    // the catFull.s loop, which crashed on the second occurrence of a
+    // duplicate sub id (the same stubSub then had _ucMap === undefined
+    // and `stubSub._ucMap[fullUC.i]` threw). The crash rejected the
+    // lazy-load promise and the detail panel never re-rendered the
+    // heavy fields (SPL, implementation, references) for any UC under
+    // the duplicated subcategory — the symptom users hit when they
+    // clicked through to a UC from compliance-story.html.
     var stubSubMap = {};
     stubCat.s.forEach(function(sub) {
       stubSubMap[sub.i] = sub;
+    });
+    Object.keys(stubSubMap).forEach(function(subId) {
+      var sub = stubSubMap[subId];
       sub._ucMap = {};
       sub.u.forEach(function(uc, idx) { sub._ucMap[uc.i] = idx; });
     });
@@ -189,7 +208,8 @@
           stubSub._ucMap[fullUC.i] = stubSub.u.length - 1;
         }
       });
-      delete stubSub._ucMap;
     });
+
+    stubCat.s.forEach(function(sub) { delete sub._ucMap; });
   }
 })();

@@ -86,146 +86,41 @@ the release notes block in `index.html` by hand.
   `mypy --strict (P4 canary — src/splunk_uc/audits/)` lives in the
   `lint` job of `.github/workflows/validate.yml`. The next §P4
   burndown target is `src/splunk_uc/generators/*`.
-- **Close P0 + P2 baseline gaps (capture v8.2.0 wall-clock anchor).**
-  Captured [`data/baselines/v8.2.0.json`](data/baselines/v8.2.0.json)
-  at HEAD `d4a5cc677` (post-PR #18 squash), giving reviewers a
-  current-version anchor next to the v7.4.2 historical floor.
-  The capture validates against
-  [`schemas/baselines.schema.json`](schemas/baselines.schema.json).
-  Pruned the dead `dist/data.js` entry from
-  `tools/capture_baselines.py:TRACKED_FILES` (the build pipeline
-  evicts any stale copy at
-  [`tools/build/build.py` lines 475-480](tools/build/build.py)) so
-  future captures don't perpetually record `null` for an artefact
-  that no longer ships. Added a new `make baseline` target so the
-  `docs/baselines-howto.md` quick-start (`make baseline`) is no
-  longer aspirational. Two P0 / P2 "remaining gap" rows in
-  `docs/health-check-2026-progress.md` flip from PARTIAL to DONE
-  (2026-05-13); a follow-on ADR-0013 (Q4-2026 target) will add the
-  optional regression-detection audit verb against the latest
-  baseline.
-- **Close F22 (two parallel sample regimes — ADR-0010).** Authored
-  [`docs/adr/0010-sample-and-sample-data-co-exist.md`](docs/adr/0010-sample-and-sample-data-co-exist.md)
-  ratifying the existing split: `samples/UC-X.Y.Z/` is the canonical
-  home for raw-event SPL fixtures consumed by `uc-tests.yml` and
-  `samples_index.py`; `sample-data/uc-<id>-fixture.json` is the
-  canonical home for compliance-control evidence fixtures referenced
-  by `controlTest.fixtureRef` on cat-22 UC sidecars. The ADR
-  mechanically forbids cross-tree references and defers the
-  schema-shape rationalisation inside `sample-data/` (three observed
-  shapes today — `positive`/`negative`, `events_positive`/`events_negative`,
-  and `positiveCase`/`negativeCase`) to follow-on ADR-0011 (Q3-2026
-  target). Both `samples/README.md` and `sample-data/README.md` now
-  open with a cross-link to the other tree and a citation of ADR-0010,
-  so a new contributor cannot accidentally guess "the wrong" tree.
-  `docs/adr/README.md` indexes the new ADR. `docs/health-check-2026-progress.md`
-  flips F22 from NOT DONE to DONE (2026-05-13).
-- **Close §P2.5 (workflow audit doc).** Added
-  [`docs/workflow-audit.md`](docs/workflow-audit.md), a single-page
-  reference covering every workflow under `.github/workflows/` (now 14
-  in total). The doc carries a per-workflow inventory table
-  (purpose / trigger / cadence / runs-on / timeout / writes-to-repo /
-  pinned-third-party-actions), a Monday-cluster + Tuesday-backstop
-  cadence calendar, a third-party SHA-pin map covering all 14
-  distinct external action references (11 SHA values; the three
-  `github/codeql-action/*` entries share one upstream SHA), a
-  composite-actions summary, and a "How to keep this doc honest"
-  maintainer playbook. The companion `docs/ci-architecture.md` has
-  been extended with the two previously-missing rows in its TL;DR
-  (`stewardship.yml`, `build-reproducibility.yml`), gained a brief
-  per-workflow `## Stewardship.yml` and `## Build-reproducibility.yml`
-  section so the TL;DR anchors resolve, and cross-links the new
-  audit doc from both its banner and its `## See also` block.
-  `docs/health-check-2026-progress.md` flips P2.5 from PARTIAL to
-  DONE (2026-05-13).
-- **Refresh `docs/health-check-2026-progress.md` (P2.5 closure +
-  Dependabot rollup).** Appended drift-ledger entry #9 recording that
-  all 10 Dependabot security alerts surfaced when the dependency
-  graph was enabled (9 HIGH, 1 MEDIUM) have been closed via four
-  merged PRs (`mcp` 1.8.1 → 1.27.1, `basic-ftp` 5.2.0 → 5.3.1,
-  `fast-uri` 3.1.0 → 3.1.2, `ip-address` 10.1.0 → 10.2.0). PR #17
-  squash-merged the dev-only npm-deps hygiene bump together with the
-  required `reports/perf-a11y.json` snapshot refresh. Method note
-  refreshed to record the new HEAD baseline.
-- **Close F10 (`.cursorignore` covers secrets / dotenv files).** Added an
-  explicit "Secrets and local environment overrides" block at the end of
-  `.cursorignore` listing `secrets.env`, `secrets.env.local`, `.env`,
-  `.env.local`, and `.env.*.local`. `.gitignore` lines 88-90 already
-  block these from commits; the new block ensures the Cursor agent's
-  own index also excludes them, so a stray `Read` / search request
-  cannot surface credentials. Verified at HEAD: `secrets.env` exists
-  locally (1085 bytes), is gitignored, and is now `.cursorignore`'d as
-  well.
-- **Refresh `docs/health-check-2026-progress.md` (4 closures recorded).**
-  Updated F10 (NOT DONE → DONE), F12 (NOT DONE → DONE, PR-5 commit
-  `62c95b5e0`), F18 (NOT DONE → DONE, root `openapi.yaml` already
-  carries the `**Status: legacy (hand-maintained)**` block at line 16),
-  and F19 (PARTIAL → DONE, PR #8 commit `85b680f5d`). Rolled P0 and P2
-  status forward; bumped P2.5 from NOT DONE to PARTIAL (composite
-  migration done, per-workflow audit doc still missing). Added drift
-  ledger entries 6 (F10), 7 (F19), and 8 (dependency-graph manual
-  enablement that unblocked the dependency-review gate on PR #8 and
-  the open Dependabot PRs #2/#3/#7).
-- **Close F19 (composite-action migration complete).** Every workflow
-  under `.github/workflows/*.yml` now consumes
-  `./.github/actions/setup-python` instead of pinning
-  `actions/setup-python@<sha>` directly. Nine remaining call-sites
-  migrated in this commit (`build-reproducibility`, `link-check`,
-  `pages`, `regulatory-watch`, `release`, `stewardship`, `traffic`,
-  `uc-manifest`, `uc-tests`); the other three (`validate`, `codeql`,
-  `splunkbase-sync`) had already been migrated under §P2 / PR-5. The
-  three workflows that previously open-coded `pip install
-  jsonschema==4.23.0` (`stewardship`, `regulatory-watch`,
-  `build-reproducibility`) now request `install-audits: "true"` and
-  inherit the requirements-ci.txt pin — same package, same version,
-  centralised. `uc-tests` likewise drops its open-coded
-  `pip install "pyyaml>=6.0"` in favour of the pinned `PyYAML==6.0.2`
-  shipped via `install-audits`. The previously-skipped guard
-  `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly`
-  becomes the lock-in: any future PR that re-introduces a raw
-  `actions/setup-python@<sha>` pin in any workflow fails the test in
-  the `audits-content` job. `python3 -m splunk_uc audit-action-pins`
-  reports 16/16 (action, tag, SHA) tuples verified against GitHub
-  upstream, and `tests/build/test_composite_actions.py` (19 tests) +
-  `tests/build/test_validate_workflow_partition.py` (72 tests) pass.
-- **Add `docs/health-check-2026-progress.md`** — verified plan-progress
-  audit covering every finding F1–F23 and every phase P0–P19 from the
-  repo-overhaul plan, with file:line evidence at HEAD `a36aa4db4`
-  (v8.2.0). Becomes the permanent reference to prevent rework on
-  already-closed plan items.
-- **Close F7 (CI quality gates no longer non-blocking).** Removed both
-  `continue-on-error: true` flags from `.github/workflows/validate.yml`
-  — the one on `audit-gold-profile --summary` (which was always
-  redundant, since `--summary` exits 0 by design) and the one on
-  `generate-md-from-json --check` (which was a transition-period
-  allowance that is no longer needed now that all 7,677 `.md` /
-  `.json` companion pairs are tracked in lockstep). Drift in the
-  markdown twins now blocks the PR. `rg "^\s*continue-on-error:\s*true"
-  .github` returns zero matches across the entire workflows directory.
-- **Refresh `ROADMAP.md` to v8.2.0.** The "Current release" section had
-  drifted three minor versions stale (still v7.1 from 2026-04-20).
-  Demoted v7.1 into "Previous releases" and wrote a tight v8.2.0
-  summary at the top. Renamed the in-progress and backlog headings
-  forward to v8.3 / v8.4+ to satisfy the `audit-roadmap-consistency`
-  contract; replaced the two remaining "v7.2 target" body-text
-  references with version-agnostic phrasing. `audit-roadmap-consistency
-  --check` passes.
-- **Drop the vestigial `_legacy_module()` references left over from
-  F1 closure.** Removed `reset_legacy_module_cache()` from
-  `tools/build/parse_content.py` (function body, `__all__` entry, and
-  the dependent `_LOADER_LEGACY` constant — all dead since the root
-  `build.py` was deleted in v8.0.0). Rewrote the stale module
-  docstring in `tools/build/enrichment.py` so it no longer references
-  the "deprecated `_legacy_module()` dynamic import" and the
-  prohibition on importing from root `build.py` (root `build.py` does
-  not exist any more). Removed the obsolete "Transitional behaviour
-  (v7.0-dev)" block from `tools/build/build.py` that described loading
-  the v6 root `build.py` via `importlib`. Net: 30 lines deleted, 12
-  added (docstring rewrite). `rg
-  "reset_legacy_module_cache|_LOADER_LEGACY|_legacy_build"` returns
-  zero matches across `tools/ src/ mcp/ tests/ scripts/`.
-  `tests/build/` (272 tests) still passes and `parse_content.load()`
-  still returns 23 categories / 106 equipment / 7,677 UCs.
+
+## [8.2.1] - 2026-05-13
+
+- **Fix: compliance-story → UC-detail panel rendered without SPL,
+  implementation, references, or visualization sections (cat-22 only).**
+  Clicking any cat-22 UC link from `compliance-story.html` (e.g. the
+  killer-UC and playbook chips on the DORA / SOC 2 / ISO 27001 stories)
+  landed on `index.html#uc-22.X.Y` showing only the title, badges, and
+  the "needs more detail" thin-content block — even when the catalogue
+  carried a full Gold/Silver UC. Root cause was a TypeError inside
+  `_mergeCategoryFull()` in
+  [`src/scripts/00-loader.js`](src/scripts/00-loader.js):
+  `cat-22.json` intentionally emits duplicate sub entries on the same
+  id (e.g. `22.3` appears twice — DORA core + DORA-extended-clauses), and
+  the merge deleted its scratch `_ucMap` after the first occurrence,
+  so the second occurrence threw `Cannot read properties of undefined`.
+  The crash rejected the lazy-load promise and the detail panel never
+  re-rendered with the heavy fields. Two fixes:
+  (1) `_mergeCategoryFull` now seeds `_ucMap` per *bucket* (keyed by
+  `sub.i`, last-write-wins to mirror `_populateGlobalsFromIndex`) and
+  defers cleanup to a single end-of-function pass, so duplicate sub-id
+  rows in `catFull.s` no longer crash;
+  (2) the detail-panel re-fill in
+  [`src/scripts/04-panel.js`](src/scripts/04-panel.js) is now factored
+  through a `_scheduleDetailRefill()` helper that calls `fillDetailPane`
+  on BOTH `.then()` and `.catch()` of `__ensureFullUC`, so any future
+  partial-merge failure still surfaces whatever data made it in.
+  Pinned by three new node tests in
+  [`tests/recommender/loader_merge.test.mjs`](tests/recommender/loader_merge.test.mjs)
+  (catalog-index dedup, duplicate sub-id merge, idempotent re-merge),
+  by `make build` (clean), and by a Puppeteer probe of
+  `compliance-story.html?reg=dora` → `#uc-22.3.12`: `bodyLen` rises
+  from 1,757 (stub) to 15,478 (hydrated) within 1.5 s of navigation
+  and the `.dp-thin` "needs more detail" block disappears.
+  No content data changed — this is a static-site bug only.
 
 ## [8.2.0] - 2026-05-11
 

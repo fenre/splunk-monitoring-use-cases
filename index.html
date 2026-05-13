@@ -1584,6 +1584,18 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
     <div class="c-modal-hd" id="rn-title">Release Notes</div>
     <div class="c-modal-bd" id="rn-body">
 <!-- BEGIN RELEASE_NOTES -->
+    <div class="rn-version"><span class="rn-version-tag patch">8.2.1</span><span class="rn-version-date">May 13, 2026</span></div>
+    <div class="rn-section">
+      <h3 class="rn-section-title">Bug fix &mdash; compliance-story &rarr; UC-detail panel now hydrates the SPL / implementation / references sections (cat-22)</h3>
+      <ul class="rn-list">
+        <li><strong>Symptom.</strong> Clicking any cat-22 use case from <code>compliance-story.html</code> (the killer-UC and playbook chips on the DORA / SOC&nbsp;2 / ISO&nbsp;27001 stories) landed on <code>index.html#uc-22.X.Y</code> showing only the title, badges, and the "needs more detail" thin-content block &mdash; even when the catalogue carried a full Gold/Silver UC. Other categories were unaffected.</li>
+        <li><strong>Cause.</strong> A <code>TypeError</code> inside <code>_mergeCategoryFull()</code> in <code>src/scripts/00-loader.js</code>. <code>cat-22.json</code> intentionally emits duplicate sub entries on the same id (e.g. <code>22.3</code> appears twice &mdash; DORA core + DORA-extended-clauses). The merge deleted its scratch <code>_ucMap</code> after the first occurrence, so the second occurrence threw <code>Cannot read properties of undefined</code>. The crash rejected the lazy-load promise and the detail panel never re-rendered with the heavy fields (SPL, implementation, references, visualization).</li>
+        <li><strong>Fix.</strong> <code>_mergeCategoryFull</code> now seeds <code>_ucMap</code> per <em>bucket</em> (keyed by <code>sub.i</code>, last-write-wins to mirror <code>_populateGlobalsFromIndex</code>) and defers cleanup to a single end-of-function pass. The detail-panel re-fill in <code>src/scripts/04-panel.js</code> is now factored through a <code>_scheduleDetailRefill()</code> helper that calls <code>fillDetailPane</code> on <em>both</em> <code>.then()</code> and <code>.catch()</code> of <code>__ensureFullUC</code>, so any future partial-merge failure still surfaces whatever data made it in.</li>
+        <li><strong>Verification.</strong> Three new node tests in <code>tests/recommender/loader_merge.test.mjs</code> pin the duplicate-sub-id merge contract; <code>make build</code> clean; a Puppeteer probe of <code>compliance-story.html?reg=dora</code> &rarr; <code>#uc-22.3.12</code> shows <code>bodyLen</code> rising from 1,757 (stub) to 15,478 (hydrated) within 1.5&nbsp;s of navigation, and the <code>.dp-thin</code> "needs more detail" block disappears.</li>
+        <li><strong>No content data changed.</strong> This was a static-site bug only.</li>
+      </ul>
+    </div>
+
     <div class="rn-version"><span class="rn-version-tag minor">8.2.0</span><span class="rn-version-date">May 11, 2026</span></div>
     <div class="rn-section">
       <h3 class="rn-section-title">Phase 6 closed &mdash; <code>scripts/</code> legacy shims deleted, <code>splunk-uc</code> packaging infrastructure landed</h3>
@@ -3489,9 +3501,28 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
     var stubCat = (window.DATA || []).find(function(c) { return c.i === catId; });
     if (!stubCat) return;
 
+    // cat-22 (regulatory compliance) intentionally emits duplicate sub
+    // entries on the same id (e.g. "22.3" appears twice — DORA core +
+    // DORA-extended-clauses). _populateGlobalsFromIndex resolves those
+    // down to ONE canonical bucket per id (last-write-wins via
+    // subIndex[]), so the merge has to mirror that: build the lookup
+    // keyed by sub.i (last wins), seed _ucMap once per *bucket*, walk
+    // every fullSub against the canonical bucket, and only delete
+    // _ucMap in a single final pass after all of catFull.s has been
+    // processed. The previous implementation deleted _ucMap inside
+    // the catFull.s loop, which crashed on the second occurrence of a
+    // duplicate sub id (the same stubSub then had _ucMap === undefined
+    // and `stubSub._ucMap[fullUC.i]` threw). The crash rejected the
+    // lazy-load promise and the detail panel never re-rendered the
+    // heavy fields (SPL, implementation, references) for any UC under
+    // the duplicated subcategory — the symptom users hit when they
+    // clicked through to a UC from compliance-story.html.
     var stubSubMap = {};
     stubCat.s.forEach(function(sub) {
       stubSubMap[sub.i] = sub;
+    });
+    Object.keys(stubSubMap).forEach(function(subId) {
+      var sub = stubSubMap[subId];
       sub._ucMap = {};
       sub.u.forEach(function(uc, idx) { sub._ucMap[uc.i] = idx; });
     });
@@ -3517,8 +3548,9 @@ scripts/package_es.sh   dist/       # ES correlation searches</code></pre>
           stubSub._ucMap[fullUC.i] = stubSub.u.length - 1;
         }
       });
-      delete stubSub._ucMap;
     });
+
+    stubCat.s.forEach(function(sub) { delete sub._ucMap; });
   }
 })();
 /* Cisco UI catalog — chunk 1: setup, SI, state, helpers, filter core */
@@ -5648,13 +5680,23 @@ function openDetail(entry) {
   renderCondensedList();
   buildSidebar();
   history.pushState({ uc: entry.uc.i }, '', '#uc-' + entry.uc.i);
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = entry.uc.i;
-    window.__ensureFullUC(entry.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(entry.uc.i);
+}
+
+// Trigger lazy-load of /api/cat-N.json and re-render the detail pane
+// once the heavy fields have been merged in. The same callback runs
+// on BOTH fulfilment and rejection so the panel still reflects
+// whatever data made it in even if the merge surfaces a partial
+// failure (e.g. duplicate sub-id rows in catFull.s pre-fix). The
+// current detail-entry is re-checked so a re-fill never overwrites a
+// panel the user has since closed or navigated away from.
+function _scheduleDetailRefill(ucIdAtOpen) {
+  if (typeof window.__ensureFullUC !== 'function') return;
+  var refill = function() {
+    if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
+    fillDetailPane(detailEntry);
+  };
+  window.__ensureFullUC(ucIdAtOpen).then(refill, refill);
 }
 
 function openDetailByIdx(idx) {
@@ -5667,13 +5709,7 @@ function openDetailByIdx(idx) {
   history.pushState({ uc: e.uc.i }, '', '#uc-' + e.uc.i);
   var pane = document.getElementById('detail-pane');
   if (pane) pane.scrollTop = 0;
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = e.uc.i;
-    window.__ensureFullUC(e.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(e.uc.i);
 }
 
 function closeDetail() {
@@ -5773,13 +5809,7 @@ function _applyDetailList(entries) {
   var pane = document.getElementById('detail-pane');
   if (pane) pane.scrollTop = 0;
   buildSidebar();
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = detailEntry.uc.i;
-    window.__ensureFullUC(detailEntry.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(detailEntry.uc.i);
 }
 
 function switchDetailCategory(catId) {

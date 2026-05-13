@@ -275,13 +275,23 @@ function openDetail(entry) {
   renderCondensedList();
   buildSidebar();
   history.pushState({ uc: entry.uc.i }, '', '#uc-' + entry.uc.i);
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = entry.uc.i;
-    window.__ensureFullUC(entry.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(entry.uc.i);
+}
+
+// Trigger lazy-load of /api/cat-N.json and re-render the detail pane
+// once the heavy fields have been merged in. The same callback runs
+// on BOTH fulfilment and rejection so the panel still reflects
+// whatever data made it in even if the merge surfaces a partial
+// failure (e.g. duplicate sub-id rows in catFull.s pre-fix). The
+// current detail-entry is re-checked so a re-fill never overwrites a
+// panel the user has since closed or navigated away from.
+function _scheduleDetailRefill(ucIdAtOpen) {
+  if (typeof window.__ensureFullUC !== 'function') return;
+  var refill = function() {
+    if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
+    fillDetailPane(detailEntry);
+  };
+  window.__ensureFullUC(ucIdAtOpen).then(refill, refill);
 }
 
 function openDetailByIdx(idx) {
@@ -294,13 +304,7 @@ function openDetailByIdx(idx) {
   history.pushState({ uc: e.uc.i }, '', '#uc-' + e.uc.i);
   var pane = document.getElementById('detail-pane');
   if (pane) pane.scrollTop = 0;
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = e.uc.i;
-    window.__ensureFullUC(e.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(e.uc.i);
 }
 
 function closeDetail() {
@@ -400,13 +404,7 @@ function _applyDetailList(entries) {
   var pane = document.getElementById('detail-pane');
   if (pane) pane.scrollTop = 0;
   buildSidebar();
-  if (typeof window.__ensureFullUC === 'function') {
-    var ucIdAtOpen = detailEntry.uc.i;
-    window.__ensureFullUC(detailEntry.uc.i).then(function() {
-      if (!detailOpen || !detailEntry || detailEntry.uc.i !== ucIdAtOpen) return;
-      fillDetailPane(detailEntry);
-    }).catch(function() {});
-  }
+  _scheduleDetailRefill(detailEntry.uc.i);
 }
 
 function switchDetailCategory(catId) {
