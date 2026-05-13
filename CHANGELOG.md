@@ -12,6 +12,17 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **`make clean-tree` target — closes §F13 and loose-end #3.** Adds a
+  one-liner Makefile target that removes every gitignored
+  build-output directory in one go: `dist/`, `dist1/`, `dist2/`,
+  `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`.
+  Each path matches an explicit `.gitignore` entry (lines 26-36) so
+  the target only ever touches local-only build output, never
+  anything tracked. Listed under `make help` so it's discoverable.
+  Marks F13 (`dist-before/ 6,449-entry stale snapshot`) DONE in the
+  findings table — `dist-before/` itself has been gone since the
+  v8.2.0 cycle, and the residual `dist-content/` / `dist-legacy/`
+  disk clutter now has a one-command escape hatch.
 - **Close §F23 — schema lineage governance ratified.** Authored
   [ADR-0011](docs/adr/0011-schema-lineage-governance.md), which
   ratifies [docs/schema-versioning.md](docs/schema-versioning.md) as

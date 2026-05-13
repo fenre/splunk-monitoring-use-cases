@@ -1,4 +1,4 @@
-.PHONY: build serve clean audit audit-full audit-ntv audit-all audit-structure \
+.PHONY: build serve clean clean-tree audit audit-full audit-ntv audit-all audit-structure \
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-splunk-cloud-compat \
@@ -47,6 +47,13 @@ serve: build ## Build then serve locally on port 8000
 
 clean: ## Remove dist/ and build artefacts
 	rm -rf $(DIST)
+
+clean-tree: ## Remove every gitignored build-output directory (dist/, dist1/, dist2/, dist-content/, dist-legacy/, dist-before/, .build-tmp/)
+	# Resolves loose-end ledger item #3 in docs/health-check-2026-progress.md.
+	# Every directory below is matched by an explicit .gitignore entry
+	# (lines 26-36 of .gitignore at HEAD) so this target only ever
+	# touches local-only build output, never anything tracked in git.
+	rm -rf dist dist1 dist2 dist-content dist-legacy dist-before .build-tmp
 
 # --- Audits (quick) ---
 
