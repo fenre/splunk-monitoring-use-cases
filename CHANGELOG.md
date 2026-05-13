@@ -12,6 +12,33 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Close §P2.5 (workflow audit doc).** Added
+  [`docs/workflow-audit.md`](docs/workflow-audit.md), a single-page
+  reference covering every workflow under `.github/workflows/` (now 14
+  in total). The doc carries a per-workflow inventory table
+  (purpose / trigger / cadence / runs-on / timeout / writes-to-repo /
+  pinned-third-party-actions), a Monday-cluster + Tuesday-backstop
+  cadence calendar, a third-party SHA-pin map covering all 14
+  distinct external action references (11 SHA values; the three
+  `github/codeql-action/*` entries share one upstream SHA), a
+  composite-actions summary, and a "How to keep this doc honest"
+  maintainer playbook. The companion `docs/ci-architecture.md` has
+  been extended with the two previously-missing rows in its TL;DR
+  (`stewardship.yml`, `build-reproducibility.yml`), gained a brief
+  per-workflow `## Stewardship.yml` and `## Build-reproducibility.yml`
+  section so the TL;DR anchors resolve, and cross-links the new
+  audit doc from both its banner and its `## See also` block.
+  `docs/health-check-2026-progress.md` flips P2.5 from PARTIAL to
+  DONE (2026-05-13).
+- **Refresh `docs/health-check-2026-progress.md` (P2.5 closure +
+  Dependabot rollup).** Appended drift-ledger entry #9 recording that
+  all 10 Dependabot security alerts surfaced when the dependency
+  graph was enabled (9 HIGH, 1 MEDIUM) have been closed via four
+  merged PRs (`mcp` 1.8.1 → 1.27.1, `basic-ftp` 5.2.0 → 5.3.1,
+  `fast-uri` 3.1.0 → 3.1.2, `ip-address` 10.1.0 → 10.2.0). PR #17
+  squash-merged the dev-only npm-deps hygiene bump together with the
+  required `reports/perf-a11y.json` snapshot refresh. Method note
+  refreshed to record the new HEAD baseline.
 - **Close F10 (`.cursorignore` covers secrets / dotenv files).** Added an
   explicit "Secrets and local environment overrides" block at the end of
   `.cursorignore` listing `secrets.env`, `secrets.env.local`, `.env`,
