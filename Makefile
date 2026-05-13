@@ -11,7 +11,7 @@
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
-       baseline \
+       baseline devcontainer-init \
        generate-md-from-json generate-grandma-explanations \
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
@@ -194,6 +194,26 @@ snapshot-metrics: ## Write data/metrics-history/<VERSION>.json from dist/metrics
 
 baseline: ## Capture data/baselines/v<VERSION>.json (size/timing snapshot)
 	$(PYTHON) tools/capture_baselines.py
+
+devcontainer-init: ## Bootstrap a fresh devcontainer (called by .devcontainer/devcontainer.json postCreateCommand)
+	# Repo-overhaul plan §P11 (2026-05-13): single source of truth for
+	# devcontainer bootstrap logic. .devcontainer/devcontainer.json hands
+	# off to this target so the install sequence has one home, not two.
+	# Idempotent: safe to re-run on `Rebuild Container` or on a host
+	# checkout when a contributor wants the same setup outside a
+	# container.
+	@echo "→ [1/3] Installing splunk-uc (editable) with [audits,dev,test] extras…"
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install -e ".[audits,dev,test]"
+	@echo "→ [2/3] Registering pre-commit git hooks (pre-commit already in [dev])…"
+	pre-commit install --install-hooks
+	@echo "→ [3/3] Warm-building dist/ so 'make serve' works immediately…"
+	$(BUILD)
+	@echo ""
+	@echo "✓ Devcontainer ready."
+	@echo "  Try:  make serve   # then open http://localhost:8000"
+	@echo "  Or:   make audit   # core audits (~30s)"
+	@echo "  Or:   make help    # list every target"
 
 stewardship-digest: ## Generate dist/stewardship-digest.{json,md}
 	$(SPLUNK_UC) generate-stewardship-digest

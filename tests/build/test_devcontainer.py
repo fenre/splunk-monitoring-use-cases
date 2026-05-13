@@ -146,14 +146,6 @@ def test_runs_as_non_root(devcontainer: dict) -> None:
     )
 
 
-@pytest.mark.skip(
-    reason=(
-        "deferred to v8.x: Makefile does not yet ship the "
-        "devcontainer-init target referenced by "
-        ".devcontainer/devcontainer.json. Re-enable after the devcontainer "
-        "bootstrap target lands."
-    )
-)
 def test_make_target_exists() -> None:
     """The Make target referenced by postCreateCommand actually exists.
 
@@ -161,10 +153,33 @@ def test_make_target_exists() -> None:
     from the Makefile but forgets to update the JSON. Avoids a
     confusing "make: *** No rule to make target 'devcontainer-init'"
     error inside a freshly built container.
+
+    Unskipped 2026-05-13 in the same PR that added the
+    ``devcontainer-init`` target. The previous skip reason
+    ("deferred to v8.x") is therefore obsolete.
     """
     makefile = (REPO_ROOT / "Makefile").read_text()
-    # Look for the target as a recipe header (allow trailing dependencies).
     assert re.search(r"^devcontainer-init:", makefile, flags=re.M), (
         "Makefile is missing the devcontainer-init target referenced by "
         ".devcontainer/devcontainer.json's postCreateCommand"
+    )
+
+    # The `.PHONY:` declaration spans multiple physical lines via
+    # backslash continuations. Join them into one logical line first so
+    # the regex below covers every continuation segment.
+    phony_lines: list[str] = []
+    in_phony = False
+    for line in makefile.splitlines():
+        if line.startswith(".PHONY:"):
+            in_phony = True
+        if in_phony:
+            phony_lines.append(line.rstrip().rstrip("\\").rstrip())
+            if not line.rstrip().endswith("\\"):
+                break
+    phony_text = " ".join(phony_lines)
+    assert re.search(r"\bdevcontainer-init\b", phony_text), (
+        "Makefile's .PHONY declaration is missing the devcontainer-init "
+        "entry — without it, an accidental file named 'devcontainer-init' "
+        "in the repo root would cause make to skip the target. "
+        f"Current .PHONY: {phony_text!r}"
     )
