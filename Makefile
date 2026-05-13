@@ -11,6 +11,7 @@
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
+       baseline \
        generate-md-from-json generate-grandma-explanations \
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
@@ -183,6 +184,9 @@ audit-metrics-snapshot: ## Ensure release-time metrics snapshot exists
 
 snapshot-metrics: ## Write data/metrics-history/<VERSION>.json from dist/metrics.json
 	$(PYTHON) scripts/snapshot_metrics.py --write
+
+baseline: ## Capture data/baselines/v<VERSION>.json (size/timing snapshot)
+	$(PYTHON) tools/capture_baselines.py
 
 stewardship-digest: ## Generate dist/stewardship-digest.{json,md}
 	$(SPLUNK_UC) generate-stewardship-digest
