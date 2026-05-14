@@ -238,6 +238,10 @@ var DOC_UC_MAP = {
     title: "Evidence Pack \u2014 IMO MSC.428(98) Maritime Cyber Risk Management (Global Shipping)",
     ucs: ["22.59.1", "22.59.2", "22.59.3", "22.59.5", "22.59.6", "22.59.13", "22.59.15", "22.59.16", "22.59.17"]
   },
+  "docs/evidence-packs/do-326a.md": {
+    title: "Evidence Pack \u2014 RTCA DO-326A / EUROCAE ED-202A Airworthiness Security (Global Aviation)",
+    ucs: ["22.60.1", "22.60.2", "22.60.3", "22.60.4", "22.60.5", "22.60.13", "22.60.14", "22.60.15", "22.60.16", "22.60.17"]
+  },
 
   /* ── Splunk Content Packs ────────────────────────────────────────────── */
   "docs/enterprise-deployment.md": {

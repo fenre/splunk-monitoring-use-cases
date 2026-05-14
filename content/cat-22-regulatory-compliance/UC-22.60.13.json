@@ -1,0 +1,152 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.13",
+  "title": "EASA Part-IS IS.OR.230 + FAA cyber-incident reporting clock - 24-hour initial / 72-hour preliminary / 1-month final notification with NCA + EASA + FAA + TC-holder routing",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents that are determined not to have a potential impact on aviation safety after triage (those still require internal record per IS.OR.215 but not external notification). Excludes routine operational disruption that does not meet the IS.OR.230 information-security incident definition.",
+  "evidence": "Saved search `UC-22.60.13` archived hourly to `audit_evidence` with `do326a_clause=\"EASA-Part-IS-IS-OR-230\"`. Every row pins (incident_id, classification_time, nca_initial_due, nca_preliminary_due, nca_final_due, nca_initial_submitted_at, nca_preliminary_submitted_at, nca_final_submitted_at, tc_holder_notified_at, faa_notified_at, sla_status, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-230",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "EASA Part-IS IS.OR.230 imposes a 24-hour initial / 72-hour preliminary / 1-month final reporting cadence to the National Competent Authority and EASA for information-security incidents that could affect aviation safety. This UC implements the multi-authority clock and produces auditable submission receipts.",
+      "controlObjective": "Demonstrates that every classified information-security incident is reported within IS.OR.230 cadence, that the TC-holder is notified per the continuing-airworthiness plan, and (if US) FAA notified per the ANSP.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `Part-IS Reporting Clock` dashboard, the submission receipts archive.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-230",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-355A-s3-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DO-355A §3.1 requires operator-side cyber-incident response and reporting; this UC implements the multi-authority reporting clock that satisfies the obligation.",
+      "controlObjective": "Evidences DO-355A operator-side incident-reporting capability.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-355A-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-220",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "EASA Part-IS IS.OR.220 requires detection, response, and recovery from incidents; the reporting clock is the externally-facing part of this lifecycle.",
+      "controlObjective": "Evidences operator's incident lifecycle includes external reporting.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-220",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Allow a classified incident's 24-hour NCA initial notification window to elapse without a submission receipt being recorded. UC-22.60.13 MUST flag within 10 minutes with risk_score >= 95 and sla_status=initial-breach.",
+    "negativeScenario": "An incident is classified, the NCA initial notification is submitted within 20 hours, the preliminary at 65 hours, and the final at 25 days. UC-22.60.13 MUST record `sla_status=on-time` and `risk_score=0` after the final submission."
+  },
+  "dataSources": "KV Store `easa_part_is_incident_register_lookup` (incident_id, classification_time, in_scope_for_is_or_230, nca_authority, tc_holder_required, faa_required, nca_initial_submitted_at, nca_preliminary_submitted_at, nca_final_submitted_at, tc_holder_notified_at, faa_notified_at), HEC submission receipts (`hec:easa:reporting:submission`, `hec:nca:reporting:submission`, `hec:faa:reporting:submission`, `hec:tch:reporting:submission`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup easa_part_is_incident_register_lookup\n| where in_scope_for_is_or_230 = \"true\"\n| eval now_ts = now()\n| eval nca_initial_due = classification_time + 86400\n| eval nca_preliminary_due = classification_time + 259200\n| eval nca_final_due = classification_time + 2592000\n| eval hours_since_classification = round((now_ts - classification_time) / 3600, 2)\n| eval initial_state = case(isnotnull(nca_initial_submitted_at), \"submitted\", now_ts > nca_initial_due, \"breach\", hours_since_classification > 20, \"at-risk\", 1=1, \"in-window\")\n| eval preliminary_state = case(isnotnull(nca_preliminary_submitted_at), \"submitted\", now_ts > nca_preliminary_due, \"breach\", hours_since_classification > 65, \"at-risk\", 1=1, \"in-window\")\n| eval final_state = case(isnotnull(nca_final_submitted_at), \"submitted\", now_ts > nca_final_due, \"breach\", (now_ts - classification_time) > (25 * 86400), \"at-risk\", 1=1, \"in-window\")\n| eval tc_holder_state = case(tc_holder_required = \"false\", \"not-required\", isnotnull(tc_holder_notified_at), \"submitted\", hours_since_classification > 24, \"breach\", 1=1, \"in-window\")\n| eval faa_state = case(faa_required = \"false\", \"not-required\", isnotnull(faa_notified_at), \"submitted\", hours_since_classification > 24, \"breach\", 1=1, \"in-window\")\n| eval sla_status = case(\n    initial_state = \"breach\" OR preliminary_state = \"breach\" OR final_state = \"breach\" OR tc_holder_state = \"breach\" OR faa_state = \"breach\", \"breach\",\n    initial_state = \"at-risk\" OR preliminary_state = \"at-risk\" OR final_state = \"at-risk\", \"at-risk\",\n    initial_state = \"submitted\" AND preliminary_state = \"submitted\" AND final_state = \"submitted\" AND tc_holder_state IN (\"submitted\", \"not-required\") AND faa_state IN (\"submitted\", \"not-required\"), \"on-time\",\n    1=1, \"in-progress\")\n| eval risk_score = case(\n    sla_status = \"breach\" AND initial_state = \"breach\", 100,\n    sla_status = \"breach\", 90,\n    sla_status = \"at-risk\" AND initial_state = \"at-risk\", 85,\n    sla_status = \"at-risk\", 70,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 60, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -hours_since_classification\n| table incident_id classification_time hours_since_classification initial_state preliminary_state final_state tc_holder_state faa_state nca_authority sla_status severity risk_score",
+  "description": "Tracks every classified information-security incident through the EASA Part-IS IS.OR.230 cadence (24h initial / 72h preliminary / 1mo final) plus the operator's TC-holder notification and (where applicable) FAA notification. Surfaces every clock that is approaching breach or has breached, with the per-authority state for direct action.",
+  "value": "An missed reporting deadline under EASA Part-IS is itself an organisation-audit finding that can result in the operator's approval (Part-OPS AOC, Part-145, Part-CAMO) being conditioned or suspended. The 2024 EASA Part-IS enforcement guidance indicates that reporting failures will be a focus area in the initial audit cycle (2026-2028). This UC closes the operational gap with a clock the operator can rely on.",
+  "implementation": "(1) Configure the incident-classification workflow (typically in Splunk SOAR / ServiceNow SIR) to write a row into `easa_part_is_incident_register_lookup` at the moment an incident is classified as in-scope for IS.OR.230. (2) Submit notifications to the NCA via the operator-NCA portal (each NCA has a different portal: BAZL, DGCA, LBA, ENAC, AESA, CAA UK; submission receipt captured via HEC). (3) Submit notifications to the TC-holder via TC-holder portal (Boeing, Airbus, Embraer, ATR, Bombardier). (4) Submit notifications to FAA via the FAA reporting portal if Aircraft Network Security Program applicable. (5) Schedule UC-22.60.13 every 10 minutes; route `risk_score >= 90` to the DPO + CISO + Accountable Manager at severity P1, `risk_score 60-89` at severity P2.",
+  "visualization": "(Panel 1) Open incident clock per incident (hours since classification with overlay of 24h/72h/1mo). (Panel 2) Per-authority submission status (NCA / EASA / TC-holder / FAA). (Panel 3) 12-month SLA-on-time performance trend. (Panel 4) Top NCA authorities by incident volume.",
+  "cimModels": [
+    "Change",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Commission Implementing Regulation (EU) 2022/1645 - Part-IS (Information Security Risks)",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R1645"
+    },
+    {
+      "title": "Commission Delegated Regulation (EU) 2023/203 - Part-IS",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R0203"
+    },
+    {
+      "title": "EASA Part-IS Information Security Management",
+      "url": "https://www.easa.europa.eu/en/the-agency/faqs/information-security"
+    },
+    {
+      "title": "RTCA DO-355A - Information Security Guidance for Continuing Airworthiness",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-authority parallel submission**: a single incident reaching all four authorities may briefly show as `at-risk-faa` while the SOAR playbook completes; allow a 5-minute settling window. 2. **Reportable threshold ambiguity**: minor incidents may not require IS.OR.230 reporting; ensure the classification step explicitly sets in_scope_for_is_or_230=true. 3. **Time-zone offsets**: incident classification across timezones - canonicalise to UTC at classification.\n\n**Suppression mechanism**: KV Store `do326a_22_60_13_exceptions` with the DPO + CISO documented approval.",
+  "requiredFields": [
+    "incident_id",
+    "classification_time",
+    "sla_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + DPO + CISO + Accountable Manager",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR (Cloud / On-prem)",
+    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (incident reporting workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.2",
+    "UC-22.60.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1, UC-22.60.2, UC-22.60.5 in production.\n- Splunk SOAR or ServiceNow SIR with classification workflow.\n- HEC tokens configured for NCA / EASA / FAA / TC-holder submission receipts.\n\n## Step 1 - Incident register KV Store\n\n```ini\n[easa_part_is_incident_register_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.classification_time = time\nfield.in_scope_for_is_or_230 = string\nfield.nca_authority = string\nfield.tc_holder_required = string\nfield.faa_required = string\nfield.nca_initial_submitted_at = time\nfield.nca_preliminary_submitted_at = time\nfield.nca_final_submitted_at = time\nfield.tc_holder_notified_at = time\nfield.faa_notified_at = time\n```\n\n## Step 2 - SOAR playbooks\n\nDefine a parallel-branch SOAR playbook (similar to UC-22.59.13 maritime IMO reporting):\n\n1. NCA portal submission (per operator's principal NCA)\n2. EASA central reporting (if NCA forwards)\n3. TC-holder portal submission (if tc_holder_required)\n4. FAA reporting (if faa_required - typically operators of US-registered aircraft)\n\nEach branch captures the receipt timestamp via HEC and writes back to the KV Store.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.13: Part-IS Reporting Clock]\ncron_schedule = */10 * * * *\ndispatch.earliest_time = -20m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.13,reg=DO-326A,clause=EASA-Part-IS-IS-OR-230\nalert.severity = 5\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90` (sla_status=breach)** (owner: DPO + CISO + Accountable Manager, severity P1): Within 30 minutes, the DPO initiates manual notification via emergency channel (NCA on-call phone / fax); document for the next organisation audit.\n\n**`risk_score 60-89` (sla_status=at-risk)** (owner: DPO, severity P2): Within 1 hour, the DPO confirms the SOAR playbook progress; manual fallback if needed.\n\n## Step 5 - Aviation-specific notes\n\n- **Multi-NCA operator**: an operator with AOCs in multiple member-states may need to report to multiple NCAs; ensure `nca_authority` resolves to the appropriate authority per AOC.\n- **AIRPROX / occurrence reporting overlap**: Part-IS reporting is in addition to Regulation (EU) 376/2014 occurrence reporting; ensure both pipelines are populated.\n- **Cross-border cyber-incident**: incidents with cross-border safety effect must be flagged so EASA can coordinate with other affected NCAs.",
+  "grandmaExplanation": "If a cyber-incident could affect aviation safety, the airline has 24 hours to tell the safety regulator, then 72 hours to send an update, and 1 month for the full report. We watch every deadline and make sure none is missed - because a missed deadline is itself a finding that the regulator can act on."
+}

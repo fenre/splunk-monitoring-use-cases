@@ -1,0 +1,152 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.15",
+  "title": "Airborne software cyber-SBOM vulnerability monitoring - fleet-exposure to new CVEs via SBOM-based CVE-feed correlation (DO-355A in-service vulnerability tracking)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Vulnerability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes proprietary firmware components with no published SBOM (legacy mid-1990s avionics) - tracked by manual SB monitoring instead. Excludes user-modifiable software (e.g. EFB apps) which is tracked by UC-22.60.7.",
+  "evidence": "Saved search `UC-22.60.15` archived daily to `audit_evidence` with `do326a_clause=\"DO-355A-s2-1\"`. Every row pins (cve_id, cve_severity, affected_component, sbom_version, airframe_types_exposed, affected_tails_count, patch_available, days_since_cve_published, mitigation_status, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-355A-s2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DO-355A §2.1 requires the operator to monitor cyber threats relevant to the airframe type, including newly-published vulnerabilities in airborne software components. This UC implements automated SBOM-CVE correlation across the fleet.",
+      "controlObjective": "Demonstrates that the operator continuously monitors published CVEs against the airborne cyber-SBOM and surfaces fleet exposure to high / critical CVEs to the CAMO Manager and CISO for triage.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `Airborne SBOM Vulnerability Health` dashboard, the cyber-SBOM repository, the CVE feed source.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-355A-s2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-205",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "EASA Part-IS IS.OR.205 requires the organisation's risk-assessment to be reviewed after significant change; a new high/critical CVE on an airborne component is a significant change that must trigger risk reassessment.",
+      "controlObjective": "Evidences continuous risk-assessment trigger driven by external vulnerability disclosure.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-205",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s3-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DO-326A §3.1 (Aircraft Security Scope) requires identification of Cyber Security Items — the airborne items whose compromise has a safety effect. The cyber-SBOM repository operationalises §3.1 by enumerating every CSI (LSAP, embedded library, RTOS, communication stack) per airframe type, with version pinning. This UC continuously validates that the SBOM is complete, fresh, and surfaces fleet exposure when a CVE lands against any inventoried CSI.",
+      "controlObjective": "Demonstrates that the operator maintains and continuously validates a machine-readable inventory of every airborne Cyber Security Item across the fleet (CSI completeness + CSI freshness + CSI vulnerability exposure).",
+      "evidenceArtifact": "Same as the primary clause, plus the cyber-SBOM repository (CycloneDX or SPDX) and the per-airframe CSI catalogue.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A new CVE rated CVSS 9.0+ is published against an airborne software component used in the operator's fleet. UC-22.60.15 MUST flag within 24 hours with risk_score >= 85 and notify the CAMO Manager.",
+    "negativeScenario": "A new CVE is published against a component not in the operator's airborne SBOM (e.g. consumer Android only). UC-22.60.15 MUST NOT flag because the affected_tails_count is 0."
+  },
+  "dataSources": "KV Store `do326a_airborne_sbom_lookup` (airframe_type, lsap_name, lsap_version, component_name, component_version, cyber_sbom_ref - SPDX/CycloneDX SBOM). NVD CVE feed (`nvd:cve:feed`), GHSA security-advisories feed (`ghsa:feed`), vendor-specific airborne software bulletins (Honeywell CSB, Collins SB, Garmin Service Letter - `vendor:sb:feed`). KV Store `do355a_compliance_records_lookup` (for AD/SB compliance to derive patch availability).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=cve_feed sourcetype IN (\"nvd:cve:feed\", \"ghsa:feed\", \"vendor:sb:feed\")\n| where cvss_v3 >= 7.0 AND date_published > relative_time(now(), \"-30d\")\n| eval days_since_cve_published = round((now() - date_published) / 86400, 1)\n| join type=inner cpe_or_component [\n    | inputlookup do326a_airborne_sbom_lookup\n    | rename component_name AS cpe_or_component\n    | stats values(airframe_type) AS airframe_types_exposed values(lsap_name) AS lsap_names values(lsap_version) AS lsap_versions count AS affected_components by cpe_or_component ]\n| eval cve_severity = case(cvss_v3 >= 9.0, \"critical\", cvss_v3 >= 7.0, \"high\", 1=1, \"medium\")\n| join type=outer cpe_or_component [\n    | inputlookup do355a_sb_ad_lookup\n    | where cve_reference != \"\"\n    | eval cpe_or_component = component_name\n    | stats values(ad_or_sb_id) AS patch_advisories count AS patch_count by cpe_or_component ]\n| eval patch_available = case(isnotnull(patch_advisories), \"yes\", days_since_cve_published <= 30, \"pending\", 1=1, \"no\")\n| eval mitigation_status = case(\n    patch_available = \"yes\", \"patch-available\",\n    patch_available = \"pending\" AND days_since_cve_published <= 14, \"in-vendor-triage\",\n    patch_available = \"pending\", \"vendor-no-patch-30d\",\n    patch_available = \"no\", \"no-patch\")\n| eval risk_score = case(\n    cve_severity = \"critical\" AND mitigation_status = \"no-patch\", 100,\n    cve_severity = \"critical\" AND mitigation_status = \"vendor-no-patch-30d\", 95,\n    cve_severity = \"critical\" AND mitigation_status = \"in-vendor-triage\", 85,\n    cve_severity = \"critical\", 75,\n    cve_severity = \"high\" AND mitigation_status = \"no-patch\", 80,\n    cve_severity = \"high\" AND mitigation_status = \"vendor-no-patch-30d\", 70,\n    cve_severity = \"high\", 50,\n    1=1, 0)\n| where risk_score > 0\n| stats latest(cve_id) AS cve_id values(cve_severity) AS cve_severity values(airframe_types_exposed) AS airframe_types_exposed values(lsap_names) AS lsap_names values(patch_advisories) AS patch_advisories latest(days_since_cve_published) AS days_since_cve_published latest(mitigation_status) AS mitigation_status latest(risk_score) AS risk_score by cpe_or_component\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -days_since_cve_published\n| table cve_id cve_severity cpe_or_component airframe_types_exposed lsap_names patch_advisories days_since_cve_published mitigation_status severity risk_score",
+  "description": "Joins the NVD / GHSA / vendor-bulletin CVE feeds against the operator's airborne cyber-SBOM (SPDX/CycloneDX-format manifests of airborne software components per LSAP) and surfaces fleet exposure to newly-disclosed CVEs. Cross-references against AD/SB compliance (UC-22.60.5) to derive patch availability and mitigation status.",
+  "value": "Airborne software cyber-SBOMs are now an FAA / EASA expectation for new type certifications (per DO-326A §3.1 CSI register and the 2024 FAA cyber-SBOM guidance). Continuous CVE correlation is the operational mechanism that closes the loop between SBOM and operational risk. Without this UC, the operator depends on TC-holder cyber-bulletins which can lag a CVE publication by weeks (or never come for retired components).",
+  "implementation": "(1) Obtain SPDX/CycloneDX cyber-SBOM from the TC-holder via CASI distribution. (2) Populate `do326a_airborne_sbom_lookup` by parsing the SBOM into KV Store rows. (3) Configure NVD CVE feed ingest (`nvd:cve:feed` modular input), GHSA feed (`ghsa:feed`), and vendor-specific feeds. (4) Schedule UC-22.60.15 every 6 hours; route `risk_score >= 90` to the CAMO Manager + CISO at severity P1, `risk_score 70-89` at severity P2. (5) Build the `Airborne SBOM Vulnerability Health` dashboard.",
+  "visualization": "(Panel 1) Open critical CVEs against airborne SBOM. (Panel 2) Fleet exposure by airframe type. (Panel 3) Mitigation status distribution. (Panel 4) 90-day CVE-disclosure-to-patch trend.",
+  "cimModels": [
+    "Vulnerabilities",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "RTCA DO-355A - Information Security Guidance for Continuing Airworthiness",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "NIST CSWP 35 - Software Bill of Materials (SBOM) Concepts",
+      "url": "https://csrc.nist.gov/Projects/Software-Identification-SWID/sbom"
+    },
+    {
+      "title": "FAA Aircraft Cybersecurity Software Bill of Materials Guidance",
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/1039753"
+    }
+  ],
+  "knownFalsePositives": "1. **CVE in vendor-modified component fork**: a CVE against an upstream open-source library may not apply to the vendor's hardened fork; ensure the SBOM tracks fork-specific CPE. 2. **Mitigation by isolation**: an unpatched component in a strictly-segregated ARINC 811 domain may be mitigated by architecture rather than patch; track `mitigation_by_segregation=true` to reduce score. 3. **CVE retracted by NVD**: occasional CVE retractions; refresh the feed daily.\n\n**Suppression mechanism**: KV Store `do326a_22_60_15_exceptions` with the Chief Engineer + CISO documented approval.",
+  "requiredFields": [
+    "cve_id",
+    "cpe_or_component",
+    "airframe_types_exposed",
+    "mitigation_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Chief Engineer + CAMO Manager + CISO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "tenable-nessus"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Tenable Nessus / Tenable.sc",
+    "NVD CVE feed",
+    "GitHub Security Advisories (GHSA)",
+    "Honeywell Cyber Security Bulletin",
+    "Collins Aerospace Service Bulletin",
+    "Garmin Service Letter"
+  ],
+  "mitreAttack": [
+    "T1195",
+    "T1190"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1, UC-22.60.5 in production.\n- KV Store `do326a_airborne_sbom_lookup` populated from TC-holder SBOM (SPDX/CycloneDX).\n- NVD CVE modular input configured.\n\n## Step 1 - Airborne SBOM schema\n\n```ini\n[do326a_airborne_sbom_lookup]\nenforceTypes = true\nfield.airframe_type = string\nfield.lsap_name = string\nfield.lsap_version = string\nfield.component_name = string\nfield.component_version = string\nfield.cyber_sbom_ref = string\nfield.mitigation_by_segregation = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.15: Airborne SBOM Vulnerability Health]\ncron_schedule = 0 */6 * * *\ndispatch.earliest_time = -6h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.15,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 90`** (owner: Chief Engineer + CAMO Manager + CISO, severity P1): Within 24 hours, the engineering team performs initial impact analysis; within 5 business days, contacts the TC-holder for a CSB / SB / AD response; within 30 days, mitigation is implemented or the residual risk is accepted with sign-off.\n\n**`risk_score 70-89`** (owner: Engineering, severity P2): Within 10 business days, complete the impact analysis.\n\n## Step 4 - Aviation-specific notes\n\n- **TC-holder responsibility**: the TC-holder is the authoritative source for airborne software patches; coordinate via CASI distribution.\n- **Type-design data package**: cyber-SBOM is part of the type-certificate data package; refresh when the TC-holder updates the type design.\n- **Component obsolescence**: legacy components may have no patch path; document residual-risk acceptance.",
+  "grandmaExplanation": "The software in an aircraft is made up of many small pieces. When a problem is found in one of those pieces, we check which of our aircraft uses it and how to fix it before anything bad happens."
+}

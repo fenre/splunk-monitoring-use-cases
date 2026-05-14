@@ -1,28 +1,28 @@
 # Compliance coverage report
 
-_Generated: 2026-05-13T15:48:29Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-05-14T06:10:01Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
 ## Summary
 
-* UC files checked: **7885**
-* UC files valid:   **7885**
-* Compliance entries: **2575**
-* Findings: **104** (errors: **0**, baselined: **0**)
+* UC files checked: **7902**
+* UC files valid:   **7902**
+* Compliance entries: **2628**
+* Findings: **113** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
-* Clause coverage %: **92.9766**
-* Priority-weighted %: **93.1367**
-* Assurance-adjusted %: **69.714**
+* Clause coverage %: **93.2149**
+* Priority-weighted %: **93.385**
+* Assurance-adjusted %: **70.2067**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 90.5612 | 90.4709 | 73.5266 |
+| tier-1 | 91.0412 | 90.9919 | 74.0627 |
 | tier-2 | 97.549 | 98.0483 | 62.7761 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -45,6 +45,7 @@ Status: **passed**
 | cobit | 100.0 | 100.0 | 50.0 |
 | coppa | 100.0 | 100.0 | 50.0 |
 | coso | 100.0 | 100.0 | 50.0 |
+| do-326a | 100.0 | 100.0 | 83.3333 |
 | dora | 100.0 | 100.0 | 79.291 |
 | eidas | 100.0 | 100.0 | 50.0 |
 | eu-ai-act | 100.0 | 100.0 | 50.0 |
@@ -126,6 +127,7 @@ Status: **passed**
 | COPPA@16 CFR 312 | 2 | 100.0 | 100.0 | 50.0 |
 | COSO@2013 ICFR | 2 | 100.0 | 100.0 | 50.0 |
 | Cyber Essentials@Montpellier (2025) | 2 | 100.0 | 100.0 | 50.0 |
+| DO-326A / ED-202A@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is | 1 | 100.0 | 100.0 | 83.3333 |
 | DORA@Regulation (EU) 2022/2554 | 1 | 100.0 | 100.0 | 79.291 |
 | EU AI Act@Regulation (EU) 2024/1689 | 2 | 100.0 | 100.0 | 50.0 |
 | EU AML@6AMLD / AMLR 2024 | 2 | 100.0 | 100.0 | 50.0 |

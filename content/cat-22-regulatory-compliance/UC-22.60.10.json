@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.10",
+  "title": "ADS-B / Mode S Squitter integrity + injection detection - duplicate ICAO addresses, impossible geometry, ghost-target floods at terminal manoeuvring areas",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes calibrated ADS-B test stations operated by ANSPs (e.g. EUROCONTROL test injection). Excludes aircraft on a notified spoofing-test sortie.",
+  "evidence": "Saved search `UC-22.60.10` archived hourly to `audit_evidence` with `do326a_clause=\"DO-326A-s3-2\"`. Every row pins (icao_24bit_address, callsign, anomaly_category, duplicate_count, geometry_violation, geo_region, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s3-2",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "DO-326A §3.2 lists ADS-B injection as a Threat Condition for SRA; this UC implements continuous detection on the operator's own fleet-tracking pipeline and on the wider terminal area.",
+      "controlObjective": "Demonstrates detection of duplicate ICAO 24-bit addresses, impossible geometry (unphysical climb / turn / speed), and ghost-target floods near terminal manoeuvring areas - the canonical ADS-B injection patterns.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `ADS-B Integrity` dashboard, the ADS-B 1090ES + 978 UAT raw audit events.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s3-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-355A-s3-1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DO-355A §3.1 requires operator-side detection of cyber-incidents affecting airworthiness; ADS-B injection meets the criterion.",
+      "controlObjective": "Evidences operator detection of ADS-B injection.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-355A-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject a synthetic ADS-B target with a duplicate ICAO 24-bit address that is in the operator's fleet at an impossible position. UC-22.60.10 MUST flag within 5 minutes with risk_score >= 90.",
+    "negativeScenario": "Track a normal ADS-B return for the operator's fleet over a 1-hour cruise segment. UC-22.60.10 MUST NOT flag."
+  },
+  "dataSources": "ADS-B 1090ES audit events (`adsb:audit`), UAT 978 events for general-aviation cross-reference, ground ADS-B receiver feeds via OpenSky Network (`opensky:feed`) or operator-owned receivers, operator's fleet ICAO 24-bit address roster (KV Store `do326a_fleet_icao_24bit_lookup`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=aero_adsb sourcetype=\"adsb:audit\"\n| bucket _time span=1m\n| eventstats count AS station_count by icao_24bit_address _time\n| stats max(station_count) AS duplicate_count latest(callsign) AS callsign earliest(lat) AS lat_start latest(lat) AS lat_end earliest(lon) AS lon_start latest(lon) AS lon_end latest(altitude_ft) AS altitude_ft earliest(altitude_ft) AS altitude_start latest(geo_region) AS geo_region by icao_24bit_address _time\n| eval distance_nm = round(acos(sin(lat_start*pi()/180)*sin(lat_end*pi()/180) + cos(lat_start*pi()/180)*cos(lat_end*pi()/180)*cos((lon_end - lon_start)*pi()/180)) * 3440, 2)\n| eval climb_ft_per_min = (altitude_ft - altitude_start)\n| eval geometry_violation = case(\n    distance_nm > 25, \"impossible-distance-1min\",\n    abs(climb_ft_per_min) > 6000, \"unphysical-vertical-speed\",\n    1=1, \"none\")\n| lookup do326a_fleet_icao_24bit_lookup icao_24bit_address OUTPUT in_fleet\n| eval anomaly_category = case(\n    duplicate_count > 1, \"duplicate-address\",\n    geometry_violation != \"none\", geometry_violation,\n    1=1, \"in-baseline\")\n| where anomaly_category != \"in-baseline\"\n| eval risk_score = case(\n    anomaly_category = \"duplicate-address\" AND in_fleet = \"true\", 100,\n    anomaly_category = \"duplicate-address\", 85,\n    anomaly_category = \"impossible-distance-1min\", 90,\n    anomaly_category = \"unphysical-vertical-speed\", 80,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -_time\n| table _time icao_24bit_address callsign anomaly_category duplicate_count distance_nm climb_ft_per_min geometry_violation geo_region in_fleet severity risk_score",
+  "description": "Continuously processes ADS-B 1090ES audit events from operator-owned or OpenSky-Network ground stations and detects: duplicate ICAO 24-bit address (a target claiming to be an aircraft already broadcasting), impossible geometry (distance covered in 1 minute exceeding plausible airspeed, vertical speed exceeding airframe capability), and ghost-target floods near terminal manoeuvring areas.",
+  "value": "ADS-B injection has been demonstrated repeatedly in academic conferences (DEFCON, BlackHat) and increasingly in the wild. A confirmed ghost-target flood near a busy terminal area can overload TCAS, distract crews on approach, and create dangerous near-miss situations. This UC closes the operator-side detection gap and supports the ANSP / NCA in identifying ground-based interference sources.",
+  "implementation": "(1) Configure operator-owned ADS-B ground stations or subscribe to OpenSky Network ingest pipeline (`opensky:feed`). (2) Populate `do326a_fleet_icao_24bit_lookup` from the operator's tail-number to ICAO 24-bit address map. (3) Schedule UC-22.60.10 every 5 minutes; route `risk_score >= 90` at severity P1, `risk_score 70-89` at severity P2. (4) Build the `ADS-B Integrity` dashboard.",
+  "visualization": "(Panel 1) Duplicate-address events by region. (Panel 2) Geometry-violation events by airframe category. (Panel 3) Ghost-target heatmap (lat/lon density). (Panel 4) 30-day ADS-B anomaly trend.",
+  "cimModels": [
+    "Network_Traffic",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "RTCA DO-260C - Minimum Operational Performance Standards for 1090 MHz Extended Squitter Automatic Dependent Surveillance - Broadcast (ADS-B)",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "14 CFR 91.225 - ADS-B Out Equipment and Use",
+      "url": "https://www.ecfr.gov/current/title-14/chapter-I/subchapter-F/part-91/subpart-C/section-91.225"
+    },
+    {
+      "title": "EUROCONTROL ADS-B and Mode S Surveillance",
+      "url": "https://www.eurocontrol.int/service/automatic-dependent-surveillance-broadcast-ads-b-out"
+    }
+  ],
+  "knownFalsePositives": "1. **ANSP test injection**: EUROCONTROL and FAA may publish controlled ADS-B test signals; tag known test transponders and exclude. 2. **Receiver glitch with duplicate**: a single corrupt packet may appear as a duplicate; require duplicate_count >= 3 across multiple receivers before firing. 3. **Brief reception of legitimate other aircraft with same ICAO**: aircraft re-registered between countries may have legacy ICAO entries; refresh the fleet lookup quarterly.\n\n**Suppression mechanism**: KV Store `do326a_22_60_10_exceptions` with the Chief Pilot + CISO documented approval.",
+  "requiredFields": [
+    "icao_24bit_address",
+    "anomaly_category",
+    "geo_region",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Chief Pilot + Director of Operations + CISO",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "cisco-cybervision",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "OpenSky Network (community ADS-B receivers)",
+    "Garmin GDL-90 (ADS-B receiver)",
+    "EUROCONTROL ADS-B surveillance",
+    "FAA ADS-B Out (TSO-C166b / TSO-C154c)",
+    "Splunk Edge Hub"
+  ],
+  "mitreAttack": [
+    "T1565",
+    "T1499"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 and UC-22.60.2 in production.\n- ADS-B ingestion configured (operator stations or OpenSky Network).\n- KV Store `do326a_fleet_icao_24bit_lookup`.\n\n## Step 1 - Fleet ICAO mapping\n\n```ini\n[do326a_fleet_icao_24bit_lookup]\nenforceTypes = true\nfield.tail_number = string\nfield.icao_24bit_address = string\nfield.airframe_type = string\nfield.in_fleet = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.10: ADS-B Integrity]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.10,reg=DO-326A,clause=DO-326A-s3-2\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 90`** (owner: OCC + Chief Pilot + CISO, severity P1): Within 5 minutes, the OCC contacts the affected flight crew (if one of our own tails) and the ANSP; within 24 hours, the NCA is notified under Part-IS IS.OR.230.\n\n**`risk_score 70-89`** (owner: SOC + Flight Ops, severity P2): Within 30 minutes, the operator's flight-planning system flags the affected region for awareness.\n\n## Step 4 - Aviation-specific notes\n\n- **Mode S Squitter overlap**: Mode S surveillance returns the same ICAO 24-bit address; differentiate from ADS-B by message type field.\n- **Garmin GDL-90**: GA cross-reference for UAT 978 MHz (not used by commercial in EU/most of the world).\n- **NOTAM-protected zones**: ADS-B may be deliberately suppressed near military bases; tag NOTAM regions.",
+  "grandmaExplanation": "Each aircraft broadcasts where it is using a system called ADS-B - like a beacon. If someone fakes a beacon for an aircraft that isn't really there, controllers and other aircraft could be confused. We watch for fake beacons so we can warn air-traffic-control to ignore them."
+}

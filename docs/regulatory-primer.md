@@ -38,7 +38,7 @@ programmes think:
   tampered with?" or "can you demonstrate that breach notifications were sent
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
-- **By regulation** — 15 tier-1 frameworks covered deeply, plus 34 per-regulation
+- **By regulation** — 16 tier-1 frameworks covered deeply, plus 34 per-regulation
   subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 58
   tier-2 frameworks in the appendix. Regulation-level reading is the right
   choice when you are answering a specific audit, mapping against a specific
@@ -63,7 +63,7 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 
 | Badge | Meaning |
 |-------|---------|
-| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 15 frameworks; see `api/v1/compliance/coverage.json`. |
+| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 16 frameworks; see `api/v1/compliance/coverage.json`. |
 | `T2`  | **Tier 2** — authored to meaningful partial coverage; 58 frameworks including all 5 derivative privacy regulations. |
 | `T3`  | **Tier 3** — referenced or meta-frameworks; 2 today (`meta-multi`, `ferc-cip`). |
 
@@ -1789,6 +1789,189 @@ the [IACS Unified Requirements register](https://iacs.org.uk/publications/unifie
 the [BIMCO Cyber Security Onboard Ships Guidelines](https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships),
 the [Paris MoU Cyber CIC 2023](https://www.parismou.org/inspections-risk/library-faq/cic),
 and the [USCG Maritime Cyber Strategic Outlook](https://www.uscg.mil/maritimecyber/).
+
+### 4.19 RTCA DO-326A / EUROCAE ED-202A + DO-355A + DO-356A + FAA AC 20-186 + EASA AMC 20-42 + EASA Part-IS — Airworthiness Security (Global Aviation) · `T1` {#do-326a}
+
+**Regulation:** *RTCA DO-326A "Airworthiness Security Process
+Specification"* (RTCA Inc., 6 August 2014) and the identical
+*EUROCAE ED-202A* (Edition 2, June 2014) — the joint US/EU industry
+standard for airworthiness security certification of civil aircraft.
+DO-326A is the process spec; *DO-356A / ED-203A "Airworthiness
+Security Methods and Considerations"* (2018) provides the methods
+(threat scenarios, risk assessment, security architecture);
+*DO-355A / ED-204A "Information Security Guidance for Continuing
+Airworthiness"* (2020) extends the obligation to in-service
+operation; *DO-391 / ED-205 "Aeronautical Information System Security
+(AISS) Framework Guidance"* covers ground systems supporting
+connected aircraft. Accepted by the
+[FAA via Advisory Circular 20-186](https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/1039753)
+and by the
+[EASA via Acceptable Means of Compliance AMC 20-42](https://www.easa.europa.eu/en/document-library/acceptable-means-of-compliance-and-guidance-materials).
+Parallel ISMS obligation under
+[EASA Part-IS](https://www.easa.europa.eu/en/the-agency/faqs/information-security)
+([Commission Implementing Regulation (EU) 2022/1645](https://eur-lex.europa.eu/eli/reg_impl/2022/1645/oj)
+and [Commission Delegated Regulation (EU) 2023/203](https://eur-lex.europa.eu/eli/reg_del/2023/203/oj)),
+binding for every approved EU/EEA aviation organisation from
+**22 February 2026**. Aircraft network architecture anchored on
+*ARINC 811 — Commercial Aircraft Information Security Concepts of
+Operation and Process Framework* (four trust domains: ACD / AISD /
+PIESD / POD).
+
+**Who must comply:**
+
+- **Type-certificate (TC) and supplemental type-certificate (STC)
+  applicants** where Information Security is identified as an issue
+  by the FAA Aircraft Certification Service or the EASA project
+  certification manager (PCM) — covers Airbus, Boeing, Embraer,
+  Bombardier, Dassault Aviation, Gulfstream, Textron Aviation,
+  Pilatus, Honda Aircraft, Diamond Aircraft, Mitsubishi SpaceJet
+  (suspended), COMAC, UAC, and every Part-21 design organisation.
+- **Continuing Airworthiness Management Organisations (CAMOs)** under
+  EASA Part-CAMO and Part-145 maintenance organisations — DO-355A
+  applies to every in-service aircraft.
+- **Every approved EU/EEA aviation organisation under EASA Part-IS**
+  (Part-21 design / production, Part-145 maintenance, Part-CAMO,
+  Part-CAO, Part-AeMC, Part-ATCO, Part-FCL, Part-MED, Part-ORO /
+  Part-CAT, Part-NCC, Part-NCO, Part-SPO, Part-ANS, Part-ATM/ANS,
+  ADR.OR) — binding from 22 February 2026.
+- **Cross-recognition:** FAA, EASA, Transport Canada Civil Aviation
+  (TCCA), Brazilian ANAC, Japan JCAB, Civil Aviation Authority of
+  Singapore (CAAS), UK CAA, Australian CASA, and other Tier-1
+  authorities accept DO-326A under bilateral aviation-safety
+  agreements (BASAs).
+- **Carve-outs:** military / state aviation (governed by the relevant
+  national defence-aviation rules), experimental and amateur-built
+  aircraft below the relevant Information Security threshold.
+
+**Regime structure and catalogue coverage.** The DO-326A regime is
+multi-document: a process spec, a methods companion, a continuing-
+airworthiness extension, a ground-system extension, two regulator
+acceptance documents, an ISMS implementing regulation, and an
+underlying network-architecture concept. This catalogue release
+ships 17 monitored clauses (subcategory §22.60):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| PSecAA | Plan for Security Aspects of Certification milestone tracker | DO-326A-s2-2, FAA-AC-20-186-s5, EASA-AMC-20-42-s4 | §22.60.1 |
+| CSI + SRA | Cyber Security Item inventory + Security Risk Assessment per airframe type | DO-326A-s2-1, DO-326A-s3-1 | §22.60.2 |
+| ARINC 811 segregation | ACD / AISD / PIESD / POD trust-domain segregation drift detection | DO-326A-s6-3, ARINC-811-s4-2 | §22.60.3, §22.60.12 |
+| LSAP integrity | Loadable Software Aircraft Part digital-signature audit at load time | DO-355A-s2-3 | §22.60.4 |
+| AD / SB compliance | Cyber-AD and security-SB compliance tracker per tail | DO-355A-s2-1 | §22.60.5 |
+| PMAT governance | Portable Maintenance Access Terminal / maintenance-laptop governance | DO-355A-s3-4 | §22.60.6 |
+| EFB posture | Electronic Flight Bag Class 2/3 security posture monitoring | DO-356A-s5-2 | §22.60.7 |
+| Datalink integrity | ACARS / CPDLC / VDL Mode 2 message integrity + injection detection | DO-356A-s3-1 | §22.60.8 |
+| GNSS / GPS spoofing | GNSS spoofing and jamming detection from RAIM + position-anomaly | DO-356A-s3-1 | §22.60.9 |
+| ADS-B injection | ADS-B / Mode S Squitter integrity + ghost-target detection | DO-356A-s3-1 | §22.60.10 |
+| Engine OEM remote access | Engine OEM remote-monitoring channel governance via PAM + WYSIWYS | EASA-Part-IS-IS-OR-220 | §22.60.11 |
+| Incident reporting | EASA Part-IS 72-hour preliminary + 1-month final reporting clock | EASA-Part-IS-IS-OR-230 | §22.60.13 |
+| ISMS audit | EASA Part-IS ISMS audit-evidence register and scope coverage | EASA-Part-IS-IS-OR-200 | §22.60.14 |
+| SBOM CVE monitoring | Airborne software cyber-SBOM vulnerability monitoring | DO-355A-s2-1, EASA-Part-IS-IS-OR-205 | §22.60.15 |
+| Training cadence | Pilot + maintenance cyber-incident training cadence + drill register | EASA-Part-IS-IS-OR-240 | §22.60.16 |
+| Aeronautical DB integrity | NAV / FMS / TERRAIN / EGPWS database digital-signature audit | DO-355A-s3-1, DO-326A-s3-3 | §22.60.17 |
+
+**What the catalogue delivers:** 100 % coverage of the 19 monitored
+clauses. Subcategory §22.60 ships 17 dedicated DO-326A UCs, each
+sidecar carrying an `obligationRef` of the form
+`do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#<clause>`.
+The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/do-326a.md`](evidence-packs/do-326a.md) §4
+and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: do-326a`.
+
+**Four-layer enforcement.** The airworthiness-security regime is
+enforced at four independent layers: type-certification (FAA ACO /
+EASA PCM finding-of-non-compliance can delay a TC by 3-12 months,
+costing the applicant hundreds of millions of dollars per
+programme), continuing-airworthiness (FAA Aircraft Maintenance
+Division / EASA Continuing Airworthiness Department / NCA can issue
+cyber-ADs that ground affected fleets), EASA Part-IS / NIS2 (NCA
+inspection with up to EUR 10 million / 2 % of worldwide turnover
+under NIS2 overlap), and Air Operator Certificate (suspension or
+revocation of the AOC prevents flight operations). The Accountable
+Manager personally signs the operator-certificate attestation; in
+some EU/EEA Member States this can rise to administrative or
+criminal liability for a Part-IS / NIS2 failure leading to a
+safety-impacting incident.
+
+**Aviation-specific evidence patterns.** §22.60 carries aviation-
+specific controls that are unique to the airworthiness-security
+domain and not covered by adjacent regulations:
+
+- **PSecAA milestone tracker** — UC-22.60.1 reconciles every active
+  TC/STC project against its PSecAA acceptance and downstream
+  milestones (CSI register baseline, SRA completion, security
+  architecture freeze, security verification, CASI delivery).
+- **ARINC 811 trust-domain segregation** — UC-22.60.3 continuously
+  monitors information flows between the Aircraft Control Domain
+  (ACD), Airline Information Services Domain (AISD), Passenger
+  Information & Entertainment Services Domain (PIESD), and Passenger
+  Owned Devices (POD); any cross-domain flow not in the documented
+  security-architecture allowlist triggers a critical event.
+- **LSAP digital-signature audit** — UC-22.60.4 verifies every
+  Loadable Software Aircraft Part (LSAP) load against the TC-holder
+  authorised-signer allowlist; a load with an engineering certificate
+  (or any non-production signer) is blocked.
+- **PMAT governance** — UC-22.60.6 enforces device posture and USB
+  policy on Portable Maintenance Access Terminals (laptops used by
+  line- and base-maintenance to talk to the aircraft via the data
+  loader); the PMAT is the highest-risk insider-threat ingress path.
+- **EFB posture monitoring** — UC-22.60.7 monitors Class 2 EFB
+  tablets (Surface Pro / iPad) for MDM check-in cadence, app-
+  inventory drift, OS-version posture; out-of-policy EFBs are
+  blocked from cockpit use.
+- **ACARS / CPDLC / VDL Mode 2 integrity** — UC-22.60.8 detects
+  injection of false ATC clearances, unauthorised CPDLC messages,
+  and VDL Mode 2 anomalies against flight-plan and crew-acknowledged
+  baseline; cross-references with the FANS-1/A and FANS-2/A
+  expected-routing tables.
+- **GNSS spoofing / jamming detection** — UC-22.60.9 monitors RAIM
+  warnings, GPS satellite-vehicle-count anomalies, and impossible-
+  track events; documented GNSS spoofing in the Black Sea, Persian
+  Gulf, Eastern Mediterranean, and over conflict zones is routinely
+  surfaced (OPSGROUP, Sentinel, EUROCONTROL bulletins).
+- **ADS-B injection detection** — UC-22.60.10 cross-checks ADS-B
+  Squitter messages against MLAT and radar tracks to detect ghost-
+  target injection on the cockpit display.
+- **Aeronautical database integrity** — UC-22.60.17 verifies signer-
+  pinning and signature validity on every NAV / FMS / TERRAIN /
+  EGPWS / PERFORMANCE / SYNTHETIC-VISION database load at the LRU
+  upload point; an unsigned or wrong-signer database triggers a
+  NO-DESPATCH workflow.
+
+**EASA Part-IS 72-hour + 1-month clock.** UC-22.60.13 parallelises
+submissions to the National Competent Authority under
+[Commission Delegated Regulation (EU) 2023/203](https://eur-lex.europa.eu/eli/reg_del/2023/203/oj)
+Art.6 (72-hour preliminary report) and Art.7 (1-month final
+report), plus the FAA (where US-registered) and any other Tier-1
+authority with a parallel obligation, all within the EASA Part-IS
+window required by IS.OR.230.
+
+**Convergence with adjacent regimes.** Cat-22 §22.56.4 (TSA Surface
+SD-1582 aviation) overlaps for US-registered cyber-relevant
+operators. Cat-22 §22.2 (NIS2) overlaps for EU-flagged operators
+under the "air transport" essential-entity category. Cat-22 §22.50
+(NCA OTCC) overlaps for operators with Saudi-registered aircraft.
+Cat-22 §22.54 (SOCI Act) overlaps for Australian-registered
+operators under the aviation CI rules. The 72-hour clock in
+UC-22.60.13 is deliberately conservative against the most aggressive
+of these regimes so that a single notable event produces compliant
+evidence across every overlapping regulator.
+
+**Where to look:** §22.60 ·
+[`api/v1/compliance/regulations/do-326a.json`](../api/v1/compliance/regulations/do-326a.json) ·
+[`docs/evidence-packs/do-326a.md`](evidence-packs/do-326a.md) ·
+official sources: [RTCA standards list](https://www.rtca.org/standards/list-of-available-documents/),
+[EUROCAE standards list](https://www.eurocae.net/about-us/list-of-publications/),
+[FAA AC 20-186](https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/1039753),
+[EASA Acceptable Means of Compliance library](https://www.easa.europa.eu/en/document-library/acceptable-means-of-compliance-and-guidance-materials),
+[EASA Part-IS Information Security FAQ](https://www.easa.europa.eu/en/the-agency/faqs/information-security),
+[Commission Implementing Regulation (EU) 2022/1645](https://eur-lex.europa.eu/eli/reg_impl/2022/1645/oj),
+[Commission Delegated Regulation (EU) 2023/203](https://eur-lex.europa.eu/eli/reg_del/2023/203/oj),
+the [ICAO Cybersecurity in Civil Aviation page](https://www.icao.int/Security/Pages/Cybersecurity.aspx),
+[ARINC 811 specification](https://aviation-ia.sae-itc.com/standards/arinc811-0-arinc-specification-811-0-commercial-aircraft-information-security-concepts-operation-and-process),
+the [A-ISAC](https://www.a-isac.com/) and
+the [European Centre for Cybersecurity in Aviation (ECCSA)](https://www.eccsa.eu/).
 
 ---
 

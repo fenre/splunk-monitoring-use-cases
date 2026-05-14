@@ -1,0 +1,147 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.16",
+  "title": "Pilot and maintenance cyber-incident training cadence + tabletop drill register - DO-355A + EASA Part-IS IS.OR.240 personnel-qualification compliance",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes administrative-only personnel with no role in aircraft operations or maintenance. Excludes contracted ground-handling personnel (governed by their own organisation's IS.OR.240 obligations under IS.OR.235 flow-down).",
+  "evidence": "Saved search `UC-22.60.16` archived daily to `audit_evidence` with `do326a_clause=\"DO-355A-s2-1\"`. Every row pins (personnel_id, role, training_course, last_completed, next_due, days_to_due, drill_participation_count_12mo, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-355A-s2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DO-355A §2.1 requires the operator to train flight and maintenance crew on cyber events as part of continuing-airworthiness security activities; this UC implements the per-personnel cadence tracker.",
+      "controlObjective": "Demonstrates that 100% of relevant personnel have a current cyber-incident training certificate, that the tabletop drill cadence is met, and that the renewal cycle is on track for every individual.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `Cyber Training Cadence` dashboard, the LMS training records, the tabletop drill after-action reports.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-355A-s2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-200",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "EASA Part-IS IS.OR.200 requires the ISMS to be integrated into safety management; personnel competence on cyber incidents is part of integrating cyber into safety.",
+      "controlObjective": "Evidences personnel-competence integration into the ISMS.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-200",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s4-2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DO-326A §4.2 (Security Effectiveness Demonstration) requires that countermeasures be verified to be effective. Tabletop drills and incident-response exercises are the canonical in-service verification of human and procedural countermeasures — they prove the response playbook (a §4.2 countermeasure) actually works on real personnel. This UC tracks drill cadence + participation + after-action remediation closure, providing the operator-side §4.2 evidence trail.",
+      "controlObjective": "Operationalises §4.2 by tracking the cadence, participation, and after-action remediation of cyber tabletop drills — the in-service verification of human / procedural countermeasures.",
+      "evidenceArtifact": "Same as the primary clause, plus tabletop drill after-action reports.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s4-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Allow a flight-crew member's annual cyber-incident training to lapse past its due date. UC-22.60.16 MUST flag within 24 hours with risk_score >= 80.",
+    "negativeScenario": "Complete the annual cyber-incident training 30 days ahead of the due date for every relevant personnel. UC-22.60.16 MUST record `training_status=current` and `risk_score=0` for each."
+  },
+  "dataSources": "KV Store `do355a_training_lookup` (personnel_id, role - flight-crew / cabin-crew / line-maintenance / base-maintenance / dispatch / ramp / OCC / SOC, training_course, training_required_cadence_months, last_completed, next_due). KV Store `do355a_drill_participation_lookup` (drill_id, drill_date, drill_type - tabletop / live, participants - mvfield).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup do355a_training_lookup\n| eval now_ts = now()\n| eval days_to_due = round((next_due - now_ts) / 86400, 1)\n| eval training_status = case(\n    isnull(last_completed), \"missing\",\n    now_ts > next_due, \"expired\",\n    days_to_due <= 30, \"renewal-due\",\n    1=1, \"current\")\n| join type=outer personnel_id [\n    | inputlookup do355a_drill_participation_lookup\n    | where drill_date > relative_time(now(), \"-365d\")\n    | mvexpand participants\n    | rename participants AS personnel_id\n    | stats count AS drill_participation_count_12mo by personnel_id ]\n| fillnull drill_participation_count_12mo value=0\n| eval risk_score = case(\n    training_status = \"missing\" AND role IN (\"flight-crew\", \"line-maintenance\", \"OCC\", \"SOC\"), 90,\n    training_status = \"expired\" AND role IN (\"flight-crew\", \"line-maintenance\", \"OCC\", \"SOC\"), 85,\n    training_status = \"missing\", 70,\n    training_status = \"expired\", 60,\n    training_status = \"renewal-due\" AND days_to_due <= 7, 40,\n    drill_participation_count_12mo = 0 AND role = \"flight-crew\", 30,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 80, \"critical\", risk_score >= 60, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -days_to_due\n| table personnel_id role training_course last_completed next_due days_to_due training_status drill_participation_count_12mo severity risk_score",
+  "description": "Reconciles per-personnel cyber-incident training records against the operator's training-cadence policy (typically annual for flight-crew / line-maintenance / OCC / SOC roles), plus 12-month tabletop drill participation. Surfaces missing, expired, and at-risk training to the Director of Training and CISO ahead of the next compliance audit.",
+  "value": "Personnel competence on cyber-incident response is the highest-impact non-technical control under DO-355A and Part-IS - flight-crew may be first to detect a GPS spoofing or ACARS injection event, line-maintenance may be first to encounter a tampered LSAP. EASA Part-IS audit guidance treats out-of-date training records as a major finding; the cost is recurrent training in compressed timescales plus potential approval-conditioning. This UC closes the gap before the auditor sees it.",
+  "implementation": "(1) Populate `do355a_training_lookup` from the operator's Learning Management System (LMS - Cornerstone, SuccessFactors, Workday Learning, AVATAR Avia, Lufthansa Aviation Training). (2) Populate `do355a_drill_participation_lookup` from the tabletop drill after-action records. (3) Schedule UC-22.60.16 daily at 06:30 base-local; route `risk_score >= 80` to the Director of Training + CISO at severity P1, `risk_score 60-79` at severity P2. (4) Build the `Cyber Training Cadence` dashboard.",
+  "visualization": "(Panel 1) Training status by role (missing / expired / renewal-due / current). (Panel 2) Drill participation by role (12-month rolling). (Panel 3) Days-to-due histogram per role. (Panel 4) 90-day training completion trend.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "RTCA DO-355A - Information Security Guidance for Continuing Airworthiness",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "EASA Part-IS Information Security Management",
+      "url": "https://www.easa.europa.eu/en/the-agency/faqs/information-security"
+    },
+    {
+      "title": "ICAO Doc 10164 - Aviation Cybersecurity Strategy",
+      "url": "https://www.icao.int/Security/Pages/Cybersecurity.aspx"
+    }
+  ],
+  "knownFalsePositives": "1. **New hire mid-onboarding**: a new hire may be in onboarding training; allow 30 days from hire date for first cyber training. 2. **Role change**: a personnel who moves role may have valid prior training for the new role; cross-reference with role-mapping table. 3. **Sabbatical / leave**: personnel on sabbatical or extended leave should be excluded; tag `personnel_status=on-leave`.\n\n**Suppression mechanism**: KV Store `do326a_22_60_16_exceptions` with the Director of Training + CISO documented approval.",
+  "requiredFields": [
+    "personnel_id",
+    "role",
+    "training_course",
+    "training_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Director of Training + CISO",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow HR Service Delivery",
+    "Cornerstone OnDemand LMS",
+    "Workday Learning",
+    "Lufthansa Aviation Training (LMS)",
+    "AVATAR Avia LMS"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- KV Store `do355a_training_lookup`.\n- KV Store `do355a_drill_participation_lookup`.\n- Connector to LMS or HRIS.\n\n## Step 1 - Training register schema\n\n```ini\n[do355a_training_lookup]\nenforceTypes = true\nfield.personnel_id = string\nfield.role = string\nfield.training_course = string\nfield.training_required_cadence_months = number\nfield.last_completed = time\nfield.next_due = time\nfield.personnel_status = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.16: Cyber Training Cadence]\ncron_schedule = 30 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.16,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 80`** (owner: Director of Training + CISO, severity P1): Within 5 business days, the affected personnel is scheduled for the next available training cohort; if not feasible within 14 days, the personnel is temporarily reassigned away from cyber-relevant duties.\n\n**`risk_score 60-79`** (owner: Training Coordinator, severity P2): Within 14 business days, schedule the training renewal.\n\n## Step 4 - Aviation-specific notes\n\n- **Flight-crew recurrent simulator slot**: incorporate cyber-incident scenarios into the annual recurrent simulator slot (LOFT - Line-Oriented Flight Training).\n- **Line-maintenance digital training**: short e-learning modules per LSAP load type.\n- **Tabletop cadence**: target at least 1 tabletop drill per quarter per organisation, with cross-functional participation.",
+  "grandmaExplanation": "Pilots, mechanics, and dispatchers all need to know how to spot a cyber problem on an aircraft - and what to do about it. We track that every person has up-to-date training and has practised in a drill recently, so the team is ready if something happens for real."
+}

@@ -1,0 +1,157 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.17",
+  "title": "Aeronautical database integrity attestation - navigation / FMS / terrain / performance database tampering detection (DO-200B / DO-201A / DO-202A digital signature + LRU upload audit)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes ground-based aeronautical databases used only for flight-planning (e.g. NAVTECH AFP, Lufthansa Systems Lido/Flight); covered by IT data-integrity controls. Excludes paper backup charts.",
+  "evidence": "Saved search `UC-22.60.17` archived daily to `audit_evidence` with `do326a_clause=\"DO-355A-s3-1\"`. Every row pins (tail, lru, database_type, database_cycle, signature_status, expected_signer, observed_signer, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-355A-s3-1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "DO-355A §3.1 requires the operator to verify the integrity of airborne data including navigation databases at each load; an invalid digital signature is a violation that must be detected at load-time. This UC implements the per-database digital-signature audit.",
+      "controlObjective": "Detects unauthorised, tampered, or expired aeronautical database loads (NAV / FMS / terrain / performance / synthetic-vision / EGPWS / weather-radar) at the LRU upload point.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `Aeronautical DB Integrity` dashboard, the database supplier digital-signature manifests, the LRU upload audit trail.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-355A-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s3-3",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "DO-326A §3.3 requires security verification of CSIs - aeronautical databases are CSIs because a tampered terrain database can mask a terrain hazard and an injected NAV waypoint can redirect an FMS-coupled approach.",
+      "controlObjective": "Detects CSI tampering at the database-load point.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s3-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-220",
+      "mode": "detects-violation-of",
+      "assurance": "partial",
+      "assurance_rationale": "EASA Part-IS IS.OR.220 requires the organisation to detect information-security events; a failed signature-verification on a critical aeronautical database is such an event.",
+      "controlObjective": "Evidences detection capability for aeronautical-database integrity events.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-220",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Load a navigation database whose digital signature is invalid or whose signer is not on the expected-signer allowlist. UC-22.60.17 MUST flag within 5 minutes with risk_score >= 95 and trigger a NO-DESPATCH workflow.",
+    "negativeScenario": "Load a current-cycle Jeppesen NavData with a valid Jeppesen signature into a tail whose expected_signer = `cn=jeppesen,o=jeppesen,c=us`. UC-22.60.17 MUST record `signature_status=valid` and `risk_score=0`."
+  },
+  "dataSources": "Aeronautical database load-time attestation events (sourcetype `aero:db:attestation` - tail, lru, database_type, database_cycle, signer_dn, signer_thumbprint, signature_status). KV Store `aero_db_signers_lookup` (database_supplier, signer_dn, signer_thumbprint, valid_from, valid_until - allowlisted Jeppesen, LIDO/Flight, Honeywell, Collins, GE, Garmin signers).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk_TA_stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=aviation_ot sourcetype=\"aero:db:attestation\"\n| eval now_ts = now()\n| lookup aero_db_signers_lookup database_supplier OUTPUT signer_dn AS expected_signer_dn signer_thumbprint AS expected_signer_thumbprint valid_from AS signer_valid_from valid_until AS signer_valid_until\n| eval signature_status = case(\n    signature_status = \"invalid\", \"invalid\",\n    isnull(expected_signer_dn), \"unknown-supplier\",\n    signer_dn != expected_signer_dn, \"wrong-signer-dn\",\n    signer_thumbprint != expected_signer_thumbprint, \"wrong-signer-thumbprint\",\n    now_ts < signer_valid_from OR now_ts > signer_valid_until, \"signer-cert-expired\",\n    1=1, \"valid\")\n| eval risk_score = case(\n    signature_status = \"invalid\" AND database_type IN (\"NAV\", \"FMS\", \"TERRAIN\", \"EGPWS\"), 100,\n    signature_status = \"invalid\" AND database_type IN (\"PERFORMANCE\", \"SYNTHETIC-VISION\"), 95,\n    signature_status = \"invalid\", 80,\n    signature_status = \"wrong-signer-dn\" OR signature_status = \"wrong-signer-thumbprint\", 95,\n    signature_status = \"unknown-supplier\", 85,\n    signature_status = \"signer-cert-expired\", 75,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -_time\n| table _time tail lru database_type database_cycle signer_dn expected_signer_dn signature_status severity risk_score",
+  "description": "Audits every aeronautical-database load event on every tail against the allowlisted database-supplier signer certificates (Jeppesen NavData, LIDO/Flight, Honeywell SmartPath, Collins WXR, GE Aviation, Garmin G1000/G5000). A failed signature, wrong signer DN, wrong thumbprint, unknown supplier, or expired signer certificate triggers a critical alert and a NO-DESPATCH workflow before the aircraft moves under power.",
+  "value": "An undetected tampered terrain database can mask a CFIT hazard; an injected NAV waypoint on an RNP approach can drive the FMS into terrain. The DO-200B / ED-76A standard governs the integrity of aeronautical data from supplier to aircraft; this UC closes the last 100 metres - the load-time signature verification at the LRU. Without this UC, the operator relies on the avionics LRU's own signature check, which historically has had implementation defects (e.g. accepting any signed file rather than supplier-pinned signatures).",
+  "implementation": "(1) Enable signature-verification logging on the FMS / EGPWS / terrain / performance LRUs (Honeywell EGPWS V-3.x, Collins TAWS-9000, Garmin G5000); forward to Splunk via the data-loader or the maintenance ground link. (2) Populate `aero_db_signers_lookup` with the supplier-pinned signer DN and thumbprint for each database supplier under contract. (3) Schedule UC-22.60.17 every 5 minutes; route `risk_score >= 90` to the Chief Pilot + Maintenance Control + CISO at severity P0 (NO-DESPATCH); `risk_score 70-89` at severity P1. (4) Build the `Aeronautical DB Integrity` dashboard.",
+  "visualization": "(Panel 1) Open integrity failures by tail. (Panel 2) Failure type distribution. (Panel 3) Signer-cert expiry calendar (90-day horizon). (Panel 4) 30-day load-success rate trend by supplier.",
+  "cimModels": [
+    "Change",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "RTCA DO-355A - Information Security Guidance for Continuing Airworthiness",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "RTCA DO-200B / EUROCAE ED-76A - Standards for Processing Aeronautical Data",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "FAA AC 20-153B - Acceptance and Use of Aeronautical Data and Aeronautical Databases",
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/1039753"
+    }
+  ],
+  "knownFalsePositives": "1. **Mid-cycle supplier-certificate rotation**: Jeppesen and other suppliers rotate signing certificates on schedule; ensure the `aero_db_signers_lookup` is refreshed at least 7 days before the published rotation. 2. **Cold-and-dark LRU after long storage**: an LRU returning from storage may attempt to load a stale cycle; this is a valid signature but operationally stale - tag `cycle_freshness` separately. 3. **Software-versus-data confusion**: some LRUs report the LSAP signer rather than the database signer; ensure the attestation event identifies the database file specifically.\n\n**Suppression mechanism**: KV Store `do326a_22_60_17_exceptions` with the Chief Engineer + CISO documented approval.",
+  "requiredFields": [
+    "tail",
+    "lru",
+    "database_type",
+    "database_cycle",
+    "signer_dn",
+    "expected_signer_dn",
+    "signature_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Chief Pilot + Maintenance Control + CISO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Honeywell EGPWS V-3.x",
+    "Collins TAWS-9000",
+    "Garmin G5000 / G1000 NXi",
+    "Jeppesen NavData",
+    "LIDO/Flight (Lufthansa Systems)",
+    "Honeywell SmartPath",
+    "Collins WXR"
+  ],
+  "mitreAttack": [
+    "T1565.001",
+    "T1195"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.2",
+    "UC-22.60.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1, UC-22.60.2, UC-22.60.4 in production.\n- Sourcetype `aero:db:attestation` configured.\n- KV Store `aero_db_signers_lookup` populated.\n\n## Step 1 - Sourcetype configuration\n\nProps for `aero:db:attestation`:\n\n```ini\n[aero:db:attestation]\nTIME_PREFIX = ts=\nTRUNCATE = 8192\nSHOULD_LINEMERGE = false\nKV_MODE = json\ndisabled = false\n```\n\n## Step 2 - Signer-allowlist schema\n\n```ini\n[aero_db_signers_lookup]\nenforceTypes = true\nfield.database_supplier = string\nfield.signer_dn = string\nfield.signer_thumbprint = string\nfield.valid_from = time\nfield.valid_until = time\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.17: Aeronautical DB Integrity]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable, webhook\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.17,reg=DO-326A,clause=DO-355A-s3-1\naction.webhook.param.url = https://maintenance-control.example.com/no-despatch\nalert.severity = 6\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90`** (owner: Chief Pilot + Maintenance Control + CISO, severity P0 - NO-DESPATCH): The aircraft is held on the gate. The original supplier-issued media is re-verified; if the failure persists, an SB-driven re-load is performed. No aircraft moves under power until the load is verified.\n\n**`risk_score 70-89`** (owner: Maintenance Control, severity P1): Within 4 hours, investigate cause; if cause is operational (e.g. mid-cycle supplier-cert rotation), refresh the allowlist; if cause is suspicious, escalate to NO-DESPATCH.\n\n## Step 5 - Aviation-specific notes\n\n- **DO-200B chain of custody**: the supplier (Jeppesen, LIDO/Flight) is DO-200B compliant; the operator's role is to verify integrity at the load boundary.\n- **NavBlue / Jeppesen / LIDO**: these are the dominant suppliers; ensure each has a current contract and a current signer pinning.\n- **No air-data NDB acceptance**: under DO-200B, only digitally-signed databases from approved suppliers are acceptable; manual NDB uploads must be blocked.",
+  "grandmaExplanation": "Aircraft use digital maps to know where the airports, mountains, and runways are. We make sure every map loaded onto a plane has a real, valid signature from the official map company - otherwise the aircraft doesn't move."
+}

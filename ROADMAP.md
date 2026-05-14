@@ -6,6 +6,120 @@
 
 ## Current release
 
+**v8.6.2 — OT Regulation Deep-Dive (Phase 5b: RTCA DO-326A / EUROCAE ED-202A airworthiness security)** *(shipped 2026-05-14)*
+
+Theme: **Phase 5b of the multi-phase OT-regulation programme — second
+half of Phase 5.** v8.6.2 lands the *RTCA DO-326A / EUROCAE ED-202A —
+Airworthiness Security Process Specification* (FAA + EASA + Transport
+Canada + ANAC + CAA UK, tier-1, GLOBAL aviation) with the operator
+continuing-airworthiness obligations from *DO-355A / ED-204A*, the
+risk-assessment methods from *DO-356A / ED-203A*, the framework
+guidance from *DO-391 / ED-205*, the regulator acceptance hooks from
+*FAA AC 20-186* and *EASA AMC 20-42*, the four-domain trust
+architecture from *ARINC 811*, and the operational ISMS overlay from
+*EASA Part-IS* (Implementing Regulations (EU) 2022/1645 design side
+and 2023/203 operator side). The regulation lands with an auditor-grade
+evidence pack and **DO-326A becomes the first tier-1 framework with
+100% clause coverage** (21/21). The catalogue tier-1 count rises to
+16 frameworks.
+
+- **DO-326A / ED-202A framework registered in `data/regulations.json`**
+  with the airworthiness clause grammar covering DO-326A §2.1
+  (objectives), §2.2 (PSecAA), §3.1 (Cyber Security Items), §3.2 (Threat
+  Conditions Identification), §3.3 (Security Risk Assessment), §4.1
+  (Security Architecture), §4.2 (Security Effectiveness Demonstration),
+  §5.1 (Continued Airworthiness Security Information handoff); DO-355A
+  §2.1 + §2.3 + §3.1 (operator continuing-airworthiness security,
+  LSAP signature integrity, cyber-incident detection / response /
+  reporting); DO-356A §3.1 (risk-assessment methods); FAA AC 20-186 §5
+  and EASA AMC 20-42 §4 (regulator acceptance); ARINC 811 §4.2 (ACD /
+  AISD / PIESD / POD domain architecture); and EASA Part-IS IS.OR.200
+  (ISMS scope), IS.OR.205 (risk assessment), IS.OR.220 (incident
+  detection / response), IS.OR.230 (24h / 72h / 1-month reporting),
+  IS.OR.235 (supply-chain ISMS flow-down), IS.OR.245 (5-year record
+  retention) — 21 monitored clauses.
+- **17 hand-written gold-tier UCs** under the new `22.60` (RTCA
+  DO-326A / EUROCAE ED-202A) subcategory: PSecAA register
+  (UC-22.60.1) and DO-326A SRA coverage (UC-22.60.2); ARINC 811
+  four-domain segregation drift (UC-22.60.3) and IFE-to-avionics
+  traversal (UC-22.60.12); LSAP digital-signature integrity gate
+  (UC-22.60.4) and Airworthiness Directive + Service Bulletin
+  security-related compliance tracker (UC-22.60.5); PMAT laptop
+  governance (UC-22.60.6) and Electronic Flight Bag Class 2 / Class 3
+  security posture (UC-22.60.7); ACARS / CPDLC / VDL Mode 2 datalink
+  integrity (UC-22.60.8) and GNSS / GPS spoofing + jamming
+  (UC-22.60.9) and ADS-B / Mode S squitter integrity (UC-22.60.10);
+  engine OEM remote-monitoring channel governance (UC-22.60.11);
+  EASA Part-IS 24h / 72h / 1-month reporting clock (UC-22.60.13)
+  and ISMS audit-evidence register (UC-22.60.14); airborne software
+  cyber-SBOM vulnerability monitor (UC-22.60.15); pilot +
+  maintenance cyber-incident training cadence + tabletop drill
+  register (UC-22.60.16); and aeronautical database integrity
+  attestation across navigation / FMS / terrain / performance /
+  synthetic vision / EGPWS / weather-radar databases (UC-22.60.17).
+  Every UC carries the full gold-tier payload (`controlTest` +
+  parameterised SPL + `controlObjective` + `evidenceArtifact` +
+  `obligationRef` + `knownFalsePositives` with suppression +
+  `detailedImplementation` with KV-store schema + cron + runbook +
+  aviation-specific notes + `grandmaExplanation`).
+- **Auditor-facing evidence pack** at
+  [`docs/evidence-packs/do-326a.md`](docs/evidence-packs/do-326a.md)
+  + structured metadata in
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json)
+  covering the regulatory anatomy, the four-layer enforcement chain
+  (TC-holder Continued Airworthiness Security Information → operator
+  continuing-airworthiness security → in-service detection →
+  mandatory reporting under Part-IS IS.OR.230 / FAA reporting
+  framework), aviation-specific evidence patterns (TC-holder CASI,
+  ARINC 811 SAD, LSAP loader audit, ISMS register, datalink
+  integrity logs, aeronautical-database digital signatures),
+  Part-IS IS.OR.245 5-year retention, common audit deficiencies +
+  remediation, roles matrix (Chief Engineer + CAMO Manager +
+  Director of Flight Operations + Director of Maintenance + CISO),
+  and 16 typical auditor questions cross-mapped to catalogue UCs.
+- **Documentation wire-up** — cat-22 area entry in
+  `non-technical-view.js` (between `imo-msc-428-98` and
+  `eu-ai-act`) with `whatItIs` / `whoItAffects` / `splunkValue` /
+  `primer` / `evidencePack` + 3 representative UCs (22.60.1,
+  22.60.13, 22.60.17); forward map in `docs-uc-map.js` from the
+  evidence pack to 10 anchor UCs (22.60.1, 22.60.2, 22.60.3,
+  22.60.4, 22.60.5, 22.60.13, 22.60.14, 22.60.15, 22.60.16,
+  22.60.17); full primer section `docs/regulatory-primer.md`
+  §4.19 covering DO-326A + DO-355A + DO-356A + DO-391 + FAA
+  AC 20-186 + EASA AMC 20-42 + EASA Part-IS, the four-layer
+  enforcement model, and convergence with NIS2 (transport
+  sector) + DORA (financial-services aviation vendors) + TSA
+  SD-1582-21 (US aviation) + ICAO Annex 17 (security of civil
+  aviation).
+- **100% clause closure** — DO-326A reaches the catalogue's
+  first tier-1 100% clause coverage (21/21). The last three
+  high-level airworthiness clauses (§2.1 objectives, §3.1 CSI
+  identification, §4.2 Security Effectiveness Demonstration)
+  are operationally closed by genuine mappings onto five
+  existing UCs (segregation drift, IFE traversal, LSAP signature
+  gate, cyber-SBOM, training cadence) — no metric-chasing UCs
+  added.
+
+### Shipped outcomes
+
+- Catalogue now ships **79 mapped regulations** (was 78) and
+  **7,902 UCs** (was 7,885). Cat-22 alone gains 17 gold UCs in
+  one new subcategory (22.60).
+- Tier-1 framework count rises to **16**; auditor evidence pack
+  count reaches **19**. DO-326A becomes the first tier-1
+  framework with **100% clause coverage** (21/21).
+- Global tier-1 coverage rises to **91.04%** (+0.73 pp), tier-2
+  stays at **97.55%**, tier-3 stays at **100%**.
+- Phase 5 closed end-to-end; the next milestone is Phase 6
+  (China CII + CERT-In + IEC 61508/61511, subcats 22.61–22.63,
+  27 UCs) which closes the six-phase, 247-UC arc.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.6.2 release notes.
+
+---
+
+## Previous releases
+
 **v8.6.1 — OT Regulation Deep-Dive (Phase 5a: IMO MSC.428(98) maritime cyber risk management)** *(shipped 2026-05-14)*
 
 Theme: **Phase 5a of the multi-phase OT-regulation programme — first
@@ -102,10 +216,6 @@ auditor-grade evidence pack and the catalogue tier-1 count rises to
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.6.1 release
 notes.
-
----
-
-## Previous releases
 
 **v8.6.0 — OT Regulation Deep-Dive (Phase 4: TSA Surface + SG Cyber Act + France LPM)** *(shipped 2026-05-13)*
 

@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-04-29T19:20:32Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
+_Generated: 2026-05-14T06:10:01Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -8,7 +8,7 @@ This report inverts the compliance coverage audit: for every regulation-version 
 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
-| tier-1 | 392 | 355 | 90.56 | 363.1000 | 328.5000 | 90.47 |
+| tier-1 | 413 | 376 | 91.04 | 384.1000 | 349.5000 | 90.99 |
 | tier-2 | 204 | 199 | 97.55 | 194.7000 | 190.9000 | 98.05 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
@@ -128,6 +128,41 @@ _Cybersecurity Maturity Model Certification_
 | `IR.L2-3.6.1` | Incident handling capability | 1.00 | ✔ 3 | full | 22.20.19, 22.20.7, 22.32.20 |
 | `SC.L2-3.13.8` | Cryptographic mechanisms for CUI in transit | 1.00 | ✔ 1 | full | 22.20.8 |
 | `SI.L2-3.14.6` | Monitor for attacks | 1.00 | ✔ 6 | full | 22.20.11, 22.20.12, 22.20.13, 22.20.15, 22.20.9, 22.32.21 |
+
+### DO-326A / ED-202A — `do-326a`
+
+_RTCA DO-326A / EUROCAE ED-202A — Airworthiness Security Process Specification, plus DO-355A / ED-204A Information Security Guidance for Continuing Airworthiness, DO-356A / ED-203A Airworthiness Security Methods and Considerations, FAA AC 20-186, EASA AMC 20-42, and EASA Part-IS (Regulation (EU) 2022/1645 and 2023/203)_
+
+#### DO-326A / ED-202A@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is
+
+- Common clauses: **21**
+- Covered: **21** (100.00%)
+- Priority-weighted coverage: **100.00%** (21.0000 / 21.0000)
+- Authoritative source: https://www.rtca.org/standards/list-of-available-documents/
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `DO-326A-s2-1` | Airworthiness security objectives — preventing intentional unauthorized electronic interaction with aircraft safety | 1.00 | ✔ 2 | full | 22.60.12, 22.60.3 |
+| `DO-326A-s2-2` | Plan for Security Aspects of Certification (PSecAA) — project-level security plan | 1.00 | ✔ 1 | full | 22.60.1 |
+| `DO-326A-s3-1` | Aircraft Security Scope — Cyber Security Items (CSIs) identification | 1.00 | ✔ 2 | full | 22.60.15, 22.60.4 |
+| `DO-326A-s3-2` | Threat Conditions Identification (TCI) — threat scenarios with safety effect | 1.00 | ✔ 4 | full | 22.60.10, 22.60.2, 22.60.8, 22.60.9 |
+| `DO-326A-s3-3` | Security Risk Assessment (SRA) — likelihood × consequence per threat condition | 1.00 | ✔ 2 | full | 22.60.17, 22.60.2 |
+| `DO-326A-s4-1` | Security Architecture and Design — countermeasures, network segregation, ARINC 811 domains | 1.00 | ✔ 3 | full | 22.60.11, 22.60.12, 22.60.3 |
+| `DO-326A-s4-2` | Security Effectiveness Demonstration — verification of countermeasures | 1.00 | ✔ 2 | partial | 22.60.14, 22.60.16 |
+| `DO-326A-s5-1` | Continued Airworthiness Security Information (CASI) — handoff to operator under DO-355A | 1.00 | ✔ 1 | partial | 22.60.4 |
+| `DO-355A-s2-1` | DO-355A — operator information security activities for continuing airworthiness | 1.00 | ✔ 6 | full | 22.60.11, 22.60.15, 22.60.16, 22.60.5, 22.60.6, 22.60.7 |
+| `DO-355A-s2-3` | DO-355A — Loadable Software Aircraft Part (LSAP) integrity verification at load time | 1.00 | ✔ 1 | full | 22.60.4 |
+| `DO-355A-s3-1` | DO-355A — cyber-incident detection, response, and reporting (operator obligations) | 1.00 | ✔ 5 | full | 22.60.10, 22.60.13, 22.60.17, 22.60.8, 22.60.9 |
+| `DO-356A-s3-1` | DO-356A — methods for security risk assessment (qualitative + quantitative) | 1.00 | ✔ 1 | partial | 22.60.2 |
+| `FAA-AC-20-186-s5` | FAA AC 20-186 — Acceptance of DO-326A / DO-355A / DO-356A as a means of compliance | 1.00 | ✔ 1 | partial | 22.60.1 |
+| `EASA-AMC-20-42-s4` | EASA AMC 20-42 — Airworthiness Information Security Risk Assessment (acceptance of ED-202A) | 1.00 | ✔ 1 | partial | 22.60.1 |
+| `EASA-Part-IS-IS-OR-200` | EASA Part-IS IS.OR.200 — Information Security Management System (ISMS) scope | 1.00 | ✔ 2 | full | 22.60.14, 22.60.16 |
+| `EASA-Part-IS-IS-OR-205` | EASA Part-IS IS.OR.205 — Information security risk assessment | 1.00 | ✔ 6 | partial | 22.60.14, 22.60.15, 22.60.2, 22.60.5, 22.60.6, 22.60.7 |
+| `EASA-Part-IS-IS-OR-220` | EASA Part-IS IS.OR.220 — Information security incidents (detection, response, recovery) | 1.00 | ✔ 8 | partial | 22.60.12, 22.60.13, 22.60.17, 22.60.3, 22.60.4, 22.60.6, 22.60.8, 22.60.9 |
+| `EASA-Part-IS-IS-OR-230` | EASA Part-IS IS.OR.230 — External reporting scheme (24h / 72h / 1 month) | 1.00 | ✔ 1 | full | 22.60.13 |
+| `EASA-Part-IS-IS-OR-235` | EASA Part-IS IS.OR.235 — Contracting of activities (supply-chain ISMS flow-down) | 1.00 | ✔ 1 | full | 22.60.11 |
+| `EASA-Part-IS-IS-OR-245` | EASA Part-IS IS.OR.245 — Record-keeping (5-year retention) | 1.00 | ✔ 1 | full | 22.60.14 |
+| `ARINC-811-s4-2` | ARINC 811 — aircraft information security domains (ACD / AISD / PIESD / POD) | 1.00 | ✔ 2 | full | 22.60.12, 22.60.3 |
 
 ### DORA — `dora`
 

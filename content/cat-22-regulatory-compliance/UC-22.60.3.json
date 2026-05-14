@@ -1,0 +1,191 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.60.3",
+  "title": "ARINC 811 / DO-326A network-domain segregation drift detection - any unmediated information flow from PIESD/POD to AISD/ACD on the in-service fleet",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes Class 1 EFB devices that are personally owned and physically isolated from aircraft systems. Excludes aircraft not equipped with networked PIESD (e.g. regional turboprops without IFE or passenger Wi-Fi).",
+  "evidence": "Saved search `UC-22.60.3` archived hourly to `audit_evidence` with `do326a_clause=\"DO-326A-s4-1\"`. Every row pins (tail_number, airframe_type, observation_time, source_domain, destination_domain, flow_direction, mediator_device, packet_count, bytes, severity, risk_score).",
+  "compliance": [
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s4-1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "DO-326A §4.1 requires that information flow from lower-trust to higher-trust ARINC 811 domains be either prohibited or mediated by an evaluated security boundary device. This UC continuously verifies that the in-service fleet honours the type-certificate security architecture.",
+      "controlObjective": "Demonstrates that no unmediated PIESD-to-AISD or POD-to-ACD information flow exists on the operating fleet; any observation triggers immediate investigation and (if confirmed) aircraft-from-service isolation pending root-cause analysis.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `DO-326A ARINC 811 Domain Segregation` dashboard, the security boundary device (network guard / data diode / controlled-interface device) configuration baselines, the wireshark / OT-sensor packet captures.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s4-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "ARINC-811-s4-2",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "ARINC 811 §4.2 defines the four aircraft information security domains; this UC monitors the inter-domain boundary that the standard establishes.",
+      "controlObjective": "Evidences continuous monitoring of the ARINC 811 domain boundary integrity on the in-service fleet.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#ARINC-811-s4-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "EASA-Part-IS-IS-OR-220",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "EASA Part-IS IS.OR.220 requires detection, response, and recovery from information security incidents that could affect aviation safety; an unmediated lower-to-higher-trust flow is a textbook IS.OR.220 incident.",
+      "controlObjective": "Evidences detection capability against information-security incidents at the aircraft information-security domain boundary.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#EASA-Part-IS-IS-OR-220",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "do-326a",
+      "version": "2014-do-326a-with-2020-do-355a-and-2026-easa-part-is",
+      "clause": "DO-326A-s2-1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "DO-326A §2.1 sets the top-level airworthiness security objective: prevent intentional unauthorized electronic interaction with aircraft safety. An unmediated PIESD-to-ACD or POD-to-ACD flow is the canonical unauthorized electronic interaction with the safety-of-flight domain; this UC operationalises detection of exactly that condition on the in-service fleet.",
+      "controlObjective": "Demonstrates that the §2.1 objective is enforced operationally and not only at design time, by alerting whenever an unauthorized electronic interaction crosses into the safety-of-flight domain.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "do-326a@2014-do-326a-with-2020-do-355a-and-2026-easa-part-is#DO-326A-s2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject a synthetic packet from the PIESD test rig with a destination IP in the AISD address range; do not route it through the controlled-interface device. UC-22.60.3 MUST flag within 5 minutes with risk_score >= 90 and trigger the runbook.",
+    "negativeScenario": "Send a permitted higher-to-lower information flow (ACD telemetry broadcast to AISD ACMS) through the approved data diode. UC-22.60.3 MUST NOT flag, because the source_domain (ACD) is higher-trust than the destination_domain (AISD) and the mediator_device is the approved data diode."
+  },
+  "dataSources": "Cisco Cyber Vision OT flow events (`cisco:cybervision:flow`), Claroty xDome inter-zone events (`claroty:xdome:alert`), Nozomi Guardian aircraft network events (`nozomi:guardian:event`), Aircraft Network Switch port-mirror traffic via stream (sourcetype `aero:network:flow`), Aircraft Interface Device (AID) audit (`aid:audit`), Wireless Onboard LAN Unit (WOLU) audit, ARINC 811 domain mapping table (KV Store `arinc811_domain_lookup` mapping IP / VLAN / MAC to ARINC 811 domain), security boundary device configuration baselines.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5018,
+      "name": "Splunk Add-on for Claroty",
+      "url": "https://splunkbase.splunk.com/app/5018",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4894,
+      "name": "Splunk Add-on for Nozomi Networks",
+      "url": "https://splunkbase.splunk.com/app/4894",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk_TA_stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(index=aero_network sourcetype IN (\"cisco:cybervision:flow\", \"claroty:xdome:alert\", \"nozomi:guardian:event\", \"aero:network:flow\"))\n| lookup arinc811_domain_lookup src_ip OUTPUT arinc811_domain AS source_domain\n| lookup arinc811_domain_lookup dest_ip OUTPUT arinc811_domain AS destination_domain\n| eval trust_rank_src = case(source_domain = \"ACD\", 4, source_domain = \"AISD\", 3, source_domain = \"PIESD\", 2, source_domain = \"POD\", 1, 1=1, 0)\n| eval trust_rank_dst = case(destination_domain = \"ACD\", 4, destination_domain = \"AISD\", 3, destination_domain = \"PIESD\", 2, destination_domain = \"POD\", 1, 1=1, 0)\n| eval flow_direction = case(trust_rank_src > trust_rank_dst, \"higher-to-lower\", trust_rank_src < trust_rank_dst, \"lower-to-higher\", 1=1, \"intra-domain\")\n| where flow_direction = \"lower-to-higher\"\n| eval mediator_device = coalesce(mediator_device, security_boundary_device, \"none\")\n| eval risk_score = case(\n    destination_domain = \"ACD\" AND mediator_device = \"none\", 100,\n    destination_domain = \"AISD\" AND mediator_device = \"none\", 90,\n    destination_domain = \"ACD\" AND mediator_device != \"approved\", 95,\n    destination_domain = \"AISD\" AND mediator_device != \"approved\", 80,\n    1=1, 0)\n| where risk_score > 0\n| stats count AS packet_count sum(bytes) AS bytes earliest(_time) AS first_seen latest(_time) AS last_seen values(src_ip) AS src_ips values(dest_ip) AS dest_ips by tail_number airframe_type source_domain destination_domain flow_direction mediator_device risk_score\n| eval severity = case(risk_score >= 95, \"critical\", risk_score >= 80, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -packet_count\n| table tail_number airframe_type first_seen last_seen source_domain destination_domain flow_direction mediator_device packet_count bytes src_ips dest_ips severity risk_score",
+  "description": "Continuously scans Cisco Cyber Vision / Claroty xDome / Nozomi Guardian flow events and aircraft-network port-mirror traffic for any information flow from a lower-trust ARINC 811 domain (POD or PIESD) into a higher-trust domain (AISD or ACD) that is not mediated by an approved security boundary device. The DO-326A type-certificate finding is that no such flow exists.",
+  "value": "An unmediated PIESD-to-ACD flow is one of the highest-impact airworthiness findings imaginable - it is the threat scenario that prompted the FAA's Special Conditions for the Boeing 787 in 2007 and that the Chris Roberts 2015 incident was investigated against. A confirmed flow may require the operator to immediately ground the aircraft, the TC-holder to issue an Emergency Airworthiness Directive, and the regulator to open a public investigation. This UC's value is to catch the drift before it becomes a safety event.",
+  "implementation": "(1) Populate `arinc811_domain_lookup` with IP / VLAN / MAC ranges per ARINC 811 domain per airframe type, sourced from the TC-holder Security Architecture Description (SAD) - typically `Aircraft Control Domain = 10.0.0.0/16 on VLAN 100`, `AISD = 10.1.0.0/16 on VLAN 200`, `PIESD = 10.2.0.0/16 on VLAN 300`, `POD = 10.3.0.0/16 on VLAN 400`. (2) Tap aircraft network switches (Honeywell Stage, Collins Aerospace, Astronics) into a Splunk Edge Hub / OT collector. (3) Schedule UC-22.60.3 every 5 minutes; route `risk_score >= 90` at severity P1, `risk_score 60-89` at severity P2. (4) Build the `DO-326A ARINC 811 Domain Segregation` dashboard.",
+  "visualization": "(Panel 1) Critical flows by destination domain (ACD vs AISD). (Panel 2) Flow heatmap (tail x time-of-day). (Panel 3) Flow source/dest matrix (Sankey diagram). (Panel 4) 30-day flow violation trend with response time.",
+  "cimModels": [
+    "Network_Traffic",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "RTCA DO-326A - Airworthiness Security Process Specification",
+      "url": "https://www.rtca.org/standards/list-of-available-documents/"
+    },
+    {
+      "title": "ARINC 811 - Commercial Aircraft Information Security Concepts of Operation and Process Framework",
+      "url": "https://www.arinc.com/"
+    },
+    {
+      "title": "FAA Special Conditions for Boeing 787 - Aircraft Electronic System Security",
+      "url": "https://www.faa.gov/aircraft/air_cert/design_approvals/transport/media/787_FR-2007-25-FR-1.pdf"
+    }
+  ],
+  "knownFalsePositives": "1. **Permitted flow without mediator metadata**: a permitted PIESD-to-AISD flow (e.g. EFB host pulling cabin-PA announcement schedule from IFE content server) requires the mediator_device to be tagged in the flow; if the flow is enriched correctly the flow won't fire. 2. **Mis-classified ARINC 811 mapping**: a misconfiguration in `arinc811_domain_lookup` can cause false positives; baseline `arinc811_domain_lookup` against TC-holder SAD at every release. 3. **Test-bench traffic**: integration-test rigs may generate traffic that mimics aircraft flows; tag test rigs with `test_environment=true` and exclude.\n\n**Suppression mechanism**: KV Store `do326a_22_60_3_exceptions` with the Chief Engineer + CISO documented approval, an explicit expiry date, and a written justification.",
+  "requiredFields": [
+    "tail_number",
+    "source_domain",
+    "destination_domain",
+    "flow_direction",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Chief Engineer + Network Architect + CISO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "cisco-cybervision",
+    "claroty-ctd",
+    "nozomi-guardian",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Cisco Cyber Vision (on-prem or cloud-managed)",
+    "Claroty xDome",
+    "Nozomi Networks Guardian / Vantage",
+    "Honeywell Stage (aircraft network switch)",
+    "Collins Aerospace (avionics gateway)",
+    "Astronics (cabin network)",
+    "Splunk Edge Hub"
+  ],
+  "mitreAttack": [
+    "TA0008",
+    "T1133",
+    "T1199"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 and UC-22.60.2 in production for the airframe types in scope.\n- KV Store `arinc811_domain_lookup` populated from TC-holder Security Architecture Description.\n- Aircraft-network port-mirror capability into a Splunk Edge Hub or OT sensor.\n- Cisco Cyber Vision / Claroty xDome / Nozomi Guardian (one or more) feeding `cisco:cybervision:flow` / `claroty:xdome:alert` / `nozomi:guardian:event`.\n\n## Step 1 - ARINC 811 domain mapping\n\n```ini\n[arinc811_domain_lookup]\nenforceTypes = true\nfield.airframe_type = string\nfield.ip_range = string\nfield.vlan = string\nfield.mac_prefix = string\nfield.arinc811_domain = string\nfield.security_boundary_device = string\nfield.security_boundary_device_status = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.3: DO-326A ARINC 811 Segregation]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.3,reg=DO-326A,clause=DO-326A-s4-1\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 95`** (owner: Chief Engineer + CISO + Director of Flight Operations, severity P1): Within 30 minutes, the operator's Operations Control Centre (OCC) initiates an aircraft-from-service isolation decision; within 2 hours, the TC-holder is notified; within 24 hours, EASA / FAA are notified per Part-IS IS.OR.230 / FAA reporting framework.\n\n**`risk_score 60-94`** (owner: CISO + Network Architect, severity P2): Within 4 hours, the security boundary device is verified to be present and operating per its baseline; if not, escalate to P1.\n\n## Step 4 - Aviation-specific notes\n\n- **OEM exemption flows**: some OEM remote-monitoring channels traverse the ARINC 811 boundary via TC-holder-approved paths; these are tagged with `mediator_device=approved` so they will not fire the alert.\n- **Type-certificate scope**: this UC monitors a finding under the type-certificate; the operator must coordinate with the TC-holder on any architectural deviation.\n- **Older fleet (no AISD)**: aircraft delivered before AISD became standard (early-1990s) may have a simpler architecture - tag with `arinc811_legacy=true` and tune the rule.",
+  "grandmaExplanation": "An aircraft has separate computer networks: one for flying the plane, one for the airline staff, and one for the passenger Wi-Fi. We watch that no information crosses from the passenger Wi-Fi side into the flying-the-plane side. If we ever see this, we ground the aircraft right away."
+}
