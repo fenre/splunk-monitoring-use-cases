@@ -1,28 +1,28 @@
 # Compliance coverage report
 
-_Generated: 2026-05-14T06:10:01Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-05-14T07:31:13Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
 ## Summary
 
-* UC files checked: **7902**
-* UC files valid:   **7902**
-* Compliance entries: **2628**
-* Findings: **113** (errors: **0**, baselined: **0**)
+* UC files checked: **7929**
+* UC files valid:   **7929**
+* Compliance entries: **2678**
+* Findings: **120** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
-* Clause coverage %: **93.2149**
-* Priority-weighted %: **93.385**
-* Assurance-adjusted %: **70.2067**
+* Clause coverage %: **92.9878**
+* Priority-weighted %: **93.187**
+* Assurance-adjusted %: **71.0244**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 91.0412 | 90.9919 | 74.0627 |
+| tier-1 | 90.8889 | 90.8982 | 74.9462 |
 | tier-2 | 97.549 | 98.0483 | 62.7761 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -38,10 +38,12 @@ Status: **passed**
 | bait-kait | 100.0 | 100.0 | 50.0 |
 | basel-iii | 100.0 | 100.0 | 50.0 |
 | bsi-kritisv | 100.0 | 100.0 | 50.0 |
+| cert-in | 90.0 | 94.1176 | 88.2353 |
 | circia | 100.0 | 100.0 | 95.8498 |
 | cjis | 100.0 | 100.0 | 50.0 |
 | clc-ts-50701 | 82.1429 | 85.3282 | 85.3282 |
 | cmmc | 100.0 | 100.0 | 83.3333 |
+| cn-csl | 93.3333 | 93.3333 | 90.0 |
 | cobit | 100.0 | 100.0 | 50.0 |
 | coppa | 100.0 | 100.0 | 50.0 |
 | coso | 100.0 | 100.0 | 50.0 |
@@ -65,6 +67,7 @@ Status: **passed**
 | hipaa-security | 100.0 | 100.0 | 64.8551 |
 | hitrust | 100.0 | 100.0 | 75.0 |
 | hkma-tm-g-2 | 100.0 | 100.0 | 50.0 |
+| iec-61511 | 83.3333 | 81.8182 | 75.0 |
 | iec-62443 | 100.0 | 100.0 | 63.5135 |
 | imo-msc-428-98 | 94.4444 | 94.4444 | 88.8889 |
 | iso-27001 | 100.0 | 100.0 | 85.7422 |
@@ -119,10 +122,12 @@ Status: **passed**
 | BSI-KritisV@2021 (as amended) | 2 | 100.0 | 100.0 | 50.0 |
 | Basel III@BCBS 2021 | 2 | 100.0 | 100.0 | 50.0 |
 | CCPA/CPRA@CPRA (as amended) | 2 | 100.0 | 100.0 | 87.037 |
+| CERT-In Directions 2022@2022-04-28-cert-in-directions-with-2023-dpdp | 1 | 90.0 | 94.1176 | 88.2353 |
 | CIRCIA@2022-act-with-2024-nprm | 1 | 100.0 | 100.0 | 95.8498 |
 | CJIS@v5.9.4 | 2 | 100.0 | 100.0 | 50.0 |
 | CLC/TS 50701@2021-with-iec63452-alignment | 2 | 82.1429 | 85.3282 | 85.3282 |
 | CMMC@2.0 | 1 | 100.0 | 100.0 | 83.3333 |
+| CN CSL / DSL / PIPL@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border | 1 | 93.3333 | 93.3333 | 90.0 |
 | COBIT@2019 | 2 | 100.0 | 100.0 | 50.0 |
 | COPPA@16 CFR 312 | 2 | 100.0 | 100.0 | 50.0 |
 | COSO@2013 ICFR | 2 | 100.0 | 100.0 | 50.0 |
@@ -146,6 +151,7 @@ Status: **passed**
 | HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 64.8551 |
 | HITRUST@v11 | 2 | 100.0 | 100.0 | 75.0 |
 | HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 50.0 |
+| IEC 61511 + ISA TR84.00.09@2016-iec-61511-ed-2-with-isa-tr84-00-09 | 1 | 83.3333 | 81.8182 | 75.0 |
 | IEC 62443@2013-ongoing | 2 | 100.0 | 100.0 | 63.5135 |
 | IMO MSC.428(98)@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27 | 1 | 94.4444 | 94.4444 | 88.8889 |
 | ISO 27001@2013 | 1 | 100.0 | 100.0 | 78.7234 |

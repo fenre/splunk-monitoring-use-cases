@@ -1,0 +1,132 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.63.6",
+  "title": "ISA-TR84.00.09 §4 integrated cybersecurity programme: SIS-relevant security-incident detection feed-back into Cybersecurity Risk Assessment register and Process Hazard Analysis (PHA) refresh trigger",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes generic IT-network anomalies that do not touch the SIS zone or its conduits (those are covered by IT-side CIM / network UCs). Excludes routine BPCS-only events that do not cross into the SIS zone.",
+  "evidence": "Saved search `UC-22.63.6` archived hourly to `audit_evidence` with `iec_clause=\"ISA-TR84-00-09-s4\"`. Every SIS-relevant cyber-event pins (event_id, sis_id, zone_id, conduit_id, event_type, mitre_ot_technique_id, severity, cra_finding_link_ref, pha_trigger_status, risk_score).",
+  "compliance": [
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "ISA-TR84-00-09-s4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISA-TR84.00.09 §4 (Integrated cybersecurity programme) requires that cybersecurity events affecting the SIS or its conduits feed back into the SIS Cybersecurity Risk Assessment and, if the events suggest a new hazard scenario, into the Process Hazard Analysis (PHA). This UC enforces both feed-back loops: every SIS-zone or SIS-conduit security event creates a linked CRA finding (UC-22.63.2) and, on threshold-exceedance, triggers a PHA refresh request (UC-22.63.5 MoC pipeline).",
+      "controlObjective": "Demonstrates that the integrated cybersecurity programme detects SIS-relevant cyber-events and feeds them back into the CRA and PHA processes.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `Integrated SIS Cybersecurity Programme` dashboard, the cross-linked CRA finding register, the PHA-refresh request log.",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#ISA-TR84-00-09-s4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "ISA-TR84-00-09-s5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "ISA-TR84.00.09 §5 (Cybersecurity risk assessment methodology) provides the methodology for the CRA. The feed-back UC partially supports §5 by ensuring the CRA is driven by real field-events rather than only by design-time assumptions. Full §5 compliance also requires the structured CRA methodology — that limb is enforced by UC-22.63.2.",
+      "controlObjective": "Provides the field-event-feed-back limb of §5 CRA methodology.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#ISA-TR84-00-09-s5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An anomalous Modbus write to a SIS-zone PLC tag occurs at 14:32, but no CRA finding is opened and no PHA-refresh is logged. UC-22.63.6 MUST flag with risk_score=95.",
+    "negativeScenario": "The same event is detected, an alert opens within 5 minutes, a CRA finding (UC-22.63.2 register) is linked within the same shift, the Functional Safety Manager reviews and confirms the event does or does not trigger a PHA refresh, and the audit chain is closed within 24 hours. UC-22.63.6 MUST record risk_score=0."
+  },
+  "dataSources": "Splunk OT Security Add-on events tagged with SIS-zone or SIS-conduit IDs. SIS logic-solver anomaly events. KV Store `iec_61511_sis_zone_conduit_lookup` (zone_id, conduit_id, sis_id, sl_target, sl_capability, sl_achieved). KV Store `iec_61511_sis_relevant_cyber_event_register_lookup` (event_id, sis_id, event_type, severity, mitre_ot_technique_id, cra_finding_link_ref, pha_trigger_status, sla_acknowledged_at, sla_cra_linked_at, sla_pha_decided_at).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 6849).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6849,
+      "name": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/6849",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ot_sis OR index=ot_security sis_relevance=\"true\" earliest=-24h@h\n| eval mitre_ot_technique_id = coalesce(mitre_ot_technique_id, mitre_attack_ics_technique)\n| eval severity = coalesce(severity, alert_severity)\n| stats values(mitre_ot_technique_id) as mitre_ot_technique_id, max(_time) as detected_at, latest(severity) as severity, latest(zone_id) as zone_id, latest(conduit_id) as conduit_id, latest(sis_id) as sis_id by event_id\n| join type=left event_id [\n    | inputlookup iec_61511_sis_relevant_cyber_event_register_lookup\n    | table event_id cra_finding_link_ref pha_trigger_status sla_acknowledged_at sla_cra_linked_at sla_pha_decided_at\n  ]\n| eval now_ts = now()\n| eval ack_lag_min = round((sla_acknowledged_at - detected_at) / 60, 1)\n| eval cra_lag_hours = round((sla_cra_linked_at - detected_at) / 3600, 1)\n| eval pha_lag_hours = round((sla_pha_decided_at - detected_at) / 3600, 1)\n| eval no_ack = if(isnull(sla_acknowledged_at) AND (now_ts - detected_at) > 300, 1, 0)\n| eval no_cra_link = if(isnull(sla_cra_linked_at) AND (now_ts - detected_at) > 28800, 1, 0)\n| eval pha_undecided = if(isnull(sla_pha_decided_at) AND severity IN (\"critical\",\"high\") AND (now_ts - detected_at) > 86400, 1, 0)\n| eval risk_score = case(\n    no_ack = 1, 100,\n    no_cra_link = 1 AND severity IN (\"critical\",\"high\"), 100,\n    no_cra_link = 1, 95,\n    pha_undecided = 1, 90,\n    sla_pha_decided_at > sla_cra_linked_at + 86400, 70,\n    ack_lag_min > 30 AND severity IN (\"critical\",\"high\"), 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +ack_lag_min\n| table event_id sis_id zone_id conduit_id severity mitre_ot_technique_id detected_at ack_lag_min cra_lag_hours pha_lag_hours risk_score",
+  "description": "Reconciles every SIS-zone or SIS-conduit cyber-event against three feed-back SLAs of ISA-TR84.00.09 §4: (i) acknowledged by the on-call FSM-cyber team within 5 minutes (high/critical) or 30 minutes (medium), (ii) linked to a CRA finding within 8 hours (per UC-22.63.2 register), and (iii) a PHA-refresh trigger decision (refresh-required or not) recorded within 24 hours for high/critical events. The PHA-refresh decision-process is the integration limb that distinguishes a mature ISA-TR84.00.09 programme from a tick-box one — a SIS-relevant cyber-event that COULD invalidate a PHA assumption (e.g., introducing a new failure-mode) MUST be discussed by the PHA team within a defined window.",
+  "value": "ISA-TR84.00.09 §4 is the operational glue between cybersecurity detection and the safety-lifecycle. Without this glue, cyber-events accumulate in a SOC ticket-queue while the safety case becomes silently stale. The CSB and other post-incident bodies increasingly cite this 'silent staleness' as a contributory factor. The mature operating organisation runs this UC as the executive-level metric of how-fast-do-our-cyber-events-update-our-safety-case — typically reported to the Board Safety Committee monthly.",
+  "implementation": "(1) Tag every Splunk OT Security event with `sis_relevance = true / false` via a `transforms.conf` lookup against `iec_61511_sis_zone_conduit_lookup`. (2) Maintain `iec_61511_sis_relevant_cyber_event_register_lookup` with the SLA timestamps captured as the FSM-cyber team works the event. (3) Schedule UC-22.63.6 hourly; route `risk_score = 100` to the on-call FSM-cyber team + Functional Safety Manager at severity P1 (paging).",
+  "visualization": "(Panel 1) Live SIS-relevant cyber-event timeline with SLA markers. (Panel 2) Acknowledgement / CRA-link / PHA-decision SLA conformance. (Panel 3) MITRE ATT&CK-ICS technique distribution. (Panel 4) Cyber-event → CRA finding → PHA-refresh funnel.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "ISA-TR84.00.09-2017 §4 — Integrated cybersecurity programme for the SIS",
+      "url": "https://www.isa.org/standards-and-publications/isa-standards/isa-standards-committees/isa84"
+    },
+    {
+      "title": "ISA-TR84.00.09-2017 §5 — Cybersecurity risk assessment methodology",
+      "url": "https://www.isa.org/standards-and-publications/isa-standards/isa-standards-committees/isa84"
+    },
+    {
+      "title": "CCPS Guidelines on Process Safety in Bioprocess Manufacturing (2023) — Integrated cyber/safety chapter",
+      "url": "https://www.aiche.org/ccps"
+    }
+  ],
+  "knownFalsePositives": "1. **Detection-tool maintenance window**: a planned maintenance window for an OT-detection tool may produce false detections — load `tool_maintenance_window_ref` to suppress. 2. **Known false-positive correlator**: certain Modbus / OPC-UA writes are operationally expected and well-understood — load `expected_write_pattern_ref` to suppress. 3. **Already-investigated and dismissed**: a cyber-event that has been investigated and dismissed with a documented determination (`dismissal_basis_ref`) is closed for SLA purposes.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_6_exceptions` with the Functional Safety Manager + CISO documented approval, an explicit event_id or pattern scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "event_id",
+    "sis_id",
+    "severity",
+    "sla_acknowledged_at",
+    "sla_cra_linked_at",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Functional Safety Manager + CISO + Process Safety Manager + Board Safety Committee",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-ot"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk OT Security Add-on",
+    "Claroty xDome / Dragos Platform / Nozomi Guardian / Tenable.ot (OT detection sources)"
+  ],
+  "mitreAttack": [
+    "T0814",
+    "T0855",
+    "T0820",
+    "T0858",
+    "T0837"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.63.2",
+    "UC-22.63.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.63.2 (CRA register) and UC-22.63.5 (MoC register) deployed.\n- An OT-detection capability (Claroty / Dragos / Nozomi / Tenable.ot) sending events to Splunk with SIS-zone tagging.\n- A nominated FSM-cyber on-call rota.\n\n## Step 1 - Zone-and-conduit lookup\n\n```ini\n[iec_61511_sis_zone_conduit_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.conduit_id = string\nfield.sis_id = string\nfield.sl_target = string\nfield.sl_capability = string\nfield.sl_achieved = string\n```\n\n## Step 2 - SIS-relevant-cyber-event register\n\n```ini\n[iec_61511_sis_relevant_cyber_event_register_lookup]\nenforceTypes = true\nfield.event_id = string\nfield.sis_id = string\nfield.event_type = string\nfield.severity = string\nfield.mitre_ot_technique_id = string\nfield.cra_finding_link_ref = string\nfield.pha_trigger_status = string\nfield.sla_acknowledged_at = time\nfield.sla_cra_linked_at = time\nfield.sla_pha_decided_at = time\nfield.dismissal_basis_ref = string\nfield.expected_write_pattern_ref = string\nfield.tool_maintenance_window_ref = string\n```\n\n## Step 3 - SIS-relevance enrichment\n\nAt index-time enrichment:\n\n```ini\n[ot_sis_relevance]\nLOOKUP-sis-relevance = iec_61511_sis_zone_conduit_lookup zone_id, conduit_id OUTPUT sis_id AS sis_id, sl_target AS sl_target\nEVAL-sis_relevance = if(isnotnull(sis_id), \"true\", \"false\")\n```\n\n## Step 4 - Schedule\n\n```ini\n[UC-22.63.6: Integrated SIS Cybersecurity Programme]\ncron_schedule = 13 * * * *\ndispatch.earliest_time = -24h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.6,reg=IEC-61511,clause=ISA-TR84-00-09-s4\nalert.severity = 5\n```\n\n## Step 5 - Functional-safety-specific notes\n\n- **PHA-refresh decision criteria**: the FSM-cyber team should apply a documented decision-rubric (e.g., 'new failure-mode not in PHA' → PHA refresh; 'known failure-mode with previously-considered cyber-cause' → CRA update only).\n- **Board reporting**: the SLA-conformance metric from this UC is typically the headline cyber-safety-bridge metric reported quarterly to the Board Safety Committee.",
+  "grandmaExplanation": "When a cyber event touches a safety system, the safety team must be told right away, the cyber-risk record updated, and a decision made on whether to re-do the broader safety study. We watch every safety-touching cyber event and make sure all three of those happen on time."
+}

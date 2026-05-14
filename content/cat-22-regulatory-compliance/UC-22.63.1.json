@@ -1,0 +1,127 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.63.1",
+  "title": "IEC 61511 Clause 5 Safety Instrumented System (SIS) safety-lifecycle phase-completion register with deliverable-and-verification-evidence chain across all 16 lifecycle phases",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes Safety Instrumented Functions (SIFs) operating below SIL-1 (e.g., simple advisory alarms with no SIS allocation). Excludes generic process-control loops not allocated to the SIS (Basic Process Control System / BPCS — covered by separate UCs).",
+  "evidence": "Saved search `UC-22.63.1` archived weekly to `audit_evidence` with `iec_clause=\"IEC-61511-Cl-5\"`. Every SIS / SIF pins (sis_id, sif_id, lifecycle_phase, deliverable_status, verification_status, fsa_status, competence_attestation_ref, last_phase_review_at, risk_score).",
+  "compliance": [
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "IEC-61511-Cl-5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "IEC 61511-1 Clause 5 establishes the 16-phase SIS safety lifecycle as the foundational evidence trail for SIL claims. The lifecycle is itself an audit construct — each phase must produce its deliverables, those deliverables must be verified, and a Functional Safety Assessment (FSA) gate must close each major lifecycle phase. This UC enforces all three limbs: (i) phase-completion status, (ii) verification-evidence presence, and (iii) FSA-gate sign-off — for every SIS / SIF in the operating envelope.",
+      "controlObjective": "Demonstrates that every SIS / SIF traverses the 16-phase lifecycle with documented deliverables, verifications, and FSA gate-closures.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `SIS Lifecycle Status` dashboard, the per-SIS deliverable register, the per-phase verification report, the FSA report (typically by TÜV / exida / FM Approvals).",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#IEC-61511-Cl-5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "IEC-61508-Pt-1-Cl-7-4",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "IEC 61508 Part 1 Clause 7.4 (overall safety lifecycle) is the generic-industry counterpart to IEC 61511 Clause 5 for the process industry. This UC operationalises both lifecycles via a shared deliverable / verification framework; the IEC 61511 process-specific lifecycle is the primary, and IEC 61508 generic lifecycle alignment is a secondary mapping for SIS components certified to IEC 61508 (e.g., logic solvers, smart transmitters).",
+      "controlObjective": "Aligns the process-industry SIS lifecycle with the generic IEC 61508 safety lifecycle for certified components.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#IEC-61508-Pt-1-Cl-7-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A SIF moves from `Phase 5 - SIS Safety Requirements Specification` to `Phase 6 - SIS Design and Engineering` without the SIS-SRS deliverable being signed off and without an FSA gate-review. UC-22.63.1 MUST flag with risk_score=100.",
+    "negativeScenario": "The same SIF completes Phase 5 with a signed SIS-SRS deliverable, an independent verification report, and an FSA gate-review report from a certified Functional Safety Assessor (FSA-1 review). UC-22.63.1 MUST record risk_score=0 for that phase."
+  },
+  "dataSources": "KV Store `iec_61511_sis_lifecycle_register_lookup` (sis_id, sif_id, lifecycle_phase, phase_started_at, phase_completed_at, deliverable_ref, deliverable_signed_off_at, verification_ref, verification_status, fsa_gate_status, fsa_assessor_ref, competence_attestation_ref). Functional-safety GRC platform events via HEC `hec:safety:lifecycle:phase`. Document-management system events for deliverable approvals (e.g., SharePoint / Documentum).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup iec_61511_sis_lifecycle_register_lookup\n| eval now_ts = now()\n| eval deliverable_signed = if(isnotnull(deliverable_signed_off_at), 1, 0)\n| eval verification_done = if(verification_status IN (\"verified\",\"verified-with-comments\"), 1, 0)\n| eval verification_failed = if(verification_status IN (\"failed\",\"adverse\"), 1, 0)\n| eval fsa_required_phases = if(lifecycle_phase IN (\"Phase 5 - SIS-SRS\",\"Phase 8 - SIS Design Verification\",\"Phase 12 - SIS Pre-Startup Safety Review\",\"Phase 14 - SIS Operation & Maintenance Plan\",\"Phase 16 - SIS Decommissioning\"), 1, 0)\n| eval fsa_done = if(fsa_gate_status IN (\"passed\",\"passed-with-comments\"), 1, 0)\n| eval fsa_failed = if(fsa_gate_status IN (\"failed\",\"adverse\"), 1, 0)\n| eval competence_attested = if(isnotnull(competence_attestation_ref), 1, 0)\n| eval phase_advanced_without_deliverable = if(isnotnull(phase_completed_at) AND deliverable_signed = 0, 1, 0)\n| eval phase_advanced_without_verification = if(isnotnull(phase_completed_at) AND verification_done = 0, 1, 0)\n| eval phase_advanced_without_fsa = if(isnotnull(phase_completed_at) AND fsa_required_phases = 1 AND fsa_done = 0, 1, 0)\n| eval phase_in_progress_days = if(isnotnull(phase_started_at) AND isnull(phase_completed_at), round((now_ts - phase_started_at) / 86400, 1), null())\n| eval phase_stalled = if(isnotnull(phase_in_progress_days) AND phase_in_progress_days > 365, 1, 0)\n| eval risk_score = case(\n    verification_failed = 1, 100,\n    fsa_failed = 1, 100,\n    phase_advanced_without_deliverable = 1, 95,\n    phase_advanced_without_verification = 1, 95,\n    phase_advanced_without_fsa = 1, 95,\n    competence_attested = 0, 85,\n    phase_stalled = 1, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +phase_in_progress_days\n| table sis_id sif_id lifecycle_phase deliverable_signed verification_status fsa_gate_status competence_attestation_ref phase_in_progress_days risk_score",
+  "description": "Enumerates every SIS / SIF row in the lifecycle register and reconciles against three lifecycle-discipline limbs: (i) every completed phase has a signed deliverable, (ii) every completed phase has a verification report (verified or verified-with-comments), and (iii) every FSA-mandatory phase (5 / 8 / 12 / 14 / 16) has an FSA gate-review by a competent Functional Safety Assessor. Verification failures and FSA failures escalate to risk_score=100 because they imply a SIL claim is not defensible; phase advancement without deliverable / verification / FSA closes at risk_score=95.",
+  "value": "IEC 61511 SIL claims rest on the lifecycle-evidence chain. A SIS that crashes through a lifecycle phase without deliverables or FSA gate-review cannot defensibly claim SIL-2 / SIL-3 — the moment a process incident produces regulatory scrutiny (OSHA PSM, COMAH, Seveso, IRDA), the lifecycle audit-trail is the first thing requested. The cost of remediating a missed FSA gate years later, when the SIS is in operations, dramatically exceeds the cost of an FSA at the right time.",
+  "implementation": "(1) Maintain `iec_61511_sis_lifecycle_register_lookup` as the system of record (sourced from the functional-safety GRC tool — Hima ExSILent, exida exSILentia, Smart Project, or an internal SharePoint register). (2) Subscribe to phase-completion events at `hec:safety:lifecycle:phase`. (3) Schedule UC-22.63.1 weekly; route `risk_score = 100` (verification or FSA failure) to the Functional Safety Manager + Plant Manager + Board Safety Committee at severity P1.",
+  "visualization": "(Panel 1) Lifecycle phase-completion heat map per SIS. (Panel 2) FSA gate-status by phase. (Panel 3) Stalled-phase distribution. (Panel 4) Lifecycle-velocity trend.",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "IEC 61511-1:2016 Clause 5 — Safety lifecycle requirements",
+      "url": "https://webstore.iec.ch/publication/24241"
+    },
+    {
+      "title": "IEC 61508-1:2010 Clause 7.4 — Overall safety lifecycle",
+      "url": "https://webstore.iec.ch/publication/22273"
+    },
+    {
+      "title": "TÜV Rheinland Functional Safety Engineer body of knowledge (FSCE training material)",
+      "url": "https://www.tuv.com/world/en/functional-safety-services.html"
+    }
+  ],
+  "knownFalsePositives": "1. **Legacy SIS prior to IEC 61511 Ed.2 (2016)**: a SIS designed under IEC 61511 Ed.1 (2003) may have a slightly different gate-structure — load `legacy_lifecycle_ref` and apply the Ed.1 phase taxonomy. 2. **Skid-supplied SIS with vendor-FSA evidence**: a packaged-SIS (e.g., burner-management system) supplied with vendor FSA evidence under IEC 61508 may have the FSA limb attested by the vendor — load `vendor_fsa_evidence_ref`. 3. **Operations-and-maintenance steady-state**: a SIS that has been in steady-state Operations (Phase 14) for years and has not transitioned phases has a legitimately null `phase_in_progress_days` — suppress with `steady_state_phase_14`.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_1_exceptions` with the Functional Safety Manager documented approval, an explicit sis_id + sif_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "sis_id",
+    "sif_id",
+    "lifecycle_phase",
+    "deliverable_signed_off_at",
+    "verification_status",
+    "fsa_gate_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Functional Safety Manager + Plant Manager + Board Safety Committee + TÜV / exida certified Functional Safety Assessor",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "exida exSILentia / Hima ExSILent / Smart Project (functional-safety GRC)"
+  ],
+  "mitreAttack": [
+    "T0814",
+    "T0837"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- A functional-safety GRC platform (exida exSILentia / Hima ExSILent / Smart Project) or a structured SharePoint / Documentum lifecycle register.\n- A nominated Functional Safety Manager with documented competence per IEC 61511 Clause 5.2.\n- An accredited Functional Safety Assessor (TÜV / exida / FM Approvals) on retainer.\n\n## Step 1 - SIS lifecycle register KV Store\n\n```ini\n[iec_61511_sis_lifecycle_register_lookup]\nenforceTypes = true\nfield.sis_id = string\nfield.sif_id = string\nfield.lifecycle_phase = string\nfield.phase_started_at = time\nfield.phase_completed_at = time\nfield.deliverable_ref = string\nfield.deliverable_signed_off_at = time\nfield.verification_ref = string\nfield.verification_status = string\nfield.fsa_gate_status = string\nfield.fsa_assessor_ref = string\nfield.competence_attestation_ref = string\nfield.legacy_lifecycle_ref = string\nfield.vendor_fsa_evidence_ref = string\nfield.steady_state_phase_14 = bool\n```\n\nSeed the 16 IEC 61511-1 Edition 2 phases:\n\n1. Phase 1 - Hazard and risk analysis\n2. Phase 2 - Allocation of safety functions to protection layers\n3. Phase 3 - SIS safety requirements (overall)\n4. Phase 4 - SIS safety requirements (detailed)\n5. Phase 5 - SIS-SRS (Safety Requirements Specification)\n6. Phase 6 - SIS Design and Engineering\n7. Phase 7 - SIS Installation\n8. Phase 8 - SIS Design Verification\n9. Phase 9 - SIS Installation and Commissioning\n10. Phase 10 - SIS Validation\n11. Phase 11 - SIS Operation and Maintenance Plan\n12. Phase 12 - SIS Pre-Startup Safety Review (FSA-2)\n13. Phase 13 - SIS Operation and Maintenance\n14. Phase 14 - SIS Periodic Functional Safety Assessment (FSA-3)\n15. Phase 15 - SIS Modification\n16. Phase 16 - SIS Decommissioning\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.63.1: SIS Safety Lifecycle Register]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.1,reg=IEC-61511,clause=IEC-61511-Cl-5\nalert.severity = 5\n```\n\n## Step 3 - Functional-safety-specific notes\n\n- **Independent assessment**: FSA must be performed by personnel independent of the SIS design / engineering team — the `fsa_assessor_ref` should reflect this independence.\n- **Competence**: every individual involved in the safety lifecycle must have documented competence (training certificates, experience records) per IEC 61511 Clause 5.2 — store as `competence_attestation_ref`.",
+  "grandmaExplanation": "Process plants use special safety systems to prevent disasters. Every step in designing, installing, and running these systems must be documented and signed off by certified experts. We check every week that every step is properly completed and approved."
+}

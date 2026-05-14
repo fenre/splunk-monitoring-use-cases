@@ -1,0 +1,114 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.5",
+  "title": "CERT-In Direction (v) VPN/VPS/cloud-provider subscriber-KYC + 5-year retention with Aadhaar/PAN validation + IP-allocation chain-of-custody",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Telecommunications",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes organisations that do not provide VPN, VPS, or cloud services to third-party Indian subscribers (e.g., enterprises operating internal-only IT). Applies primarily to: Indian VPN providers, VPS providers (hosting), cloud service providers (IaaS / PaaS), data centres providing colocation.",
+  "evidence": "Saved search `UC-22.62.5` archived daily to `audit_evidence` with `cert_in_clause=\"CERT-In-Dir-5-1\"`. Every subscriber pins (subscriber_id, kyc_status, kyc_validation_method, hire_start_at, hire_end_at, ips_allotted, retention_due_until, retention_compliant, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "CERT-In-Dir-5-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CERT-In Direction (v) mandates Data Centres, VPS providers, Cloud Service providers, and VPN providers to register accurate information regarding subscribers/customers for a period of 5 years (or longer if mandated by other law) after any cancellation/withdrawal of the registration. The seven mandatory KYC limbs are: validated names; period of hire including dates; IPs allotted to/being used by the members; email address and IP address and timestamp used at the time of registration / on-boarding; purpose for hiring services; validated address and contact numbers; ownership pattern. This UC enforces all seven limbs.",
+      "controlObjective": "Demonstrates that every VPN/VPS/cloud subscriber has a complete 7-limb KYC record retained for 5 years post-deregistration.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CERT-In Subscriber KYC` dashboard, the per-subscriber KYC record export, the Aadhaar/PAN validation proof.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#CERT-In-Dir-5-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Onboard a new VPS subscriber with name, address, email, and IP allocation but DO NOT validate Aadhaar/PAN and DO NOT capture ownership-pattern. UC-22.62.5 MUST flag with risk_score >= 80.",
+    "negativeScenario": "Onboard the same subscriber with all 7 KYC limbs completed (validated name, validated Aadhaar/PAN-anchored address, validated contact, validated email + IP + timestamp at registration, recorded purpose, recorded ownership pattern, hire-start date, IPs allotted). UC-22.62.5 MUST record risk_score=0."
+  },
+  "dataSources": "CRM / subscriber-management system events ingested via HEC `hec:vpn:vps:cloud:subscriber:kyc`. KV Store `cert_in_subscriber_kyc_lookup` (subscriber_id, kyc_limbs, hire_start_at, hire_end_at, deregistered_at). KV Store `cert_in_ip_allocation_lookup` (subscriber_id, ip_address, allocated_at, released_at).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk DB Connect (Splunkbase 2686).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2686,
+      "name": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup cert_in_subscriber_kyc_lookup\n| eval now_ts = now()\n| eval kyc_name_present = if(isnotnull(validated_name) AND validated_name != \"\", 1, 0)\n| eval kyc_period_present = if(isnotnull(hire_start_at), 1, 0)\n| eval kyc_ips_present = if(isnotnull(ips_allotted) AND ips_allotted != \"\", 1, 0)\n| eval kyc_email_ts_present = if(isnotnull(registration_email) AND isnotnull(registration_ip) AND isnotnull(registration_timestamp), 1, 0)\n| eval kyc_purpose_present = if(isnotnull(purpose_of_hire), 1, 0)\n| eval kyc_address_present = if(isnotnull(validated_address), 1, 0)\n| eval kyc_ownership_present = if(isnotnull(ownership_pattern), 1, 0)\n| eval kyc_limbs_complete = kyc_name_present + kyc_period_present + kyc_ips_present + kyc_email_ts_present + kyc_purpose_present + kyc_address_present + kyc_ownership_present\n| eval kyc_validation_method_strong = if(kyc_validation_method IN (\"aadhaar-otp\", \"aadhaar-biometric\", \"pan-validated\", \"in-person-kyc\", \"video-kyc\"), 1, 0)\n| eval days_since_deregistration = if(isnotnull(deregistered_at), round((now_ts - deregistered_at) / 86400, 1), null())\n| eval retention_due_until_ts = if(isnotnull(deregistered_at), deregistered_at + (5 * 365.25 * 86400), null())\n| eval retention_compliant = case(\n    isnull(deregistered_at), 1,\n    isnotnull(retention_due_until_ts) AND now_ts <= retention_due_until_ts, 1,\n    1=1, 0)\n| eval retention_breach = if(isnotnull(deregistered_at) AND days_since_deregistration < 1825 AND retention_compliant = 0, 1, 0)\n| eval risk_score = case(\n    kyc_limbs_complete < 5, 100,\n    kyc_limbs_complete = 5 OR kyc_limbs_complete = 6, 80,\n    kyc_validation_method_strong = 0 AND kyc_limbs_complete = 7, 60,\n    retention_breach = 1, 95,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +kyc_limbs_complete\n| table subscriber_id kyc_limbs_complete kyc_validation_method kyc_validation_method_strong hire_start_at deregistered_at retention_due_until_ts retention_compliant risk_score",
+  "description": "Enumerates every VPN/VPS/cloud subscriber against the seven mandatory KYC limbs of CERT-In Direction (v) and risk-scores on completeness and strength of validation: (i) validated name, (ii) period of hire, (iii) IPs allotted, (iv) email + IP + timestamp at registration, (v) purpose, (vi) validated address, (vii) ownership pattern. Validation strength is rated against Aadhaar/PAN/video-KYC. A separate limb tracks 5-year post-deregistration retention.",
+  "value": "Direction (v) is the limb of the CERT-In Directions most contentious for international VPN providers — several (NordVPN, ExpressVPN, Surfshark, Proton, etc.) withdrew Indian-region servers rather than comply. For Indian VPN/VPS/cloud providers, the practical risk is twofold: (i) regulatory action for non-compliance, and (ii) inability to respond to a Section 70B(6) CERT-In information request (the data simply isn't there). The 5-year post-deregistration retention is the most commonly under-implemented limb.",
+  "implementation": "(1) Wire the CRM / subscriber-management system to `hec:vpn:vps:cloud:subscriber:kyc` on every onboarding, change, and deregistration. (2) Enforce the seven KYC limbs in the onboarding form (server-side validation). (3) Implement a 5-year post-deregistration retention policy on the subscriber-management database (legal-hold flag preventing physical deletion). (4) Schedule UC-22.62.5 daily; route `risk_score = 100` to the COO + CISO at severity P1.",
+  "visualization": "(Panel 1) KYC-limb-coverage waterfall. (Panel 2) Validation-method mix. (Panel 3) 5-year retention coverage. (Panel 4) New-subscriber onboarding-quality trend.",
+  "cimModels": [
+    "Authentication",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "CERT-In Directions of 28 April 2022 — Direction (v) on VPN/VPS/cloud KYC",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "CERT-In FAQ on Direction (v)",
+      "url": "https://www.cert-in.org.in/PDF/FAQs.pdf"
+    },
+    {
+      "title": "UIDAI Aadhaar e-KYC API specification",
+      "url": "https://uidai.gov.in/"
+    }
+  ],
+  "knownFalsePositives": "1. **B2B enterprise subscriber**: for an enterprise body-corporate subscriber, the KYC limbs apply to the body-corporate (CIN, GST, registered address, beneficial owners) rather than to individual employees — load `b2b_entity_kyc_ref` and apply the body-corporate KYC schema. 2. **Aadhaar prohibition**: some sectors / customer-types may not lawfully use Aadhaar for KYC (e.g., DBT-only) — load `non_aadhaar_validation_method` and treat as strong if PAN/passport/video-KYC. 3. **Pre-2022 vintage subscribers**: subscribers onboarded before 27 June 2022 may have incomplete legacy KYC — load `legacy_pre_2022 = true` and treat as `kyc_limbs_complete = 7` after a one-time top-up KYC.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_5_exceptions` with the COO and CISO documented approval, an explicit subscriber_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "subscriber_id",
+    "kyc_validation_method",
+    "kyc_limbs_complete",
+    "hire_start_at",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Indian Cybersecurity SME Panel + COO + CISO + Legal",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-db-connect"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk DB Connect (CRM / subscriber DB integration)",
+    "Aadhaar e-KYC / UIDAI integration"
+  ],
+  "mitreAttack": [
+    "T1078.004",
+    "T1583.003"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.62.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- A CRM / subscriber-management system with API hooks for onboarding events.\n- UIDAI Aadhaar e-KYC API access via a registered KYC User Agency (KUA) or an Indian-regulated KYC service-provider.\n- Indian-jurisdiction subscriber database (UC-22.62.4 retention compliant).\n\n## Step 1 - Subscriber KYC KV Store\n\n```ini\n[cert_in_subscriber_kyc_lookup]\nenforceTypes = true\nfield.subscriber_id = string\nfield.validated_name = string\nfield.validated_address = string\nfield.kyc_validation_method = string\nfield.registration_email = string\nfield.registration_ip = string\nfield.registration_timestamp = time\nfield.purpose_of_hire = string\nfield.ownership_pattern = string\nfield.hire_start_at = time\nfield.hire_end_at = time\nfield.deregistered_at = time\nfield.b2b_entity_kyc_ref = string\nfield.non_aadhaar_validation_method = string\nfield.legacy_pre_2022 = bool\n```\n\n## Step 2 - IP-allocation register\n\n```ini\n[cert_in_ip_allocation_lookup]\nenforceTypes = true\nfield.subscriber_id = string\nfield.ip_address = string\nfield.allocated_at = time\nfield.released_at = time\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.5: CERT-In Subscriber KYC]\ncron_schedule = 0 5 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.5,reg=CERT-In,clause=CERT-In-Dir-5-1\nalert.severity = 4\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **No-log VPN claims**: a 'no-log' VPN marketing claim is incompatible with Direction (v); providers must choose between Indian-region operations and the no-log brand.\n- **Reseller chain**: where a reseller is the immediate counterparty, the principal must require flow-through KYC from the reseller — load `reseller_kyc_chain_ref`.",
+  "grandmaExplanation": "Indian VPN and cloud providers must keep detailed customer records — including identity, address, and how long they used the service — for 5 years after the customer leaves. We check daily that every customer record is complete and that we still have the records of customers who left up to 5 years ago."
+}

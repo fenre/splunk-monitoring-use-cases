@@ -1,0 +1,140 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.61.12",
+  "title": "CSL Art. 21 + DSL Art. 27 + GB/T 22239-2019 6-month security-log retention + integrity-protected archival + tamper-detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes ephemeral application-debug logs not classified as security logs under GB/T 22239-2019 Annex B. Excludes operational system metrics (CPU, memory) that are not authentication, authorisation, audit-trail, or network-traffic events.",
+  "evidence": "Saved search `UC-22.61.12` archived daily to `audit_evidence` with `cn_csl_clause=\"CSL-Art-21\"`. Every row pins (mlps_system_id, log_index_or_source, earliest_retained_event, oldest_retained_event, retention_days, integrity_hash_freshness, tamper_events_24h, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "CSL-Art-21",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CSL Art. 21(3) requires network operators to retain network-security logs for at least 6 months (180 days). GB/T 22239-2019 Section 7.1.4.7 elaborates: authentication, authorisation, network-traffic, security-event, and audit-trail logs must be retained, integrity-protected (signed or hashed), and resistant to tampering. This UC reconciles each MLPS-graded system against the 180-day floor and the integrity-protection limb — both regulatory limbs in one detector.",
+      "controlObjective": "Demonstrates that every MLPS-graded system retains at least 180 days of security logs with integrity protection and active tamper detection.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CSL Art. 21 Log Retention` dashboard, the per-system log-retention configuration export (`btool inputs list`), and the integrity-hash-chain verification report.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#CSL-Art-21",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "MLPS-2-0-L3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "GB/T 22239-2019 Level 3 §7.1.4.7 requires audit-trail retention, integrity protection, and tamper-resistance. This UC enforces the operational limbs (retention floor + integrity-hash freshness + tamper detection) but does not by itself prove the cryptographic strength of the integrity scheme or end-to-end forensic-grade chain-of-custody — those require separate cryptographic-control audits (UC-22.61.11 covers the assessment side).",
+      "controlObjective": "Provides operational evidence for the Level 3 audit-trail tamper-resistance and retention requirements; the cryptographic-strength dimension remains with the MLPS assessor.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#MLPS-2-0-L3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "DSL-Art-29",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DSL Art. 29 requires data processors to implement risk-monitoring and remediation for data security risks. A 180-day audit-trail with tamper-detection is a foundational element of DSL Art. 29 risk-monitoring, but does not alone satisfy the broader risk-monitoring obligation (which UC-22.61.3 incident-reporting and UC-22.61.5 important-data-catalogue together address).",
+      "controlObjective": "Contributes the audit-trail leg to DSL Art. 29 risk-monitoring.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#DSL-Art-29",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Configure a Level 3 log index with frozenTimePeriodInSecs=14515200 (168 days, 12 days short of the 180-day floor). UC-22.61.12 MUST flag with risk_score >= 90.",
+    "negativeScenario": "Configure the same index with frozenTimePeriodInSecs=15897600 (184 days), integrity hashes refreshed daily, and zero `_audit` index tamper events. UC-22.61.12 MUST record risk_score=0."
+  },
+  "dataSources": "Splunk `index=_internal source=*splunkd.log* component=BucketMover` (bucket freezing events). Splunk `index=_audit action IN (\"index_delete\",\"index_modify\")` (audit-trail tamper signals). KV Store `cn_csl_log_retention_lookup` (system_id, mlps_grade, log_index, expected_retention_days, integrity_scheme, hash_chain_endpoint). REST `/services/data/indexes` snapshot of `frozenTimePeriodInSecs` per index. HEC `hec:integrity:hash:freshness` (daily hash-chain verification job output).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Audit (built-in).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup cn_csl_log_retention_lookup\n| eval now_ts = now()\n| eval expected_retention_days = coalesce(expected_retention_days, 180)\n| eval required_floor_days = max(180, expected_retention_days)\n| join type=left log_index [\n    | rest /services/data/indexes\n    | rename title as log_index\n    | eval configured_retention_days = round(frozenTimePeriodInSecs / 86400, 1)\n    | table log_index configured_retention_days frozenTimePeriodInSecs\n  ]\n| join type=left log_index [\n    search index=_internal earliest=-7d sourcetype=splunkd component=BucketMover (action=freeze OR \"freezing bucket\")\n    | stats max(_time) as last_bucket_frozen_ts by idx\n    | rename idx as log_index\n  ]\n| join type=left log_index [\n    search index=summary source=hec:integrity:hash:freshness earliest=-7d\n    | stats max(_time) as last_hash_chain_verified_ts, latest(hash_chain_status) as hash_chain_status by log_index\n  ]\n| join type=left log_index [\n    search index=_audit earliest=-7d (action=index_delete OR action=index_modify OR operation=delete)\n    | stats count as tamper_events_7d, latest(user) as tamper_user by idx\n    | rename idx as log_index\n  ]\n| eval tamper_events_7d = coalesce(tamper_events_7d, 0)\n| eval days_since_hash_verified = round((now_ts - last_hash_chain_verified_ts) / 86400, 1)\n| eval retention_breach = if(configured_retention_days < required_floor_days, 1, 0)\n| eval integrity_stale = if(days_since_hash_verified > 7 OR isnull(last_hash_chain_verified_ts), 1, 0)\n| eval integrity_invalid = if(hash_chain_status = \"invalid\" OR hash_chain_status = \"failed\", 1, 0)\n| eval tamper_signal = if(tamper_events_7d > 0, 1, 0)\n| eval risk_score = case(\n    integrity_invalid = 1, 100,\n    tamper_signal = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 95,\n    retention_breach = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 90,\n    retention_breach = 1, 70,\n    integrity_stale = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 65,\n    integrity_stale = 1, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +configured_retention_days\n| table system_id mlps_grade log_index configured_retention_days required_floor_days integrity_scheme days_since_hash_verified hash_chain_status tamper_events_7d tamper_user risk_score",
+  "description": "Reconciles every MLPS-graded log index against three operational limbs of CSL Art. 21(3): (i) the 180-day retention floor (configured `frozenTimePeriodInSecs`), (ii) the integrity-hash freshness (a hash-chain verification job must have run within 7 days and returned `valid`), and (iii) audit-trail tamper signals (any `_audit` index deletion or modification against the protected log indexes). Risk-scores invalid integrity chains at 100 (potential evidence destruction), tamper signals on L3+ at 95, retention breaches on L3+ at 90.",
+  "value": "CSL Art. 21(3) is the CSL clause most frequently cited in MPS administrative-warning notices. A common pattern is: an incident occurs, the network operator is unable to produce 6 months of authentication logs, MPS issues an administrative warning under Art. 59 and may escalate to ordered remediation. Detecting retention breaches and integrity-chain invalidations before an incident is the difference between a routine MLPS finding and a public administrative warning.",
+  "implementation": "(1) Curate `cn_csl_log_retention_lookup` from the MLPS register — every Level 1-5 system maps to one or more Splunk indexes. (2) Schedule a daily hash-chain verification job that signs the previous day's bucket manifest with the org's PRC-resident KMS-backed key and writes the result to `hec:integrity:hash:freshness`. (3) Schedule UC-22.61.12 daily at 03:00 Beijing time; route `risk_score = 100` (invalid hash chain) to CISO at severity P1.",
+  "visualization": "(Panel 1) Retention-vs-floor scatter (configured days vs MLPS grade). (Panel 2) Hash-chain freshness heat map. (Panel 3) Tamper-event timeline. (Panel 4) Retention-breach trend (90 days).",
+  "cimModels": [
+    "Change",
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Law of the People's Republic of China — Article 21",
+      "url": "http://www.npc.gov.cn/npc/c30834/201611/270b43e8b35e4f7ea98502b6f0e26f8a.shtml"
+    },
+    {
+      "title": "GB/T 22239-2019 §7.1.4.7 — Audit-trail tamper-resistance and retention",
+      "url": "https://www.tc260.org.cn/upload/2019-05-13/1557715032893055115.pdf"
+    },
+    {
+      "title": "Data Security Law of the People's Republic of China — Article 29",
+      "url": "http://www.npc.gov.cn/npc/c30834/202106/7c9af12f51334a73b56d7938f99a788a.shtml"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-created index**: an index created in the last 30 days has no aged data and may report `configured_retention_days = 180` correctly but `oldest_retained_event` < 180 days simply because no bucket has aged that far yet — load `index_created_at` and exclude from the retention-breach alert during the first 180 days of the index's life. 2. **Frozen-to-glacier handoff**: if frozen buckets are migrated to a cold archive (e.g., S3 Glacier / OBS Archive) the in-Splunk `frozenTimePeriodInSecs` may be set lower deliberately — load `archive_handoff_documented = true` and pass `cold_archive_evidence_ref` to suppress. 3. **Test/dev index** that genuinely doesn't carry production data should be marked `system_id = test_only` and excluded.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_12_exceptions` with the CISO documented approval, an explicit system_id + log_index scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "system_id",
+    "log_index",
+    "configured_retention_days",
+    "hash_chain_status",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + CISO + Splunk Cloud Admin",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk Cloud (PRC region)",
+    "Splunk Enterprise 9.2+"
+  ],
+  "mitreAttack": [
+    "T1070.001",
+    "T1070.002",
+    "T1565"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.61.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region).\n- UC-22.61.1 deployed with `cn_mlps_register_lookup` populated.\n- PRC-resident KMS-backed signing key for hash-chain verification (often a Huawei OBS / Alibaba KMS instance with a key registered to the legal entity).\n\n## Step 1 - Retention KV Store\n\n```ini\n[cn_csl_log_retention_lookup]\nenforceTypes = true\nfield.system_id = string\nfield.mlps_grade = string\nfield.log_index = string\nfield.expected_retention_days = number\nfield.integrity_scheme = string\nfield.hash_chain_endpoint = string\nfield.archive_handoff_documented = bool\nfield.cold_archive_evidence_ref = string\nfield.index_created_at = time\n```\n\n## Step 2 - Hash-chain verification job\n\nA daily scheduled report uses `dbinspect` to enumerate bucket IDs + earliest/latest event times for every log_index in the lookup; the report writes a signed manifest to `hec:integrity:hash:freshness` with `hash_chain_status` set to `valid` only if every bucket's hash signature verifies against the PRC-resident KMS key.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.12: CSL Art. 21 Log Retention]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.12,reg=CN-CSL,clause=CSL-Art-21\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cross-border audit-data export**: even routine MLPS-3+ log review by an offshore SOC may trigger CSL Art. 37 + PIPL Art. 38 cross-border-transfer considerations if the logs contain PI — coordinate with UC-22.61.4 (egress detector) and UC-22.61.7 (cross-border transfer register).\n- **Public-Security Bureau evidence-request mode**: in active criminal investigations, MPS may request raw logs under Art. 28; the chain-of-custody report from this UC is the artefact most commonly tendered.",
+  "grandmaExplanation": "Chinese law says important security records must be kept for at least 6 months and protected from being changed or deleted. We check every day that all our security logs are kept long enough and have not been tampered with."
+}

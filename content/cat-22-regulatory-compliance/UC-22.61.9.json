@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.61.9",
+  "title": "PIPL Art. 24 automated decision-making (ADM) transparency, opt-out audit, and anti-price-discrimination + anti-bias detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Retail",
+  "owner": "DPO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes ADM decisions that do not involve personal information (purely operational or anonymised algorithmic decisions). Excludes ADM decisions that have been formally exempted by the CAC under the algorithm-filing regime (a small set of pure-operational pricing engines).",
+  "evidence": "Saved search `UC-22.61.9` archived on every ADM decision event to `audit_evidence` with `cn_csl_clause=\"PIPL-Art-24\"`. Every row pins (decision_id, processor_id, subject_id_hash, adm_purpose, transparency_disclosed, opt_out_available, price_dispersion_pct, similar_segment_avg_price, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "PIPL-Art-55",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "PIPL Art. 24 requires that automated decision-making using personal information be transparent, fair, and equitable, and prohibits unreasonable differential treatment of individuals in transaction price and other terms. PIPL Art. 55(2) requires a PIPIA before automated decision-making. This UC operationalises the operational telemetry side of PIPL Art. 24: detecting price dispersion patterns indicative of unreasonable differential treatment, and reconciling each ADM activity with its required PIPIA + transparency disclosure + opt-out mechanism.",
+      "controlObjective": "Demonstrates that every ADM activity has a current PIPIA, that transparency disclosures are surfaced to data subjects, that an opt-out mechanism is available, and that no unreasonable price discrimination is occurring.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `PIPL ADM Audit` dashboard, the PIPIA report for each ADM activity, the customer-facing transparency disclosure UI screenshots, the opt-out user-flow telemetry, the algorithm-filing receipt where required.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#PIPL-Art-55",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Run an ADM pricing engine that offers Premium-segment members a price 25% above the Standard-segment baseline for identical inventory, with no PIPIA on file and no transparency disclosure. UC-22.61.9 MUST flag with risk_score = 100.",
+    "negativeScenario": "Run an ADM pricing engine with documented PIPIA, customer-facing transparency disclosure (Article 24 notice), opt-out flow available, and price-dispersion within a documented business-justified band (e.g., volume discount). UC-22.61.9 MUST record risk_score=0."
+  },
+  "dataSources": "ADM decision events (`adm:decision:event` — pricing, recommendation, eligibility decisions emitted by the application platform). KV Store `cn_adm_register_lookup` (adm_id, processor_id, adm_purpose, pipia_ref, transparency_disclosure_ref, opt_out_url, algorithm_filing_ref, business_justification, fairness_band_pct). Customer interaction events (`web:audit`, `mobile:audit`) for transparency-disclosure exposure tracking.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Machine Learning Toolkit (Splunkbase 2890), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2890,
+      "name": "Splunk Machine Learning Toolkit",
+      "url": "https://splunkbase.splunk.com/app/2890",
+      "role": "optional",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=adm sourcetype=adm:decision:event earliest=-1h\n| lookup cn_adm_register_lookup adm_id OUTPUT processor_id adm_purpose pipia_ref transparency_disclosure_ref opt_out_url algorithm_filing_ref fairness_band_pct\n| eval pipia_missing = if(isnull(pipia_ref), 1, 0)\n| eval transparency_missing = if(isnull(transparency_disclosure_ref), 1, 0)\n| eval opt_out_missing = if(isnull(opt_out_url), 1, 0)\n| eval price_dispersion_pct = if(isnotnull(similar_segment_avg_price) AND similar_segment_avg_price > 0, round(100 * (decision_price - similar_segment_avg_price) / similar_segment_avg_price, 2), null())\n| eval price_dispersion_excess = if(isnotnull(price_dispersion_pct) AND isnotnull(fairness_band_pct) AND abs(price_dispersion_pct) > fairness_band_pct, 1, 0)\n| eval algorithm_filing_required = if(adm_purpose IN (\"pricing\",\"recommendation\",\"content-ranking\") AND processor_data_subject_volume >= 1000000, 1, 0)\n| eval algorithm_filing_missing = if(algorithm_filing_required = 1 AND isnull(algorithm_filing_ref), 1, 0)\n| eval risk_score = case(\n    pipia_missing = 1 AND price_dispersion_excess = 1, 100,\n    pipia_missing = 1, 80,\n    price_dispersion_excess = 1 AND transparency_missing = 1, 95,\n    price_dispersion_excess = 1, 75,\n    algorithm_filing_missing = 1, 70,\n    transparency_missing = 1 AND adm_purpose = \"pricing\", 65,\n    opt_out_missing = 1, 55,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -price_dispersion_pct\n| table decision_id processor_id adm_purpose subject_id_hash decision_price similar_segment_avg_price price_dispersion_pct fairness_band_pct pipia_missing transparency_missing opt_out_missing algorithm_filing_missing risk_score",
+  "description": "Audits every ADM decision (pricing, recommendation, content ranking, eligibility) made on PRC data subjects against four PIPL Art. 24 / 55 limbs: (i) PIPIA on file for the ADM activity; (ii) transparency disclosure surfaced to the data subject; (iii) opt-out mechanism available; (iv) decisions within the documented fairness band (no unreasonable price-discrimination — sometimes labelled big-data price-discrimination or 'da shu ju sha shu'). Surfaces excess price dispersion and missing governance artefacts at risk_score 75-100 for DPO + General Counsel review.",
+  "value": "Big-data price-discrimination is one of the highest-profile PIPL enforcement themes — the CAC's 2022 Personal Information Protection Compliance Audit Standards specifically targeted it. PIPL Art. 66 penalty ceilings apply (RMB 50 million / 5% turnover), and consumer-class-action plaintiffs under PIPL Art. 69 can also sue. The Algorithm Filing regime (operational from 1 March 2022 via the Internet Information Service Algorithm Recommendation Management Provisions) adds an additional MIIT / CAC enforcement layer for any ADM serving ≥1M users.",
+  "implementation": "(1) Wire the application platform to emit `adm:decision:event` events including decision_id, processor_id, adm_id, subject_id_hash, decision_value, segment_label, similar_segment_avg_price (computed at decision time from a rolling baseline). (2) Maintain `cn_adm_register_lookup` with one row per ADM activity carrying its governance artefacts. (3) The DPO sets the per-ADM `fairness_band_pct` based on the documented business justification (e.g., volume discount: ±5%; loyalty tier: ±10%; first-time customer: ±15%). (4) Schedule UC-22.61.9 every 15 minutes; route `risk_score >= 90` to the DPO + General Counsel + CCO at severity P1.",
+  "visualization": "(Panel 1) ADM decision volume by purpose. (Panel 2) Price-dispersion distribution by segment. (Panel 3) Decisions outside fairness band (trending). (Panel 4) Governance-artefact coverage (PIPIA / disclosure / opt-out / algorithm-filing).",
+  "cimModels": [
+    "Application_State",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Personal Information Protection Law of the People's Republic of China (2021) - Article 24",
+      "url": "http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_312088.html"
+    },
+    {
+      "title": "Internet Information Service Algorithm Recommendation Management Provisions (CAC, 2022)",
+      "url": "https://www.cac.gov.cn/2022-01/04/c_1642894606364259.htm"
+    },
+    {
+      "title": "CAC Personal Information Protection Compliance Audit Standards (2022)",
+      "url": "https://www.cac.gov.cn/"
+    }
+  ],
+  "knownFalsePositives": "1. **Legitimate business segmentation**: documented volume discount, loyalty-tier pricing, or first-time-customer promotions create lawful price dispersion; ensure `fairness_band_pct` reflects the documented band. 2. **Time-of-day pricing**: airline / hotel / ride-hailing typically apply time-of-day or surge pricing; categorise these as `time_dynamic` and exclude from segment-comparison. 3. **A/B testing**: a small percentage of decisions may be A/B-test variants; exclude `decision_purpose=ab-test` from the audit during a documented test window.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_9_exceptions` with the DPO + Product Counsel documented approval, an explicit adm_id + segment scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "decision_id",
+    "adm_purpose",
+    "price_dispersion_pct",
+    "fairness_band_pct",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + DPO + Chief Compliance Officer + Product Counsel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-mltk"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk Machine Learning Toolkit",
+    "Custom application platform (e-commerce, ride-hailing, content)",
+    "OneTrust Privacy Management"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.61.8"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- Application platform emitting `adm:decision:event` with rich decision metadata.\n- A baseline computation of `similar_segment_avg_price` at decision time.\n\n## Step 1 - ADM register KV Store\n\n```ini\n[cn_adm_register_lookup]\nenforceTypes = true\nfield.adm_id = string\nfield.processor_id = string\nfield.adm_purpose = string\nfield.pipia_ref = string\nfield.transparency_disclosure_ref = string\nfield.opt_out_url = string\nfield.algorithm_filing_ref = string\nfield.business_justification = string\nfield.fairness_band_pct = number\nfield.processor_data_subject_volume = number\n```\n\n## Step 2 - Decision-event schema\n\n```\nadm:decision:event {\n  decision_id, adm_id, processor_id, subject_id_hash,\n  adm_purpose,\n  decision_value, decision_price,\n  segment_label, similar_segment_avg_price,\n  decision_purpose (production | ab-test | shadow),\n  decision_timestamp\n}\n```\n\nNo raw subject_id should be in the event — only a salted hash; raw PI must not be exfiltrated outside the application boundary.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.9: PIPL ADM Audit]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.9,reg=CN-CSL,clause=PIPL-Art-24\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Algorithm-filing regime**: any ADM-using-PI activity affecting ≥1M users must file the algorithm with the CAC + MIIT under the 2022 Internet Information Service Algorithm Recommendation Management Provisions. Filed algorithm ID is published in the CAC Algorithm Filing Register.\n- **Sectoral overlays**: 2023 Generative AI Service Management Interim Measures impose additional obligations on AI-driven ADM serving the public.\n- **PI minimisation**: ensure the ADM uses the minimum PI necessary — over-collection itself is a PIPL Art. 6 violation regardless of fairness band compliance.",
+  "grandmaExplanation": "When a Chinese website or app uses computer programs to set prices or pick what to show you, China requires fairness: the same kind of customer should not be charged a much higher price for the same product. We watch the decisions and flag any pattern that looks like unfair price-discrimination."
+}

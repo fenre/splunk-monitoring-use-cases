@@ -1,0 +1,129 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.63.4",
+  "title": "IEC 61511 Clause 16.3 SIS proof-test interval compliance + demand rate verification + spurious-trip-rate trending against PFD/PFH design budget",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Reliability"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes SIS instances designed for continuous-mode operation (SIL claimed via PFH only — handled separately). Excludes proof-tests of components covered by vendor-prognostic diagnostics with documented diagnostic-coverage credit per IEC 61508-2 Annex B.",
+  "evidence": "Saved search `UC-22.63.4` archived weekly to `audit_evidence` with `iec_clause=\"IEC-61511-Cl-16-3\"`. Every SIF pins (sif_id, sil_target, proof_test_interval_design_months, last_proof_test_completed_at, months_since_test, demand_count_24m, actual_pfd, design_pfd_budget, spurious_trip_count_12m, risk_score).",
+  "compliance": [
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "IEC-61511-Cl-16-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "IEC 61511-1 Clause 16.3 mandates a documented proof-test procedure executed at the design proof-test interval to demonstrate the SIS continues to perform its safety function with the claimed Probability of Failure on Demand (PFD). This UC enforces three operational limbs: (i) the proof-test was executed within the design interval (e.g., 12 months for SIL-2, 6 months for SIL-3 typically), (ii) the demand-rate observed matches the design assumption, and (iii) the spurious-trip-rate is within budget (a spurious trip both indicates a covert failure and creates an availability cost).",
+      "controlObjective": "Demonstrates that every SIS / SIF is proof-tested on schedule with PFD performance and spurious-trip-rate within design budget.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `SIS Proof-Test Status` dashboard, the per-SIF proof-test reports, the demand-and-spurious-trip register.",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#IEC-61511-Cl-16-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "iec-61511",
+      "version": "2016-iec-61511-ed-2-with-isa-tr84-00-09",
+      "clause": "IEC-61508-Pt-1-Cl-7-4",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "IEC 61508-1 Clause 7.4 (overall safety lifecycle) and IEC 61508-6 Annex B (proof-test theory) underpin the proof-test design that IEC 61511 Clause 16.3 operationalises. This UC reconciles measured field performance back to the design assumption captured at lifecycle Phase 5 (SIS-SRS) tracked in UC-22.63.1.",
+      "controlObjective": "Provides the field-performance feedback limb of IEC 61508 lifecycle Phase 13 (Operation & Maintenance).",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#IEC-61508-Pt-1-Cl-7-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A SIL-3 SIF protecting a fired heater has a 6-month design proof-test interval and the last documented proof-test was 9 months ago. UC-22.63.4 MUST flag with risk_score=95.",
+    "negativeScenario": "The same SIF has a proof-test completed 5 months ago with a 'passed' result, no anomalies, demand-rate within ±20% of design, spurious-trip-rate of 0 in the last 12 months. UC-22.63.4 MUST record risk_score=0."
+  },
+  "dataSources": "KV Store `iec_61511_sif_proof_test_register_lookup` (sif_id, sil_target, design_pfd_budget, proof_test_interval_design_months, design_demand_rate_per_year). KV Store `iec_61511_proof_test_event_lookup` (proof_test_id, sif_id, completed_at, status, findings, executed_by_competence_ref). SIS logic-solver demand events ingested via vendor TA (`sourcetype=sis:demand`). SIS logic-solver spurious-trip events (`sourcetype=sis:spurious_trip`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 6849).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6849,
+      "name": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/6849",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup iec_61511_sif_proof_test_register_lookup\n| eval now_ts = now()\n| join type=left sif_id [\n    | inputlookup iec_61511_proof_test_event_lookup\n    | where status IN (\"passed\",\"passed-with-comments\")\n    | stats max(completed_at) as last_proof_test_completed_at, latest(status) as last_proof_test_status, latest(findings) as last_proof_test_findings by sif_id\n  ]\n| eval months_since_test = round((now_ts - last_proof_test_completed_at) / (86400 * 30.4375), 1)\n| eval proof_test_overdue_pct = round((months_since_test / proof_test_interval_design_months) * 100, 0)\n| eval proof_test_overdue = if(months_since_test > proof_test_interval_design_months, 1, 0)\n| eval proof_test_critically_overdue = if(months_since_test > (proof_test_interval_design_months * 1.25), 1, 0)\n| eval proof_test_missing = if(isnull(last_proof_test_completed_at), 1, 0)\n| join type=left sif_id [\n    search index=ot_sis sourcetype=\"sis:demand\" earliest=-24mon@mon latest=now\n    | stats count as demand_count_24m by sif_id\n  ]\n| join type=left sif_id [\n    search index=ot_sis sourcetype=\"sis:spurious_trip\" earliest=-12mon@mon latest=now\n    | stats count as spurious_trip_count_12m by sif_id\n  ]\n| eval demand_count_24m = coalesce(demand_count_24m, 0)\n| eval spurious_trip_count_12m = coalesce(spurious_trip_count_12m, 0)\n| eval observed_demand_rate_per_year = demand_count_24m / 2\n| eval demand_rate_overshoot = if(design_demand_rate_per_year > 0 AND observed_demand_rate_per_year > (design_demand_rate_per_year * 2), 1, 0)\n| eval demand_rate_undershoot = if(design_demand_rate_per_year > 0 AND observed_demand_rate_per_year < (design_demand_rate_per_year * 0.1) AND design_demand_rate_per_year >= 1, 1, 0)\n| eval spurious_trip_high = if(spurious_trip_count_12m > 2, 1, 0)\n| eval risk_score = case(\n    proof_test_missing = 1, 100,\n    proof_test_critically_overdue = 1, 100,\n    proof_test_overdue = 1, 95,\n    demand_rate_overshoot = 1, 85,\n    spurious_trip_high = 1, 70,\n    demand_rate_undershoot = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +months_since_test\n| table sif_id sil_target proof_test_interval_design_months months_since_test proof_test_overdue_pct observed_demand_rate_per_year design_demand_rate_per_year spurious_trip_count_12m risk_score",
+  "description": "Reconciles every SIF against three SIS operations limbs of IEC 61511 Clause 16.3: (i) proof-test executed within the design interval (with critical-overdue flag at 125% of the interval), (ii) observed demand-rate within ±2x of the design assumption (a demand-rate overshoot invalidates the PFD-vs-PFH model choice; an undershoot may indicate the SIF is not being challenged enough to trust the field-evidence), and (iii) spurious-trip-rate within budget (>2 spurious trips in 12 months indicates covert failures or hardware drift).",
+  "value": "IEC 61511 Clause 16.3 is the operational limb that field-evidence the SIL claim. A SIF that nominally claims SIL-3 but whose proof-test is 9 months overdue does not have a defensible SIL claim — the regulator (OSHA / COMAH / Seveso / IRDA / state DPCB) treats this as 'process safety information not maintained'. The demand-rate-vs-design comparison is the leading indicator that a SIF has been under-engineered (overshoot) or its claim is field-unprovable (undershoot). The spurious-trip-rate is both a safety-availability metric and a cybersecurity indicator (a SIF tripping spuriously may be experiencing intermittent control-system intrusions).",
+  "implementation": "(1) Maintain `iec_61511_sif_proof_test_register_lookup` from the LOPA / SIS-SRS exports (design intervals and PFD budgets). (2) Wire the proof-test workflow to `iec_61511_proof_test_event_lookup` (typically a CMMS — Maximo / SAP-PM / Infor EAM — output). (3) Wire SIS logic-solver demand and spurious-trip events to `index=ot_sis`. (4) Schedule UC-22.63.4 weekly; route `risk_score = 100` to the Functional Safety Manager + Plant Manager at severity P1.",
+  "visualization": "(Panel 1) Proof-test overdue waterfall by SIF. (Panel 2) Observed-vs-design demand-rate scatter. (Panel 3) Spurious-trip trend (12 months). (Panel 4) SIL-claim defensibility status.",
+  "cimModels": [
+    "Change",
+    "Performance"
+  ],
+  "references": [
+    {
+      "title": "IEC 61511-1:2016 Clause 16 — SIS Operation and Maintenance",
+      "url": "https://webstore.iec.ch/publication/24241"
+    },
+    {
+      "title": "IEC 61508-6:2010 Annex B — Proof-test theory and PFD calculations",
+      "url": "https://webstore.iec.ch/publication/22273"
+    },
+    {
+      "title": "CCPS Guidelines for Safe Automation of Chemical Processes (2nd Ed., 2017)",
+      "url": "https://www.aiche.org/ccps/resources/publications/books/guidelines-safe-automation-chemical-processes-second-edition"
+    }
+  ],
+  "knownFalsePositives": "1. **Vendor-prognostic-diagnostic credit**: SIS components with IEC 61508-2 Annex B diagnostic-coverage credit (e.g., HART smart transmitters with automated partial-stroke testing) may have a longer effective proof-test interval — load `diagnostic_coverage_extension_ref` and adjust the interval. 2. **Newly-installed SIF**: a SIF installed in the last 6 months has not had a scheduled proof-test yet — suppress with `commissioning_test_ref`. 3. **Operating-time-low SIF**: a SIF on standby (low operating-hours) may have a legitimately low demand-rate — load `low_operating_hours_attestation_ref`.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_4_exceptions` with the Functional Safety Manager documented approval, an explicit sif_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "sif_id",
+    "sil_target",
+    "proof_test_interval_design_months",
+    "last_proof_test_completed_at",
+    "months_since_test",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Functional Safety Manager + Reliability Engineer + Plant Manager",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-ot"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk OT Security Add-on",
+    "CMMS (IBM Maximo / SAP-PM / Infor EAM)",
+    "exida exSILentia / Hima ExSILent / Smart Project"
+  ],
+  "mitreAttack": [
+    "T0814",
+    "T0837"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.63.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.63.1 (SIS lifecycle register) deployed.\n- A CMMS with SIS-specific proof-test work-order templates.\n- SIS logic-solver demand and spurious-trip event capture wired via vendor TA.\n\n## Step 1 - Proof-test register KV Store\n\n```ini\n[iec_61511_sif_proof_test_register_lookup]\nenforceTypes = true\nfield.sif_id = string\nfield.sil_target = string\nfield.design_pfd_budget = number\nfield.proof_test_interval_design_months = number\nfield.design_demand_rate_per_year = number\nfield.diagnostic_coverage_extension_ref = string\nfield.commissioning_test_ref = string\nfield.low_operating_hours_attestation_ref = string\n```\n\n## Step 2 - Proof-test event KV Store\n\n```ini\n[iec_61511_proof_test_event_lookup]\nenforceTypes = true\nfield.proof_test_id = string\nfield.sif_id = string\nfield.completed_at = time\nfield.status = string\nfield.findings = string\nfield.executed_by_competence_ref = string\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.63.4: SIS Proof-Test Status]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.4,reg=IEC-61511,clause=IEC-61511-Cl-16-3\nalert.severity = 5\n```\n\n## Step 4 - Functional-safety-specific notes\n\n- **Partial proof-test credit**: IEC 61508-6 Annex B permits a partial proof-test (e.g., partial-stroke valve testing) to extend the full proof-test interval with documented diagnostic-coverage — calibrate the interval per the component-FMEDA report.\n- **Demand-rate trend correlation**: a rising demand-rate across multiple SIFs in a unit may indicate a deteriorating BPCS or operating-discipline; surface this to the unit's Operations Manager.",
+  "grandmaExplanation": "Safety systems must be tested regularly to prove they will work when needed. We check every week that every safety function has been tested on time, that it is being challenged about as often as expected, and that it has not been failing spuriously."
+}

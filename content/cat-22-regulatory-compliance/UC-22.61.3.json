@@ -1,0 +1,143 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.61.3",
+  "title": "CSL Art. 25 cybersecurity incident reporting clock — tiered Level 1-4 notification (1h / 8h / 24h) to CAC, MPS, and sectoral protection department",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Energy",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents that have been formally re-classified as Level-4 ordinary by the CAC and that the sectoral protection department has agreed do not require immediate notification (typically minor end-user-device anti-malware events).",
+  "evidence": "Saved search `UC-22.61.3` archived on every incident severity-classification event to `audit_evidence` with `cn_csl_clause=\"CSL-Art-25\"` and `cn_incident_tier`. Every row pins (incident_id, severity_tier, classification_time, target_clock_minutes, submission_time_cac, submission_time_mps, submission_time_sectoral, slack_minutes, risk_score, regulator_receipts).",
+  "compliance": [
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "CSL-Art-25",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CSL Art. 25 obliges every network operator to formulate a cybersecurity incident emergency response plan, activate the plan immediately upon detection, take corrective measures, and report to the relevant competent authority within statutory timelines. The CAC's tiered classification matrix (Level 1: 1-hour, Level 2: 8-hour, Level 3: 24-hour, Level 4: routine) operationalises the 'within prescribed time' standard. This UC starts the regulator-facing clock the moment severity classification is confirmed and surfaces slack against the deadline.",
+      "controlObjective": "Demonstrates that every classified cybersecurity incident has its CAC + MPS + sectoral-department submission completed within the statutory tier-specific timeline (60 / 480 / 1440 minutes).",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CN CSL Incident Reporting Clock` dashboard, the CAC / MPS / sectoral submission receipts, the incident-classification decision log.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#CSL-Art-25",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "DSL-Art-29",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "DSL Art. 29 imposes a parallel obligation for data-security incidents — immediate remedial action, prompt notification of users, and reporting to the relevant competent authority. The same clock and the same regulator surface (CAC + sectoral department) are used; this UC therefore also satisfies the operational notification limb of DSL Art. 29 for incidents that involve data.",
+      "controlObjective": "Operationalises DSL Art. 29 data-incident reporting alongside CSL Art. 25 cybersecurity incident reporting on a single regulator-facing clock.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#DSL-Art-29",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Classify a confirmed Level 2 (severe) cybersecurity incident at T=0, but do not submit the CAC notification by T=480 minutes. UC-22.61.3 MUST flag at T=400 minutes (slack = 80 minutes) with risk_score >= 70, and at T=481 minutes with risk_score=100.",
+    "negativeScenario": "Classify a Level 2 incident at T=0, submit the CAC notification at T=380 minutes, the MPS notification at T=380 minutes, and the sectoral-department notification at T=380 minutes. UC-22.61.3 MUST record risk_score=0 with slack_minutes=100."
+  },
+  "dataSources": "ServiceNow Security Incident Response (`snow:sir:incident`) for incident-classification events. HEC `hec:cac:reporting:submission`, `hec:mps:reporting:submission`, `hec:sectoral:reporting:submission` for regulator submission receipts. KV Store `cn_incident_tier_matrix` (severity_tier, target_clock_minutes, regulator_destinations).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=snow sourcetype=snow:sir:incident state=classified jurisdiction=CN\n| eval classification_time = strptime(classified_at, \"%Y-%m-%dT%H:%M:%S%Z\")\n| lookup cn_incident_tier_matrix severity_tier OUTPUT target_clock_minutes regulator_destinations\n| join type=left incident_id [\n    search index=regulatory_submissions earliest=-7d\n      (sourcetype=cac:reporting:submission OR sourcetype=mps:reporting:submission OR sourcetype=sectoral:reporting:submission)\n    | stats max(eval(if(sourcetype=\"cac:reporting:submission\", _time, null()))) as submission_time_cac max(eval(if(sourcetype=\"mps:reporting:submission\", _time, null()))) as submission_time_mps max(eval(if(sourcetype=\"sectoral:reporting:submission\", _time, null()))) as submission_time_sectoral by incident_id\n  ]\n| eval now_ts = now()\n| eval elapsed_minutes = round((now_ts - classification_time) / 60, 1)\n| eval deadline_ts = classification_time + (target_clock_minutes * 60)\n| eval slack_minutes = round((deadline_ts - now_ts) / 60, 1)\n| eval cac_late = if(isnotnull(submission_time_cac) AND submission_time_cac > deadline_ts, 1, if(isnull(submission_time_cac) AND now_ts > deadline_ts, 1, 0))\n| eval mps_late = if(isnotnull(submission_time_mps) AND submission_time_mps > deadline_ts, 1, if(isnull(submission_time_mps) AND now_ts > deadline_ts, 1, 0))\n| eval sectoral_late = if(isnotnull(submission_time_sectoral) AND submission_time_sectoral > deadline_ts, 1, if(isnull(submission_time_sectoral) AND now_ts > deadline_ts, 1, 0))\n| eval submission_missing_any = if(isnull(submission_time_cac) OR isnull(submission_time_mps) OR isnull(submission_time_sectoral), 1, 0)\n| eval risk_score = case(\n    (cac_late = 1 OR mps_late = 1 OR sectoral_late = 1), 100,\n    submission_missing_any = 1 AND slack_minutes <= 30 AND severity_tier IN (\"Level 1\",\"Level 2\"), 90,\n    submission_missing_any = 1 AND slack_minutes <= 60 AND severity_tier = \"Level 1\", 95,\n    submission_missing_any = 1 AND slack_minutes <= 120, 70,\n    submission_missing_any = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +slack_minutes\n| table incident_id severity_tier classification_time target_clock_minutes elapsed_minutes slack_minutes submission_time_cac submission_time_mps submission_time_sectoral cac_late mps_late sectoral_late risk_score",
+  "description": "Starts the CSL Art. 25 + DSL Art. 29 regulator-notification clock the instant a cybersecurity or data-security incident is classified by the IR team. Computes elapsed time and slack against the tier-specific target (60 / 480 / 1440 minutes), reconciles submission receipts from CAC + MPS + sectoral protection department, and surfaces incidents that are within 30/60-minute slack windows or have already breached the deadline.",
+  "value": "Late reporting under CSL Art. 25 carries a fine of RMB 50,000-500,000 plus personal fines on the responsible person under CSL Art. 59 and Art. 60. Severe late-reporting cases — particularly Level 1 (Tegubie Zhongda) incidents involving national-security or significant public-interest harm — can trigger Criminal Law Art. 286 (refusal-of-obligation-to-perform-cybersecurity-duties) sentences of up to 3 years' imprisonment plus business-licence revocation. For CIIO, late reporting is also a CIIO Reg. Art. 18 inspection finding that elevates regulatory risk. This UC closes the clock-management gap before the regulator sees it.",
+  "implementation": "(1) Wire ServiceNow SIR (or equivalent IR platform) to push `snow:sir:incident` events into Splunk on classification. (2) Seed `cn_incident_tier_matrix` (severity_tier=Level 1, target_clock_minutes=60; Level 2, 480; Level 3, 1440; Level 4, routine [per sector]). (3) Deploy a Splunk SOAR playbook 'CN-CSL-NOTIFY' that on `severity_tier=Level 1|Level 2|Level 3` automatically drafts the CAC + MPS + sectoral submissions and surfaces them to the CISO + General Counsel for final review. (4) Schedule UC-22.61.3 every 5 minutes; route `risk_score >= 90` to the CISO + Board Audit Committee at severity P1.",
+  "visualization": "(Panel 1) Open incidents by severity tier (Level 1 / 2 / 3 / 4) with slack-minutes gauge. (Panel 2) Reporting clock visualisation per incident (elapsed vs target). (Panel 3) Submission status matrix (CAC / MPS / sectoral) per incident. (Panel 4) Trailing 30-day on-time reporting rate.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Law of the People's Republic of China (2017) - Article 25",
+      "url": "http://www.npc.gov.cn/zgrdw/npc/xinwen/2016-11/07/content_2001605.htm"
+    },
+    {
+      "title": "Data Security Law of the People's Republic of China (2021) - Article 29",
+      "url": "http://www.npc.gov.cn/npc/c2/c30834/202106/t20210610_311888.html"
+    },
+    {
+      "title": "CAC Personal Information Security Incident Emergency Response Plan",
+      "url": "https://www.cac.gov.cn/"
+    }
+  ],
+  "knownFalsePositives": "1. **Pre-classification window**: an incident that has been opened but not yet classified is not subject to the Art. 25 clock; ensure `state=classified` filter is applied. 2. **Cross-jurisdictional incidents**: an incident impacting multiple PRC and non-PRC jurisdictions may have parallel clocks (NIS2 / TSA / IMO / DO-326A). Each clock is independent; do not suppress the CN clock because another clock has been started. 3. **Submission delivered via offline channel**: in rare cases the CAC requests submission via secure courier or in-person delivery; record the offline submission with `submission_method=offline` and the courier receipt as `submission_receipt`.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_3_exceptions` with the CISO + General Counsel documented approval, an explicit incident_id scope, and a written justification.",
+  "requiredFields": [
+    "incident_id",
+    "severity_tier",
+    "classification_time",
+    "slack_minutes",
+    "submission_time_cac",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + CISO + General Counsel + IR Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR (formerly Phantom)",
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)",
+    "CAC Cybersecurity Incident Reporting Portal (mainland PRC)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.61.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment for in-PRC incidents).\n- ServiceNow SIR with classification workflow that emits `severity_tier` field on classification.\n- Splunk SOAR playbook 'CN-CSL-NOTIFY' to draft submissions.\n- HEC tokens for `cac:reporting:submission`, `mps:reporting:submission`, `sectoral:reporting:submission`.\n\n## Step 1 - Incident-tier matrix\n\n```ini\n[cn_incident_tier_matrix]\nenforceTypes = true\nfield.severity_tier = string\nfield.target_clock_minutes = number\nfield.regulator_destinations = string\n```\n\nSeed:\n\n```csv\nLevel 1,60,\"CAC|MPS|Sectoral|State Council\"\nLevel 2,480,\"CAC|MPS|Sectoral\"\nLevel 3,1440,\"CAC|Sectoral\"\nLevel 4,10080,\"Sectoral\"\n```\n\n## Step 2 - SOAR playbook\n\nOn `notable` from UC-22.61.3 with `risk_score >= 50`, run playbook 'CN-CSL-NOTIFY':\n\n1. Draft CAC submission (template based on `severity_tier`).\n2. Draft MPS submission.\n3. Draft sectoral-department submission.\n4. Surface drafts to CISO + General Counsel for review.\n5. On approval, submit via CAC portal / email channel; capture receipt in HEC.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.3: CN CSL Incident Reporting Clock]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.3,reg=CN-CSL,clause=CSL-Art-25,tier=$severity_tier$\nalert.severity = 5\n```\n\n## Step 4 - PRC-specific notes\n\n- **Level 1 (Tegubie Zhongda — particularly severe) examples**: large-scale data breach affecting ≥10 million users, prolonged outage of CII causing major social impact, theft or destruction of state secret information.\n- **Level 2 (Zhongda — severe) examples**: data breach affecting 100k-10M users, multi-hour outage of CII, large-scale ransomware infection.\n- **Level 3 (Jiaodaa — comparable severe) examples**: data breach affecting 10k-100k users, sustained DDoS, business-application compromise.\n- **Level 4 (Yiban — ordinary)**: small-scale incidents within routine reporting (sectoral cadence applies).",
+  "grandmaExplanation": "If something bad happens to a computer system in China, the company must tell the government within a strict time window — sometimes as little as one hour. We keep a stopwatch running so the company never misses the deadline."
+}

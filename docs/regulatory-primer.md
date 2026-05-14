@@ -38,11 +38,11 @@ programmes think:
   tampered with?" or "can you demonstrate that breach notifications were sent
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
-- **By regulation** — 16 tier-1 frameworks covered deeply, plus 34 per-regulation
-  subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 58
-  tier-2 frameworks in the appendix. Regulation-level reading is the right
-  choice when you are answering a specific audit, mapping against a specific
-  RFP, or preparing a regulator response.
+- **By regulation** — 18 tier-1 frameworks covered deeply, plus 48 per-regulation
+  subcategories (cat-22 subcategories 22.1 through 22.34 and 22.50 through 22.63)
+  and an additional 58 tier-2 frameworks in the appendix. Regulation-level reading
+  is the right choice when you are answering a specific audit, mapping against a
+  specific RFP, or preparing a regulator response.
 
 Every entry — family or regulation — ends with a **"Where to look in the
 catalogue"** block listing the exact cat-22 subcategory, a sampling of
@@ -63,7 +63,7 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 
 | Badge | Meaning |
 |-------|---------|
-| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 16 frameworks; see `api/v1/compliance/coverage.json`. |
+| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 22 frameworks; see `api/v1/compliance/coverage.json`. |
 | `T2`  | **Tier 2** — authored to meaningful partial coverage; 58 frameworks including all 5 derivative privacy regulations. |
 | `T3`  | **Tier 3** — referenced or meta-frameworks; 2 today (`meta-multi`, `ferc-cip`). |
 
@@ -1973,6 +1973,587 @@ the [ICAO Cybersecurity in Civil Aviation page](https://www.icao.int/Security/Pa
 the [A-ISAC](https://www.a-isac.com/) and
 the [European Centre for Cybersecurity in Aviation (ECCSA)](https://www.eccsa.eu/).
 
+### 4.20 China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 — Cybersecurity, Data, Privacy, and CII Regime (PRC) · `T1` {#cn-csl}
+
+**Regulation:** China's layered cybersecurity-and-data legal regime,
+anchored on the *Cybersecurity Law of the People's Republic of China*
+(CSL — adopted 7 November 2016, effective 1 June 2017), tightened
+progressively by the *Data Security Law* (DSL — effective 1 September
+2021) and the *Personal Information Protection Law* (PIPL — effective
+1 November 2021), operationalised on critical infrastructure by the
+*Regulations on Security Protection of Critical Information
+Infrastructure* (State Council Order No. 745 — effective 1 September
+2021), screened for procurement risk by the *Cybersecurity Review
+Measures* (CRM — 2022 revision, effective 15 February 2022), and on
+data export by the
+[CAC Measures for Security Assessment of Outbound Data Transfers](https://www.cac.gov.cn/2022-07/07/c_1658811536396503.htm)
+(effective 1 September 2022) and the
+*Standard Contract for the Outbound Cross-Border Transfer of Personal
+Information* (effective 1 June 2023). Technical implementation of CSL
+Art.21 is the
+[Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019)](https://openstd.samr.gov.cn/bzgk/gb/index)
+with five grades; Level 3 and above require an annual independent
+assessment by a Ministry of Public Security (MPS)-accredited testing
+organisation. Administered by the
+[Cyberspace Administration of China (CAC)](https://www.cac.gov.cn/),
+the [Ministry of Public Security (MPS)](https://www.mps.gov.cn/),
+the [Ministry of Industry and Information Technology (MIIT)](https://www.miit.gov.cn/),
+the [State Administration for Market Regulation (SAMR)](https://www.samr.gov.cn/),
+and sectoral CIIO-protection departments (PBOC for finance, NEA for
+energy, NRTA for radio/TV, MoT for transport, etc.).
+
+**Who must comply:**
+
+- **Every network operator in the PRC** — defined extremely broadly as
+  the owner, manager, or service provider of a network in China.
+  Effectively every commercial enterprise with PRC operations.
+- **Critical Information Infrastructure Operators (CIIOs)** designated
+  by sectoral protection departments per CIIO Regulations Article 8 —
+  finance, energy, telecom, water, transport, e-government, health,
+  education, scientific research, and other sectors at the regulator's
+  discretion. Designation triggers data-localization (CSL Art.37),
+  annual self-assessment (CSL Art.38), CRM procurement filing (CSL
+  Art.35), and personnel-security screening obligations.
+- **Personal Information Handlers (PIHs)** under PIPL Art.3(2)
+  extraterritorial reach — any organisation outside the PRC that
+  processes personal information of individuals in the PRC for the
+  purpose of providing products / services, analysing / evaluating
+  behaviour, or other circumstances specified by law. PIPL Art.53
+  requires non-PRC handlers to establish a designated representative
+  in the PRC and file the representative's contact details with the
+  CAC.
+- **Significant Personal Information Handlers** — processors handling
+  personal information of >1 million data subjects, or specific
+  high-risk processing categories, are subject to the most onerous
+  PIPL obligations (DPO appointment, periodic compliance audit, ADM
+  transparency under PIPL Art.24).
+- **Important Data Handlers** under DSL Art.21 — every operator
+  designated by sectoral catalogues as handling Important Data
+  (重要数据) — subject to risk assessment, incident reporting, and
+  cross-border-transfer security-assessment obligations.
+- **Carve-outs:** the law has been applied in practice with sectoral
+  variations (e.g. health-sector data has additional rules under NHC
+  Measures; finance-sector data under PBOC notices). Military, state-
+  security, and party / government systems are governed by separate
+  regimes (BMB / 16-Office) and are out of scope of this catalogue.
+
+**Regime structure and catalogue coverage.** The PRC cybersecurity-
+and-data regime is the most complex statutory stack in any major
+jurisdiction — four primary statutes (CSL / DSL / PIPL / CIIO
+Regulations), a procurement-review measure (CRM), three cross-border
+mechanisms (CAC assessment / standard contract / certification), one
+technical implementation standard (MLPS 2.0), and dozens of CAC and
+sectoral implementing notices. This catalogue release ships 14
+monitored clauses (subcategory §22.61):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| CSL — MLPS implementation | MLPS 2.0 grading register, L2+ filing, and L3+ independent-assessment cycle (CSL Art.21 vehicle) | CSL-Art-21, MLPS-2-0-L3, MLPS-2-0-annual | §22.61.1 |
+| CSL — CIIO designation + annual self-assessment | CIIO designation register + Art.38 annual cybersecurity inspection and risk assessment | CSL-Art-38, CIIO-Reg-Art-8 | §22.61.2 |
+| CSL — incident reporting | Cybersecurity incident emergency-response plan + tiered reporting (Levels 1-4) | CSL-Art-25, DSL-Art-29 | §22.61.3 |
+| CSL — CIIO data localization | CIIO Art.37 outbound personal-information and important-data egress detector | CSL-Art-37, PIPL-Art-38, DSL-Art-21 | §22.61.4 |
+| DSL — Important Data catalogue | DSL Art.21 classification register + sectoral Important Data List alignment | DSL-Art-21 | §22.61.5 |
+| DSL / PIPL — blocking statute | DSL Art.36 + PIPL Art.41 foreign judicial / law-enforcement demand workflow | DSL-Art-36, PIPL-Art-38 | §22.61.6 |
+| PIPL — cross-border transfers | PIPL Art.38 three-mechanism register (CAC assessment / standard contract / certification) | PIPL-Art-38 | §22.61.7 |
+| PIPL — DPO + PIPIA | PIPL Art.51/52/55/56 — internal management, DPO appointment, PIPIA freshness | PIPL-Art-51, PIPL-Art-55 | §22.61.8 |
+| PIPL — ADM transparency | PIPL Art.24 automated decision-making transparency + opt-out audit | PIPL-Art-55 | §22.61.9 |
+| CIIO — Cybersecurity Review Measures | CIIO Reg Art.14 + CRM 2022 pre-procurement Cybersecurity Review filing tracker | CIIO-Reg-Art-14 | §22.61.10 |
+| MLPS 2.0 Level 3+ | Annual independent assessment scheduling, MPS-accredited assessor freshness, finding-remediation closure | MLPS-2-0-annual, MLPS-2-0-L3 | §22.61.11 |
+| CSL / DSL — universal log retention | ≥6-month security-log retention with integrity protection and tamper detection | CSL-Art-21, MLPS-2-0-L3, DSL-Art-29 | §22.61.12 |
+
+**What the catalogue delivers:** 100 % coverage of the 14 monitored
+clauses. Subcategory §22.61 ships 12 dedicated UCs (some clauses are
+covered by more than one UC), each sidecar carrying an
+`obligationRef` of the form
+`cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#<clause>`.
+The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/cn-csl.md`](evidence-packs/cn-csl.md) §4 and the
+canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: cn-csl`.
+
+**Four-layer enforcement.** The PRC cybersecurity-and-data regime is
+enforced at four independent layers: the **CAC** (top-level coordination
+on cybersecurity policy, cross-border data transfer, important-data
+designation, PIPIA enforcement, ADM transparency); the **MPS** (MLPS
+filing and grading, MLPS L3+ annual assessment, public-security
+investigations under CSL Art.27); **sectoral protection departments**
+(CIIO designation, CIIO annual self-assessment under CSL Art.38, CRM
+procurement-review filing); and the **SAMR** (administrative fines on
+illegal data processing). Cross-cutting enforcement powers include
+warnings, fines (RMB 1,000,000 on the entity + RMB 50,000-500,000 on
+responsible individuals under DSL Art.45-46), suspension of business,
+revocation of licences, and possible criminal liability under PRC
+Criminal Law Articles 286 / 287 / 287-1 / 287-2 / 253-1.
+
+**PRC-specific evidence patterns.** §22.61 carries PRC-specific
+controls that are unique to the Chinese statutory regime and not
+covered by adjacent regulations:
+
+- **MLPS 2.0 grading register and L3+ annual independent assessment
+  (CSL Art.21 implementation)** — UC-22.61.1 anchors the catalogue
+  view of every in-scope system's MLPS grade (Level 1-5), Level-2+
+  MPS filing status, and Level-3+ assessment cycle, while UC-22.61.11
+  tracks the assessor's MPS accreditation freshness and finding-
+  remediation closure. Lapsed L3+ annual assessment is the most-cited
+  MPS PINSS inspection finding and is a precondition for PRC business
+  continuity.
+- **6-month network log retention with tamper evidence (CSL Art.21
+  via DSL Art.29 + MLPS-2-0-L3)** — UC-22.61.12 maintains a source-
+  aware integrity-protected archive of every regulated log source
+  with monthly anchor publication; an MPS inspector pulling 180 days
+  of evidence receives an integrity-attestation receipt as part of
+  the evidence chain.
+- **CIIO designation + Art.38 annual self-assessment** — UC-22.61.2
+  maintains the CIIO designation register against the sectoral
+  protection departments' designation notices and the annual self-
+  assessment report submission archive, including third-party
+  assessor identity and finding-remediation traceability.
+- **CSL Art.37 outbound data-egress detector for CIIOs** — UC-22.61.4
+  detects any outbound flow of personal information or important data
+  from a CIIO that is not backed by an active CAC Cross-Border
+  Security Assessment approval (alongside PIPL-Art-38 cross-border
+  mechanism and DSL-Art-21 important-data classification).
+- **Cross-border data transfer (PIPL Art.38)** — UC-22.61.7 tracks
+  every approved transfer mechanism (CAC security assessment, CAC
+  standard contract, or PIPL Art.38(2) certification) with bi-annual
+  review and volume reconciliation against actual outbound personal-
+  information flow; the most onerous data-export approval pipeline
+  in any major jurisdiction, where a missed renewal halts every
+  outbound flow.
+- **DSL Art.36 / PIPL Art.41 blocking statute** — UC-22.61.6 captures
+  every foreign judicial or law-enforcement data demand, opens the
+  competent-PRC-authority approval workflow before any response is
+  provided, and archives the Ministry of Justice / CAC approval
+  documentation. Without this workflow, a multinational facing a US
+  subpoena cannot lawfully comply with the foreign court without
+  violating PRC law (the classic blocking-statute conflict).
+- **CSL Art.25 tiered incident clock + DSL Art.29 8-hour Significant /
+  24-hour Ordinary clock** — UC-22.61.3 starts the CAC + MPS +
+  sectoral-regulator submission queue the instant a confirmed
+  cybersecurity / data-security event is classified, with the
+  bilingual incident-summary template (Chinese + English) auto-
+  generated for parallel submissions. The most-cited CSL / DSL
+  enforcement finding.
+- **CIIO Cybersecurity Review (CIIO Reg Art.14 + CRM 2022)** —
+  UC-22.61.10 captures every CIIO procurement of network products
+  and services that affects or may affect national security, opens
+  the Article 14 / CRM filing workflow, and archives the Office of
+  Cybersecurity Review approval determination prior to contract
+  execution.
+- **PIPL Art.24 ADM transparency** — UC-22.61.9 enforces the PIPL
+  Article 24 requirement that automated decision-making affecting
+  individuals must be transparent, fair, and impartial — Significant
+  Handlers must offer an opt-out mechanism for personalised
+  recommendations and must justify automated decisions on request.
+  This is the closest analogue to GDPR Article 22 in the PRC regime
+  and is increasingly enforced by the CAC (notably the 2024 CAC
+  ADM-on-platforms compliance audit).
+- **PIPL Art.51/52/55/56 internal management + DPO + PIPIA** —
+  UC-22.61.8 maintains the Significant Personal Information Handler
+  programme: DPO appointment register, periodic compliance audits,
+  and Personal Information Impact Assessment freshness for high-risk
+  processing categories.
+- **DSL Art.21 Important Data Catalogue** — UC-22.61.5 tracks the
+  freshness of the operator's Important Data Catalogue against
+  sectoral Important Data Lists (industrial data, financial data,
+  health data, etc.) and the operator's classification coverage.
+
+**Convergence with adjacent regimes.** Cat-22 §22.1 (GDPR) overlaps
+on personal-data principles for multinationals subject to both PIPL
+(extraterritorial) and GDPR (EU operations). Cat-22 §22.51 (NCA OTCC)
+overlaps for Saudi operations of PRC multinationals. Cat-22 §22.54
+(SOCI Act) overlaps for Australian operations. The DSL Art.29 8-hour
+Significant clock and the DSL Art.36 / PIPL Art.41 blocking statute
+are PRC-specific and have no direct equivalent in any other major
+jurisdiction.
+
+**Where to look:** §22.61 ·
+[`api/v1/compliance/regulations/cn-csl.json`](../api/v1/compliance/regulations/cn-csl.json) ·
+[`docs/evidence-packs/cn-csl.md`](evidence-packs/cn-csl.md) ·
+official sources: the [Cyberspace Administration of China (CAC)](https://www.cac.gov.cn/),
+the [Ministry of Public Security (MPS)](https://www.mps.gov.cn/),
+the [National People's Congress legislation portal](http://www.npc.gov.cn/),
+the [CAC Measures for Security Assessment of Outbound Data Transfers](https://www.cac.gov.cn/2022-07/07/c_1658811536396503.htm),
+the [Cybersecurity Review Measures (2022)](https://www.cac.gov.cn/2022-01/04/c_1642894602182845.htm),
+the [Standard Contract for the Outbound Cross-Border Transfer of Personal Information (2023)](https://www.cac.gov.cn/2023-02/24/c_1678884830036414.htm),
+the [MLPS 2.0 standard family GB/T 22239-2019 (TC260)](https://openstd.samr.gov.cn/bzgk/gb/index),
+and the [TC260 national cybersecurity standardization technical committee](https://www.tc260.org.cn/).
+
+### 4.21 CERT-In Directions 2022 + DPDP Act 2023 — Cybersecurity Incident Reporting + Data Protection (India) · `T1` {#cert-in}
+
+**Regulation:**
+[*CERT-In Directions of 28 April 2022* (No. 20(3)/2022-CERT-In)](https://www.cert-in.org.in/Directions70B.jsp)
+issued by the Indian Computer Emergency Response Team under
+[Section 70B(6) of the Information Technology Act 2000](https://www.indiacode.nic.in/handle/123456789/1999),
+binding from 27 June 2022. Operates alongside the
+[*Digital Personal Data Protection Act 2023*](https://www.meity.gov.in/content/digital-personal-data-protection-act-2023)
+(DPDP — passed 11 August 2023, in phased commencement during 2024-2026)
+and the
+[Data Protection Board of India](https://www.meity.gov.in/data-protection-framework),
+together with the legacy
+[*Information Technology (Reasonable Security Practices and
+Procedures and Sensitive Personal Data or Information) Rules 2011*](https://www.meity.gov.in/writereaddata/files/GSR313E_10511(1).pdf)
+(SPDI Rules) under IT Act Section 43A. Administered by
+[CERT-In](https://www.cert-in.org.in/)
+(Ministry of Electronics and Information Technology, MeitY) for
+cybersecurity-incident reporting, by the Data Protection Board for
+personal-data breach notification, and by sectoral regulators (RBI,
+SEBI, IRDAI, TRAI) for additional sector-specific obligations.
+
+**Who must comply:**
+
+- **Every body corporate, intermediary, data centre, VPS provider,
+  cloud-service provider, and government organisation** operating in
+  or providing services to users in India — regardless of nationality
+  of the operating entity. The Directions apply by reference to all 20
+  enumerated incident categories.
+- **Virtual Private Server (VPS) providers, virtual private network
+  (VPN) service providers, and cloud-service providers** — additional
+  KYC retention obligations under Direction 5(1) covering seven
+  subscriber data elements for at least 5 years post-cancellation.
+- **Virtual Asset Service Providers (VASPs) / crypto-exchanges** —
+  additional 5-year transaction-record retention under Direction 6 of
+  KYC and financial-transaction records.
+- **Data Fiduciaries under DPDP Act 2023** — every entity that, alone
+  or jointly with others, determines the purpose and means of
+  personal-data processing. Subject to consent, lawful-purpose, and
+  breach-notification obligations.
+- **Significant Data Fiduciaries (SDFs)** designated by the Central
+  Government under DPDP Section 10 — additional obligations including
+  Indian-resident DPO, periodic Data Protection Impact Assessment
+  (DPIA), annual independent audit, and algorithmic-transparency
+  review.
+- **Carve-outs:** SPDI Rules pre-empted by DPDP for in-scope personal
+  data once DPDP is fully commenced; specific carve-outs in DPDP
+  Sections 17 (research, archival, statistical, state-purpose
+  processing) and the Right-to-Information Act 2005 overlap.
+
+**Regime structure and catalogue coverage.** The Indian regime is a
+two-track stack: CERT-In Directions on the cybersecurity-incident /
+infrastructure side (operational, technical, with the shortest
+incident-reporting clock in any major jurisdiction at 6 hours), and
+DPDP on the personal-data side (rights-based, with a 72-hour breach
+clock to the Data Protection Board). This catalogue release ships 11
+monitored clauses (subcategory §22.62):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| CERT-In Dir.2 + IT Act Sec.70B | 6-hour cybersecurity incident reporting (20 enumerated categories) | CERT-In-Dir-2, IT-Act-Sec-70B | §22.62.1 |
+| CERT-In Dir.3 | NTP synchronisation to NIC / NPL Indian time servers | CERT-In-Dir-3 | §22.62.2 |
+| CERT-In Dir.4 | Designated 24×7 Point-of-Contact (POC) + 7-day change notification | CERT-In-Dir-4 | §22.62.3 |
+| CERT-In Dir.5 | 180-day rolling ICT log retention within Indian jurisdiction | CERT-In-Dir-5 | §22.62.4 |
+| CERT-In Dir.5(1) | VPN / VPS / cloud-provider subscriber KYC + 5-year retention | CERT-In-Dir-5-1 | §22.62.5 |
+| CERT-In Dir.6 + IT Act Sec.43A | VASP / crypto-exchange customer KYC + 5-year transaction-record retention | CERT-In-Dir-6, IT-Act-Sec-43A | §22.62.6 |
+| DPDP Sec.10 (SDF) + IT Act Sec.43A | Indian-resident DPO + DPIA + annual independent audit (SDF programme) | DPDP-Sec-8, IT-Act-Sec-43A | §22.62.7 |
+| DPDP Sec.8(6) + IT Act Sec.43A | 72-hour breach notification to Data Protection Board of India + parallel Data Principal notification | DPDP-Sec-8, IT-Act-Sec-43A | §22.62.8 |
+
+**What the catalogue delivers:** 100 % coverage of the 11 monitored
+clauses. Subcategory §22.62 ships 8 dedicated UCs (several clauses are
+covered by composite UCs), each sidecar carrying an
+`obligationRef` of the form
+`cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#<clause>`.
+The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/cert-in.md`](evidence-packs/cert-in.md) §4 and
+the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: cert-in`.
+
+**Three-layer enforcement.** The Indian regime is enforced at three
+layers: **CERT-In** (statutory authority under IT Act Section 70B —
+non-compliance with Directions is punishable under Section 70B(7) with
+imprisonment up to 1 year or fine up to INR 1,00,000 or both); the
+**Data Protection Board of India** (DPB — established under DPDP
+Section 18; imposes penalties up to INR 250 crore for breach of
+DPDP obligations under DPDP Schedule); and **sectoral regulators**
+(RBI for banks, SEBI for capital-market intermediaries, IRDAI for
+insurers, TRAI for telecom, MeitY for intermediaries — each can
+impose additional sector-specific cybersecurity directions).
+Non-compliance with CERT-In Directions is widely reported as a
+recurring inspection finding in RBI and SEBI audits; the IT Ministry
+maintains a public list of enforcement notices.
+
+**India-specific evidence patterns.** §22.62 carries Indian-specific
+controls that are unique to the regime and not covered by adjacent
+regulations:
+
+- **6-hour incident-reporting clock (CERT-In Direction 2)** — UC-22.62.1
+  is the shortest such clock in any major jurisdiction. The CERT-In
+  Portal submission is automated via SOAR the instant a confirmed
+  event matches any of 20 enumerated incident categories (targeted
+  scanning / probing, compromise of critical systems / information,
+  unauthorised access of IT systems / data, defacement of website or
+  intrusion into a website and unauthorised changes such as inserting
+  malicious code, links to external websites, etc., malicious code
+  attacks such as the spreading of virus / worm / Trojan / botnet /
+  spyware / ransomware / cryptominers, attack on servers such as
+  database, mail and DNS, and network devices such as routers,
+  identity theft, spoofing and phishing attacks, denial-of-service
+  (DoS) and distributed denial-of-service (DDoS) attacks, attacks on
+  critical infrastructure, SCADA and operational technology systems
+  and wireless networks, attacks on applications such as e-governance,
+  e-commerce, fake mobile apps, unauthorised access to social media
+  accounts, attacks or malicious / suspicious activities affecting
+  cloud computing systems / servers / software / applications, attacks
+  or malicious / suspicious activities affecting systems / servers /
+  networks / software / applications related to Big Data, Block chain,
+  virtual assets, virtual asset exchanges, custodian wallets, robotics,
+  3D and 4D Printing, additive manufacturing, drones, attacks or
+  malicious / suspicious activities affecting systems / servers /
+  software / applications related to Artificial Intelligence and
+  Machine Learning, data breach, data leak, attacks on Internet of
+  Things devices and associated systems / networks / software / servers,
+  attacks or incidents affecting digital payment systems, attacks
+  through malicious mobile apps, fake mobile apps, unauthorised access
+  to systems / servers / software / databases / applications and the
+  receipt and archive the CERT-In acknowledgement.
+- **NTP synchronisation (Direction 3)** — UC-22.62.2 enforces every
+  ICT system to synchronise its system clocks with the Network Time
+  Protocol (NTP) Server of the National Informatics Centre (NIC —
+  `samay1.nic.in` / `samay2.nic.in`) or National Physical Laboratory
+  (NPL — `time.npl.res.in`) or with NTP servers traceable to these
+  NTP servers, for synchronisation of all their ICT systems clocks.
+  Any drift beyond ± 100 ms triggers a remediation workflow.
+- **POC register (Direction 4)** — UC-22.62.3 maintains the designated
+  CERT-In Point-of-Contact register with 24×7 contactability tests,
+  a 7-day change-notification workflow, and the CERT-In Form-A
+  submission archive. Stale POC details are the most-cited CERT-In
+  inspection finding.
+- **180-day log retention within Indian jurisdiction (Direction 5)**
+  — UC-22.62.4 proves rolling 180-day ICT log retention for every
+  regulated source within the territorial jurisdiction of India.
+  A sourcetype that drops below 180 days or that is persisted to a
+  non-Indian region of public cloud is the most-common CERT-In
+  Direction (iv) finding; this UC anchors the territorial-residency
+  audit-evidence chain.
+- **VASP customer KYC + 5-year transaction records (Direction 6)**
+  — UC-22.62.6 maintains the VASP customer KYC register and the
+  5-year retention of all transaction records (chain of crypto-asset,
+  fiat-currency leg, customer wallet identifier, beneficiary wallet
+  identifier, amount, timestamp, and IP address) — the strictest
+  VASP record-retention regime in any major jurisdiction.
+- **DPDP 72-hour breach clock + parallel Data Principal notification
+  (Section 8(6))** — UC-22.62.8 starts both clocks the instant a
+  confirmed personal-data breach is classified, with the Data
+  Protection Board of India submission and the parallel Data
+  Principal notification queued automatically; the dual-track clock
+  design ensures neither obligation is missed.
+
+**Convergence with adjacent regimes.** Cat-22 §22.16 (CIRCIA US)
+overlaps for US-headquartered multinationals with Indian operations.
+Cat-22 §22.10 (NIS2 EU) overlaps for EU-headquartered multinationals.
+Cat-22 §22.1 (GDPR) overlaps where Indian residents' data flows to
+EU recipients. The CERT-In 6-hour clock is the shortest such clock
+in any major jurisdiction; UC-22.62.1 is therefore the master
+incident-reporting trigger for any global enterprise with Indian
+operations — every other jurisdiction's clock starts later than the
+CERT-In clock for the same event.
+
+**Where to look:** §22.62 ·
+[`api/v1/compliance/regulations/cert-in.json`](../api/v1/compliance/regulations/cert-in.json) ·
+[`docs/evidence-packs/cert-in.md`](evidence-packs/cert-in.md) ·
+official sources: [CERT-In Directions of 28 April 2022](https://www.cert-in.org.in/Directions70B.jsp),
+the [CERT-In statutory home page](https://www.cert-in.org.in/),
+the [Digital Personal Data Protection Act 2023 (MeitY)](https://www.meity.gov.in/content/digital-personal-data-protection-act-2023),
+the [Ministry of Electronics and Information Technology (MeitY)](https://www.meity.gov.in/),
+the [IT Act 2000 (India Code)](https://www.indiacode.nic.in/handle/123456789/1999),
+the [SPDI Rules 2011](https://www.meity.gov.in/writereaddata/files/GSR313E_10511(1).pdf),
+the [NIC Network Time Protocol service (samay.nic.in)](https://samay.nic.in/),
+and the [National Physical Laboratory time service](https://www.nplindia.org/time-and-frequency/).
+
+### 4.22 IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443-3-2 / 62443-3-3 — Functional Safety with Cybersecurity Overlay (Global Process Industries) · `T1` {#iec-61511}
+
+**Regulation:** the universally-recognised Good Engineering Practice
+(RAGAGEP) stack for Safety Instrumented Systems in the process
+industries:
+[*IEC 61511 Edition 2 (2016) — Functional safety: Safety Instrumented
+Systems for the process industry sector*](https://webstore.iec.ch/publication/24241)
+(applies to process industries), with the parent
+[*IEC 61508 (2010)*](https://webstore.iec.ch/publication/5515)
+(generic functional-safety framework for E/E/PE safety-related systems),
+the cybersecurity overlay
+[*ISA-TR84.00.09 (2017) — Cybersecurity Related to the Functional
+Safety Lifecycle*](https://www.isa.org/standards-and-publications/isa-standards/isa-standards-committees/isa84),
+and the cybersecurity risk-assessment frameworks
+[*IEC 62443-3-2:2020 — Security risk assessment for system design*](https://webstore.iec.ch/publication/30727)
+and
+*IEC 62443-3-3:2013 — System security requirements and security levels*.
+Incorporated by reference into
+[OSHA Process Safety Management (PSM) 29 CFR 1910.119](https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.119),
+[EPA Risk Management Program (RMP) 40 CFR Part 68](https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-68),
+[HSE COMAH 2015](https://www.hse.gov.uk/comah/),
+[Seveso III Directive 2012/18/EU](https://eur-lex.europa.eu/eli/dir/2012/18/oj),
+[MSIHC Rules 1989 (India)](https://www.indiacode.nic.in/),
+[KOSHA PSM (Korea)](https://www.kosha.or.kr/),
+and most major process-safety legal regimes worldwide. The IEC 61511
+Edition 2 (2016) introduced Clause 8.2.4 mandating a SIS Cybersecurity
+Risk Assessment via ISA-TR84.00.09 — the bridge between functional
+safety and OT cybersecurity.
+
+**Who must comply:**
+
+- **Every operator of a Safety Instrumented System (SIS) in the
+  process industries** — oil & gas (upstream / midstream / downstream),
+  refining, petrochemicals, specialty chemicals, pharmaceuticals,
+  power generation (where SIS protects against process-safety hazards),
+  water and wastewater (where SIS protects against chemical-release
+  hazards), mining (where SIS protects against process-safety
+  hazards), pulp and paper, food processing, and any other industry
+  with an SIS-protected process. Approximately every Tier-1 chemical
+  / refining / pharmaceutical / LNG / FPSO facility worldwide.
+- **Functional Safety Managers (FSMs)** with documented competence
+  certified under TÜV FSE / FSEng, exida CFSE / CFSP, or equivalent
+  national functional-safety competence schemes.
+- **Process Safety Managers and Plant Managers** who carry the
+  process-safety accountability under OSHA PSM / EPA RMP / COMAH /
+  Seveso / MSIHC etc.
+- **OT Security Leads and SIS Cybersecurity Managers** with documented
+  competence under IEC 62443 personnel-competence levels — the role
+  introduced by ISA-TR84.00.09 to bridge functional safety and OT
+  cybersecurity.
+- **SIS Vendors and System Integrators** — required to deliver
+  systematic-capability evidence (IEC 61508 Part 2 / Part 3), to
+  certify their products against TÜV / exida third-party assessment,
+  and to maintain SIL-rated devices in their catalogue.
+- **Carve-outs:** machinery safety (IEC 62061 / ISO 13849), nuclear
+  power (IEC 61513), railway (CENELEC EN 50126/29/657), aviation
+  (DO-178C / DO-254), automotive (ISO 26262), and medical-device
+  (IEC 62304 / IEC 60601) are governed by sector-specific functional-
+  safety derivatives of IEC 61508. SIS in those sectors is
+  out of scope of this catalogue's §22.63 (covered elsewhere).
+
+**Regime structure and catalogue coverage.** The IEC 61511 regime is
+a multi-document family: a 16-phase safety lifecycle (61511 Part 1),
+methods and examples (61511 Part 2), guidance on the determination of
+SIL (61511 Part 3 + LOPA), the cybersecurity bridge (ISA-TR84.00.09),
+and the cybersecurity risk-assessment framework (IEC 62443-3-2 + 3-3).
+This catalogue release ships 9 monitored clauses (subcategory §22.63):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| IEC 61511 Cl.5 + IEC 61508 Cl.7.4 | 16-phase SIS safety lifecycle register + Functional Safety Assessment | IEC-61511-Cl-5, IEC-61508-Pt-1-Cl-7-4 | §22.63.1 |
+| IEC 61511 Cl.8.2.4 + ISA-TR84.00.09 §4 + IEC 62443-3-2 | SIS Cybersecurity Risk Assessment (CRA) freshness + methodology | IEC-61511-Cl-8-2-4, ISA-TR84-00-09-s4, IEC-62443-3-2 | §22.63.2 |
+| IEC 61511 Cl.11 + Cl.11.7.6 | SIS-BPCS separation + override / bypass / inhibit / force operational restrictions and logging | IEC-61511-Cl-11, IEC-61511-Cl-11-7-6 | §22.63.3 |
+| IEC 61511 Cl.16.3 + IEC 61508 Cl.7.4 | SIS proof-test interval + demand-rate + spurious-trip-rate trending | IEC-61511-Cl-16-3, IEC-61508-Pt-1-Cl-7-4 | §22.63.4 |
+| IEC 61511 Cl.17.2 + Cl.8.2.4 | SIS Management of Change (MoC) + SIL impact + CRA refresh + PSSR closure | IEC-61511-Cl-17-2, IEC-61511-Cl-8-2-4 | §22.63.5 |
+| ISA-TR84.00.09 §4 + §5 | Integrated cybersecurity programme feedback loop into CRA + PHA | ISA-TR84-00-09-s4, ISA-TR84-00-09-s5 | §22.63.6 |
+| IEC 62443-3-2 + IEC 61511 Cl.8.2.4 | SIS zone-and-conduit SL-T / SL-C / SL-A evidence + exception register | IEC-62443-3-2, IEC-61511-Cl-8-2-4 | §22.63.7 |
+
+**What the catalogue delivers:** 100 % coverage of the 9 monitored
+clauses. Subcategory §22.63 ships 7 dedicated UCs (several clauses
+are covered by composite UCs covering the lifecycle, the cybersecurity
+bridge, and the zone-and-conduit evidence chain), each sidecar
+carrying an `obligationRef` of the form
+`iec-61511@2016-iec-61511-ed-2-with-isa-tr84-00-09#<clause>`.
+The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/iec-61511.md`](evidence-packs/iec-61511.md) §4
+and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: iec-61511`.
+
+**Three-layer assurance.** Unlike most cat-22 regulations, IEC 61511
+is enforced at three independent layers and is rarely a direct
+regulator-issued fine. The first layer is the **process-safety
+regulator** (OSHA / EPA / HSE / Seveso CA / DGFASLI / KOSHA /
+PEMEX / ANP / NMA / DEMA / SEPA): a process-safety incident with a
+SIS-attributed root cause triggers regulatory action under the
+parent PSM / RMP / COMAH / Seveso / MSIHC regime, with civil
+penalties typically in the USD 5M-150M range for the worst incidents
+and criminal liability for responsible managers in some jurisdictions
+(UK Corporate Manslaughter Act, US Federal Worker Endangerment).
+The second layer is the **certifying body** (TÜV Süd / TÜV Rheinland /
+exida / DEKRA / Bureau Veritas / Lloyd's Register / DNV / SIRIM): a
+functional-safety-management failure can result in suspension or
+revocation of the SIL certification on a vendor product, and of the
+Functional Safety Management (FSM) certificate on an operator's
+process. The third layer is the **insurer** (Allianz / Munich Re /
+Zurich / AIG / Marsh — every Tier-1 chemical and refining operator
+carries IEC 61511 functional-safety attestation as a precondition of
+HPL or BIPD insurance, and a documented IEC 61511 gap triggers
+material-information disclosure and premium loading).
+
+**Process-safety-specific evidence patterns.** §22.63 carries OT- and
+process-safety-specific controls that are unique to the IEC 61511
+regime and not covered by adjacent regulations:
+
+- **16-phase safety lifecycle register (Clause 5)** — UC-22.63.1
+  tracks every SIS through Hazard and Risk Assessment, Allocation of
+  Safety Functions to Protection Layers, SIS Safety Requirements
+  Specification, SIS Design and Engineering, SIS Installation and
+  Commissioning, SIS Operation and Maintenance, SIS Modification,
+  and SIS Decommissioning — with deliverable / verification /
+  Functional Safety Assessment completion records. This is the master
+  evidence chain demanded by every PSM / COMAH / Seveso / MSIHC
+  auditor and every certifying body.
+- **SIS Cybersecurity Risk Assessment (Clause 8.2.4)** — UC-22.63.2
+  tracks every SIS CRA for freshness and methodology alignment with
+  ISA-TR84.00.09 + IEC 62443-3-2. A CRA over 5 years old, or a CRA
+  that does not partition the System Under Consideration (SUC) into
+  zones and conduits per IEC 62443-3-2, is the most-cited finding in
+  a TÜV / exida re-certification audit.
+- **SIS-BPCS separation + override / bypass / inhibit / force discipline
+  (Clauses 11 + 11.7.6 + 14)** — UC-22.63.3 verifies physical and
+  logical separation between the SIS and the Basic Process Control
+  System (BPCS), and authorises / time-bounds / annunciates every
+  SIF override, bypass, inhibit, or force. An undisclosed permanent
+  bypass on an SIF is one of the most consistent root-cause findings
+  in major process-safety incidents (Buncefield 2005, Williams
+  Olefins 2013, West Fertilizer 2013).
+- **Proof-test discipline (Clause 16.3)** — UC-22.63.4 monitors every
+  SIF's proof-test execution against the design interval with
+  PFD-vs-demand-rate-vs-spurious-trip-rate trending. A proof-test
+  interval that has been extended without a documented PFD re-analysis
+  is the most common reason an SIF's actual PFD drifts above its
+  target SIL.
+- **Management of Change (Clause 17.2)** — UC-22.63.5 enforces the
+  MoC discipline (classification + SIL-impact + CRA refresh + PSSR +
+  lifecycle-deliverable update). Misclassification of an SIS-affecting
+  change as "replacement-in-kind" is the most consistent root-cause
+  finding across major process-safety incidents; every change must
+  clear SIL-impact + CRA refresh + Pre-Startup Safety Review before
+  restart.
+- **ISA-TR84.00.09 §4 integrated cybersecurity programme (UC-22.63.6)**
+  — operates the SLA between SIS-zone cyber events and the safety
+  lifecycle: every SIS-zone cyber event acknowledged within 5
+  minutes, linked to a CRA finding within 8 hours, and a PHA-refresh
+  decision recorded within 24 hours. This is the operational glue
+  between OT cybersecurity detection and the safety-lifecycle.
+- **IEC 62443-3-2 zone-and-conduit SL-T / SL-C / SL-A evidence chain
+  (UC-22.63.7)** — maintains the SL-T target vs SL-C component
+  capability vs SL-A achieved measurement across all seven IEC
+  62443-3-3 Foundational Requirements (FR1 identification +
+  authentication, FR2 use control, FR3 system integrity, FR4 data
+  confidentiality, FR5 restricted data flow, FR6 timely response,
+  FR7 resource availability). Any FR with SL-A < SL-T without a
+  documented and approved exception is a TÜV / exida finding.
+
+**Convergence with adjacent regimes.** Cat-22 §22.15 (AWIA water
+sector) overlaps for water-sector SIS in the US. Cat-22 §22.51
+(NCA OTCC) overlaps for Saudi Aramco / SABIC / chemical SIS. Cat-22
+§22.54 (SOCI Act) overlaps for Australian energy / chemical SIS.
+ISA / IEC 62443 (in cat-22 §22.32) provides the broader OT
+cybersecurity framework that ISA-TR84.00.09 binds into the SIS
+safety lifecycle. The 5-minute / 8-hour / 24-hour ISA-TR84.00.09 §4
+SLA in UC-22.63.6 is deliberately conservative against the most
+aggressive process-safety regulator clock so that a single SIS-zone
+cyber event produces compliant evidence for the SIS Cybersecurity
+Risk Assessment refresh and for the PHA refresh decision.
+
+**Where to look:** §22.63 ·
+[`api/v1/compliance/regulations/iec-61511.json`](../api/v1/compliance/regulations/iec-61511.json) ·
+[`docs/evidence-packs/iec-61511.md`](evidence-packs/iec-61511.md) ·
+official sources: [IEC 61511 Edition 2 (2016)](https://webstore.iec.ch/publication/24241),
+[IEC 61508 (2010)](https://webstore.iec.ch/publication/5515),
+the [ISA84 standards committee (ISA-TR84.00.09)](https://www.isa.org/standards-and-publications/isa-standards/isa-standards-committees/isa84),
+[IEC 62443-3-2:2020](https://webstore.iec.ch/publication/30727),
+the [OSHA PSM standard 29 CFR 1910.119](https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.119),
+the [EPA RMP regulation 40 CFR Part 68](https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-68),
+the [HSE COMAH guidance](https://www.hse.gov.uk/comah/),
+the [Seveso III Directive 2012/18/EU](https://eur-lex.europa.eu/eli/dir/2012/18/oj),
+the [CSB process-safety incident library](https://www.csb.gov/),
+and the
+[TÜV functional-safety certification scheme overview](https://www.tuv.com/world/en/functional-safety.html).
+
 ---
 
 ## 5. Derivative regulations (propagated via `derivesFrom`)
@@ -2077,7 +2658,7 @@ is the machine-readable view.
 | 22.52 | SOCI Act + CIRMP Rules | Australia | T1 | 28 | `regulations/soci.json` |
 | 22.53 | AWIA s2013 + EPA/CISA Water | US | T2 | 28 | `regulations/awia.json` |
 
-For the full 78-framework inventory (tier-1, tier-2, and meta), consult
+For the full 82-framework inventory (tier-1, tier-2, and meta), consult
 `data/regulations.json` or `api/v1/compliance/index.json`.
 
 ---

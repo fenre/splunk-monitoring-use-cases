@@ -1,0 +1,129 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.61.11",
+  "title": "MLPS 2.0 GB/T 22239-2019 Level 3+ annual independent-assessment scheduling, MPS-accredited assessor freshness, and finding-remediation closure tracker",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes Level 1 and Level 2 systems (covered by UC-22.61.1 grading + filing). Excludes systems formally decommissioned and de-registered with MPS.",
+  "evidence": "Saved search `UC-22.61.11` archived daily to `audit_evidence` with `cn_csl_clause=\"MLPS-2-0-annual\"`. Every row pins (system_id, mlps_grade, last_assessment_date, days_to_next_assessment, assessor_id, assessor_accreditation_expiry, open_findings_count, oldest_open_finding_days, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "MLPS-2-0-annual",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "GB/T 22239-2019 and MPS implementation regulations require that Level 3 systems be assessed annually, Level 4 semi-annually, and Level 5 quarterly, by an MPS-accredited testing organisation. Findings must be remediated within agreed timelines. This UC enforces both the scheduling cadence and the finding-remediation closure — the two operational limbs of the annual assessment obligation.",
+      "controlObjective": "Demonstrates that Level 3+ systems are within their statutory assessment cadence with all findings remediated by the agreed due date.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `MLPS Assessment Health` dashboard, the per-system Cybersecurity Classified Protection Assessment Reports, the finding-remediation register.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#MLPS-2-0-annual",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cn-csl",
+      "version": "2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border",
+      "clause": "MLPS-2-0-L3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "GB/T 22239-2019 Level 3 requires both technical baseline controls and the ongoing assurance produced by the annual independent assessment. This UC tracks the operational assurance limb — the assessment is on schedule, findings are remediated — that complements the technical-baseline tracker in UC-22.61.1.",
+      "controlObjective": "Operationalises GB/T 22239-2019 Level 3 ongoing-assurance via assessment-cadence + finding-remediation tracking.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#MLPS-2-0-L3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Schedule a Level 4 system's semi-annual assessment 7 days from now (well past the 183-day cadence by 30 days). UC-22.61.11 MUST flag with risk_score >= 85.",
+    "negativeScenario": "Complete a Level 3 system's annual assessment 30 days before the 12-month anniversary, with no open findings, and ensure the MPS-accredited assessor's accreditation is current. UC-22.61.11 MUST record risk_score=0."
+  },
+  "dataSources": "KV Store `cn_mlps_register_lookup` (UC-22.61.1 register) extended with `assessor_id`, `assessor_accreditation_expiry`, `next_scheduled_assessment_date`. KV Store `cn_mlps_findings_lookup` (finding_id, system_id, finding_severity, finding_opened_at, remediation_due_at, remediation_closed_at, finding_status). KV Store `cn_mps_accredited_assessors_lookup` (assessor_id, assessor_name, accreditation_ref, accreditation_expiry, accreditation_scope).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup cn_mlps_register_lookup\n| where mlps_grade IN (\"L3\",\"L4\",\"L5\")\n| eval now_ts = now()\n| eval days_since_assessment = if(isnotnull(last_assessment_date), round((now_ts - last_assessment_date) / 86400, 1), null())\n| eval target_interval_days = case(mlps_grade = \"L3\", 365, mlps_grade = \"L4\", 183, mlps_grade = \"L5\", 92, 1=1, 365)\n| eval days_to_next_due = target_interval_days - days_since_assessment\n| eval days_to_scheduled = if(isnotnull(next_scheduled_assessment_date), round((next_scheduled_assessment_date - now_ts) / 86400, 1), null())\n| eval cadence_breach = if(days_since_assessment > target_interval_days, 1, 0)\n| eval no_assessment_scheduled = if(days_since_assessment > (target_interval_days * 0.9) AND isnull(next_scheduled_assessment_date), 1, 0)\n| lookup cn_mps_accredited_assessors_lookup assessor_id OUTPUT accreditation_expiry\n| eval assessor_lapsed = if(isnotnull(accreditation_expiry) AND accreditation_expiry < now_ts, 1, 0)\n| join type=left system_id [\n    search index=summary source=mlps_findings earliest=-2y\n    | eval finding_age_days = round((now() - finding_opened_at) / 86400, 1)\n    | eval finding_open = if(isnull(remediation_closed_at), 1, 0)\n    | stats sum(finding_open) as open_findings_count, max(eval(if(finding_open=1, finding_age_days, 0))) as oldest_open_finding_days by system_id\n  ]\n| eval open_findings_count = coalesce(open_findings_count, 0)\n| eval oldest_open_finding_days = coalesce(oldest_open_finding_days, 0)\n| eval finding_remediation_overdue = if(open_findings_count > 0 AND oldest_open_finding_days > 90, 1, 0)\n| eval risk_score = case(\n    cadence_breach = 1 AND mlps_grade IN (\"L4\",\"L5\"), 100,\n    cadence_breach = 1, 90,\n    assessor_lapsed = 1, 85,\n    no_assessment_scheduled = 1, 70,\n    finding_remediation_overdue = 1 AND oldest_open_finding_days > 180, 80,\n    finding_remediation_overdue = 1, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_to_next_due\n| table system_id mlps_grade last_assessment_date days_since_assessment target_interval_days days_to_next_due next_scheduled_assessment_date assessor_id assessor_lapsed open_findings_count oldest_open_finding_days risk_score",
+  "description": "Reconciles every Level 3+ system in the MLPS register against the statutory assessment cadence (L3: 365d, L4: 183d, L5: 92d), the assessing organisation's MPS accreditation status, and the finding-remediation register. Flags four operational gaps: (i) cadence breached (assessment overdue), (ii) no assessment scheduled while approaching the cadence boundary, (iii) MPS-accredited assessor's accreditation expired or lapsed, (iv) finding remediation overdue (>90 days for high-severity findings).",
+  "value": "MPS routinely conducts dual-track enforcement: (i) scheduling breaches (overdue assessments) and (ii) finding-remediation breaches (assessments completed but findings not closed). A Level 4 system that has missed two consecutive semi-annual assessments is a typical trigger for MPS administrative measures — warning, ordered remediation, public exposure (xinyong gongshi), suspension of operation. For state-owned-enterprise CIIOs, MPS notifications also reach SASAC and may influence executive-bonus and rotation decisions. The remediation-closure limb is what differentiates passive scheduling from genuine compliance.",
+  "implementation": "(1) Extend `cn_mlps_register_lookup` with `assessor_id` + `next_scheduled_assessment_date`. (2) Maintain `cn_mlps_findings_lookup` from the assessment-platform exports — one row per finding with severity, due-date, and closure-date. (3) Maintain `cn_mps_accredited_assessors_lookup` from the MPS-published accreditation register (refreshed quarterly). (4) Schedule UC-22.61.11 daily at 06:00 Beijing time; route `risk_score >= 90` to the CISO + Board Audit Committee at severity P1.",
+  "visualization": "(Panel 1) Active L3+ assessment cadence heat map. (Panel 2) Open findings by severity and age. (Panel 3) Assessor accreditation freshness. (Panel 4) Cadence-breach trend (12 months).",
+  "cimModels": [
+    "Change",
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "GB/T 22239-2019 - Information security technology - Baseline for classified protection of cybersecurity (MLPS 2.0)",
+      "url": "https://www.tc260.org.cn/upload/2019-05-13/1557715032893055115.pdf"
+    },
+    {
+      "title": "MPS Public Information Network Security Inspection Notice (2018-2024 cycle)",
+      "url": "https://www.mps.gov.cn/"
+    }
+  ],
+  "knownFalsePositives": "1. **Assessment scheduled within grace window**: MPS routinely grants 30-90 day grace extensions at year-end for Q4-scheduled assessments; ensure `next_scheduled_assessment_date` reflects the granted extension and load `grace_ref` in `cn_mlps_register_lookup`. 2. **Assessor in renewal**: an MPS-accredited assessor in active accreditation renewal may have a brief expiry-overlap window; load `renewal_letter_ref` and treat as in-window for up to 90 days. 3. **Finding under regulator-approved deferred remediation**: a finding whose remediation has been formally deferred by the sectoral department (e.g., pending vendor patch) should carry `deferred_until` and be excluded from the remediation-overdue alert during the deferral.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_11_exceptions` with the CISO documented approval, an explicit system_id + finding_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "system_id",
+    "mlps_grade",
+    "last_assessment_date",
+    "open_findings_count",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + CISO + Internal Audit",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "MPS-accredited assessor portals (varies by assessor)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.61.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region).\n- UC-22.61.1 deployed with `cn_mlps_register_lookup` populated.\n- `cn_mlps_findings_lookup` populated from the assessment platform.\n- `cn_mps_accredited_assessors_lookup` curated quarterly from MPS publications.\n\n## Step 1 - Assessor + finding KV Stores\n\n```ini\n[cn_mlps_findings_lookup]\nenforceTypes = true\nfield.finding_id = string\nfield.system_id = string\nfield.finding_severity = string\nfield.finding_opened_at = time\nfield.remediation_due_at = time\nfield.remediation_closed_at = time\nfield.finding_status = string\nfield.deferred_until = time\n\n[cn_mps_accredited_assessors_lookup]\nenforceTypes = true\nfield.assessor_id = string\nfield.assessor_name = string\nfield.accreditation_ref = string\nfield.accreditation_expiry = time\nfield.accreditation_scope = string\n```\n\n## Step 2 - Findings summary index seed\n\nDaily roll-up of `cn_mlps_findings_lookup` into `index=summary source=mlps_findings`.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.11: MLPS Assessment Health]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.11,reg=CN-CSL,clause=MLPS-2-0-annual\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Joint inspections** (CAC + MPS + sectoral): the annual MLPS independent assessment may be folded into a joint inspection at the regulator's option; the joint inspection counts as the MLPS assessment provided the assessor on the team holds MPS accreditation.\n- **MPS public exposure (xinyong gongshi)**: persistent non-compliance is published on the local public-security bureau website — managing this list is a board-level reputation risk.",
+  "grandmaExplanation": "Important computer systems in China must be inspected by a government-approved tester every year. We make sure those inspections happen on time, that the testers are still approved, and that every problem they find is fixed quickly."
+}

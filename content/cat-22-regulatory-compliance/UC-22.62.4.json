@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.4",
+  "title": "CERT-In Direction (iv) 180-day rolling ICT log retention within Indian jurisdiction with cross-border-storage detector",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes development / staging environments not subject to Direction (iv) (e.g., labs marked `non_production = true` in `cert_in_log_register_lookup`). Excludes ephemeral debug logs not classified as ICT-system logs.",
+  "evidence": "Saved search `UC-22.62.4` archived daily to `audit_evidence` with `cert_in_clause=\"CERT-In-Dir-5\"`. Every index pins (log_index, retention_days_configured, storage_region_attested, jurisdiction, oldest_event_age_days, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "CERT-In-Dir-5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CERT-In Direction (iv) requires every service provider, intermediary, data centre, body-corporate, and government organisation to enable logs of all ICT systems and to maintain them securely for a rolling period of 180 days within the Indian jurisdiction. This UC enforces both limbs: (i) the 180-day retention floor (`frozenTimePeriodInSecs` >= 15552000) and (ii) the jurisdiction limb (the storage region of the index and any cold-archive handoff is attested as within Indian jurisdiction).",
+      "controlObjective": "Demonstrates that every ICT-system log index is retained at least 180 days with storage within Indian jurisdiction.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CERT-In Log Retention` dashboard, the per-index `frozenTimePeriodInSecs` REST snapshot, the storage-region attestation letter from the CSP or data-centre operator.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#CERT-In-Dir-5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Configure a production index with `frozenTimePeriodInSecs=14515200` (168 days) and `cert_in_log_register_lookup.jurisdiction = IN`. UC-22.62.4 MUST flag with risk_score >= 90.",
+    "negativeScenario": "Configure the same index with `frozenTimePeriodInSecs=15897600` (184 days), `jurisdiction = IN`, `storage_region_attested = ap-south-1`, and a current CSP storage-region attestation reference. UC-22.62.4 MUST record risk_score=0."
+  },
+  "dataSources": "Splunk REST `/services/data/indexes` for `frozenTimePeriodInSecs` per index. KV Store `cert_in_log_register_lookup` (log_index, expected_role, jurisdiction, storage_region_attested, csp_attestation_ref, non_production). Splunk Cloud region attestation event source HEC `hec:splunk:cloud:region`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| rest /services/data/indexes\n| rename title as log_index\n| eval configured_retention_days = round(frozenTimePeriodInSecs / 86400, 1)\n| eval required_floor_days = 180\n| join type=left log_index [\n    | inputlookup cert_in_log_register_lookup\n    | where coalesce(non_production, \"false\") != \"true\"\n  ]\n| where isnotnull(jurisdiction)\n| join type=left log_index [\n    | dbinspect index=*\n    | eval bucket_earliest = startEpoch\n    | stats min(bucket_earliest) as oldest_event_ts by index\n    | rename index as log_index\n  ]\n| eval oldest_event_age_days = round((now() - oldest_event_ts) / 86400, 1)\n| eval retention_breach = if(configured_retention_days < required_floor_days, 1, 0)\n| eval data_aging_short = if(oldest_event_age_days < 150 AND retention_breach = 0, 1, 0)\n| eval jurisdiction_breach = if(jurisdiction != \"IN\", 1, 0)\n| eval storage_region_unattested = if(isnull(storage_region_attested) OR isnull(csp_attestation_ref), 1, 0)\n| eval risk_score = case(\n    jurisdiction_breach = 1, 100,\n    retention_breach = 1, 95,\n    storage_region_unattested = 1, 80,\n    data_aging_short = 1, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +configured_retention_days\n| table log_index configured_retention_days oldest_event_age_days jurisdiction storage_region_attested csp_attestation_ref retention_breach jurisdiction_breach storage_region_unattested risk_score",
+  "description": "Reconciles every ICT-system log index against the two operational limbs of CERT-In Direction (iv): (i) the 180-day retention floor (`frozenTimePeriodInSecs >= 15552000`) and (ii) the Indian-jurisdiction storage requirement. The jurisdiction check pulls from `cert_in_log_register_lookup` and is positively evidenced by a CSP storage-region attestation reference (e.g., AWS ap-south-1 attestation, Azure South India attestation, Google Cloud asia-south1 attestation). Cross-border storage of CERT-In-relevant logs is risk-scored at 100.",
+  "value": "Direction (iv) is the second-most-cited CERT-In limb (after the 6-hour clock). The jurisdiction limb is particularly contentious: CERT-In has clarified that 'maintained within the Indian jurisdiction' permits storage in any Indian-region data-centre operated by a CSP, but the burden of proof — the CSP storage-region attestation — sits with the customer. A common gap is logs ingested into a global SIEM in a non-Indian region (e.g., Splunk Cloud us-west-2) without an architectural exception.",
+  "implementation": "(1) Maintain `cert_in_log_register_lookup` enumerating every index in scope of Direction (iv) with its expected jurisdiction (`IN` for in-scope), storage_region_attested (e.g., `ap-south-1`), and a `csp_attestation_ref` to the CSP letter. (2) Schedule UC-22.62.4 daily; route `risk_score = 100` (cross-border storage breach) to CISO + Legal at severity P1.",
+  "visualization": "(Panel 1) Retention-vs-floor scatter (configured days). (Panel 2) Jurisdiction heat map. (Panel 3) CSP-attestation coverage. (Panel 4) Retention-breach trend (90 days).",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "CERT-In Directions of 28 April 2022 — Direction (iv) on 180-day log retention",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "CERT-In FAQ (May 2022 clarifications) — log retention",
+      "url": "https://www.cert-in.org.in/PDF/FAQs.pdf"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-created index**: an index created within the last 60 days has no aged data and may report `oldest_event_age_days < 150` simply because no bucket has aged that far yet — load `index_created_at` and suppress for the first 180 days of the index's life. 2. **Frozen-to-glacier handoff**: if frozen buckets are migrated to a cold archive within Indian jurisdiction with a documented chain-of-custody — load `cold_archive_jurisdiction_ref = IN`. 3. **Read-replica in non-IN region**: a non-IN read-replica may be acceptable if the primary write copy is in IN and the replica is read-only — load `read_replica_attestation_ref`.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_4_exceptions` with the CISO and Legal documented approval, an explicit log_index scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "log_index",
+    "configured_retention_days",
+    "jurisdiction",
+    "storage_region_attested",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Indian Cybersecurity SME Panel + CISO + Legal (data-localisation)",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk Cloud (ap-south-1)",
+    "Splunk Enterprise 9.2+"
+  ],
+  "mitreAttack": [
+    "T1070.001",
+    "T1565"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (ap-south-1).\n- CSP storage-region attestation letters obtained from every CSP carrying the in-scope logs.\n\n## Step 1 - Log register KV Store\n\n```ini\n[cert_in_log_register_lookup]\nenforceTypes = true\nfield.log_index = string\nfield.expected_role = string\nfield.jurisdiction = string\nfield.storage_region_attested = string\nfield.csp_attestation_ref = string\nfield.cold_archive_jurisdiction_ref = string\nfield.read_replica_attestation_ref = string\nfield.non_production = bool\nfield.index_created_at = time\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.62.4: CERT-In Log Retention]\ncron_schedule = 0 4 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.4,reg=CERT-In,clause=CERT-In-Dir-5\nalert.severity = 4\n```\n\n## Step 3 - Indian-jurisdiction-specific notes\n\n- **Multi-tenant SaaS**: a SaaS application's audit-trail logs that touch Indian-jurisdiction users must satisfy Direction (iv) — CSP attestation of the storage region is mandatory.\n- **Logs in cross-border SIEM**: shipping logs to a non-IN SIEM is permissible only if the IN-jurisdiction primary copy is retained 180 days and the cross-border copy is a derivative read-only forensic view — document the architecture.",
+  "grandmaExplanation": "Indian law says every computer system's records must be kept for at least 6 months and stored on computers in India. We check every day that all our log indexes meet that 180-day floor and live on Indian servers."
+}

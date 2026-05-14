@@ -1,0 +1,135 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.1",
+  "title": "CERT-In Direction (ii) 6-hour cybersecurity-incident reporting clock across 20 statutory categories with auto-submission to incident@cert-in.org.in",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes near-misses and unsuccessful intrusion attempts that do not match any of the 20 statutory CERT-In categories. Excludes incidents reported on behalf of the organisation by a sectoral CERT (e.g., NCIIPC for Critical Information Infrastructure) where the sectoral CERT performs the CERT-In submission.",
+  "evidence": "Saved search `UC-22.62.1` archived hourly to `audit_evidence` with `cert_in_clause=\"CERT-In-Dir-2\"`. Every incident pins (incident_id, cert_in_category, noticed_at, submitted_at, submission_age_minutes, submission_status, submission_evidence_ref, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "CERT-In-Dir-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CERT-In Direction (ii) requires every service provider, intermediary, data centre, body-corporate, and government organisation to report cybersecurity incidents in any of the 20 statutory categories within 6 hours of noticing the incident. This UC operationalises both the trigger (incident categorisation against the 20-category taxonomy) and the deadline (the 6-hour clock from `noticed_at`) and proves the submission via the `submission_evidence_ref` (CERT-In Incident Reporting Form acknowledgement ID).",
+      "controlObjective": "Demonstrates that every CERT-In-categoried incident is submitted to CERT-In within 6 hours of being noticed.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CERT-In 6-hour Clock` dashboard, the CERT-In Incident Reporting Form acknowledgement export, the SOAR playbook execution record.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#CERT-In-Dir-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "IT-Act-Sec-70B",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Section 70B(7) of the IT Act 2000 criminalises non-compliance with a CERT-In direction (imprisonment up to 1 year and/or fine). The 6-hour clock is the most commonly enforced limb. This UC's evidence trail demonstrates a defensible 'reasonable diligence' posture under Section 70B and is the primary defence against a Section 70B(7) prosecution. Full assurance would additionally require that the organisation has filed its POC (UC-22.62.3) and NTP synchronisation (UC-22.62.2) evidence.",
+      "controlObjective": "Provides the incident-reporting limb of Section 70B compliance.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#IT-Act-Sec-70B",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a ServiceNow SIR ticket at 09:00 IST with `cert_in_category = ransomware` and DO NOT submit to CERT-In until 16:00 IST. UC-22.62.1 MUST flag with risk_score=100 at the 6-hour boundary (15:00 IST) and again at every subsequent run.",
+    "negativeScenario": "Open the same ticket and trigger the SOAR playbook at 09:30 IST, with the CERT-In Incident Reporting Form submitted at 09:45 IST and the acknowledgement ID stored on the ticket. UC-22.62.1 MUST record risk_score=0."
+  },
+  "dataSources": "ServiceNow Security Incident Response (SIR) tickets ingested via Splunk Add-on for ServiceNow with `cert_in_category` field. HEC `hec:certin:reporting:submission` for CERT-In Incident Reporting Form acknowledgements. KV Store `cert_in_category_taxonomy_lookup` (20 statutory categories with severity, examples, regulator-routing).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 5664), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5664,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/5664",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=servicenow_sir sourcetype=\"snow:incident\" cert_in_category=*\n| eval noticed_at = strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval six_hour_deadline = noticed_at + (6 * 3600)\n| eval now_ts = now()\n| join type=left number [\n    search index=summary source=hec:certin:reporting:submission earliest=-7d\n    | stats latest(_time) as submitted_at, latest(cert_in_ack_id) as submission_evidence_ref, latest(submission_status) as submission_status by incident_id\n    | rename incident_id as number\n  ]\n| eval submission_age_seconds = case(\n    isnotnull(submitted_at), submitted_at - noticed_at,\n    1=1, now_ts - noticed_at)\n| eval submission_age_minutes = round(submission_age_seconds / 60, 1)\n| eval clock_status = case(\n    isnotnull(submitted_at) AND submitted_at <= six_hour_deadline AND submission_status = \"acknowledged\", \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > six_hour_deadline, \"late\",\n    isnull(submitted_at) AND now_ts > six_hour_deadline, \"missed\",\n    isnull(submitted_at) AND now_ts <= six_hour_deadline, \"in_window\",\n    1=1, \"unknown\")\n| eval time_remaining_minutes = if(clock_status = \"in_window\", round((six_hour_deadline - now_ts) / 60, 1), null())\n| eval risk_score = case(\n    clock_status = \"missed\", 100,\n    clock_status = \"late\", 90,\n    clock_status = \"in_window\" AND time_remaining_minutes < 60, 70,\n    clock_status = \"in_window\" AND time_remaining_minutes < 180, 40,\n    clock_status = \"in_window\", 10,\n    clock_status = \"on_time\", 0,\n    1=1, 50)\n| where risk_score > 0\n| sort 0 -risk_score, +time_remaining_minutes\n| table number cert_in_category noticed_at submitted_at submission_age_minutes time_remaining_minutes clock_status submission_evidence_ref risk_score",
+  "description": "Pulls every ServiceNow SIR ticket tagged with `cert_in_category` (one of the 20 statutory CERT-In categories), computes the 6-hour deadline from `noticed_at`, and reconciles against the CERT-In Incident Reporting Form acknowledgements arriving at `hec:certin:reporting:submission`. Surfaces four clock states (`in_window`, `on_time`, `late`, `missed`) with risk-scoring tuned to escalate to CISO at 60 minutes remaining (risk=70) and to alert at 100 the moment the 6-hour deadline is breached without submission.",
+  "value": "The 6-hour clock is the headline CERT-In obligation and the limb most commonly enforced. CERT-In has issued multiple notices to body-corporates citing late or missed reporting; criminal prosecution under Section 70B(7) of the IT Act 2000 carries imprisonment up to 1 year. The clock-running visualisation enables the SOC to escalate proactively before the 6-hour deadline rather than reactively after it, and the `submission_evidence_ref` (CERT-In acknowledgement ID) is the only auditable proof of submission.",
+  "implementation": "(1) Maintain `cert_in_category_taxonomy_lookup` reflecting the 20 statutory CERT-In incident categories with regulator-routing (incident@cert-in.org.in plus sectoral CERT, if applicable). (2) Add a `cert_in_category` field to ServiceNow SIR via SOAR playbook auto-classification. (3) Hook the SOAR submission to the CERT-In Incident Reporting Form (https://www.cert-in.org.in/IRForm.htm) returning the acknowledgement ID via the HEC `hec:certin:reporting:submission` sourcetype. (4) Schedule UC-22.62.1 every 15 minutes during business hours and every 60 minutes off-hours; route `risk_score >= 90` to CISO at severity P1.",
+  "visualization": "(Panel 1) Live 6-hour countdown for every open CERT-In-categoried incident. (Panel 2) Submission-time distribution. (Panel 3) Trend of missed / late submissions over 12 months. (Panel 4) Category-mix of reported incidents.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CERT-In Directions of 28 April 2022 (No. 20(3)/2022-CERT-In)",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "CERT-In Incident Reporting Form",
+      "url": "https://www.cert-in.org.in/IRForm.htm"
+    },
+    {
+      "title": "CERT-In FAQ on the 28 April 2022 Directions (May 2022 clarifications)",
+      "url": "https://www.cert-in.org.in/PDF/FAQs.pdf"
+    }
+  ],
+  "knownFalsePositives": "1. **Sectoral CERT routing**: incidents reported by NCIIPC on behalf of a CII organisation, or by a Sectoral CERT (e.g., CERT-Fin, CERT-Power), close the CERT-In obligation; load `sectoral_cert_ack_ref` in the ServiceNow ticket and treat as `on_time`. 2. **Duplicate report consolidation**: CERT-In permits consolidation of a series of related events into one report — the `consolidated_report_ref` should reference the originating ticket. 3. **Test / drill incidents**: tickets tagged `drill = true` are excluded from the alert pipeline.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_1_exceptions` with the CISO documented approval, an explicit incident_id + reason scope, and a written justification.",
+  "requiredFields": [
+    "number",
+    "cert_in_category",
+    "noticed_at",
+    "submission_evidence_ref",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Indian Cybersecurity SME Panel + CISO + Legal (CERT-In liaison)",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x",
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance overlay)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.62.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- ServiceNow Security Incident Response (SIR) integrated with Splunk via Splunk Add-on for ServiceNow.\n- Splunk SOAR available for automated submission of the CERT-In Incident Reporting Form.\n- A registered CERT-In POC (UC-22.62.3 prerequisite) — only POC-authenticated submissions are accepted.\n\n## Step 1 - CERT-In category taxonomy\n\n```ini\n[cert_in_category_taxonomy_lookup]\nenforceTypes = true\nfield.cert_in_category = string\nfield.severity_default = string\nfield.regulator_routing = string\nfield.sectoral_cert = string\nfield.example_iocs = string\n```\n\nSeed the 20 statutory categories (illustrative — full list per the 28 April 2022 Directions): targeted scanning / probing of critical networks / systems; compromise of critical systems / information; unauthorised access of IT systems / data; defacement of website or intrusion into a website and unauthorised changes such as inserting malicious code, links to external websites, etc.; malicious code attacks such as spreading of virus / worm / Trojan / bots / spyware / ransomware / cryptominers; attack on servers such as database, mail, DNS, network appliances such as routers; identity theft, spoofing and phishing attacks; Denial-of-Service (DoS) and Distributed Denial-of-Service (DDoS) attacks; attacks on critical infrastructure, SCADA, OT systems; attacks on applications such as e-banking, e-commerce; data breach; data leak; attacks on IoT devices; attacks on systems related to digital payments; attacks through malicious mobile apps; fake mobile apps; unauthorised access to social media accounts; attacks or malicious / suspicious activities affecting cloud computing systems / networks / infrastructure / cloud-based applications; attacks or malicious / suspicious activities affecting big-data, blockchain, virtual asset / crypto-currency / cryptominers; attacks or malicious activities affecting AI / ML / IoT systems / applications.\n\n## Step 2 - SOAR playbook integration\n\n- Trigger: new ServiceNow SIR ticket with `cert_in_category` set.\n- Action 1: Submit CERT-In Incident Reporting Form fields.\n- Action 2: Receive acknowledgement-id back from CERT-In portal.\n- Action 3: HEC submit to `hec:certin:reporting:submission` with `incident_id`, `cert_in_ack_id`, `submission_status`.\n- Action 4: Update ServiceNow SIR with `cert_in_ack_id` and close the report-submission task.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.1: CERT-In 6-hour Clock]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.1,reg=CERT-In,clause=CERT-In-Dir-2\nalert.severity = 5\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **Multi-jurisdiction organisations**: an Indian subsidiary of an offshore parent — only Indian-jurisdiction incidents fall under CERT-In; the parent SOC may need a co-routing flow.\n- **NCIIPC overlap**: CII organisations report to both NCIIPC and CERT-In; the two reporting clocks are independent.",
+  "grandmaExplanation": "Indian law gives every company 6 hours to tell the national cyber-incident team about serious cyber attacks. We watch the clock for every new incident and make sure the report is filed and acknowledged before the 6 hours run out."
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.6",
+  "title": "CERT-In Direction (vii) Virtual Asset Service Provider / crypto-exchange KYC + 5-year transaction-record retention with PMLA wallet-hop trace alignment",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Financial-Services",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes pure custody platforms that do not process customer transactions (e.g., institutional cold-vault providers operating outside the FIU-IND VASP regime). Excludes peer-to-peer non-custodial wallets where the user controls keys — the provider's role is limited to information-furnishing under Section 70B(6) requests.",
+  "evidence": "Saved search `UC-22.62.6` archived daily to `audit_evidence` with `cert_in_clause=\"CERT-In-Dir-6\"`. Every customer pins (customer_id, kyc_method, kyc_completeness, transaction_volume_30d_inr, retention_due_until, retention_compliant, suspicious_pattern_count_30d, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "CERT-In-Dir-6",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CERT-In Direction (vii) requires Virtual Asset Service Providers (VASPs), virtual asset exchange providers, and custodian wallet providers to maintain all information obtained as part of Know-Your-Customer (KYC) and records of financial transactions for a period of 5 years. KYC requirements include Aadhaar/PAN/passport validation, address, transaction date and value, IP address, device-id, customer-identification. This UC enforces both the KYC completeness and the 5-year transaction-record retention.",
+      "controlObjective": "Demonstrates that every VASP customer has a complete KYC record and all their financial-transaction records are retained for 5 years.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `VASP KYC and Transaction Retention` dashboard, the per-customer KYC validation export, the transaction-store retention-attestation.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#CERT-In-Dir-6",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "IT-Act-Sec-43A",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Section 43A of the IT Act 2000 read with the IT (Reasonable Security Practices) Rules 2011 treats KYC and transaction data as Sensitive Personal Data or Information. The KYC and retention controls in this UC provide a 'reasonable security practices' baseline but full §43A assurance additionally requires data-protection controls (encryption at rest, access-logging) and the DPDP Significant Data Fiduciary controls (UC-22.62.7).",
+      "controlObjective": "Contributes the KYC-handling limb of §43A reasonable security practices.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#IT-Act-Sec-43A",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Onboard a VASP customer with name, email, and phone but DO NOT validate Aadhaar/PAN/passport, DO NOT capture device-id, and DO NOT capture IP at onboarding. UC-22.62.6 MUST flag with risk_score >= 90.",
+    "negativeScenario": "Onboard the same customer with Aadhaar e-KYC validation, validated PAN, validated address, registration IP + device-id + timestamp, and confirm the transaction database retains 5-year history with legal-hold flag. UC-22.62.6 MUST record risk_score=0."
+  },
+  "dataSources": "VASP transaction database via Splunk DB Connect (or HEC `hec:vasp:transaction`). KV Store `vasp_customer_kyc_lookup` (customer_id, kyc_method, kyc_validation_at, validated_aadhaar_hash, validated_pan_hash, registration_ip, device_id, deregistered_at). KV Store `vasp_transaction_retention_attestation_lookup` (database_id, retention_days_attested, legal_hold_active).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk DB Connect (Splunkbase 2686).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2686,
+      "name": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup vasp_customer_kyc_lookup\n| eval now_ts = now()\n| eval kyc_aadhaar_valid = if(isnotnull(validated_aadhaar_hash) AND validated_aadhaar_hash != \"\", 1, 0)\n| eval kyc_pan_valid = if(isnotnull(validated_pan_hash) AND validated_pan_hash != \"\", 1, 0)\n| eval kyc_passport_valid = if(isnotnull(validated_passport_hash) AND validated_passport_hash != \"\", 1, 0)\n| eval kyc_identity_proof = if(kyc_aadhaar_valid = 1 OR kyc_pan_valid = 1 OR kyc_passport_valid = 1, 1, 0)\n| eval kyc_address_valid = if(isnotnull(validated_address), 1, 0)\n| eval kyc_ip_at_onboarding = if(isnotnull(registration_ip), 1, 0)\n| eval kyc_device_id = if(isnotnull(device_id) AND device_id != \"\", 1, 0)\n| eval kyc_timestamp_at_onboarding = if(isnotnull(kyc_validation_at), 1, 0)\n| eval kyc_completeness_score = kyc_identity_proof + kyc_address_valid + kyc_ip_at_onboarding + kyc_device_id + kyc_timestamp_at_onboarding\n| eval days_since_deregistration = if(isnotnull(deregistered_at), round((now_ts - deregistered_at) / 86400, 1), null())\n| eval retention_due_until_ts = if(isnotnull(deregistered_at), deregistered_at + (5 * 365.25 * 86400), null())\n| eval retention_compliant = case(\n    isnull(deregistered_at), 1,\n    isnotnull(retention_due_until_ts) AND now_ts <= retention_due_until_ts, 1,\n    1=1, 0)\n| join type=left customer_id [\n    search index=fin_transaction earliest=-30d\n    | stats sum(amount_inr) as transaction_volume_30d_inr, count as transaction_count_30d, sum(suspicious_flag) as suspicious_pattern_count_30d by customer_id\n  ]\n| eval transaction_volume_30d_inr = coalesce(transaction_volume_30d_inr, 0)\n| eval suspicious_pattern_count_30d = coalesce(suspicious_pattern_count_30d, 0)\n| eval high_volume_low_kyc = if(transaction_volume_30d_inr > 1000000 AND kyc_completeness_score < 5, 1, 0)\n| eval suspicious_no_kyc_proof = if(suspicious_pattern_count_30d > 0 AND kyc_identity_proof = 0, 1, 0)\n| eval risk_score = case(\n    kyc_identity_proof = 0, 100,\n    suspicious_no_kyc_proof = 1, 100,\n    high_volume_low_kyc = 1, 95,\n    retention_compliant = 0, 95,\n    kyc_completeness_score < 4, 80,\n    kyc_completeness_score < 5, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +kyc_completeness_score\n| table customer_id kyc_completeness_score kyc_identity_proof transaction_volume_30d_inr suspicious_pattern_count_30d retention_compliant risk_score",
+  "description": "Reconciles every VASP / crypto-exchange / custodian-wallet customer against the five CERT-In Direction (vii) KYC limbs: (i) identity-proof (Aadhaar OR PAN OR passport validated), (ii) validated address, (iii) registration IP captured at onboarding, (iv) device-id captured at onboarding, (v) timestamp at onboarding. A separate limb enforces the 5-year transaction-record retention. High-volume customers without strong identity-proof and any customer flagged as suspicious without identity-proof escalate to risk_score=100.",
+  "value": "VASP regulation is the most active CERT-In + FIU-IND enforcement area: significant penalties have been imposed on Indian crypto exchanges for KYC and transaction-record gaps. The 5-year retention limb is critical because PMLA Section 12 reporting requires identification of the beneficial owner — and the chain of transactions back to the originating customer — for any Cash Transaction Report (CTR) or Suspicious Transaction Report (STR). A KYC gap is also a Section 70B(6) information-furnishing failure when CERT-In requests the data.",
+  "implementation": "(1) Maintain `vasp_customer_kyc_lookup` from the KYC platform with Aadhaar/PAN/passport hashes stored irreversibly (UIDAI compliance prohibits storing Aadhaar number; hash only). (2) Wire the transaction database via Splunk DB Connect to compute 30-day volume and suspicious-pattern counts. (3) Enforce a 5-year legal-hold flag on the transaction database. (4) Schedule UC-22.62.6 daily; route `risk_score >= 95` to Compliance Officer + CISO + FIU-IND POC at severity P1.",
+  "visualization": "(Panel 1) KYC-completeness heat map by customer cohort. (Panel 2) High-volume-low-KYC scatter. (Panel 3) 5-year retention coverage. (Panel 4) Suspicious-pattern + KYC-gap correlation.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CERT-In Directions of 28 April 2022 — Direction (vii) on VASP record retention",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "FIU-IND VASP registration framework (PMLA 2002 amendment, 7 March 2023)",
+      "url": "https://fiuindia.gov.in/"
+    },
+    {
+      "title": "UIDAI Aadhaar Authentication and e-KYC Regulations",
+      "url": "https://uidai.gov.in/"
+    }
+  ],
+  "knownFalsePositives": "1. **Institutional / corporate customer**: KYC limbs apply at the body-corporate level (CIN, GST, beneficial owners) — load `corporate_customer_kyc_ref` and apply the corporate KYC schema. 2. **Pre-7-March-2023 grandfathered customers**: customers onboarded before the FIU-IND VASP registration coming into force may have legacy KYC — load `pmla_grandfather_evidence_ref` and require a one-time top-up KYC. 3. **Closed-loop on-platform tokens** (e.g., loyalty points expressed as a VA): if not exchangeable for fiat, the KYC obligation may be limited — load `closed_loop_attestation_ref`.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_6_exceptions` with the Compliance Officer and CISO documented approval, an explicit customer_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "customer_id",
+    "kyc_completeness_score",
+    "kyc_identity_proof",
+    "transaction_volume_30d_inr",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Indian Cybersecurity SME Panel + Compliance Officer + CISO + FIU-IND POC",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-db-connect"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk DB Connect (KYC + transaction DB integration)",
+    "Aadhaar e-KYC via KUA or KYC service-provider"
+  ],
+  "mitreAttack": [
+    "T1657",
+    "T1078"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.62.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- VASP registered with FIU-IND under the 7 March 2023 PMLA amendment (Reporting Entity status).\n- Aadhaar e-KYC integration via UIDAI / KUA, with Aadhaar number hashed (not stored).\n- Transaction database with 5-year legal-hold capability.\n\n## Step 1 - KYC KV Store\n\n```ini\n[vasp_customer_kyc_lookup]\nenforceTypes = true\nfield.customer_id = string\nfield.kyc_method = string\nfield.kyc_validation_at = time\nfield.validated_aadhaar_hash = string\nfield.validated_pan_hash = string\nfield.validated_passport_hash = string\nfield.validated_address = string\nfield.registration_ip = string\nfield.device_id = string\nfield.deregistered_at = time\nfield.corporate_customer_kyc_ref = string\nfield.pmla_grandfather_evidence_ref = string\nfield.closed_loop_attestation_ref = string\n```\n\n## Step 2 - Transaction retention attestation\n\n```ini\n[vasp_transaction_retention_attestation_lookup]\nenforceTypes = true\nfield.database_id = string\nfield.retention_days_attested = number\nfield.legal_hold_active = bool\nfield.last_attested_at = time\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.6: VASP KYC + Retention]\ncron_schedule = 30 5 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.6,reg=CERT-In,clause=CERT-In-Dir-6\nalert.severity = 5\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **FIU-IND POC**: VASPs must designate a Principal Officer to FIU-IND who is the CTR/STR filing officer — co-routing required.\n- **GoAML reporting**: STRs are filed via FIU-IND's GoAML portal — Splunk SOAR can pre-stage the filing data but human Principal-Officer sign-off remains mandatory.",
+  "grandmaExplanation": "Indian crypto exchanges must check the identity of every customer and keep their transaction records for 5 years. We check every day that every customer is properly identified and that we still have their transaction history for the full 5-year period."
+}

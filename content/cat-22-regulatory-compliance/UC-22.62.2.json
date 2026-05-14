@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.2",
+  "title": "CERT-In Direction (iii) NTP synchronisation to NIC samay1.nic.in / NPL time.nplindia.org with cross-fleet drift, stratum, and traceability monitor",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes purpose-built isolated lab networks (e.g., red-team detonation ranges) operating with deliberately offset clocks for testing — these must be tagged `isolated_lab = true` in `cert_in_ntp_register_lookup`.",
+  "evidence": "Saved search `UC-22.62.2` archived hourly to `audit_evidence` with `cert_in_clause=\"CERT-In-Dir-3\"`. Every node pins (host, last_sync_at, ntp_source, stratum, offset_ms, traceable_to_nic_or_npl, sync_age_minutes, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "CERT-In-Dir-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CERT-In Direction (iii) requires every ICT system clock to be synchronised to the NTP servers of the National Informatics Centre (NIC, samay1.nic.in / samay2.nic.in) or the National Physical Laboratory (NPL, time.nplindia.org), or to NTP servers traceable to those servers. This UC enforces all three limbs: (i) every host MUST report a recent successful NTP sync, (ii) the configured NTP source MUST be one of NIC/NPL or traceable, and (iii) the offset from the authoritative source MUST not deviate materially.",
+      "controlObjective": "Demonstrates that every Indian-jurisdiction ICT system is time-synchronised to NIC / NPL with traceability and small drift.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `NTP Compliance` dashboard, the per-host `chronyc tracking` / `w32tm /query /status` configuration export.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#CERT-In-Dir-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Reconfigure a Linux server's `/etc/chrony.conf` to point exclusively to `pool ntp.example.com` (a non-traceable public NTP pool) and let chrony resync. UC-22.62.2 MUST flag with risk_score=85 within one cycle.",
+    "negativeScenario": "Configure the same server with `server samay1.nic.in iburst` and `server samay2.nic.in iburst`, with `chronyc tracking` reporting `Stratum: 2`, `System time: 5 milliseconds slow`. UC-22.62.2 MUST record risk_score=0."
+  },
+  "dataSources": "Splunk Add-on for Unix and Linux NTP events (`sourcetype=ntp` or chrony tracking export). Splunk Add-on for Microsoft Windows `w32tm` outputs. KV Store `cert_in_ntp_authoritative_lookup` (host_or_ip, role) listing samay1.nic.in, samay2.nic.in, time.nplindia.org, plus traceable enterprise tier-2 servers. KV Store `cert_in_ntp_register_lookup` (host, expected_role, isolated_lab).",
+  "app": "Splunk Add-on for Unix and Linux (Splunkbase 833), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [],
+  "spl": "(index=os sourcetype=\"chronyd\" OR sourcetype=\"ntp\") OR (index=windows sourcetype=\"WMI:LocalTimeSync\")\n| eval ntp_source = coalesce(ntp_source, reference_id, ntpserver, ntp_server)\n| eval offset_ms = coalesce(offset_ms, system_offset, last_offset)\n| eval stratum = coalesce(stratum, root_stratum)\n| eval offset_ms = abs(tonumber(offset_ms))\n| stats latest(_time) as last_sync_at, latest(ntp_source) as ntp_source, latest(offset_ms) as offset_ms, latest(stratum) as stratum by host\n| eval sync_age_minutes = round((now() - last_sync_at) / 60, 1)\n| lookup cert_in_ntp_authoritative_lookup host_or_ip AS ntp_source OUTPUT role AS ntp_role\n| eval traceable_to_nic_or_npl = if(ntp_role IN (\"primary\",\"traceable\"), 1, 0)\n| lookup cert_in_ntp_register_lookup host OUTPUT expected_role, isolated_lab\n| where coalesce(isolated_lab, \"false\") != \"true\"\n| eval stale_sync = if(sync_age_minutes > 60, 1, 0)\n| eval excessive_drift = if(offset_ms > 1000, 1, 0)\n| eval non_traceable_source = if(traceable_to_nic_or_npl = 0, 1, 0)\n| eval risk_score = case(\n    non_traceable_source = 1, 85,\n    excessive_drift = 1 AND offset_ms > 5000, 90,\n    excessive_drift = 1, 70,\n    stale_sync = 1 AND sync_age_minutes > 360, 80,\n    stale_sync = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +sync_age_minutes\n| table host last_sync_at sync_age_minutes ntp_source ntp_role offset_ms stratum traceable_to_nic_or_npl risk_score",
+  "description": "Reconciles every Indian-jurisdiction host against three operational limbs of CERT-In Direction (iii): (i) the NTP source is one of the four authoritative servers (samay1.nic.in, samay2.nic.in, time.nplindia.org, or a documented traceable tier-2), (ii) the offset from the authoritative source is within ±5 seconds, and (iii) a successful NTP sync has occurred in the last 60 minutes. Risk-scores non-traceable sources at 85 (a Direction-(iii) breach by source) and large drifts (>5 s) at 90 (a Direction-(iii) breach by drift).",
+  "value": "CERT-In Direction (iii) underpins the forensic-correlation value of every other CERT-In artefact: if Indian ICT systems are not on a common NIC/NPL-traceable timebase, the 6-hour incident reports (UC-22.62.1) and the 180-day log retention (UC-22.62.4) cannot be reconciled across systems. CERT-In has cited Direction (iii) breaches in administrative notices issued to body-corporates. The traceability limb is the most frequently failed — generic public NTP pools (pool.ntp.org) and cloud-vendor defaults (e.g., AWS time.amazonaws.com) are not, on their face, traceable to NIC/NPL and require an explicit traceability attestation.",
+  "implementation": "(1) Maintain `cert_in_ntp_authoritative_lookup` with the four primary servers plus enterprise tier-2 servers that themselves sync to NIC/NPL with `role = traceable`. (2) Maintain `cert_in_ntp_register_lookup` with every Indian-jurisdiction host and its expected NTP role; isolated lab machines carry `isolated_lab = true`. (3) Schedule UC-22.62.2 hourly; route `risk_score >= 85` to the IT-Operations + CISO at severity P2.",
+  "visualization": "(Panel 1) Fleet NTP-source heat map (NIC / NPL / traceable / non-traceable). (Panel 2) Offset distribution histogram. (Panel 3) Sync-age timeline. (Panel 4) Drift-trend (90 days).",
+  "cimModels": [
+    "Performance",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "CERT-In Directions of 28 April 2022 — Direction (iii) on NTP synchronisation",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "NIC Time Service (samay1.nic.in)",
+      "url": "https://samay1.nic.in"
+    },
+    {
+      "title": "NPL Time and Frequency Standards (time.nplindia.org)",
+      "url": "https://time.nplindia.org"
+    }
+  ],
+  "knownFalsePositives": "1. **Lab / isolated networks**: detonation ranges and red-team labs intentionally offset clocks for fuzzing or rollback testing — load `isolated_lab = true` in `cert_in_ntp_register_lookup`. 2. **Boot transient**: a host that booted in the last 10 minutes may briefly show stratum 16 / unsynced — suppress if `boot_time` is within the last 600 seconds. 3. **Multi-jurisdiction hosts**: a host serving non-Indian regions may legitimately use a non-Indian primary — load `multi_jurisdiction_attestation_ref` and a `secondary_indian_ntp_ref` to suppress.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_2_exceptions` with the CISO and IT-Operations documented approval, an explicit host scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "host",
+    "last_sync_at",
+    "ntp_source",
+    "offset_ms",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Indian Cybersecurity SME Panel + IT-Operations Lead + CISO",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for Unix and Linux",
+    "Splunk Add-on for Microsoft Windows",
+    "chrony >= 3.x",
+    "Windows Server (w32time) 2016+"
+  ],
+  "mitreAttack": [
+    "T1070.006",
+    "T1565"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Add-on for Unix and Linux deployed on every Linux host with NTP / chrony events enabled.\n- Splunk Add-on for Microsoft Windows deployed on every Windows host with `WMI:LocalTimeSync` enabled.\n- Outbound NTP (UDP 123) permitted to samay1.nic.in / samay2.nic.in / time.nplindia.org.\n\n## Step 1 - Authoritative-server lookup\n\n```ini\n[cert_in_ntp_authoritative_lookup]\nenforceTypes = true\nfield.host_or_ip = string\nfield.role = string\n```\n\nSeed entries:\n\n```\nhost_or_ip,role\nsamay1.nic.in,primary\nsamay2.nic.in,primary\ntime.nplindia.org,primary\nntp-india-tier2.example.com,traceable\n```\n\n## Step 2 - NTP register\n\n```ini\n[cert_in_ntp_register_lookup]\nenforceTypes = true\nfield.host = string\nfield.expected_role = string\nfield.isolated_lab = bool\nfield.multi_jurisdiction_attestation_ref = string\nfield.secondary_indian_ntp_ref = string\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.2: CERT-In NTP Synchronisation]\ncron_schedule = 7 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.2,reg=CERT-In,clause=CERT-In-Dir-3\nalert.severity = 3\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **Traceability attestation**: for cloud-vendor NTP (e.g., AWS Time Sync) to count as traceable, the CSP must publish an attestation that its NTP infrastructure ultimately syncs to NIC/NPL — most CSPs do not provide this directly, so an enterprise tier-2 sync-server pointing to NIC/NPL is the common pattern.\n- **Air-gapped OT**: for genuinely air-gapped OT networks, a tier-2 GPS-disciplined or NIC-synchronised time master within the OT zone is the accepted compensating control.",
+  "grandmaExplanation": "All Indian computers must keep their clocks set to the government's official time servers. We check every hour that every server's clock is right and reaches the official Indian time source, so that incident reports line up across systems."
+}

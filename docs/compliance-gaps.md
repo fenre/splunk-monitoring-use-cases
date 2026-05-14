@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-05-14T06:10:01Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
+_Generated: 2026-05-14T07:31:13Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -8,7 +8,7 @@ This report inverts the compliance coverage audit: for every regulation-version 
 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
-| tier-1 | 413 | 376 | 91.04 | 384.1000 | 349.5000 | 90.99 |
+| tier-1 | 450 | 409 | 90.89 | 418.6000 | 380.5000 | 90.90 |
 | tier-2 | 204 | 199 | 97.55 | 194.7000 | 190.9000 | 98.05 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
@@ -61,6 +61,38 @@ _America's Water Infrastructure Act of 2018 (Section 2013 amendments to SDWA s 1
 | Priority | Clause | Topic |
 |---------:|--------|-------|
 | 0.70 | `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web |
+
+</details>
+
+### CERT-In Directions 2022 — `cert-in`
+
+_Indian Computer Emergency Response Team (CERT-In) Directions of 28 April 2022 (No. 20(3)/2022-CERT-In) under Section 70B(6) of the Information Technology Act 2000, plus Digital Personal Data Protection Act 2023 (DPDP) operational overlay_
+
+#### CERT-In Directions 2022@2022-04-28-cert-in-directions-with-2023-dpdp
+
+- Common clauses: **10**
+- Covered: **9** (90.00%)
+- Priority-weighted coverage: **94.12%** (8.0000 / 8.5000)
+- Authoritative source: https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `CERT-In-Dir-2` | 6-hour incident reporting clock — 20 incident categories | 1.00 | ✔ 1 | full | 22.62.1 |
+| `CERT-In-Dir-3` | NTP synchronisation to NIC / NPL Indian time servers | 1.00 | ✔ 1 | full | 22.62.2 |
+| `CERT-In-Dir-4` | Designated Point of Contact (POC) for CERT-In liaison | 1.00 | ✔ 1 | full | 22.62.3 |
+| `CERT-In-Dir-5` | Log retention 180 days minimum, stored within Indian jurisdiction | 1.00 | ✔ 1 | full | 22.62.4 |
+| `CERT-In-Dir-5-1` | VPN / VPS / cloud-service-provider KYC + 5-year record retention | 1.00 | ✔ 1 | full | 22.62.5 |
+| `CERT-In-Dir-6` | Virtual Asset Service Provider / crypto-exchange 5-year record retention | 1.00 | ✔ 1 | full | 22.62.6 |
+| `CERT-In-Dir-7` | Body-corporate KYC retention (5 years post-business relationship) | 0.50 | ✖ 0 | — | — |
+| `IT-Act-Sec-70B` | CERT-In statutory authority — directions binding under Section 70B(6) of IT Act 2000 | 1.00 | ✔ 1 | partial | 22.62.1 |
+| `IT-Act-Sec-43A` | Reasonable Security Practices and Procedures for Sensitive Personal Data (overlay) | 0.50 | ✔ 3 | full | 22.62.6, 22.62.7, 22.62.8 |
+| `DPDP-Sec-8` | Significant Data Fiduciary obligations (Data Protection Officer, DPIA, annual independent audit) — DPDP overlay | 0.50 | ✔ 2 | full | 22.62.7, 22.62.8 |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 0.50 | `CERT-In-Dir-7` | Body-corporate KYC retention (5 years post-business relationship) |
 
 </details>
 
@@ -128,6 +160,43 @@ _Cybersecurity Maturity Model Certification_
 | `IR.L2-3.6.1` | Incident handling capability | 1.00 | ✔ 3 | full | 22.20.19, 22.20.7, 22.32.20 |
 | `SC.L2-3.13.8` | Cryptographic mechanisms for CUI in transit | 1.00 | ✔ 1 | full | 22.20.8 |
 | `SI.L2-3.14.6` | Monitor for attacks | 1.00 | ✔ 6 | full | 22.20.11, 22.20.12, 22.20.13, 22.20.15, 22.20.9, 22.32.21 |
+
+### CN CSL / DSL / PIPL — `cn-csl`
+
+_Cybersecurity Law of the People's Republic of China, Data Security Law, Personal Information Protection Law, Regulations on Security Protection of Critical Information Infrastructure (State Council Order No. 745), MLPS 2.0 (GB/T 22239-2019), and CAC Measures for Security Assessment of Outbound Data Transfers_
+
+#### CN CSL / DSL / PIPL@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border
+
+- Common clauses: **15**
+- Covered: **14** (93.33%)
+- Priority-weighted coverage: **93.33%** (14.0000 / 15.0000)
+- Authoritative source: https://www.cac.gov.cn/
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `CSL-Art-21` | Network operator obligations — tiered protection, technical security measures, contingency plans (MLPS as implementation vehicle) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.12 |
+| `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents | 1.00 | ✖ 0 | — | — |
+| `CSL-Art-25` | Cybersecurity incident emergency response plan + reporting to authorities | 1.00 | ✔ 1 | full | 22.61.3 |
+| `CSL-Art-37` | CIIO data localization — personal information and important data collected in PRC must be stored in PRC | 1.00 | ✔ 1 | full | 22.61.4 |
+| `CSL-Art-38` | CIIO annual cybersecurity inspection + risk assessment | 1.00 | ✔ 1 | full | 22.61.2 |
+| `DSL-Art-21` | Data classification and important-data catalog | 1.00 | ✔ 2 | full | 22.61.4, 22.61.5 |
+| `DSL-Art-29` | Data security incident emergency response and reporting | 1.00 | ✔ 2 | partial | 22.61.12, 22.61.3 |
+| `DSL-Art-36` | Refusal of foreign judicial / law-enforcement data requests without PRC government approval (blocking statute) | 1.00 | ✔ 1 | full | 22.61.6 |
+| `PIPL-Art-38` | Cross-border transfer of personal information — three lawful bases (CAC security assessment, certification, standard contract) | 1.00 | ✔ 3 | full | 22.61.4, 22.61.6, 22.61.7 |
+| `PIPL-Art-51` | Internal management, technical security measures, and DPO appointment (>1M data subjects) | 1.00 | ✔ 1 | full | 22.61.8 |
+| `PIPL-Art-55` | Personal Information Impact Assessment (PIPIA) — required for high-risk processing | 1.00 | ✔ 2 | full | 22.61.8, 22.61.9 |
+| `CIIO-Reg-Art-8` | CIIO designation by sectoral protection departments (sector-by-sector) | 1.00 | ✔ 1 | full | 22.61.2 |
+| `CIIO-Reg-Art-14` | Cybersecurity Review for CIIO procurement of network products and services | 1.00 | ✔ 1 | full | 22.61.10 |
+| `MLPS-2-0-L3` | MLPS 2.0 Level 3 controls — technical and administrative security baseline for important national systems | 1.00 | ✔ 3 | full | 22.61.1, 22.61.11, 22.61.12 |
+| `MLPS-2-0-annual` | Annual MLPS assessment by MPS-accredited testing organisation (Level 3+) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.11 |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents |
+
+</details>
 
 ### DO-326A / ED-202A — `do-326a`
 
@@ -284,6 +353,41 @@ _HIPAA Security Rule_
 | `§164.312(c)(1)` | Integrity | 1.00 | ✔ 3 | full | 22.10.18, 22.10.27, 22.35.2 |
 | `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 4 | contributing | 17.1.38, 22.10.19, 22.10.23, 22.10.42 |
 | `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 8 | full | 17.1.31, 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.45.4, 22.8.31, 22.8.38 |
+
+### IEC 61511 + ISA TR84.00.09 — `iec-61511`
+
+_IEC 61511 Edition 2 (2016) — Functional safety: Safety Instrumented Systems for the process industry sector, plus IEC 61508 generic functional-safety framework, ISA-TR84.00.09 cybersecurity overlay, and IEC 62443-3-2 cybersecurity risk assessment_
+
+#### IEC 61511 + ISA TR84.00.09@2016-iec-61511-ed-2-with-isa-tr84-00-09
+
+- Common clauses: **12**
+- Covered: **10** (83.33%)
+- Priority-weighted coverage: **81.82%** (9.0000 / 11.0000)
+- Authoritative source: https://webstore.iec.ch/publication/24241
+
+| Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
+|--------|-------|---------:|----:|---------------|------------|
+| `IEC-61511-Cl-5` | SIS safety lifecycle — phases, deliverables, and verification | 1.00 | ✔ 1 | full | 22.63.1 |
+| `IEC-61511-Cl-8-2-4` | Cybersecurity hazard analysis (CHA) — mandatory cybersecurity risk assessment for the SIS | 1.00 | ✔ 3 | full | 22.63.2, 22.63.5, 22.63.7 |
+| `IEC-61511-Cl-10` | SIS safety requirements specification (SRS) — SIL allocation per safety function | 1.00 | ✖ 0 | — | — |
+| `IEC-61511-Cl-11` | SIS design and engineering — separation from BPCS, fail-safe, fault tolerance, diagnostic coverage | 1.00 | ✔ 1 | full | 22.63.3 |
+| `IEC-61511-Cl-11-7-6` | Override / bypass / inhibit / force — operational restrictions and logging | 1.00 | ✔ 1 | full | 22.63.3 |
+| `IEC-61511-Cl-14` | Operation and maintenance — procedures, training, and competence | 1.00 | ✖ 0 | — | — |
+| `IEC-61511-Cl-16-3` | Proof testing — intervals, scope, and records | 1.00 | ✔ 1 | full | 22.63.4 |
+| `IEC-61511-Cl-17-2` | Management of change — impact assessment for SIS modification (including cyber-affecting changes) | 1.00 | ✔ 1 | full | 22.63.5 |
+| `ISA-TR84-00-09-s4` | Cybersecurity programme integrated with the SIS safety lifecycle | 1.00 | ✔ 2 | full | 22.63.2, 22.63.6 |
+| `ISA-TR84-00-09-s5` | Cybersecurity risk assessment (CRA) — zones, conduits, threat scenarios, countermeasures | 1.00 | ✔ 1 | partial | 22.63.6 |
+| `IEC-61508-Pt-1-Cl-7-4` | Overall SIL allocation — generic safety lifecycle (IEC 61508 root) | 0.50 | ✔ 2 | partial | 22.63.1, 22.63.4 |
+| `IEC-62443-3-2` | Cybersecurity risk assessment and zones-and-conduits partitioning (cross-referenced from IEC 61511 Cl.8.2.4) | 0.50 | ✔ 2 | full | 22.63.2, 22.63.7 |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `IEC-61511-Cl-10` | SIS safety requirements specification (SRS) — SIL allocation per safety function |
+| 1.00 | `IEC-61511-Cl-14` | Operation and maintenance — procedures, training, and competence |
+
+</details>
 
 ### IMO MSC.428(98) — `imo-msc-428-98`
 

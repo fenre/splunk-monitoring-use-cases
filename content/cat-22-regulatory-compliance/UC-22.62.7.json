@@ -1,0 +1,113 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.62.7",
+  "title": "DPDP 2023 §10 Significant Data Fiduciary register with India-based DPO appointment, periodic DPIA freshness, and annual independent data-audit cadence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Manufacturing",
+  "owner": "DPO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes Data Fiduciaries not designated as Significant Data Fiduciaries (SDF) by the Central Government — those have lighter §8 obligations but not the §10 SDF overlay. Excludes processing of personal data outside the territorial scope of the DPDP Act 2023 (§3).",
+  "evidence": "Saved search `UC-22.62.7` archived daily to `audit_evidence` with `cert_in_clause=\"DPDP-Sec-8\"`. Every SDF entity pins (sdf_designation_ref, dpo_name, dpo_india_resident, dpo_appointment_at, last_dpia_at, last_dpia_at_subject_count, last_audit_at, last_audit_status, risk_score).",
+  "compliance": [
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "DPDP-Sec-8",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 10 of the Digital Personal Data Protection Act 2023 empowers the Central Government to designate Significant Data Fiduciaries (SDFs) based on volume of personal data processed, sensitivity, risk of harm, and other factors. SDFs must additionally: (i) appoint a Data Protection Officer (DPO) based in India and accountable to the Board, (ii) appoint an independent data auditor, (iii) carry out periodic Data Protection Impact Assessments (DPIAs), (iv) carry out periodic audits, and (v) take other measures as prescribed. This UC enforces the three operational limbs — DPO appointment + India-residence + Board-accountability, periodic DPIA freshness, annual independent audit cadence.",
+      "controlObjective": "Demonstrates that every Significant Data Fiduciary has an India-resident DPO, current DPIAs, and a current annual independent audit.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `DPDP SDF Register` dashboard, the SDF designation notification from MeitY, the DPO appointment letter and India-residence attestation, the latest DPIA report, the latest independent-audit certificate.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#DPDP-Sec-8",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "cert-in",
+      "version": "2022-04-28-cert-in-directions-with-2023-dpdp",
+      "clause": "IT-Act-Sec-43A",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Section 43A IT Act 2000 + IT Rules 2011 expects 'reasonable security practices and procedures' (ISO 27001 or equivalent) for Sensitive Personal Data. The SDF controls in this UC (DPO + DPIA + audit) substantially exceed §43A's baseline and provide the supplementary DPDP layer that §43A anticipated.",
+      "controlObjective": "Contributes the personal-data-protection-overlay limb to §43A.",
+      "evidenceArtifact": "Same as the primary clause.",
+      "obligationRef": "cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#IT-Act-Sec-43A",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An SDF designated on 1 April 2026 has appointed a DPO who is resident in the US (non-India) and the last DPIA dates from January 2024. UC-22.62.7 MUST flag with risk_score=100.",
+    "negativeScenario": "The same SDF appoints an India-resident DPO with Board accountability, completes a DPIA every 12 months covering its high-risk processing operations, and engages an independent data auditor whose latest audit (passed) dates from October 2025. UC-22.62.7 MUST record risk_score=0."
+  },
+  "dataSources": "KV Store `dpdp_sdf_register_lookup` (sdf_entity_id, sdf_designation_ref, sdf_designation_at, dpo_name, dpo_designation, dpo_india_resident, dpo_board_accountable, dpo_appointment_at, sectoral_class). KV Store `dpdp_dpia_register_lookup` (sdf_entity_id, dpia_id, dpia_subject_processing, dpia_completed_at, dpia_risk_treatment_status). KV Store `dpdp_independent_audit_register_lookup` (sdf_entity_id, audit_id, auditor_name, audit_completed_at, audit_status, audit_findings_count).",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup dpdp_sdf_register_lookup\n| eval now_ts = now()\n| eval dpo_appointed = if(isnotnull(dpo_appointment_at), 1, 0)\n| eval dpo_india_compliant = if(dpo_india_resident = \"true\" AND dpo_board_accountable = \"true\", 1, 0)\n| join type=left sdf_entity_id [\n    | inputlookup dpdp_dpia_register_lookup\n    | stats max(dpia_completed_at) as last_dpia_at, latest(dpia_id) as last_dpia_id, latest(dpia_risk_treatment_status) as last_dpia_treatment_status by sdf_entity_id\n  ]\n| eval days_since_dpia = round((now_ts - last_dpia_at) / 86400, 1)\n| join type=left sdf_entity_id [\n    | inputlookup dpdp_independent_audit_register_lookup\n    | stats max(audit_completed_at) as last_audit_at, latest(audit_id) as last_audit_id, latest(audit_status) as last_audit_status, latest(audit_findings_count) as last_audit_findings by sdf_entity_id\n  ]\n| eval days_since_audit = round((now_ts - last_audit_at) / 86400, 1)\n| eval dpo_missing = if(dpo_appointed = 0, 1, 0)\n| eval dpo_offshore_or_unaccountable = if(dpo_appointed = 1 AND dpo_india_compliant = 0, 1, 0)\n| eval dpia_stale = if(days_since_dpia > 365, 1, 0)\n| eval dpia_missing = if(isnull(last_dpia_at), 1, 0)\n| eval dpia_treatment_open = if(last_dpia_treatment_status IN (\"open\",\"in-progress\",\"not-started\"), 1, 0)\n| eval audit_stale = if(days_since_audit > 365, 1, 0)\n| eval audit_failed = if(last_audit_status IN (\"failed\",\"adverse\",\"qualified\"), 1, 0)\n| eval audit_missing = if(isnull(last_audit_at), 1, 0)\n| eval risk_score = case(\n    dpo_missing = 1, 100,\n    dpo_offshore_or_unaccountable = 1, 100,\n    audit_failed = 1, 95,\n    dpia_missing = 1, 90,\n    audit_missing = 1, 90,\n    audit_stale = 1, 85,\n    dpia_stale = 1, 70,\n    dpia_treatment_open = 1 AND days_since_dpia > 180, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_since_audit\n| table sdf_entity_id sdf_designation_ref dpo_name dpo_india_resident dpo_board_accountable dpo_appointment_at last_dpia_at last_audit_at last_audit_status risk_score",
+  "description": "Enumerates every Significant Data Fiduciary entity and reconciles against the three §10 DPDP limbs: (i) DPO appointment + India-residence + Board-accountability, (ii) periodic DPIA freshness (annual cadence with risk-treatment closure), (iii) annual independent data-audit cadence (passed or qualified status). Critical-risk-score escalations: DPO missing, DPO not India-resident or not Board-accountable, audit failed (each risk_score=100 or 95).",
+  "value": "Section 10 SDF designation is the highest-tier of DPDP obligation — designation triggers significant operational cost (DPO compensation, independent auditor retainer, DPIA cadence). The Data Protection Board of India has signalled that SDF designations will start to flow from late-2025 onward; companies in social-media, payments, healthtech, edtech, and AI/ML are likely first-targets. Pre-emptive operational readiness (this UC) is materially cheaper than reactive uplift under regulatory inquiry.",
+  "implementation": "(1) Maintain `dpdp_sdf_register_lookup` from the SDF designation register (MeitY publications). (2) Maintain `dpdp_dpia_register_lookup` from the DPO office. (3) Maintain `dpdp_independent_audit_register_lookup` from the audit-committee. (4) Schedule UC-22.62.7 daily; route `risk_score = 100` to the Board (CRO + DPO + General Counsel) at severity P1.",
+  "visualization": "(Panel 1) SDF roster with DPO / DPIA / audit traffic-light. (Panel 2) DPIA-freshness heat map by processing operation. (Panel 3) Audit-status pie. (Panel 4) Compliance-posture trend (12 months).",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Digital Personal Data Protection Act 2023 — Section 10 (Significant Data Fiduciaries)",
+      "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf"
+    },
+    {
+      "title": "MeitY draft DPDP Rules consultation (January 2025)",
+      "url": "https://www.meity.gov.in/data-protection-framework"
+    }
+  ],
+  "knownFalsePositives": "1. **Pre-designation period**: a Data Fiduciary that has not been designated as an SDF by MeitY notification is not subject to §10 — load `sdf_designation_ref` only after designation. 2. **Transition window**: upon designation, the regulator typically allows a transition window for DPO appointment and DPIA execution — load `sdf_transition_until` to suppress for up to 90 days post-designation. 3. **DPO on extended leave with documented alternate**: a documented alternate may suffice for up to 60 days — load `dpo_alternate_attestation_ref`.\n\n**Suppression mechanism**: KV Store `dpdp_22_62_7_exceptions` with the Board CRO and DPO documented approval, an explicit sdf_entity_id scope, an expiry date, and a written justification.",
+  "requiredFields": [
+    "sdf_entity_id",
+    "dpo_name",
+    "dpo_india_resident",
+    "last_dpia_at",
+    "last_audit_at",
+    "risk_score"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "DPO + Board CRO + General Counsel + Internal Audit",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "DPO management platform (OneTrust / TrustArc / equivalent)",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance overlay)"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- An assigned DPO function (even pre-designation, recommended for early uplift).\n- A DPIA / audit register maintained by the DPO office.\n- A Board-Audit-Committee charter authorising the appointment of an independent data auditor.\n\n## Step 1 - SDF register KV Store\n\n```ini\n[dpdp_sdf_register_lookup]\nenforceTypes = true\nfield.sdf_entity_id = string\nfield.sdf_designation_ref = string\nfield.sdf_designation_at = time\nfield.dpo_name = string\nfield.dpo_designation = string\nfield.dpo_india_resident = string\nfield.dpo_board_accountable = string\nfield.dpo_appointment_at = time\nfield.sectoral_class = string\nfield.sdf_transition_until = time\nfield.dpo_alternate_attestation_ref = string\n```\n\n## Step 2 - DPIA register KV Store\n\n```ini\n[dpdp_dpia_register_lookup]\nenforceTypes = true\nfield.sdf_entity_id = string\nfield.dpia_id = string\nfield.dpia_subject_processing = string\nfield.dpia_completed_at = time\nfield.dpia_risk_treatment_status = string\n```\n\n## Step 3 - Independent audit register KV Store\n\n```ini\n[dpdp_independent_audit_register_lookup]\nenforceTypes = true\nfield.sdf_entity_id = string\nfield.audit_id = string\nfield.auditor_name = string\nfield.audit_completed_at = time\nfield.audit_status = string\nfield.audit_findings_count = number\n```\n\n## Step 4 - Schedule\n\n```ini\n[UC-22.62.7: DPDP SDF Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.7,reg=CERT-In,clause=DPDP-Sec-8\nalert.severity = 4\n```\n\n## Step 5 - Indian-jurisdiction-specific notes\n\n- **DPDP Rules consultation**: MeitY's January 2025 draft DPDP Rules sketch the SDF designation criteria but the operational thresholds (data-subject volumes, sensitivity-of-processing categories) will be finalised in the gazette-notified Rules. Keep `dpdp_sdf_register_lookup` aligned to the final Rules.\n- **Independent auditor accreditation**: the Rules are expected to specify an accreditation pathway for independent data auditors — until then, the audit-committee should reasonably-due-diligence the auditor's competence.",
+  "grandmaExplanation": "Indian law identifies some companies as handling especially sensitive personal data. Those companies must have a Data Protection Officer based in India and have their handling of personal data independently audited every year. We check daily that every such company has the right people and audits in place."
+}

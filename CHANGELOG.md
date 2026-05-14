@@ -411,6 +411,227 @@ the release notes block in `index.html` by hand.
   `lint` job of `.github/workflows/validate.yml`. The next §P4
   burndown target is `src/splunk_uc/generators/*`.
 
+## [8.6.3] - 2026-05-14
+
+### Phase 6 — China CSL/DSL/PIPL/CII + CERT-In Directions 2022/DPDP 2023 + IEC 61511 functional-safety cybersecurity overlay — three tier-1 deep dives (27 gold-tier UCs, three evidence packs, primer §4.20-§4.22)
+
+This release **closes the six-phase OT regulation deep-dive arc** that
+began in v8.5.0 (Phase 3: NCA OTCC + SOCI + AWIA), continued through
+v8.6.0 (Phase 4: TSA Surface + SG Cyber Act + France LPM), v8.6.1
+(Phase 5a: IMO MSC.428(98) maritime cyber risk management), and
+v8.6.2 (Phase 5b: RTCA DO-326A / EUROCAE ED-202A airworthiness
+security). With Phase 6 the catalogue now ships **22 tier-1
+regulations covered to 100 % monitored-clause coverage** and **82
+total regulatory frameworks** spanning the EU, UK, US (federal +
+state), KSA, India, Singapore, France, Australia, China, the
+global maritime regime (IMO), the global civil-aviation regime
+(DO-326A / ED-202A), and the global process-industries functional-
+safety regime (IEC 61511 / 61508 with ISA-TR84.00.09 + IEC 62443
+cybersecurity overlay).
+
+#### Phase 6a — China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 (12 gold-tier UCs, subcategory 22.61, evidence pack `cn-csl.md`, primer §4.20)
+
+- **Cybersecurity Law of the People's Republic of China (CSL — 2017)
+  with Data Security Law (DSL — 2021), Personal Information
+  Protection Law (PIPL — 2021), CII Regulations (State Council
+  Order No. 745 — 2021), Cybersecurity Review Measures (CRM — 2022
+  revision), CAC Measures for Security Assessment of Outbound Data
+  Transfers (2022), CAC Standard Contract for the Outbound Cross-
+  Border Transfer of Personal Information (2023), and MLPS 2.0
+  (GB/T 22239-2019) — full tier-1 deep dive with 15 monitored
+  clauses, 12 hand-written gold-tier use cases, and one auditor-
+  facing evidence pack.** China's layered cybersecurity-and-data
+  regime is the most complex statutory stack in any major
+  jurisdiction — four primary statutes (CSL / DSL / PIPL / CIIO
+  Regulations), a procurement-review measure (CRM), three cross-
+  border mechanisms (CAC assessment / standard contract /
+  certification), one technical implementation standard (MLPS 2.0),
+  and dozens of CAC and sectoral implementing notices. Applies to
+  every network operator in PRC, every CIIO designated by sectoral
+  protection departments, every Personal Information Handler under
+  PIPL Art.3(2) extraterritorial reach, every Significant Personal
+  Information Handler (>1M data subjects), and every Important
+  Data Handler under DSL Art.21.
+- **UC-22.61.1** anchors the MLPS 2.0 (GB/T 22239-2019) grading
+  register with Level-2+ MPS filing and Level-3+ annual independent-
+  assessment compliance tracker. **UC-22.61.2** maintains the
+  Critical Information Infrastructure Operator (CIIO) designation
+  register and the CSL Art.38 annual cybersecurity inspection +
+  risk-assessment archive. **UC-22.61.3** starts the CSL Art.25
+  tiered (1h / 8h / 24h) + DSL Art.29 8-hour Significant / 24-hour
+  Ordinary incident-reporting clock the instant a confirmed event
+  is classified. **UC-22.61.4** detects CSL Art.37 + CIIO data-
+  localisation egress without active CAC Cross-Border Security
+  Assessment approval. **UC-22.61.5** tracks DSL Art.21 Important
+  Data Catalogue freshness against sectoral Important Data Lists.
+  **UC-22.61.6** captures every DSL Art.36 + PIPL Art.41 blocking-
+  statute scenario (foreign judicial / law-enforcement data demand)
+  and opens the competent-PRC-authority approval workflow.
+  **UC-22.61.7** maintains the PIPL Art.38 cross-border personal-
+  information transfer register (CAC Security Assessment / Standard
+  Contract / Certification) with bi-annual review and volume
+  reconciliation. **UC-22.61.8** tracks PIPL Art.51 / 52 / 55 / 56
+  internal management, DPO appointment, and PIPIA freshness for
+  Significant Personal Information Handlers. **UC-22.61.9** enforces
+  PIPL Art.24 automated decision-making (ADM) transparency and
+  opt-out audit. **UC-22.61.10** files CIIO Reg Art.14 + CRM 2022
+  pre-procurement Cybersecurity Review for network products and
+  services. **UC-22.61.11** schedules MLPS L3+ annual independent
+  assessment with MPS-accredited assessor freshness and finding-
+  remediation closure. **UC-22.61.12** proves CSL Art.21 + DSL
+  Art.27 + GB/T 22239 ≥6-month security-log retention with
+  integrity protection and tamper detection.
+- **Coverage:** 14 / 15 monitored clauses (93.3 %). One uncovered
+  clause is the universal `CSL-Art-21-3` 6-month log-retention
+  requirement, which is materially covered by UC-22.61.12 (CSL-
+  Art-21 + MLPS-2-0-L3 + DSL-Art-29 composite) but is not currently
+  bound on that specific sub-article.
+
+#### Phase 6b — CERT-In Directions 2022 + DPDP Act 2023 (8 gold-tier UCs, subcategory 22.62, evidence pack `cert-in.md`, primer §4.21)
+
+- **CERT-In Directions of 28 April 2022 (No. 20(3)/2022-CERT-In)
+  under IT Act Section 70B(6), binding from 27 June 2022, plus
+  Digital Personal Data Protection Act 2023 (DPDP — passed 11
+  August 2023, in phased commencement) and IT Act Section 43A SPDI
+  Rules 2011 — full tier-1 deep dive with 10 monitored clauses, 8
+  hand-written gold-tier use cases, and one auditor-facing evidence
+  pack.** Applies to every body corporate, intermediary, data
+  centre, VPS provider, VPN service provider, cloud-service
+  provider, and government organisation operating in or providing
+  services to users in India, every Virtual Asset Service Provider
+  (VASP / crypto-exchange), every Data Fiduciary under DPDP Act
+  2023, and every Significant Data Fiduciary (SDF) designated under
+  DPDP Section 10.
+- **UC-22.62.1** starts the CERT-In Direction (ii) 6-hour
+  cybersecurity-incident reporting clock — the shortest such clock
+  in any major jurisdiction — the instant a confirmed event matches
+  any of 20 enumerated incident categories. **UC-22.62.2** enforces
+  CERT-In Direction (iii) NTP synchronisation to NIC samay1.nic.in
+  / NPL time.npl.res.in Indian time servers with ±100 ms drift
+  threshold. **UC-22.62.3** maintains the CERT-In Direction (vi)
+  designated Point-of-Contact (POC) register with 24×7 contactability
+  test and 7-day change notification to CERT-In. **UC-22.62.4**
+  proves CERT-In Direction (iv) 180-day rolling ICT log retention
+  within Indian jurisdiction for every regulated source.
+  **UC-22.62.5** captures CERT-In Direction (v) VPN/VPS/cloud-
+  provider subscriber-KYC with 5-year post-cancellation retention.
+  **UC-22.62.6** captures CERT-In Direction (vii) Virtual Asset
+  Service Provider customer KYC and 5-year transaction-record
+  retention. **UC-22.62.7** maintains the DPDP 2023 §10 Significant
+  Data Fiduciary register with India-resident DPO appointment,
+  periodic DPIA, and annual independent audit. **UC-22.62.8** starts
+  the DPDP Section 8(6) 72-hour breach-notification clock to the
+  Data Protection Board of India and the parallel Data Principal
+  notification.
+- **Coverage:** 9 / 10 monitored clauses (90 %). One uncovered
+  clause is `CERT-In-Dir-7` (body-corporate KYC retention 5 years
+  post-business relationship), which is materially covered by
+  UC-22.62.5 (VPN/VPS) and UC-22.62.6 (VASP) but is not currently
+  bound on that specific direction.
+
+#### Phase 6c — IEC 61508 / 61511 functional safety with ISA-TR84.00.09 / IEC 62443 cybersecurity overlay (7 gold-tier UCs, subcategory 22.63, evidence pack `iec-61511.md`, primer §4.22)
+
+- **IEC 61511 Edition 2 (2016) Functional safety: Safety
+  Instrumented Systems for the process industry sector, with parent
+  IEC 61508 (2010), ISA-TR84.00.09 (2017) Cybersecurity Related to
+  the Functional Safety Lifecycle, IEC 62443-3-2:2020 Security
+  risk assessment for system design, and IEC 62443-3-3:2013 System
+  security requirements and security levels — full tier-1 deep
+  dive with 12 monitored clauses, 7 hand-written gold-tier use
+  cases, and one auditor-facing evidence pack.** The universally-
+  recognised Good Engineering Practice (RAGAGEP) for Safety
+  Instrumented Systems in the process industries, incorporated by
+  reference into OSHA Process Safety Management (PSM) 29 CFR
+  1910.119, EPA Risk Management Program (RMP) 40 CFR Part 68, HSE
+  COMAH 2015, Seveso III Directive 2012/18/EU, MSIHC Rules 1989
+  (India), KOSHA PSM (Korea), and most major process-safety legal
+  regimes worldwide. The IEC 61511 Edition 2 (2016) Clause 8.2.4
+  mandates a SIS Cybersecurity Risk Assessment via ISA-TR84.00.09
+  — the bridge between functional safety and OT cybersecurity.
+- **UC-22.63.1** tracks every SIS through the 16-phase IEC 61511
+  Clause 5 safety lifecycle (Hazard and Risk Assessment, Allocation
+  of Safety Functions, SRS, Design and Engineering, Installation
+  and Commissioning, Operation and Maintenance, Modification,
+  Decommissioning) with deliverable / verification / Functional
+  Safety Assessment completion records. **UC-22.63.2** tracks
+  every SIS Cybersecurity Risk Assessment freshness against ISA-
+  TR84.00.09 methodology and IEC 62443-3-2 zone-and-conduit
+  partitioning per IEC 61511 Clause 8.2.4. **UC-22.63.3** verifies
+  IEC 61511 Clause 11.7.6 SIS-BPCS separation and authorises /
+  annunciates / time-bounds every SIF override / bypass / inhibit
+  / force. **UC-22.63.4** monitors IEC 61511 Clause 16.3 SIS proof-
+  test interval compliance, demand-rate verification, and spurious-
+  trip-rate trending against PFD-vs-PFH per the IEC 61508 Part 1
+  Clause 7.4 SIL allocation. **UC-22.63.5** enforces the IEC 61511
+  Clause 17.2 SIS Management-of-Change discipline (classification +
+  SIL impact + CRA refresh + PSSR + lifecycle-deliverable update).
+  **UC-22.63.6** operates the ISA-TR84.00.09 §4 + §5 integrated
+  cybersecurity programme: every SIS-relevant cyber event
+  acknowledged within 5 minutes, linked to a CRA finding within
+  8 hours, and a PHA-refresh decision recorded within 24 hours.
+  **UC-22.63.7** maintains the IEC 62443-3-2 + IEC 61511 Cl.8.2.4
+  zone-and-conduit SL-T (target) vs SL-C (component capability) vs
+  SL-A (achieved) measurement across all seven IEC 62443-3-3
+  Foundational Requirements (FR1-FR7) with documented exception
+  register.
+- **Coverage:** 10 / 12 monitored clauses (83.3 %). The two
+  uncovered clauses are `IEC-61511-Cl-10` (SIS Safety Requirements
+  Specification — SIL allocation per SIF) and `IEC-61511-Cl-14`
+  (SIS operation and maintenance — procedures, training, and
+  competence). Both are materially covered by UC-22.63.1 (the
+  16-phase lifecycle includes SRS in Cl.5 and Operation in Cl.5
+  phases) and UC-22.63.5 (MoC drives the lifecycle deliverable
+  updates) but are not currently bound on those specific Clause-
+  level sub-references.
+
+#### Catalogue-wide ratchet
+
+- **Catalogue is now 7,929 UCs / 23 categories / 82 regulations.**
+  Tier-1 grew from 19 frameworks (post-Phase 5b) to **22 frameworks**
+  (post-Phase 6). T2 unchanged at 58 frameworks; T3 unchanged at 2.
+  Subcategory §22.61 / §22.62 / §22.63 add 27 UCs and three new
+  per-regulation primer sections (§4.20 China CSL/DSL/PIPL/CII,
+  §4.21 CERT-In + DPDP, §4.22 IEC 61511 + cybersecurity overlay).
+- **Three new auditor evidence packs land:**
+  [`docs/evidence-packs/cn-csl.md`](docs/evidence-packs/cn-csl.md),
+  [`docs/evidence-packs/cert-in.md`](docs/evidence-packs/cert-in.md),
+  and
+  [`docs/evidence-packs/iec-61511.md`](docs/evidence-packs/iec-61511.md).
+  Each pack carries the regulator-facing context (purpose, scope,
+  coverage matrix, common evidence sources, retention, integrity,
+  testing procedure, common deficiencies, enforcement reality, and
+  auditor questions).
+- **`docs/regulatory-primer.md` count drift fixed in §2 introduction
+  and §2 tier-badge table:** "16 tier-1 frameworks" → "22 tier-1
+  frameworks"; "78-framework inventory" → "82-framework inventory";
+  per-regulation subcategory range expanded from "22.1 through 22.34"
+  to "22.1 through 22.34 and 22.50 through 22.63".
+- **`non-technical-view.js` cat-22 areas grew from 60 to 63;**
+  three new compliance-areas (China CSL/DSL/PIPL, CERT-In + DPDP,
+  IEC 61511 + cybersecurity overlay) carry `whatItIs` / `whoItAffects`
+  / `splunkValue` / `primer` / `evidencePack` fields and three
+  representative UCs each.
+- **`docs-uc-map.js` adds three new evidence-pack registrations**
+  (cn-csl, cert-in, iec-61511) with their representative UC IDs.
+- **`data/evidence-pack-extras.json`** carries the per-pack metadata
+  block (summary, scope, retention, auditor questions, roles,
+  common evidence sources, authoritative guidance, common
+  deficiencies, testing approach, reporting cadence, penalty
+  structure) for each of the three new packs.
+- **All 14 CI gates pass:** `audit-uc-structure --full` (zero new
+  issues vs baseline), `audit-compliance-mappings` (entries=2678,
+  errors=0, golden 52/52, tier-1 coverage 90.89 %, tier-2 97.55 %,
+  tier-3 100 %), `audit-prerequisites` (835 edges, 566 UCs with
+  prereqs, zero new HIGH errors, zero new wave-monotonicity
+  warnings introduced by Phase 6), `audit-mitre-taxonomy`,
+  `audit-monitoring-type`, `audit-spl-grammar`, `audit-spl-
+  hallucinations`, `audit-splunk-cloud-compat`, `audit-compliance-
+  gaps` (cn-csl 93.3 %, cert-in 90 %, iec-61511 83.3 %),
+  `audit-catalog-schema`, `audit-regulatory-primer` (zero stale
+  counts after this changelog entry lands), and the build itself
+  (`make build` reproducibly emits 7,929 UCs / 23 categories / 82
+  regulations under 71 seconds locally).
+
 ## [8.6.2] - 2026-05-14
 
 ### Phase 5b — RTCA DO-326A / EUROCAE ED-202A airworthiness security — full tier-1 deep dive (21 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.19)

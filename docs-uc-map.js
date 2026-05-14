@@ -242,6 +242,18 @@ var DOC_UC_MAP = {
     title: "Evidence Pack \u2014 RTCA DO-326A / EUROCAE ED-202A Airworthiness Security (Global Aviation)",
     ucs: ["22.60.1", "22.60.2", "22.60.3", "22.60.4", "22.60.5", "22.60.13", "22.60.14", "22.60.15", "22.60.16", "22.60.17"]
   },
+  "docs/evidence-packs/cn-csl.md": {
+    title: "Evidence Pack \u2014 China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 (PRC)",
+    ucs: ["22.61.1", "22.61.2", "22.61.3", "22.61.4", "22.61.6", "22.61.7", "22.61.10", "22.61.11", "22.61.12"]
+  },
+  "docs/evidence-packs/cert-in.md": {
+    title: "Evidence Pack \u2014 CERT-In Directions 2022 + DPDP Act 2023 (India)",
+    ucs: ["22.62.1", "22.62.2", "22.62.3", "22.62.4", "22.62.5", "22.62.6", "22.62.7", "22.62.8"]
+  },
+  "docs/evidence-packs/iec-61511.md": {
+    title: "Evidence Pack \u2014 IEC 61508/61511 Functional Safety + ISA-TR84.00.09 / IEC 62443 Cybersecurity Overlay (Global Process Industries)",
+    ucs: ["22.63.1", "22.63.2", "22.63.3", "22.63.4", "22.63.5", "22.63.6", "22.63.7"]
+  },
 
   /* ── Splunk Content Packs ────────────────────────────────────────────── */
   "docs/enterprise-deployment.md": {
