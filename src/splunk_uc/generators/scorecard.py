@@ -159,6 +159,41 @@ def _load_samples_coverage() -> set[str]:
     return out
 
 
+def _load_category_slugs(repo_root: Path = REPO_ROOT) -> dict[str, str]:
+    """Map category id (string) → canonical slug like ``cat-01-server-compute``.
+
+    The slug is the source of truth for both ``.github/CODEOWNERS`` rows
+    and the per-category drill-down anchors emitted by
+    :func:`render_markdown`. We read it from each directory's
+    ``_category.json`` rather than re-deriving it from the human name so
+    that a category rename never silently breaks CODEOWNERS routing.
+
+    Falls back to an empty mapping when ``content/`` is missing (tests
+    that pass a synthetic catalog) — callers should treat a missing
+    slug as a soft signal and emit ``cat-NN`` (no suffix) instead.
+    """
+    out: dict[str, str] = {}
+    content_dir = repo_root / "content"
+    if not content_dir.exists():
+        return out
+    for cat_dir in sorted(content_dir.glob("cat-*-*")):
+        if not cat_dir.is_dir():
+            continue
+        meta_path = cat_dir / "_category.json"
+        if not meta_path.exists():
+            continue
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        cat_id = meta.get("id")
+        slug = meta.get("slug")
+        if cat_id is None or not isinstance(slug, str) or not slug:
+            continue
+        out[str(cat_id)] = slug
+    return out
+
+
 def _grade(composite: float) -> str:
     if composite >= 85:
         return "Gold"
@@ -285,12 +320,34 @@ def _compute_category(
     )
 
 
-def render_markdown(scores: list[CategoryScore]) -> str:
+def render_markdown(
+    scores: list[CategoryScore],
+    slugs: dict[str, str] | None = None,
+) -> str:
+    """Render the per-category scorecard as markdown.
+
+    The optional ``slugs`` mapping (``{"1": "cat-01-server-compute", ...}``)
+    threads the canonical CODEOWNERS slugs through to the drill-down
+    section anchors. Pass an empty / ``None`` mapping when invoking the
+    generator against a synthetic catalog without a ``content/`` tree —
+    drill-down headings still render, but their anchors fall back to a
+    plain ``cat-NN`` form.
+    """
+    slugs = slugs or {}
+
     def fmt_pct(x: float) -> str:
         return f"{x:.1f}%"
 
     def fmt_days(d: float | None) -> str:
         return "—" if d is None else f"{int(d)}d"
+
+    def slug_for(cat_num: str) -> str:
+        existing = slugs.get(cat_num)
+        if existing:
+            return existing
+        if cat_num.isdigit():
+            return f"cat-{int(cat_num):02d}"
+        return f"cat-{cat_num}"
 
     # Global rollup
     total_ucs = sum(s.uc_count for s in scores)
@@ -352,6 +409,90 @@ def render_markdown(scores: list[CategoryScore]) -> str:
             "",
             "\\* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.",
             "",
+            "## Category drill-downs",
+            "",
+            "Per-category quality detail with a stable ID anchor for each",
+            "subsection. The anchor matches the canonical CODEOWNERS slug",
+            "(`cat-NN-<kebab-name>`), so each row in `.github/CODEOWNERS`",
+            "can deep-link to its scorecard view via",
+            "`docs/scorecard.md#cat-NN-<slug>` — see the comment block above",
+            "the per-category CODEOWNERS rows. Dimension weights match the",
+            "Methodology table above; the `Contribution` column shows the",
+            "weighted dimension score that feeds the composite.",
+            "",
+        ]
+    )
+    for s in sorted_scores:
+        slug = slug_for(s.cat_num)
+        mitre_score_cell = f"{s.mitre_pct:.0f}%" if s.security_count else "n/a"
+        mitre_contrib = (
+            s.mitre_pct * DIMENSION_WEIGHTS["mitre_pct"] if s.security_count else 0.0
+        )
+        sec_blurb = f"{s.uc_count:,} UCs ({s.security_count:,} security)"
+        fresh_label = (
+            "Freshness"
+            if s.freshness_median_days is None
+            else f"Freshness ({int(s.freshness_median_days)}d median)"
+        )
+        lines.extend(
+            [
+                f'<a id="{slug}"></a>',
+                f"### {s.cat_num}. {s.name} — **{_grade_badge(s.grade)}** ({s.composite:.1f})",
+                "",
+                f"- **Volume:** {sec_blurb}",
+                f"- **Content:** [`content/{slug}/`](../content/{slug}/)",
+                f"- **CODEOWNERS row:** `/content/{slug}/`",
+                "",
+                "| Dimension | Score | Weight | Contribution |",
+                "| --------- | ----- | ------ | ------------ |",
+                f"| Content depth | {s.content_depth:.0f} | 20% | "
+                f"{s.content_depth * DIMENSION_WEIGHTS['content_depth']:.1f} |",
+                f"| References | {fmt_pct(s.references_pct)} | 20% | "
+                f"{s.references_pct * DIMENSION_WEIGHTS['references_pct']:.1f} |",
+                f"| Provenance authority | {s.provenance_authority:.0f} | 20% | "
+                f"{s.provenance_authority * DIMENSION_WEIGHTS['provenance_authority']:.1f} |",
+                f"| {fresh_label} | {s.freshness_score:.0f} | 15% | "
+                f"{s.freshness_score * DIMENSION_WEIGHTS['freshness']:.1f} |",
+                f"| Known false positives | {fmt_pct(s.kfp_pct)} | 10% | "
+                f"{s.kfp_pct * DIMENSION_WEIGHTS['kfp_pct']:.1f} |",
+                f"| MITRE ATT&CK coverage | {mitre_score_cell} | 8% | "
+                f"{mitre_contrib:.1f} |",
+                f"| Sample fixtures | {fmt_pct(s.samples_pct)} | 7% | "
+                f"{s.samples_pct * DIMENSION_WEIGHTS['samples_pct']:.1f} |",
+                "",
+            ]
+        )
+        if s.depth_tier_distribution:
+            tier_parts = [
+                f"{tier.title()} {count:,}"
+                for tier, count in sorted(
+                    s.depth_tier_distribution.items(),
+                    key=lambda kv: -kv[1],
+                )
+            ]
+            lines.append("**Depth tiers:** " + " · ".join(tier_parts) + "")
+        if s.origin_distribution:
+            origin_parts = [
+                f"{origin} {count:,}"
+                for origin, count in sorted(
+                    s.origin_distribution.items(),
+                    key=lambda kv: -kv[1],
+                )
+            ]
+            lines.append("**Provenance origins:** " + " · ".join(origin_parts) + "")
+        if s.status_distribution:
+            status_parts = [
+                f"{status} {count:,}"
+                for status, count in sorted(
+                    s.status_distribution.items(),
+                    key=lambda kv: -kv[1],
+                )
+            ]
+            lines.append("**Status mix:** " + " · ".join(status_parts) + "")
+        lines.append("")
+
+    lines.extend(
+        [
             "## Grade distribution",
             "",
             "| Grade | Categories | Total UCs |",
@@ -439,6 +580,7 @@ def main(argv: list[str] | None = None) -> int:
         provenance = {"entries": {}}
 
     samples = _load_samples_coverage()
+    slugs = _load_category_slugs()
 
     scores: list[CategoryScore] = []
     for cat_entry in cat.get("DATA", []):
@@ -446,7 +588,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_write:
         DOC_PATH.parent.mkdir(parents=True, exist_ok=True)
-        DOC_PATH.write_text(render_markdown(scores), "utf-8")
+        DOC_PATH.write_text(render_markdown(scores, slugs), "utf-8")
         print(f"Wrote {DOC_PATH}")
 
         JSON_PATH.write_text(

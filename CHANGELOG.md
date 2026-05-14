@@ -12,6 +12,52 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **§P14 second half — per-category scorecard drill-downs with
+  stable CODEOWNERS anchors.** The first half of §P14 (PR #35,
+  2026-05-13) introduced the per-category `.github/CODEOWNERS`
+  scaffold and the structural test
+  (`tests/build/test_codeowners.py`) that locks every
+  `content/cat-NN-<slug>/` directory to its own routing row. The
+  plan's "sister deliverable" was a deep-linkable per-category
+  scorecard view so each CODEOWNERS row has somewhere
+  authoritative to land. This PR adds it. Three changes land
+  together: (1) The scorecard generator
+  (`src/splunk_uc/generators/scorecard.py`) gains a
+  `_load_category_slugs()` helper that reads each category's
+  canonical slug from `content/cat-NN-<slug>/_category.json` — so
+  the anchor system is sourced from the same place the directory
+  names and CODEOWNERS rows are, not from a re-derived
+  kebab-case of the human name. `render_markdown()` now emits a
+  new `## Category drill-downs` section after the master per-
+  category table, with one drill-down per category. Each
+  drill-down carries an `<a id="cat-NN-<slug>"></a>` anchor
+  (matching the CODEOWNERS slug exactly), a one-line header
+  showing composite + grade + UC counts, a dimension breakdown
+  table that includes per-dimension `Contribution` (the weighted
+  score that feeds the composite — readers can finally see *why*
+  a category's composite landed where it did), and a one-line
+  summary of depth tiers, provenance origins, and status mix.
+  (2) `.github/CODEOWNERS` gains a comment block above the per-
+  category rows pointing readers at the matching scorecard
+  anchors (`docs/scorecard.md#cat-NN-<slug>`) — the structural
+  invariant from PR #35 already enforced row-presence; this PR
+  makes the readable cross-link explicit. (3) A new structural
+  test, `tests/build/test_scorecard_drilldowns.py`, pins the
+  three-way alignment that PR #35's CODEOWNERS test only locked
+  for two: it asserts every content directory has a matching
+  anchor in the scorecard, every anchor maps back to a real
+  directory (no orphan anchors after a category retires), and
+  each drill-down block references its own content directory (no
+  copy-paste mistakes pointing one cat at another). Together
+  with the existing CODEOWNERS test, CODEOWNERS rows, content
+  directories, and scorecard anchors are now locked in three-way
+  alignment that cannot silently drift. The regenerated
+  `docs/scorecard.md` grows from 81 lines to 575 lines (one
+  drill-down per category × 23 categories + section frame); the
+  byte-equality contract in `validate.yml` continues to enforce
+  that the committed file matches the generator. P14's progress-
+  doc row flips from `PARTIAL` to `DONE (2026-05-14)`.
+
 - **Close §P3 — absorb the "proposed `docs/architecture-2027.md`"
   placeholder.** The plan §P3 row carried a final hanging item:
   the plan proposed authoring `docs/architecture-2027.md` as a
