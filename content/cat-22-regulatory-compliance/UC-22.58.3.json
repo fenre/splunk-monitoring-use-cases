@@ -1,0 +1,99 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.58.3",
+  "title": "France LPM Politique de Sécurité des Systèmes d'Information de Maîtrise des Conditions d'Accès et de Sécurité (PSSI-MCAS) compliance scorecard",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "OIV",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes documented derogations in `lpm_pssi_mcas_derogation_lookup` with active ANSSI approval.",
+  "evidence": "Saved search `UC-22.58.3` archived every 12 hours to `audit_evidence` with `lpm_clause=\"LPM-PSSI-MCAS-Art-R1332-41-2\"`. Every row pins (oiv_id, pssi_section, control_id, control_state, last_audited_at, derogation_id, mcas_compliance).",
+  "compliance": [
+    {
+      "regulation": "fr-lpm",
+      "version": "2013-2018-with-anssi-2024-decrees",
+      "clause": "FR-ANSSI-rule-governance-cyber-officer",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Code de la défense Art. R.1332-41-2 plus ANSSI règles techniques d'hygiène impose 20 rules of cyber hygiene applicable to OIV SAIV (knowledge of the IS, ID/access management, IT resources, network management, administration, nomadism, maintenance, physical access, supervision, response). 'Partial' because OIV operational diversity (energy vs water vs banking) leads to legitimate variation in implementation.",
+      "controlObjective": "Proves PSSI-MCAS implementation across the 20 règles d'hygiène with auditor-facing evidence.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `LPM PSSI-MCAS Scorecard` dashboard, PASSI auditor evidence packs, derogation register.",
+      "obligationRef": "fr-lpm@2013-2018-with-anssi-2024-decrees#FR-ANSSI-rule-governance-cyber-officer",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark a PSSI control as non-conformant (e.g., admin nomadism without ANSSI-grade VPN). UC-22.58.3 MUST flag within 12h.",
+    "negativeScenario": "Bring control into conformance with PASSI audit evidence. UC-22.58.3 MUST resolve."
+  },
+  "dataSources": "PASSI auditor reports (`passi:audit`). PSSI-MCAS register `lpm_pssi_mcas_controls_lookup` (oiv_id, section, control_id, control_name, control_state, last_audited_at, last_audit_id, derogation_id, evidence_artifact). Derogation register `lpm_pssi_mcas_derogation_lookup` (oiv_id, control_id, derogation_id, anssi_approved_at, valid_until, rationale).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup lpm_pssi_mcas_controls_lookup\n| join type=left oiv_id control_id [| inputlookup lpm_pssi_mcas_derogation_lookup | where valid_until > now() | rename derogation_id as active_derogation]\n| eval days_since_audit = round((now() - last_audited_at) / 86400, 0)\n| eval mcas_compliance = case(\n    control_state = \"conformant\", \"conformant\",\n    control_state = \"non_conformant\" AND isnotnull(active_derogation), \"derogated\",\n    control_state = \"non_conformant\", \"non_conformant\",\n    control_state = \"partial\" AND days_since_audit > 365, \"stale\",\n    control_state = \"partial\", \"partial\",\n    1=1, \"unknown\")\n| where mcas_compliance IN (\"non_conformant\",\"stale\",\"unknown\")\n| table oiv_id section control_id control_name control_state last_audited_at days_since_audit active_derogation mcas_compliance",
+  "description": "Reads PSSI-MCAS controls register and reconciles state vs PASSI audit cadence + active derogations.",
+  "value": "PSSI-MCAS conformity is the binary criterion for an ANSSI/PASSI audit pass.",
+  "implementation": "(1) Populate PSSI-MCAS register from current PASSI audit. (2) Maintain derogation register with ANSSI signatures. (3) Schedule UC-22.58.3 every 12h. (4) Build the `LPM PSSI-MCAS Scorecard` dashboard.",
+  "visualization": "(Panel 1) PSSI section heat-map. (Panel 2) Derogation register. (Panel 3) Audit-currency timeline. (Panel 4) Outstanding non-conformities by OIV.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "ANSSI — Règles d'hygiène applicable au SAIV (20 règles)",
+      "url": "https://cyber.gouv.fr/publications/regles-dhygiene-applicables-aux-saiv"
+    },
+    {
+      "title": "PASSI référentiel d'agrément",
+      "url": "https://cyber.gouv.fr/passi"
+    }
+  ],
+  "knownFalsePositives": "1. **Audit timing**: PASSI audits are typically tri-annual; some controls may be reviewed off-cycle.\n2. **Cross-OIV variation**: operational reality varies (e.g., energy vs banking); pin context.\n3. **Derogation lapse**: derogations have firm `valid_until`; renew or remove.\n\n**Suppression mechanism**: KV Store `lpm_22_58_3_exceptions` with PASSI auditor's documented note and 12-month max grant.",
+  "requiredFields": [
+    "oiv_id",
+    "control_id",
+    "mcas_compliance"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "LPM Compliance SME Panel + RSSI + Délégué OIV + PASSI auditor",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "passi-auditor-tooling"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "PASSI auditor evidence (typically Excel-XLSX exports + signed PDF report)"
+  ],
+  "mitreAttack": [
+    "N/A (compliance governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.58.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- PSSI-MCAS register populated from current PASSI audit.\n\n## Step 1 — PSSI-MCAS register\n\n```ini\n[lpm_pssi_mcas_controls_lookup]\nenforceTypes = true\nfield.oiv_id = string\nfield.section = string\nfield.control_id = string\nfield.control_name = string\nfield.control_state = string\nfield.last_audited_at = number\nfield.last_audit_id = string\nfield.derogation_id = string\nfield.evidence_artifact = string\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.3: LPM PSSI-MCAS Scorecard]\ncron_schedule = 19 */12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.3,reg=FR-LPM,clause=LPM-PSSI-MCAS-Art-R1332-41-2\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`mcas_compliance=non_conformant`** (owner: RSSI, severity P2):\n1. Within 7 days: prepare PASSI-evidence remediation note.\n2. Within 30 days: implement remediation; obtain PASSI re-validation.\n3. Within 90 days: optionally pursue ANSSI-approved derogation if remediation is infeasible.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Linguistic variations in PSSI section names**: ANSSI publications use stable section IDs; pin those.\n- **PASSI auditor diversity**: different PASSI shops use different evidence formats; normalise.\n- **Évolution de la PSSI-MCAS**: ANSSI updates periodically; reconcile against current arrêté.",
+  "grandmaExplanation": "L'ANSSI publie 20 règles d'hygiène cyber pour les opérateurs vitaux. Nous suivons le respect de chaque règle, les écarts et les dérogations autorisées."
+}

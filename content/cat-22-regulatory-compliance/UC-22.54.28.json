@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.28",
+  "title": "CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes interim reviews triggered by an actual incident (those are post-incident reviews, governed by tabletop UC-22.54.24). Excludes statutory reviews under SEC or NERC (those follow separate KPI cadences). Excludes ad hoc reviews requested for M&A due diligence.",
+  "evidence": "Saved search `UC-22.54.28` archived monthly to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-tabletop\"` and `circia_clause=\"CIRCIA-CISA-incident-classification\"`. Every row pins (review_id, review_year, kpi_72hr_sla_met, kpi_24hr_sla_met, kpi_supplemental_sla_met, kpi_classification_sla_met, kpi_retention_sla_met, board_review_at, board_review_signed_by, kpi_status). Dashboard `CIRCIA — Annual SLA KPI Review` shows the rolling 5-year KPI trend.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-tabletop",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Annual KPI review complements the annual tabletop by quantifying real-world reporting performance.",
+      "controlObjective": "Proves the entity reviews its CIRCIA-SLA performance at board level at least annually and acts on findings.",
+      "evidenceArtifact": "Saved search `UC-22.54.28` archived to `audit_evidence`, the `CIRCIA — Annual SLA KPI Review` dashboard, and the board-minute extract.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-tabletop",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-incident-classification",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Classification SLA is one of the KPIs reviewed.",
+      "controlObjective": "Inherits the control objective from the primary compliance entry on this UC; this is a secondary mapping covering the same evidence chain.",
+      "evidenceArtifact": "Inherited from the primary compliance entry: saved search archived to audit_evidence with regulatory clause tag, dashboard, SOAR case file, and evidence pack.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-incident-classification",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Skip the annual KPI review for the current FY; UC-22.54.28 MUST flag `kpi_status=\"annual_review_overdue\"` within 14 days of FY-end.",
+    "negativeScenario": "Conduct annual review with board signed minute capturing the five KPIs; UC-22.54.28 MUST record `kpi_status=\"current\"`."
+  },
+  "dataSources": "Aggregate of all CIRCIA UCs' summary metrics in `audit_evidence`. KV Store `circia_kpi_review_lookup`. ServiceNow GRC for board-meeting tracking.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup circia_kpi_review_lookup\n| eval now_ts = now()\n| eval fy_end_at = strptime(review_year . \"-12-31\", \"%Y-%m-%d\")\n| eval days_since_fy_end = round((now_ts - fy_end_at) / 86400, 0)\n| eval kpi_status = case(\n    review_year < tonumber(strftime(now_ts, \"%Y\")) - 1 AND isnull(board_review_at), \"annual_review_overdue\",\n    isnull(board_review_at) AND days_since_fy_end > 60, \"annual_review_overdue\",\n    isnull(board_review_at), \"annual_review_pending\",\n    isnull(board_review_signed_by), \"annual_review_unsigned\",\n    1=1, \"current\")\n| where kpi_status != \"current\"\n| table review_id review_year kpi_72hr_sla_met kpi_24hr_sla_met kpi_supplemental_sla_met kpi_classification_sla_met kpi_retention_sla_met board_review_at board_review_signed_by kpi_status",
+  "description": "Tracks the annual board-level review of CIRCIA-SLA KPIs. Surfaces overdue or unsigned reviews.",
+  "value": "Quantitative performance review at board level closes the loop on CIRCIA programme maturity. Without it, the entity has no objective measure of whether the programme is improving over time.",
+  "implementation": "(1) SOAR `circia-kpi-prefill` runs at FY-end and aggregates the five KPIs into a draft review row. (2) CISO presents to board cyber-risk committee. (3) Board signs minute; row is updated. (4) Schedule UC-22.54.28 monthly.",
+  "visualization": "(Panel 1) Rolling 5-year KPI trend. (Panel 2) Annual review status. (Panel 3) Year-over-year delta on each KPI. (Panel 4) Remediation-action tracking from past reviews.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "NACD Cyber Risk Oversight — KPI Best Practices",
+      "url": "https://www.nacdonline.org/"
+    }
+  ],
+  "knownFalsePositives": "1. **Board cadence offset** — some boards meet on FY+90 day cadence; review may be done within Q1 of the new FY. Suppression: extend grace to 90 days post-FY-end.\n\n**Suppression mechanism**: KV Store `circia_22_54_28_exceptions` with documented Corporate Secretary approval and 60-day maximum grant.",
+  "requiredFields": [
+    "review_id",
+    "review_year",
+    "kpi_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + Corporate Secretary + CISO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "ServiceNow GRC (board-meeting tracking)"
+  ],
+  "mitreAttack": [
+    "N/A (governance performance review)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.22",
+    "UC-22.54.24",
+    "UC-22.54.26"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_kpi_review_lookup`.\n- SOAR `circia-kpi-prefill`.\n\n## Step 1 — Review collection\n\n```ini\n[circia_kpi_review_lookup]\nenforceTypes = true\nfield.review_id = string\nfield.review_year = number\nfield.kpi_72hr_sla_met = number\nfield.kpi_24hr_sla_met = number\nfield.kpi_supplemental_sla_met = number\nfield.kpi_classification_sla_met = number\nfield.kpi_retention_sla_met = number\nfield.board_review_at = number\nfield.board_review_signed_by = string\nfield.remediation_actions = string\n```\n\n## Step 2 — Prefill playbook\n\n`circia-kpi-prefill` runs at FY-end (12/31) and writes a row with each KPI aggregated.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.28: CIRCIA Annual SLA KPI Review]\ncron_schedule = 0 6 1 * *\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.28,reg=CIRCIA\naction.notable.param.rule_title = CIRCIA annual KPI review overdue or unsigned\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `annual_review_overdue`** (owner: CISO, severity P3): within 30 days schedule and conduct review; document.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Negative KPI trend**: if KPIs decline year-over-year, the board must direct remediation. Track actions in `remediation_actions` field.\n- **Multi-year baseline**: provide 3-year baseline so single-year anomalies don't drive over-reaction.",
+  "grandmaExplanation": "Once a year, the company shows its board of directors: 'how well did our cyber-incident reporting machine work this year?' We track 5 numbers (deadlines met, on-time reports, complete records). The board signs the report and tells us what to improve next year."
+}

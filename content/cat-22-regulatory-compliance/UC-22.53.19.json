@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.19",
+  "title": "EPA / CISA Top Cyber Actions for Water Utilities — evidence the 9-item baseline (internet exposure, assessments, defaults, inventory, IR, backups, vulns, training, MFA) is implemented and reviewed",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes items that EPA or CISA may have retired in a published refresh of the Top Actions list. Excludes items not applicable to a system's architecture (e.g. MFA-on-remote-access where no remote access exists) where the inapplicability is documented in `awia_top_action_inapplicability_lookup`.",
+  "evidence": "Saved search `UC-22.53.19` archived daily to `audit_evidence` with `awia_clause=\"AWIA-EPA-aware-checklist\"`. Every row pins (pwsid, action_id, action_name, action_category, implementation_status, evidence_url, last_reviewed_at, residual_risk, action_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-EPA-aware-checklist",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences the EPA / CISA 9-item Top Cyber Actions for Water Utilities are implemented with evidence URLs and reviewed annually.",
+      "controlObjective": "Proves AWIA EPA / CISA baseline-cyber-actions coverage.",
+      "evidenceArtifact": "Saved search `UC-22.53.19` archived; per-action evidence URLs.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-aware-checklist",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Action `change_default_passwords` shows `implementation_status=\"not_started\"`. UC-22.53.19 MUST surface with `action_status=\"action_open\"`.",
+    "negativeScenario": "Same action `implementation_status=\"implemented\"`, evidence URL present, reviewed within 12 months. UC-22.53.19 MUST record `action_status=\"current\"`."
+  },
+  "dataSources": "GRC top-action register, evidence repository, internet-exposure scanner, CISA KEV alignment.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup awia_top_actions_lookup\n| eval action_status = case(\n    implementation_status IN (\"not_started\",\"unknown\") OR isnull(implementation_status), \"action_open\",\n    isnull(evidence_url), \"undocumented\",\n    isnull(last_reviewed_at) OR (now() - last_reviewed_at) > (365 * 86400), \"review_overdue\",\n    implementation_status=\"partial\", \"action_partial\",\n    1=1, \"current\")\n| table pwsid action_id action_name action_category implementation_status evidence_url last_reviewed_at residual_risk action_status",
+  "description": "Cross-references the EPA / CISA 9-item Top Actions list per CWS, surfacing not-started, partial, undocumented, or review-overdue items.",
+  "value": "AWIA RRAs that ignore the Top Actions are routinely flagged in EPA audits. This UC keeps the checklist auditable.",
+  "implementation": "(1) Maintain `awia_top_actions_lookup` (9 rows per pwsid). (2) Daily UC-22.53.19. (3) Archive.",
+  "visualization": "(Panel 1) Top-actions RAG by CWS. (Panel 2) Action-category rollup.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "EPA — Top Actions for Securing Water Systems",
+      "url": "https://www.epa.gov/waterresilience/forms/water-sector-cybersecurity"
+    },
+    {
+      "title": "CISA — Pathway to Cybersecurity for Water and Wastewater Sector",
+      "url": "https://www.cisa.gov/water"
+    }
+  ],
+  "knownFalsePositives": "1. **Item inapplicable** — documented; suppression by lookup.\n\n**Suppression**: `awia_22_53_19_exceptions`; 90-day max.",
+  "requiredFields": [
+    "pwsid",
+    "action_id",
+    "implementation_status",
+    "evidence_url",
+    "action_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC Controls module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "T1133",
+    "T1078"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.1 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_top_actions_lookup`.\n\n## Step 1 — Configure data collection\n\nSeed 9 rows per pwsid:\n\n1. `reduce_internet_exposure` (action_category=`exposure`)\n2. `regular_cyber_assessments` (`assessment`)\n3. `change_default_passwords` (`auth`)\n4. `inventory_ot_it_assets` (`inventory`)\n5. `incident_response_recovery_plans` (`ir`)\n6. `back_up_systems_data` (`resilience`)\n7. `reduce_exposure_to_vulnerabilities` (`patching`)\n8. `cyber_awareness_training` (`training`)\n9. `mfa_remote_access` (`auth`)\n\nGRC tracks `implementation_status` (`not_started`, `partial`, `implemented`), `evidence_url`, `last_reviewed_at`, `residual_risk`.\n\n## Step 2 — Create the search and alert\n\nDaily 10:00.\n\n```ini\n[UC-22.53.19: AWIA Top Actions]\ncron_schedule = 0 10 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.19,reg=AWIA,clause=AWIA-EPA-aware-checklist\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: any not_started; UC fires.  Negative: all current; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Top Actions`. Runbook: CISO accountable for closure; quarterly review.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **EPA Top Actions refresh**: EPA / CISA refresh the list periodically (the 8-item earlier list became 9 with internet-exposure separation); the lookup is the source of truth and must be refreshed on every publication.\n- **CISA Pathway alignment**: cross-reference UCs in this series cover each Pathway phase.",
+  "grandmaExplanation": "EPA and CISA wrote a top-9 list of the most important cyber things every water utility must do. We track each of the 9 per utility and ring the bell if any one is missing, incomplete, or hasn't been re-checked in a year."
+}

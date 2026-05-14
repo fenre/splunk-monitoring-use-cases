@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.13",
+  "title": "CLC/TS 50701 Cyber-Safety Coordinated Incident Response — IR Commander and Safety Lead joint command for every rail-cyber incident",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes purely-IT incidents with no rail-safety nexus (those follow general IT-IR procedures). Excludes incidents involving formally decommissioned assets. Excludes drill or exercise events (those are tracked in UC-22.55.28).",
+  "evidence": "Saved search `UC-22.55.13` archived every 5 minutes to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c8-4\"`. Every row pins (incident_id, ir_commander_id, safety_lead_id, joint_command_opened_at, safety_assessment_signed_at, ops_director_concurrence_at, incident_status). Dashboard `CLC/TS 50701 — Cyber-Safety IR` shows live coordination posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c8-4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.4 requires cybersecurity incident response coordinated with safety incident response. Rail-cyber incidents with safety potential require joint IR-Commander + Safety-Lead command; UC-22.55.13 instruments the joint-command opening and decision audit. Marked 'full'.",
+      "controlObjective": "Proves every rail-cyber-incident with safety potential has joint command opened, safety assessment signed, and operations concurrence within SLAs.",
+      "evidenceArtifact": "Saved search `UC-22.55.13` archived to `audit_evidence`, the `CLC/TS 50701 — Cyber-Safety IR` dashboard, and per-incident joint-command minutes.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c8-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a P1 rail-OT incident in ServiceNow SIR but do NOT assign `safety_lead_id` within 1 hour. UC-22.55.13 MUST flag `incident_status=\"safety_lead_missing\"`.",
+    "negativeScenario": "Assign IR Commander, Safety Lead, sign joint command opening, sign safety assessment within 2 hours, get Ops Director concurrence. UC-22.55.13 MUST record `incident_status=\"joint_command_active\"`."
+  },
+  "dataSources": "ServiceNow SIR (`snow:sir`). KV Store `rail_ir_joint_command_lookup`. SOAR `rail-cyber-safety-ir` playbook for IR Commander and Safety Lead pages.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=snow_sir sourcetype=\"snow:sir\" priority IN (1,2) AND category=\"rail-OT\"\n| eval ticket_opened_at = strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| where ticket_opened_at > relative_time(now(), \"-7d\")\n| lookup rail_ir_joint_command_lookup incident_id AS sys_id OUTPUT ir_commander_id safety_lead_id joint_command_opened_at safety_assessment_signed_at ops_director_concurrence_at\n| eval ticket_age_hours = round((now() - ticket_opened_at) / 3600, 1)\n| eval incident_status = case(\n    isnull(ir_commander_id) AND ticket_age_hours > 0.5, \"ir_commander_missing\",\n    isnull(safety_lead_id) AND ticket_age_hours > 1, \"safety_lead_missing\",\n    isnull(joint_command_opened_at) AND ticket_age_hours > 1.5, \"joint_command_missing\",\n    isnull(safety_assessment_signed_at) AND ticket_age_hours > 2, \"safety_assessment_overdue\",\n    isnull(ops_director_concurrence_at) AND ticket_age_hours > 4, \"ops_concurrence_overdue\",\n    isnotnull(joint_command_opened_at) AND isnotnull(safety_assessment_signed_at) AND isnotnull(ops_director_concurrence_at), \"joint_command_active\",\n    1=1, \"pending\")\n| where incident_status IN (\"ir_commander_missing\",\"safety_lead_missing\",\"joint_command_missing\",\"safety_assessment_overdue\",\"ops_concurrence_overdue\")\n| table sys_id ticket_opened_at ticket_age_hours ir_commander_id safety_lead_id joint_command_opened_at safety_assessment_signed_at ops_director_concurrence_at incident_status",
+  "description": "Cross-references P1/P2 rail-OT SIR tickets with joint-command, safety-assessment, and ops-concurrence records. Surfaces SLA breaches.",
+  "value": "Cyber incidents on rail systems can trigger safety consequences. Without coordinated command, the technical and safety responses diverge. This UC ensures joint command is opened and operationalised promptly.",
+  "implementation": "(1) SOAR `rail-cyber-safety-ir` on rail-OT P1/P2 ticket creation auto-pages IR Commander, Safety Lead, Ops Director. (2) Joint-command opening recorded by IR Commander. (3) Safety Lead signs safety assessment. (4) Ops Director concurs. (5) Schedule UC-22.55.13 every 5 minutes.",
+  "visualization": "(Panel 1) Live joint-command dashboard. (Panel 2) SLA-breach queue. (Panel 3) Coordination-latency distribution. (Panel 4) Incident history with command-record links.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 8.4",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "EN 50126:2017 — RAMS",
+      "url": "https://www.cenelec.eu/dyn/www/f?p=104:110:0::::FSP_PROJECT,FSP_LANG_ID:62049,25"
+    }
+  ],
+  "knownFalsePositives": "1. **After-hours initial response** — night-shift initial assignment may take 30 minutes. Suppression: extend grace by 30 minutes for nights.\n\n2. **Multi-site incident with multiple Safety Leads** — the lookup supports multi-Safety-Lead assignment.\n\n**Suppression mechanism**: KV Store `clc_22_55_13_exceptions` with documented IR-Commander approval and 4-hour maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "ir_commander_id",
+    "safety_lead_id",
+    "incident_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Head of Safety + IR Director",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-cyber-safety-ir playbook)",
+    "ServiceNow SIR (Security Incident Response)"
+  ],
+  "mitreAttack": [
+    "N/A (incident-response coordination)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.2",
+    "UC-22.55.12"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `rail-cyber-safety-ir` playbook.\n- ServiceNow SIR + `rail-OT` category.\n- KV Store `rail_ir_joint_command_lookup`.\n\n## Step 1 — Joint-command collection\n\n```ini\n[rail_ir_joint_command_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.ir_commander_id = string\nfield.ir_commander_assigned_at = number\nfield.safety_lead_id = string\nfield.safety_lead_assigned_at = number\nfield.joint_command_opened_at = number\nfield.safety_assessment_signed_at = number\nfield.safety_assessment_outcome = string\nfield.ops_director_concurrence_at = number\nfield.ops_director_id = string\n```\n\n## Step 2 — SOAR playbook\n\nOn P1/P2 rail-OT ticket creation:\n\n1. Page IR Commander (severity P1, 30-min ack).\n2. Page Safety Lead (severity P1, 60-min ack).\n3. Page Ops Director (severity P2, 4-hour ack).\n4. Create joint-command record.\n5. Track concurrence steps.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.13: CLC/TS 50701 Joint Cyber-Safety IR]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.13,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-4\naction.notable.param.rule_title = Rail cyber-safety joint command SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `safety_lead_missing`** (owner: IR Commander, severity P1): page Safety Lead immediately; escalate to Head of Safety after 30 minutes.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Operational-impact decisions**: Safety Lead must decide whether to stop or slow trains; integrate with operations command.\n- **NIS2 reporting bridge**: see UC-22.55.14.",
+  "grandmaExplanation": "When something cyber-bad happens to our railway, the IT-investigator and the safety-officer must work side-by-side from the start. We monitor: is the IT-investigator on the case? Is the safety-officer on the case? Has the safety-officer signed an assessment? If anyone is missing, the loud bell rings."
+}

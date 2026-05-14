@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.23",
+  "title": "Third-Party and Supply-Chain Cybersecurity Assurance for OT",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "third-party-activity",
+  "exclusions": "Excludes IT-only vendors. Excludes one-off transactional suppliers without OT touch (office supplies, catering). Excludes pre-onboarding due-diligence stage — covered by procurement; this UC begins at the contract-effective date.",
+  "evidence": "Saved search `UC-22.51.23` archived daily to `audit_evidence` with `otcc_clause=\"OTCC-4-1-1-1\"`. Each row preserves (vendor_id, vendor_name, ot_engagement_scope, last_security_assessment_at, security_assessment_outcome, contractual_security_addendum_status, incident_history_count, sbom_received_flag, attestation_overdue_flag, addendum_missing_flag, sbom_missing_flag, breach_history_in_last_12mo). Dashboard `NCA OTCC – Third-Party OT Assurance` shows vendor coverage matrix and 13-month trend.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-4-1-1-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Tracks every OT-engaging vendor through the assurance lifecycle: assessment recency, contractual addendum (security clause), SBOM (Software Bill of Materials) for software vendors, and breach-history monitoring. Combined with UC-22.51.24 (vendor remote access), this satisfies the third-party assurance control.",
+      "controlObjective": "Proves OT vendors maintain documented cybersecurity assurance: periodic re-assessment, security clauses in contracts, SBOMs for software components, and tracked incident history.",
+      "evidenceArtifact": "Saved search `UC-22.51.23` archived to `audit_evidence` plus the `NCA OTCC – Third-Party OT Assurance` dashboard.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-4-1-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a test OT vendor `OTCC-TEST-VENDOR-001` to `ot_vendor_register.csv` with `contract_effective_at` over 14 months ago and no `last_security_assessment_at`. UC-22.51.23 MUST flag the vendor with `attestation_overdue_flag=true` and route an alert.",
+    "negativeScenario": "A vendor with current assessment (within 12 months), signed addendum, SBOM received, and no recent breach MUST NOT be flagged."
+  },
+  "dataSources": "`index=vendor_assurance sourcetype=\"servicenow:vendor:assessment\"`, `index=audit_evidence` for SBOM ingestion, public-breach-feed cross-reference (`hibp:breach`, `ransomwhere:victim`, internal threat-intel feed). Lookups: `ot_vendor_register.csv`.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup ot_vendor_register.csv\n| where ot_scope_flag=\"true\" AND contract_state=\"active\"\n| eval contract_effective_at_epoch = strptime(contract_effective_at, \"%Y-%m-%d\")\n| join vendor_id type=left [search index=vendor_assurance sourcetype=\"servicenow:vendor:assessment\" earliest=-13mon | dedup vendor_id | rename outcome AS security_assessment_outcome | table vendor_id last_security_assessment_at security_assessment_outcome addendum_signed_at addendum_status]\n| eval last_security_assessment_at_epoch = strptime(last_security_assessment_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval days_since_assessment = round((now() - last_security_assessment_at_epoch)/86400)\n| eval attestation_overdue_flag = if(isnull(last_security_assessment_at_epoch) OR days_since_assessment > 365, \"true\", \"false\")\n| eval addendum_missing_flag = if(addendum_status NOT IN (\"signed\",\"active\"), \"true\", \"false\")\n| join vendor_id type=left [search index=vendor_assurance sourcetype=\"vendor:sbom\" earliest=-13mon | dedup vendor_id software_component | stats values(software_component) AS sbom_components count AS sbom_component_count BY vendor_id]\n| eval sbom_required_flag = if(vendor_type=\"software\", \"true\", \"false\")\n| eval sbom_received_flag = if(sbom_component_count > 0, \"true\", \"false\")\n| eval sbom_missing_flag = if(sbom_required_flag=\"true\" AND sbom_received_flag=\"false\", \"true\", \"false\")\n| join vendor_name type=left [search index=threat (sourcetype=\"hibp:breach\" OR sourcetype=\"ransomwhere:victim\" OR sourcetype=\"vendor:breach_disclosure\") earliest=-12mon | stats count AS breach_history_in_last_12mo BY vendor_name]\n| eval breach_history_in_last_12mo = coalesce(breach_history_in_last_12mo, 0)\n| where attestation_overdue_flag=\"true\" OR addendum_missing_flag=\"true\" OR sbom_missing_flag=\"true\" OR breach_history_in_last_12mo > 0\n| table vendor_id vendor_name vendor_type ot_engagement_scope contract_effective_at last_security_assessment_at days_since_assessment security_assessment_outcome addendum_status sbom_received_flag sbom_component_count breach_history_in_last_12mo attestation_overdue_flag addendum_missing_flag sbom_missing_flag\n| sort - attestation_overdue_flag addendum_missing_flag breach_history_in_last_12mo sbom_missing_flag",
+  "description": "Reconciles every active OT vendor against the assurance lifecycle (assessment recency, contractual addendum, SBOM coverage, breach history) and flags gaps for the OT cybersecurity programme.",
+  "value": "Supply-chain attacks (SolarWinds, NotPetya/M.E.Doc, Kaseya) prove OT is downstream of every vendor in its stack. NCA OTCC requires continuous vendor assurance, not a one-time tick. This UC produces that continuous evidence.",
+  "implementation": "(1) Build `ot_vendor_register.csv` from procurement plus the OT cybersecurity engineering team's known vendor list. (2) Onboard ServiceNow Vendor Risk Management module events. (3) Ingest SBOMs as JSON via HEC into `index=vendor_assurance` with `sourcetype=vendor:sbom`. (4) Onboard a vendor-breach feed (HIBP, ransomwhere, internal TI). (5) Schedule UC-22.51.23 daily.",
+  "visualization": "(Panel 1) Single-value 'Vendors needing assessment', 'Missing addendums', 'SBOMs missing', 'Vendor breaches 12mo'. (Panel 2) Vendor matrix table sortable. (Panel 3) Breach-feed alerts. (Panel 4) 13-month trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "NIST SP 800-161r1 — Cybersecurity Supply Chain Risk Management",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-161/rev-1/final"
+    },
+    {
+      "title": "CISA Software Bill of Materials guidance",
+      "url": "https://www.cisa.gov/sbom"
+    }
+  ],
+  "knownFalsePositives": "1. **New vendor in onboarding** — a vendor in the first 90 days may legitimately not have an assessment yet. Suppression: `contract_effective_at < now() - 90 days` for the assessment-overdue rule.\n\n2. **Vendor breach disclosure unrelated to the OT product** — a large vendor may be breached but the breach affects only a non-OT product line. Suppression: maintain `vendor_breach_scope_review.csv` listing breaches reviewed and judged out of scope.\n\n3. **SBOM not yet industry-standard for some product classes** — some niche OT products lack vendor SBOMs. Suppression: `sbom_required_flag=false` for those vendor_types with `sbom_substitute=manual_attestation`.\n\n**Suppression mechanism**: KV Store `otcc_22_51_23_exceptions`.",
+  "requiredFields": [
+    "vendor_id",
+    "vendor_name",
+    "contract_effective_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "T1195",
+    "T1078.003"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.44.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow Vendor Risk Management module (or equivalent: Archer, MetricStream, RSA, Galvanize).\n- HEC token for SBOM ingestion.\n- Threat-intel feed for vendor breach disclosures.\n- `index=vendor_assurance` (84-month retention for evidence continuity), `index=threat`, `index=audit_evidence`.\n- Lookups:\n  - `ot_vendor_register.csv` — owned by Head of OT Security plus Procurement. Columns: `vendor_id`, `vendor_name`, `vendor_type` (`software`, `hardware`, `services`, `consultancy`), `ot_engagement_scope`, `ot_scope_flag`, `contract_effective_at`, `contract_state`, `procurement_owner`. Refreshed monthly.\n  - KV Store `otcc_22_51_23_exceptions`.\n\n## Step 1 — Configure data collection\n\nServiceNow VRM events:\n\n```ini\n[snow://vendor_assessments]\nrest_endpoint = sn_vdr_risk_assessment\nrecord_type = json\ninterval = 21600\nindex = vendor_assurance\nsourcetype = servicenow:vendor:assessment\n```\n\nSBOM ingestion: each vendor on annual cadence delivers a CycloneDX or SPDX JSON manifest; the OT cybersecurity engineering team uploads via a small webhook to a HEC endpoint scoped to `index=vendor_assurance sourcetype=vendor:sbom`. The schema includes `vendor_id`, `software_component`, `version`, `license`, `known_cves`.\n\nBreach-disclosure feed: HIBP enterprise API for breached-company events.\n\n## Step 2 — Create the search and alert\n\nFour flags as described in the SPL.\n\n**Schedule**:\n\n```ini\n[UC-22.51.23: Third-Party and Supply-Chain Cybersecurity Assurance for OT]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.23,reg=NCA_OTCC,clause=OTCC-4-1-1-1\naction.email.to = ot-cyber-programme@example.com,procurement@example.com\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Vendor register coverage: every active OT-engagement vendor present.\n\n**(b)** Assessment events flow from ServiceNow.\n\n**(c)** SBOM stream non-empty for software vendors.\n\n**(d)** Positive control per `controlTest.positiveScenario`.\n\n**(e)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Third-Party OT Assurance`.\n\n- **Row 1, single values**: 'Vendors needing assessment', 'Missing addendums', 'SBOMs missing', 'Vendor breaches 12mo'.\n- **Row 2, sortable table**: vendors with drill-through to ServiceNow VRM and to procurement contract.\n- **Row 3, breach feed**: timeline of vendor breaches in scope.\n- **Row 4, 13-month trend**.\n\n**Runbook for `attestation_overdue_flag=true`** (owner: Head of OT Security with Procurement): open a P3 ticket. Schedule the assessment within 30 days. Notify vendor.\n\n**Runbook for `breach_history_in_last_12mo>0`**: investigate the breach scope. Determine whether OT-relevant. If yes: open P2; engage vendor for impact analysis; consider contractual breach-notification clause.\n\n## Step 5 — Troubleshooting\n\n**Vendor name mismatch between procurement and threat-intel** — normalise vendor names via `vendor_name_canonical.csv` keyed on aliases.\n\n**OT-specific failure modes**:\n\n- **Component sub-suppliers** (a controller vendor may use a third-party RTOS): the SBOM should expose components; cross-reference with UC-22.51.7 vulnerability management for known CVEs against listed components.\n- **Long-tail OT vendors** (specialist sensor manufacturers): may not produce SBOMs. Document via `sbom_substitute=manual_attestation` and capture vendor-issued declarations in audit_evidence.\n- **JV / consortium suppliers**: clarify which entity is contractually obligated; both may need to be tracked.\n- **Open-source upstream dependencies** in vendor products: the SBOM exposes these; vulnerability tracking via UC-22.51.7 and KEV (CISA).",
+  "grandmaExplanation": "We keep an eye on every company that has anything to do with our plant computers. We check that we have looked at them recently, that the contract says they must be secure, that they tell us what software they ship, and that they haven't been in the news lately for the wrong reasons.",
+  "equipmentModels": [
+    "ServiceNow GRC Vendor Risk Management (vrm_assessment, vrm_finding tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, GRC + VRM modular inputs)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index with vendor markers)",
+    "Optional: BlackKite / SecurityScorecard rating feed via HEC for external attestation"
+  ]
+}

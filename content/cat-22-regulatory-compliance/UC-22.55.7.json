@@ -1,0 +1,103 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.7",
+  "title": "CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes zones formally exempt from SL-T due to legacy air-gap status. Excludes zones in early-commissioning phase with documented interim assessment. Excludes hypothetical zones.",
+  "evidence": "Saved search `UC-22.55.7` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c7-1\"`. Every row pins (zone_id, sl_target_overall, sl_t_AC, sl_t_UC, sl_t_DI, sl_t_TRE, sl_t_RDF, sl_t_RA, sl_t_RA, sl_t_set_at, sl_t_justification, sl_t_status). Dashboard `CLC/TS 50701 — SL-T Coverage` shows SL-T currency.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c7-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 7.1 requires Target Security Levels (SL-T) per zone, per IEC 62443-3-3's 7 foundational requirements (AC, UC, DI, TRE, RDF, RA, TRE). Each FR has its own SL-T (1-4). UC-22.55.7 instruments SL-T determination and justification.",
+      "controlObjective": "Proves every zone has SL-T set for all 7 FRs with documented justification.",
+      "evidenceArtifact": "Saved search `UC-22.55.7` archived to `audit_evidence`, the `CLC/TS 50701 — SL-T Coverage` dashboard, and the SL-T justification document.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c7-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `sl_t_AC` to null for a high-risk zone (e.g., RBC zone). UC-22.55.7 MUST flag `sl_t_status=\"slt_incomplete\"`.",
+    "negativeScenario": "Set all 7 SL-T fields (AC, UC, DI, TRE, RDF, RA, TRE) to defined values 1-4 with justification documents. UC-22.55.7 MUST record `sl_t_status=\"current\"`."
+  },
+  "dataSources": "KV Store `rail_sl_register_lookup`. ServiceNow GRC SL-T determination documents. Cross-reference to `rail_zoneconduit_lookup` (UC-22.55.4).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_sl_register_lookup\n| where zone_status=\"active\"\n| eval now_ts = now()\n| eval slt_age_months = if(isnotnull(sl_t_set_at), round((now_ts - sl_t_set_at) / 86400 / 30, 1), null())\n| eval slt_completeness = if(isnotnull(sl_t_AC) AND isnotnull(sl_t_UC) AND isnotnull(sl_t_DI) AND isnotnull(sl_t_TRE) AND isnotnull(sl_t_RDF) AND isnotnull(sl_t_RA) AND isnotnull(sl_t_TRC), 1, 0)\n| eval sl_t_status = case(\n    isnull(sl_t_set_at), \"slt_missing\",\n    slt_completeness=0, \"slt_incomplete\",\n    slt_age_months > 24, \"slt_stale\",\n    isnull(sl_t_justification) OR sl_t_justification=\"\", \"justification_missing\",\n    1=1, \"current\")\n| where sl_t_status != \"current\"\n| table zone_id sl_t_AC sl_t_UC sl_t_DI sl_t_TRE sl_t_RDF sl_t_RA sl_t_TRC sl_t_set_at slt_age_months sl_t_status",
+  "description": "Verifies every zone has all 7 IEC 62443-3-3 FR SL-T values set with current justification.",
+  "value": "SL-T is the contract between risk assessment and downstream SR/CR work. An incomplete SL-T register cascades into mis-aligned controls. This UC ensures completeness.",
+  "implementation": "(1) Maintain `rail_sl_register_lookup`. (2) Risk Manager + Signal Engineering Lead jointly set SL-T per zone with documented justification. (3) Schedule UC-22.55.7 weekly Monday 04:30.",
+  "visualization": "(Panel 1) SL-T heatmap (zone vs FR). (Panel 2) Justification-coverage. (Panel 3) Stale-zone queue.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IEC 62443-3-3 — System security requirements and security levels",
+      "url": "https://webstore.iec.ch/publication/7033"
+    },
+    {
+      "title": "CLC/TS 50701:2021 clause 7.1",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-defined zone** — 90-day commissioning grace.\n\n2. **Single-FR omission accepted** — in rare cases a specific FR may be NA for a zone; documented as `sl_t_FR=NA` with justification.\n\n**Suppression mechanism**: KV Store `clc_22_55_7_exceptions` with documented Risk Manager approval and 60-day maximum grant.",
+  "requiredFields": [
+    "zone_id",
+    "sl_t_AC",
+    "sl_t_UC",
+    "sl_t_DI",
+    "sl_t_TRE",
+    "sl_t_RDF",
+    "sl_t_RA",
+    "sl_t_TRC",
+    "sl_t_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Risk Manager",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "mitreAttack": [
+    "N/A (security-target-level governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_sl_register_lookup`.\n\n## Step 1 — SL register collection\n\n```ini\n[rail_sl_register_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.zone_status = string\nfield.sl_t_AC = number\nfield.sl_t_UC = number\nfield.sl_t_DI = number\nfield.sl_t_TRE = number\nfield.sl_t_RDF = number\nfield.sl_t_RA = number\nfield.sl_t_TRC = number\nfield.sl_t_set_at = number\nfield.sl_t_justification = string\n```\n\nIEC 62443-3-3 foundational requirements (FRs):\n- AC = Identification and authentication control\n- UC = Use control\n- DI = System integrity\n- TRE = Data confidentiality\n- RDF = Restricted data flow\n- RA = Timely response to events\n- TRC = Resource availability\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.7: CLC/TS 50701 SL-T Coverage]\ncron_schedule = 30 4 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.7,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-1\naction.notable.param.rule_title = Rail SL-T incomplete or missing\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `slt_incomplete` or `slt_missing`** (owner: Risk Manager, severity P2):\n\n1. Within 60 days: complete SL-T determination with Engineering and document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **High SL-T zones often have high CAPEX implications**: documenting SL-T high creates implementation pressure; this is by design.\n- **IEC 62443-3-3 vs IEC 62443-4-2 mapping**: SL-T drives SR (zone-level, UC-22.55.8) and CR (component-level, UC-22.55.9).",
+  "grandmaExplanation": "For every zone of our railway, we set how strong its cyber-protection should be — like setting how many locks each door needs. There are 7 categories (passwords, what users can do, data integrity, data secrecy, network restrictions, response time, system availability) and we set each one 1–4."
+}

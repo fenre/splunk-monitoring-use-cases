@@ -1,0 +1,118 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.6",
+  "title": "SOCI s 30BD other (significant) cyber incident — 72-hour ASD notification SLA timer",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents that the IR Commander has formally classified as 'significant impact on availability' (those route through UC-22.52.5's 12-hour SLA). Excludes incidents with no relevant impact (`classification=not_in_scope`). Excludes exercises and tabletops.",
+  "evidence": "Saved search `UC-22.52.6` archived every 15 minutes to `audit_evidence` with `soci_clause=\"SOCI-s30BD\"`. Every row pins (incident_id, asset_id, classification, awareness_at, asd_notification_at, hours_to_notification, notification_status, notification_channel, notification_recipient, oral_or_written, ir_commander). Dashboard `SOCI — s 30BD 72-Hour Notification Tracker` shows the live countdown for every active soci_other incident and the 365-day SLA distribution.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s30BD",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every cyber incident classified as 'relevant impact but not significant' is notified to ASD, (b) the notification is made within 72 hours of awareness, and (c) the notification artefact is retained. Combined with UC-22.52.7 (84-hour written follow-up), this is sufficient evidence of s 30BD — hence 'full'.",
+      "controlObjective": "Proves the entity meets the 72-hour ASD notification obligation for cyber incidents having a relevant (but not significant) impact on an in-scope critical infrastructure asset.",
+      "evidenceArtifact": "Saved search `UC-22.52.6` archived to `audit_evidence`, the `SOCI — s 30BD 72-Hour Notification Tracker` dashboard, and per-incident ASD notification receipt artefacts. The per-incident timeline export, signed by the IR Commander, is filed in the Rule 10 annual report.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s30BD",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Run a tabletop emitting an `ir:classification classification=soci_other` event. Suppress the corresponding `ir:asd_notification` event. After 60 hours UC-22.52.6 MUST emit `pre_breach_warning`; after 72 hours it MUST emit `slo_breached`.",
+    "negativeScenario": "Run the same tabletop; this time emit `ir:asd_notification` within 60 hours. UC-22.52.6 MUST record `notification_status=\"on_time\"`, `hours_to_notification ≤ 60`, and MUST NOT emit any breach notable."
+  },
+  "dataSources": "Cyber-incident classification events (`index=ir sourcetype=\"ir:classification\" classification=\"soci_other\"`), ASD-notification events (`index=ir sourcetype=\"ir:asd_notification\"`). In-scope asset lookup `soci_inscope_assets_lookup`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4395), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4395,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4395",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=ir sourcetype=\"ir:classification\" classification=\"soci_other\" earliest=-14d@d\n| dedup incident_id sortby - _time\n| rename _time AS classified_at\n| eval awareness_at = coalesce(awareness_at, classified_at)\n| lookup soci_inscope_assets_lookup asset_id OUTPUT inscope asset_class\n| where inscope=\"true\"\n| join type=left incident_id [\n    search index=ir sourcetype=\"ir:asd_notification\" earliest=-14d@d\n    | dedup incident_id sortby _time\n    | rename _time AS asd_notification_at, channel AS notification_channel, recipient AS notification_recipient, oral_or_written AS notification_form\n    | fields incident_id asd_notification_at notification_channel notification_recipient notification_form\n]\n| eval hours_to_notification = if(isnotnull(asd_notification_at), round((asd_notification_at - awareness_at) / 3600, 1), round((now() - awareness_at) / 3600, 1))\n| eval notification_status = case(\n    isnotnull(asd_notification_at) AND hours_to_notification <= 72, \"on_time\",\n    isnotnull(asd_notification_at) AND hours_to_notification > 72, \"breached_but_lodged\",\n    isnull(asd_notification_at) AND hours_to_notification > 72, \"slo_breached\",\n    isnull(asd_notification_at) AND hours_to_notification > 60, \"pre_breach_warning\",\n    1=1, \"in_progress\")\n| table incident_id asset_id asset_class awareness_at asd_notification_at hours_to_notification notification_status notification_channel notification_recipient notification_form",
+  "description": "Tracks the 72-hour SOCI s 30BD notification SLA for cyber incidents classified as 'relevant impact but not significant'. Emits a pre-breach warning at 60 hours and a breach notable at 72 hours if no ASD-notification event has been received.",
+  "value": "s 30BD is the most common SOCI notification because the threshold is lower than s 30BC; missing it is the most common cause of CISC enforcement action against entities that otherwise have a mature programme. This UC keeps the 72-hour timer always-on so the IR team focuses on incident response while compliance is automatic.",
+  "implementation": "(1) Re-use the IR ticketing classification webhook from UC-22.52.5; the only difference is the `classification` value. (2) Re-use the SOAR ASD-notification playbook; the playbook has both 12h and 72h pathways and picks the right one based on classification. (3) Schedule UC-22.52.6 every 15 minutes (less tight than UC-22.52.5's 5-minute schedule because the SLA is 6x longer). (4) Route `pre_breach_warning` to CISO email digest; route `slo_breached` to ES notable severity=critical + CISO mobile. (5) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Live countdown panel: every active `soci_other` incident, hours-remaining bar. (Panel 2) Sortable table: every incident in the last 365 days. (Panel 3) Distribution histogram: hours-to-notification across the year with the 72-hour boundary marked. (Panel 4) MTTN trend per quarter (target line at 48 hours — a 24-hour buffer).",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure Act 2018 (Cth) — s 30BD",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "CISC — Mandatory cyber incident reporting",
+      "url": "https://www.cisc.gov.au/legislation-regulation-and-compliance/cybersecurity-obligations"
+    },
+    {
+      "title": "Splunk SOAR — Playbook automation",
+      "url": "https://splunkbase.splunk.com/app/4395"
+    }
+  ],
+  "knownFalsePositives": "1. **Tabletop / exercise events** — must be filtered via `exercise=true`.\n\n2. **Classification escalated to soci_significant** — the IR Commander upgrades after initial assessment; the 12-hour SLA takes over from UC-22.52.5 and this UC's timer becomes moot. The re-classification event with the upgraded classification suppresses this UC for that incident_id.\n\n3. **Awareness-time disputes** — same as UC-22.52.5.\n\n4. **Out-of-band notification** — same as UC-22.52.5.\n\n**Suppression mechanism**: KV Store `soci_22_52_6_exceptions` with joint IR Commander + CISO sign-off; max grant 36 hours.",
+  "requiredFields": [
+    "incident_id",
+    "asset_id",
+    "awareness_at",
+    "asd_notification_at",
+    "hours_to_notification",
+    "notification_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, ES Incident Review framework + notable urgency)",
+    "Splunk SOAR (Splunkbase 4395, SOCI 72-hour notification playbook — same playbook as UC-22.52.5 with branching)",
+    "ServiceNow IR / SecOps (Vancouver / Washington, sn_si_incident table)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)"
+  ],
+  "mitreAttack": [
+    "T1565",
+    "T1078",
+    "T1190"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.52.5 deployed and operational. UC-22.52.6 re-uses every artefact (HEC tokens, lookups, SOAR playbook) and only differs in the search predicate, SLA boundary, and cadence.\n- Splunk Enterprise ≥9.2 or Splunk Cloud, ES 7.x, SOAR.\n- `index=ir` (5-year retention online), `index=audit_evidence` (7-year retention online).\n- IR classification taxonomy includes `soci_other` (this is the SOCI Act's 'relevant impact' band, not the higher 'significant impact' band that triggers s 30BC).\n- SOAR playbook handles branching: at incident classification time, the playbook reads `soci_classification` and either arms the 12-hour or 72-hour SLA. Both arms share the same notification template; only the urgency level differs.\n- ES notable framework configured with `incident_response` security domain.\n\n## Step 1 — Configure data collection\n\nThe data feeds are identical to UC-22.52.5. The only configuration difference is that the IR ticketing system must emit a distinct `ir:classification` event for `soci_other` (not bundled with `soci_significant`).\n\nValidate:\n\n```spl\nindex=ir sourcetype=ir:classification earliest=-1y\n| stats count by classification\n```\n\nExpect to see `soci_significant`, `soci_other`, `not_in_scope`, possibly `exercise`. The mix of `soci_significant` to `soci_other` is the SOC's de-facto severity model and should be reviewed quarterly.\n\n## Step 2 — Create the search and alert\n\nThe search predicate filters `classification=soci_other` instead of `soci_significant`; the SLA boundary is 72 hours instead of 12. Everything else is the same.\n\nSchedule:\n\n```ini\n[UC-22.52.6: SOCI s 30BD 72-hour ASD notification SLA timer]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -14d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.6,reg=SOCI,clause=SOCI-s30BD\naction.notable.param.rule_title = SOCI s 30BD ASD notification SLA approaching or breached\naction.notable.param.security_domain = incident_response\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity is critical and urgency=High for `slo_breached`; medium for `pre_breach_warning`; archive every row.\n\nSOAR playbook triggers:\n\n- `pre_breach_warning` → Teams alert to CISO + IR Commander, expecting completion within 12 hours.\n- `slo_breached` → SMS to CISO; activate self-disclosure for Rule 10 annual report.\n\n## Step 3 — Validate deployment\n\n**(a) Quarterly tabletop**: every quarter, run a `soci_other` tabletop. Verify pre_breach_warning at T+60h and slo_breached at T+72h.\n\n**(b) MTTN baseline**: expected MTTN is 24–48 hours. >48h sustained is a process gap.\n\n**(c) Classification balance**: every IR shift handover review the classification mix. A spike in `soci_other` without root-cause attribution may indicate over-cautious classification.\n\n**(d) Lookup integrity**: same as UC-22.52.5.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — s 30BD 72-Hour Notification Tracker`.\n\nSimilar layout to UC-22.52.5 with target line at 48h. A combined `SOCI — Cyber Notification Tracker` dashboard rolling both UCs is often easier for the SOC.\n\n**Runbook for `pre_breach_warning`** (owner: IR Commander, severity P2):\n\n1. Within 4 hours: confirm IR Commander is actively notifying. Most `soci_other` incidents have ample time, so a pre-breach warning indicates the notification step has been overlooked, not that the IR is late.\n2. If genuinely blocked: escalate to CISO; pull in additional resources.\n\n**Runbook for `slo_breached`** (owner: CISO, severity P1):\n\n1. Within 1 hour: complete the notification regardless.\n2. Within 4 hours: activate self-disclosure for the Rule 10 annual report.\n3. Document root cause; classification escalation pathways and IR-commander-on-call coverage are common gaps.\n4. Self-report in the next Rule 10 annual report.\n\n## Step 5 — Troubleshooting\n\nSame as UC-22.52.5. Additional consideration: ensure the SOAR playbook's classification branching is well-tested; a logic bug that routes `soci_other` through the 12-hour arm (or vice-versa) is a subtle but consequential bug.\n\n**SOCI-specific failure modes**:\n\n- **Late escalation**: an incident initially `soci_other` may be escalated to `soci_significant` after 24 hours. The 12-hour clock for s 30BC restarts at the upgrade time (not at the original awareness time) per CISC interpretation.\n- **Multiple sibling incidents**: a cyber-campaign affecting multiple in-scope assets may emit multiple `ir:classification` events; consolidation into one notification covering all is permitted. The UC tolerates this via per-incident tracking, and the consolidated notification's `incident_id` field carries an mvfield list of the affected sibling incident_ids.\n- **Service-restoration notification**: SOCI does not currently require post-incident closure notifications, but CISC has expressed interest in adding this in a future Rules amendment; the playbook should be extensible.",
+  "grandmaExplanation": "When a less-serious cyber attack hurts one of our most important systems, the law says we have three days (seventy-two hours) to tell the government. We start a count-down clock, gently nudge at sixty hours, and ring the loud bell at seventy-two if no one has made the call."
+}

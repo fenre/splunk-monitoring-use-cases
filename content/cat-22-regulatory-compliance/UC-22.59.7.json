@@ -1,0 +1,137 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.7",
+  "title": "Integrated Bridge System (IBS) configuration-baseline drift detection — Wartsila NACOS / Kongsberg K-Bridge / Furuno IBS / Sperry VMFT baseline-hash surveillance",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Configuration",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes scheduled OEM software updates explicitly approved by the Chief Engineer and the DPA via change-control. Excludes drydock-period maintenance windows.",
+  "evidence": "Saved search `UC-22.59.7` archived hourly to `audit_evidence` with `imo_clause=\"IACS-UR-E26-r3\"`. Every row pins (imo_number, ibs_platform, component, baseline_hash, observed_hash, drift_class, drift_indicator).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IACS-UR-E26-r3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "IACS UR E26 r3 requires secure configuration baselines on CBS (cyber-resilient systems). This UC verifies the baseline hourly.",
+      "controlObjective": "Demonstrates a current, signed configuration baseline on every fleet IBS and detects drift within 1 hour.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO IBS Baseline Health` dashboard, the IBS configuration-baseline register.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IACS-UR-E26-r3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s2-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 2.3 (Detect) of MSC-FAL.1/Circ.3 Rev.2 requires detection of cyber events including configuration anomalies.",
+      "controlObjective": "Aligns IBS drift detection with the §2.3 Detect function.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s2-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An unauthorised configuration change on the IBS (e.g. an enabled remote-debug port). UC-22.59.7 MUST flag drift_indicator=true within 1 hour with drift_class=config-mutation.",
+    "negativeScenario": "All IBS components match baseline hash. UC-22.59.7 MUST record drift_indicator=false."
+  },
+  "dataSources": "OEM IBS audit logs: Wartsila NACOS Platinum (`wartsila:nacos:audit`), Kongsberg K-Bridge (`kongsberg:kbridge:audit`), Furuno FMD-3300 (`furuno:ecdis:audit`), Sperry Marine VisionMaster FT (`sperry:vmft:audit`). KV Store `imo_ibs_baseline_lookup`. Windows audit logs from IBS workstations (`WinEventLog:Security`). Linux audit logs from IBS servers (`linux:audit`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Unix and Linux (Splunkbase 833), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=\"wartsila:nacos:audit\" OR sourcetype=\"kongsberg:kbridge:audit\" OR sourcetype=\"furuno:ecdis:audit\" OR sourcetype=\"sperry:vmft:audit\")\n| eval observed_hash = sha256(config_blob)\n| lookup imo_ibs_baseline_lookup imo_number ibs_platform component OUTPUT baseline_hash baseline_date\n| eval drift_class = case(\n    isnull(baseline_hash), \"missing-baseline\",\n    observed_hash != baseline_hash, \"config-mutation\",\n    1=1, null)\n| eval drift_indicator = if(isnotnull(drift_class), \"true\", \"false\")\n| where drift_indicator = \"true\"\n| stats latest(observed_hash) AS observed_hash latest(baseline_hash) AS baseline_hash latest(drift_class) AS drift_class latest(_time) AS last_seen by imo_number ibs_platform component\n| eval drift_indicator = \"true\"\n| sort 0 imo_number ibs_platform",
+  "description": "Inspects every IBS audit-log entry across the fleet; computes the SHA-256 hash of the configuration blob; compares against the per-vessel baseline hash; raises a notable on drift within 1 hour.",
+  "value": "Configuration drift on IBS is a classic indicator of unauthorised remote access by a vendor engineer, an insider, or an attacker. The drift may be benign (a forgotten debug port) or malicious (a persistence implant). Either way the SMS requires it be caught and corrected.",
+  "implementation": "(1) Enable extended audit logging on each OEM IBS (most OEMs require a service-engineer enablement). (2) Define and seed `imo_ibs_baseline_lookup` with SHA-256 hashes of each component's golden configuration. (3) Schedule UC-22.59.7 hourly; route drift_indicator=true to the Fleet Cyber Lead + Chief Engineer at severity P2.",
+  "visualization": "(Panel 1) Drift count per vessel (last 24h). (Panel 2) Per-OEM platform drift distribution. (Panel 3) Drift-class breakdown (missing-baseline / config-mutation). (Panel 4) Top components by drift frequency.",
+  "cimModels": [
+    "Change",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "IACS UR E26 — Cyber resilience of ships, secure configuration",
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+    },
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §2.3 Detect",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "BIMCO Guidelines — Bridge systems",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    }
+  ],
+  "knownFalsePositives": "1. **OEM service update**: a scheduled OEM software update (e.g. Wartsila quarterly cumulative patch) will mutate the baseline; refresh the baseline post-update. 2. **Operator preference change**: an OOW changing screen colour-scheme should not trigger drift; scope `config_blob` to security-relevant elements only. 3. **NTP sync update**: routine NTP sync update of the time-server is normal; exclude time-server-only updates.\n\n**Suppression mechanism**: KV Store `imo_22_59_7_exceptions` with the Chief Engineer + OEM service engineer's documented approval and the change-ticket reference.",
+  "requiredFields": [
+    "imo_number",
+    "ibs_platform",
+    "component",
+    "observed_hash",
+    "drift_indicator"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Chief Engineer + Bridge OEM Liaison",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Wartsila NACOS Platinum (Integrated Bridge System)",
+    "Kongsberg K-Bridge (Integrated Bridge System)",
+    "Furuno FMD-3300 / FAR-3xx0 (Integrated Bridge)",
+    "Sperry Marine VisionMaster FT (Integrated Bridge System)",
+    "Transas T-Cube / Navi-Sailor (Integrated Bridge)"
+  ],
+  "mitreAttack": [
+    "T0858",
+    "T0820",
+    "T0888"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.3",
+    "UC-22.59.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- Extended audit logging enabled on every fleet IBS (OEM engagement required).\n- KV Store `imo_ibs_baseline_lookup` seeded with golden baseline hashes per vessel per component.\n\n## Step 1 — Baseline schema\n\n```ini\n[imo_ibs_baseline_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.ibs_platform = string\nfield.component = string\nfield.baseline_hash = string\nfield.baseline_date = time\nfield.approver = string\nfield.oem_signature = string\n```\n\n## Step 2 — Hash computation\n\nUse `sha256()` SPL function on the OEM-published configuration blob. For platforms that don't publish a single blob, define a canonical concatenation of key files (config.xml, network.xml, security.xml) and hash that.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.7: IMO IBS Baseline]\ncron_schedule = 17 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.7,reg=IMO-MSC-428-98,clause=IACS-UR-E26-r3\nalert.severity = 4\n```\n\n## Step 4 — Runbooks\n\n**`drift_class=config-mutation`** (owner: Fleet Cyber Lead + Chief Engineer, severity P2): Within 4 hours, confirm the change with the OEM service engineer or shoreside IT; within 24h, either re-baseline (if change approved) or revert (if unauthorised) and document root cause.\n\n**`drift_class=missing-baseline`** (severity P3): A new component without a baseline; within 7 days, the Chief Engineer + OEM jointly produce and sign the baseline.\n\n## Step 5 — Maritime-specific notes\n\n- **OEM patch cadence**: Wartsila NACOS Platinum quarterly cumulative patches require coordinated re-baselining; bake this into the change-control calendar.\n- **In-service software upgrade vs newbuild commissioning**: newbuild commissioning baselines are signed by the OEM + class society jointly; treat differently from in-service upgrades.",
+  "grandmaExplanation": "The ship's main computer system is configured a certain way to run safely. We take a fingerprint of that setup every hour and compare it to the approved version, so we catch any sneaky change before something breaks."
+}

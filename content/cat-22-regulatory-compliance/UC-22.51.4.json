@@ -1,0 +1,133 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.4",
+  "title": "OT Privileged Session Activity: Out-of-Window, Unticketed, and Over-Scope Detection",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Excludes break-glass / emergency accounts whose use is covered by UC-22.51.7 with separate evidence requirements. Excludes service-to-service automation accounts (covered by UC-22.51.9 change-control evidence). Excludes named accounts whose role is documented as 'read-only console' on engineering workstations (these are not 'privileged' under OTCC's definition).",
+  "evidence": "Saved search `UC-22.51.4` archived in real time (5-minute schedule) to `audit_evidence` with `otcc_clause=\"OTCC-2-2-1-1\"`. Each row preserves session_id, account_name, source_ip, target_system, target_zone, session_started_at, session_ended_at, session_duration_seconds, approved_window_id, change_ticket_id, approver_role, recording_artefact_url, out_of_window_flag, unticketed_flag, over_scope_flag. Dashboard `NCA OTCC – Privileged Session Evidence` shows live, today, and 90-day trends; an immutable index policy on `audit_evidence` preserves the row plus a hash of the corresponding CyberArk video file for chain-of-custody.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-2-2-1-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Every privileged session against an OT system is identified, its window and ticket linkage are verified against the change-management system, the recording artefact URL is captured, and out-of-policy sessions are surfaced in real time. This is sufficient evidence of the OTCC-2-2-1-1 obligation — hence 'full'.",
+      "controlObjective": "Proves that privileged access to OT systems is uniquely identified, time-limited, approved, recorded, and reviewed for legitimacy, and that any session falling outside an approved window or without a valid change ticket is detected within minutes.",
+      "evidenceArtifact": "Saved search `UC-22.51.4` archived to `audit_evidence` plus row-level pointer to the CyberArk PSM recording. Weekly PDF export of all flagged sessions with reviewer sign-off filed as the formal OTCC-2-2-1-1 evidence. Recording-file hashes preserved in `audit_evidence` so any post-hoc tampering of the video archive is detectable.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-2-2-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a CyberArk PSM session against an in-scope HMI host using an account in the OT privileged group, deliberately at a time outside any approved maintenance window, with no associated change ticket. Within five minutes, UC-22.51.4 MUST flag the session with `out_of_window_flag=true` and `unticketed_flag=true`, route the alert to the SOC, and surface the session ID and recording URL on the dashboard.",
+    "negativeScenario": "Open a CyberArk PSM session against the same HMI host, but during an approved maintenance window, with a change ticket already in the approved state and linked to the session, and using an account whose authorisation level covers the target zone. UC-22.51.4 MUST NOT flag the session. The session MUST still appear on the dashboard's 'Sessions in window' panel for audit transparency."
+  },
+  "dataSources": "`index=cyberark sourcetype=\"cyberark:psm:session\"` and `sourcetype=\"cyberark:audit\"` from the Splunk Add-on for CyberArk (Splunkbase 2891); equivalents: `beyondtrust:passwordsafe:session`, `wallix:session`, `centrify:psm:session`. `index=itsm sourcetype=\"servicenow:incident\"` and `sourcetype=\"servicenow:change_request\"` from the Splunk Add-on for ServiceNow (Splunkbase 1928). Lookups: `ot_maintenance_windows.csv` (approved windows), `ot_privileged_role_scope.csv` (account-to-zone authorisation mapping), KV Store `ot_session_recordings` (session id → recording artefact hash).",
+  "app": "Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 2891,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=cyberark sourcetype=\"cyberark:psm:session\" target_zone=\"OT*\" earliest=-5m@m latest=now\n| eval session_duration_seconds = coalesce(session_duration_seconds, round(now() - session_started_epoch))\n| lookup ot_privileged_role_scope.csv account_name AS account_name OUTPUT authorised_zones max_session_duration_seconds\n| eval over_scope_flag = if(NOT match(authorised_zones, \"(^|,)\".target_zone.\"(,|$)\"), \"true\", \"false\")\n| eval over_duration_flag = if(session_duration_seconds > max_session_duration_seconds, \"true\", \"false\")\n| lookup ot_maintenance_windows.csv target_zone target_system AS target_system OUTPUT approved_window_id approved_window_start approved_window_end\n| eval out_of_window_flag = case(\n    isnull(approved_window_id), \"true\",\n    session_started_epoch < strptime(approved_window_start, \"%Y-%m-%dT%H:%M:%S%z\"), \"true\",\n    session_started_epoch > strptime(approved_window_end, \"%Y-%m-%dT%H:%M:%S%z\"), \"true\",\n    1=1, \"false\")\n| join type=left session_id [search index=itsm sourcetype=\"servicenow:change_request\" earliest=-30d state=\"approved\" | rename change_ticket_id AS change_ticket_id | table session_id change_ticket_id]\n| eval unticketed_flag = if(isnull(change_ticket_id), \"true\", \"false\")\n| where over_scope_flag=\"true\" OR over_duration_flag=\"true\" OR out_of_window_flag=\"true\" OR unticketed_flag=\"true\"\n| eval recording_artefact_url = \"https://psm.cyberark.example.com/api/recordings/\".session_id\n| table _time session_id account_name source_ip target_system target_zone session_duration_seconds approved_window_id change_ticket_id over_scope_flag over_duration_flag out_of_window_flag unticketed_flag recording_artefact_url\n| sort - _time",
+  "description": "Detects privileged sessions against OT systems that fall outside an approved maintenance window, lack a linked approved change ticket, exceed the account's authorised duration, or reach a system in a zone the account is not authorised for — the four failure modes NCA inspects under OTCC-2-2-1-1.",
+  "value": "Privileged access against OT is the single highest-blast-radius action an organisation performs daily. Without continuous, automated verification that every session is approved-and-scoped-and-ticketed-and-recorded, an OTCC audit cannot demonstrate the control; with this UC, every session is matched to its evidence chain within five minutes, and the SOC sees out-of-policy access while the session is still open and reversible.",
+  "implementation": "(1) Install Splunk Add-on for CyberArk (Splunkbase 2891) on Heavy Forwarders bridging CyberArk Vault/PSM to the indexer tier; route session and audit logs to `index=cyberark`. (2) Install Splunk Add-on for ServiceNow (or equivalent ITSM) for change-ticket linkage. (3) Build `ot_maintenance_windows.csv` from the change-management calendar export every 15 minutes. (4) Build `ot_privileged_role_scope.csv` from CyberArk's safe → account → zone authorisation mapping; refresh daily. (5) Schedule UC-22.51.4 every 5 minutes; route to ES notable with severity=critical for out_of_window or over_scope flags; route ticketed/scoped sessions to the audit-evidence index only.",
+  "visualization": "Operational dashboard `NCA OTCC – Privileged Session Evidence` with: (Panel 1) live count of in-flight privileged sessions against OT; (Panel 2) live table of any in-flight session with one or more failure flags, red-highlighted; (Panel 3) today's completed sessions by zone and account; (Panel 4) 90-day timechart of failure-flag count by flag type; (Panel 5) drill-down to recording artefact URL.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    },
+    {
+      "title": "Splunk CIM: Authentication data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
+      "title": "Splunk CIM: Change data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    },
+    {
+      "title": "NIST SP 800-82r3 — Guide to Operational Technology (OT) Security §6.2 (Identification and Authentication)",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-82/rev-3/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Window-extension via approved change** — maintenance windows are frequently extended by an approved change addendum. If the addendum's window-end is not yet published to `ot_maintenance_windows.csv` at the moment of the session, `out_of_window_flag` will mis-fire. Suppression: refresh the window lookup every 15 minutes and accept up to 30 minutes of lag; SOC playbook treats a `out_of_window_flag=true` session whose `change_ticket_id` is valid and whose session ended within 30 minutes of `approved_window_end` as a non-incident.\n\n2. **SOC tooling and DR drills** — the SOC's own incident-response account legitimately reaches OT engineering workstations during DR drills. The drill's change ticket may be in `scheduled` state rather than `approved` at session time. Suppression: include `scheduled` in the accepted state list for sessions whose `account_name` matches the SOC IR group AND whose ticket is `dr_drill=true`.\n\n3. **CyberArk PSM auto-relogin** — a session that exceeds the PSM idle threshold and auto-relogins logs as two contiguous sessions; the second may look 'unticketed' against the original ticket. Suppression: merge contiguous sessions for the same `session_id_root` (CyberArk exposes this as `parent_session_id`) when computing the ticket join.\n\n4. **CyberArk maintenance windows on Vault itself** — during Vault maintenance, the session-recording pipeline may pause; sessions during this gap appear without recordings. Suppression: detect Vault maintenance windows from `cyberark:audit` event_type=vault_maintenance and exclude sessions during those windows from `unticketed_flag` evaluation (record the gap on the audit-evidence side).\n\n**Suppression mechanism**: KV Store `otcc_22_51_4_exceptions` with per-session_id grants. The runbook for accepting a flag requires Head of OT Security approval and a 30-day max grant.",
+  "requiredFields": [
+    "session_id",
+    "account_name",
+    "target_system",
+    "target_zone",
+    "session_started_epoch",
+    "session_duration_seconds"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "cyberark",
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "T1078.002",
+    "T1133"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud. A search head capable of running scheduled searches every 5 minutes against a busy CyberArk feed; size for ~1 search every minute peak.\n- Splunk Add-on for CyberArk (Splunkbase 2891) installed on the Heavy Forwarders that receive CyberArk PSM session logs and Vault audit. Verify with `| rest /services/apps/local | search label=\"Splunk Add-on for CyberArk\" | table label version`.\n- CyberArk Privileged Session Manager v12+ configured to forward session events to Splunk via syslog or the Vault REST API. Recording artefacts retained on the PSM-Recordings server for the OTCC retention period (≥7 years).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) feeding `index=itsm` with change requests; alternatively a CSV export from the change tool every 15 minutes.\n- `index=cyberark` (90-day online retention; full retention archived to S3 / immutable storage), `index=itsm` (90-day online), `index=audit_evidence` (7-year online with write-only ACL for non-admin roles).\n- Splunk Enterprise Security (Splunkbase 263) recommended for notable framework escalation. Without ES, route alerts via email + ITSM ticketing.\n- Lookups:\n  - `ot_maintenance_windows.csv` — refreshed every 15 minutes via a scheduled search reading approved change records from `index=itsm`. Columns: `change_ticket_id`, `target_zone`, `target_system`, `approved_window_start`, `approved_window_end`, `state`, `approver_role`.\n  - `ot_privileged_role_scope.csv` — refreshed daily from CyberArk's safe-to-account-to-zone mapping. Columns: `account_name`, `authorised_zones` (comma-separated), `max_session_duration_seconds`, `role_id`, `last_reviewed_at`.\n  - KV Store `otcc_22_51_4_exceptions` for manual session-level grants.\n\n## Step 1 — Configure data collection\n\nCyberArk PSM emits two log streams: per-session connection logs (`cyberark:psm:session`) and Vault audit events (`cyberark:audit`). Both must be onboarded.\n\nThe PSM syslog input (TCP 514 or UDP 514, prefer TCP-with-TLS):\n\n```ini\n[tcp://1514]\nconnection_host = ip\nsourcetype = cyberark:psm:session\nindex = cyberark\n```\n\nThe Vault REST polling input (preferred for audit because syslog can lose events under burst):\n\n```ini\n[cyberark://vault_audit]\npas_url = https://vault.cyberark.example.com\nrecord_type = audit\ninterval = 60\nindex = cyberark\nsourcetype = cyberark:audit\n```\n\nValidate field extraction:\n\n```spl\nindex=cyberark sourcetype=cyberark:psm:session earliest=-1h\n| fieldsummary\n| search field IN (session_id, account_name, source_ip, target_system, target_zone, session_started_epoch, session_duration_seconds)\n| table field count\n```\n\nAll seven fields must have coverage ≥ 99% (a small percentage of events lacking duration is normal because they correspond to in-flight sessions). If any field is missing, the TA version is older than the CyberArk PSM version.\n\nVolume guidance: a busy CyberArk Vault produces 5,000–20,000 events per day. Disk impact on `cyberark` index is modest (~200 MB/day at the high end); license impact ~200 MB/day.\n\n## Step 2 — Create the search and alert\n\nThe search runs every five minutes over the prior five-minute window with a 30-second processing tail. This is real-time enough to catch sessions while in flight and lets the SOC intervene with a `psm pause` command if a session is unauthorised.\n\nThe four flag computations are independent. The `over_scope_flag` is the most important: it indicates an account is reaching a zone it was never authorised for, which is either a CyberArk safe misconfiguration or active credential misuse. Route `over_scope_flag=true` to ES with severity=critical and to the SOC pager.\n\n`out_of_window_flag` requires the maintenance-windows lookup to be up to date (within 30 minutes). The 30-minute tolerance is the documented suppression rule for window-extension addenda.\n\n`unticketed_flag` requires the `session_id` to appear in an approved change ticket. CyberArk PSM session opening can include a `Reason` field; configure the Vault to require the change-ticket ID in this field via the CyberArk Master Policy. The ITSM feed exposes the ticket; the join links them.\n\n`over_duration_flag` triggers when the session exceeds the account's authorised max duration. This is a soft signal — long sessions are sometimes legitimate — but it's still surfaced as a row-level flag so the auditor can see the exception.\n\n**Schedule**:\n\n```ini\n[UC-22.51.4: OT Privileged Session Activity: Out-of-Window, Unticketed, and Over-Scope]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -5m@m\ndispatch.latest_time = now\nactions = summary_index, risk, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.4,reg=NCA_OTCC,clause=OTCC-2-2-1-1\naction.notable.param.rule_title = NCA OTCC OT privileged session policy violation\naction.notable.param.security_domain = identity\naction.notable.param.severity = critical\naction.risk.param._risk_score = 80\naction.risk.param._risk_object = $account_name$\nalert.severity = 5\n```\n\nNotable creation only on `over_scope_flag=true` OR `out_of_window_flag=true`; informational `unticketed_flag` and `over_duration_flag` route to `audit_evidence` only.\n\n## Step 3 — Validate deployment\n\n**(a) Live test — positive**: open a PSM session against an in-scope test HMI host, outside any maintenance window, no change ticket. Within five minutes UC-22.51.4 must flag the session with both `out_of_window_flag` and `unticketed_flag` set, and an ES notable must appear.\n\n**(b) Live test — negative**: open the same session inside an approved window with a linked change ticket. UC-22.51.4 must NOT flag the session. The session must still appear on the dashboard's 'sessions in window' panel.\n\n**(c) Recording-artefact integrity**: a separate hourly search must compute the SHA-256 of every new PSM recording file from yesterday and append `(session_id, recording_hash)` to KV Store `ot_session_recordings`. Confirm the auditor can fetch the hash for any session_id from yesterday's audit-evidence export.\n\n**(d) Lookup freshness**:\n\n```spl\n| rest /servicesNS/-/-/data/transforms/lookups/ot_maintenance_windows\n| eval age_min = round((now() - updated_epoch) / 60)\n| table title age_min\n```\n\nAlert ops if `age_min > 30` for either lookup.\n\n**(e) End-to-end chain-of-custody drill**: pick a random in-window session from last week. Confirm: (1) row exists in `audit_evidence`, (2) row carries `recording_artefact_url`, (3) the URL is reachable, (4) the SHA-256 in `ot_session_recordings` matches the file currently on the PSM-Recordings server. Document the drill outcome quarterly as part of the OTCC evidence pack.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Privileged Session Evidence` — designed for SOC operations more than auditor review.\n\n- **Panel 1, large single value**: 'In-flight privileged sessions against OT' — count of sessions with `session_ended_at=null` in the last hour.\n- **Panel 2, live table**: every in-flight session, sortable by `session_started_at desc`, colour-coded red if any failure flag is set. Drill-through to the recording URL and to CyberArk's session-detail page.\n- **Panel 3, today's completed sessions**: stacked bar by zone and account, separating sessions in-window from out-of-window.\n- **Panel 4, 90-day trend**: timechart of `count by flag_type`. Shows the OT cybersecurity steering committee whether out-of-window and unticketed flags are trending down (good) or up (bad).\n- **Panel 5, top accounts**: sortable list of accounts by flag count this week — identifies repeat-offender accounts or roles that need review.\n\n**Runbook for an out-of-window or over-scope alert** (owner: SOC L2, with OT cybersecurity engineering on-call):\n\n1. Within 5 minutes of the alert, pull the live session from the dashboard. Confirm the session is still open.\n2. Open CyberArk PSM; verify session is live. If yes and the alert is genuine (account not authorised, no ticket): suspend the session via PSM. Page Head of OT Security.\n3. If the session is live and the alert is a window-extension lag (see Known False Positive #1): confirm with the change manager and authorise the session to continue. Log the suppression decision in the SOC ticket.\n4. Within 30 minutes: complete an initial incident-classification using the ES notable's risk-object field. If the account is compromised, route to the IR runbook and re-key the credential.\n5. Within 24 hours: capture the session recording from PSM into the OT cybersecurity incident-pack. The recording is part of the OTCC evidence trail for the incident.\n\n## Step 5 — Troubleshooting\n\n**Search returns zero rows even during known sessions** — the syslog input is not parsing. Check `index=_internal sourcetype=splunkd component=Tcp` for inbound connections from the PSM. If absent, the PSM forwarder is mis-configured (wrong target, wrong port, TLS cert issue).\n\n**`change_ticket_id` is always null** — the ITSM join is dropping the column due to subsearch row limit. Increase `[search] max_results_per_join = 500000` in `limits.conf` on the search head, or replace the join with a `tstats` against an accelerated Change datamodel.\n\n**False positives on `out_of_window_flag` only during the first 15 minutes of every hour** — the maintenance-windows lookup is being rebuilt and is empty mid-rebuild. Either run the lookup-rebuild search with `outputlookup append=false key_field=... preserve_lookup=true` (atomic write), or stagger the rebuild to offset from the UC's 5-minute schedule.\n\n**`session_duration_seconds` is always 0** — the PSM end-of-session event isn't reaching Splunk. The PSM session-start and session-stop events arrive on different sourcetypes in older PSM versions; configure a CIM-compliant `EVAL-session_duration = coalesce(session_duration_seconds, _time - session_started_epoch)` in props.conf.\n\n**OT-specific failure modes**:\n\n- **Jump-host bypass**: vendors may be granted direct VPN access bypassing PSM in legacy environments. Maintain `ot_jump_host_inventory.csv` and trigger a separate detection (UC-22.51.19) on any privileged-style traffic to OT not originating from a known jump host.\n- **Local-console use**: a physical KVM session at the cabinet bypasses PSM entirely. Detect via UC-22.51.10 (physical access) and reconcile against `change_ticket_id`; absence of a session in CyberArk plus presence of physical access at the cabinet is an exception.\n- **SIS engineering workstation special handling**: SIS programming sessions may require an air-gapped engineering workstation that does not flow through CyberArk. Maintain `ot_sis_sessions.csv` populated manually by the SIS engineer at session-open time and reconcile via UC-22.51.15.\n- **Token-replay attacks**: if a session reuses a session_id across two days, the join logic mis-attributes. The runbook for any session_id whose session_duration_seconds > 86400 is an automatic incident.",
+  "grandmaExplanation": "We watch every time someone special logs in to one of the plant computers. We check it was during a planned maintenance time, that there was a ticket for the work, and that the person had permission to touch that part of the plant. If any of those is missing, we ring the bell while the session is still open so we can stop it.",
+  "equipmentModels": [
+    "CyberArk Privileged Session Manager 12.x (session recording, vault audit log)",
+    "Splunk Add-on for CyberArk (Splunkbase 2891, PSM audit and vault events)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, CAB change-ticket correlation)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, identity framework + notable routing)"
+  ]
+}

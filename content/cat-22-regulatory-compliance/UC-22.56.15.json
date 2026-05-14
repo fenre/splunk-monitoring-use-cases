@@ -1,0 +1,108 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.15",
+  "title": "TSA-SD Aviation CIP Control Family 4 — patch / vulnerability management for AOC, DCS, BHS, aerobridge",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Vulnerability"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-aviation assets. Excludes documented compensating controls in `aviation_compensating_controls_lookup`.",
+  "evidence": "Saved search `UC-22.56.15` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1542-21-02-s3.4\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1582-21-01-s3.4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Mirrors UC-22.56.6 for aviation. KEV-driven SLA with aviation-specific OT-grace for embedded BHS / aerobridge / DCS.",
+      "controlObjective": "Proves vulnerabilities on aviation-regulated assets are patched or compensated within risk-commensurate SLA.",
+      "evidenceArtifact": "Saved search, `TSA Aviation Patch Health` dashboard, Tenable.ot export, aviation compensating-control register.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1582-21-01-s3.4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject Tenable finding on aviation-OT asset with KEV-listed CVE; no compensating control. UC-22.56.15 MUST flag.",
+    "negativeScenario": "Pin compensating control valid for 90 days. UC-22.56.15 MUST record `patch_status=compensated`."
+  },
+  "dataSources": "Tenable scans. CISA KEV. Aviation asset register. Aviation compensating-control register. Dragos aviation advisories. Vendor SSAs (Honeywell, Siemens BHS, Vanderlande, Daifuku).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Tenable (Splunkbase 4060), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4060,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=tenable:nessus OR sourcetype=tenable:ot OR sourcetype=dragos:advisory)\n| eval cve_id = lower(cve_id)\n| lookup aviation_facility_asset_lookup asset_id AS asset_id OUTPUT facility_id aviation_zone aviation_in_scope\n| where aviation_in_scope=true\n| lookup ta_cisa_kev kev_cve AS cve_id OUTPUT kev_listed kev_due_date\n| eval is_ot = if(aviation_zone IN (\"AIRSIDE_OT\",\"BHS_OT\",\"DCS\",\"AEROBRIDGE\"), \"true\", \"false\")\n| eval sla_days = case(\n    kev_listed=\"true\" AND is_ot=\"false\", 14,\n    kev_listed=\"true\" AND is_ot=\"true\", 30,\n    cvss >= 9.0 AND is_ot=\"false\", 14,\n    cvss >= 9.0 AND is_ot=\"true\", 30,\n    cvss >= 7.0 AND is_ot=\"false\", 30,\n    cvss >= 7.0 AND is_ot=\"true\", 60,\n    1=1, 90)\n| eval days_since_disclosure = round((now() - disclosure_date) / 86400, 0)\n| lookup aviation_compensating_controls_lookup cve_id AS cve_id asset_id AS asset_id OUTPUT compensating_control_id compensating_control_effective_until\n| eval patch_status = case(\n    isnotnull(compensating_control_id) AND compensating_control_effective_until > now(), \"compensated\",\n    state=\"patched\", \"patched\",\n    state=\"open\" AND days_since_disclosure <= sla_days, \"in_sla\",\n    state=\"open\" AND days_since_disclosure > sla_days, \"breached\",\n    1=1, \"unknown\")\n| eval sla_status = if(patch_status IN (\"patched\",\"compensated\",\"in_sla\"), \"current\", \"breached\")\n| stats values(cvss) as cvss values(kev_listed) as kev_listed values(is_ot) as is_ot max(days_since_disclosure) as days_since_disclosure values(sla_days) as sla_days values(patch_status) as patch_status values(sla_status) as sla_status values(compensating_control_id) as compensating_control_id by facility_id cve_id\n| where sla_status=\"breached\"\n| table facility_id cve_id cvss kev_listed is_ot days_since_disclosure sla_days patch_status compensating_control_id",
+  "description": "Aviation patch-management mirror with airside-OT grace.",
+  "value": "Same evidence package as UC-22.56.6 for aviation jurisdiction.",
+  "implementation": "Same as UC-22.56.6 with aviation register. Add coordination with airline IT for DCS components shared across many airports.",
+  "visualization": "(Panel 1) Open CVE by facility / OT-IT. (Panel 2) KEV-listed open. (Panel 3) Compensating-control coverage. (Panel 4) Top-overdue.",
+  "cimModels": [
+    "Vulnerabilities",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD-1542-21-02 §3.4",
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-airport airline DCS**: a CVE on a DCS component appears at every airport where the airline operates; ensure the facility_id is per-airport-presence, not single.\n2. **Embedded aerobridge controllers**: many lack vendor patches; compensating-control regime is operational.\n\n**Suppression mechanism**: KV Store `aviation_22_56_15_exceptions`.",
+  "requiredFields": [
+    "facility_id",
+    "cve_id",
+    "patch_status",
+    "sla_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + VM Lead + Airport Operations Cyber",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "tenable",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Tenable.io / Tenable.sc + Tenable.ot 4.x",
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "T1190",
+    "T0883"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.6"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.6 + aviation register.\n\n## Step 1 — Compensating control register\n\nSame structure as UC-22.56.6.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.15: TSA Aviation Patch Management]\ncron_schedule = 33 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.15,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.4\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\nSame as UC-22.56.6.\n\n## Step 4 — Troubleshooting\n\n- **Vendor SSA timing**: aviation OT vendors are often slow with SSAs; pin compensating controls with documented vendor-pending tag.\n\n**TSA-specific failure modes**:\n- **FAA Aviation Cyber Initiative coordination**: parallel-engage ACI on critical aviation-OT CVEs.",
+  "grandmaExplanation": "Same idea as pipelines: any known software weakness on an airport or airline computer must be fixed by a deadline — or we document why we can't and what we do instead."
+}

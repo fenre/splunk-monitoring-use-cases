@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.9",
+  "title": "SG Cyber Act (2024) Foundational Digital Infrastructure (FDI) provider obligations tracker",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "FDI",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-FDI services. Excludes pre-amendment FDI exempt providers in grace period.",
+  "evidence": "Saved search `UC-22.57.9` archived daily to `audit_evidence` with `csa_clause=\"CSA-FDI-2024\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-fdi",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "The 2024 amendment introduces FDI obligations (4 categories: app stores, search engines, cloud computing, data centres). 'Partial' because COP-FDI is evolving; UC implements early-baseline obligations.",
+      "controlObjective": "Proves FDI provider scope, designated officer, and current obligation tracking.",
+      "evidenceArtifact": "Saved search, `CSA FDI Obligations` dashboard, signed FDI-COP, audit evidence.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-fdi",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set FDI category active without designated officer. UC-22.57.9 MUST flag.",
+    "negativeScenario": "Designate officer + sign COP-FDI. UC-22.57.9 MUST NOT escalate."
+  },
+  "dataSources": "KV Store `csa_fdi_lookup` (fdi_id, fdi_category, designated_officer, cop_signed_at, last_audit_date, registration_date).",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup csa_fdi_lookup\n| eval days_since_audit = round((now() - last_audit_date) / 86400, 0)\n| eval fdi_status = case(\n    isnull(designated_officer), \"officer_missing\",\n    isnull(cop_signed_at), \"cop_missing\",\n    isnull(last_audit_date), \"never_audited\",\n    days_since_audit > 730, \"audit_overdue\",\n    1=1, \"current\")\n| where fdi_status IN (\"officer_missing\",\"cop_missing\",\"never_audited\",\"audit_overdue\")\n| table fdi_id fdi_category designated_officer cop_signed_at last_audit_date fdi_status",
+  "description": "Tracks the FDI obligation register (4 categories under 2024 amendment).",
+  "value": "FDI is a new regulatory category. Pre-positioning the obligation register reduces compliance lag.",
+  "implementation": "(1) Populate `csa_fdi_lookup`. (2) Schedule UC-22.57.9 daily. (3) Build the `CSA FDI Obligations` dashboard.",
+  "visualization": "(Panel 1) Per-FDI status. (Panel 2) Audit currency. (Panel 3) New-FDI onboarding. (Panel 4) COP-FDI evolution tracker.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity (Amendment) Act 2024",
+      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
+    }
+  ],
+  "knownFalsePositives": "1. **Pre-amendment FDI**: grace period applies; pin in lookup with `grace_until`.\n\n**Suppression mechanism**: KV Store `csa_22_57_9_exceptions`.",
+  "requiredFields": [
+    "fdi_id",
+    "fdi_category",
+    "fdi_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC + Commissioner Liaison",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.8"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_fdi_lookup`.\n\n## Step 1 — FDI register\n\n```ini\n[csa_fdi_lookup]\nfield.fdi_id = string\nfield.fdi_category = string\nfield.designated_officer = string\nfield.cop_signed_at = number\nfield.last_audit_date = number\nfield.registration_date = number\nfield.grace_until = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.9: CSA FDI Obligations]\ncron_schedule = 31 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.9,reg=SG-Cyber-Act,clause=CSA-FDI-2024\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`fdi_status=officer_missing`**: appoint within 7 days.\n\n**SG-specific failure modes**:\n- **COP-FDI Maturity**: COP-FDI is iteratively published; track Commissioner notices.\n- **Cross-jurisdiction**: FDI providers headquartered overseas; ensure local rep is on record.",
+  "grandmaExplanation": "Singapore's 2024 cyber law update added new rules for app stores, search engines, cloud, and data centres. We track each provider's obligations as the rules take shape."
+}

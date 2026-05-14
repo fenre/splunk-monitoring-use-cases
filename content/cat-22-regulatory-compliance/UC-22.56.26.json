@@ -1,0 +1,118 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.26",
+  "title": "TSA-SD Pipeline + PHMSA dual-clock coordination — safety-impacting cyber incidents",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Safety"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes pure-cyber events with no safety dimension. Excludes events on non-PHMSA-regulated assets (e.g. distribution-only systems below 49 CFR threshold).",
+  "evidence": "Saved search `UC-22.56.26` archived every 5 minutes to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-P-PHMSA-dual\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-phmsa-dual",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Some cyber events on pipelines have safety-significant impact triggering PHMSA reporting alongside TSA/CISA reporting. This UC ensures both clocks are tracked.",
+      "controlObjective": "Proves cyber events with safety impact trigger parallel PHMSA reporting in addition to TSA/CISA reporting.",
+      "evidenceArtifact": "Saved search, `TSA + PHMSA Dual-Clock` dashboard, NRC + PHMSA submission receipts.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-phmsa-dual",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject synthetic incident with `safety_impacting=true` and `phmsa_reportable=true` without PHMSA notification. UC-22.56.26 MUST flag.",
+    "negativeScenario": "Pin PHMSA NRC report ID. UC-22.56.26 MUST record `phmsa_clock=on_time`."
+  },
+  "dataSources": "ServiceNow SIR with `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id`. PHMSA notification log. Pipeline leak-detection events (`pipeline:lds:event`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_pipeline_in_scope=true safety_impacting=true\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval phmsa_status = case(\n    isnotnull(nrc_notification_time), \"notified\",\n    hours_since_awareness > 2 AND phmsa_reportable=true, \"overdue\",\n    1=1, \"in_window\")\n| where phmsa_status IN (\"overdue\")\n| table incident_id facility_id awareness_time hours_since_awareness phmsa_reportable phmsa_status nrc_report_id",
+  "description": "Tracks PHMSA NRC clock on safety-impacting pipeline cyber events (2-hour clock for hazardous releases under 49 CFR 191).",
+  "value": "Failure to dual-report to PHMSA on safety-impacting cyber events is a serious PHMSA enforcement event AND a TSA-coordination failure.",
+  "implementation": "(1) Add `safety_impacting`, `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id` to SIR. (2) Schedule UC-22.56.26 every 5 minutes. (3) SOAR `pipeline_dual_clock_submission` playbook drives parallel CISA + PHMSA. (4) Build dashboard.",
+  "visualization": "(Panel 1) Open dual-clock events. (Panel 2) Clock-burn (CISA + PHMSA). (Panel 3) NRC notification log. (Panel 4) 12-month dual-submission performance.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "49 CFR 191 — PHMSA pipeline reporting",
+      "url": "https://www.ecfr.gov/current/title-49/subtitle-B/chapter-I/subchapter-D/part-191"
+    },
+    {
+      "title": "NRC — National Response Center",
+      "url": "https://www.nrc.uscg.mil/"
+    }
+  ],
+  "knownFalsePositives": "1. **PHMSA vs TSA threshold dispute**: CC + Safety Officer determination governs.\n2. **Phantom-release LDS false positive**: leak-detection-system false positives shouldn't trigger PHMSA report; pin via CC.\n\n**Suppression mechanism**: KV Store `tsa_phmsa_exception_lookup`.",
+  "requiredFields": [
+    "incident_id",
+    "facility_id",
+    "awareness_time",
+    "phmsa_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + PHMSA Liaison + Safety Officer",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x",
+    "ServiceNow SIR"
+  ],
+  "mitreAttack": [
+    "T0814",
+    "T0879"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Same as UC-22.56.1 plus PHMSA NRC integration.\n\n## Step 1 — Wire SIR fields\n\nAdd `safety_impacting` (Boolean), `phmsa_reportable` (Boolean), `nrc_notification_time` (DateTime), `nrc_report_id` (String).\n\n## Step 2 — SOAR playbook `pipeline_dual_clock_submission`\n\nMirrors `tsa_cisa_submission` (UC-22.56.1) but adds:\n1. Branches CISA + PHMSA in parallel.\n2. PHMSA branch dials NRC (800-424-8802) via voice integration OR uses electronic notification.\n3. Captures NRC report-id back to ticket.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.56.26: TSA + PHMSA Dual Clock]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.26,reg=TSA-Surface,clause=TSA-SD-P-PHMSA-dual\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\nMirror UC-22.56.1; PHMSA branch has tighter 2-hour clock.\n\n## Step 5 — Troubleshooting\n\n- **NRC line congestion**: NRC may queue during major incidents; use electronic notification as primary.\n- **Phantom-release**: ensure LDS false-positive workflow doesn't reflexively trigger.\n\n**TSA-specific failure modes**:\n- **State pipeline regulator**: states may have additional clocks; coordinate.\n- **Multi-state pipelines**: pipeline crossings between states may add jurisdictions.",
+  "grandmaExplanation": "If a cyber-attack on a pipeline could cause a leak or spill, we have to tell the pipeline safety agency (PHMSA) immediately — even before we finish the 24-hour cyber report to CISA."
+}

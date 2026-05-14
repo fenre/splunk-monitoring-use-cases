@@ -1,0 +1,113 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.8",
+  "title": "CIRCIA NPRM Covered-Entity Scope Self-Assessment — SBA size + sector criteria + NAICS evidence for every legal entity",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CFO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes determinations that are demonstrably out of any CIRCIA scope (e.g. a US holding company with no operations in critical-infrastructure sectors). Excludes determinations that are still pending the CISA Final Rule definition of 'covered entity' — those carry `provisional=true` and may need revision when the Final Rule lands.",
+  "evidence": "Saved search `UC-22.54.8` archived daily to `audit_evidence` with `circia_clause=\"CIRCIA-NPRM-covered-entity\"`. Every row pins (entity_legal_name, entity_ein, sector, sub_sector, naics_code, sba_size_standard, sba_size_threshold_met, employees, revenue_usd_m, sector_based_criteria_kind, sector_based_criteria_value, sector_based_criteria_met, covered_entity_determination, scope_evidence_url, last_self_assessed_at, self_assessed_by). Dashboard `CIRCIA — NPRM Covered-Entity Scope` shows scope determination per legal entity with the supporting factual evidence (SBA size category, sector-based threshold values).",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-NPRM-covered-entity",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The April 2024 NPRM defines 'covered entity' through two pathways: (a) exceeds the SBA small-business size standard in the relevant NAICS code, or (b) meets sector-based criteria for high-impact within the sector (CWS >3,300 persons, healthcare with >100 ICU beds, etc.). The determination requires factual evidence per pathway. UC-22.54.8 instruments the factual capture and validation. Marked 'full' because the UC operationalises the NPRM scope-determination schema directly.",
+      "controlObjective": "Proves every legal entity has been factually assessed against the SBA size standard and the relevant sector-based criteria, with supporting evidence URLs.",
+      "evidenceArtifact": "Saved search `UC-22.54.8` archived to `audit_evidence`, the `CIRCIA — NPRM Covered-Entity Scope` dashboard, and the per-entity scope-evidence manifest in the General Counsel's evidence vault.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-NPRM-covered-entity",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "For a legal entity with `covered_entity_determination=\"covered\"` and `sba_size_threshold_met=null` AND `sector_based_criteria_met=null`, run UC-22.54.8. The UC MUST flag `scope_evidence_status=\"unsupported\"` because the determination of 'covered' has no supporting basis.",
+    "negativeScenario": "For the same entity with `sba_size_threshold_met=true` and a valid `scope_evidence_url`, UC-22.54.8 MUST record `scope_evidence_status=\"supported\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "Extended CIRCIA covered-entity registry (`circia_entity_register_lookup` from UC-22.54.1, extended with SBA-size fact fields), the SBA size-standards lookup (`circia_sba_size_standards_lookup` mapping NAICS → employee or revenue threshold), and the sector-based criteria lookup (`circia_sector_criteria_lookup` mapping sector → quantitative threshold, e.g. CWS persons-served, healthcare ICU beds, financial-services transaction-volume). Cross-reference to corporate-secretarial data for employee count and revenue; corporate-development for M&A-driven changes.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup circia_entity_register_lookup\n| lookup circia_sba_size_standards_lookup naics_code OUTPUT sba_threshold_kind sba_threshold_value\n| lookup circia_sector_criteria_lookup sector OUTPUT sector_threshold_kind sector_threshold_value\n| eval sba_pass_employees = if(sba_threshold_kind=\"employees\" AND employees > sba_threshold_value, \"true\", \"false\")\n| eval sba_pass_revenue = if(sba_threshold_kind=\"revenue_usd_m\" AND revenue_usd_m > sba_threshold_value, \"true\", \"false\")\n| eval sba_size_threshold_met_computed = if(sba_pass_employees=\"true\" OR sba_pass_revenue=\"true\", \"true\", \"false\")\n| eval sba_alignment = if(sba_size_threshold_met=sba_size_threshold_met_computed, \"true\", \"false\")\n| eval sector_pass = if(sector_based_criteria_met=\"true\" AND isnotnull(sector_based_criteria_value), \"true\", \"false\")\n| eval scope_evidence_status = case(\n    covered_entity_determination=\"covered\" AND sba_size_threshold_met!=\"true\" AND sector_based_criteria_met!=\"true\", \"unsupported\",\n    covered_entity_determination=\"covered\" AND isnull(scope_evidence_url), \"evidence_missing\",\n    covered_entity_determination=\"covered\" AND sba_alignment=\"false\", \"sba_misaligned\",\n    covered_entity_determination=\"covered\" AND sector_based_criteria_met=\"true\" AND isnull(sector_based_criteria_value), \"sector_value_missing\",\n    covered_entity_determination=\"not_covered\" AND sba_size_threshold_met_computed=\"true\" AND sector_pass=\"true\", \"determination_review_needed\",\n    covered_entity_determination IN (\"covered\",\"not_covered\"), \"supported\",\n    1=1, \"missing\")\n| where scope_evidence_status!=\"supported\"\n| table entity_legal_name entity_ein sector sub_sector naics_code sba_threshold_kind sba_threshold_value sba_size_threshold_met sba_size_threshold_met_computed sba_alignment sector_threshold_kind sector_threshold_value sector_based_criteria_met sector_based_criteria_value covered_entity_determination scope_evidence_url scope_evidence_status last_self_assessed_at",
+  "description": "Validates every legal entity's CIRCIA NPRM scope determination against the SBA size standard (computed from NAICS-mapped threshold) and the sector-based criteria. Surfaces entities marked covered without factual support, entities marked not-covered that meet the thresholds, or determinations missing evidence URLs.",
+  "value": "The NPRM scope definition introduces quantitative thresholds (SBA size, sector-based criteria) that are easy to misapply. An entity that crosses the SBA threshold mid-year by hiring or acquiring revenue silently becomes covered; an entity that divests and falls below the threshold silently leaves scope. Without an instrumented self-assessment, the General Counsel cannot defend the determination on RFI. This UC ties the determination to the underlying NAICS → SBA threshold map and to the sector-based criteria, computing the recommended determination and surfacing misalignments.",
+  "implementation": "(1) Populate `circia_sba_size_standards_lookup` from the SBA's official Table of Small Business Size Standards (matched by 6-digit NAICS code). The SBA updates this table approximately every 5 years; refresh the lookup on each update. (2) Populate `circia_sector_criteria_lookup` from the NPRM § 226.3 sector-based criteria for each PPD-21 sector. (3) Extend the entity register with `sba_size_threshold_met`, `sector_based_criteria_met`, `sector_based_criteria_value`, and `scope_evidence_url`. (4) Schedule UC-22.54.8 daily; route `scope_evidence_status` non-supported rows to notables for General Counsel review. (5) On every M&A close, the corporate development team triggers a fresh scope self-assessment.",
+  "visualization": "(Panel 1) Determination table: every legal entity with sector, NAICS, SBA threshold, sector criteria, computed determination, recorded determination. (Panel 2) SBA-pathway distribution: entities covered via SBA-size pathway vs sector-based pathway. (Panel 3) Sector breakdown of covered entities. (Panel 4) Stale self-assessments queue. (Panel 5) Misalignment queue: entities whose recorded determination disagrees with the computed determination.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "CISA NPRM — Covered Entity Scope (89 FR 23644 § 226.3)",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    },
+    {
+      "title": "SBA Table of Small Business Size Standards",
+      "url": "https://www.sba.gov/document/support-table-size-standards"
+    },
+    {
+      "title": "PPD-21 — Critical Infrastructure Security and Resilience",
+      "url": "https://obamawhitehouse.archives.gov/the-press-office/2013/02/12/presidential-policy-directive-critical-infrastructure-security-and-resil"
+    }
+  ],
+  "knownFalsePositives": "1. **NAICS-code on file is stale** — the legal-entity's NAICS may not reflect current operations after a sector rotation. Suppression: pair with quarterly NAICS-currency review (UC-22.54.1 prerequisite).\n\n2. **Sector-based criteria do not apply to the entity's sub-sector** — e.g. a healthcare entity with no ICU beds; the ICU threshold does not apply but a different sub-sector criterion may. Suppression: extend `circia_sector_criteria_lookup` with sub-sector granularity.\n\n3. **Two-pathway evaluation creates double-coverage** — an entity may meet both the SBA threshold and a sector criterion; both flags are 'true' but only one needs to be true for coverage. Suppression: not a false positive; the determination is `covered` regardless of which pathway.\n\n4. **Final Rule pending** — the NPRM scope criteria may be refined by the Final Rule. Suppression: maintain `provisional=true` flag in the register until the Final Rule lands.\n\n**Suppression mechanism**: KV Store `circia_22_54_8_exceptions` with per-entity grants requiring documented General Counsel approval and a 90-day maximum grant.",
+  "requiredFields": [
+    "entity_legal_name",
+    "naics_code",
+    "covered_entity_determination",
+    "scope_evidence_status",
+    "last_self_assessed_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + General Counsel + CFO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, core_company table)",
+    "SBA Table of Small Business Size Standards (refreshed approximately every 5 years; rotation date Sep 2023 → next ~2028)"
+  ],
+  "mitreAttack": [
+    "N/A (statutory-scope determination workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- `circia_entity_register_lookup` (from UC-22.54.1), extended with the SBA + sector-criteria fact fields below.\n- `circia_sba_size_standards_lookup` populated from the SBA table.\n- `circia_sector_criteria_lookup` populated from the NPRM § 226.3 sector-based criteria.\n\n## Step 1 — Populate the SBA size-standards lookup\n\nThe SBA Table of Small Business Size Standards lists every 6-digit NAICS code with one of two thresholds: number of employees or annual revenue (in USD millions). Download the current SBA table:\n\n```bash\nwget https://www.sba.gov/sites/sbagov/files/2023-09/Table%20of%20Size%20Standards_Effective%20March%2017%2C%202023%20%28amended%20Sept%202023%29.xlsx\nin2csv ...xlsx > sba_size_standards.csv\n```\n\nReshape into the required schema:\n\n```csv\nnaics_code,sba_threshold_kind,sba_threshold_value\n221111,revenue_usd_m,46.5\n221112,revenue_usd_m,46.5\n221310,employees,1250\n324110,employees,1500\n325110,employees,1250\n517110,employees,1500\n517311,employees,1500\n518210,revenue_usd_m,47.0\n541512,revenue_usd_m,34.0\n...\n```\n\nLoad as KV Store `circia_sba_size_standards_lookup`.\n\n## Step 2 — Populate the sector-criteria lookup\n\nThe NPRM § 226.3 lists sector-based criteria. Encode them in CSV:\n\n```csv\nsector,sub_sector,sector_threshold_kind,sector_threshold_value,sector_threshold_unit\nCommunications,wireline,subscribers,250000,subscribers\nCommunications,broadcast,population_served,500000,population\nEnergy,electricity_bulk,registered_entity,1,nerc_cip_registered\nEnergy,oil_gas_pipeline,pipeline_miles,250,miles\nFinancial Services,banking,assets_usd_b,50,usd_billion\nHealthcare,acute_care_hospital,icu_beds,100,beds\nIT,managed_service_provider,clients_critical_infrastructure,10,clients\nTransportation,aviation,passenger_throughput_pyr,5000000,passengers\nWater,community_water_system,persons_served,3300,persons\n...\n```\n\nLoad as `circia_sector_criteria_lookup`.\n\n## Step 3 — Extend the entity register\n\nAdd to `circia_entity_register_lookup` the following columns:\n\n- `employees` (number)\n- `revenue_usd_m` (number)\n- `sba_size_threshold_met` (bool)\n- `sector_based_criteria_kind` (string — mirror of lookup)\n- `sector_based_criteria_value` (number)\n- `sector_based_criteria_met` (bool)\n- `scope_evidence_url` (string)\n- `last_self_assessed_at` (number)\n- `self_assessed_by` (string)\n- `provisional` (bool, default false)\n\n## Step 4 — Create the search and alert\n\n```ini\n[UC-22.54.8: CIRCIA NPRM Covered-Entity Scope Self-Assessment]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.8,reg=CIRCIA,clause=CIRCIA-NPRM-covered-entity\naction.notable.param.rule_title = CIRCIA covered-entity scope determination unsupported or misaligned\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\nalert.suppress = 1\nalert.suppress.fields = entity_ein\nalert.suppress.period = 7d\n```\n\n## Step 5 — Validate deployment\n\n**(a) Misalignment test**: a test entity with `naics_code=221310` (Water Supply and Irrigation Systems), 1500 employees, `sba_size_threshold_met=false`. The SBA threshold is 1250 employees, so the computed `sba_size_threshold_met_computed=true`; UC-22.54.8 must flag `sba_misaligned`.\n\n**(b) Sector-criteria test**: an entity with `sector=Water`, `sector_based_criteria_kind=persons_served`, `sector_based_criteria_value=5000`, `sector_based_criteria_met=true`. The threshold is 3300; UC-22.54.8 must record `sector_pass=true` and `scope_evidence_status=supported`.\n\n**(c) Unsupported-coverage test**: an entity with `covered_entity_determination=covered` but both `sba_size_threshold_met=null` and `sector_based_criteria_met=null`. UC-22.54.8 must flag `unsupported`.\n\n**(d) Final Rule revision drill**: when the Final Rule lands, the test set must be re-validated against the new thresholds; the lookup updates flow through automatically.\n\n## Step 6 — Operationalize\n\n**Dashboard**: `CIRCIA — NPRM Covered-Entity Scope`.\n\n- Panel 1: determination table.\n- Panel 2: SBA-pathway distribution.\n- Panel 3: sector breakdown.\n- Panel 4: stale self-assessments.\n- Panel 5: misalignment queue.\n\n**Runbook for `unsupported`** (owner: General Counsel deputy, severity P2):\n\n1. Within 10 business days: gather the SBA or sector-based factual basis; document with a memo and URL.\n2. Either populate the supporting fact or flip the determination to `under_review`.\n\n**Runbook for `sba_misaligned`** (owner: General Counsel deputy, severity P2):\n\n1. Within 5 business days: reconcile the recorded determination with the computed threshold; either revise the determination or document a substantive rationale (e.g. the company is a parent-company aggregate but each individual subsidiary is below the SBA threshold).\n\n**Runbook for `determination_review_needed`** (owner: General Counsel, severity P1):\n\n1. The recorded determination is `not_covered` but the computed pathway indicates coverage. Convene the CIRCIA Determination Committee; document the rationale; either revise to `covered` or memorialise why the entity remains out of scope.\n\n## Step 7 — Troubleshooting\n\n**SBA threshold update lagged** — the SBA may revise the table mid-cycle. Subscribe to SBA size-standards updates and refresh the lookup within 30 days of any change.\n\n**NAICS code missing** — the corporate-secretarial system may not assign NAICS at the legal-entity level. Default to the parent's NAICS and flag for review.\n\n**Sector-based criteria with calculated thresholds** — some sector criteria are calculated (e.g. financial services aggregate assets across affiliates). The computation may need an external data feed; for those, accept the `sector_based_criteria_met` flag as authoritative if the General Counsel signs the supporting memo.\n\n**CIRCIA-specific failure modes**:\n\n- **Affiliation rules under SBA**: the SBA size standard considers affiliation; affiliated entities may be aggregated for size purposes. The lookup is at the NAICS level; aggregation is a manual analysis tracked in the supporting memo.\n- **NAICS conversion**: the federal government periodically revises NAICS codes (NAICS 2017, 2022, 2027 expected). When NAICS revises, ensure the SBA lookup and entity-register NAICS columns are aligned.\n- **Cross-jurisdictional criteria**: an entity may have global operations but only US operations matter for CIRCIA. The employee count and revenue must be US-domestic.\n- **Provisional determination pending Final Rule**: until the Final Rule lands, mark `provisional=true`; refresh the determination within 60 days of the Final Rule publication.",
+  "grandmaExplanation": "We check each company in our group against the cyber agency's rules to see if it's big enough or important enough to count. We write down the facts (how many people, how much money, how many beds, how many customers) and the source of those facts, so a reviewer can verify our decision."
+}

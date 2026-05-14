@@ -1,0 +1,145 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.3",
+  "title": "Shipboard Cyber Risk Asset Register (CRAR) — bridge / propulsion / cargo / communications / passenger / administrative / access-control inventory with §3.1 category compliance",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Inventory"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "CISO",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Excludes non-cyber-vulnerable physical assets (mooring lines, anchors, lifeboats considered as physical safety equipment). Excludes consumable inventory (provisions, lube oil, fuel tank inventory unless tied to cyber-controlled gauging).",
+  "evidence": "Saved search `UC-22.59.3` archived daily to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s2-1\"`. Every row pins (imo_number, ship_name, msc_category, asset_id, asset_class, vendor, model, firmware_version, configuration_baseline_hash, last_attested_at, category_coverage).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 2.1 (Identify) of MSC-FAL.1/Circ.3 Rev.2 requires the Company to identify the cyber-vulnerable shipboard systems and assess the risk that compromise of those systems poses to safety. This UC implements the comprehensive Cyber Risk Asset Register (CRAR) per vessel, covering all seven §3.1 categories.",
+      "controlObjective": "Demonstrates a complete, current, per-vessel asset inventory across all seven cyber-vulnerable categories with baseline hashes for integrity assurance.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO CRAR Health` per-vessel dashboard, attestation receipts signed by the Master and the Chief Engineer.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s3-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 3.1 enumerates the seven categories of cyber-vulnerable shipboard systems. This UC categorises every asset against §3.1.",
+      "controlObjective": "Proves coverage of all §3.1 categories per vessel.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IACS-UR-E26-r3",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "IACS UR E26 r3 requires a documented inventory of CBS for newbuilds; this UC extends that requirement to the existing fleet on a voluntary-uplift basis.",
+      "controlObjective": "Aligns existing fleet CRAR with the IACS UR E26 newbuild standard.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IACS-UR-E26-r3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a new OT asset to a vessel (e.g. a Wartsila NACOS Platinum upgrade) without populating the CRAR. UC-22.59.3 MUST flag the affected vessel within 24h as `category_coverage < 100%`.",
+    "negativeScenario": "Add the asset to the CRAR with a current baseline hash. UC-22.59.3 MUST record `category_coverage=100%` and `last_attested_at` within 7 days."
+  },
+  "dataSources": "KV Store `imo_crar_lookup` (imo_number, asset_id, asset_class, msc_category, vendor, model, firmware_version, configuration_baseline_hash, last_attested_at). KV Store `imo_crar_components_lookup` for granular component breakdown. ServiceNow CMDB vessel + component records. Vendor inventory from Wartsila Online Services, Kongsberg Maritime CloudPort, Furuno CloudCenter, Sperry Marine VisionMaster Cloud, ABB Marine OneView.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup imo_crar_lookup\n| eval msc_categories = \"bridge,propulsion-machinery-power,cargo,communications,passenger-servicing,passenger-public-network,administrative-crew-welfare,access-control\"\n| eval expected_categories = split(msc_categories, \",\")\n| stats values(msc_category) as observed_categories, count as asset_count, max(last_attested_at) as latest_attestation by imo_number, ship_name\n| eval observed_set = mvjoin(observed_categories, \",\")\n| eval expected_set = mvjoin(expected_categories, \",\")\n| eval missing_categories = mvfilter(NOT match(expected_set, '\\b' . observed_categories . '\\b'))\n| eval category_coverage = round((mvcount(observed_categories) / 8) * 100, 1)\n| eval days_since_attestation = round((now() - latest_attestation) / 86400, 1)\n| where category_coverage < 100 OR days_since_attestation > 90\n| sort 0 +category_coverage, -days_since_attestation\n| table imo_number ship_name asset_count category_coverage observed_set days_since_attestation",
+  "description": "Reconciles per-vessel Cyber Risk Asset Register against MSC-FAL.1/Circ.3 §3.1's seven categories; flags vessels with missing coverage or stale attestations.",
+  "value": "Incomplete asset inventory is the most-cited finding at flag-State / RO cyber-SMS audits. Auditors open a vessel-specific scope first; if the CRAR misses a §3.1 category (most commonly 'administrative-crew-welfare' or 'passenger-public-network' on cargo vessels that quietly added a crew Wi-Fi), the audit escalates to a major-non-conformity.",
+  "implementation": "(1) Seed `imo_crar_lookup` per vessel from the company's CMDB (ServiceNow `cmdb_ci_vessel_component` or equivalent). (2) Wire vendor-cloud feeds (Wartsila Online Services, Kongsberg CloudPort, Furuno CloudCenter, ABB Marine OneView, Schneider EcoStruxure Marine, Sperry Marine VisionMaster Cloud) into the KV Store via scheduled lookups. (3) Schedule UC-22.59.3 weekly per vessel and daily fleet-aggregate; route `category_coverage < 80%` to the CISO + Fleet Cyber Lead at severity P2.",
+  "visualization": "(Panel 1) Per-vessel category-coverage matrix (vessel x §3.1 category). (Panel 2) Asset-count distribution by vendor. (Panel 3) Days-since-attestation distribution. (Panel 4) Open category-coverage gaps sorted by vessel criticality.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §3.1 — Vulnerable shipboard systems",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "IACS UR E26 — Cyber resilience of ships",
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+    },
+    {
+      "title": "BIMCO Guidelines on Cyber Security Onboard Ships",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    }
+  ],
+  "knownFalsePositives": "1. **Newbuild integration window**: a newly-delivered vessel may have a 90-day integration grace before CRAR is fully populated; suppress with vessel age <= 90 days. 2. **Crew Wi-Fi out of scope**: some flag administrations accept crew Wi-Fi as not in scope if there is no path to OT; document the exemption per vessel. 3. **Vendor-cloud silence**: a vendor-cloud feed outage may delay attestation by up to 48h; allow `days_since_attestation < 14`. 4. **Lay-up vessels**: lay-up vessels have a reduced CRAR; use `vessel_status=lay-up`.\n\n**Suppression mechanism**: KV Store `imo_22_59_3_exceptions` with the CISO's documented approval.",
+  "requiredFields": [
+    "imo_number",
+    "msc_category",
+    "asset_id",
+    "category_coverage",
+    "days_since_attestation"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + DPA + Chief Engineer (representative)",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
+    "Wartsila Online Services",
+    "Kongsberg Maritime CloudPort",
+    "Furuno CloudCenter",
+    "Sperry Marine VisionMaster Cloud",
+    "ABB Marine OneView",
+    "Schneider Electric EcoStruxure Marine"
+  ],
+  "mitreAttack": [
+    "N/A (asset inventory governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.1",
+    "UC-22.59.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.1 and UC-22.59.2 in production.\n- KV Stores `imo_crar_lookup` and `imo_crar_components_lookup` defined and seeded.\n- ServiceNow CMDB integration (or alternative fleet-management system) producing per-vessel asset records.\n\n## Step 1 — CRAR KV Store schema\n\n```ini\n[imo_crar_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.ship_name = string\nfield.asset_id = string\nfield.asset_class = string\nfield.msc_category = string\nfield.vendor = string\nfield.model = string\nfield.firmware_version = string\nfield.configuration_baseline_hash = string\nfield.last_attested_at = time\nfield.attested_by = string\nfield.attestation_signature = string\nfield.vessel_status = string\n```\n\n## Step 2 — §3.1 category enumeration\n\nThe eight MSC-FAL.1/Circ.3 categories used are: `bridge`, `propulsion-machinery-power`, `cargo`, `communications`, `passenger-servicing`, `passenger-public-network`, `administrative-crew-welfare`, `access-control`. The schema enforces that every asset row is tagged with one of these values.\n\n## Step 3 — Vendor cloud feed wiring\n\nWartsila NACOS Platinum: scheduled REST input pulling fleet status. Kongsberg K-Chief 700: REST input via Kongsberg CloudPort. Furuno: REST input via FCC (Furuno Component Cloud). Sperry Marine: VisionMaster cloud API. ABB Marine: ABB Ability Marine API. Schneider Marine: EcoStruxure Marine API.\n\n## Step 4 — Schedule\n\n```ini\n[UC-22.59.3: IMO CRAR Health]\ncron_schedule = 0 7 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.3,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-1\nalert.severity = 4\n```\n\n## Step 5 — Runbooks\n\n**`category_coverage < 80%`** (owner: Fleet Cyber Lead, severity P2): Within 7 days, complete the missing-category onboarding with the vessel's Master / Chief Engineer; within 30 days, present the corrected CRAR for DPA attestation.\n\n## Step 6 — Maritime-specific notes\n\n- **Vessel-type adaptation**: a tanker has a strong cargo-management-system footprint (TMS, IG, vapour recovery), a container ship has a stowage-plan footprint, a passenger ship has a strong passenger-servicing and passenger-public-network footprint — adapt expected category weight per vessel type.\n- **Multi-flag operation**: vessels operating multi-flag (rare; happens in some short-sea trades) keep one CRAR per IMO number.",
+  "grandmaExplanation": "Every ship has computers running navigation, engines, cargo, communications, and crew internet. We keep a full list of every one of these systems for every ship — what it is, who made it, and what version it runs — so we can find weak spots and prove to the regulator that nothing has been missed."
+}

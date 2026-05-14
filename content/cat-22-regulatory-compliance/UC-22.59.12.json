@@ -1,0 +1,124 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.12",
+  "title": "Crew BYOD / passenger Wi-Fi segregation — administrative + crew welfare + passenger network isolation from OT and CBS",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes vessels without crew Wi-Fi or passenger Wi-Fi infrastructure (lay-up, very small operators). Excludes engine-room engineering laptops within the engineering zone (covered by UC-22.59.10).",
+  "evidence": "Saved search `UC-22.59.12` archived hourly to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s3-1\"`. Every row pins (imo_number, src_zone, dst_zone, packet_count, blocked_count, traversal_indicator).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s3-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 3.1 lists passenger-facing public networks and administrative + crew-welfare systems as cyber-vulnerable categories. Segregation from CBS (cyber-resilient systems) is the principal protect control. This UC verifies the segregation.",
+      "controlObjective": "Demonstrates that crew BYOD / passenger Wi-Fi / administrative-LAN cannot reach OT or CBS zones.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO Crew/Passenger Wi-Fi Isolation` dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A crew member's personal laptop on crew Wi-Fi attempts to scan the IBS subnet. UC-22.59.12 MUST flag traversal_indicator=true within 1 hour.",
+    "negativeScenario": "Crew + passenger networks isolated from OT; no traversal observed. UC-22.59.12 MUST record traversal_indicator=false."
+  },
+  "dataSources": "Onboard firewall logs (`pan:traffic`, `fortinet:fortigate:traffic`). Wi-Fi controller logs (Cisco Meraki MR series — `meraki:wireless:events`, Aruba IAP — `aruba:iap:audit`). Network_Traffic CIM model. OT IDS for east-west visibility (Cisco Cyber Vision, Claroty, Nozomi).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco Meraki (Splunkbase 5582), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Palo Alto Networks Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5582,
+      "name": "Splunk Add-on for Cisco Meraki",
+      "url": "https://splunkbase.splunk.com/app/5582",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| tstats summariesonly=t count(eval(Network_Traffic.action=\"allowed\")) AS allowed_count, count(eval(Network_Traffic.action=\"blocked\")) AS blocked_count, count AS packet_count from datamodel=Network_Traffic where Network_Traffic.src_zone IN (\"crew-wifi\",\"passenger-wifi\",\"administrative\") AND Network_Traffic.dst_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\",\"engineering\") by Network_Traffic.imo_number Network_Traffic.src_zone Network_Traffic.dst_zone\n| rename Network_Traffic.* AS *\n| eval traversal_indicator = if(allowed_count > 0, \"true\", \"false\")\n| where packet_count > 0\n| sort 0 -allowed_count, -packet_count\n| table imo_number src_zone dst_zone packet_count allowed_count blocked_count traversal_indicator",
+  "description": "Continuously verifies isolation of crew Wi-Fi, passenger Wi-Fi, and administrative-LAN from CBS / OT zones; raises a notable on any allowed traversal within 1 hour.",
+  "value": "The administrative-to-OT path is the historical entry vector for shore-side ransomware reaching shipboard OT. The Maersk NotPetya impact (2017) is the canonical example. Continuous verification that the boundary is not breached is the most cost-effective ongoing assurance.",
+  "implementation": "(1) Tag every Network_Traffic event with `src_zone` / `dst_zone` based on the firewall zone names. (2) Wi-Fi controller logs (Meraki, Aruba IAP) feed into Network_Traffic via the CIM add-on. (3) Schedule UC-22.59.12 hourly; route any allowed_count > 0 at severity P2 (P1 for OT zones during sea passage).",
+  "visualization": "(Panel 1) Crew/passenger -> OT traversal count by vessel. (Panel 2) Blocked vs allowed ratio (the blocked counts should dominate). (Panel 3) Top crew-Wi-Fi devices initiating OT scans. (Panel 4) Per-zone-pair heatmap.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §3.1 — Passenger public networks, administrative + crew welfare",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "BIMCO Guidelines — Crew and passenger Wi-Fi segregation",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    },
+    {
+      "title": "IACS UR E26 — Cyber resilience of ships, network architecture",
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+    }
+  ],
+  "knownFalsePositives": "1. **One-way time-sync from administrative-LAN to OT NTP**: this is a baseline-approved flow; ensure NTP-only is excluded. 2. **OEM portable diagnostic tool on engineering Wi-Fi**: tunnels through PAM in production; if seen on a vessel without PAM yet, flag and route to PAM-onboarding queue. 3. **Crew TV / IPTV traffic**: should be confined to crew network, but occasionally leaks; tighten the leak diagnosis.\n\n**Suppression mechanism**: KV Store `imo_22_59_12_exceptions` with the Network Architect's documented approval.",
+  "requiredFields": [
+    "imo_number",
+    "src_zone",
+    "dst_zone",
+    "packet_count",
+    "allowed_count",
+    "traversal_indicator"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Network Architect",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "palo-alto",
+    "cisco-meraki"
+  ],
+  "equipmentModels": [
+    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
+    "Fortinet FortiGate-60F (onboard)",
+    "Cisco Meraki MR46 / MR56 (maritime Wi-Fi)",
+    "Aruba Instant AP-505 / AP-555 (maritime Wi-Fi)",
+    "Ruckus T610 (outdoor maritime AP)"
+  ],
+  "mitreAttack": [
+    "T1133",
+    "T0843"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- Splunk Network_Traffic CIM-compliant data model on accelerated indexes covering firewall + Wi-Fi controller logs.\n\n## Step 1 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall + Wi-Fi controller sourcetypes to set `src_zone` / `dst_zone`. Maintain a vessel-specific zone-mapping lookup keyed on subnet -> zone.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.12: IMO Crew/Passenger Wi-Fi Isolation]\ncron_schedule = 47 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.12,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`allowed_count > 0` and `dst_zone in [ibs, ecdis, gmdss, ais, propulsion, dps, cargo-control]` during sea passage** (severity P1): Within 1 hour, isolate the source device via Wi-Fi controller; investigate; document.\n\n**Other allowed-traversal events** (severity P2): Within 4 hours, the Network Architect either updates the policy or remediates.\n\n## Step 4 — Maritime-specific notes\n\n- **Cruise-ship passenger Wi-Fi**: large fleet of devices; scale storage and search performance accordingly.\n- **Cargo-vessel crew Wi-Fi only**: small fleet of devices; cheaper to monitor.",
+  "grandmaExplanation": "Crew internet and passenger Wi-Fi must never be able to reach the bridge or engine-room computers. We watch the network constantly and ring the alarm if a crew or passenger device tries to peek at the ship's important systems."
+}

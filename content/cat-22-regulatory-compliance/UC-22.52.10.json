@@ -1,0 +1,124 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.10",
+  "title": "SOCI s 30CM SoNS vulnerability assessment on demand — compliance with Secretary notices and ASD assessor access",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes voluntary internal vulnerability scans (governed by routine vulnerability-management UCs). Excludes assessments that have been formally cancelled by the Secretary.",
+  "evidence": "Saved search `UC-22.52.10` archived daily to `audit_evidence` with `soci_clause=\"SOCI-s30CM\"`. Every row pins (sons_asset_id, assessment_notice_id, notice_received_at, assessment_due_at, assessment_completed_at, report_due_at, report_submitted_at, asd_assessor_consent_granted, assessor_install_artefact, assessment_status). Dashboard `SOCI — SoNS Vulnerability Assessment Tracker` shows the obligation register and ASD assessor access events.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s30CM",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every Secretary-issued vulnerability-assessment notice is acknowledged, (b) the assessment is completed and the report submitted within the notice window, and (c) where ASD assessors install software on the SoNS, consent is recorded (or the s 30DJ basis is logged). This is the entire scope of s 30CM.",
+      "controlObjective": "Proves the entity complies with every Secretary-issued vulnerability-assessment notice and that ASD assessor activity is appropriately authorised.",
+      "evidenceArtifact": "Saved search `UC-22.52.10` archived to `audit_evidence`, the `SOCI — SoNS Vulnerability Assessment Tracker` dashboard, signed assessment reports, and the assessor-consent register.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s30CM",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Register a notice with `assessment_due_at` in the past, no completion. UC-22.52.10 MUST flag `assessment_status=\"assessment_overdue\"`.",
+    "negativeScenario": "Complete the assessment and submit the report on time, with consent recorded for any ASD assessor install. UC-22.52.10 MUST record `compliant`."
+  },
+  "dataSources": "Lookup `sons_vuln_assessment_lookup` and `sons_assessor_consent_lookup` populated by SoNS Programme Lead from CISC / ASD correspondence.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Tenable (Splunkbase 4060), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 4060,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup sons_vuln_assessment_lookup\n| eval today = now()\n| eval assessment_status = case(\n    isnotnull(report_submitted_at) AND report_submitted_at <= report_due_at, \"compliant\",\n    isnotnull(report_submitted_at) AND report_submitted_at > report_due_at, \"report_overdue_but_submitted\",\n    isnotnull(assessment_completed_at) AND today > report_due_at, \"report_overdue\",\n    isnotnull(assessment_completed_at) AND today <= report_due_at, \"report_pending\",\n    today > assessment_due_at, \"assessment_overdue\",\n    1=1, \"assessment_scheduled\")\n| lookup sons_assessor_consent_lookup sons_asset_id assessment_notice_id OUTPUT asd_assessor_consent_granted assessor_install_artefact s30dj_basis\n| eval consent_status = case(\n    asd_assessor_consent_granted=\"true\", \"consent_recorded\",\n    isnotnull(s30dj_basis), \"s30dj_basis_recorded\",\n    1=1, \"no_consent_required\")\n| table sons_asset_id assessment_notice_id notice_received_at assessment_due_at assessment_completed_at report_due_at report_submitted_at assessment_status asd_assessor_consent_granted assessor_install_artefact s30dj_basis consent_status",
+  "description": "For every Secretary-issued s 30CM vulnerability-assessment notice, tracks the assessment lifecycle and any ASD-assessor software install. Surfaces overdue assessments or reports, and missing consent records.",
+  "value": "Vulnerability-assessment notices are issued when ASD has a specific concern. Missing the deadline or failing to record consent for assessor installs both create regulatory exposure. This UC keeps the obligation register always-on.",
+  "implementation": "(1) SoNS Programme Lead registers every Secretary notice in `sons_vuln_assessment_lookup` on receipt. (2) Every assessor-install event (or s 30DJ basis) is registered in `sons_assessor_consent_lookup`. (3) Schedule UC-22.52.10 daily; route status gaps to notable severity=high.",
+  "visualization": "(Panel 1) Active assessment kanban. (Panel 2) Historical compliance table. (Panel 3) Assessor consent register. (Panel 4) Findings-to-CIRMP traceability.",
+  "cimModels": [
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure Act 2018 (Cth) — s 30CM vulnerability assessment on demand",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "CISC — Enhanced Cyber Security Obligations",
+      "url": "https://www.cisc.gov.au/legislation-regulation-and-compliance/cybersecurity-obligations"
+    },
+    {
+      "title": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    }
+  ],
+  "knownFalsePositives": "1. **Notice cancelled by Secretary** — update lookup with cancelled flag.\n\n2. **Voluntary internal scans** — belong to vulnerability-management UCs, not this lookup.\n\n3. **Assessor install pre-dates the lookup** — a legacy assessor install where consent was paper-based. Record the consent retrospectively in the lookup.\n\n**Suppression mechanism**: KV Store `soci_22_52_10_exceptions` with SoNS Programme Lead + CISO joint sign-off; max grant 14 days.",
+  "requiredFields": [
+    "sons_asset_id",
+    "assessment_notice_id",
+    "assessment_due_at",
+    "report_due_at",
+    "assessment_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "tenable",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Tenable.io / Tenable.ot 6.x (vulnerability assessment platform)",
+    "Splunk Add-on for Tenable (Splunkbase 4060)",
+    "ServiceNow GRC (Vancouver / Washington, sn_grc tables for SoNS notices)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (regulator-directed assessment workflow — measures compliance with Secretary notices, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.8",
+    "UC-22.52.9"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Tenable add-on for vulnerability data, ServiceNow add-on for notice register.\n- `index=audit_evidence`.\n- Lookups:\n  - `sons_vuln_assessment_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `assessment_notice_id`, `notice_received_at` (epoch), `assessment_due_at` (epoch), `assessment_completed_at` (epoch), `report_due_at` (epoch), `report_submitted_at` (epoch), `report_artefact_url`.\n  - `sons_assessor_consent_lookup` — owned by CISO. Columns: `sons_asset_id`, `assessment_notice_id`, `asd_assessor_consent_granted` (boolean), `consent_artefact_url`, `assessor_install_artefact` (URL or null), `s30dj_basis` (only set if ASD acted under s 30DJ without consent).\n\n## Step 1 — Configure data collection\n\nThe lookups are the contracts; the SoNS Programme Lead and CISO are jointly responsible. Best practice: integrate the lookups with the GRC system and the change-management system so every assessor-install request is a tracked change.\n\nValidate:\n\n```spl\n| inputlookup sons_vuln_assessment_lookup\n| stats count, latest(notice_received_at), latest(assessment_completed_at)\n```\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.10: SOCI s 30CM SoNS vulnerability assessment on demand]\ncron_schedule = 15 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.10,reg=SOCI,clause=SOCI-s30CM\naction.notable.param.rule_title = SOCI s 30CM SoNS vulnerability assessment compliance gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable creation on `assessment_status IN (assessment_overdue, report_overdue)`; also notable when `assessor_install_artefact IS NOT NULL AND consent_status=\"no_consent_required\"` (assessor installed without recorded basis).\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control with overdue assessment; UC flags.\n\n**(b)** Negative control compliant scenario; UC records compliant.\n\n**(c)** Consent-coverage: every assessor install in the lookup must have either consent or s 30DJ basis recorded.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — SoNS Vulnerability Assessment Tracker`.\n\n**Runbook for `assessment_overdue`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 1 business day: contact ASD; agree revised dates.\n\n**Runbook for `report_overdue`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 5 business days: submit report; self-disclose.\n\n**Runbook for assessor-install-without-consent** (owner: CISO, severity P1):\n\n1. Within 4 hours: clarify whether s 30DJ basis applies; if not, immediate escalation.\n\n## Step 5 — Troubleshooting\n\n**Wrong dates** — epoch conversion bug.\n\n**Findings not traced into CIRMP** — every assessment finding above a threshold should trigger a CIRMP material-risk update under UC-22.52.12. Confirm the handoff exists.\n\n**SOCI-specific failure modes**:\n\n- **Findings classified by ASD as 'sensitive operational information'**: report-handling must respect the s 35AC protected-information regime; do not store the raw report in `audit_evidence`, only the metadata and artefact URL pointing to a secured artefact store.\n- **Joint assessment across multiple SoNS**: see UC-22.52.9 joint exercises pattern.\n- **Cross-jurisdictional assessor consent**: if the ASD assessor team includes Five Eyes partners, the consent terms may need to be broader; agree in writing.",
+  "grandmaExplanation": "When the government tells us they want to do a security check on one of our most important systems, we must let them in, complete the check on time, and send back the report. If they install scanning software, we keep a record of who said yes. Anything that misses the deadline or skips the consent record rings the bell."
+}

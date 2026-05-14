@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.21",
+  "title": "OT Recovery Time and Recovery Point Objectives Evidence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Resilience"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Excludes IT applications not in the OT system inventory. Excludes process-data archives beyond 30 days that are not relevant to recovery (long-term historian data is archived separately under data-retention controls). Excludes safety-system specific RPO (handled as a separate stricter sub-control under UC-22.51.19).",
+  "evidence": "Saved search `UC-22.51.21` archived weekly to `audit_evidence` with `otcc_clause=\"OTCC-3-1-2-1\"`. Each row preserves (asset_class, system_id, observed_rto_minutes, target_rto_minutes, observed_rpo_minutes, target_rpo_minutes, last_recovery_demo_at, rpo_evidence_path, rto_overshoot_flag, rpo_overshoot_flag, demo_overdue_flag). Dashboard `NCA OTCC – OT RTO/RPO` shows per-asset RTO/RPO performance over 13 months.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-3-1-2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Measures actual RTO and RPO achieved during BCP exercises (UC-22.51.20) and against unplanned outages, compares to documented targets, and surfaces overshoots. Combined with UC-22.51.20 and UC-22.51.22 (backup integrity), this satisfies the RTO/RPO control.",
+      "controlObjective": "Proves OT systems can be recovered within documented Recovery Time Objectives and Recovery Point Objectives, with evidence from actual exercises and unplanned incidents.",
+      "evidenceArtifact": "Saved search `UC-22.51.21` archived to `audit_evidence` plus the `NCA OTCC – OT RTO/RPO` dashboard.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-3-1-2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Run a recovery exercise where the test HMI is restored from backup. Set observed_rto_minutes to a value greater than the documented target. UC-22.51.21 MUST flag the exercise with `rto_overshoot_flag=true`, route an alert to OT cybersecurity programme manager and OT operations director, and archive.",
+    "negativeScenario": "A recovery exercise that achieves both RTO and RPO within target MUST NOT be flagged."
+  },
+  "dataSources": "`index=bcp sourcetype=\"servicenow:bcp:exercise\"` (from UC-22.51.20), `index=audit_evidence` UC-22.51.16 incident records (for unplanned-outage RTO/RPO observations), backup-system event feed (`commvault:backup:job`, `veeam:backup:job`, `dell_emc:networker:job`). Lookups: `ot_rto_rpo_targets.csv`, `ot_recovery_demo_schedule.csv`.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Commvault (Splunkbase 4321) or equivalent backup vendor TA, Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(index=bcp sourcetype=\"servicenow:bcp:exercise\" earliest=-13mon)\n  OR (index=audit_evidence uc=22.51.16 earliest=-13mon disposition=\"true_positive\" recovery_complete=*)\n| eval asset_class = coalesce(asset_class, exercise_scope)\n| eval system_id = coalesce(system_id, asset_keys)\n| eval observed_rto_minutes = coalesce(observed_rto_minutes, recovery_duration_minutes)\n| eval observed_rpo_minutes = coalesce(observed_rpo_minutes, data_loss_minutes)\n| stats latest(observed_rto_minutes) AS observed_rto_minutes latest(observed_rpo_minutes) AS observed_rpo_minutes latest(_time) AS last_recovery_demo_at latest(rpo_evidence_path) AS rpo_evidence_path BY asset_class system_id\n| lookup ot_rto_rpo_targets.csv asset_class OUTPUT target_rto_minutes target_rpo_minutes recovery_demo_interval_days\n| eval days_since_demo = round((now() - last_recovery_demo_at)/86400)\n| eval rto_overshoot_flag = if(isnotnull(observed_rto_minutes) AND observed_rto_minutes > target_rto_minutes, \"true\", \"false\")\n| eval rpo_overshoot_flag = if(isnotnull(observed_rpo_minutes) AND observed_rpo_minutes > target_rpo_minutes, \"true\", \"false\")\n| eval demo_overdue_flag = if(days_since_demo > recovery_demo_interval_days, \"true\", \"false\")\n| where rto_overshoot_flag=\"true\" OR rpo_overshoot_flag=\"true\" OR demo_overdue_flag=\"true\"\n| table asset_class system_id observed_rto_minutes target_rto_minutes rto_overshoot_flag observed_rpo_minutes target_rpo_minutes rpo_overshoot_flag last_recovery_demo_at days_since_demo recovery_demo_interval_days demo_overdue_flag rpo_evidence_path\n| sort - rto_overshoot_flag rpo_overshoot_flag demo_overdue_flag",
+  "description": "Reconciles observed RTO/RPO performance from BCP exercises and unplanned incidents against documented targets per asset_class, and flags overshoots plus overdue recovery demos.",
+  "value": "OTCC inspectors require both targets AND actual measurements. A documented 4-hour RTO with no recovery exercise is a paper-only control. This UC produces continuous evidence of actual recoverability with overshoot detection.",
+  "implementation": "(1) Build `ot_rto_rpo_targets.csv` from the OT BIA (Business Impact Analysis). (2) Ensure BCP exercise records (UC-22.51.20) and incident records (UC-22.51.16) carry the observed RTO/RPO. (3) Maintain `ot_recovery_demo_schedule.csv` defining frequency per asset_class. (4) Schedule UC-22.51.21 weekly on Monday morning.",
+  "visualization": "(Panel 1) Single-value 'RTO overshoots 13mo', 'RPO overshoots 13mo', 'Demos overdue now'. (Panel 2) Per-asset_class RTO/RPO bar chart with target line. (Panel 3) Trend chart over 13 months. (Panel 4) Table of overdue demos with drill-through.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "NIST SP 800-34 — Contingency Planning Guide for Federal Information Systems",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-34/rev-1/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Initial-pilot overshoot during first-time exercise** — the first recovery demo of a new asset class often overshoots. Suppression: maintain `first_exercise_grace.csv` permitting one grace overshoot per asset_class.\n\n2. **Exercise that excludes a sub-system intentionally** — a tabletop may not exercise the full restore; observed_rto reflects only the simulated portion. Suppression: tag the exercise with `scope=partial`; only `scope=full` exercises drive the RTO/RPO measurement.\n\n3. **Vendor-supported recovery dependency** — some OT recoveries depend on vendor support; vendor SLA may not be controllable. Suppression: maintain `vendor_recovery_sla.csv` and surface vendor-dependent overshoots distinctly.\n\n**Suppression mechanism**: KV Store `otcc_22_51_21_exceptions`.",
+  "requiredFields": [
+    "asset_class",
+    "system_id",
+    "observed_rto_minutes",
+    "last_recovery_demo_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "N/A (compliance-tracking UC, not a detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.20",
+    "UC-22.51.22"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.51.20 (BCP exercise tracking) and UC-22.51.22 (backup integrity) operational.\n- Backup-system feed (Commvault, Veeam, Dell EMC NetWorker, Veritas NetBackup) onboarded.\n- `index=bcp`, `index=audit_evidence` (UC-22.51.16 archives), `index=backup` for restore-job events.\n- Lookups:\n  - `ot_rto_rpo_targets.csv` — owned by Head of OT Security plus OT Operations Director. Columns: `asset_class`, `target_rto_minutes`, `target_rpo_minutes`, `recovery_demo_interval_days`. Reviewed annually.\n  - `ot_recovery_demo_schedule.csv` — specifying which asset_class is demonstrated in which quarter; aligns with `ot_bcp_exercise_calendar.csv`.\n  - KV Store `otcc_22_51_21_exceptions`.\n\n## Step 1 — Configure data flow\n\nThe upstream feeds carry observed values. Make sure UC-22.51.20 (BCP exercise) and UC-22.51.16 (incident) capture:\n\n- `observed_rto_minutes`: minutes from initiation-of-recovery (declared by IR coordinator) to operational restoration (declared by OT operations).\n- `observed_rpo_minutes`: minutes of lost data measured against the historian's last successful snapshot.\n- `rpo_evidence_path`: link to the post-exercise / post-incident artefact in the document store.\n\nBackup events from Commvault:\n\n```ini\n[commvault://restore_jobs]\nendpoint = https://commvault.example.com/webconsole\nresources = restore_jobs\nindex = backup\nsourcetype = commvault:backup:job\ninterval = 1800\n```\n\n## Step 2 — Create the search and alert\n\nThe search aggregates by `(asset_class, system_id)` to compute the latest observed RTO/RPO per system. Three flags:\n\n- `rto_overshoot_flag`: observed exceeds target.\n- `rpo_overshoot_flag`: observed exceeds target.\n- `demo_overdue_flag`: days_since_demo exceeds the recovery_demo_interval_days for the asset_class.\n\n**Schedule**:\n\n```ini\n[UC-22.51.21: OT Recovery Time and Recovery Point Objectives Evidence]\ncron_schedule = 0 8 * * 1\ndispatch.earliest_time = -13mon\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.21,reg=NCA_OTCC,clause=OTCC-3-1-2-1\naction.email.to = ot-cyber-programme@example.com,ot-operations-director@example.com\nalert.severity = 3\n```\n\nEmail-only governance alert.\n\n## Step 3 — Validate deployment\n\n**(a)** RTO/RPO target table exists with all in-scope asset_classes.\n\n**(b)** Each scheduled exercise per UC-22.51.20 carries the observed RTO/RPO.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT RTO/RPO`.\n\n- **Row 1, single values**: 'RTO overshoots 13mo', 'RPO overshoots 13mo', 'Demos overdue'.\n- **Row 2, per asset_class bar chart**: observed vs target with target line.\n- **Row 3, 13-month trend**.\n- **Row 4, sortable table**: every flagged asset with drill-through to exercise/incident record.\n\n**Runbook for `rto_overshoot_flag=true`** (owner: OT Operations Director with Head of OT Security):\n\n1. Review the exercise/incident root-cause analysis.\n2. If structural (missing process, missing tool, missing skill): assign an improvement action with deadline.\n3. Re-test within the next exercise cycle.\n4. If chronic over a year: revisit the target with the OT cybersecurity steering committee. Possibly tighten controls, possibly relax target if business permits.\n\n## Step 5 — Troubleshooting\n\n**Observed RTO/RPO null on every exercise** — the BCM exercise form lacks the fields, or the analyst isn't filling them. Add mandatory fields to the BCM form; train.\n\n**OT-specific failure modes**:\n\n- **Process-restart constraints**: many OT systems must restart in a specific order (utilities first, then process, then control). The observed RTO must reflect end-to-end restoration including dependency restarts, not just the IT-system restore time. Document the dependency chain in the BIA.\n- **Field-device firmware load time**: restoring a PLC may take only minutes but commissioning it back to safe operating state can take hours. Both phases count toward RTO.\n- **Backup verification overhead**: time spent verifying backup integrity before restore (e.g. hash check) counts toward RTO unless explicitly excluded by the target definition.\n- **Cyber-physical interactions**: in some cases the restore process triggers downstream physical issues that the OT operations team must remediate (e.g. PLC reload triggers a process-trip the operator must reset). Document and target accordingly.",
+  "grandmaExplanation": "We measure how fast and how completely we got the plant running again after a practice or a real problem. If we missed our target time or lost more data than we should, we flag it so the team can improve.",
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, BCM rto_rpo_observed table)",
+    "Splunk Add-on for Commvault (Splunkbase 4321) or equivalent backup-vendor TA for restore-time observations",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + ITSI SLO dashboards)",
+    "Splunk IT Service Intelligence 4.x (KPI + SLO modelling for RTO/RPO)"
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.25",
+  "title": "CIRCIA Records Retention — enforce 2-year preservation from most-recent-report, with integrity verification quarterly",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes records for incidents formally closed AND past the 2-year retention from most-recent-report (those are released per data-classification policy). Excludes records of unreported (below-threshold) incidents (retained per internal IR-record policy, not CIRCIA). Excludes records held under separate legal-hold orders that supersede CIRCIA.",
+  "evidence": "Saved search `UC-22.54.25` archived weekly to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-records-retention\"`. Every row pins (incident_id, artefact_count, oldest_artefact_at, newest_artefact_at, most_recent_report_at, retention_floor_at, integrity_last_verified_at, retention_status). Dashboard `CIRCIA — Records Retention` shows retention posture by incident.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-records-retention",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The NPRM imposes a 2-year retention period for records related to a CIRCIA-reported incident, measured from the most recent supplemental report. Records must be preserved at integrity (not just stored). UC-22.54.25 instruments the retention floor and quarterly integrity verification. Marked 'full'.",
+      "controlObjective": "Proves every CIRCIA-reported incident's records are preserved through the 2-year retention floor and that integrity is verified at least quarterly.",
+      "evidenceArtifact": "Saved search `UC-22.54.25` archived to `audit_evidence`, the `CIRCIA — Records Retention` dashboard, and quarterly integrity-verification reports.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-records-retention",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Skip the quarterly integrity-verification job for an incident; UC-22.54.25 MUST flag `retention_status=\"integrity_unverified\"` within 14 days of the missed verification.",
+    "negativeScenario": "Run the quarterly integrity-verification job for all artefacts; the job confirms hash match; UC-22.54.25 MUST record `retention_status=\"compliant\"`."
+  },
+  "dataSources": "KV Store `circia_preservation_lookup` (UC-22.54.5). KV Store `circia_reporting_status_lookup` (UC-22.54.2 / UC-22.54.4). Integrity-verification job results (HEC `hec:circia:integrity_check`). Cross-reference to `circia_classification_lookup` (UC-22.54.19).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup circia_preservation_lookup\n| stats min(artefact_created_at) AS oldest_artefact_at max(artefact_created_at) AS newest_artefact_at count AS artefact_count max(integrity_last_verified_at) AS integrity_last_verified_at by incident_id\n| join type=left incident_id [\n    | inputlookup circia_reporting_status_lookup\n    | stats max(report_filed_at) AS most_recent_report_at by incident_id\n]\n| eval now_ts = now()\n| eval retention_floor_at = if(isnotnull(most_recent_report_at), most_recent_report_at + 2 * 365 * 86400, null())\n| eval days_since_integrity = if(isnotnull(integrity_last_verified_at), round((now_ts - integrity_last_verified_at) / 86400, 0), null())\n| eval retention_status = case(\n    isnull(most_recent_report_at), \"no_report\",\n    retention_floor_at < now_ts, \"past_retention_floor\",\n    isnull(integrity_last_verified_at), \"integrity_unverified\",\n    days_since_integrity > 100, \"integrity_overdue\",\n    1=1, \"compliant\")\n| where retention_status IN (\"integrity_unverified\", \"integrity_overdue\")\n| table incident_id artefact_count most_recent_report_at retention_floor_at integrity_last_verified_at days_since_integrity retention_status",
+  "description": "Cross-references preservation register, reporting status, and integrity-verification logs. Surfaces records overdue for integrity verification.",
+  "value": "A retained record without integrity verification is indistinguishable from a tampered record at audit time. This UC ensures the quarterly verification cycle is honoured.",
+  "implementation": "(1) SOAR `circia-integrity-verify` runs quarterly on every active-retention incident. (2) Job re-computes SHA-256 of each artefact body; compares to stored hash. (3) Job writes `integrity_last_verified_at` to preservation register. (4) Schedule UC-22.54.25 weekly Monday 05:30.",
+  "visualization": "(Panel 1) Retention posture: incidents and their retention status. (Panel 2) Verification cadence. (Panel 3) Failed-verification queue. (Panel 4) Approaching-retention-floor heatmap.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CISA NPRM — Records Retention (89 FR 23644)",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-reported incident** — quarterly cycle may not yet have run. Suppression: 60-day grace from `most_recent_report_at`.\n\n2. **Tier-1 storage outage** — the verification job may have temporarily failed. Suppression: SOAR retries; only after 3 failed retries does UC-22.54.25 alert.\n\n**Suppression mechanism**: KV Store `circia_22_54_25_exceptions` with per-incident grants requiring documented CISO approval and a 30-day maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "retention_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + Records Manager + CISO",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-integrity-verify playbook)"
+  ],
+  "mitreAttack": [
+    "N/A (forensic-records integrity workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.5",
+    "UC-22.54.14"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `circia-integrity-verify` playbook.\n- Tier-1 storage configured to support SHA-256 verification at scale.\n\n## Step 1 — Verification job\n\nSOAR `circia-integrity-verify` runs quarterly per incident:\n\n1. Iterate every artefact in `circia_preservation_lookup` for the incident.\n2. Re-download the artefact body.\n3. Compute SHA-256.\n4. Compare to stored `sha256`.\n5. On mismatch, alert immediately (P1) and tag artefact as `integrity_compromised`.\n6. On match, update `integrity_last_verified_at`.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.25: CIRCIA Records Retention]\ncron_schedule = 30 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.25,reg=CIRCIA,clause=CIRCIA-CISA-records-retention\naction.notable.param.rule_title = CIRCIA records-retention integrity gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Skipped-verification test**: do not run the quarterly job for an incident; UC-22.54.25 must alert.\n\n**(b) Tampered-artefact test**: corrupt an artefact body in tier-1 storage; the integrity-verify job must alert P1.\n\n## Step 4 — Operationalize\n\n**Runbook for `integrity_unverified` or `integrity_overdue`** (owner: CISO, severity P2):\n\n1. Within 14 days: trigger SOAR verification job; investigate any failures.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Most-recent-report stamp updates**: a supplemental report extends the retention floor; ensure UC-22.54.4 supplemental logs update `most_recent_report_at`.\n- **Legal-hold extension**: legal-hold orders can extend retention past CIRCIA's 2-year floor; ensure legal-hold orders are tracked separately and override release.",
+  "grandmaExplanation": "Every important piece of evidence we keep about a reported incident must stay safe for two whole years after our last update to the cyber agency, and every three months we re-check that nobody changed it. If we miss a check, the records team is alerted."
+}

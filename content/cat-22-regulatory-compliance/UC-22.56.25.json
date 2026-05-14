@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.25",
+  "title": "TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Change",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes routine read-only changes. Excludes changes in `tsa_change_exception_lookup`.",
+  "evidence": "Saved search `UC-22.56.25` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-multi-change-control\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-change-control",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA SDs across modes require documented change-control for operationally-critical systems. This UC reconciles privileged changes with ServiceNow change records.",
+      "controlObjective": "Proves every privileged change on TSA-regulated SCADA / OT / NOTAM-relevant system maps to an approved change-control record.",
+      "evidenceArtifact": "Saved search, `TSA Change Control Audit` dashboard, ServiceNow change-record library.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-change-control",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Make a synthetic privileged change on a TSA-regulated asset without a change ticket. UC-22.56.25 MUST flag within 4 hours.",
+    "negativeScenario": "Pin the change to an approved ticket. UC-22.56.25 MUST NOT escalate."
+  },
+  "dataSources": "Windows + Linux audit logs (`wineventlog:security`, `linux:audit`). SCADA HMI/EWS audit (`scada:audit`). Network device config-change (`cisco:nxos:audit`). ServiceNow Change Management (`snow:change_request`). TSA asset register (KV Store `tsa_change_asset_lookup`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=wineventlog:security EventCode IN (4672,4720,4724,4738,4756) OR sourcetype=cisco:nxos:audit cmd=*)\n| lookup tsa_change_asset_lookup host AS host OUTPUT facility_id modality tsa_in_scope\n| where tsa_in_scope=true\n| eval change_window = strftime(_time, \"%Y-%m-%dT%H\")\n| join type=left host change_window [search sourcetype=\"snow:change_request\" state IN (\"scheduled\",\"in_progress\",\"closed_complete\") | eval change_window=strftime(start_date, \"%Y-%m-%dT%H\") | stats values(number) as change_ticket by host change_window]\n| eval change_status = case(\n    isnotnull(change_ticket), \"approved\",\n    1=1, \"unapproved\")\n| where change_status=\"unapproved\"\n| stats count as events by facility_id modality host user EventCode change_status\n| table facility_id modality host user EventCode events change_status",
+  "description": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved changes.",
+  "value": "Unapproved changes on TSA-regulated systems are enforcement findings AND leading indicators of intrusion.",
+  "implementation": "(1) Populate `tsa_change_asset_lookup`. (2) Schedule UC-22.56.25 every 4 hours. (3) Build the `TSA Change Control Audit` dashboard.",
+  "visualization": "(Panel 1) Unapproved-change counts by modality. (Panel 2) Top-10 users. (Panel 3) Asset coverage. (Panel 4) 30-day trend.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD multi-modal change-control expectations",
+      "url": "https://www.tsa.gov/cybersecurity"
+    },
+    {
+      "title": "NIST 800-128 — Security-focused Configuration Management",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-128/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Emergency change**: tagged retroactively; pin via `change_status_retroactive`.\n2. **Vendor maintenance under PAM**: PAM logs prove vendor-session boundary.\n\n**Suppression mechanism**: KV Store `tsa_change_exception_lookup`.",
+  "requiredFields": [
+    "facility_id",
+    "modality",
+    "host",
+    "user",
+    "change_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + Change Management Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow CMDB / ChangeMgmt (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "T1543",
+    "T0858"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Windows + ServiceNow TAs.\n- KV Store `tsa_change_asset_lookup`.\n\n## Step 1 — Asset register\n\n```ini\n[tsa_change_asset_lookup]\nfield.host = string\nfield.facility_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.25: TSA Change Control Audit]\ncron_schedule = 41 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.25,reg=TSA-Surface,clause=TSA-SD-multi-change-control\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Unapproved change on TSA-critical asset** (owner: Change Lead, severity P2): triage 1 hour; remediate or back-out 4 hours; root-cause 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Time-window alignment**: SCADA timezones may differ; normalise.\n- **Retroactive change tickets**: must include CC review.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case alignment**: changes affecting pipeline safety-case may require PHMSA notification.\n- **PTC vendor changes**: rail PTC vendor changes need vendor + FRA + TSA awareness.",
+  "grandmaExplanation": "Every change made on an important pipeline/train/airport system must have an approved ticket. If a change happens without one, we know within four hours."
+}

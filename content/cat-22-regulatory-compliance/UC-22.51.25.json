@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.25",
+  "title": "OT Cybersecurity Training and Awareness Compliance",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "training-effectiveness",
+  "exclusions": "Excludes general IT awareness training; OTCC requires OT-specific cyber awareness for personnel with OT access. Excludes external contractors handled under UC-22.51.23 / UC-22.51.24.",
+  "evidence": "Saved search `UC-22.51.25` archived weekly to `audit_evidence` with `otcc_clause=\"OTCC-1-7-1-1\"`. Each row preserves (user_id, employee_id, role, ot_role_class, last_training_completed_at, training_module_id, training_outcome, days_since_training, training_overdue_flag, missing_required_module_flag, phishing_simulation_failed_count). Dashboard `NCA OTCC – OT Training Compliance` shows training matrix per role and 13-month trend.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-1-7-1-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Reconciles training records (LMS: KnowBe4, SANS, NINJIO, OpsCloud, internal LMS) against the OT role-to-training matrix to validate every OT-touching role has completed required OT-specific cyber awareness within the cadence. Phishing simulation results integrated. This satisfies the training control in full.",
+      "controlObjective": "Proves every OT-touching role has completed required OT cyber awareness training within the policy cadence and has been phishing-tested.",
+      "evidenceArtifact": "Saved search `UC-22.51.25` archived to `audit_evidence` plus the `NCA OTCC – OT Training Compliance` dashboard.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-1-7-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a test OT operator `OTCC-TEST-OP-001` to HRIS with `ot_role_class=hmi_operator`. Confirm that within 30 days they appear flagged for the `OT_Cyber_Awareness_Module_A`. UC-22.51.25 MUST flag with `training_overdue_flag=true`.",
+    "negativeScenario": "An OT operator with the required modules completed within the cadence MUST NOT be flagged."
+  },
+  "dataSources": "LMS feeds: KnowBe4 (`knowbe4:training:completion`), SANS (`sans:training:completion`), NINJIO, OpsCloud, internal LMS (`lms:training:completion`). HRIS for role data (`workday:employee`, `successfactors:employee`). Phishing-simulation results (`knowbe4:phishing:click`). Lookups: `ot_training_matrix.csv`.",
+  "app": "Splunk Add-on for KnowBe4 (Splunkbase 4810) or LMS-specific TA, Splunk Add-on for Workday (Splunkbase 4747) or HRIS TA, Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup ot_employee_register.csv\n| where ot_access_flag=\"true\" AND employment_state=\"active\"\n| lookup ot_training_matrix.csv ot_role_class OUTPUT required_modules (mv) training_cadence_days\n| eval required_modules = split(required_modules, \"|\")\n| mvexpand required_modules\n| rename required_modules AS required_module_id\n| join user_id required_module_id type=left [search index=lms (sourcetype IN (\"knowbe4:training:completion\",\"sans:training:completion\",\"lms:training:completion\")) earliest=-13mon outcome=\"complete\" | rename module_id AS required_module_id | dedup user_id required_module_id sortby - _time | rename _time AS last_training_completed_at]\n| eval days_since_training = round((now() - last_training_completed_at)/86400)\n| eval missing_required_module_flag = if(isnull(last_training_completed_at), \"true\", \"false\")\n| eval training_overdue_flag = if(missing_required_module_flag=\"false\" AND days_since_training > training_cadence_days, \"true\", \"false\")\n| join user_id type=left [search index=lms sourcetype=\"knowbe4:phishing:click\" earliest=-12mon | stats count AS phishing_simulation_failed_count BY user_id]\n| eval phishing_simulation_failed_count = coalesce(phishing_simulation_failed_count, 0)\n| where missing_required_module_flag=\"true\" OR training_overdue_flag=\"true\" OR phishing_simulation_failed_count >= 3\n| table user_id employee_id role ot_role_class required_module_id last_training_completed_at days_since_training training_cadence_days phishing_simulation_failed_count missing_required_module_flag training_overdue_flag\n| sort - missing_required_module_flag training_overdue_flag phishing_simulation_failed_count",
+  "description": "Reconciles each OT-touching employee against the required-training matrix and phishing-simulation outcomes; flags missing modules, overdue refreshers, and serial phishing-test failures.",
+  "value": "Human factors are the leading initial-access vector even in OT environments. NCA OTCC inspectors will request training-completion evidence per role; producing it manually is days of work; this UC produces it continuously.",
+  "implementation": "(1) Build `ot_training_matrix.csv` mapping `ot_role_class` to required modules and cadence. (2) Build `ot_employee_register.csv` from HRIS with `ot_access_flag`. (3) Onboard LMS feeds and phishing-simulation feeds. (4) Schedule UC-22.51.25 weekly.",
+  "visualization": "(Panel 1) Single-value 'Missing required training', 'Overdue training', 'Phishing failures 12mo'. (Panel 2) Training compliance matrix per ot_role_class. (Panel 3) Sortable table of flagged employees. (Panel 4) 13-month trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "NIST SP 800-50r1 — Building an Information Technology Security Awareness and Training Program",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-50/rev-1/draft"
+    }
+  ],
+  "knownFalsePositives": "1. **New hire onboarding window** — a new hire has 60 days from hire-date to complete initial training. Suppression: only flag missing-required-module if hire-date is older than 60 days.\n\n2. **Long absence** (medical, parental leave) — employee on extended leave should not be expected to complete training. Suppression: `leave_register.csv`.\n\n3. **Phishing failure during sanctioned phishing test** — an employee may legitimately fail a particularly hard test; failure alone is not a violation. The 3-failures-in-12-months threshold captures pattern not single incidents.\n\n**Suppression mechanism**: KV Store `otcc_22_51_25_exceptions`.",
+  "requiredFields": [
+    "user_id",
+    "ot_role_class",
+    "required_module_id"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "N/A (compliance-tracking UC, not a detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.46.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- LMS (KnowBe4, SANS, NINJIO, OpsCloud, internal) onboarded.\n- HRIS feed (Workday, SAP SuccessFactors, BambooHR).\n- `index=lms`, `index=hr`.\n- Lookups:\n  - `ot_training_matrix.csv` — owned by Head of OT Security with HR L&D. Columns: `ot_role_class`, `required_modules` (pipe-separated mvfield), `training_cadence_days`. Examples:\n\n    ```csv\n    ot_role_class,required_modules,training_cadence_days\n    hmi_operator,\"OT_Cyber_Awareness_Module_A|Phishing_OT_Module_B\",365\n    plc_engineer,\"OT_Cyber_Awareness_Module_A|OT_Change_Management_Module_C|PLC_Programming_Security_Module_E\",365\n    sis_engineer,\"OT_Cyber_Awareness_Module_A|SIS_Cyber_Safety_Module_D\",365\n    network_engineer_ot,\"OT_Cyber_Awareness_Module_A|OT_Network_Security_Module_F\",365\n    ot_cyber_analyst,\"OT_Cyber_Awareness_Module_A|OT_IR_Module_G|MITRE_ATTACK_ICS_Module_H\",180\n    ```\n\n  - `ot_employee_register.csv` — owned by HR. Refreshed daily. Includes `ot_access_flag`.\n  - KV Store `otcc_22_51_25_exceptions`.\n\n## Step 1 — Configure data collection\n\nKnowBe4 (typical pattern):\n\n```ini\n[knowbe4://training_completions]\nendpoint = https://api.knowbe4.com/v1/training/enrollments\nrecord_type = json\ninterval = 21600\nindex = lms\nsourcetype = knowbe4:training:completion\n```\n\nWorkday HRIS via TA:\n\n```ini\n[workday://employees]\ninterval = 86400\nindex = hr\nsourcetype = workday:employee\n```\n\nGenerate `ot_employee_register.csv` daily via a saved search that joins HRIS with the OT access policy (e.g. employees in OT cost centres, or with badge access to OT zones from UC-22.51.18).\n\n## Step 2 — Create the search and alert\n\nFlags per SPL.\n\n**Schedule**:\n\n```ini\n[UC-22.51.25: OT Cybersecurity Training and Awareness Compliance]\ncron_schedule = 0 8 * * 1\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.25,reg=NCA_OTCC,clause=OTCC-1-7-1-1\naction.email.to = ot-cyber-programme@example.com,hr-ld@example.com\nalert.severity = 2\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Employee register accuracy: spot-check 20 employees.\n\n**(b)** Training matrix coverage: every ot_role_class present.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Training Compliance`.\n\n- **Row 1, single values**: 'Missing required training', 'Overdue training', 'Phishing failures 12mo'.\n- **Row 2, matrix**: ot_role_class × module compliance percentage.\n- **Row 3, sortable table** with drill-through to LMS.\n- **Row 4, 13-month trend**.\n\n**Runbook**: monthly L&D campaign for overdue employees. Repeat phishing-failure pattern: trigger additional targeted training and notify line manager.\n\n## Step 5 — Troubleshooting\n\n**Module-ID mismatch** between LMS and training matrix — maintain `training_module_alias.csv`.\n\n**OT-specific failure modes**:\n\n- **Contractor OT engineers**: covered under UC-22.51.23 third-party assurance, not this UC.\n- **Air-gapped plant operators** without LMS access: instructor-led training; capture via manual roster in `index=audit_evidence` source `lms:training:completion` with a special LMS instance ID.\n- **Multilingual workforce**: ensure modules are available in Arabic and English for KSA-based personnel.",
+  "grandmaExplanation": "We make sure every plant worker has done their cyber-safety classes and that they haven't fallen for fake phishing emails too many times. If anyone is behind on their classes, we ask them to catch up.",
+  "equipmentModels": [
+    "KnowBe4 Security Awareness Training (course completion + phishing-simulation events)",
+    "Workday HCM / SuccessFactors LMS (HRIS feed for OT-tagged personnel)",
+    "Splunk Add-on for KnowBe4 (Splunkbase 4810) or LMS-specific TA",
+    "Splunk Add-on for Workday (Splunkbase 4747) or HRIS-specific TA",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index with training markers)"
+  ]
+}

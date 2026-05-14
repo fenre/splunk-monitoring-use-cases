@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.20",
+  "title": "AWIA Recognised RRA Methodology — evidence the RRA documents its methodology against J100-21, AWWA M19, or EPA VSAT-Web",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "Legal",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes systems that have documented to EPA Regional WPC the use of an alternative methodology with concurrence (rare). Excludes preliminary working drafts not yet certified to EPA.",
+  "evidence": "Saved search `UC-22.53.20` archived weekly to `audit_evidence` with `awia_clause=\"AWIA-EPA-vsat-j100\"`. Every row pins (pwsid, rra_cycle, methodology, methodology_version, methodology_artefact_url, j100_score_completed, m19_alignment_documented, vsat_runbook_url, methodology_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-EPA-vsat",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences the RRA uses a recognised methodology with version, artefact, and (for J100) a completed score; J100 / M19 / VSAT-Web pathway documented.",
+      "controlObjective": "Proves AWIA recognised-methodology use.",
+      "evidenceArtifact": "Saved search `UC-22.53.20` archived; methodology artefact URLs.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-vsat",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "RRA cycle with `methodology=\"in_house_unstructured\"`. UC-22.53.20 MUST surface with `methodology_status=\"unrecognised_methodology\"`.",
+    "negativeScenario": "RRA cycle with `methodology=\"J100-21\"`, `methodology_artefact_url` populated, `j100_score_completed=true`. UC-22.53.20 MUST record `methodology_status=\"current\"`."
+  },
+  "dataSources": "GRC RRA module (methodology field), methodology artefact repository.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_rra_methodology_lookup pwsid OUTPUT rra_cycle methodology methodology_version methodology_artefact_url j100_score_completed m19_alignment_documented vsat_runbook_url\n| eval methodology_status = case(\n    isnull(methodology) OR methodology=\"in_house_unstructured\", \"unrecognised_methodology\",\n    NOT methodology IN (\"J100-21\",\"AWWA-M19\",\"VSAT-Web\",\"J100-21+M19\",\"J100-21+VSAT-Web\"), \"unrecognised_methodology\",\n    isnull(methodology_artefact_url), \"undocumented\",\n    methodology=\"J100-21\" AND j100_score_completed=\"false\", \"j100_score_incomplete\",\n    methodology=\"AWWA-M19\" AND m19_alignment_documented=\"false\", \"m19_alignment_missing\",\n    methodology=\"VSAT-Web\" AND isnull(vsat_runbook_url), \"vsat_runbook_missing\",\n    1=1, \"current\")\n| table pwsid system_name rra_cycle methodology methodology_version methodology_artefact_url j100_score_completed m19_alignment_documented vsat_runbook_url methodology_status",
+  "description": "Audits the RRA methodology against the EPA-accepted methodology set: ANSI/AWWA J100-21 (Risk and Resilience Management of Water and Wastewater Systems), AWWA Manual M19 (Emergency Planning for Water and Wastewater Utilities), or EPA's Vulnerability Self-Assessment Tool web edition (VSAT-Web). Surfaces RRA cycles that record an in-house unstructured methodology, a methodology missing its supporting artefact, an incomplete J100 score, an undocumented M19 alignment, or a missing VSAT runbook URL.",
+  "value": "EPA accepts J100, M19, VSAT; in-house unstructured methodologies are routinely rejected. This UC keeps the methodology defensible.",
+  "implementation": "(1) Maintain `awia_rra_methodology_lookup`. (2) Weekly UC-22.53.20. (3) Archive.",
+  "visualization": "(Panel 1) Methodology distribution. (Panel 2) Status RAG.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "ANSI/AWWA J100-21",
+      "url": "https://www.awwa.org/Resources-Tools/Resource-Topics/Risk-Resilience"
+    },
+    {
+      "title": "AWWA M19",
+      "url": "https://www.awwa.org/Store/Product-Details/productId/56906415"
+    },
+    {
+      "title": "EPA VSAT-Web",
+      "url": "https://www.epa.gov/waterresilience/vulnerability-self-assessment-tool-vsat"
+    }
+  ],
+  "knownFalsePositives": "1. **Documented EPA concurrence on alternative** — letter URL captured.\n\n**Suppression**: `awia_22_53_20_exceptions`; CISO + EPA letter URL.",
+  "requiredFields": [
+    "pwsid",
+    "methodology",
+    "methodology_artefact_url",
+    "methodology_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC RRA module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (methodology audit)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.1 deployed.\n- Splunk ES, ServiceNow add-on.\n- Lookup `awia_rra_methodology_lookup`.\n\n## Step 1 — Configure data collection\n\nRRA author records methodology at RRA refresh.\n\n## Step 2 — Create the search and alert\n\nWeekly Thursday 09:00.\n\n```ini\n[UC-22.53.20: AWIA RRA Methodology]\ncron_schedule = 0 9 * * 4\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.20,reg=AWIA,clause=AWIA-EPA-vsat-j100\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: in-house; UC fires.  Negative: J100; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — RRA Methodology`. Runbook: re-baseline RRA on a recognised methodology within 12 months.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — methodology field as free text**: ServiceNow GRC by default treats `methodology` as a free-text field, which lets the RRA author type anything (including in-house variants). Mitigation: change the field to a Choice (drop-down) constrained to the controlled vocabulary `J100-21`, `AWWA-M19`, `VSAT-Web`, `J100-21+M19`, `J100-21+VSAT-Web`.\n- **ServiceNow GRC — j100_score_completed as boolean**: ServiceNow stores boolean as `true` / `false` strings; an unchecked checkbox becomes empty string and breaks `case()` matching. Mitigation: explicitly coerce with `eval j100_score_completed = coalesce(j100_score_completed, \"false\")` before the case statement.\n- **EPA VSAT-Web — tool unavailability**: VSAT-Web has had multi-month outages historically; an in-progress assessment can stall. Mitigation: capture `vsat_runbook_url=\"epa_vsat_outage:see_epa_notice_<date>\"` with a back-pointer to the EPA notice, and accept the row as `current` for the duration of the documented outage.\n- **Splunk Add-on for ServiceNow — incremental sync gap**: the add-on incremental sync uses a `sys_updated_on` checkpoint; when an RRA-cycle row is restored from a backup, `sys_updated_on` may regress and the row is skipped. Mitigation: schedule a weekly full re-sync of `sn_grc_rra_methodology` rows in the Splunk add-on.\n- **Splunk ES 7.x — notable.urgency calculation overrides severity**: ES 7.x calculates urgency from `severity` + `priority`; a `medium` notable can end up `low` urgency if the asset / identity lookup returns no priority. Mitigation: set `action.notable.param.urgency = medium` explicitly to override the calculation.\n\n**AWIA-specific failure modes**:\n\n- **J100 version drift**: J100-10 was superseded by J100-21; the methodology field must record the version.\n- **VSAT-Web availability**: EPA's VSAT-Web tool has had availability gaps; record any tool outage that delayed RRA refresh.\n- **Cross-methodology evidence reuse**: where the same evidence (e.g. a threat-scenario library) is used for both J100 and M19, record the methodology as `J100-21+M19` rather than picking one, and produce two separate artefact URLs.\n- **EPA Regional WPC alternative-methodology concurrence**: when EPA Regional WPC has approved an alternative methodology, capture the concurrence letter URL in `awia_22_53_20_exceptions` and the lawful-basis remains auditable.",
+  "grandmaExplanation": "EPA wants the risk check done using one of three accepted methods — a recognised framework, an emergency-planning manual, or an EPA-provided tool. We watch which method each utility used and ring the bell if anyone is using a made-up approach."
+}

@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.13",
+  "title": "Maritime cyber-incident detection + flag-State + RO + USCG NRC + port-State 24-hour reporting clock — automated multi-authority notification with submission receipts",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "CISO",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Excludes operational events with no cybersecurity implication (mechanical breakdown, weather-driven detours).",
+  "evidence": "Saved search `UC-22.59.13` archived every 10 minutes to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s2-4\"`. Every row pins (incident_id, imo_number, classified_at, flag_state_notified_at, ro_notified_at, uscg_nrc_notified_at, psc_notified_at, hours_to_authority, sla_status).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s2-4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 2.4 of MSC-FAL.1/Circ.3 Rev.2 (Respond) requires incident-response plans with authority-notification timelines. This UC implements the multi-authority reporting clock.",
+      "controlObjective": "Demonstrates that every confirmed maritime cyber-incident triggers the flag-State + RO + (where applicable) USCG NRC + port-State notification within the prescribed 24-hour window, with submission receipts captured for the audit-evidence chain.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO Cyber-Incident Reporting Clock` dashboard, the submission-receipts archive.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s2-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-ISM-Code-s8-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISM Code §8.2 requires emergency-preparedness drills; the cyber-incident drill exercises this exact workflow.",
+      "controlObjective": "Aligns with ISM Code emergency-preparedness function.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-ISM-Code-s8-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A confirmed cyber-incident on a US-port-visiting vessel is classified at T+0. UC-22.59.13 MUST track the clock and flag sla_status=at-risk when more than 20 hours have elapsed without USCG NRC notification.",
+    "negativeScenario": "Cyber-incident classified at T+0 and all four authorities notified within 6 hours. UC-22.59.13 MUST record sla_status=on-time."
+  },
+  "dataSources": "Splunk ES Notable events via `` `notable` `` macro (`index=notable`). Splunk SOAR case events (`soar:case`, `soar:audit`). ServiceNow Security Incident Response (`snow:sir`). Flag-State + RO + USCG NRC + port-State submission portal receipts ingested via HEC (`hec:imo:flag:submission`, `hec:uscg:nrc:submission`, `hec:psc:submission`, `hec:ro:submission`). KV Store `imo_incident_register_lookup`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup imo_incident_register_lookup\n| where imo_in_scope = \"true\"\n| eval now_ts = now()\n| eval hours_since_classification = round((now_ts - classified_at) / 3600, 2)\n| eval flag_state_hours = case(isnotnull(flag_state_notified_at), round((flag_state_notified_at - classified_at) / 3600, 2), 1=1, null)\n| eval ro_hours = case(isnotnull(ro_notified_at), round((ro_notified_at - classified_at) / 3600, 2), 1=1, null)\n| eval uscg_hours = case(isnotnull(uscg_nrc_notified_at), round((uscg_nrc_notified_at - classified_at) / 3600, 2), 1=1, null)\n| eval psc_hours = case(isnotnull(psc_notified_at), round((psc_notified_at - classified_at) / 3600, 2), 1=1, null)\n| eval flag_required = \"true\"\n| eval ro_required = \"true\"\n| eval uscg_required = if(us_port_visit = \"true\", \"true\", \"false\")\n| eval psc_required = if(in_psc_mou_region = \"true\", \"true\", \"false\")\n| eval sla_status = case(\n    flag_required = \"true\" AND isnull(flag_state_notified_at) AND hours_since_classification > 24, \"breach-flag\",\n    ro_required = \"true\" AND isnull(ro_notified_at) AND hours_since_classification > 24, \"breach-ro\",\n    uscg_required = \"true\" AND isnull(uscg_nrc_notified_at) AND hours_since_classification > 24, \"breach-uscg\",\n    psc_required = \"true\" AND isnull(psc_notified_at) AND hours_since_classification > 24, \"breach-psc\",\n    isnull(flag_state_notified_at) AND hours_since_classification > 20, \"at-risk-flag\",\n    isnull(uscg_nrc_notified_at) AND uscg_required = \"true\" AND hours_since_classification > 20, \"at-risk-uscg\",\n    isnotnull(flag_state_notified_at) AND (uscg_required = \"false\" OR isnotnull(uscg_nrc_notified_at)), \"on-time\",\n    1=1, \"in-window\")\n| where sla_status NOT IN (\"on-time\")\n| sort 0 -hours_since_classification\n| table incident_id imo_number ship_name classified_at hours_since_classification flag_required flag_state_hours ro_required ro_hours uscg_required uscg_hours psc_required psc_hours sla_status",
+  "description": "Tracks every confirmed maritime cyber-incident through the multi-authority reporting clock; computes elapsed time per authority; raises a notable at 20-hour at-risk and 24-hour breach thresholds; classifies authority requirements per vessel based on flag State, US-port visit, and PSC MoU region.",
+  "value": "A missed reporting deadline is itself an SMS major-non-conformity at the next DoC verification. Multi-authority reporting is operationally complex; without an automated clock, fleet operators routinely miss the 24-hour window on at least one authority during real incidents. This UC closes the operational gap.",
+  "implementation": "(1) Wire the incident-classification workflow (ServiceNow SIR, Splunk SOAR case) to write a row into `imo_incident_register_lookup` at the moment of classification. (2) Submit notifications to flag State / RO / USCG NRC / port-State via Splunk SOAR playbooks; capture submission receipts via HEC. (3) Schedule UC-22.59.13 every 10 minutes; route at severity P1 for any breach-* or at-risk-* status.",
+  "visualization": "(Panel 1) Open incident clock (hours since classification). (Panel 2) Per-authority notification cadence. (Panel 3) SLA-breach trend (last 12 months). (Panel 4) Top flag-States by reporting volume.",
+  "cimModels": [
+    "Change",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §2.4 Respond",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "USCG MSIB 002-23 — Reporting maritime cyber incidents",
+      "url": "https://www.uscg.mil/Maritime-Commons/"
+    },
+    {
+      "title": "ParisMoU PSC Cyber Risk Management — 2023 Concentrated Inspection Campaign",
+      "url": "https://www.parismou.org/"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-authority parallel reporting**: a single incident reaching all four authorities may briefly show as `at-risk-uscg` while the SOAR playbook completes; allow a 5-minute settling window. 2. **Reportable threshold ambiguity**: minor incidents may not require flag-State notification; ensure the classification step explicitly sets imo_in_scope=true. 3. **Time-zone offsets**: ship clock vs UTC ambiguity; canonicalise to UTC at classification.\n\n**Suppression mechanism**: KV Store `imo_22_59_13_exceptions` with the DPA + CISO documented approval.",
+  "requiredFields": [
+    "incident_id",
+    "imo_number",
+    "classified_at",
+    "hours_since_classification",
+    "sla_status"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + DPA + CISO + Company Security Officer",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR (Cloud / On-prem)",
+    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (incident reporting workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.1",
+    "UC-22.59.2",
+    "UC-22.59.5",
+    "UC-22.59.6"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.1, 22.59.2, 22.59.5, 22.59.6 in production.\n- Splunk SOAR with playbooks per authority and HEC tokens for submission-receipt capture.\n- ServiceNow SIR or equivalent case-management system with `imo_in_scope` flag.\n\n## Step 1 — Incident-register KV Store\n\n```ini\n[imo_incident_register_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.imo_number = string\nfield.ship_name = string\nfield.flag_state = string\nfield.recognised_organisation = string\nfield.us_port_visit = string\nfield.in_psc_mou_region = string\nfield.imo_in_scope = string\nfield.classified_at = time\nfield.flag_state_notified_at = time\nfield.ro_notified_at = time\nfield.uscg_nrc_notified_at = time\nfield.psc_notified_at = time\n```\n\n## Step 2 — SOAR playbook integration\n\nA single classification event in SIR / SOAR triggers four parallel playbook branches: (1) Flag State portal submission; (2) Class society RO portal submission; (3) USCG NRC submission (when applicable); (4) Port-State authority (Paris / Tokyo MoU) submission. Each branch captures the receipt via HEC.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.13: IMO Cyber-Incident Reporting Clock]\ncron_schedule = */10 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.13,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-4\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`sla_status=breach-*`** (owner: DPA + CISO, severity P1): Within 30 minutes, the DPA initiates manual notification via emergency channel (phone, fax); document for the next DoC verification.\n\n**`sla_status=at-risk-*`** (owner: DPA, severity P2): Within 1 hour, the DPA confirms the SOAR playbook progress; manual fallback if needed.\n\n## Step 5 — Maritime-specific notes\n\n- **Multi-flag fleet**: vessels under different flags need different submission portals; the SOAR playbook routes per flag-State.\n- **PSC MoU regions**: Paris, Tokyo, Vina del Mar, Caribbean, Mediterranean, Indian Ocean, Riyadh, Black Sea, Abuja MoUs each have their own portal.\n- **NIS2 overlap**: an EU-flagged vessel may also be in scope for the company's NIS2 obligations; cross-reference UC-22.2 to avoid double reporting.",
+  "grandmaExplanation": "If a ship has a cyber incident, the company has 24 hours to tell the flag country, the class society, and the coast guard. We start a clock the moment an incident is confirmed, watch each reporting deadline, and raise the alarm if anything is running late so the deadline is never missed."
+}

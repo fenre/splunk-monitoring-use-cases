@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.18",
+  "title": "CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes changes formally documented as having no safety relevance with senior cyber-safety sign-off. Excludes purely-IT changes outside the SuC. Excludes changes during the formal pre-commissioning phase (those follow new-build acceptance).",
+  "evidence": "Saved search `UC-22.55.18` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c10-1\"`. Every row pins (change_id, change_description, en_50126_assessment_at, en_50128_assessment_at, en_50129_assessment_at, en_50657_assessment_at, isa_concurrence_at, isa_concurrence_signed_by, coord_status). Dashboard `CLC/TS 50701 — Safety Standards Coordination` shows coordination posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c10-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 10.1 requires coordination between CLC/TS 50701 cyber controls and the rail safety-standard ecosystem (EN 50126 RAMS, EN 50128 software, EN 50129 systems, EN 50657 rolling-stock software). UC-22.55.18 instruments the coordination evidence.",
+      "controlObjective": "Proves every cyber control change is assessed against the applicable rail safety standards.",
+      "evidenceArtifact": "Saved search `UC-22.55.18` archived to `audit_evidence`, the `CLC/TS 50701 — Safety Standards Coordination` dashboard, and per-change safety assessment.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c10-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Implement a cyber control change without `en_50126_assessment_at`. UC-22.55.18 MUST flag `coord_status=\"en_50126_missing\"`.",
+    "negativeScenario": "Run EN 50126/8/9/657 assessments per applicability; ISA concurs. UC-22.55.18 MUST record `coord_status=\"compliant\"`."
+  },
+  "dataSources": "KV Store `rail_safety_coord_lookup`. ServiceNow Change Management. ISA-issued concurrence documents.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_safety_coord_lookup\n| where change_implemented_at IS NOT NULL\n| eval coord_status = case(\n    en_50126_applicable=true AND isnull(en_50126_assessment_at), \"en_50126_missing\",\n    en_50128_applicable=true AND isnull(en_50128_assessment_at), \"en_50128_missing\",\n    en_50129_applicable=true AND isnull(en_50129_assessment_at), \"en_50129_missing\",\n    en_50657_applicable=true AND isnull(en_50657_assessment_at), \"en_50657_missing\",\n    isa_required=true AND isnull(isa_concurrence_at), \"isa_concurrence_missing\",\n    1=1, \"compliant\")\n| where coord_status != \"compliant\"\n| table change_id change_description en_50126_assessment_at en_50128_assessment_at en_50129_assessment_at en_50657_assessment_at isa_concurrence_at coord_status",
+  "description": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards.",
+  "value": "Without safety-standards coordination, cyber changes can compromise rail safety certifications. This UC enforces the linkage.",
+  "implementation": "(1) Maintain `rail_safety_coord_lookup`. (2) Head of Safety + ISA reviewers sign per applicable standard. (3) Schedule UC-22.55.18 weekly Monday 07:00.",
+  "visualization": "(Panel 1) Coordination posture per change. (Panel 2) Missing-assessment queue. (Panel 3) ISA-pending queue.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 10.1",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "EN 50126/8/9 family of rail-safety standards",
+      "url": "https://www.cenelec.eu/"
+    }
+  ],
+  "knownFalsePositives": "1. **Phased change** — multi-phase change with phased safety assessments. Suppression: track per-phase status.\n\n**Suppression mechanism**: KV Store `clc_22_55_18_exceptions` with documented Head-of-Safety approval and 30-day maximum grant.",
+  "requiredFields": [
+    "change_id",
+    "coord_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Head of Safety + ISA",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "ServiceNow Change Management"
+  ],
+  "mitreAttack": [
+    "N/A (safety-standards coordination)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.6",
+    "UC-22.55.11"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_safety_coord_lookup`.\n- Head of Safety and ISA roles defined.\n\n## Step 1 — Coordination collection\n\n```ini\n[rail_safety_coord_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.change_description = string\nfield.change_implemented_at = number\nfield.en_50126_applicable = bool\nfield.en_50128_applicable = bool\nfield.en_50129_applicable = bool\nfield.en_50657_applicable = bool\nfield.en_50126_assessment_at = number\nfield.en_50128_assessment_at = number\nfield.en_50129_assessment_at = number\nfield.en_50657_assessment_at = number\nfield.isa_required = bool\nfield.isa_concurrence_at = number\nfield.isa_concurrence_signed_by = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.18: CLC/TS 50701 Safety Standards Coordination]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.18,reg=CLC-TS-50701,clause=CLC-TS-50701-c10-1\naction.notable.param.rule_title = Rail safety-standards coordination gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_missing`** (owner: Head of Safety, severity P2): complete assessment; sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **EN 50128 software-safety reviews** can take weeks; track schedule.\n- **ISA independence**: ISA must be independent of engineering and operations.",
+  "grandmaExplanation": "Every cyber-security change to our railway must also be checked by safety experts against railway safety rulebooks (EN 50126/8/9/657). We track each rule-check; if any is missing, the team is alerted."
+}

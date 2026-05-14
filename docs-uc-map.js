@@ -107,7 +107,7 @@ var DOC_UC_MAP = {
   /* ── Compliance & Regulatory ─────────────────────────────────────────── */
   "docs/regulatory-primer.md": {
     title: "Regulatory Primer",
-    ucs: ["22.1.1", "22.2.1", "22.3.1", "22.4.1", "22.5.1"]
+    ucs: ["22.1.1", "22.2.1", "22.3.1", "22.4.1", "22.5.1", "22.51.3", "22.52.1", "22.53.5"]
   },
   "docs/coverage-methodology.md": {
     title: "Coverage Methodology",
@@ -201,6 +201,42 @@ var DOC_UC_MAP = {
   "docs/evidence-packs/cmmc.md": {
     title: "Evidence Pack \u2014 CMMC",
     ucs: ["22.12.1", "22.12.2", "22.12.3"]
+  },
+  "docs/evidence-packs/nca-otcc.md": {
+    title: "Evidence Pack \u2014 NCA OTCC (Saudi OT)",
+    ucs: ["22.51.3", "22.51.5", "22.51.17", "22.51.19", "22.51.28"]
+  },
+  "docs/evidence-packs/soci.md": {
+    title: "Evidence Pack \u2014 SOCI Act + CIRMP Rules (Australia)",
+    ucs: ["22.52.1", "22.52.5", "22.52.15", "22.52.21", "22.52.24"]
+  },
+  "docs/evidence-packs/awia.md": {
+    title: "Evidence Pack \u2014 AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US)",
+    ucs: ["22.53.5", "22.53.21", "22.53.22", "22.53.23", "22.53.27"]
+  },
+  "docs/evidence-packs/circia.md": {
+    title: "Evidence Pack \u2014 CIRCIA + 6 USC 681b (US CISA Cyber Incident Reporting)",
+    ucs: ["22.54.2", "22.54.3", "22.54.6", "22.54.9", "22.54.17", "22.54.18"]
+  },
+  "docs/evidence-packs/clc-ts-50701.md": {
+    title: "Evidence Pack \u2014 CLC/TS 50701 (CENELEC Railway Cybersecurity)",
+    ucs: ["22.55.1", "22.55.11", "22.55.13", "22.55.14", "22.55.19", "22.55.28"]
+  },
+  "docs/evidence-packs/tsa-surface.md": {
+    title: "Evidence Pack \u2014 TSA Surface Cybersecurity Security Directives (US Pipeline + Freight Rail + Passenger Rail + Aviation)",
+    ucs: ["22.56.1", "22.56.3", "22.56.6", "22.56.9", "22.56.10", "22.56.11", "22.56.28"]
+  },
+  "docs/evidence-packs/sg-cyber-act.md": {
+    title: "Evidence Pack \u2014 Singapore Cybersecurity Act 2018 + CSA CII Regulations",
+    ucs: ["22.57.1", "22.57.2", "22.57.3", "22.57.5", "22.57.10", "22.57.15"]
+  },
+  "docs/evidence-packs/fr-lpm.md": {
+    title: "Evidence Pack \u2014 France LPM OIV Regime + ANSSI 20-Rules",
+    ucs: ["22.58.1", "22.58.2", "22.58.3", "22.58.4", "22.58.6", "22.58.8"]
+  },
+  "docs/evidence-packs/imo-msc-428-98.md": {
+    title: "Evidence Pack \u2014 IMO MSC.428(98) Maritime Cyber Risk Management (Global Shipping)",
+    ucs: ["22.59.1", "22.59.2", "22.59.3", "22.59.5", "22.59.6", "22.59.13", "22.59.15", "22.59.16", "22.59.17"]
   },
 
   /* ── Splunk Content Packs ────────────────────────────────────────────── */

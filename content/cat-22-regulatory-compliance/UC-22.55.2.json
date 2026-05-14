@@ -1,0 +1,110 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.2",
+  "title": "CLC/TS 50701 Rail Cybersecurity Governance Roles — named accountabilities for cyber-safety integration",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "HR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes general IT roles that have no cyber-safety responsibility under the CSMS. Excludes temporary or interim role holders during a hand-off period (up to 30 days). Excludes contractor roles unless their CSMS engagement is documented.",
+  "evidence": "Saved search `UC-22.55.2` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c5-2\"`. Every row pins (role_id, role_name, role_incumbent_id, role_incumbent_name, role_assigned_at, role_review_due_at, accountability_scope, role_status). Dashboard `CLC/TS 50701 — Governance Roles` shows the role-incumbent matrix.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c5-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 5.2 requires the operator to assign and document cybersecurity governance roles with clear accountabilities. The roles typically include: Rail Cybersecurity Lead, CISO, Head of Safety, Head of Engineering, Signal Engineering Lead, Rolling Stock Lead, Telecommunications Lead, Operations Director. UC-22.55.2 instruments the role inventory.",
+      "controlObjective": "Proves every required cybersecurity governance role has a named incumbent with documented accountability scope and a review cadence.",
+      "evidenceArtifact": "Saved search `UC-22.55.2` archived to `audit_evidence`, the `CLC/TS 50701 — Governance Roles` dashboard, and the role-assignment letters / RACI matrix.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c5-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `role_incumbent_id` for the 'Signal Engineering Cybersecurity Lead' role to NULL or backdate `role_assigned_at` 25+ months. UC-22.55.2 MUST flag `role_status=\"role_vacant\"` or `role_status=\"assignment_stale\"`.",
+    "negativeScenario": "Assign a named incumbent, sign the role letter, set `role_assigned_at=now`, `role_review_due_at=+24 months`. UC-22.55.2 MUST record `role_status=\"current\"`."
+  },
+  "dataSources": "KV Store `rail_csms_roles_lookup` populated by HR and Rail Cybersecurity Lead. Workday HCM (`workday:worker`). Active Directory / Azure AD (`ad:user`, `azuread:user`). DocuSign for signed role-assignment letters.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Microsoft Azure AD (Splunkbase 4055), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 4055,
+      "name": "Splunk Add-on for Microsoft Azure AD",
+      "url": "https://splunkbase.splunk.com/app/4055",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_csms_roles_lookup\n| eval now_ts = now()\n| eval assignment_age_months = if(isnotnull(role_assigned_at), round((now_ts - role_assigned_at) / 86400 / 30, 1), null())\n| eval role_status = case(\n    isnull(role_incumbent_id) OR role_incumbent_id=\"\", \"role_vacant\",\n    isnull(role_assigned_at), \"assignment_unsigned\",\n    assignment_age_months > 24, \"assignment_stale\",\n    isnotnull(role_review_due_at) AND role_review_due_at < now_ts, \"review_overdue\",\n    isnull(accountability_scope) OR accountability_scope=\"\", \"scope_undefined\",\n    1=1, \"current\")\n| where role_status != \"current\"\n| table role_id role_name role_incumbent_id role_incumbent_name role_assigned_at role_review_due_at accountability_scope assignment_age_months role_status",
+  "description": "Verifies every CLC/TS 50701 governance role has a current, named incumbent with signed assignment letter and documented accountability scope.",
+  "value": "Vacant or unsigned governance roles are the most common deficiency cited by Notified Bodies during CLC/TS 50701 assessment. This UC ensures the role matrix is current.",
+  "implementation": "(1) Define the required roles per the operator's CSMS in `rail_csms_roles_lookup`. (2) HR + Rail Cybersecurity Lead co-sign role-assignment letters via DocuSign. (3) Schedule UC-22.55.2 weekly Monday 02:30.",
+  "visualization": "(Panel 1) Role-incumbent matrix. (Panel 2) Vacant-role queue. (Panel 3) Assignment-age distribution. (Panel 4) Review-due calendar.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 5.2 — Cybersecurity governance",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Role in transition** — outgoing incumbent and incoming incumbent overlap; 30-day grace. Suppression: `role_status_override=transition` with explicit successor.\n\n2. **Multi-entity shared role** — one incumbent covers multiple entities; the lookup allows this via cross-entity role pointers.\n\n**Suppression mechanism**: KV Store `clc_22_55_2_exceptions` with documented Rail-CISO approval and 60-day maximum grant.",
+  "requiredFields": [
+    "role_id",
+    "role_incumbent_id",
+    "role_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + HR Director + Rail CISO",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Workday HCM",
+    "Microsoft Azure AD",
+    "ServiceNow GRC + Legal Matter"
+  ],
+  "mitreAttack": [
+    "N/A (governance-role inventory)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_csms_roles_lookup`.\n- Workday HCM / Azure AD integration for incumbent identity.\n\n## Step 1 — Define required roles\n\nDefine in `rail_csms_roles_lookup` the operator's required role set, including at minimum:\n\n- Rail Cybersecurity Lead (CISO equivalent)\n- Head of Safety (cybersecurity-safety integration owner)\n- Signal Engineering Cybersecurity Lead\n- Rolling Stock Cybersecurity Lead\n- Telecommunications Cybersecurity Lead\n- Operations Director (cyber-incident escalation owner)\n- Procurement Cybersecurity Lead\n- Maintenance Cybersecurity Lead\n- HR Lead (training and clearance)\n- Internal Audit Lead\n\n```ini\n[rail_csms_roles_lookup]\nenforceTypes = true\nfield.role_id = string\nfield.role_name = string\nfield.role_incumbent_id = string\nfield.role_incumbent_name = string\nfield.role_assigned_at = number\nfield.role_review_due_at = number\nfield.accountability_scope = string\nfield.assignment_letter_url = string\n```\n\n## Step 2 — HR → Splunk integration\n\nWorkday Worker change events HEC'd; SOAR `rail-csms-role-intake` triggers on Worker activation; writes / updates row.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.55.2: CLC/TS 50701 Governance Roles]\ncron_schedule = 30 2 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.2,reg=CLC-TS-50701,clause=CLC-TS-50701-c5-2\naction.notable.param.rule_title = Rail CSMS governance role vacant, unsigned, or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Vacant-role test**: clear `role_incumbent_id` for 'Signal Engineering Cybersecurity Lead'; UC must flag.\n\n**(b) Stale-assignment test**: backdate `role_assigned_at` 25 months; UC must trip `assignment_stale`.\n\n## Step 5 — Operationalize\n\n**Runbook for `role_vacant`** (owner: HR Director + Rail CISO, severity P2):\n\n1. Within 30 days: nominate, vet, and sign role-assignment letter; record.\n\n## Step 6 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Cross-functional ambiguity**: cyber-safety roles typically overlap with EN 50126 RAMS roles; document accountability boundaries.\n- **Vendor-engineering role inclusion**: where a supplier provides signal engineering, the supplier's named lead must be tracked under UC-22.55.15.",
+  "grandmaExplanation": "Every rail company must name specific people responsible for cyber-security — for trains, for tracks, for radios, for maintenance. We keep a list of who has each job, and if a job is empty or hasn't been refreshed in two years, the team is alerted."
+}

@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.17",
+  "title": "CIRCIA Interim Voluntary-Reporting Posture — documented decision-and-implementation framework for pre-Final-Rule reporting",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes post-Final-Rule activity (this UC retires when the CIRCIA Final Rule effective date passes; transition handover is to UC-22.54.2). Excludes reports filed under separate sectoral obligations (NRC, FCC, FDA, FERC). Excludes reports filed by an upstream MSSP.",
+  "evidence": "Saved search `UC-22.54.17` archived weekly to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-interim-reporting\"`. Every row pins (decision_id, decision_made_at, decision_signed_by, voluntary_reporting_posture, posture_review_due_at, decision_status). Dashboard `CIRCIA — Voluntary-Reporting Posture` shows the executive-signed decision and the upcoming review.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-interim-reporting",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Pre-Final-Rule reporting under CIRCIA is voluntary. CISA encourages it, but absent a Final Rule the entity has discretion. The entity must, however, make and document an explicit decision about its voluntary-reporting posture (yes, no, conditional). UC-22.54.17 instruments the decision and review. Marked 'partial' because the underlying statutory obligation is voluntary until the Final Rule effective date.",
+      "controlObjective": "Proves the entity has formally decided its pre-Final-Rule voluntary-reporting posture, the decision is signed by an authorised executive, and the posture is reviewed annually.",
+      "evidenceArtifact": "Saved search `UC-22.54.17` archived to `audit_evidence`, the `CIRCIA — Voluntary-Reporting Posture` dashboard, and the signed decision document.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-interim-reporting",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Delete the latest signed decision document from `circia_interim_decision_lookup`. UC-22.54.17 MUST flag the absence with `decision_status=\"no_active_decision\"` within 7 days.",
+    "negativeScenario": "Insert a current-FY signed decision with `decision_signed_by=CISO`, `voluntary_reporting_posture=\"file-on-incident-classification\"`, and `posture_review_due_at=+12 months`. UC-22.54.17 MUST record `decision_status=\"active\"`."
+  },
+  "dataSources": "KV Store `circia_interim_decision_lookup` populated by CISO and General Counsel sign-off. ServiceNow Policy / Standards records. Document store with signed decisions.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup circia_interim_decision_lookup\n| eval now_ts = now()\n| eval decision_status = case(\n    isnull(decision_made_at) OR isnull(decision_signed_by), \"no_active_decision\",\n    decision_made_at < (now_ts - 13 * 30 * 86400), \"decision_stale\",\n    posture_review_due_at < now_ts, \"review_overdue\",\n    1=1, \"active\")\n| where decision_status != \"active\"\n| table decision_id decision_made_at decision_signed_by voluntary_reporting_posture posture_review_due_at decision_status",
+  "description": "Tracks the entity's documented voluntary-reporting decision and annual-review cadence for the pre-Final-Rule interim period.",
+  "value": "An undocumented voluntary-reporting decision creates regulatory exposure if a covered incident occurs during the interim window and the entity has no record of its decision. This UC ensures a documented, signed, periodically-reviewed posture.",
+  "implementation": "(1) The CISO and General Counsel sign the annual voluntary-reporting decision. (2) A SOAR `circia-interim-posture-intake` playbook normalises the decision to the lookup. (3) Schedule UC-22.54.17 weekly Monday 03:00. (4) The decision document is stored in the document store; the lookup pins its location.",
+  "visualization": "(Panel 1) Current decision summary. (Panel 2) Decision-history timeline. (Panel 3) Review-due calendar.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CISA — Voluntary Reporting Guidance",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing"
+    },
+    {
+      "title": "CIRCIA Final Rule Timeline",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    }
+  ],
+  "knownFalsePositives": "1. **Decision under revision** — a draft revision may exist while the prior decision is still in force. Suppression: keep the prior decision as `active` until the new decision is signed.\n\n2. **Inactive entity** — a divested subsidiary may not need a decision. Suppression: mark the entity inactive in `circia_entity_register_lookup` (UC-22.54.1) and exclude.\n\n**Suppression mechanism**: KV Store `circia_22_54_17_exceptions` with per-entity grants requiring documented CISO approval and a 90-day maximum grant.",
+  "requiredFields": [
+    "decision_id",
+    "voluntary_reporting_posture",
+    "decision_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "ServiceNow GRC Policy Management"
+  ],
+  "mitreAttack": [
+    "N/A (governance decision tracking)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_interim_decision_lookup`.\n\n## Step 1 — Define the decision collection\n\n```ini\n[circia_interim_decision_lookup]\nenforceTypes = true\nfield.decision_id = string\nfield.decision_made_at = number\nfield.decision_signed_by = string\nfield.voluntary_reporting_posture = string\nfield.posture_review_due_at = number\nfield.signed_doc_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.17: CIRCIA Voluntary-Reporting Posture]\ncron_schedule = 0 3 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.17,reg=CIRCIA,clause=CIRCIA-CISA-interim-reporting\naction.notable.param.rule_title = CIRCIA voluntary-reporting decision missing or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Decision-missing test**: clear `decision_signed_by`; UC-22.54.17 must alert.\n\n**(b) Active-decision test**: signed, in-window, future-review; UC-22.54.17 must record `active`.\n\n## Step 4 — Operationalize\n\n**Runbook for `no_active_decision` or `decision_stale`** (owner: CISO, severity P3):\n\n1. Within 30 days: CISO + General Counsel co-sign new decision; document.\n\n## Step 5 — Troubleshooting\n\n**Decision transition with Final Rule** — when the CIRCIA Final Rule effective date arrives, UC-22.54.17 retires; handover to UC-22.54.2 and the broader statutory framework.",
+  "grandmaExplanation": "Until the cyber agency makes the rule final, reporting is voluntary. We still must decide — in writing — whether we will file. The CISO and head lawyer sign that decision and review it every year."
+}

@@ -1,0 +1,114 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.14",
+  "title": "SOCI CIRMP Rule 6(2) continuous detection effectiveness — evidence detection / response / recovery is tested at least annually",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Operations",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes detection-effectiveness tests performed by ASD under s 30CM (those are covered by UC-22.52.10). Excludes informal walk-throughs not formally recorded as exercises.",
+  "evidence": "Saved search `UC-22.52.14` archived daily to `audit_evidence` with `soci_clause=\"SOCI-CIRMP-r6.2\"`. Every row pins (asset_id, exercise_id, exercise_type, run_at, scenarios_covered, time_to_detect, time_to_contain, time_to_recover, defects_identified, follow_up_actions_open, retest_due_at, test_status). Dashboard `SOCI — Rule 6(2) Detection Effectiveness Tests` shows test currency, MTTD/MTTC/MTTR trends, and defect-burn-down.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-CIRMP-r6.2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every in-scope asset has had a detection-effectiveness test in the last 365 days, (b) tests cover defined scenario classes, (c) MTTD / MTTC / MTTR metrics are produced, and (d) defects feed back into the CIRMP risk register. This is the full scope of Rule 6(2).",
+      "controlObjective": "Proves detection, response, and recovery effectiveness is tested at least annually for every in-scope asset.",
+      "evidenceArtifact": "Saved search `UC-22.52.14` archived to `audit_evidence`, the `SOCI — Rule 6(2) Detection Effectiveness Tests` dashboard, and per-exercise after-action-report URLs.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-CIRMP-r6.2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `run_at` on an asset's last exercise to 380 days ago. UC-22.52.14 MUST flag `test_status=\"overdue\"`.",
+    "negativeScenario": "Run a fresh purple-team exercise; record MTTD/MTTC/MTTR, scenario coverage, defects, and after-action-report URL. UC-22.52.14 MUST record `test_status=\"current\"`."
+  },
+  "dataSources": "Exercise records from the cyber exercises platform (`index=ir sourcetype=\"ir:exercise\"`) or GRC (`snow:cirmp_exercise`). Lookup `cirmp_detection_test_lookup` (asset_id → exercise_id, exercise_type, run_at, scenarios_covered, time_to_detect, time_to_contain, time_to_recover, defects_identified, follow_up_actions_open, retest_due_at, after_action_report_url).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk SOAR (Splunkbase 4395).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup cirmp_detection_test_lookup asset_id OUTPUT exercise_id exercise_type run_at scenarios_covered time_to_detect time_to_contain time_to_recover defects_identified follow_up_actions_open retest_due_at after_action_report_url\n| eval days_since_run = if(isnotnull(run_at), round((now() - run_at) / 86400, 0), null())\n| eval test_status = case(\n    isnull(run_at), \"never_tested\",\n    isnull(after_action_report_url), \"missing_after_action_report\",\n    isnull(time_to_detect) OR isnull(time_to_contain) OR isnull(time_to_recover), \"missing_metrics\",\n    days_since_run > 365, \"overdue\",\n    days_since_run > 335, \"approaching_due\",\n    coalesce(follow_up_actions_open, 0) > 5, \"defect_backlog\",\n    1=1, \"current\")\n| table asset_id exercise_id exercise_type run_at days_since_run scenarios_covered time_to_detect time_to_contain time_to_recover defects_identified follow_up_actions_open retest_due_at test_status after_action_report_url",
+  "description": "Verifies every in-scope asset has had a documented detection-effectiveness test in the last 365 days, with full MTTD/MTTC/MTTR metrics and an after-action-report URL. Surfaces overdue tests, missing metrics, and exercise-defect backlogs.",
+  "value": "Rule 6(2) goes beyond having a detection capability — it requires testing that the capability actually works. Without testing, the residual-risk scores in the register are aspirational. This UC keeps the exercise cadence and the defect-burn-down always-on so the Head of Cyber Resilience can defend the residual-risk claims.",
+  "implementation": "(1) Standardise the exercise platform (Mandiant Tabletops / Cobalt Strike paid + customer-led tabletops). (2) After each exercise, register the row in `cirmp_detection_test_lookup` with metrics and defect counts. (3) Schedule UC-22.52.14 daily; route `overdue`, `never_tested`, `defect_backlog` to notable severity=high. (4) Archive every row.",
+  "visualization": "(Panel 1) Per-asset test currency RAG. (Panel 2) MTTD/MTTC/MTTR trend per quarter. (Panel 3) Defect-burn-down chart. (Panel 4) Scenario-coverage matrix.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules — Rule 6(2)",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    },
+    {
+      "title": "ACSC — Cyber Incident Response Plan",
+      "url": "https://www.cyber.gov.au/resources-business-and-government/essential-cybersecurity/incidents"
+    },
+    {
+      "title": "Splunk SOAR — Playbook automation",
+      "url": "https://splunkbase.splunk.com/app/4395"
+    }
+  ],
+  "knownFalsePositives": "1. **Group-level exercise covering multiple assets** — lookup may share `exercise_id` across assets.\n\n2. **Exercise in progress** — a multi-day exercise may have `run_at` set to the start; metrics arrive after close. Suppression: tolerate up to 7 days for metrics to arrive.\n\n3. **Tabletop-only year** — some asset classes alternate full purple-team exercises and tabletops. Suppression: track exercise types separately and require at least one purple-team in 24 months.\n\n**Suppression mechanism**: KV Store `soci_22_52_14_exceptions`; max grant 30 days with Head of Cyber Resilience sign-off.",
+  "requiredFields": [
+    "asset_id",
+    "exercise_id",
+    "run_at",
+    "test_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "servicenow",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (Vancouver / Washington, sn_grc_cirmp_exercise tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk SOAR (Splunkbase 4395, exercise debrief playbook)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and resilience-testing workflow — measures exercise cadence and effectiveness, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.13"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.13 deployed.\n- ES, SOAR, ServiceNow add-on.\n- `index=audit_evidence`.\n- Lookup `cirmp_detection_test_lookup` populated from the GRC exercise records.\n- Exercise platform of choice (Mandiant tabletops, Atomic Red Team scripts, customer-led purple-team).\n\n## Step 1 — Configure data collection\n\nThe lookup is the contract; populated after each exercise close-out. Suggested columns:\n\n- `asset_id`\n- `exercise_id` (e.g. `EX-2026-Q2-NEM-001`)\n- `exercise_type` (`tabletop` | `purple_team` | `red_team` | `wargame`)\n- `run_at` (epoch)\n- `scenarios_covered` (CSV: `ransomware,supply_chain,insider,physical_destruction`)\n- `time_to_detect` (seconds, median across simulated detections)\n- `time_to_contain` (seconds)\n- `time_to_recover` (seconds)\n- `defects_identified` (count)\n- `follow_up_actions_open` (count of post-exercise actions still open)\n- `retest_due_at` (when the next exercise is due)\n- `after_action_report_url`\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.14: SOCI CIRMP Rule 6(2) detection effectiveness tests]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.14,reg=SOCI,clause=SOCI-CIRMP-r6.2\naction.notable.param.rule_title = SOCI Rule 6(2) detection-effectiveness gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable creation on `test_status IN (overdue, never_tested, defect_backlog, missing_metrics, missing_after_action_report)`.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: temporarily set `run_at` to 400 days ago; UC flags `overdue`.\n\n**(b)** Negative control: run a fresh exercise with full metrics; UC clears.\n\n**(c)** MTTD baseline review: every quarter, compare MTTD against the residual-risk-register expectations. Drift should drive CIRMP residual re-scoring.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 6(2) Detection Effectiveness Tests`.\n\n- Per-asset RAG of test currency.\n- MTTD/MTTC/MTTR trend per quarter (target lines drawn from CIRMP residual-risk expectations).\n- Defect burn-down.\n- Scenario coverage matrix (which scenarios have been exercised on which assets in the last 12 months).\n- Exercise type mix — should not be 100% tabletop.\n\n**Runbook for `overdue`** (owner: Head of Cyber Resilience, severity P2):\n\n1. Within 30 business days: schedule and run the exercise.\n2. Complete the after-action report; populate the lookup.\n\n**Runbook for `defect_backlog`** (owner: Head of Cyber Resilience, severity P3):\n\n1. Within 60 business days: complete the open follow-up actions; reduce open count.\n2. If actions are blocked by funding, escalate via the CIRMP risk committee.\n\n## Step 5 — Troubleshooting\n\n**Metrics missing** — SOC didn't measure during the exercise. Train SOC on exercise instrumentation; require `time_to_detect` in the playbook checklist.\n\n**Scenario coverage gap** — one scenario class (e.g. `insider`) has never been exercised. Plan into the next 24-month exercise calendar.\n\n**Group-level exercise**: surface relationship; treat as covering each asset's slot.\n\n**SOCI-specific failure modes**:\n\n- **OT exercise risk**: live exercises on OT systems carry safety risk; mitigate with the asset's safety case and use simulation environments (digital twins) where possible.\n- **MSSP-led exercises**: when the SOC is outsourced, the MSSP must produce metrics in the agreed format. Ensure the contract requires this.\n- **Cross-jurisdictional exercises**: Australia-NZ coordinated exercises produce dual-jurisdiction metrics; the lookup must record both.",
+  "grandmaExplanation": "We don't just hope our cyber-defences work — we test them, like fire drills. Every important system gets at least one practice attack every year, where we measure how fast we spot it, how fast we stop it, and how fast we recover. If a test is overdue, missing the numbers, or has too many unfinished improvements, we ring the bell."
+}

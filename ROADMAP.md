@@ -6,6 +6,250 @@
 
 ## Current release
 
+**v8.6.1 — OT Regulation Deep-Dive (Phase 5a: IMO MSC.428(98) maritime cyber risk management)** *(shipped 2026-05-14)*
+
+Theme: **Phase 5a of the multi-phase OT-regulation programme — first
+half of Phase 5.** v8.6.1 lands the *IMO Resolution MSC.428(98) —
+Maritime Cyber Risk Management in Safety Management Systems* (IMO,
+tier-1, GLOBAL maritime/shipping) with the operational guidance from
+*MSC-FAL.1/Circ.3 Rev.2 — Guidelines on Maritime Cyber Risk
+Management* (2022) and the new-build equipment-level requirements
+from *IACS UR E26 — Cyber Resilience of Ships* (Rev.4 2024) and
+*IACS UR E27 — Cyber Resilience of On-board Systems and Equipment*
+(Rev.3 2024), reading alongside the *BIMCO Guidelines on Cyber
+Security Onboard Ships* (v5, 2025). The regulation lands with an
+auditor-grade evidence pack and the catalogue tier-1 count rises to
+15 frameworks.
+
+- **IMO MSC.428(98) framework registered in `data/regulations.json`**
+  with the maritime clause grammar covering the Resolution preamble
+  paragraphs, MSC-FAL.1/Circ.3 Rev.2 §2.1–§2.4 (Identify / Protect /
+  Detect / Respond / Recover), ISM Code §1.4 + §8.2 emergency-
+  preparedness anchors, the seven cyber-vulnerable system categories
+  from MSC-FAL.1/Circ.3 Rev.2 §3.1 (bridge / propulsion / cargo /
+  communications / passenger and crew / administrative / access
+  control), and the IACS UR E26 ship-level and UR E27 equipment-
+  level cyber-resilience attestation registers — 18 monitored
+  clauses.
+- **17 hand-written gold-tier UCs** under the new `22.59` (IMO
+  Maritime Cyber Risk Management) subcategory: DoC cyber-SMS
+  verification (UC-22.59.1, UC-22.59.2), the seven cyber-vulnerable
+  system categories from §3.1 (UC-22.59.3 through UC-22.59.12 —
+  IT/OT segregation, ECDIS chart-update signatures, AIS / GMDSS /
+  GNSS integrity, IBS configuration baseline drift, propulsion /
+  DP / PMS anomaly, cargo control integrity, USB media governance,
+  satcom governance, crew + passenger Wi-Fi segregation), the
+  §2.4 Respond function (UC-22.59.13 24-hour multi-authority
+  reporting clock — flag State + Recognised Organisation + USCG
+  NRC + port-State Control under the nine regional MoUs;
+  UC-22.59.14 annual cyber-drill cadence), UR E26 + UR E27
+  attestation (UC-22.59.15 ship-level register; UC-22.59.16
+  equipment-level register), and one cross-cutting audit-evidence
+  retrieval ledger (UC-22.59.17). Every UC carries the full gold-
+  tier payload (controlTest + parameterised SPL + controlObjective
+  + evidenceArtifact + obligationRef + knownFalsePositives with
+  suppression + detailedImplementation with KV-store schema + cron
+  + runbook + maritime-specific notes + grandmaExplanation).
+- **Auditor-facing evidence pack** at
+  [`docs/evidence-packs/imo-msc-428-98.md`](docs/evidence-packs/imo-msc-428-98.md)
+  + structured metadata in
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json)
+  covering the regulatory anatomy, the three-layer enforcement
+  chain (flag State + RO + PSC under Paris / Tokyo / Vina del Mar /
+  Caribbean / Mediterranean / Indian Ocean / Riyadh / Black Sea /
+  Abuja MoUs), maritime-specific evidence patterns (IMO number
+  canonical identifier, UTC vs ship-time canonicalisation, the
+  24-hour multi-authority clock, IACS UR E26/E27 attestation), DoC-
+  cycle 5-year retention + 2-year post-renewal, common audit
+  deficiencies, enforcement + penalties (PSC detention, DoC
+  suspension, class-society survey hold, P&I knock-on), and 18
+  typical auditor questions cross-mapped to catalogue UCs.
+- **Documentation wire-up** — cat-22 area entry in
+  `non-technical-view.js` (between `fr-lpm` and `eu-ai-act`) with
+  `whatItIs` / `whoItAffects` / `splunkValue` / `primer` /
+  `evidencePack` + 3 representative UCs (22.59.3, 22.59.13,
+  22.59.17); forward map in `docs-uc-map.js` from the evidence
+  pack to nine representative UCs; full primer section
+  `docs/regulatory-primer.md` §4.18 covering ISM + ISPS + SOLAS
+  chain, port-State Control under the nine MoUs, IACS UR E26 /
+  UR E27 new-build contract-date hooks, BIMCO v5 alignment, and
+  convergence with adjacent regimes (NIS2 EU-flagged vessels,
+  USCG MTSA / 33 CFR Part 105, Paris MoU 2023 CIC).
+- **SPL parameter fix** — three cat-22 UCs (UC-22.59.4, UC-22.59.12,
+  UC-22.53.13) had `summariesonly=true/false` rather than the
+  Splunk-canonical `t/f`. `audit-spl-hallucinations` now reports
+  **0 findings** across all 7,885 sidecars.
+
+### Shipped outcomes
+
+- Catalogue now ships **78 mapped regulations** (was 77) and
+  **7,885 UCs** (was 7,868). Cat-22 alone gains 17 gold UCs in
+  one new subcategory (22.59).
+- Tier-1 framework count rises to **15**; auditor evidence pack
+  count reaches **18**.
+- IMO tier-1 coverage: **17/18 clauses (94.4%)** with 15 `full` +
+  2 `partial` assurance. Only uncovered clause is
+  `IMO-MSC-FAL-Circ-3-s3-2 Stakeholder and supply-chain
+  considerations` — a procurement / GRC policy obligation
+  explicitly outside the Splunk monitoring envelope.
+- Global tier-1 coverage rises to **90.56%**, tier-2 to **97.55%**,
+  tier-3 stays at **100%**.
+- Phase 5a half-closed; the final 8.7.0 minor bump waits for
+  Phase 5b (DO-326A / ED-202A — aviation airworthiness security,
+  subcat 22.60, 17 UCs), then Phase 6 (China CII + CERT-In +
+  IEC 61508/61511, subcats 22.61–22.63, 27 UCs) closes the
+  6-phase, 247-UC arc.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.6.1 release
+notes.
+
+---
+
+## Previous releases
+
+**v8.6.0 — OT Regulation Deep-Dive (Phase 4: TSA Surface + SG Cyber Act + France LPM)** *(shipped 2026-05-13)*
+
+Theme: **Phase 4 of the multi-phase OT-regulation programme.**
+v8.6.0 lands the *TSA Surface Cybersecurity Security Directives*
+family — SD-Pipeline-2021-01/02 with all amendments A–G, SD-1580/82-2022-01
+for freight and passenger rail, SD-1580-21-01 and SD-1582-21-01 for
+passenger rail, and SD-1582-2022-01 for aviation — (US, tier-1,
+pipeline/rail/aviation), the *Singapore Cybersecurity Act 2018* as
+amended by Act 13 of 2024 (Singapore, tier-1, 11 CII sectors), and the
+*France LPM (Loi de Programmation Militaire) OIV regime* across
+LPM 2014-2019 + LPM 2019-2025 + Décret 2015-351 + Décret 2024-405
+(France, tier-1, 12 critical sectors). All three regulations land
+with auditor-grade evidence packs and the catalogue tier-1 count
+rises to 14 frameworks.
+
+- **TSA Surface framework registered in `data/regulations.json`** with
+  the TSA Surface clause grammar covering the SD-Pipeline-2021-01
+  (network security and reporting), SD-Pipeline-2021-02 (cybersecurity
+  measures, CAP, CIP, governance) including amendments A–G, the
+  SD-1580/82-2022-01 unified rail directive, the SD-1580-21-01 +
+  SD-1582-21-01 passenger-rail directives, and the SD-1582-2022-01
+  aviation directive — 46 monitored clauses across all four
+  surface-transportation modes.
+- **Singapore Cybersecurity Act 2018 framework registered in
+  `data/regulations.json`** with the SG-CA clause grammar covering
+  the CSA statutory sections (§7 designation, §10 Code of Practice
+  binding force, §11 Cybersecurity Officer, §14(1) 2-hour prescribed-
+  incident reporting, §14(2) material-change notification, §15(1)
+  annual audit, §15(2) annual risk assessment, §16 cybersecurity
+  exercises, §19 Commissioner's investigation), the CII Regulations
+  2018, the CSA Code of Practice 2.0 topics, the 2024 ESCI / FDI /
+  CTSP regulatory extensions, and the CSA-PDPA reconciliation — 24
+  monitored clauses.
+- **France LPM framework registered in `data/regulations.json`** with
+  the LPM clause grammar covering the LPM 2014-2019 Article 22, the
+  LPM 2019-2025 update, the Décret 2015-351 (SIIV designation + 20
+  ANSSI cybersecurity rules), and the Décret 2024-405 (LPM → NIS2
+  transposition) — 9 monitored clauses including the ANSSI 24-hour
+  incident-reporting clock, the PSSI-MCAS audit, the PASSI external
+  audit cycle, the ANSSI-qualified product procurement requirement,
+  and the AIE zone-boundary surveillance regime.
+- **51 hand-written gold-tier UCs** across the new `22.56` (TSA
+  Surface — 28 UCs), `22.57` (SG Cyber Act — 15 UCs), and `22.58`
+  (France LPM — 8 UCs) subcategories. Every UC starts at Gold
+  quality with curated `equipmentModels[]` for the US surface-
+  transportation stack (ServiceNow CMDB, Microsoft AD, Cisco ISE for
+  OT segmentation, Claroty / Dragos / Nozomi for pipeline and rail
+  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR for
+  CISA submission, ServiceNow Records Management for the TSA 5-year
+  retention regime, CyberArk PSM / BeyondTrust for vendor remote
+  access, Tenable / Qualys for vulnerability scoring), the Singapore
+  CSA CII stack, and the French OIV stack with PSSI-MCAS / PASSI /
+  ANSSI-qualified-product alignment.
+- **Three new auditor evidence packs** at
+  [`docs/evidence-packs/tsa-surface.md`](docs/evidence-packs/tsa-surface.md),
+  [`docs/evidence-packs/sg-cyber-act.md`](docs/evidence-packs/sg-cyber-act.md),
+  and [`docs/evidence-packs/fr-lpm.md`](docs/evidence-packs/fr-lpm.md)
+  with high clause coverage, in-jurisdiction reporting-workflow
+  guidance (CISA Services Portal 24-hour clock with dual PHMSA pipeline
+  reporting for TSA; CSA SingCERT 2-hour clock for Singapore;
+  ANSSI 24-hour notification + national-CSIRT coordination for
+  France), and the Cybersecurity Assessment Plan (CAP) +
+  Cybersecurity Implementation Plan (CIP) lifecycle for TSA.
+- **Catalogue-wide schema-compliance ratchet — 7,868 UC sidecars
+  now strictly validate against `schemas/uc.schema.json` v1.7.0.**
+  The `audit-compliance-mappings` audit was promoted from
+  "tolerate baselined errors" to "zero blocking errors." Global
+  clause-coverage rose from 68.6 % to 92.9 %, and priority-weighted
+  coverage from 68.9 % to 93.1 %. The ratchet normalised
+  `controlFamily`, `monitoringType[]`, `owner`,
+  `splunkbaseApps[].role`, and `compliance[].mode` across 164
+  Phase 1–4 OT regulation UCs, and normalised
+  `compliance[].regulation` from human-readable aliases to canonical
+  lowercase IDs across 1,488 UCs (closing a long-standing gap where
+  regulations like SOCI showed 0 covering UCs in the API surface
+  even though their UCs were correctly mapped via aliases).
+- **New API endpoints** at
+  `api/v1/compliance/regulations/tsa-surface.json`,
+  `api/v1/compliance/regulations/sg-cyber-act.json`,
+  `api/v1/compliance/regulations/fr-lpm.json` (plus versioned
+  aliases), and the corresponding evidence-pack endpoints. The
+  `generate-evidence-packs` generator's `PACK_TARGETS` allow-list
+  now lists 17 frameworks.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.6.0 release notes.
+
+### Shipped outcomes
+
+- Catalogue now ships **77 mapped regulations** (was 74) and
+  **7,868 UCs** (was 7,817). Cat-22 alone gains 51 gold UCs and
+  three new subcategories (22.56 + 22.57 + 22.58).
+- Tier-1 framework count rises to **14**; auditor evidence pack
+  count reaches **17**.
+- Phase 4 of the multi-phase OT-regulation roadmap closed;
+  Phases 5–6 (IMO 2021 MSC.428(98) + DO-326A / ED-202A, China
+  CII + CERT-In + IEC 61508/61511) follow on the same release
+  cadence and close the 6-phase, 247-UC arc.
+
+---
+
+**v8.5.0 — OT Regulation Deep-Dive (Phase 3: CIRCIA + CLC/TS 50701)** *(shipped 2026-05-13)*
+
+Theme: **Phase 3 of the multi-phase OT-regulation programme.**
+v8.5.0 lands the *Cyber Incident Reporting for Critical
+Infrastructure Act of 2022* codified at 6 U.S.C. § 681 et seq. with
+the CISA April-2024 NPRM (US, tier-1, cross-sector) and
+*CLC/TS 50701:2021 — Railway applications - Cybersecurity*
+(EU/EEA/UK/CH, tier-1, rail). Both regulations landed with 100 %
+clause coverage, 28 gold-tier UCs each, and auditor-grade evidence
+packs. Subcategories `22.54` (CIRCIA) and `22.55` (CLC/TS 50701)
+bring the cat-22 OT-regulation arc to five phases shipped of six
+planned.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.5.0 release notes.
+
+**v8.4.0 — OT Regulation Deep-Dive (Phase 2: SOCI Act + AWIA)** *(shipped 2026-05-13)*
+
+Theme: **Phase 2 of the multi-phase OT-regulation programme.**
+v8.4.0 lands the *Security of Critical Infrastructure Act 2018 (Cth)*
+with the 2022 SLACIP amendments and the 2023 CIRMP Rules (Australia,
+tier-1) and Section 2013 of *America's Water Infrastructure Act of
+2018* with the EPA Top Actions and CISA Pathway for the water sector
+(US, tier-2). Both regulations landed with 100 % clause coverage, 28
+gold-tier UCs each, and auditor-grade evidence packs. Subcategories
+`22.52` (SOCI) and `22.53` (AWIA) bring the cat-22 OT-regulation
+arc to four phases shipped of six planned.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.4.0 release notes.
+
+**v8.3.0 — OT Regulation Deep-Dive (Phase 1: NCA OTCC)** *(shipped 2026-05-13)*
+
+Theme: **first instalment of the multi-phase OT-regulation programme.**
+v8.3.0 lands Saudi Arabia's National Cybersecurity Authority
+*Operational Technology Cybersecurity Controls* (NCA OTCC, version
+1:2022) as the catalogue's 70th regulation and the first tier-2
+deep-dive aimed squarely at industrial control system operators. The
+new `22.51` subcategory carries 28 hand-written gold-tier UCs and a
+new auditor evidence pack at
+[`docs/evidence-packs/nca-otcc.md`](docs/evidence-packs/nca-otcc.md);
+the primer deep-dive at `docs/regulatory-primer.md §4.13` walks the
+Domain → Subdomain → Main Control → Sub-Control grammar.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.3.0 release notes.
+
+
+
 **v8.2.0 — Scripts Taxonomy Closed** *(shipped 2026-05-11)*
 
 Theme: **`scripts/` is no longer the canonical entry point.** v8.2.0
@@ -36,21 +280,6 @@ package is the single Python surface.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.2.0 release notes
 and the v8.0 → v8.2 line.
-
-### Shipped outcomes
-
-- One canonical CLI entry point (`splunk-uc <verb>`) for the entire
-  build / audit / generate / ingest surface; legacy `python3
-  scripts/foo.py` invocations no longer work.
-- Foundation in place for `mypy --strict` ratchets and a future PyPI
-  publish (the latter is P9 work; the infrastructure is ready).
-- The catalog now counts **7,677 UCs** across **23 categories /
-  239 subcategories / 69 mapped regulations / 106 equipment slugs /
-  18 schemas**.
-
----
-
-## Previous releases
 
 **v7.1 — Non-Technical Everywhere** *(shipped 2026-04-20)*
 

@@ -1,0 +1,110 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.18",
+  "title": "AWIA EPA Sanitary-Survey Cyber Readiness — evidence basic cyber hygiene (segmentation, MFA, patching, backup, IR) demonstrable during PWS sanitary survey",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes states that have not voluntarily adopted EPA's July 2024 Cybersecurity Action Plan into PWS sanitary surveys. Excludes systems whose state primacy agency has documented that cyber is not in sanitary-survey scope.",
+  "evidence": "Saved search `UC-22.53.18` archived weekly to `audit_evidence` with `awia_clause=\"AWIA-EPA-sanitary-survey\"`. Every row pins (pwsid, state, primacy_agency, cyber_in_survey_scope, last_survey_at, last_survey_finding_count, segmentation_evidence_url, mfa_evidence_url, patching_evidence_url, backup_evidence_url, ir_evidence_url, training_evidence_url, sanitary_survey_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-EPA-sanitary-survey",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences sanitary-survey cyber readiness across the six EPA-named basic hygiene items in states that have adopted the Cybersecurity Action Plan.",
+      "controlObjective": "Proves AWIA sanitary-survey cyber readiness.",
+      "evidenceArtifact": "Saved search `UC-22.53.18` archived; evidence URLs per hygiene item.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-sanitary-survey",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Sanitary survey scheduled in 60 days; `mfa_evidence_url` missing. UC-22.53.18 MUST surface with `sanitary_survey_status=\"approaching_survey_with_gaps\"`.",
+    "negativeScenario": "All six evidence URLs current; sanitary survey scheduled. UC-22.53.18 MUST record `sanitary_survey_status=\"ready\"`."
+  },
+  "dataSources": "GRC sanitary-survey calendar, hygiene-evidence repository (segmentation diagrams, MFA reports, patch reports, backup-test reports, IR exercise reports, training records).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_sanitary_survey_state_adoption_lookup state OUTPUT cyber_in_survey_scope\n| where cyber_in_survey_scope=\"true\"\n| lookup awia_sanitary_survey_calendar_lookup pwsid OUTPUT next_survey_at\n| lookup awia_hygiene_evidence_lookup pwsid OUTPUT segmentation_evidence_url mfa_evidence_url patching_evidence_url backup_evidence_url ir_evidence_url training_evidence_url\n| eval days_to_survey = if(isnotnull(next_survey_at), round((next_survey_at - now()) / 86400, 0), null())\n| eval missing_evidence = mvfilter(NOT match(mvappend(segmentation_evidence_url, mfa_evidence_url, patching_evidence_url, backup_evidence_url, ir_evidence_url, training_evidence_url), \".+\"))\n| eval missing_evidence_count = mvcount(missing_evidence)\n| eval sanitary_survey_status = case(\n    missing_evidence_count >= 3, \"survey_not_ready\",\n    missing_evidence_count > 0 AND days_to_survey <= 90, \"approaching_survey_with_gaps\",\n    missing_evidence_count > 0, \"evidence_gap\",\n    1=1, \"ready\")\n| table pwsid system_name state primacy_agency cyber_in_survey_scope next_survey_at days_to_survey segmentation_evidence_url mfa_evidence_url patching_evidence_url backup_evidence_url ir_evidence_url training_evidence_url missing_evidence_count sanitary_survey_status",
+  "description": "Tracks sanitary-survey cyber-readiness for utilities in states that have adopted the EPA Cybersecurity Action Plan.",
+  "value": "Where states have adopted, the sanitary survey is now a regular cyber audit. This UC catches the gap before the surveyor knocks on the door.",
+  "implementation": "(1) Maintain `awia_sanitary_survey_state_adoption_lookup` and the calendar / hygiene-evidence lookups. (2) Weekly UC-22.53.18. (3) Archive.",
+  "visualization": "(Panel 1) Readiness RAG by PWSID. (Panel 2) Time-to-survey vs evidence-count.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "EPA July 2024 Cybersecurity Action Plan",
+      "url": "https://www.epa.gov/waterresilience/forms/water-sector-cybersecurity"
+    },
+    {
+      "title": "EPA — Sanitary Surveys",
+      "url": "https://www.epa.gov/dwreginfo/sanitary-surveys"
+    }
+  ],
+  "knownFalsePositives": "1. **State not adopting** — cyber_in_survey_scope=false; filtered.\n\n**Suppression**: `awia_22_53_18_exceptions`; 30-day max.",
+  "requiredFields": [
+    "pwsid",
+    "state",
+    "cyber_in_survey_scope",
+    "missing_evidence_count",
+    "sanitary_survey_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC Survey module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (sanitary-survey readiness governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.21",
+    "UC-22.53.22",
+    "UC-22.53.27"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UCs for MFA (UC-22.53.21), segmentation (UC-22.53.22), and patching (UC-22.53.27) deployed so the evidence URLs are populated.\n- Splunk ES.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookups `awia_sanitary_survey_state_adoption_lookup`, `awia_sanitary_survey_calendar_lookup`, `awia_hygiene_evidence_lookup`.\n\n## Step 1 — Configure data collection\n\nState-adoption lookup tracks each state's adoption status (refreshed by Compliance Officer at EPA / state primacy publication). Hygiene-evidence URLs are populated by the underlying UCs.\n\n## Step 2 — Create the search and alert\n\nWeekly Wednesday 09:00.\n\n```ini\n[UC-22.53.18: AWIA Sanitary Survey Readiness]\ncron_schedule = 0 9 * * 3\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.18,reg=AWIA,clause=AWIA-EPA-sanitary-survey\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: 60 days to survey, missing MFA URL; UC fires.  Negative: all URLs present; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Sanitary Survey Readiness`. Runbook: close evidence gaps 60+ days before survey.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **State-survey methodology variance**: surveyor materials differ by state; align local checklist.\n- **Joint EPA / state surveys**: federal involvement may follow a state finding; align to UC-22.53.5 certification cycle.",
+  "grandmaExplanation": "In some states, when a health inspector audits a water plant, they now also check the cyber basics: are computers separated, do you use two-step login, do you patch, do you back up, do you train staff. We watch all six items and ring the bell if any are missing before the inspection."
+}

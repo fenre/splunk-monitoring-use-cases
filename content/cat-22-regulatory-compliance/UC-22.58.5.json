@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.58.5",
+  "title": "France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "OIV",
+  "owner": "Procurement",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-SAIV-protecting products. Excludes accepted-derogation products in `lpm_visa_derogation_lookup` with ANSSI approval.",
+  "evidence": "Saved search `UC-22.58.5` archived daily to `audit_evidence` with `lpm_clause=\"LPM-Art-R1332-41-13-qualification\"`. Every row pins (oiv_id, product_id, vendor, qualification_type, certificate_id, certificate_valid_until, asset_count, compliance_status).",
+  "compliance": [
+    {
+      "regulation": "fr-lpm",
+      "version": "2013-2018-with-anssi-2024-decrees",
+      "clause": "FR-ANSSI-rule-protection-access-control",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Code de la défense Art. R.1332-41-13 requires that products and services used to protect SAIV be qualified by ANSSI (visa de sécurité, Critères Communs, CSPN). 'Partial' because some legacy installations may have ANSSI derogations awaiting product re-qualification.",
+      "controlObjective": "Proves SAIV-protecting products carry current ANSSI qualification or active derogation.",
+      "evidenceArtifact": "Saved search, `LPM Qualified-Product Ledger` dashboard, ANSSI visa certificates, derogation register.",
+      "obligationRef": "fr-lpm@2013-2018-with-anssi-2024-decrees#FR-ANSSI-rule-protection-access-control",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Deploy a non-qualified IDS to a SAIV. UC-22.58.5 MUST flag within 24h.",
+    "negativeScenario": "Deploy ANSSI-qualified product (e.g., Stormshield SNS qualified) with current visa. UC-22.58.5 MUST NOT escalate."
+  },
+  "dataSources": "ServiceNow CMDB (`snow:cmdb`). ANSSI visa register `lpm_anssi_visa_lookup` (product_id, vendor, qualification_type, certificate_id, certificate_valid_until). ServiceNow Procurement records (`snow:proc`). KV Store `lpm_visa_derogation_lookup`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "search sourcetype=snow:cmdb saiv_protecting=true earliest=-24h\n| stats values(vendor) as vendor values(product_id) as product_id dc(asset_id) as asset_count by oiv_id product_id\n| lookup lpm_anssi_visa_lookup product_id AS product_id OUTPUT qualification_type certificate_id certificate_valid_until\n| join type=left product_id [| inputlookup lpm_visa_derogation_lookup | where valid_until > now() | rename derogation_id as active_derogation]\n| eval compliance_status = case(\n    isnotnull(certificate_id) AND certificate_valid_until > now(), \"qualified\",\n    isnotnull(certificate_id) AND certificate_valid_until <= now(), \"qualification_expired\",\n    isnull(certificate_id) AND isnotnull(active_derogation), \"derogated\",\n    isnull(certificate_id), \"non_qualified\")\n| where compliance_status IN (\"non_qualified\",\"qualification_expired\")\n| table oiv_id product_id vendor qualification_type certificate_id certificate_valid_until asset_count active_derogation compliance_status",
+  "description": "Reconciles SAIV-protecting product inventory against ANSSI visa register and active derogations.",
+  "value": "ANSSI procurement scrutiny on OIV is direct. Non-qualified product deployment can void OIV compliance and trigger compulsory removal.",
+  "implementation": "(1) Populate ANSSI visa register from cyber.gouv.fr/produits-services-qualifies. (2) Maintain CMDB `saiv_protecting` flag. (3) Schedule UC-22.58.5 daily. (4) Build the `LPM Qualified-Product Ledger` dashboard.",
+  "visualization": "(Panel 1) Qualified vs non-qualified products. (Panel 2) Vendor mix. (Panel 3) Visa expiry timeline. (Panel 4) Derogation register.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Code de la défense Art. R.1332-41-13",
+      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370715/"
+    },
+    {
+      "title": "ANSSI — Produits et services qualifiés",
+      "url": "https://cyber.gouv.fr/produits-services-qualifies"
+    }
+  ],
+  "knownFalsePositives": "1. **In-flight re-qualification**: vendors may have submitted re-qualification dossier; tag with `recertification_pending` and short grace.\n2. **Equivalent qualification**: some EU products carry CC/CSPN equivalents; map.\n3. **Trial deployment**: lab/PoC deployments may use non-qualified products; tag with `lab_only=true`.\n\n**Suppression mechanism**: KV Store `lpm_22_58_5_exceptions` with documented Procurement approval and 6-month max grant.",
+  "requiredFields": [
+    "oiv_id",
+    "product_id",
+    "compliance_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "LPM Compliance SME Panel + RSSI + Délégué OIV + Procurement",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow",
+    "anssi-visa-register"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
+    "ANSSI visa register API/JSON"
+  ],
+  "mitreAttack": [
+    "N/A (supply-chain governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.58.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ANSSI visa register synced daily from cyber.gouv.fr.\n- ServiceNow CMDB with `saiv_protecting` tag.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.58.5: LPM Qualified-Product Ledger]\ncron_schedule = 39 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.5,reg=FR-LPM,clause=LPM-Art-R1332-41-13\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`compliance_status=non_qualified`** (owner: Procurement, severity P2):\n1. Within 7 days: identify ANSSI-qualified alternative or initiate derogation.\n2. Within 30 days: deploy qualified alternative or obtain ANSSI derogation.\n3. Within 90 days: decommission non-qualified product unless derogation granted.\n\n## Step 3 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Visa renewal lag**: ANSSI re-qualifications can take 12+ months; engage vendor early.\n- **Cross-EU equivalent**: SOG-IS CC/EAL equivalents may apply; pin mapping.\n- **Stormshield, ITrust, Atempo, Wallix etc.**: French national champions hold qualifications; favour these.",
+  "grandmaExplanation": "Les produits qui protègent les systèmes vitaux doivent porter le tampon de l'ANSSI. Nous vérifions chaque équipement déployé et signalons s'il n'a pas (ou plus) ce tampon."
+}

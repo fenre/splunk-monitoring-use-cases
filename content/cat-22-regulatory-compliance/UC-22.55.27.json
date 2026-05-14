@@ -1,0 +1,96 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.27",
+  "title": "CLC/TS 50701 Rail-Sector Threat Intelligence Sharing — active participation in rail-sector ISAC and government coordination",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "HR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes operators in countries without an active rail ISAC. Excludes operators with documented legal restriction on intel sharing.",
+  "evidence": "Saved search `UC-22.55.27` archived monthly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c11-1\"`. Every row pins (isac_id, membership_status, last_contribution_at, last_consumption_at, sharing_status). Dashboard `CLC/TS 50701 — Rail-ISAC Sharing` shows sharing posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c11-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 11.1 recommends active participation in rail-sector threat intel sharing (e.g., ENISA Rail-ISAC, ER-ISAC, EI-ISAC, US Rail-ISAC where applicable). UC-22.55.27 instruments membership and contribution.",
+      "controlObjective": "Proves the operator maintains active rail-ISAC membership and contributes incident / threat intel as appropriate.",
+      "evidenceArtifact": "Saved search `UC-22.55.27` archived to `audit_evidence`, the `CLC/TS 50701 — Rail-ISAC Sharing` dashboard, and ISAC membership confirmation.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c11-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Membership in ER-ISAC expires, or no contribution for 12+ months. UC-22.55.27 MUST flag `sharing_status=\"isac_inactive\"` or `sharing_status=\"contribution_stale\"`.",
+    "negativeScenario": "Renew membership; contribute monthly threat indicators or post-incident lessons-learned. UC-22.55.27 MUST record `sharing_status=\"active\"`."
+  },
+  "dataSources": "KV Store `rail_isac_lookup`. ISAC contribution / consumption portal logs ingested via HEC.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_isac_lookup\n| where membership_status=\"active\"\n| eval now_ts = now()\n| eval days_since_contribution = if(isnotnull(last_contribution_at), round((now_ts - last_contribution_at) / 86400, 0), null())\n| eval sharing_status = case(\n    membership_status != \"active\", \"isac_inactive\",\n    isnull(last_contribution_at) OR days_since_contribution > 365, \"contribution_stale\",\n    1=1, \"active\")\n| where sharing_status != \"active\"\n| table isac_id membership_status last_contribution_at last_consumption_at days_since_contribution sharing_status",
+  "description": "Tracks operator's rail-ISAC membership status and contribution cadence.",
+  "value": "Active rail-ISAC sharing accelerates collective defense.",
+  "implementation": "(1) Document ISAC membership in `rail_isac_lookup`. (2) ISAC portal pushes activity events. (3) Schedule UC-22.55.27 monthly on 1st 10:30.",
+  "visualization": "(Panel 1) ISAC status. (Panel 2) Stale contributions. (Panel 3) Contribution trend.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 11.1",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "European Rail ISAC (ER-ISAC)",
+      "url": "https://www.cer.be/"
+    }
+  ],
+  "knownFalsePositives": "1. **Membership-renewal lag** — ISAC renewal cycles may have admin delays. Suppression: tracked, 30-day grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_27_exceptions` with documented Threat-Intel Lead approval and 30-day maximum grant.",
+  "requiredFields": [
+    "isac_id",
+    "sharing_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Threat-Intel Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "ER-ISAC / ENISA Rail-CERT / national rail-CSIRT"
+  ],
+  "mitreAttack": [
+    "N/A (intel-sharing governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.25"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_isac_lookup`.\n\n## Step 1 — ISAC collection\n\n```ini\n[rail_isac_lookup]\nenforceTypes = true\nfield.isac_id = string\nfield.membership_status = string\nfield.last_contribution_at = number\nfield.last_consumption_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.27: CLC/TS 50701 Rail-ISAC Sharing]\ncron_schedule = 30 10 1 * *\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.27,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-1\naction.notable.param.rule_title = Rail-ISAC contribution stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `contribution_stale`** (owner: Threat-Intel Lead, severity P3): publish sanitized lessons-learned or threat indicators.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Sharing-classification**: ISAC contributions must be sanitized of operator-confidential detail.\n- **Multi-jurisdiction operators**: may need membership in multiple ISACs.",
+  "grandmaExplanation": "We join the railway-industry's security-sharing club and contribute what we learn from incidents. It is similar to neighborhood-watch — we tell each other what we have seen so everyone is safer."
+}

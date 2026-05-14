@@ -1,0 +1,130 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.17",
+  "title": "SOCI CIRMP Rule 7(2) insider-threat anomaly detection — UEBA on critical workers with documented removal-test cadence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes activity by workers whose role is explicitly defined as containing the anomalous pattern (e.g. a vulnerability scanner's account performing many failed logons during a scan). Excludes activity during documented authorised travel where geo-anomalies are expected.",
+  "evidence": "Saved search `UC-22.52.17` archived every 15 minutes to `audit_evidence` with `soci_clause=\"SOCI-CIRMP-r7.2\"`. Every row pins (worker_id, asset_id, anomaly_class, signal_count, baseline_count, deviation_ratio, first_seen, last_seen, evidence_artefact, ir_ticket_id). Dashboard `SOCI — Rule 7(2) Insider-Threat Anomalies` surfaces live UEBA signals on critical workers.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-CIRMP-r7.2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Continuously evidences UEBA-style anomaly detection on critical workers and signal-to-ticket conversion. Marked 'partial' because Rule 7(2) also requires a documented removal process tested at least annually; that test is tracked under UC-22.52.18 sibling controls. Together with the access-removal test cadence, this UC delivers the full Rule 7(2) evidence base.",
+      "controlObjective": "Detects insider-threat behavioural anomalies on critical workers and ensures every signal feeds an investigation workflow with documented disposition.",
+      "evidenceArtifact": "Saved search `UC-22.52.17` archived to `audit_evidence`, the `SOCI — Rule 7(2) Insider-Threat Anomalies` dashboard, signal-to-ticket conversion metrics, and the annual removal-process test record (cross-referenced to a sibling control).",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-CIRMP-r7.2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "On a non-production critical-worker account, generate (a) 50 failed logons in 10 minutes, (b) a bulk download exceeding 5x baseline, and (c) a workday-hours access outside the worker's documented schedule. UC-22.52.17 MUST surface the worker with `anomaly_class` for each pattern within 15 minutes and route to the Insider-Threat Programme Lead.",
+    "negativeScenario": "Normal critical-worker activity within baseline; UC-22.52.17 MUST NOT surface."
+  },
+  "dataSources": "Splunk User Behavior Analytics (UBA) anomalies, AD / Entra ID Security event logs, CyberArk PAM session records, MDE / EDR file-access events, Splunk Stream cross-zone OT flows, CASB / DLP (Microsoft Purview, Forcepoint). Lookup `critical_worker_lookup` (shared with UC-22.52.16) to limit scope to critical workers.",
+  "app": "Splunk User Behavior Analytics (Splunkbase 5117), Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207), Splunk Add-on for Microsoft Azure AD (Splunkbase 3757), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 5117,
+      "name": "Splunk User Behavior Analytics",
+      "url": "https://splunkbase.splunk.com/app/5117",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk User Behavior Analytics"
+  ],
+  "spl": "((index=uba sourcetype=\"uba:anomaly\" earliest=-15m@m) OR\n (index=identity sourcetype=\"WinEventLog:Security\" earliest=-15m@m EventCode IN (4625,4624) | bin _time span=10m | stats count by user EventCode _time | where (EventCode=4625 AND count>=20)) OR\n (index=identity sourcetype=\"cyberark:audit\" earliest=-15m@m action IN (vault_export,session_recording_disabled,password_disable_audit)) OR\n (index=dlp sourcetype IN (microsoft:purview:dlp, forcepoint:dlp) earliest=-15m@m severity>=high) OR\n (index=edr sourcetype=\"mscs:wd:atp:advanced_hunting\" earliest=-15m@m ActionType=FileCreated FileSize>5000000000))\n| eval user = lower(coalesce(user, UserPrincipalName, Account_Name, accountName, src_user))\n| lookup critical_worker_lookup user OUTPUT worker_id asset_id role criticality_basis\n| where isnotnull(worker_id)\n| eval anomaly_class = case(\n    sourcetype=\"uba:anomaly\", anomaly_category,\n    sourcetype=\"WinEventLog:Security\", \"brute_force_attempt\",\n    sourcetype=\"cyberark:audit\" AND action=\"vault_export\", \"pam_vault_exfil\",\n    sourcetype=\"cyberark:audit\" AND action=\"session_recording_disabled\", \"pam_anti_forensics\",\n    sourcetype IN (\"microsoft:purview:dlp\", \"forcepoint:dlp\"), \"dlp_high_severity\",\n    ActionType=\"FileCreated\" AND FileSize>5000000000, \"bulk_data_creation\",\n    1=1, \"other\")\n| stats earliest(_time) AS first_seen latest(_time) AS last_seen count AS signal_count BY worker_id user asset_id role criticality_basis anomaly_class\n| lookup user_anomaly_baseline_lookup user anomaly_class OUTPUT baseline_count\n| eval deviation_ratio = if(isnotnull(baseline_count) AND baseline_count > 0, round(signal_count / baseline_count, 2), null())",
+  "description": "Surfaces high-fidelity insider-threat signals on critical workers: brute-force attempts, PAM exfiltration / anti-forensics, DLP high-severity, bulk data creation, UBA anomalies. Scoped to the critical-worker lookup so the SOC focuses on the population that matters most under Rule 7(2).",
+  "value": "Rule 7(2) personnel-hazard mitigation depends on detecting the anomalous behaviour that precedes malicious insider action. This UC keeps that detection always-on, scoped specifically to the critical-worker population so the SOC isn't drowning in noise.",
+  "implementation": "(1) Onboard UBA + EDR + AD + PAM + DLP data sources. (2) Maintain `critical_worker_lookup` from UC-22.52.16 with `user` field aligned to the principal identifier used in event sources. (3) Maintain `user_anomaly_baseline_lookup` (rolling 90-day baseline per user per anomaly_class) refreshed nightly. (4) Schedule UC-22.52.17 every 15 minutes; route every row to ES notable; archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Per-worker anomaly heatmap (worker × anomaly_class × 24h). (Panel 2) Live signal stream. (Panel 3) Deviation-from-baseline scatter. (Panel 4) Signal-to-ticket conversion rate.",
+  "cimModels": [
+    "Authentication",
+    "Change",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules — Rule 7(2)",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    },
+    {
+      "title": "Splunk User Behavior Analytics",
+      "url": "https://splunkbase.splunk.com/app/5117"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    },
+    {
+      "title": "CISA — Insider Threat Mitigation Guide",
+      "url": "https://www.cisa.gov/topics/physical-security/insider-threat-mitigation"
+    }
+  ],
+  "knownFalsePositives": "1. **Vulnerability scanners using critical-worker service accounts** — the scanner may impersonate a critical worker. Suppression: exclude documented scanner accounts in `service_account_exclusion_lookup`.\n\n2. **DLP false positives** — noisy DLP rules. Suppression: only consider `severity>=high`; tune DLP separately.\n\n3. **Authorised bulk export** — a critical worker may legitimately export bulk data for an authorised analytics task. Suppression: documented in `authorised_bulk_export_lookup`.\n\n4. **Cross-tenant identity** — a worker with multiple identities (corporate + tenant-admin). Lookup must include all identities.\n\n**Suppression mechanism**: KV Store `soci_22_52_17_exceptions`; tight max grant 24 hours with Insider-Threat Programme Lead + Worker's manager joint sign-off.",
+  "requiredFields": [
+    "worker_id",
+    "asset_id",
+    "anomaly_class",
+    "signal_count",
+    "first_seen"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-uba",
+    "splunk-es",
+    "microsoft-defender",
+    "microsoft-azure-ad",
+    "cyberark"
+  ],
+  "equipmentModels": [
+    "Splunk User Behavior Analytics 5.x (UBA anomalies)",
+    "Microsoft Defender for Endpoint (MDE / WDATP, advanced hunting)",
+    "Microsoft Entra ID (Azure AD) Security event stream",
+    "CyberArk PAS 12.x (PAM session and audit)",
+    "Microsoft Purview DLP / Forcepoint DLP",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "T1098",
+    "T1110",
+    "T1052",
+    "T1530",
+    "T1567"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.16"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.16 deployed (provides `critical_worker_lookup`).\n- ES, UBA, MDE TA, Azure AD TA, CyberArk TA, Windows TA.\n- `index=uba`, `index=identity`, `index=edr`, `index=dlp` (90-day retention online), `index=audit_evidence` (7 years).\n- Lookup `user_anomaly_baseline_lookup` populated nightly with 90-day rolling baseline of `signal_count` per `user`, per `anomaly_class`.\n- ES notable framework.\n\n## Step 1 — Configure data collection\n\nUBA modular input from UBA cluster:\n\n```ini\n[uba://anomalies]\nuba_url = https://uba.responsible-entity.local\ninterval = 300\nindex = uba\nsourcetype = uba:anomaly\n```\n\nBaseline materialise (nightly):\n\n```spl\nindex=uba sourcetype=uba:anomaly earliest=-90d@d latest=-1d@d\n| stats count AS signal_count by user anomaly_category\n| rename anomaly_category AS anomaly_class\n| eval baseline_count = round(signal_count / 90, 2)\n| outputlookup user_anomaly_baseline_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule every 15 minutes:\n\n```ini\n[UC-22.52.17: SOCI CIRMP Rule 7(2) insider-threat anomaly detection]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.17,reg=SOCI,clause=SOCI-CIRMP-r7.2\naction.notable.param.rule_title = SOCI Rule 7(2) insider-threat anomaly on critical worker\naction.notable.param.security_domain = access\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity: every row is critical because the worker is by definition critical. The IR-team triage decides whether to maintain or downgrade.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control on a sandbox account: generate brute-force, PAM-export, bulk-download signals. UC must surface within 15 minutes.\n\n**(b)** Negative control: normal activity; UC does not surface.\n\n**(c)** Baseline freshness: every Monday, verify the baseline was refreshed Sunday night.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 7(2) Insider-Threat Anomalies`.\n\n- Per-worker anomaly heatmap.\n- Live signal stream.\n- Deviation-from-baseline scatter.\n- Signal-to-ticket conversion.\n- Top-10 anomalous workers in the last 30 days.\n\n**Runbook for any notable** (owner: Insider-Threat Programme Lead, severity P1):\n\n1. Within 30 minutes: triage. If genuine, suspend access pending review (HR + Legal involvement).\n2. Conduct interview; document outcome.\n3. Feed disposition back to `soci_22_52_17_exceptions` if false positive.\n\n## Step 5 — Troubleshooting\n\n**Lookup-key mismatch**: `user` in events may be `DOMAIN\\\\sam` whereas the lookup uses email. Normalise.\n\n**Baseline-storm**: a baseline-refresh job that picked up an attack period produces a baseline that conceals new attacks. Refresh manually after any IR event.\n\n**Coverage**: every critical worker has at least one identity tracked.\n\n**SOCI-specific failure modes**:\n\n- **Insider-threat investigation legal framework**: triage and interview must comply with employment law, privacy law (Australian Privacy Principles), and any enterprise agreement. Pre-agreed runbook with HR + Legal.\n- **Cross-jurisdictional workers**: a critical worker accessing from offshore may produce geo-anomalies that are not malicious; use authorised-travel lookup.\n- **Joint-venture access**: a partner-organisation worker with access to your critical assets is also in scope; ensure the lookup includes them and that legal arrangements permit UEBA on them.",
+  "grandmaExplanation": "We watch our most trusted workers — the ones who can directly touch our most important systems — for warning signs of trouble: trying lots of bad passwords, copying out huge amounts of data, turning off recording, or doing things outside their normal pattern. If we see those signals we ring the loud bell and the insider-threat team takes over."
+}

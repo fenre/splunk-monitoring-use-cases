@@ -1,0 +1,115 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.17",
+  "title": "AWIA EPA / WaterISAC Cyber-Incident Reporting — evidence cyber-incidents are reported to WaterISAC and EPA Regional WPC, with CIRCIA 72-hour readiness",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes false-positive notable events that did not meet the WaterISAC reporting threshold (after analyst triage). Excludes purely-informational threat-intel ingest items that did not generate an investigation.",
+  "evidence": "Saved search `UC-22.53.17` archived hourly to `audit_evidence` with `awia_clause=\"AWIA-EPA-cwc-reporting\"`. Every row pins (pwsid, incident_id, detected_at, classification, reportable_per_waterisac, reportable_per_circia, waterisac_report_submitted_at, epa_regional_wpc_report_submitted_at, circa_report_submitted_at, hours_to_circa_72h_deadline, reporting_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-EPA-cwc-reporting",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences cyber-incident reporting timeliness across WaterISAC, EPA Regional WPC, and CIRCIA 72-hour pathway.",
+      "controlObjective": "Proves AWIA / CIRCIA cyber-reporting compliance.",
+      "evidenceArtifact": "Saved search `UC-22.53.17` archived; reporting receipts retained.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-cwc-reporting",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Incident classified reportable; 60h elapsed without CIRCIA submission. UC-22.53.17 MUST surface with `reporting_status=\"circa_72h_approaching\"`.",
+    "negativeScenario": "Incident with WaterISAC + EPA + CIRCIA receipts within respective windows. UC-22.53.17 MUST record `reporting_status=\"current\"`."
+  },
+  "dataSources": "Incident-response ticketing (ServiceNow / Resilient / Cortex XSOAR), WaterISAC submission portal receipts, EPA Region email confirmations, CISA CIRCIA portal receipts.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 5435).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5435,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/5435",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=ir sourcetype IN (servicenow:incident, resilient:incident, soar:incident) earliest=-1h@h status IN (\"in_progress\",\"closed\") incident_type=\"cyber\"\n| eval reportable_per_waterisac = if(classification IN (\"confirmed_intrusion\",\"suspected_intrusion\",\"ransomware\",\"ot_impact\",\"data_exfil\"), \"true\", \"false\")\n| eval reportable_per_circia = if(classification IN (\"confirmed_intrusion\",\"ransomware\",\"ot_impact\",\"covered_substantial_cyber_incident\"), \"true\", \"false\")\n| eval hours_since_detected = round((now() - detected_at) / 3600, 1)\n| eval hours_to_circa_72h_deadline = 72 - hours_since_detected\n| lookup waterisac_submission_lookup incident_id OUTPUT waterisac_report_submitted_at\n| lookup epa_region_submission_lookup incident_id OUTPUT epa_regional_wpc_report_submitted_at\n| lookup circa_submission_lookup incident_id OUTPUT circa_report_submitted_at\n| eval reporting_status = case(\n    reportable_per_waterisac=\"true\" AND isnull(waterisac_report_submitted_at), \"waterisac_pending\",\n    reportable_per_circia=\"true\" AND isnull(circa_report_submitted_at) AND hours_to_circa_72h_deadline <= 24, \"circa_72h_approaching\",\n    reportable_per_circia=\"true\" AND isnull(circa_report_submitted_at) AND hours_to_circa_72h_deadline <= 0, \"circa_72h_breached\",\n    reportable_per_waterisac=\"true\" AND isnull(epa_regional_wpc_report_submitted_at) AND hours_since_detected > 48, \"epa_regional_wpc_pending\",\n    1=1, \"current\")\n| where reporting_status != \"current\"\n| table pwsid incident_id detected_at hours_since_detected classification reportable_per_waterisac reportable_per_circia waterisac_report_submitted_at epa_regional_wpc_report_submitted_at circa_report_submitted_at hours_to_circa_72h_deadline reporting_status",
+  "description": "Joins IR tickets to WaterISAC / EPA / CIRCIA submission receipts and surfaces approaching or breached reporting deadlines.",
+  "value": "Missing the CIRCIA 72-hour reporting will be a civil penalty under federal law once the final rule is in force. WaterISAC and EPA Regional WPC reporting is the longstanding sector expectation. This UC is the regulator-facing audit trail.",
+  "implementation": "(1) Onboard IR ticketing. (2) Maintain `waterisac_submission_lookup`, `epa_region_submission_lookup`, `circa_submission_lookup`. (3) Schedule UC-22.53.17 hourly; severity=critical. (4) Archive.",
+  "visualization": "(Panel 1) Open-incident timer to CIRCIA 72h. (Panel 2) Reporting RAG by channel.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "WaterISAC Reporting",
+      "url": "https://www.waterisac.org/portal/report-incident"
+    },
+    {
+      "title": "EPA Water Sector Cyber",
+      "url": "https://www.epa.gov/waterresilience/forms/water-sector-cybersecurity"
+    },
+    {
+      "title": "CISA CIRCIA Proposed Rule",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    }
+  ],
+  "knownFalsePositives": "1. **False-positive after triage** — IR ticket closed false-positive; classification updated.\n\n2. **Sub-threshold event** — not meeting CIRCIA `covered_substantial_cyber_incident`; classification reflects.\n\n**Suppression**: `awia_22_53_17_exceptions`; classification update by IR Lead.",
+  "requiredFields": [
+    "pwsid",
+    "incident_id",
+    "classification",
+    "reportable_per_waterisac",
+    "reportable_per_circia",
+    "reporting_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SecOps / Incident Response",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk SOAR (Splunkbase 5435)"
+  ],
+  "mitreAttack": [
+    "N/A (regulator-reporting workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.14"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.14 deployed.\n- Splunk ES, Splunk SOAR.\n- Indexes `index=ir`, `index=audit_evidence`.\n- Lookups for WaterISAC / EPA / CIRCIA receipts.\n\n## Step 1 — Configure data collection\n\nIR ticket creation triggers a SOAR playbook that creates the CIRCIA-72h timer and the WaterISAC reporting task. Receipts are re-keyed into the receipt lookups by the IR Lead.\n\n## Step 2 — Create the search and alert\n\nHourly.\n\n```ini\n[UC-22.53.17: AWIA Cyber Reporting]\ncron_schedule = 10 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.17,reg=AWIA,clause=AWIA-EPA-cwc-reporting\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\nPositive: 60h elapsed; UC fires.  Negative: receipt in; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Cyber Reporting Timer`. SOAR escalates to IR Lead and Compliance Officer at 48h.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **CIRCIA scope evolution**: final rule may expand or contract scope; recheck `awia_circia_scope_lookup` on every rule update.\n- **Pre-final-rule period**: CIRCIA is not yet enforceable but exercising the pathway preserves readiness; treat as evidence-collection until final.\n- **State breach notification overlay**: state law (e.g. California IPA, NYDFS Part 500) may also apply if customer data was exposed.",
+  "grandmaExplanation": "If we have a cyber incident, we have to tell WaterISAC, the EPA region, and — once the rule is final — CISA within 72 hours. We watch the clock from the moment of detection and ring the bell when the deadlines are approaching."
+}

@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.17",
+  "title": "TSA-SD Public Transit + FTA-grantee Cyber Incident Reporting (NPRM-aligned, pre-Final-Rule operational scaffold)",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Public Transit",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes purely rail-mode operations covered by UC-22.56.9/10. Excludes non-transit bus operations.",
+  "evidence": "Saved search `UC-22.56.17` archived every 30 minutes to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-transit-NPRM-Nov2024-s2\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-transit-nprm-2024-s2",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "The November 2024 TSA Surface NPRM 89 FR 88488 extends the 24-hour CISA reporting clock to higher-risk OTRB / public-transit operators. 'Partial' because the Final Rule is pending; this UC implements the NPRM expectations and switches to 'full' on Final Rule.",
+      "controlObjective": "Proves transit-mode cyber incidents are reported to CISA within 24 hours (NPRM-aligned).",
+      "evidenceArtifact": "Saved search, `TSA Transit Cyber Reporting (NPRM)` dashboard, CISA receipts, FTA notification log.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-transit-nprm-2024-s2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Trigger synthetic IR with `tsa_transit_in_scope=true` and 23-hour-old awareness. UC-22.56.17 MUST escalate.",
+    "negativeScenario": "Submit within 24h. UC-22.56.17 MUST record `submission_status=on_time`."
+  },
+  "dataSources": "ServiceNow SIR with `tsa_transit_in_scope`, `tsa_reportable_category`. Transit agency register (KV Store `tsa_transit_agency_lookup`). SOAR `tsa_transit_cisa_submission` playbook.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_transit_in_scope=true tsa_reportable_category=*\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval cisa_submission_time = strptime(cisa_submission_time, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval hours_to_submission = case(\n    isnotnull(cisa_submission_time), round((cisa_submission_time - awareness_time) / 3600, 2),\n    1=1, hours_since_awareness)\n| eval submission_status = case(\n    isnotnull(cisa_submission_time) AND hours_to_submission <= 24, \"on_time\",\n    isnotnull(cisa_submission_time) AND hours_to_submission > 24, \"late\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 23 AND hours_since_awareness <= 24, \"clock_burning\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 24, \"missed\",\n    1=1, \"in_window\")\n| where submission_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id transit_agency_id tsa_reportable_category awareness_time cisa_submission_time hours_to_submission submission_status",
+  "description": "NPRM-aligned 24-hour reporting for public transit. Operates as a scaffold today; tightens automatically once the Final Rule is published.",
+  "value": "Major transit agencies (NJT, MTA, BART, WMATA, Caltrain, MUNI, MetroLink) face FTA + state + TSA pressure; the NPRM-aligned scaffold avoids last-minute scramble on Final Rule.",
+  "implementation": "Same as UC-22.56.9. Adjust schema once Final Rule clarifies covered-entity threshold.",
+  "visualization": "(Panel 1) Clock-burn. (Panel 2) Submission performance. (Panel 3) Per-agency status. (Panel 4) NPRM-vs-Final-Rule scope tracking.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "TSA Surface NPRM (89 FR 88488)",
+      "url": "https://www.federalregister.gov/documents/2024/11/07/2024-25712/enhancing-surface-cyber-risk-management"
+    },
+    {
+      "title": "FTA Cybersecurity Information",
+      "url": "https://www.transit.dot.gov/regulations-and-guidance/safety/cybersecurity"
+    },
+    {
+      "title": "APTA Cybersecurity Standards (PT-CCS-RP-001)",
+      "url": "https://www.apta.com/research-technical-resources/standards/"
+    }
+  ],
+  "knownFalsePositives": "1. **APTA-aligned existing programs**: many transit agencies already operate APTA-aligned cyber programs; align UC scope to NPRM-defined covered transit.\n\n**Suppression mechanism**: KV Store `tsa_22_56_17_exceptions`.",
+  "requiredFields": [
+    "incident_id",
+    "transit_agency_id",
+    "awareness_time",
+    "submission_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + APTA Liaison",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x",
+    "ServiceNow SIR"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.10"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.10.\n\n## Step 1 — Transit register\n\n```ini\n[tsa_transit_agency_lookup]\nfield.transit_agency_id = string\nfield.agency_name = string\nfield.tsa_in_scope = string\nfield.fta_grant_recipient = string\nfield.apta_cyber_standard = string\n```\n\n## Step 2 — SOAR playbook `tsa_transit_cisa_submission`\n\nMirrors `tsa_passenger_rail_cisa_submission` with FTA branch.\n\n## Step 3 — Runbook\n\nSame structure as UC-22.56.1; FTA branch on grantees.\n\n## Step 4 — Troubleshooting\n\n- **Final Rule lag**: monitor TSA Federal Register; adjust schema/scope on publication.\n\n**TSA-specific failure modes**:\n- **State-level transit cyber laws** (CA, NY): state regulators may impose additional clocks; coordinate with state CSO.",
+  "grandmaExplanation": "Same 24-hour reporting rule as railroads — but for buses and city transit systems, once the final version of the rule is published."
+}

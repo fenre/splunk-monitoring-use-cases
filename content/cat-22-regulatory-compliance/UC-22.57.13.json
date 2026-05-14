@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.13",
+  "title": "SG Cyber Act + Personal Data Protection Act (PDPA) cyber-overlay — data-breach notification ledger to PDPC + CSA correlation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-personal-data incidents. Excludes incidents below PDPA-notifiable threshold.",
+  "evidence": "Saved search `UC-22.57.13` archived every 30 minutes to `audit_evidence` with `csa_clause=\"CSA-PDPA-overlay\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-pdpa-overlay",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "When a cyber incident under CSA also triggers PDPA notifiable breach, parallel reporting to PDPC is required (within 3 days for significant harm, within 30 days for general). This UC ensures both PDPC and CSA pipelines fire.",
+      "controlObjective": "Proves cyber-incident events with personal-data dimension trigger parallel PDPC notification and CSA reporting.",
+      "evidenceArtifact": "Saved search, `CSA-PDPA Dual Notification` dashboard, PDPC submission receipts, CSA NCIRC receipts.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-pdpa-overlay",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Synthetic IR with `pdpa_notifiable=true` and `pdpc_notified_at=null`, awareness 2 days ago. UC-22.57.13 MUST flag.",
+    "negativeScenario": "Pin PDPC notification within 3-day clock. UC-22.57.13 MUST NOT escalate."
+  },
+  "dataSources": "ServiceNow SIR with `pdpa_notifiable`, `pdpc_notified_at`, `pdpc_notification_id`. KV Store `pdpa_significant_harm_threshold`. PDPC submission receipts.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" pdpa_notifiable=true\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval pdpc_notified_at = strptime(pdpc_notified_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval days_since_awareness = round((now() - awareness_time)/86400, 2)\n| eval days_to_pdpc = case(\n    isnotnull(pdpc_notified_at), round((pdpc_notified_at - awareness_time)/86400, 2),\n    1=1, days_since_awareness)\n| eval pdpa_clock = case(\n    significant_harm=true, 3,\n    1=1, 30)\n| eval pdpc_status = case(\n    isnotnull(pdpc_notified_at) AND days_to_pdpc <= pdpa_clock, \"on_time\",\n    isnotnull(pdpc_notified_at) AND days_to_pdpc > pdpa_clock, \"late\",\n    isnull(pdpc_notified_at) AND days_since_awareness < pdpa_clock, \"in_window\",\n    isnull(pdpc_notified_at) AND days_since_awareness >= pdpa_clock, \"missed\",\n    1=1, \"unknown\")\n| where pdpc_status IN (\"missed\",\"late\")\n| table incident_id pdpa_notifiable significant_harm awareness_time pdpc_notified_at days_to_pdpc pdpa_clock pdpc_status",
+  "description": "Tracks parallel PDPC notification clock on cyber incidents with personal-data exposure.",
+  "value": "Dual non-compliance (PDPC + CSA) compounds penalties.",
+  "implementation": "(1) Add SIR fields. (2) Schedule UC-22.57.13 every 30 min. (3) SOAR `pdpc_submission` playbook. (4) Build the `CSA-PDPA Dual Notification` dashboard.",
+  "visualization": "(Panel 1) PDPC clock-burn. (Panel 2) Pdpa-clock category split. (Panel 3) p50/p95 days. (Panel 4) Late + missed table.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Personal Data Protection Act 2012",
+      "url": "https://sso.agc.gov.sg/Act/PDPA2012"
+    },
+    {
+      "title": "PDPC Mandatory Data Breach Notification",
+      "url": "https://www.pdpc.gov.sg/Help-and-Resources/2021/01/Advisory-Guidelines-on-Key-Concepts-in-the-PDPA"
+    }
+  ],
+  "knownFalsePositives": "1. **DPO determination of non-notifiability**: PDPC notification not always required; capture DPO determination.\n\n**Suppression mechanism**: KV Store `csa_22_57_13_exceptions`.",
+  "requiredFields": [
+    "incident_id",
+    "pdpa_notifiable",
+    "awareness_time",
+    "pdpc_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + DPO + CC + Legal",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x",
+    "ServiceNow SIR"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.57.2 + DPO governance.\n\n## Step 1 — SIR fields\n\nAdd `pdpa_notifiable` (bool), `significant_harm` (bool), `pdpc_notified_at` (datetime), `pdpc_notification_id` (string).\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.13: CSA-PDPA Dual Notification]\ncron_schedule = */30 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.13,reg=SG-Cyber-Act,clause=CSA-PDPA-overlay\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`pdpc_status=missed`**: file immediately; document delay rationale; engage Legal.\n\n**SG-specific failure modes**:\n- **Cross-border data**: data subjects outside SG may trigger additional regimes (e.g., HK PDPO, EU GDPR).\n- **Significant harm threshold**: PDPC published thresholds in 2022; align lookup.",
+  "grandmaExplanation": "Cyber incidents that leak personal data must be reported to both the cyber agency AND the data protection authority. We track both clocks and make sure neither slips."
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.12",
+  "title": "SG Cyber Act CII Threat-Sharing Programme (CTSP) + AISP integration health",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes classified channels handled outside Splunk.",
+  "evidence": "Saved search `UC-22.57.12` archived hourly to `audit_evidence` with `csa_clause=\"CSA-CTSP-AISP\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-ctsp",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "CSA CTSP and AISP (Automated Indicator Sharing Program) provide bi-directional threat intelligence sharing for CIIs. 'Partial' because outbound sharing requires CC sign-off and isn't fully automatable.",
+      "controlObjective": "Proves CTSP/AISP inbound feeds are healthy and high-confidence indicators flow into ES detection content.",
+      "evidenceArtifact": "Saved search, `CSA CTSP/AISP Feed Health` dashboard, CSA participation evidence.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-ctsp",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Pause AISP feed. UC-22.57.12 MUST flag within 1h.",
+    "negativeScenario": "Resume feed. UC-22.57.12 MUST NOT escalate."
+  },
+  "dataSources": "CSA AISP via TAXII. CSA CTSP indicator drops via STIX. Splunk ES threat_intel framework.",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| metadata type=sources index=threat_intel\n| eval source_normalized = case(\n    match(source, \"(?i)csa.+aisp\"), \"CSA_AISP\",\n    match(source, \"(?i)csa.+ctsp\"), \"CSA_CTSP\",\n    1=1, \"other\")\n| where source_normalized!=\"other\"\n| eval hours_since_event = round((now() - lastTime)/3600, 1)\n| eval feed_status = case(\n    isnull(lastTime), \"never_seen\",\n    hours_since_event > 4, \"stale\",\n    1=1, \"healthy\")\n| where feed_status IN (\"never_seen\",\"stale\")\n| table source_normalized hours_since_event feed_status",
+  "description": "Surveys CSA CTSP / AISP feed freshness.",
+  "value": "Active CTSP/AISP participation demonstrates CCoP cooperation and feeds the SOC.",
+  "implementation": "(1) Subscribe to CSA AISP + CTSP. (2) Wire into `threat_intel`. (3) Schedule UC-22.57.12 hourly. (4) Build dashboard.",
+  "visualization": "(Panel 1) Per-feed freshness. (Panel 2) Indicator-volume trend. (Panel 3) Operationalised vs raw. (Panel 4) CTSP-engagement log.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CSA CTSP",
+      "url": "https://www.csa.gov.sg/our-programmes/csa-collaboration-and-sharing"
+    }
+  ],
+  "knownFalsePositives": "1. **Burst-cadence**: CSA feeds may burst; tune.\n\n**Suppression mechanism**: KV Store `csa_22_57_12_exceptions`.",
+  "requiredFields": [
+    "source_normalized",
+    "hours_since_event",
+    "feed_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC + Threat-Intel Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "N/A (threat-intel hygiene)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.23.\n\n## Step 1 — Wire feeds\n\nConfigure TAXII client to subscribe to CSA AISP + CTSP; tag source as `CSA_AISP` / `CSA_CTSP`.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.12: CSA CTSP/AISP Health]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.12,reg=SG-Cyber-Act,clause=CSA-CTSP-AISP\nalert.severity = 3\n```\n\n## Step 3 — Runbook\n\n**`feed_status=stale`**: re-establish; investigate gap window.\n\n**SG-specific failure modes**:\n- **TLP:RED**: classified indicators may go through separate channel; coordinate with CC.\n- **Cross-sector indicator dissemination**: CSA may route sector-specific indicators; ensure correct CSC subscription.",
+  "grandmaExplanation": "Singapore's cyber agency shares warnings with us about new attacks, and we share back. We make sure those warning channels are always working."
+}

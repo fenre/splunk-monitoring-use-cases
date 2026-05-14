@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.22",
+  "title": "SOCI Rule 10 annual report production — evidence the Rule 10 board-approved report is filed within 90 days of EOFY",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes responsible entities that have ceased operation during the reporting period (lookup `entity_lifecycle_lookup` marks them). Excludes new entities in their grace period (CIRMP rules give a 6-month window after first becoming a responsible entity).",
+  "evidence": "Saved search `UC-22.52.22` archived daily to `audit_evidence` with `soci_clause=\"SOCI-CIRMP-r10\"`. Every row pins (entity_id, report_year, board_approved_at, lodgement_due_at, lodged_at, lodgement_artefact_url, days_to_due, lodgement_status). Dashboard `SOCI — Rule 10 Annual Report` shows lodgement currency and Rule 10 evidence-section coverage.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-CIRMP-r10",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) the Rule 10 annual report is being produced, (b) board approval is recorded, (c) lodgement is within 90 days of the end of the financial year, (d) the lodgement artefact URL is captured. This is the full scope of Rule 10 reporting.",
+      "controlObjective": "Proves the responsible entity files the annual report required under section 30AG of the SOCI Act within the 90-day window.",
+      "evidenceArtifact": "Saved search `UC-22.52.22` archived to `audit_evidence`, the `SOCI — Rule 10 Annual Report` dashboard, the board-approved annual report PDF, and the CISC lodgement portal acknowledgement.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-CIRMP-r10",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "After the financial year ends (typically 30 June for Australian entities), do NOT lodge by 28 September. UC-22.52.22 MUST flag `lodgement_status=\"overdue\"` on 29 September.",
+    "negativeScenario": "Lodge the board-approved report by 28 September with the CISC portal acknowledgement captured. UC-22.52.22 MUST record `lodgement_status=\"current\"`."
+  },
+  "dataSources": "GRC compliance calendar (`index=grc sourcetype=\"snow:annual_report\"`). Lookup `cirmp_annual_report_lookup` (entity_id, report_year, board_approved_at, lodgement_due_at, lodged_at, lodgement_artefact_url, lodgement_acknowledgement_id, sections_complete (CSV of CIRMP rules covered), gaps).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup cirmp_annual_report_lookup\n| eval days_to_due = if(isnotnull(lodgement_due_at), round((lodgement_due_at - now()) / 86400, 0), null())\n| eval days_to_lodgement = if(isnotnull(lodged_at) AND isnotnull(lodgement_due_at), round((lodgement_due_at - lodged_at) / 86400, 0), null())\n| eval days_since_board_approved = if(isnotnull(board_approved_at), round((now() - board_approved_at) / 86400, 0), null())\n| eval lodgement_status = case(\n    isnull(board_approved_at) AND days_to_due < 0, \"never_approved\",\n    isnull(board_approved_at) AND days_to_due <= 30, \"approval_due\",\n    isnull(lodged_at) AND days_to_due < 0, \"overdue\",\n    isnull(lodged_at) AND days_to_due <= 14, \"approaching_due\",\n    isnotnull(lodged_at) AND days_to_lodgement < 0, \"lodged_late\",\n    isnotnull(lodged_at) AND days_to_lodgement >= 0 AND isnull(lodgement_acknowledgement_id), \"awaiting_acknowledgement\",\n    isnotnull(lodgement_acknowledgement_id) AND days_to_lodgement >= 0, \"current\",\n    1=1, \"unknown\")\n| table entity_id report_year board_approved_at lodgement_due_at lodged_at days_to_due days_to_lodgement days_since_board_approved sections_complete gaps lodgement_acknowledgement_id lodgement_artefact_url lodgement_status",
+  "description": "Validates the Rule 10 annual report lodgement: (a) the board approved the report before lodgement, (b) lodgement occurred within 90 days of the financial-year end, and (c) the CISC portal acknowledgement is captured.",
+  "value": "Rule 10 lodgement is binary — either the responsible entity lodged or it didn't. The CISC may issue a regulatory direction or commence enforcement if the lodgement is missing. This UC keeps lodgement currency always-on and surfaces approaching deadlines so the Company Secretary can drive board-approval and lodgement.",
+  "implementation": "(1) Maintain `cirmp_annual_report_lookup` from the GRC compliance-calendar. (2) Schedule UC-22.52.22 daily; route `overdue`, `never_approved`, `approval_due`, `lodged_late` to notable severity=critical. (3) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Per-entity report-currency RAG. (Panel 2) Aging funnel of approaching deadlines. (Panel 3) Section-coverage table (Rules 4, 5, 6, 7, 8, 9, framework). (Panel 4) Lodgement-history trend.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "SOCI Act 2018 — Section 30AG — Annual reporting",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules — Rule 10",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    },
+    {
+      "title": "Department of Home Affairs — CISC reporting portal",
+      "url": "https://www.cisc.gov.au/contact-us"
+    }
+  ],
+  "knownFalsePositives": "1. **Stub-year reporting** — an entity newly in-scope mid-year; the first annual report period is shorter. Suppression: `cirmp_annual_report_lookup` carries `first_year=true` with adjusted due date.\n\n2. **EOFY variant** — some subsidiaries use a non-30-June year. Suppression: `entity_lifecycle_lookup` carries the correct EOFY date per entity.\n\n3. **Lodgement portal outage** — the CISC portal may be intermittently unavailable; tolerate `awaiting_acknowledgement` for up to 5 business days.\n\n4. **Re-lodgement** — a corrected report may be re-lodged; the lookup should retain history.\n\n**Suppression mechanism**: KV Store `soci_22_52_22_exceptions`; max grant 30 days with Company Secretary sign-off.",
+  "requiredFields": [
+    "entity_id",
+    "report_year",
+    "lodgement_due_at",
+    "lodgement_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC compliance-calendar (Vancouver / Washington, sn_grc_compliance_task tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (governance reporting workflow — measures Rule 10 lodgement evidence, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.3 (annual review) deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `cirmp_annual_report_lookup` columns: `entity_id`, `report_year`, `board_approved_at`, `lodgement_due_at`, `lodged_at`, `lodgement_artefact_url`, `lodgement_acknowledgement_id`, `sections_complete` (CSV), `gaps` (CSV).\n- Lookup `entity_lifecycle_lookup` (entity_id, eofy_month, eofy_day, first_year, in_scope_from, in_scope_to).\n\n## Step 1 — Configure data collection\n\nMaintain lookup daily from GRC; populated by Company Secretariat during the lodgement workflow.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.22: SOCI Rule 10 annual report production]\ncron_schedule = 0 11 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.22,reg=SOCI,clause=SOCI-CIRMP-r10\naction.notable.param.rule_title = SOCI Rule 10 annual report status\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity tiered: `overdue` and `never_approved` → critical; `approval_due` and `approaching_due` → high; `awaiting_acknowledgement` → medium digest.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: set `lodgement_due_at` to yesterday and `lodged_at=null`; UC flags `overdue`.\n\n**(b)** Negative control: set `lodged_at` to today (within window); UC clears to `current` when acknowledgement arrives.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 10 Annual Report`.\n\n**Runbook for `approval_due`** (owner: Company Secretary, severity P2):\n\n1. Within 30 business days: schedule board meeting and present the report.\n\n**Runbook for `overdue`** (owner: Company Secretary + CISO + CEO, severity P1):\n\n1. Immediate: notify CEO; lodge same day if possible.\n2. Within 1 business day: notify CISC of late lodgement with explanation.\n3. Within 5 business days: produce a remediation plan to prevent recurrence (CIRMP risk).\n\n## Step 5 — Troubleshooting\n\n**Section gap**: `sections_complete` doesn't cover all CIRMP rules; engage the relevant rule's owner.\n\n**EOFY confusion**: confirm EOFY per entity in `entity_lifecycle_lookup`.\n\n**Acknowledgement missing**: re-engage with CISC portal; some portals issue a delayed acknowledgement (consider a 5-business-day tolerance).\n\n**SOCI-specific failure modes**:\n\n- **Board-approval evidence**: the board must approve the report — minute reference and motion text should be captured.\n- **Multiple responsible entities**: a corporate group with multiple critical-infrastructure assets may need multiple Rule 10 reports.\n- **Confidentiality classifications**: parts of the annual report may be Restricted; the lodgement portal handles classified channels.\n- **Cross-reference to Rule 8 supplier evidence**: the annual report should include supply-chain assertions consistent with UC-22.52.18 evidence; ensure they reconcile.",
+  "grandmaExplanation": "Once a year, the responsible entity must give the Government a written report on how it has managed all the cyber, people, supply-chain and physical hazards to its critical-infrastructure asset, and the board must approve it. The report is due within 90 days of the end of the financial year. We track that the board approved it and that it was lodged on time, and ring the bell if it's late."
+}

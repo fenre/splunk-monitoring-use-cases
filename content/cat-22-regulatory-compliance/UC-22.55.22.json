@@ -1,0 +1,94 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.22",
+  "title": "CLC/TS 50701 Continuous Risk-Assessment Refresh — every material change triggers fresh assessment",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes changes formally documented as non-cyber-relevant. Excludes routine maintenance not changing risk profile. Excludes changes within an approved standing-risk-assessment scope.",
+  "evidence": "Saved search `UC-22.55.22` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c11-3\"`. Every row pins (change_id, zone_id, change_classified_material_at, fresh_assessment_triggered_at, fresh_assessment_signed_at, refresh_status). Dashboard `CLC/TS 50701 — Continuous Risk Refresh` shows refresh posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c11-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 11.3 requires continuous risk-assessment refresh, re-triggered by material change (new asset, new conduit, new threat scenario, new vulnerability class, new vendor). UC-22.55.22 instruments the re-trigger.",
+      "controlObjective": "Proves every material change triggers a fresh risk assessment within SLA.",
+      "evidenceArtifact": "Saved search `UC-22.55.22` archived to `audit_evidence`, the `CLC/TS 50701 — Continuous Risk Refresh` dashboard, and per-change refreshed assessment.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c11-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Classify a change as material; do NOT trigger fresh assessment within 30 days. UC-22.55.22 MUST flag `refresh_status=\"refresh_overdue\"`.",
+    "negativeScenario": "Trigger and sign fresh assessment within SLA; UC-22.55.22 MUST record `refresh_status=\"current\"`."
+  },
+  "dataSources": "KV Store `rail_risk_refresh_lookup`. Material-change events from CMDB and engineering pipelines.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_risk_refresh_lookup\n| where change_status=\"material\"\n| eval now_ts = now()\n| eval days_since_material = if(isnotnull(change_classified_material_at), round((now_ts - change_classified_material_at) / 86400, 0), null())\n| eval refresh_status = case(\n    isnull(fresh_assessment_triggered_at) AND days_since_material > 14, \"refresh_not_triggered\",\n    isnull(fresh_assessment_signed_at) AND days_since_material > 30, \"refresh_overdue\",\n    isnotnull(fresh_assessment_signed_at), \"current\",\n    1=1, \"in_progress\")\n| where refresh_status != \"current\" AND refresh_status != \"in_progress\"\n| table change_id zone_id change_classified_material_at fresh_assessment_triggered_at fresh_assessment_signed_at days_since_material refresh_status",
+  "description": "Tracks material changes against fresh-risk-assessment SLAs.",
+  "value": "Without refresh, the risk register decays into irrelevance.",
+  "implementation": "(1) Define material-change classification criteria in `rail_risk_refresh_lookup`. (2) SOAR `rail-material-change-detect` triggers on CMDB changes. (3) Schedule UC-22.55.22 weekly Monday 08:30.",
+  "visualization": "(Panel 1) Refresh status. (Panel 2) Overdue queue. (Panel 3) Refresh-trigger sources.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 11.3",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-zone material change** — one change may need refresh in multiple zones. Suppression: tracked separately per zone.\n\n**Suppression mechanism**: KV Store `clc_22_55_22_exceptions` with documented Risk Manager approval and 14-day maximum grant.",
+  "requiredFields": [
+    "change_id",
+    "zone_id",
+    "refresh_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Risk Manager + Head of Engineering",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "ServiceNow CMDB"
+  ],
+  "mitreAttack": [
+    "N/A (risk-refresh governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_risk_refresh_lookup`.\n\n## Step 1 — Refresh collection\n\n```ini\n[rail_risk_refresh_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.zone_id = string\nfield.change_classified_material_at = number\nfield.change_status = string\nfield.fresh_assessment_triggered_at = number\nfield.fresh_assessment_signed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.22: CLC/TS 50701 Continuous Risk Refresh]\ncron_schedule = 30 8 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.22,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-3\naction.notable.param.rule_title = Rail risk-refresh overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `refresh_overdue`** (owner: Risk Manager, severity P2): trigger refresh assessment within 14 days.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Material-change definition**: new vendor, new conduit, new threat class, new vulnerability class.\n- **Continuous threat feed**: integrate threat intel for refresh triggers.",
+  "grandmaExplanation": "When something big changes (new equipment, new vendor, new known weakness), we must re-check our cyber-risks. We track every big change to make sure the re-check happens; if not, the team is alerted."
+}

@@ -1,0 +1,123 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.12",
+  "title": "TSA-SD Aviation CIP Control Family 1 — airport / airline IT-OT segmentation surveillance",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes test/lab segments. Excludes documented bridges in `aviation_seg_exception_lookup` with effective dates and CC approval.",
+  "evidence": "Saved search `UC-22.56.12` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1542-21-02-s3.1\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1582-21-01-s3.1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Mirrors UC-22.56.3 for aviation jurisdiction. 'Partial' because aviation airside/landside topology has more boundary types (DCS, BHS, aerobridge control, NOTAM-relevant ops); a single surveillance pass covers most but not all.",
+      "controlObjective": "Proves airside-OT/landside-IT boundary remains as documented across airport / airline networks.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA Aviation Segmentation Health` dashboard.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1582-21-01-s3.1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject synthetic Cisco ASA flow from airside-OT zone to landside-IT zone matching no allow-list rule. UC-22.56.12 MUST flag within 4 hours.",
+    "negativeScenario": "Pin compensating control with `effective_until` future. UC-22.56.12 MUST NOT escalate."
+  },
+  "dataSources": "Cisco firewall + Palo Alto Aviation Firewall (`pan:traffic`). Aviation network zone register (KV Store `aviation_network_zone_lookup`). Airside-OT detection (Claroty / Dragos / Nozomi covering BHS, DCS, aerobridge controllers).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco ASA (Splunkbase 1620), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1620,
+      "name": "Splunk Add-on for Cisco ASA",
+      "url": "https://splunkbase.splunk.com/app/1620",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=pan:traffic OR sourcetype=cisco:asa) action=allowed\n| lookup aviation_network_zone_lookup src_ip AS src_ip OUTPUT src_zone\n| lookup aviation_network_zone_lookup src_ip AS dest_ip OUTPUT dest_zone\n| eval zone_pair = src_zone . \"->\" . dest_zone\n| where (src_zone IN (\"AIRSIDE_OT\",\"BHS_OT\",\"DCS\",\"AEROBRIDGE\") AND dest_zone IN (\"LANDSIDE_IT\",\"GUEST_WIFI\")) OR (dest_zone IN (\"AIRSIDE_OT\",\"BHS_OT\",\"DCS\",\"AEROBRIDGE\") AND src_zone IN (\"LANDSIDE_IT\",\"GUEST_WIFI\"))\n| lookup aviation_seg_exception_lookup src_ip AS src_ip dest_ip AS dest_ip dest_port AS dest_port OUTPUT exception_id exception_until\n| eval drift = if(isnull(exception_id) OR exception_until < now(), \"violation\", \"approved\")\n| where drift=\"violation\"\n| stats count as flows values(src_zone) as src_zone values(dest_zone) as dest_zone values(zone_pair) as zone_pair by src_ip dest_ip dest_port\n| table src_ip dest_ip dest_port zone_pair flows",
+  "description": "Surveys airport/airline firewall flow logs for crossing of airside-OT boundary into landside-IT (or guest WiFi), reconciles against approved-bridge register, and flags violations.",
+  "value": "Airside-OT segmentation breach is the single highest-impact path for an aviation cyber incident.",
+  "implementation": "(1) Populate `aviation_network_zone_lookup`. (2) Populate `aviation_seg_exception_lookup` from approved firewall change tickets. (3) Schedule UC-22.56.12 every 4 hours. (4) Build the `TSA Aviation Segmentation Health` dashboard.",
+  "visualization": "(Panel 1) Violation count by zone-pair. (Panel 2) Top-10 violating src→dst flow pairs. (Panel 3) 30-day drift trend. (Panel 4) Approved-bridge expiry heat-map.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "TSA SD-1542-21-02 §3.1 (airport network segmentation)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
+    },
+    {
+      "title": "FAA AC 119-1 — cyber-aviation guidance",
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars"
+    },
+    {
+      "title": "Eurocontrol Cybersecurity Toolkit (companion airside-OT material)",
+      "url": "https://www.eurocontrol.int/publication/eurocontrol-cybersecurity-toolkit"
+    }
+  ],
+  "knownFalsePositives": "1. **BHS maintenance windows** — baggage-handling-system vendor updates need approved bridges during maintenance.\n2. **Aerobridge vendor remote access** — covered by vendor-management UC-22.56.16; if the access is approved, the bridge appears in the exception register.\n3. **Pre-flight ramp/DCS integration** — DCS bridges to airline systems are common; pin in exception register with explicit allow-list.\n\n**Suppression mechanism**: KV Store `aviation_seg_exception_lookup`.",
+  "requiredFields": [
+    "src_ip",
+    "dest_ip",
+    "dest_port",
+    "src_zone",
+    "dest_zone",
+    "drift"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + Network Engineering Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "palo-alto",
+    "cisco-asa",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Palo Alto PA-7000 / PA-5400 (airport perimeter)",
+    "Cisco Firepower (airline AOC)",
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "T1542",
+    "T0858"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.3 plus aviation zone register.\n\n## Step 1 — Define aviation zones\n\n```ini\n[aviation_network_zone_lookup]\nfield.src_ip = string\nfield.zone = string\nfield.zone_category = string\nfield.facility_code = string\n```\n\nZone enums: AIRSIDE_OT, BHS_OT, DCS, AEROBRIDGE, LANDSIDE_IT, GUEST_WIFI, ADMIN_IT, MAINT_IT.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.12: TSA Aviation Segmentation]\ncron_schedule = 53 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.12,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.1\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Violation on AIRSIDE_OT→LANDSIDE_IT** (owner: CC + Airport Operations, severity P1):\n1. Within 1 hour: triage — is it a misconfig, a vendor access bridge, or active intrusion?\n2. Within 4 hours: kill the flow OR add to exception register with documented rationale.\n3. Within 24 hours: post-mortem.\n\n## Step 4 — Troubleshooting\n\n- **Multi-tenant airports**: multiple airlines + service providers share airside; zone classification must be per-tenant.\n- **NAT/PAT obfuscation**: ensure firewall logs include both pre- and post-NAT addresses.\n\n**TSA-specific failure modes**:\n- **FAA NOTAM-relevant impact**: if a violation enables a NOTAM-affecting incident, parallel-notify FAA via UC-22.56.11.\n- **AirsideOT vendor expansion**: new vendor adds may bring new bridges; force a change-control + register update.",
+  "grandmaExplanation": "Inside an airport there are two networks: one that runs the airplanes (super protected) and one for office work. We constantly check no traffic crosses without permission."
+}

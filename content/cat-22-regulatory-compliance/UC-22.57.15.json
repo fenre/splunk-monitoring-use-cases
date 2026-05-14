@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.15",
+  "title": "SG Cyber Act master CSA compliance dashboard + Commissioner attestation roll-up",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII / CIISP / FDI / ESCI",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "None — roll-up across all 22.57.x.",
+  "evidence": "Saved search `UC-22.57.15` archived daily to `audit_evidence` with `csa_clause=\"CSA-master-rollup\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-master-rollup",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Roll-up across all 22.57.x UCs.",
+      "controlObjective": "Provides a single Commissioner-facing scorecard.",
+      "evidenceArtifact": "Saved search, `CSA Master Scorecard` dashboard, monthly board pack.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-master-rollup",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Force any UC-22.57.x violation. UC-22.57.15 MUST reflect within 24h.",
+    "negativeScenario": "Resolve. UC-22.57.15 MUST roll up green."
+  },
+  "dataSources": "`audit_evidence` cross-search.",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "search index=audit_evidence reg=SG-Cyber-Act earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.57\\.\"), \"22.57.\" + replace(_raw, \".*uc=22\\.57\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
+  "description": "Roll-up panel showing UC-22.57.x compliance health.",
+  "value": "Commissioner-facing scorecard.",
+  "implementation": "(1) Schedule UC-22.57.15 daily. (2) Build `CSA Master Scorecard` dashboard.",
+  "visualization": "(Panel 1) Per-UC health. (Panel 2) Trend. (Panel 3) Top outstanding. (Panel 4) Attestation history.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Act 2018 + 2024 amendment",
+      "url": "https://sso.agc.gov.sg/Act/CA2018"
+    }
+  ],
+  "knownFalsePositives": "1. **UC cadence drift**: tune per UC.\n\n**Suppression mechanism**: KV Store `csa_22_57_15_exceptions`.",
+  "requiredFields": [
+    "uc",
+    "evidence_rows",
+    "health"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC + CISO + Board",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "N/A (governance roll-up)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.1",
+    "UC-22.57.14"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nAll UC-22.57.1 through UC-22.57.14 running.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.15: CSA Master Roll-Up]\ncron_schedule = 51 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.15,reg=SG-Cyber-Act,clause=CSA-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly CC review, quarterly Board update.\n\n**SG-specific failure modes**:\n- **Commissioner deep-dive**: each UC must stand alone for inspector review.",
+  "grandmaExplanation": "All the smaller Singapore cyber checks roll into one dashboard so the boss can see at a glance what's healthy and what's not."
+}

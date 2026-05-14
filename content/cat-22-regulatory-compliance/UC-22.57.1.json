@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.1",
+  "title": "SG Cyber Act Critical Information Infrastructure (CII) designation register + scope-change notification to CSA",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII (Energy / Water / Telco / Finance / Healthcare / Transport / Gov / Media / Security)",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-CII assets. Excludes documented scope-change drafts not yet promoted.",
+  "evidence": "Saved search `UC-22.57.1` archived daily to `audit_evidence` with `csa_clause=\"CSA-CII-s7\"`. Every row pins (cii_id, cii_name, sector, designation_date, scope_signature, scope_changed_at, csa_notified_at, hours_to_notification, notification_status).",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s7",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Cybersecurity Act §7 requires the CIIO (CII Owner) to notify the Commissioner of Cybersecurity of any material change to a CII scope within 2 hours of the change. This UC tracks scope-signature changes (asset list / network topology / sub-systems) against designation, computes time-to-notification, and surfaces overdue notifications. Marked 'full' because the three constitutive elements (scope-signature, notification clock, evidence) are operational.",
+      "controlObjective": "Proves the CIIO maintains a current CII designation register and notifies the Commissioner of material scope changes within 2 hours.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `CSA CII Designation Health` dashboard, the CSA notification receipts, and the signed CII registration filings.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s7",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a new asset to the CII register without a CSA notification. UC-22.57.1 MUST flag within 4 hours.",
+    "negativeScenario": "Notify CSA within 2 hours of scope-signature change. UC-22.57.1 MUST record `notification_status=on_time`."
+  },
+  "dataSources": "KV Store `csa_cii_designation_lookup` (cii_id, cii_name, sector, designation_date, current_scope_signature). KV Store `csa_cii_scope_change_lookup` (cii_id, scope_signature, scope_changed_at, csa_notified_at, csa_notification_id, change_summary). ServiceNow CMDB (`snow:cmdb_ci_*`). CSA submission portal receipts via HEC (`hec:csa:submission` token).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup csa_cii_designation_lookup\n| join type=left cii_id [| inputlookup csa_cii_scope_change_lookup | sort 0 -scope_changed_at | dedup cii_id | rename scope_signature as observed_signature]\n| eval signature_drift = if(current_scope_signature != observed_signature, \"true\", \"false\")\n| eval hours_since_change = case(\n    signature_drift=\"true\", round((now() - scope_changed_at) / 3600, 2),\n    1=1, null)\n| eval hours_to_notification = case(\n    isnotnull(csa_notified_at), round((csa_notified_at - scope_changed_at) / 3600, 2),\n    1=1, null)\n| eval notification_status = case(\n    isnotnull(csa_notified_at) AND hours_to_notification <= 2, \"on_time\",\n    isnotnull(csa_notified_at) AND hours_to_notification > 2, \"late\",\n    signature_drift=\"true\" AND hours_since_change <= 2, \"in_window\",\n    signature_drift=\"true\" AND hours_since_change > 2, \"overdue\",\n    1=1, \"current\")\n| where notification_status IN (\"overdue\",\"late\")\n| table cii_id cii_name sector designation_date scope_signature scope_changed_at csa_notified_at hours_to_notification notification_status",
+  "description": "Reconciles current CII designation register against observed scope-change events; computes notification status against the 2-hour clock.",
+  "value": "CSA Commissioner enforcement on undeclared scope changes is direct and personal; named CII Officers can face individual penalties.",
+  "implementation": "(1) Populate `csa_cii_designation_lookup` from CII designation letters. (2) Maintain `csa_cii_scope_change_lookup` via change-control workflow. (3) Schedule UC-22.57.1 daily; route `overdue` severity=critical. (4) Build the `CSA CII Designation Health` dashboard.",
+  "visualization": "(Panel 1) CII status by sector. (Panel 2) Open scope-change-overdue. (Panel 3) Hours-to-notification distribution. (Panel 4) 12-month notification performance.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Act 2018 §7 (CII designation)",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr7-"
+    },
+    {
+      "title": "Cybersecurity (Amendment) Act 2024",
+      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
+    },
+    {
+      "title": "CSA — Cybersecurity Code of Practice",
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+    }
+  ],
+  "knownFalsePositives": "1. **Minor change (no CII impact)**: routine patches without scope change should not require notification; tighten signature definition.\n2. **Cross-sector dual-CII**: rare but possible. Track in both sector views.\n3. **Sub-system addition vs change**: addition usually triggers; replacement-in-kind may not. CC determination governs.\n\n**Suppression mechanism**: KV Store `csa_22_57_1_exceptions` with documented CC approval and 30-day maximum grant.",
+  "requiredFields": [
+    "cii_id",
+    "scope_signature",
+    "scope_changed_at",
+    "notification_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + Commissioner Liaison + CISO",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "prerequisiteUseCases": [],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Stores `csa_cii_designation_lookup`, `csa_cii_scope_change_lookup`.\n- HEC token for CSA submission receipts.\n- ServiceNow CMDB feed with CII tagging.\n\n## Step 1 — Designation register\n\n```ini\n[csa_cii_designation_lookup]\nfield.cii_id = string\nfield.cii_name = string\nfield.sector = string\nfield.designation_date = number\nfield.designated_officer = string\nfield.current_scope_signature = string\nfield.commissioner_letter_url = string\n```\n\n```ini\n[csa_cii_scope_change_lookup]\nfield.cii_id = string\nfield.scope_signature = string\nfield.scope_changed_at = number\nfield.csa_notified_at = number\nfield.csa_notification_id = string\nfield.change_summary = string\nfield.approver = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.1: CSA CII Designation]\ncron_schedule = 29 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.1,reg=SG-Cyber-Act,clause=CSA-CII-s7\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**`notification_status=overdue`** (owner: Designated CII Officer, severity P1):\n1. Within 1 hour: notify CSA via the submission portal.\n2. Within 4 hours: document the cause of the delay.\n3. Within 24 hours: present to CC + CISO; book a post-mortem with Cybersecurity Commissioner liaison.\n\n## Step 4 — Troubleshooting\n\n- **Signature hashing**: ensure the scope signature is stable across changes that are not material (e.g., comments, formatting).\n- **Multi-CII operator**: a single legal entity may operate multiple CIIs; ensure rows are per-CII not per-entity.\n\n**SG-specific failure modes**:\n- **2024 amendment scope expansion**: scope now includes FDI / ESCI / CIISP — coordinate with UC-22.57.8/9/10.\n- **Commissioner audit-power**: Commissioner may direct a written report at any time under §10; ensure designations are inspection-ready.",
+  "grandmaExplanation": "Singapore says every important computer system must be declared, and any change to what's covered must be reported to the cyber authority within two hours. We watch for changes and confirm the report was sent."
+}

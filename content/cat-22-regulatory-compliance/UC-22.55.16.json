@@ -1,0 +1,110 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.16",
+  "title": "CLC/TS 50701 Supplier-Engineering Remote Access — every supplier session controlled, observed, and audit-logged",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes supplier sessions confined to non-cyber-relevant network segments. Excludes pre-session-test traffic during account setup. Excludes break-glass sessions formally documented with post-hoc full audit.",
+  "evidence": "Saved search `UC-22.55.16` archived every 15 minutes to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c9-2\"`. Every row pins (session_id, supplier_id, target_asset_id, session_started_at, session_supervisor_id, session_recorded, session_ended_at, session_status). Dashboard `CLC/TS 50701 — Supplier Remote Access` shows live sessions and compliance posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c9-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 9.2 requires supplier-engineering remote access to be controlled and observed. CyberArk PAM (or equivalent) with session recording is the operational pattern. UC-22.55.16 instruments the access-control and observation. Marked 'full'.",
+      "controlObjective": "Proves every supplier remote-access session uses controlled-access (PAM), is observed by an operator-side supervisor, and is recorded.",
+      "evidenceArtifact": "Saved search `UC-22.55.16` archived to `audit_evidence`, the `CLC/TS 50701 — Supplier Remote Access` dashboard, and per-session recording.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c9-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a supplier session in CyberArk without supervisor assigned. UC-22.55.16 MUST flag `session_status=\"supervisor_missing\"` within 15 minutes.",
+    "negativeScenario": "Open session with supervisor assigned, recording active. UC-22.55.16 MUST record `session_status=\"compliant\"`."
+  },
+  "dataSources": "CyberArk PAM session events (`cyberark:session`, `cyberark:audit`). KV Store `rail_supplier_session_lookup`. Network flow data showing supplier ingress.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2891,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=pam sourcetype IN (\"cyberark:session\", \"cyberark:audit\") action=\"session_start\" OR action=\"session_end\"\n| eval session_started_at = if(action=\"session_start\", _time, null())\n| eval session_ended_at = if(action=\"session_end\", _time, null())\n| stats min(session_started_at) AS session_started_at max(session_ended_at) AS session_ended_at by session_id supplier_id target_asset_id\n| lookup rail_supplier_session_lookup session_id OUTPUT session_supervisor_id session_recorded session_status_in_register\n| eval session_status = case(\n    isnull(session_supervisor_id) AND isnull(session_ended_at), \"supervisor_missing\",\n    session_recorded != true AND isnull(session_ended_at), \"recording_disabled\",\n    isnotnull(session_supervisor_id) AND session_recorded=true, \"compliant\",\n    1=1, \"in_progress\")\n| where session_status IN (\"supervisor_missing\", \"recording_disabled\")\n| table session_id supplier_id target_asset_id session_started_at session_supervisor_id session_recorded session_status",
+  "description": "Cross-references CyberArk PAM session events with operator-side supervision and recording. Surfaces non-compliant supplier sessions.",
+  "value": "Supplier-engineering sessions are a top compromise vector for industrial systems. This UC enforces operator-side oversight.",
+  "implementation": "(1) Route all supplier engineering access through CyberArk PAM. (2) PAM policy requires supervisor approval and session recording. (3) Schedule UC-22.55.16 every 15 minutes.",
+  "visualization": "(Panel 1) Live supplier session list. (Panel 2) Non-compliant session queue. (Panel 3) Session-duration histogram. (Panel 4) Supplier activity heatmap.",
+  "cimModels": [
+    "Alerts",
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 9.2",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "ANSSI Recommendations for Industrial Remote Access",
+      "url": "https://www.ssi.gouv.fr/"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved emergency session without supervisor** — documented break-glass; post-hoc review. Suppression: `session_status_override=break_glass_documented`.\n\n**Suppression mechanism**: KV Store `clc_22_55_16_exceptions` with documented Rail-Cybersecurity-Lead approval and 24-hour maximum grant.",
+  "requiredFields": [
+    "session_id",
+    "supplier_id",
+    "session_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + PAM Lead + Network Operations Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "cyberark-pam",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "CyberArk PAM (Splunkbase 2891)"
+  ],
+  "mitreAttack": [
+    "T1133",
+    "T1078.003",
+    "T0822"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- CyberArk PAM deployed.\n- Splunk Add-on for CyberArk.\n- KV Store `rail_supplier_session_lookup`.\n\n## Step 1 — PAM policy\n\nConfigure CyberArk policies:\n\n- All supplier sessions require operator-side approver before connection.\n- All sessions are recorded.\n- Sessions expire after 4 hours; renewal requires re-approval.\n- Session policy emits HEC events.\n\n## Step 2 — Session collection\n\n```ini\n[rail_supplier_session_lookup]\nenforceTypes = true\nfield.session_id = string\nfield.supplier_id = string\nfield.target_asset_id = string\nfield.session_started_at = number\nfield.session_supervisor_id = string\nfield.session_recorded = bool\nfield.session_ended_at = number\nfield.session_status_in_register = string\n```\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.16: CLC/TS 50701 Supplier Remote Access]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -2d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.16,reg=CLC-TS-50701,clause=CLC-TS-50701-c9-2\naction.notable.param.rule_title = Rail supplier-engineering session non-compliant\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `supervisor_missing`** (owner: Network Operations Lead, severity P1): terminate session; investigate.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Out-of-band supplier access**: ensure suppliers cannot bypass PAM via dial-in modems, jump-hosts, or VPN backdoors.\n- **24x7 supervisor coverage**: ensure supervisor pool covers night-shift and weekend maintenance.",
+  "grandmaExplanation": "When an outside engineer needs to fix our signal box from far away, we make them go through a special locked door that records everything they do and forces our own engineer to watch. If they sneak in without a watcher or without recording, a very loud bell rings."
+}

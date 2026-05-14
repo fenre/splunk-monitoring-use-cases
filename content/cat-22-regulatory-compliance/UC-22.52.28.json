@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.28",
+  "title": "SOCI cross-cutting health dashboard — single executive view of CIRMP + Asset Register + ECSO + GAP + Protected Info compliance posture",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes posture indicators for which the underlying UC is in commissioning state (a UC marked `wave=draft` should not produce a posture signal). Excludes hand-managed compliance attestations not yet integrated into the underlying UCs.",
+  "evidence": "Saved search `UC-22.52.28` archived daily to `audit_evidence` with `soci_clause=\"SOCI-cross-cutting-health\"`. Every row pins (kpi_id, kpi_label, kpi_value, kpi_target, kpi_status, contributing_ucs, evidence_link). Dashboard `SOCI — Cross-Cutting Compliance Health` is the single executive view.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-cross-cutting-health",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously aggregates compliance evidence across all SOCI controls into a single executive-facing health view. Marked 'supports' because individual UCs (22.52.1 through 22.52.27) deliver the underlying evidence; this UC adds the cross-cutting roll-up that auditors and boards request.",
+      "controlObjective": "Provides a single executive view that integrates evidence across SOCI Asset Register, CIRMP Rules 4-10, ECSO 14-day Notice, Part 3A Government Assistance Powers, and Part 6A Protected Information.",
+      "evidenceArtifact": "Saved search `UC-22.52.28` archived to `audit_evidence`, the `SOCI — Cross-Cutting Compliance Health` dashboard, exported quarterly to a board-pack PDF.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-cross-cutting-health",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable one of the contributing UCs (e.g. UC-22.52.18 supply-chain). UC-22.52.28 MUST flag the affected KPI (`SOCI-r8-coverage`) as `kpi_status=\"degraded\"` because the underlying data is missing.",
+    "negativeScenario": "All contributing UCs operating; UC-22.52.28 MUST record `kpi_status=\"green\"` for all 12 KPIs."
+  },
+  "dataSources": "`audit_evidence` summary index from contributing UCs 22.52.1 – 22.52.27 (and a curated subset of cat-22 cross-cutting UCs).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=audit_evidence reg=SOCI earliest=-24h@h\n| eval kpi_bucket = case(\n    uc IN (\"22.52.1\"), \"asset_register\",\n    uc IN (\"22.52.2\",\"22.52.3\",\"22.52.4\"), \"cirmp_lifecycle\",\n    uc IN (\"22.52.5\",\"22.52.6\"), \"incident_reporting\",\n    uc IN (\"22.52.7\",\"22.52.8\",\"22.52.9\",\"22.52.10\",\"22.52.11\"), \"sons_obligations\",\n    uc IN (\"22.52.12\",\"22.52.13\",\"22.52.14\",\"22.52.15\"), \"cirmp_cyber_hazard\",\n    uc IN (\"22.52.16\",\"22.52.17\"), \"personnel_hazard\",\n    uc IN (\"22.52.18\",\"22.52.19\"), \"supply_chain_hazard\",\n    uc IN (\"22.52.20\",\"22.52.21\"), \"physical_natural_hazard\",\n    uc IN (\"22.52.22\",\"22.52.23\"), \"annual_report\",\n    uc IN (\"22.52.24\",\"22.52.25\"), \"protected_information\",\n    uc IN (\"22.52.26\"), \"ecso_notice\",\n    uc IN (\"22.52.27\"), \"government_directions\",\n    1=1, \"other\")\n| stats count AS evidence_rows latest(_time) AS last_evidence_at by kpi_bucket uc\n| stats sum(evidence_rows) AS evidence_rows_total dc(uc) AS uc_count list(uc) AS contributing_ucs latest(last_evidence_at) AS last_evidence_at by kpi_bucket\n| eval expected_uc_count = case(\n    kpi_bucket=\"asset_register\", 1,\n    kpi_bucket=\"cirmp_lifecycle\", 3,\n    kpi_bucket=\"incident_reporting\", 2,\n    kpi_bucket=\"sons_obligations\", 5,\n    kpi_bucket=\"cirmp_cyber_hazard\", 4,\n    kpi_bucket=\"personnel_hazard\", 2,\n    kpi_bucket=\"supply_chain_hazard\", 2,\n    kpi_bucket=\"physical_natural_hazard\", 2,\n    kpi_bucket=\"annual_report\", 2,\n    kpi_bucket=\"protected_information\", 2,\n    kpi_bucket=\"ecso_notice\", 1,\n    kpi_bucket=\"government_directions\", 1,\n    1=1, 0)\n| eval kpi_status = case(\n    uc_count < expected_uc_count, \"degraded\",\n    (now() - last_evidence_at) > 86400, \"stale\",\n    1=1, \"green\")\n| eval kpi_id = \"SOCI-\".kpi_bucket\n| eval kpi_label = kpi_bucket",
+  "description": "Cross-cutting executive dashboard combining the 27 contributing SOCI UCs into 12 high-level KPIs covering Asset Register, CIRMP lifecycle, incident reporting, SoNS obligations, cyber-hazard, personnel-hazard, supply-chain-hazard, physical-natural-hazard, annual report, Protected Information, ECSO notice, and Government Directions.",
+  "value": "Boards and regulators expect a single defensible view of SOCI compliance posture. Building this once and feeding the underlying UCs into it gives the CEO and CISO a recurring artefact that closes out audits and board presentations efficiently.",
+  "implementation": "(1) Ensure all contributing UCs are operational. (2) Schedule UC-22.52.28 daily; produce 12 KPI rows; render the dashboard at executive-level. (3) Archive every row to `audit_evidence` for cross-quarter audit trail.",
+  "visualization": "(Panel 1) 12 KPI scorecard. (Panel 2) Posture trend per KPI over 12 months. (Panel 3) Drill-through to contributing UCs. (Panel 4) Outstanding-actions backlog roll-up.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "SOCI Act 2018 (Cth) — Full statute",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "CIRMP Rules 2023",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    }
+  ],
+  "knownFalsePositives": "1. **UC commissioning** — newly deployed UCs may not have produced enough evidence in 24 hours. Mitigation: tolerate `kpi_status=stale` for the first 7 days after commissioning.\n\n2. **Decommissioned UC** — a renamed or merged UC may produce zero events. Mitigation: update the `kpi_bucket` mapping when UCs are renamed.\n\n3. **Sparse-evidence UCs** — e.g. UC-22.52.27 Government Assistance Powers may legitimately have no rows for months. Mitigation: exclude `sparse_uc_lookup` UCs from staleness checks.\n\n**Suppression mechanism**: KV Store `soci_22_52_28_exceptions`; max grant 7 days with CISO sign-off.",
+  "requiredFields": [
+    "kpi_id",
+    "kpi_label",
+    "kpi_status",
+    "contributing_ucs"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk Common Information Model Add-on (Splunkbase 1621)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, executive drill-through)"
+  ],
+  "mitreAttack": [
+    "N/A (compliance-posture aggregator workflow — measures SOCI control evidence presence and aggregation, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.22"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UCs 22.52.1 through 22.52.27 deployed.\n- ES, ServiceNow add-on.\n- `index=audit_evidence` (7-year retention).\n- Lookup `sparse_uc_lookup` (uc_id, expected_evidence_cadence_days, rationale).\n\n## Step 1 — Configure data collection\n\nNo new data feeds; reuses `audit_evidence` from contributing UCs.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.28: SOCI cross-cutting compliance health]\ncron_schedule = 0 13 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.28,reg=SOCI,clause=SOCI-cross-cutting-health\naction.notable.param.rule_title = SOCI cross-cutting KPI degraded\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity: `degraded` and `stale` → high.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: temporarily disable a contributing UC; KPI shifts to `degraded`.\n\n**(b)** Negative control: all UCs running; all KPIs `green`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Cross-Cutting Compliance Health`.\n\n- 12 KPI scorecard.\n- 12-month trend per KPI.\n- Drill-through to contributing UCs.\n- Outstanding-actions backlog roll-up.\n- Quarterly PDF export for the board pack.\n\n**Runbook for `degraded` / `stale`** (owner: CISO + Head of Critical-Infrastructure Compliance, severity P2):\n\n1. Within 1 business day: identify the failing contributing UC.\n2. Within 5 business days: restore evidence flow.\n3. Document the gap in the Rule 10 report's continuous-improvement section.\n\n## Step 5 — Troubleshooting\n\n**Unmapped UCs**: extend the SPL `case` statement when new SOCI UCs are added.\n\n**Sparse-evidence UCs**: ensure exemptions are documented to avoid false `stale` flags.\n\n**SOCI-specific failure modes**:\n\n- **Cross-jurisdictional reporting**: if the entity is also subject to EU NIS2, US CIRCIA, or other frameworks, ensure the dashboard supports a multi-regulator view with separate filters.\n- **Board-pack export**: ensure the PDF carries classification handling per the Information Security Manager's policy.\n- **Roll-up over multiple entities**: large groups with multiple responsible-entity registrations may need a sub-dashboard per entity.\n- **Audit conformance**: when the dashboard is shared with the CISC during an audit, retain a quarterly snapshot in `audit_evidence` for immutability.",
+  "grandmaExplanation": "We bring together all 27 SOCI controls into one big scoreboard the CEO can see in 30 seconds: green if everything is healthy, yellow if a check is stale, red if a check has stopped producing evidence. This is the one slide we always need for the board pack."
+}

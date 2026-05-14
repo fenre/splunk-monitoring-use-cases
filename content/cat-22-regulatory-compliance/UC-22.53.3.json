@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.3",
+  "title": "AWIA Emergency Response Plan (ERP) currency — evidence the ERP is completed and certified within 6 months of RRA",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes systems serving ≤3,300 (not subject to s1433). Excludes systems that have certified completion via the EPA portal but are mid-distribution of internal-edition copies.",
+  "evidence": "Saved search `UC-22.53.3` archived daily to `audit_evidence` with `awia_clause=\"AWIA-s1433b\"`. Every row pins (pwsid, rra_completed_at, erp_completed_at, erp_certification_submitted_at, erp_due_at, days_to_due, erp_certification_letter_url, erp_status). Dashboard `AWIA — ERP Currency` surfaces each PWS and its 6-month clock.",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-s1433b",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) the ERP is completed within 6 months of RRA, (b) the EPA certification is submitted, and (c) the 5-year update cycle is tracked. This is the full scope of the s1433(b) ERP duty.",
+      "controlObjective": "Proves continuous compliance with the Safe Drinking Water Act s1433(b) ERP duty.",
+      "evidenceArtifact": "Saved search `UC-22.53.3` archived to `audit_evidence`, the `AWIA — ERP Currency` dashboard, and per-system ERP certification-letter URLs.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-s1433b",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `rra_completed_at` to 8 months ago AND `erp_completed_at=null`. UC-22.53.3 MUST flag `erp_status=\"overdue\"`.",
+    "negativeScenario": "Complete ERP within 6 months of RRA; UC-22.53.3 MUST record `erp_status=\"current\"`."
+  },
+  "dataSources": "EPA AWIA Reporting Portal submissions, utility GRC. Lookup `awia_erp_registry_lookup` (pwsid, rra_completed_at, erp_completed_at, erp_certification_submitted_at, erp_due_at, erp_certification_letter_url, manager, manager_email).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup awia_erp_registry_lookup\n| eval erp_due_at = coalesce(erp_due_at, rra_completed_at + (180 * 86400))\n| eval days_to_due = if(isnotnull(erp_due_at), round((erp_due_at - now()) / 86400, 0), null())\n| eval erp_status = case(\n    isnull(rra_completed_at), \"rra_missing\",\n    isnull(erp_completed_at) AND days_to_due < 0, \"overdue\",\n    isnull(erp_completed_at) AND days_to_due <= 30, \"approaching_due\",\n    isnotnull(erp_completed_at) AND isnull(erp_certification_submitted_at), \"certification_pending\",\n    isnotnull(erp_certification_submitted_at), \"current\",\n    1=1, \"unknown\")\n| table pwsid rra_completed_at erp_completed_at erp_certification_submitted_at erp_due_at days_to_due erp_status erp_certification_letter_url",
+  "description": "Validates every PWS subject to AWIA has completed its ERP within 6 months of the RRA and submitted certification to EPA. Surfaces overdue, approaching-due, and pending certification states.",
+  "value": "ERP late-completion is the second-most-cited AWIA finding pattern. The 6-month clock is a binary regulatory test. This UC keeps the cadence visible.",
+  "implementation": "(1) Maintain `awia_erp_registry_lookup` from the utility GRC. (2) Populate `erp_due_at = rra_completed_at + 180 days`. (3) Schedule UC-22.53.3 daily; route `overdue` and `rra_missing` to notable severity=critical. (4) Archive every row.",
+  "visualization": "(Panel 1) PWS clock status. (Panel 2) Aging funnel. (Panel 3) Certification-letter inventory.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Safe Drinking Water Act, 42 U.S.C. § 300i-2(b)",
+      "url": "https://www.epa.gov/waterresilience/awia-section-2013"
+    },
+    {
+      "title": "EPA Emergency Response Plan template",
+      "url": "https://www.epa.gov/waterutilityresponse/develop-or-update-drinking-water-utility-emergency-response-plan-erp"
+    }
+  ],
+  "knownFalsePositives": "1. **EPA extension** — EPA may grant short extension; recorded in `awia_extension_lookup`.\n\n2. **Joint ERP** — some interconnected systems file a joint ERP; ensure each PWSID has a certification.\n\n**Suppression mechanism**: KV Store `awia_22_53_3_exceptions`; max grant 60 days with Compliance Officer sign-off.",
+  "requiredFields": [
+    "pwsid",
+    "rra_completed_at",
+    "erp_completed_at",
+    "erp_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (Vancouver / Washington, sn_grc_awia tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (compliance-cadence workflow — measures AWIA ERP evidence currency, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 deployed.\n- ES, ServiceNow add-on.\n- `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_erp_registry_lookup`.\n\n## Step 1 — Configure data collection\n\nMaintained by Emergency Response Coordinator; sourced from the utility GRC's ERP module. ERP certification submission via EPA AWIA Reporting Portal.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.53.3: AWIA s1433(b) ERP currency]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.3,reg=AWIA,clause=AWIA-s1433b\naction.notable.param.rule_title = AWIA ERP overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate `rra_completed_at` to 8 months and leave `erp_completed_at=null`; UC flags `overdue`.\n\n**(b)** Negative control: complete ERP and certify; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — ERP Currency`.\n\n**Runbook for `overdue`** (owner: Manager of Operations + Compliance Officer, severity P1):\n\n1. Within 30 days: complete and certify.\n2. Self-disclose to EPA Region.\n\n## Step 5 — Troubleshooting\n\n**RRA-to-ERP linkage**: ensure both lookups share `pwsid`.\n\n**AWIA-specific failure modes**:\n\n- **ERP refresh after RRA refresh**: a fresh RRA starts a new 6-month ERP clock; ensure refresh.\n- **Mutual-aid agreement updates**: ERP must include current mutual-aid pacts; track via UC-22.53.15.",
+  "grandmaExplanation": "After we complete the risk check, the law gives us 6 months to write an emergency-response plan and tell the EPA. We watch the clock; if the plan isn't done by month 6, the bell rings."
+}

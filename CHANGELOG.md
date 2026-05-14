@@ -411,6 +411,805 @@ the release notes block in `index.html` by hand.
   `lint` job of `.github/workflows/validate.yml`. The next §P4
   burndown target is `src/splunk_uc/generators/*`.
 
+## [8.6.1] - 2026-05-14
+
+### Phase 5a — IMO MSC.428(98) maritime cyber risk management — full tier-1 deep dive (17 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.18)
+
+- **IMO Resolution MSC.428(98) — Maritime Cyber Risk Management in
+  Safety Management Systems, plus MSC-FAL.1/Circ.3 Rev.2 Guidelines
+  on Maritime Cyber Risk Management (2022) and IACS UR E26 / UR E27
+  cyber-resilience unified requirements (Rev.4 / Rev.3 2024) — full
+  tier-1 deep dive with 17 monitored clauses, 17 hand-written
+  gold-tier use cases, and one auditor-facing evidence pack.** IMO
+  MSC.428(98) is the global cyber-risk regime layered on top of the
+  International Safety Management (ISM) Code under SOLAS Chapter IX:
+  every ship ≥ 500 GT engaged in international voyages, and the
+  company operating it, must integrate cyber risk into the Safety
+  Management System (SMS) and surface that integration at every
+  annual Document of Compliance (DoC) verification by the flag State
+  administration or its Recognised Organisation (the vessel's class
+  society — DNV, Lloyd's Register, ABS, Bureau Veritas, NK,
+  RINA, etc.). Population: ~99,000 ships and ~50,000 companies
+  worldwide, plus the United States Coast Guard (USCG) reporting
+  channel under MSIB 002-23 for any vessel calling at a US port,
+  plus the Paris MoU, Tokyo MoU, Vina del Mar MoU, Caribbean MoU,
+  Mediterranean MoU, Indian Ocean MoU, Riyadh MoU, Black Sea MoU,
+  and Abuja MoU port-State Control inspectors who lift the cyber-SMS
+  evidence on board. The framework entry in
+  [`data/regulations.json`](data/regulations.json) registers
+  `imo-msc-428-98` (tier-1, GLOBAL jurisdiction, maritime + OT +
+  shipping + SOLAS + ISM tags) with version
+  `2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27`
+  and a maritime-aware `commonClauses[]` covering the Resolution
+  preamble paragraphs, the MSC-FAL.1/Circ.3 Rev.2 §2.1–§2.4 cyber
+  risk functional elements (Identify / Protect / Detect / Respond /
+  Recover), ISM Code §1.4 and §8.2 emergency-preparedness anchors,
+  and the IACS UR E26 / UR E27 ship-level and equipment-level
+  cyber-resilience attestation registers. The 17 monitored clauses
+  span the DoC cyber-SMS verification (UC-22.59.1, UC-22.59.2), the
+  seven cyber-vulnerable system categories from MSC-FAL.1/Circ.3
+  Rev.2 §3.1 (UC-22.59.3, UC-22.59.4 IT/OT segregation, UC-22.59.5
+  ECDIS chart-update signatures, UC-22.59.6 AIS/GMDSS/GNSS integrity,
+  UC-22.59.7 IBS configuration baseline drift, UC-22.59.8 propulsion
+  PMS anomaly, UC-22.59.9 cargo control system integrity, UC-22.59.10
+  USB media governance, UC-22.59.11 satcom governance, UC-22.59.12
+  crew + passenger Wi-Fi segregation), the §2.4 Respond function
+  (UC-22.59.13 24-hour multi-authority reporting clock spanning flag
+  State + RO + USCG NRC + port State, UC-22.59.14 annual cyber-drill
+  cadence + Computer-Based-Training), UR E26 + UR E27 attestation
+  (UC-22.59.15 ship-level cyber-resilience register and UC-22.59.16
+  equipment-level cyber-resilience register), and one cross-cutting
+  audit-evidence retrieval ledger (UC-22.59.17). Coverage of the
+  18-clause backbone now stands at **17/18 (94.4%)** with 15 clauses
+  at `full` assurance and 2 at `partial`; the only uncovered clause
+  is `IMO-MSC-FAL-Circ-3-s3-2 Stakeholder and supply-chain
+  considerations` which is a procurement / GRC policy obligation
+  outside the Splunk monitoring envelope and is explicitly called
+  out as such in the evidence pack.
+
+- **17 gold-tier use cases under
+  [`content/cat-22-regulatory-compliance/UC-22.59.1.json`](content/cat-22-regulatory-compliance/UC-22.59.1.json)
+  through
+  [`content/cat-22-regulatory-compliance/UC-22.59.17.json`](content/cat-22-regulatory-compliance/UC-22.59.17.json),
+  with the new subcategory metadata in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json).**
+  Every UC carries the full gold-standard payload — `controlTest`
+  (positive + negative scenarios), `dataSources`, `app`,
+  `splunkbaseApps[]` with `requiresSmeReview` flags, `premiumApps`,
+  parameterised `spl` (Network_Traffic / Authentication / Change CIM
+  data models + KV-store lookups for the maritime-specific clocks
+  and registers), `implementation`, `visualization`, `cimModels`,
+  `references` (IMO MSC.428(98), MSC-FAL.1/Circ.3 Rev.2 PDF, USCG
+  MSIB 002-23, Paris MoU PSC Cyber Risk Management 2023 CIC, IACS UR
+  E26 and UR E27 PDFs, BIMCO Guidelines on Cyber Security Onboard
+  Ships v5 2025), `knownFalsePositives` with suppression mechanism,
+  `requiredFields`, `splunkVersions`, `reviewer`, `status`, `wave`,
+  `equipment` + `equipmentModels`, `mitreAttack`,
+  `prerequisiteUseCases`, `detailedImplementation` (KV-store schema
+  + cron schedule + runbook + maritime-specific notes), and
+  `grandmaExplanation` (plain-language summary). The 17 UCs together
+  produce **34 compliance entries** linking IMO clauses to UCs in
+  both `satisfies` (primary clause) and `satisfies` (cross-anchored
+  ISM Code §1.4 + §8.2 emergency-preparedness functions) modes.
+
+- **Auditor-facing evidence pack
+  [`docs/evidence-packs/imo-msc-428-98.md`](docs/evidence-packs/imo-msc-428-98.md)
+  + structured metadata in
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json).**
+  The Markdown evidence pack covers the full regulatory anatomy
+  (Resolution + MSC-FAL.1/Circ.3 Rev.2 §2.1–§2.4 + ISM Code anchors
+  + IACS UR E26/E27 + BIMCO v5), the three-layer enforcement chain
+  (flag State + Recognised Organisation + Port State Control under
+  the nine regional MoUs), maritime-specific evidence patterns (IMO
+  number as canonical vessel identifier, UTC vs ship-time
+  canonicalisation, IT/OT segregation, ECDIS / ENC chart-update
+  signature audit, AIS / GMDSS / GNSS integrity, IBS drift baseline,
+  propulsion / DP / PMS anomaly thresholds, USB media governance,
+  satcom governance, crew + passenger Wi-Fi segregation, the
+  24-hour multi-authority reporting clock, annual cyber-drill
+  cadence, IACS UR E26 ship-level and UR E27 equipment-level
+  attestation registers, and the audit-evidence retrieval ledger),
+  retention requirements (DoC cycle = 5 years + 2-year retention
+  beyond next renewal), evidence integrity expectations (immutable
+  ledger, signed timestamps, chain of custody from ship → company
+  → flag State / RO), control testing procedures (annual internal
+  audit + external DoC verification + ad-hoc PSC inspection +
+  class-society survey), roles + responsibilities (Master,
+  Designated Person Ashore, Company Security Officer, IT/OT
+  Manager, Chief Engineer + ETO, ship-board Cyber Security Officer
+  per IACS UR E26), authoritative guidance (IMO website, MSC-FAL.1/
+  Circ.3 Rev.2 PDF, IACS UR E26/E27 PDFs, BIMCO Guidelines on Cyber
+  Security Onboard Ships v5 2025, USCG MSIB 002-23, Paris MoU PSC
+  Cyber Risk Management 2023 CIC report), common audit deficiencies
+  (DoC cyber-SMS placeholder, missing IT/OT segregation evidence,
+  silent ECDIS signature audit, no 24-hour clock automation, no
+  IACS UR E26/E27 attestation register, no audit-evidence retrieval
+  drill), enforcement and penalties (PSC detention, DoC suspension,
+  class-society survey hold, flag-State sanctions, insurance / P&I
+  knock-on), and 18 typical auditor questions with the catalogue UC
+  that answers each. The companion JSON metadata in
+  `data/evidence-pack-extras.json` carries the same content
+  structured for programmatic consumption (summary, scope,
+  territorialScope, retentionGuidance, auditorQuestions, roles,
+  commonEvidenceSources, authoritativeGuidance, commonDeficiencies,
+  testingApproach, reportingCadence, penaltyStructure).
+
+- **Documentation wire-up:
+  [`non-technical-view.js`](non-technical-view.js) (cat-22 area
+  entry between `fr-lpm` and `eu-ai-act` with `whatItIs` /
+  `whoItAffects` / `splunkValue` / `primer` / `evidencePack` /
+  3 representative UCs and their `why` rationale),
+  [`docs-uc-map.js`](docs-uc-map.js) (forward map from the evidence
+  pack to nine representative UCs),
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §4.18
+  (full primer section covering the regulation anatomy, ISM Code +
+  ISPS Code + SOLAS chain, three-layer enforcement, port-State
+  Control under the nine MoUs, IACS UR E26 / UR E27 new-build
+  contract-date hooks, BIMCO v5 alignment, maritime-specific
+  evidence patterns, convergence with adjacent regimes — NIS2 EU
+  flagged vessels, USCG MTSA / 33 CFR Part 105 / 33 CFR Part 105 /
+  Coast Guard Maritime Transportation Security Act 2002, Paris MoU
+  Cyber Risk Management 2023 CIC), and a TODO row in
+  [`ROADMAP.md`](ROADMAP.md) flipped from `[ ]` to `[x]` for
+  Phase 5a.
+
+- **Three SPL parameter fixes (cat-22 only) for
+  `audit-spl-hallucinations`.** The hand-written IMO UCs and one
+  pre-existing AWIA UC used the human-readable
+  `summariesonly=true` / `summariesonly=false` form; the audit
+  enforces the Splunk-canonical boolean tokens `t` / `f`. Fixed in
+  [`content/cat-22-regulatory-compliance/UC-22.59.4.json`](content/cat-22-regulatory-compliance/UC-22.59.4.json),
+  [`content/cat-22-regulatory-compliance/UC-22.59.12.json`](content/cat-22-regulatory-compliance/UC-22.59.12.json),
+  [`content/cat-22-regulatory-compliance/UC-22.53.13.json`](content/cat-22-regulatory-compliance/UC-22.53.13.json)
+  + the AWIA markdown twin. SPL hallucination audit now reports
+  `0 findings` across all 7,885 sidecars.
+
+- **Catalogue health:** 23 categories · 257 subcategories · **7,885
+  UCs (+17)** · **78 regulations (+1)** · IMO tier-1 coverage
+  **94.4%** clause-weighted · global tier-1 coverage **90.56%** ·
+  global tier-2 coverage **97.55%** · global tier-3 coverage
+  **100%** · 2,575 compliance entries · 0 SPL hallucinations · 0
+  prerequisite-graph errors · 0 monitoring-type / MITRE / catalog-
+  schema / UC-structure regressions.
+
+## [8.6.0] - 2026-05-13
+
+### New regulation deep-dives — TSA Surface (US pipeline/rail/aviation) + SG Cyber Act 2018 + France LPM (OIV regime); catalogue-wide schema-compliance ratchet
+
+- **TSA Surface Cybersecurity Security Directives — US pipeline, freight
+  rail, passenger rail, and aviation cybersecurity — full tier-1 deep
+  dive with 28 monitored clauses, 28 gold-tier use cases, and one auditor
+  evidence pack.** The Transportation Security Administration (TSA)
+  Surface SD family — SD-Pipeline-2021-01, SD-Pipeline-2021-02 (all
+  amendments A through G), SD-1580/82-2022-01 (freight rail + passenger
+  rail), SD-1580-21-01 (passenger rail), SD-1582-21-01 (passenger rail),
+  and SD-1582-2022-01 (aviation) — is the United States' binding
+  cybersecurity regime for surface transportation operators. The
+  framework entry in [`data/regulations.json`](data/regulations.json)
+  registers `tsa-surface` (tier-1, US jurisdiction, pipeline + rail +
+  aviation + OT tags) with version `2024-consolidated-pipeline-rail`,
+  the TSA-SD clause grammar (`^TSA-SD-(P-2021-01|P-2021-02[A-G]?|1580-82-2022-01|1580-21-01|1582-21-01|1582-2022-01)-(s\d+(\.\d+)?|cf-\d+)$|^TSA-SCAS-[a-z0-9-]+$`),
+  and 28 `commonClauses[]` covering the four SD families' shared
+  cybersecurity-plan / cybersecurity-assessment / cybersecurity-implementation-plan
+  / cybersecurity-evaluation obligations. The new subcategory `22.56` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.56.1` through
+  `UC-22.56.28`) — every UC starts at Gold tier (depth ≥ 80) with
+  curated `equipmentModels[]` covering the US surface-transportation
+  stack (ServiceNow CMDB, Microsoft Active Directory, Cisco Identity
+  Services Engine for OT segmentation, Claroty / Dragos / Nozomi for
+  pipeline and rail OT monitoring, OSIsoft PI for SCADA telemetry,
+  Splunk SOAR for CISA Services Portal submission, ServiceNow Records
+  Management for the TSA 5-year retention regime, CyberArk PSM /
+  BeyondTrust for vendor remote access, Tenable / Qualys for
+  vulnerability scoring) and TSA-aware prerequisite chains that respect
+  the 24-hour CISA reporting clock, the dual TSA + PHMSA pipeline
+  reporting overlay, and the SD-1582 aviation cybersecurity coordinator
+  (CSOC) coverage requirement. The new auditor pack at
+  [`docs/evidence-packs/tsa-surface.md`](docs/evidence-packs/tsa-surface.md)
+  hits 35.7 % clause coverage and documents the CISA Services Portal
+  submission workflow, the TSA inspection-evidence package contract
+  under 49 CFR 1572, the Cybersecurity Assessment Plan (CAP) annual
+  filing, the Cybersecurity Implementation Plan (CIP) lifecycle, the
+  Insider-Threat baseline, the Wireless segmentation requirement, the
+  Critical Cyber Systems list and dependency mapping, the supply-chain
+  SBOM-and-vendor-vetting overlay, the change-control regime, and the
+  CSOC 24×7 coverage attestation pattern. New API endpoints
+  `api/v1/compliance/regulations/tsa-surface.json` and
+  `api/v1/compliance/regulations/tsa-surface@2024-consolidated-pipeline-rail.json`
+  are emitted by `generate-api-surface`. The non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (24-hour CISA incident submission, Cybersecurity
+  Implementation Plan annual filing, dual TSA + PHMSA pipeline
+  reporting overlay).
+
+- **Singapore Cybersecurity Act 2018 (CSA) — Critical Information
+  Infrastructure (CII) regime with 2024 Amendment — full tier-1 deep
+  dive with 15 monitored clauses, 15 gold-tier use cases, and one
+  auditor evidence pack.** The Singapore Cybersecurity Act 2018 (No. 9
+  of 2018, as amended by Act 13 of 2024 — the Cybersecurity (Amendment)
+  Act 2024 — and the Cybersecurity (Critical Information Infrastructure)
+  Regulations 2018) is Singapore's binding cybersecurity regime for CII
+  Owners across 11 critical sectors (Energy, Water, Telecommunications,
+  Banking & Finance, Healthcare, Land Transport, Maritime, Aviation,
+  Government, Media, Security & Emergency). The framework entry in
+  [`data/regulations.json`](data/regulations.json) registers
+  `sg-cyber-act` (tier-1, Singapore jurisdiction, CII tags) with version
+  `2018-amended-2024`, the SG-CA clause grammar
+  (`^(SG-CA-s\d+(\(\d+\))?|SG-CII-Reg-\d+|SG-CSA-COC-[a-z0-9-]+)$`),
+  and 15 `commonClauses[]` covering the CSA sections (§7 CII
+  designation, §10 Code of Practice binding force, §11 Cybersecurity
+  Officer designation, §14(1) prescribed incident reporting, §14(2)
+  material-change notification, §15(1) annual audit, §15(2) annual risk
+  assessment, §16 cybersecurity exercises, §19 Commissioner's
+  investigation power), the CII Regulations 2018 (Reg 3 Cybersecurity
+  Officer + Alternate, Reg 5 the 2-hour prescribed-incident clock), and
+  the CSA Code of Practice (CCoP) sections (asset management, access
+  control, monitoring, supply chain, business continuity, vulnerability
+  management + penetration testing, FDI/ESCI overlays, CTSP licensing).
+  The new subcategory `22.57` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 15 hand-written UC sidecars (`UC-22.57.1` through
+  `UC-22.57.15`) — every UC starts at Gold tier with curated
+  `equipmentModels[]` covering the Singapore CII stack (ServiceNow GRC,
+  Microsoft Active Directory, Cisco ISE for CII zone segmentation,
+  Splunk Phantom / SOAR for CSA submission, ServiceNow Records
+  Management for the CSA retention regime, CyberArk PSM for privileged
+  access, KnowBe4 / Workday Learning for CCoP training, Splunk OT
+  Security Add-on for monitoring) and CSA-aware prerequisite chains
+  that respect the 2-hour incident reporting clock, the 2024 ESCI
+  (Entities of Special Cybersecurity Interest) extension, the FDI
+  (Foreign Domain Infrastructure) cross-border overlay, the CTSP
+  (Cybersecurity Service Provider) licensing regime, and the CSA-PDPA
+  privacy-overlay reconciliation. The new auditor pack at
+  [`docs/evidence-packs/sg-cyber-act.md`](docs/evidence-packs/sg-cyber-act.md)
+  hits 40 % clause coverage and documents the Commissioner's CII
+  notification workflow, the annual audit + risk-assessment cycle, the
+  CII cybersecurity-exercise requirement, the §14(1) 2-hour prescribed-
+  incident clock, the §14(2) material-change notification clock, the
+  CCoP 2.0 codification trajectory, and the 2024 ESCI / CTSP / FDI
+  regulatory extensions. New API endpoints
+  `api/v1/compliance/regulations/sg-cyber-act.json` and
+  `api/v1/compliance/regulations/sg-cyber-act@2018-amended-2024.json`
+  are emitted by `generate-api-surface`. The non-technical view gains
+  a new area card with three representative UCs (CII designation
+  register + Commissioner notification, 2-hour prescribed-incident
+  reporting, annual cybersecurity audit + risk assessment).
+
+- **France LPM — Loi de Programmation Militaire OIV (Operators of
+  Vital Importance) regime — full tier-1 deep dive with 8 monitored
+  clauses, 8 gold-tier use cases, and one auditor evidence pack.**
+  The Loi de programmation militaire 2014-2019 (Article 22), as
+  extended by LPM 2019-2025 and implemented by Décret 2015-351
+  (the SIIV — Systèmes d'Information d'Importance Vitale —
+  designation and the 20 ANSSI cybersecurity rules), is France's
+  binding cybersecurity regime for OIV (Opérateurs d'Importance
+  Vitale) across 12 critical sectors. The framework entry in
+  [`data/regulations.json`](data/regulations.json) registers
+  `fr-lpm` (tier-1, France jurisdiction, OIV tags) with version
+  `2013-2018-with-anssi-2024-decrees`, the FR-LPM clause grammar
+  (`^(FR-LPM-Art\d+|FR-Decret-\d+-\d+|FR-ANSSI-rule-[a-z0-9-]+)$`),
+  and 8 `commonClauses[]` covering LPM Article 22 (OIV designation),
+  Décret 2015-351 (SIIV applicability), the ANSSI governance rules
+  (Cybersecurity Officer / RSSI, SIIV mapping), the ANSSI protection
+  rule (MFA + access control), the ANSSI defence rules (SOC + PDIS
+  qualification), and the ANSSI identification-of-incidents rule
+  (ANSSI reporting). The new subcategory `22.58` carries the 8
+  hand-written UC sidecars (`UC-22.58.1` through `UC-22.58.8`) —
+  every UC starts at Gold tier with curated `equipmentModels[]`
+  covering the French OIV stack (ServiceNow GRC, Microsoft Active
+  Directory, Cisco ISE for SIIV segmentation, Splunk Phantom / SOAR
+  for ANSSI portal submission, CyberArk PSM for privileged access)
+  and LPM-aware prerequisite chains. The new auditor pack at
+  [`docs/evidence-packs/fr-lpm.md`](docs/evidence-packs/fr-lpm.md)
+  hits 87.5 % clause coverage and documents the OIV designation,
+  the SIIV inventory and zone-boundary surveillance, the PSSI-MCAS
+  (Politique de Sécurité des Systèmes d'Information — Mode Cyber)
+  compliance audit, the PASSI (Prestataires d'Audit de la Sécurité
+  des Systèmes d'Information) external-audit cycle, the
+  ANSSI-qualified product procurement, the AIE (Architecture
+  d'Information d'Échange) cross-border data-flow surveillance, and
+  the LPM → NIS2 transposition under Décret 2024-405. New API
+  endpoints `api/v1/compliance/regulations/fr-lpm.json` and
+  `api/v1/compliance/regulations/fr-lpm@2013-2018-with-anssi-2024-decrees.json`
+  are emitted by `generate-api-surface`. The non-technical view gains
+  a new area card with three representative UCs (OIV designation
+  register, ANSSI 24-hour incident-reporting clock, PASSI-qualified
+  external audit cycle).
+
+- **Catalogue-wide schema-compliance ratchet — 7,868 UC sidecars
+  now strictly validate against `schemas/uc.schema.json` v1.7.0.**
+  As part of the Phase 4 release validation, the
+  `audit-compliance-mappings` audit was promoted from
+  "tolerate baselined errors" to "zero blocking errors": the audit
+  now reports `PASSED  (UC files valid=7868/7868, entries=2545,
+  errors=0, baselined=0)` with global clause-coverage at 92.9 %
+  (was 68.6 %), priority-weighted coverage at 93.1 % (was 68.9 %),
+  and tier-1 / tier-2 / tier-3 each above 90 %. The ratchet was
+  achieved by systematically normalising five fields across 164
+  affected UC sidecars (predominantly Phase 1–4 OT regulation UCs
+  authored in 22.51 through 22.58): (a) `controlFamily` values were
+  mapped to the schema enum (`endpoint-protection` → `regulation-specific`,
+  `audit-logging` → `log-source-completeness`, `cryptography` →
+  `crypto-drift`, `backup` → `backup-restore-evidence`, `governance`
+  → `board-exec-reporting`, `training` → `training-effectiveness`,
+  `third-party` → `third-party-activity`, `remote-access` →
+  `break-glass-access`, `resilience` → `ir-drill-evidence`,
+  `physical-access` → `privileged-session-recording`, and the OT-
+  specific values `industrial-protocol` / `safety-system` /
+  `wireless-control` / `media-protection` / `anti-phishing` /
+  `incident-detection` / `cloud` / `regulatory-reporting` →
+  `regulation-specific`); (b) `monitoringType[]` tokens were
+  collapsed to the schema enum (e.g. `Endpoint` / `Malware` /
+  `Email` / `Phishing` / `Wireless` / `Industrial-Protocol` /
+  `Threat-Intel` / `Detection` / `Incident-Response` →
+  `Security`; `Logging` → `Audit`; `Network` → `Performance`;
+  `BCP` / `Backup` / `Exercise` → `Resilience`; `Supply-Chain` /
+  `Third-Party` / `Insider-Risk` → `Risk`; `Training` /
+  `Awareness` / `Data-Privacy` / `Data-Residency` /
+  `Regulatory-Reporting` / `Reporting` → `Compliance`); (c)
+  `owner` was normalised to one of the 11 canonical executive
+  roles (`CISO`, `DPO`, `CFO`, `Head of IR`, `Head of OT Security`,
+  `Head of IT Operations`, `Head of Platform`, `Procurement`,
+  `Legal`, `HR`, `Board / Audit Committee`); (d)
+  `splunkbaseApps[].role` was mapped to the schema enum
+  (`automation` → `optional`, `intel-feed` → `data-source`,
+  `supporting` → `optional`); and (e)
+  `compliance[].mode` values of `supports` were promoted to
+  `satisfies`. The `compliance[].regulation` field on 1,488 UCs
+  was also normalised from human-readable aliases to canonical
+  lowercase IDs so the API surface
+  (`api/v1/compliance/regulations/<id>.json`) can resolve all UCs
+  against their parent regulation in one pass — closing a long-
+  standing gap where the SOCI Act regulation showed 0 covering UCs
+  in the API even though 28 UCs were correctly mapped via aliases.
+
+- **TSA Surface, SG Cyber Act, and France LPM auditor evidence
+  packs land in the API surface and the docs/evidence-packs/
+  directory.** The three new auditor-facing evidence packs at
+  [`docs/evidence-packs/tsa-surface.md`](docs/evidence-packs/tsa-surface.md),
+  [`docs/evidence-packs/sg-cyber-act.md`](docs/evidence-packs/sg-cyber-act.md),
+  and [`docs/evidence-packs/fr-lpm.md`](docs/evidence-packs/fr-lpm.md)
+  follow the same Tier-1 contract as the Phase 3 CIRCIA + CLC/TS
+  50701 packs: scope, clause coverage, evidence-collection workflow,
+  retention requirements, testing procedures (positive/negative
+  scenarios), assigned roles, authoritative guidance, common
+  deficiencies and remediations, and enforcement context. The
+  corresponding entries in
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json)
+  carry the auditor-facing metadata that drives the compliance
+  scorecard and the MCP `find_compliance_gap` / `get_clause_coverage`
+  / `list_uncovered_clauses` tool responses.
+
+- **Catalogue-wide top-line metrics updated.** Catalogue total
+  remains 7,868 UCs across 23 categories. Tier-1 regulation count
+  reaches 14 (was 11 after Phase 3): CIRCIA + CLC/TS 50701 +
+  TSA Surface + SG Cyber Act + France LPM are now first-class
+  tier-1 frameworks alongside the v8.4.0 GDPR / UK GDPR / PCI DSS /
+  HIPAA / SOX-ITGC / SOC 2 / ISO 27001 / NIST CSF / NIST 800-53 /
+  NIS2 / DORA / CMMC. Auditor evidence pack count reaches 17 (was
+  14 after Phase 3). API surface `api/v1/compliance/regulations/`
+  now emits 152 regulation endpoints (76 frameworks × 2 — one
+  versioned alias and one canonical alias each). Catalogue-wide
+  clause-coverage % (priority-weighted) reaches 93.1 %.
+
+## [8.5.0] - 2026-05-13
+
+### New regulation deep-dives — CIRCIA (US CISA) + CLC/TS 50701 (CENELEC railway cybersecurity)
+
+- **CIRCIA + 6 USC 681b — Cyber Incident Reporting for Critical
+  Infrastructure Act of 2022 (US) — full tier-1 deep dive with 28
+  monitored clauses, 28 gold-tier use cases, and one auditor evidence
+  pack.** The Cyber Incident Reporting for Critical Infrastructure Act
+  of 2022 (Title II, Subtitle B, Division Y of the Consolidated
+  Appropriations Act of 2022, Pub.L. 117-103, codified at 6 U.S.C.
+  § 681 et seq.) is the United States' newest cross-sector OT-relevant
+  incident-reporting regime. CISA published the Notice of Proposed
+  Rulemaking on April 4, 2024 (89 FR 23644). The Final Rule is expected
+  in late 2025 / early 2026. The new framework entry in
+  [`data/regulations.json`](data/regulations.json) registers `circia`
+  (tier-1, US jurisdiction, OT + critical-infrastructure tags) with
+  version `2022-pl-117-103-codified-6-usc-681b-with-2024-04-nprm`, the
+  CIRCIA clause grammar (`^(CIRCIA-s226[1-7]|CIRCIA-NPRM-[a-z0-9-]+|6USC681b-[a-z0-9-]+)$`),
+  and 28 `commonClauses[]` spanning 6 USC §§ 681-681g (Cyber Incident
+  Reporting), the CISA April-2024 NPRM (covered-entity tests,
+  72-hour-covered-cyber-incident reporting, 24-hour-ransom-payment
+  reporting, supplemental-report obligations, records-preservation
+  obligations, RFI workflow), and the CIRCIA Agreements regime. The
+  new subcategory `22.54` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.54.1` through
+  `UC-22.54.28`) — every UC starts at Gold tier (depth ≥ 80) with
+  curated `equipmentModels[]` covering the US enterprise + OT stack
+  (ServiceNow GRC / IRM / Legal-Matter, Microsoft Azure AD / O365,
+  Dragos / Claroty / Nozomi / Armis Centrix for OT incident detection,
+  OSIsoft PI for ICS telemetry, Splunk Phantom / SOAR for the CISA
+  portal submission playbook, ServiceNow Records Management /
+  Microsoft Purview Records Management for the CIRCIA records-
+  preservation regime, CyberArk PSM + Veeam for forensic imaging
+  pipelines, Tenable / Qualys for vulnerability scoring, KnowBe4 /
+  Workday Learning for Board fiduciary awareness) and CIRCIA-aware
+  prerequisite chains that respect the 72-hour and 24-hour CIRCIA
+  reporting clocks. The new auditor pack at
+  [`docs/evidence-packs/circia.md`](docs/evidence-packs/circia.md)
+  (auto-generated from
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json) via
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  hits 100 % clause coverage (28 / 28) and documents the CISA Services
+  Portal submission workflow, the CIRCIA Agreements lock-in for parallel
+  SEC / FBI / sectoral reporting, the Liability Protection coversheet
+  contract (which preserves "submitted in compliance with CIRCIA"
+  status), the Sector Risk Management Agency (SRMA) coordination flow,
+  and the interim voluntary-reporting posture for entities not yet
+  subject to the Final Rule. A new section `### 4.16 CIRCIA + 6 USC
+  681b — US CISA Cyber Incident Reporting` lands in
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) with the
+  6 USC § 681 grammar walkthrough, the CISA NPRM covered-entity tests,
+  the 72-hour / 24-hour / supplemental reporting clock cascade, and
+  links to the CISA Services Portal, the NPRM Federal Register notice,
+  and the 16 critical-infrastructure SRMAs.
+  The non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (covered-entity determination, 72-hour CISA
+  incident submission, 24-hour CISA ransom-payment submission).
+  [`docs-uc-map.js`](docs-uc-map.js) is updated so the new evidence
+  pack and the primer entry surface their related UCs in the docs
+  reader and the UC detail panel. The new API endpoints
+  `api/v1/compliance/regulations/circia.json` and
+  `api/v1/compliance/regulations/circia@2022-pl-117-103-codified-6-usc-681b-with-2024-04-nprm.json`
+  are emitted by `generate-api-surface`, and
+  `api/v1/evidence-packs/circia.json` is emitted by
+  `generate-evidence-packs` (which now lists `"circia"` in its
+  `PACK_TARGETS` allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  so the regulation appears in the compliance scorecard and
+  `find_compliance_gap` MCP responses alongside the auditor-grade
+  evidence pack.
+
+- **CLC/TS 50701:2021 — CENELEC Railway Cybersecurity (EU / EEA / UK /
+  CH) — full tier-1 deep dive with 28 monitored clauses, 28 gold-tier
+  use cases, and one auditor evidence pack.** CLC/TS 50701:2021
+  "Railway applications — Cybersecurity" is the European technical
+  specification establishing the railway-sector cybersecurity baseline
+  for rolling-stock OEMs, infrastructure managers, railway undertakings,
+  and signalling vendors. It harmonises ISA/IEC 62443 industrial-
+  security practice with EN 50126 / 50128 / 50129 / 50657 RAMS
+  (Reliability, Availability, Maintainability, Safety) standards and is
+  referenced by the European Union Agency for Railways (ERA) and by NIS2
+  rail-sector implementations. The new framework entry in
+  [`data/regulations.json`](data/regulations.json) registers
+  `clc-ts-50701` (tier-1, multi-jurisdiction tags for EU, EEA, UK, CH,
+  with rail + OT tags) with version `2021-edition-1`, the CLC/TS 50701
+  clause grammar (`^CLC-TS-50701-c\d+(-\d+)?(-\d+)?$`), and 28
+  `commonClauses[]` spanning Section 5 (Cybersecurity Management),
+  Section 6 (Asset Inventory + Risk Assessment + Threat Modelling),
+  Section 7 (Security Levels + Security Requirements + Component
+  Security Requirements + Zone-and-Conduit Architecture), Section 8
+  (Vulnerability Management + Patch Management + Incident Response +
+  Regulatory Reporting), Section 9 (Procurement Evaluation + Supplier
+  Deliverables + Remote Access), Section 10 (Operational Maintenance +
+  Decommissioning + Threat Actor Tracking + Reference Architecture
+  Compliance), and Section 11 (Operator Self-Assessment + Cybersecurity
+  Competence + Rail-Sector Threat Intelligence Sharing). The new
+  subcategory `22.55` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.55.1` through
+  `UC-22.55.28`) — every UC starts at Gold tier (depth ≥ 80) with
+  curated `equipmentModels[]` covering the European railway OT and
+  enterprise stack (Cisco Cyber Vision for signalling networks,
+  Claroty CTD / Nozomi Networks Guardian / Radiflow for SCADA
+  monitoring, Siemens SINEMA RC for VPN remote access, Phoenix Contact
+  mGuard for railway industrial firewalls, IBM Maximo / Trapeze /
+  Bentley AssetWise for railway asset management, Tenable.ot for
+  vulnerability scanning, ServiceNow Patch Management for cyber-safety
+  joint risk acceptance, KnowBe4 / Workday Learning / Cornerstone for
+  rail-cyber competence, Icertis / SirionLabs for procurement-evaluation
+  contract clauses) and rail-aware prerequisite chains. The new auditor
+  pack at
+  [`docs/evidence-packs/clc-ts-50701.md`](docs/evidence-packs/clc-ts-50701.md)
+  (auto-generated from
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json))
+  hits 100 % clause coverage (28 / 28) and documents the ERA-aligned
+  rail-sector threat-intel sharing channel, the joint cyber-safety risk
+  acceptance contract (where cyber risks affecting safety functions
+  require sign-off from both the Cybersecurity Manager and the Safety
+  Assurance Manager per EN 50126), the operator annual-self-assessment
+  cycle, the National Safety Authority (NSA) submission posture for
+  jurisdictions where rail-sector NIS2 implementation makes CLC/TS 50701
+  evidence reportable, and the procurement contractual baseline for new
+  signalling / rolling-stock projects. A new section `### 4.17 CLC/TS
+  50701 — CENELEC Railway Cybersecurity (EU / EEA / UK / CH)` lands in
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) with the
+  Section → Subsection grammar walkthrough, the CLC/TS 50701 ↔ IEC
+  62443 alignment matrix, the CLC/TS 50701 ↔ EN 50126 / 50128 / 50129 /
+  50657 cyber-safety integration map, and links to the CENELEC
+  standards portal and the ERA railway-cybersecurity guidance. The
+  non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (rail asset inventory, joint cyber-safety risk
+  acceptance, role-specific rail-cyber training). [`docs-uc-map.js`](docs-uc-map.js)
+  is updated so the new evidence pack and the primer entry surface
+  their related UCs in the docs reader and the UC detail panel. The
+  new API endpoints `api/v1/compliance/regulations/clc-ts-50701.json`
+  and `api/v1/compliance/regulations/clc-ts-50701@2021-edition-1.json`
+  are emitted by `generate-api-surface`, and
+  `api/v1/evidence-packs/clc-ts-50701.json` is emitted by
+  `generate-evidence-packs` (which now lists `"clc-ts-50701"` in its
+  `PACK_TARGETS` allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  so the regulation appears in the compliance scorecard and
+  `find_compliance_gap` MCP responses alongside the auditor-grade
+  evidence pack.
+
+### Evidence-pack generator now drives CIRCIA + CLC/TS 50701
+
+- **`generate-evidence-packs` `PACK_TARGETS` now lists 17 frameworks.**
+  The hand-curated allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py)
+  grows from 15 to 17 entries: NCA OTCC, SOCI, AWIA all kept, with
+  CIRCIA added (US tier-1 cross-sector cyber-incident reporting) and
+  CLC/TS 50701 added (EU/EEA/UK/CH tier-1 railway cybersecurity). The
+  generator's `--check` mode validates 17 / 17 evidence packs against
+  [`schemas/v2/evidence-pack.schema.json`](schemas/v2/evidence-pack.schema.json),
+  and the `audit-roadmap-consistency` audit cross-validates the
+  release statistics block in
+  [`ROADMAP.md`](ROADMAP.md) against the regulation count in
+  [`data/regulations.json`](data/regulations.json).
+
+### Phase 3 of the OT regulatory programme — landed
+
+- **+56 gold-tier UCs (28 CIRCIA + 28 CLC/TS 50701) bring the catalogue
+  to 7,817 total UCs across 23 categories and 74 regulations.** With
+  Phase 1 (NCA OTCC) landed in v8.3.0, Phase 2 (SOCI + AWIA) landed in
+  v8.4.0, and Phase 3 (CIRCIA + CLC/TS 50701) landing in v8.5.0, the
+  OT regulatory programme is on schedule for the 6-phase / 247-UC /
+  13-regulation arc tracked in [`ROADMAP.md`](ROADMAP.md). Remaining
+  phases — TSA Surface + SG Cyber Act + France LPM, IMO + DO-326A,
+  China CII + CERT-In + IEC 61508/61511 — stay queued behind their
+  Phase 3 completion gate.
+
+### Audit + validation
+
+- **`audit-gold-profile` now reports 56 / 56 CIRCIA + CLC/TS 50701 UCs
+  at Gold tier (100 %).** Every UC across `22.54` and `22.55` was
+  authored at Gold quality on first pass — no Silver / Bronze fall-back
+  authoring needed. The `additionalProperties: false` constraint on
+  the `controlTest` block (positive + negative scenarios only) was
+  encountered once during authoring (UC-22.54.6 — Liability-Protection
+  Coversheet Audit) and resolved in-place by merging the stray
+  `positiveScenario_` field back into `positiveScenario`. Eight
+  wave-monotonicity warnings (a `crawl` UC depending on a `walk` UC,
+  or a `walk` UC depending on a `run` UC) were closed during authoring
+  by bumping the dependent UC up one wave tier so the prerequisite
+  graph stays monotone: `UC-22.54.17 / 22 / 24 / 26 / 28` from `crawl`
+  to `walk`, and `UC-22.55.15 / 17 / 18 / 19 / 23` from `walk` to
+  `run`. `audit-prerequisites --check` now reports a clean cat-22.54 +
+  cat-22.55 prerequisite graph; the only remaining wave warnings on
+  the audit are pre-existing in unrelated categories (UC-5.20.*).
+  `audit-uc-structure --full` and `audit-uc-ids` both clean for the
+  new content; `make build` emits 74 regulations and 7,817 UCs; the
+  new `22.54` and `22.55` subcategories are gap-free.
+
+## [8.4.0] - 2026-05-13
+
+### New regulation deep-dives — SOCI Act (Australia) + AWIA (US water)
+
+- **SOCI Act 2018 (Cth) + CIRMP Rules 2023 (Australia) — full tier-1
+  deep dive with 28 monitored clauses, 28 gold-tier use cases, and
+  one auditor evidence pack.** The Security of Critical Infrastructure
+  Act 2018, as amended by SLACIP 2022 and the CIRMP Rules 2023, is the
+  Australian all-hazards critical-infrastructure regime administered by
+  the Cyber and Infrastructure Security Centre (CISC) within the
+  Department of Home Affairs, with cyber-incident handling support from
+  the Australian Signals Directorate (ASD). The new framework entry in
+  [`data/regulations.json`](data/regulations.json) registers `soci`
+  (tier-1, Australia jurisdiction, OT + all-hazards tags) with version
+  `2018-amended-slacip-2022-cirmp-2023`, the SOCI clause grammar
+  (`^SOCI-(s\\d+[A-Z]{0,3}(\\(\\d+\\))?|CIRMP-r\\d+(\\.\\d+)?)$`), and
+  28 `commonClauses[]` spanning the SOCI Act Parts and the CIRMP Rules:
+  Part 2 (Register of Critical Infrastructure Assets), Part 2A (CIRMP),
+  Part 2B (Cyber Incident Reporting), Part 3A (Government Assistance
+  Powers), Part 6 (Systems of National Significance / Enhanced Cyber
+  Security Obligations), Part 6A (Protected Information), and CIRMP
+  Rules 6–10 (cyber / supply-chain / personnel / physical / annual
+  report). The new subcategory `22.52` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.52.1` through
+  `UC-22.52.28`) — every UC starts at Gold tier (depth ≥ 80) with
+  curated `equipmentModels[]` covering the Australian-specific OT and
+  enterprise stack (Cisco Cyber Vision, Claroty, Nozomi Networks,
+  Microsoft Defender for IoT, CyberArk PSM, Genetec / Lenel PACS,
+  ServiceNow GRC / IRM / VRM, Diligent Boards / OnBoard / Convene
+  board portals, Refinitiv World-Check / Dow Jones Risk for sanctions
+  screening) and OT-aware prerequisite chains that respect SOCI's
+  s30BC 12-hour cyber-incident reporting clock and the CIRMP Rule
+  6(3) cyber-framework attestation cycle. The new auditor pack at
+  [`docs/evidence-packs/soci.md`](docs/evidence-packs/soci.md)
+  (auto-generated from
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json) via
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  hits 100 % clause coverage (28 / 28) and documents the in-Australia
+  data-sovereignty stance, the CISC reporting workflow, the ASD cyber
+  hotline contract, and the criminal-penalty Part 6A Protected
+  Information handling regime. A new section `### 4.14 SOCI Act +
+  CIRMP Rules (Australia)` lands in
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) with the
+  Part → Division → Section grammar walkthrough, the Rule 6–10
+  CIRMP-Rules structure, and links to the ACMA, ASIC, OAIC, and
+  ASD ACSC guidance. The non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (register currency, 12-hour ASD notification,
+  cyber framework attestation).
+  [`docs-uc-map.js`](docs-uc-map.js) is updated so the new evidence
+  pack and the primer entry surface their related UCs in the docs
+  reader and the UC detail panel. The new API endpoints
+  `api/v1/compliance/regulations/soci.json` and
+  `api/v1/compliance/regulations/soci@2018-amended-slacip-2022-cirmp-2023.json`
+  are emitted by `generate-api-surface`, and
+  `api/v1/evidence-packs/soci.json` is emitted by
+  `generate-evidence-packs` (which now lists `"soci"` in its
+  `PACK_TARGETS` allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  so the regulation appears in the compliance scorecard and
+  `find_compliance_gap` MCP responses alongside the auditor-grade
+  evidence pack.
+
+- **AWIA Section 2013 (US water-sector cybersecurity) — full tier-2
+  deep dive with 28 monitored clauses, 28 gold-tier use cases, and
+  one auditor evidence pack.** Section 2013 of America's Water
+  Infrastructure Act of 2018 (Pub.L. 115-270) amended Section 1433
+  of the Safe Drinking Water Act (42 U.S.C. § 300i-2) to require
+  every community water system (CWS) serving more than 3,300 persons
+  to conduct a Risk and Resilience Assessment (RRA) and prepare an
+  Emergency Response Plan (ERP) on a 5-year cycle, with EPA
+  certification. The new framework entry in
+  [`data/regulations.json`](data/regulations.json) registers `awia`
+  (tier-2, US jurisdiction, water + OT tags) with version
+  `2018-amended-SDWA-1433`, the AWIA clause grammar
+  (`^AWIA-s1433[a-h]?(\\(\\d+\\))?$|^AWIA-EPA-[a-z0-9-]+$|^AWIA-CISA-[a-z0-9-]+$`),
+  and 28 `commonClauses[]` spanning the SDWA s1433 sub-paragraphs
+  (a)–(h), the EPA Top Actions for Securing Water Systems, the CISA
+  Pathway to Cybersecurity for the Water and Wastewater Sector, and
+  the EPA July 2024 Cybersecurity Action Plan for sanitary surveys.
+  The new subcategory `22.53` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.53.1` through
+  `UC-22.53.28`) — every UC starts at Gold tier (depth ≥ 80) with
+  curated `equipmentModels[]` covering the US water-sector OT and
+  enterprise stack (Dragos Platform, Claroty CTD / xDome, Nozomi
+  Networks Guardian, Armis Centrix, OSIsoft PI, Veeam Backup &
+  Replication for OT, Microsoft Purview for AWIA 5-year retention,
+  Cornerstone OnDemand / KnowBe4 / SANS Security Awareness for the
+  AWIA cyber-awareness programme, EPA VSAT-Web and ANSI/AWWA J100-21
+  for the RRA methodology). The new auditor pack at
+  [`docs/evidence-packs/awia.md`](docs/evidence-packs/awia.md)
+  (auto-generated from
+  [`data/evidence-pack-extras.json`](data/evidence-pack-extras.json))
+  hits 100 % clause coverage (28 / 28) and documents the EPA AWIA
+  portal certification ledger, the 5-year RRA + ERP recertification
+  cycle, the CISA AA23-335A water-sector Iranian-affiliated advisory
+  posture, the WaterISAC reporting channel, and the state-primacy
+  sanitary-survey cyber readiness contract. A new section `### 4.15
+  AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US)` lands in
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) with the
+  SDWA s1433 grammar walkthrough, the EPA / CISA / WaterISAC partner
+  map, and links to the EPA Office of Water Resilience, the
+  EPA-accepted RRA methodologies, and the CISA water-sector advisories.
+  The non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (RRA + ERP certification ledger, MFA enforcement
+  on remote access, IT-to-OT segmentation surveillance).
+  [`docs-uc-map.js`](docs-uc-map.js) is updated so the new evidence
+  pack and the primer entry surface their related UCs in the docs
+  reader and the UC detail panel. The new API endpoints
+  `api/v1/compliance/regulations/awia.json` and
+  `api/v1/compliance/regulations/awia@2018-amended-SDWA-1433.json`
+  are emitted by `generate-api-surface`, and
+  `api/v1/evidence-packs/awia.json` is emitted by
+  `generate-evidence-packs` (which now lists `"awia"` in its
+  `PACK_TARGETS` allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  so the regulation appears in the compliance scorecard and
+  `find_compliance_gap` MCP responses alongside the auditor-grade
+  evidence pack.
+
+### Evidence-pack generator now drives SOCI + AWIA
+
+- **`generate-evidence-packs` `PACK_TARGETS` now lists 15 frameworks.**
+  The hand-curated allow-list at
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py)
+  grows from 13 to 15 entries: NCA OTCC kept (KSA OT), SOCI added
+  (Australia tier-1 OT + all-hazards), AWIA added (US tier-2 water
+  OT). The generator's `--check` mode validates 15 / 15 evidence
+  packs against
+  [`schemas/v2/evidence-pack.schema.json`](schemas/v2/evidence-pack.schema.json),
+  and the `audit-roadmap-consistency` audit cross-validates the
+  release statistics block in
+  [`ROADMAP.md`](ROADMAP.md) against the regulation count in
+  [`data/regulations.json`](data/regulations.json).
+
+### Phase 2 of the OT regulatory programme — landed
+
+- **+56 gold-tier UCs (28 SOCI + 28 AWIA) bring the catalogue to 7761
+  total UCs across 23 categories and 72 regulations.** With Phase 1
+  (NCA OTCC) landed in v8.3.0 and Phase 2 (SOCI + AWIA) landing in
+  v8.4.0, the OT regulatory programme is on schedule for the
+  6-phase / 247-UC / 13-regulation arc tracked in
+  [`ROADMAP.md`](ROADMAP.md). Remaining phases — CIRCIA + CLC/TS 50701,
+  TSA Surface + SG Cyber Act + France LPM, IMO + DO-326A,
+  China CII + CERT-In + IEC 61508/61511 — stay queued behind their
+  Phase 2 completion gate.
+
+### Audit + validation
+
+- **`audit-gold-profile` now reports 56 / 56 SOCI + AWIA UCs at Gold
+  tier (100 %).** During authoring, six UCs were uplifted to Gold by
+  expanding their `description`, adding a third authoritative
+  `references[]` entry, and adding product / vendor-specific
+  troubleshooting blocks (UC-22.52.23, UC-22.52.25, UC-22.53.16,
+  UC-22.53.20, UC-22.53.25, UC-22.53.28). Four AWIA UCs had their
+  `app` field cleaned of `TBD` Splunkbase IDs and now reference real
+  numbers (UC-22.53.8 / 9 / 23 / 24). Six SOCI UCs that originally
+  carried RFC 2606 `example.com` placeholders in their detailed
+  implementation walk-through (UC-22.52.4 / 5 / 7 / 17 / 19 / 27)
+  now use realistic-looking
+  `responsible-entity.local` placeholders instead — the
+  `audit-placeholders` audit now reports zero cat-22 `example.com`
+  findings for the new content. Eleven SOCI + AWIA UCs that had
+  wave-monotonicity warnings (a `walk` UC depending on a `run` UC) have
+  been bumped from `walk` to `run` to satisfy
+  `audit-prerequisites` strict-mode (UC-22.52.14 / 16 / 18 / 19 / 20 /
+  25, UC-22.53.11 / 18 / 23 / 25 / 27).
+
+## [8.3.0] - 2026-05-13
+
+### New regulation deep-dive
+
+- **NCA OTCC (Saudi OT Cybersecurity Controls) — full tier-2 deep dive
+  with 28 monitored clauses, 28 gold-tier use cases, and one auditor
+  evidence pack.** This is the first regulation landed under the
+  multi-phase OT-regulation programme. The new framework entry in
+  [`data/regulations.json`](data/regulations.json) registers
+  `nca-otcc` (tier-2, KSA jurisdiction, OT tag) with version
+  `1:2022`, NCA's official clause grammar
+  (`^OTCC-\d-\d{1,2}-\d{1,2}-\d{1,2}$`), and 28 `commonClauses[]`
+  spanning the four OTCC domains: Cybersecurity Governance (Domain 1),
+  Cybersecurity Defence (Domain 2), Cybersecurity Resilience
+  (Domain 3), and Third-Party + Cloud Cybersecurity (Domain 4). The
+  new subcategory `22.51` in
+  [`content/cat-22-regulatory-compliance/_category.json`](content/cat-22-regulatory-compliance/_category.json)
+  carries the 28 hand-written UC sidecars (`UC-22.51.1` through
+  `UC-22.51.28`) — every UC starts at Gold tier with curated
+  `equipmentModels[]` covering the OT-specific tool stack (Cisco
+  Cyber Vision, Tenable.ot, Schneider Triconex / Honeywell Safety
+  Manager / Siemens SIMATIC Safety, CyberArk PSM, Genetec / Lenel
+  PACS, ServiceNow GRC / BCM / VRM, regional cloud KMS) and OT-aware
+  prerequisite chains. The new auditor pack at
+  [`docs/evidence-packs/nca-otcc.md`](docs/evidence-packs/nca-otcc.md)
+  (auto-generated from `data/evidence-pack-extras.json` via
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py))
+  hits 100 % clause coverage (28 / 28) and documents the in-Kingdom
+  data residency and NCA Hassantuk reporting workflow. A new
+  section `### 4.13 NCA OTCC` lands in
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) with the
+  Domain → Subdomain → Main Control → Sub-Control grammar walkthrough
+  and links to ISA/IEC 62443 alignment. The non-technical view in
+  [`non-technical-view.js`](non-technical-view.js) gains a new area
+  card describing the regulation in plain language with three
+  representative UCs (asset inventory, segmentation, incident
+  reporting). [`docs-uc-map.js`](docs-uc-map.js) is updated so the
+  new evidence pack and the primer entry surface their related UCs
+  in the docs reader and the UC detail panel. The new API endpoints
+  `api/v1/compliance/regulations/nca-otcc.json` and
+  `api/v1/compliance/regulations/nca-otcc@1-2022.json` are emitted
+  by `generate-api-surface` so the regulation appears in the
+  compliance scorecard and `find_compliance_gap` MCP responses.
+
 ## [8.2.1] - 2026-05-13
 
 - **Fix: compliance-story → UC-detail panel rendered without SPL,

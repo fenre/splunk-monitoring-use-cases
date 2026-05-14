@@ -1,0 +1,129 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.6",
+  "title": "OT System Configuration Baseline Drift Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Excludes runtime memory state (process tables, network connections) which is covered by UC-22.51.14 and UC-22.51.17. Excludes user profile data on engineering workstations (browser history, recent-files), which is governed by IT policy rather than OTCC. Excludes baseline updates during NCA-approved commissioning windows defined in `ot_change_window.csv`.",
+  "evidence": "Saved search `UC-22.51.6` archived every hour to `audit_evidence` with `otcc_clause=\"OTCC-2-3-1-1\"`. Each drift row preserves (asset_key, baseline_id, baseline_version, baseline_sha256, observed_sha256, drifted_file_paths_or_keys, change_ticket_id, drift_classification, drift_first_seen, drift_age_seconds). The `NCA OTCC – Configuration Drift` dashboard renders open drifts, age histogram, and 90-day trend by asset class. Approved baseline manifests are stored in `ot_config_baselines` KV Store with chain-of-custody hashes.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-2-3-1-1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Detects deviation from documented secure baselines, surfaces the diff, and ties each drift to either a change ticket or a documented compensating control. Assurance is 'partial' because the baseline content itself (whether the documented baseline is genuinely secure) requires SME review and is not produced by this UC — only the drift-from-baseline.",
+      "controlObjective": "Proves that documented secure-configuration baselines exist for each OT system class and that drift from baseline is detected, classified, and either remediated or formally accepted within a defined window.",
+      "evidenceArtifact": "Saved search `UC-22.51.6` archived to `audit_evidence` plus the `NCA OTCC – Configuration Drift` dashboard. Baseline manifests in `ot_config_baselines` KV Store, including SHA-256 hashes, are the chain-of-custody artefact. Monthly drift-report PDF signed by Head of OT Security filed for NCA inspection.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-2-3-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Edit a non-critical file on a test engineering workstation that is in scope of a published baseline (e.g. modify a config-snippet under `C:\\Program Files\\PlantPAx\\config\\nodes.json`). Trigger the host's configuration agent (Tripwire, Tanium, Tenable.ot baseline check, or the chosen tool) so the change is reported to Splunk within the next collection cycle. The UC MUST surface the drift with `drift_classification=\"unticketed_drift\"`, identify the file or registry key that changed, and route an alert to the OT cybersecurity programme manager.",
+    "negativeScenario": "Apply the same file change under an approved change ticket whose state is `approved` and whose target_asset_key matches. Re-run the configuration agent. The UC MUST surface the change but classify it as `ticketed_change` (informational, no alert) and link the change_ticket_id."
+  },
+  "dataSources": "`index=ot_config_compliance` containing: Tripwire Enterprise events (`sourcetype=tripwire:enterprise:change`), Tenable.ot baseline-check results (`sourcetype=tenable:ot:baseline`), Tanium Comply checks (`sourcetype=tanium:comply:result`), Splunk Universal Forwarder file-monitor events with `crcSalt` for sensitive OT config directories (`sourcetype=ot_config_file:change`), or vendor-specific baselines (Rockwell Asset Centre, Schneider EcoStruxure Process Expert, Siemens TIA Portal Openness). Lookups: `ot_config_baselines` (KV Store keyed on asset_class), `ot_change_window.csv`, `ot_change_tickets.csv` from `index=itsm`.",
+  "app": "Splunk Add-on for Tripwire (Splunkbase 1839), Splunk Add-on for Tenable (Splunkbase 4060), Splunk_TA_tanium (Splunkbase 7141), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 4060,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ot_config_compliance earliest=-1h@h latest=now\n| eval observed_sha256=coalesce(observed_sha256, sha256, file_hash, current_hash)\n| eval asset_class=coalesce(asset_class, host_class, baseline_class)\n| lookup ot_config_baselines asset_class OUTPUT baseline_id baseline_version baseline_sha256 baseline_paths_or_keys\n| where isnotnull(baseline_sha256) AND observed_sha256!=baseline_sha256\n| eval drift_first_seen=if(isnotnull(first_seen_epoch), first_seen_epoch, _time)\n| eval drift_age_seconds=round(now() - drift_first_seen)\n| lookup ot_change_window.csv asset_key OUTPUT commissioning_window_active\n| join type=left asset_key change_window_id [search index=itsm sourcetype=servicenow:change_request earliest=-30d state=\"approved\" implementation_window_open=\"true\" | rename target_asset_key AS asset_key | table asset_key change_ticket_id change_window_id]\n| eval drift_classification=case(\n    coalesce(commissioning_window_active, \"false\")=\"true\", \"commissioning_window\",\n    isnotnull(change_ticket_id), \"ticketed_change\",\n    drift_age_seconds < 900, \"in_flight_review\",\n    1=1, \"unticketed_drift\")\n| where drift_classification!=\"in_flight_review\"\n| table asset_key asset_class baseline_id baseline_version baseline_sha256 observed_sha256 drifted_paths_or_keys change_ticket_id drift_classification drift_first_seen drift_age_seconds\n| sort - drift_age_seconds",
+  "description": "Detects any OT system whose observed configuration hash differs from its approved baseline manifest, classifies the drift (commissioning window, ticketed change, or unticketed unauthorised drift), and surfaces the specific files or registry keys that changed.",
+  "value": "Configuration drift is the silent failure mode that turns a freshly-hardened OT estate into an unhardened one over months. NCA inspectors will read the baseline document and then ask 'how do you know every system still matches?' Without continuous drift detection, the only honest answer is 'we don't.' This UC turns that answer into 'we know within an hour, and here is every drift open today.'",
+  "implementation": "(1) Establish secure-configuration baselines per OT asset class (HMI, EWS, historian, engineering laptop, PLC firmware, DCS controller config) with cryptographic hashes; commit baseline manifests to `ot_config_baselines` KV Store via a controlled refresh process. (2) Deploy a baseline-checking agent (Tripwire / Tenable.ot / Tanium Comply / vendor tool) on every in-scope asset; configure it to report current hashes hourly to `index=ot_config_compliance`. (3) Build `ot_change_window.csv` from change management. (4) Schedule UC-22.51.6 hourly; route `unticketed_drift` to ES notable with severity=high; route `ticketed_change` to `audit_evidence` only.",
+  "visualization": "Four-panel layout. (Panel 1) single-value 'Open unticketed drifts now' — red threshold ≥1. (Panel 2) sortable table of every drift in the last 24h with drift_age_seconds colour-coded. (Panel 3) histogram of drift_age by asset_class for the last 90 days. (Panel 4) Sankey: drifts by classification (commissioning_window / ticketed_change / unticketed_drift) per week — the steering-committee headline.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "CIS Critical Security Controls v8 — Control 4 Secure Configuration",
+      "url": "https://www.cisecurity.org/controls/secure-configuration-of-enterprise-assets-and-software"
+    },
+    {
+      "title": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060"
+    },
+    {
+      "title": "Splunk CIM: Change data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "1. **Auto-updating components inside baseline** — anti-virus signature files, Windows time-zone updates, OPC client cache files routinely change every few hours. Suppression: exclude these files from the baseline manifest's hash calculation by listing them in a `baseline_path_exclude` regex per asset_class.\n\n2. **Vendor-applied silent patches** — some OT software vendors apply silent inline patches with no change ticket. These are not authorised under OTCC but cannot be blocked at the OS level on a running production controller. Suppression: maintain `vendor_silent_patch_register.csv` for documented vendor patches and the runbook converts the alert to a 'vendor non-compliance' ticket against the supplier.\n\n3. **Baseline replacement window** — when a new baseline is published, every host's existing hash differs from the new manifest for one or two hourly cycles. Suppression: the publish process must update `baseline_publish_at` on the KV Store and the UC includes `| where drift_age_seconds > 3600 OR _time > baseline_publish_at + 3600` so freshly-published baselines have a 1-hour grace period.\n\n4. **Hot-standby controllers** — redundant controller pairs (e.g. ControlLogix 1756-L8x in chassis-redundant mode) hold slightly different runtime state. The configuration baseline should reflect the PROGRAM, not the runtime tags. Suppression: exclude runtime tag tables from the baseline hash; verify only the program archive.\n\n**Suppression mechanism**: KV Store `otcc_22_51_6_exceptions` keyed on `asset_key`+`baseline_id` with a 30-day max grant.",
+  "requiredFields": [
+    "asset_key",
+    "asset_class",
+    "observed_sha256",
+    "baseline_sha256",
+    "drift_classification",
+    "drift_first_seen"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "tenable",
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "T0858",
+    "T0857",
+    "T1543"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud. KV Store `ot_config_baselines` needs to be created (Settings → Lookups → KV Store collection); record schema is `asset_class`, `baseline_id`, `baseline_version`, `baseline_sha256`, `baseline_paths_or_keys`, `baseline_publish_at`, `baseline_owner`, `baseline_signoff_url`.\n- A baseline-checking agent on every in-scope OT host. The reference implementation is Tenable.ot Baseline Check; alternatives include Tripwire Enterprise, Tanium Comply, BeyondTrust Privilege Management, or vendor-specific tools (Rockwell Asset Centre for AB; Schneider EcoStruxure Process Expert config compare for Modicon; Siemens TIA Portal Openness for S7).\n- Splunk Add-on for Tenable (Splunkbase 4060), Tripwire (Splunkbase 1839), or Tanium TA on the Heavy Forwarder that bridges to those tools.\n- `index=ot_config_compliance` (13-month online retention to support the 90-day trend visualisation).\n- `index=itsm` (already provisioned for UC-22.51.4).\n- `index=audit_evidence` (already provisioned).\n- `ot_change_window.csv` (already maintained for UC-22.51.3).\n- KV Store `otcc_22_51_6_exceptions` for manual exceptions.\n- Baseline-authoring process documented in `docs/` and owned by OT cybersecurity engineering. The baseline-publish workflow includes: build the baseline image from a known-good reference asset, compute SHA-256, peer-review, OT cybersecurity engineering approval, write to KV Store `ot_config_baselines` with `baseline_publish_at = now()`.\n\n## Step 1 — Configure data collection\n\nThis UC accepts events from multiple baseline-checking tools because no single tool covers every OT vendor's controller family. Tenable.ot Baseline Check covers Windows + many DCS / PLC controller types; Tripwire Enterprise covers Windows + Linux + DB; Tanium Comply covers Windows + Linux; vendor tools cover their own gear.\n\nFor Tenable.ot, configure the modular input:\n\n```ini\n[tenable_ot://baseline]\nendpoint = https://tenable-ot.example.com\nrecord_type = baseline_check\ninterval = 3600\nindex = ot_config_compliance\nsourcetype = tenable:ot:baseline\n```\n\nFor file-level monitoring on engineering workstations using a Splunk Universal Forwarder file-monitor input:\n\n```ini\n[monitor://C:\\Program Files\\PlantPAx\\config]\ndisabled = 0\nindex = ot_config_compliance\nsourcetype = ot_config_file:change\ncrcSalt = <SOURCE>\ncheckMethod = file\nrecursive = true\n```\n\nFor PLC firmware revision monitoring, the data source is typically Rockwell FactoryTalk AssetCentre or Schneider EcoStruxure asset-management exports. These produce CSV / Excel snapshots; a scheduled Splunk search ingests them via `inputlookup`.\n\nValidate field extraction by asset class:\n\n```spl\nindex=ot_config_compliance earliest=-1d\n| stats count by sourcetype asset_class\n```\n\nEvery asset_class in scope must have non-zero count; missing classes mean either the agent is not deployed to that class or the sourcetype is not classifying correctly.\n\n## Step 2 — Create the search and alert\n\nThe core comparison is `observed_sha256 != baseline_sha256` joined on `asset_class`. The classification is the value-added layer:\n\n- **`commissioning_window`**: the asset is inside an approved commissioning grace period from `ot_change_window.csv`. Hash differences here are expected.\n- **`ticketed_change`**: the asset has an approved change ticket whose `implementation_window_open=true` covering it. Hash differences are evidence the change is being applied.\n- **`in_flight_review`**: the drift first appeared less than 15 minutes ago. This grace period absorbs the brief delay between when the change is applied and when the change ticket is moved to `approved+implementation_open` state.\n- **`unticketed_drift`**: everything else — the alarm case.\n\nSchedule:\n\n```ini\n[UC-22.51.6: OT System Configuration Baseline Drift Detection]\ncron_schedule = 5 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.6,reg=NCA_OTCC,clause=OTCC-2-3-1-1\naction.notable.param.rule_title = NCA OTCC unticketed configuration drift\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable creation only on `drift_classification=\"unticketed_drift\"`; the rest route to audit_evidence only.\n\n## Step 3 — Validate deployment\n\n**(a) Baseline coverage**:\n\n```spl\n| inputlookup ot_config_baselines\n| stats count by asset_class\n```\n\nEvery asset_class in the OT inventory must have at least one baseline. If a class is missing, the OT cybersecurity engineering team must publish one before this UC can detect drift for that class.\n\n**(b) Asset coverage**:\n\n```spl\nindex=ot_config_compliance earliest=-2h\n| stats dc(asset_key) AS observed_asset_count by asset_class\n| join asset_class type=left [| inputlookup ot_asset_inventory_lookup | stats count AS inventoried_assets by asset_class]\n| eval coverage_pct = round(100 * observed_asset_count / inventoried_assets, 1)\n| where coverage_pct < 95\n```\n\nAny asset_class with <95% coverage means the baseline agent is not reporting from some assets. Coordinate with OT cybersecurity engineering.\n\n**(c) Positive control**: per the `controlTest.positiveScenario`. Confirm the drift surfaces within one hourly cycle as `unticketed_drift`.\n\n**(d) Negative control**: per `controlTest.negativeScenario`. Confirm classification is `ticketed_change` and no notable is created.\n\n**(e) Hash-integrity check**: the `ot_config_baselines` KV Store should never have two rows for the same asset_class with conflicting `baseline_sha256`:\n\n```spl\n| inputlookup ot_config_baselines\n| stats dc(baseline_sha256) AS hashes by asset_class\n| where hashes > 1\n```\n\nNon-empty result means duplicate baselines were published — the publish workflow has a bug; halt and investigate.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Configuration Drift`.\n\n- **Row 1 — single values**: 'Open unticketed drifts' (red ≥1, gold = 0); 'Average drift age (hours)'; 'Asset classes without baseline' (red ≥1).\n- **Row 2 — sortable table**: every open drift in the last 24h. Columns: `asset_key`, `asset_class`, `baseline_id`, `drifted_paths_or_keys`, `change_ticket_id`, `drift_classification`, `drift_age_seconds`. Drilldown to the baseline manifest in KV Store.\n- **Row 3 — Sankey**: distribution of drifts by classification per week, last 13 weeks. Tells the steering committee whether ticketing discipline is improving (more drifts in `ticketed_change`, fewer in `unticketed_drift`).\n- **Row 4 — trend**: 90-day timechart by `asset_class` of count of drifts. Highlights problematic asset classes.\n\n**Runbook for an `unticketed_drift` alert** (owner: OT cybersecurity programme manager, with OT engineering on-call):\n\n1. Within 4 hours: pull the drift row from the dashboard. Identify which files / keys changed.\n2. Look up the asset in the CMDB; identify the asset owner and the latest change ticket on that asset (regardless of approval state).\n3. If the change was applied by an engineer without a ticket: open a P3 governance ticket against the engineer's manager; the engineer must retrospectively raise the change ticket for evidence.\n4. If the change was applied by an automated process (Group Policy, configuration management tool): identify the automation and update the baseline to reflect the now-current state, or fix the automation to align with the baseline.\n5. If the change is unexplained: declare a P2 IR. Possible root causes: lateral movement from a compromised host, malware modifying configuration, insider tampering.\n6. Update the OT cybersecurity programme RAID log.\n\n**Monthly drift report** (owner: Head of OT Security): produce a PDF of all `unticketed_drift` and `ticketed_change` rows for the prior month, signed-off, and filed for the OTCC evidence pack.\n\n## Step 5 — Troubleshooting\n\n**Every hourly cycle reports the same drift for the same asset** — the asset has a pending unticketed change that no-one is fixing. Either remediate the drift (revert configuration), publish a new baseline that includes the drift (only if cybersecurity-engineering approve), or formally accept the risk in `otcc_22_51_6_exceptions` with a 30-day max grant.\n\n**`observed_sha256` is always null** — the baseline agent's event does not contain a hash. Inspect the raw event; either configure the agent to compute the hash (Tenable.ot supports SHA-256 via `compute_hash=true` on the Baseline Check) or compute the hash at search-time from the file content.\n\n**Hash-comparison is case-sensitive but observed and baseline use different case** — some agents emit upper-case hex hashes, others lower-case. Normalise on both sides with `| eval observed_sha256 = lower(observed_sha256)` and `| eval baseline_sha256 = lower(baseline_sha256)`.\n\n**Drifts on Linux engineering workstations are missing despite the agent being deployed** — SELinux is blocking the agent from reading certain config directories. Inspect agent logs (`/var/log/messages` or `journalctl`); add the agent to the appropriate SELinux policy.\n\n**OT-specific failure modes**:\n\n- **PLC program archive vs runtime tag table**: many vendors expose two artefacts — the static program (the ladder logic + structured text) and the runtime tag table (live tag values). The baseline must hash the program archive only; the runtime tags will always drift.\n- **Boot-image vs application config**: some controllers separate firmware (boot image) from application (PLC program). Maintain two baselines per asset_class: `firmware_baseline` and `application_baseline`, hashed separately.\n- **SIS programming**: SIS application changes must follow Functional-Safety MOC (Management of Change) in addition to OT cybersecurity change-control. The drift detection MUST flag a SIS drift even if covered by cybersecurity change-control, because the safety MOC sign-off is the gating requirement.\n- **DCS application revision**: many DCS systems track 'revision' rather than 'hash'. The lookup must include both a hash AND a revision number; drift detection flags either condition.\n- **Vendor-locked controllers**: some legacy controllers (Modicon Quantum, Bristol Babcock RTUs) do not expose their configuration externally. Maintain manual quarterly attestation by the OT engineering team that the controller still matches the documented baseline; UC-22.51.6 detects no drift on these by design.",
+  "grandmaExplanation": "Every plant computer has a known-good setup that the engineers signed off on. We watch each one and ring the bell if the setup quietly changes without a ticket explaining why. Otherwise, slow drift over a year turns a safe plant into a soft target.",
+  "equipmentModels": [
+    "Tripwire Enterprise 8.x (FIM and baseline drift detection)",
+    "Tenable.ot 3.x (industrial configuration baseline scanning)",
+    "Tanium Comply (configuration compliance for IT-class OT endpoints)",
+    "Splunk Add-on for Tripwire (Splunkbase 1839)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, change framework)"
+  ]
+}

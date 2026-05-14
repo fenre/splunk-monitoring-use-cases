@@ -1,0 +1,134 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.2",
+  "title": "DPA + Ship Cyber Security Officer (CySO) + Alternate roster — 24x7 cyber-incident escalation cover with ISM-Code-grade availability monitoring",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes shore-based corporate officers not statutorily named (e.g. CEO, CFO). Excludes contracted PR firms.",
+  "evidence": "Saved search `UC-22.59.2` archived daily to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s2-4\"`. Every row pins (role, person_name, vessel_or_fleet_scope, on_call_window, contact_channels, last_heartbeat, heartbeat_age_minutes, gap_indicator).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s2-4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 2.4 of MSC-FAL.1/Circ.3 Rev.2 requires the Company to establish incident-response plans that include an escalation matrix from the Master through the DPA to the Cybersecurity Officer (CySO) and the Company Security Officer (CSO). This UC implements the 24x7 roster, heartbeat monitoring, and continuity-of-cover surveillance the matrix relies on.",
+      "controlObjective": "Demonstrates that there is always a named DPA + CySO + Alternate on call, reachable through the documented channels, with an audit-evidence trail for every escalation handover.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO DPA + CySO Roster Health` dashboard, the on-call heartbeat audit log.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s2-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-428-98-p1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "MSC.428(98) §1 affirms cyber as part of the SMS; the SMS's emergency-preparedness procedures require a continuously-available escalation chain.",
+      "controlObjective": "Proves emergency-cyber-readiness 24x7.",
+      "evidenceArtifact": "Same as primary clause.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-428-98-p1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Allow a gap in the DPA on-call rota where no Alternate is named for a 6-hour window. UC-22.59.2 MUST raise a `gap_indicator=true` notable within 30 minutes of the gap window opening.",
+    "negativeScenario": "Maintain DPA + Alternate continuous cover. UC-22.59.2 MUST record `gap_indicator=false` and `heartbeat_age_minutes < 60` for every role-row."
+  },
+  "dataSources": "KV Store `imo_dpa_cyso_roster_lookup` (role, person_name, vessel_or_fleet_scope, on_call_start, on_call_end, primary_phone, secondary_phone, sat_phone, satcom_email, last_heartbeat). PagerDuty / Opsgenie schedule events (sourcetype `pagerduty:schedule` / `opsgenie:schedule`). ServiceNow on-call records (`snow:cmn_rota_member`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 1875), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1875,
+      "name": "Splunk Add-on for PagerDuty",
+      "url": "https://splunkbase.splunk.com/app/1875",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup imo_dpa_cyso_roster_lookup\n| eval now_ts = now()\n| eval heartbeat_age_minutes = round((now_ts - last_heartbeat) / 60, 1)\n| eval in_window = if(now_ts >= on_call_start AND now_ts <= on_call_end, \"true\", \"false\")\n| stats values(person_name) as people, values(in_window) as in_window_vals, max(last_heartbeat) as latest_heartbeat by role, vessel_or_fleet_scope\n| eval heartbeat_age_minutes = round((now() - latest_heartbeat) / 60, 1)\n| eval covered = if(mvfind(in_window_vals, \"true\") >= 0, \"true\", \"false\")\n| eval gap_indicator = case(covered = \"false\", \"true\", heartbeat_age_minutes > 60, \"true\", 1=1, \"false\")\n| where gap_indicator = \"true\"\n| table role vessel_or_fleet_scope people latest_heartbeat heartbeat_age_minutes covered gap_indicator",
+  "description": "Surveils the DPA + CySO + Alternate on-call rota for continuous coverage and live heartbeat; raises a notable when the rota has a gap or any role's last heartbeat exceeds 60 minutes.",
+  "value": "If a cyber incident occurs and no DPA / CySO is reachable, the Master's escalation path is broken, the flag-State reporting clock starts late, and the company is exposed to a major-non-conformity finding at the next DoC verification. This UC closes the gap before it becomes an audit observation.",
+  "implementation": "(1) Seed `imo_dpa_cyso_roster_lookup` from the company's on-call platform (PagerDuty, Opsgenie, ServiceNow on-call). (2) Wire a heartbeat ping every 30 minutes from each on-call role's primary device (mobile app push-acknowledgement, sat-phone keep-alive). (3) Schedule UC-22.59.2 every 15 minutes; route any `gap_indicator=true` to the CISO + Head of Fleet Operations at severity P1.",
+  "visualization": "(Panel 1) Live coverage matrix (role x time-of-day) for the next 24 hours. (Panel 2) Heartbeat age distribution across all roles. (Panel 3) Historical gaps over the last 30 days. (Panel 4) On-call hand-over compliance score.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IMO Resolution MSC.428(98)",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428(98).pdf"
+    },
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 — Guidelines on maritime cyber risk management",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "BIMCO Guidelines on Cyber Security Onboard Ships",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    }
+  ],
+  "knownFalsePositives": "1. **Hand-over micro-gap**: a 5-minute hand-over window between outgoing and incoming on-call is normal; ignore gaps under 10 minutes. 2. **Sat-phone heartbeat delay**: vessels in poor satcom coverage may legitimately have a delayed heartbeat; pin tolerance to 90 minutes for vessels in `vessel_status=offshore` or `last_known_position` in known coverage holes. 3. **Public-holiday short-staffing**: pre-approved short-staff windows during major holidays are accepted via a holiday register.\n\n**Suppression mechanism**: KV Store `imo_22_59_2_exceptions` with the CISO's documented approval and a written justification.",
+  "requiredFields": [
+    "role",
+    "vessel_or_fleet_scope",
+    "latest_heartbeat",
+    "gap_indicator"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + DPA + Company Security Officer",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "pagerduty",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "PagerDuty Operations Cloud",
+    "Atlassian Opsgenie",
+    "ServiceNow ITSM (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (governance / availability)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- An on-call platform integrated via Splunk Add-on for PagerDuty / Opsgenie / ServiceNow.\n- A heartbeat-ping mechanism from each on-call device (push notification ack, sat-phone keep-alive).\n\n## Step 1 — Roster KV Store\n\n```ini\n[imo_dpa_cyso_roster_lookup]\nenforceTypes = true\nfield.role = string\nfield.person_name = string\nfield.vessel_or_fleet_scope = string\nfield.on_call_start = time\nfield.on_call_end = time\nfield.primary_phone = string\nfield.secondary_phone = string\nfield.sat_phone = string\nfield.satcom_email = string\nfield.last_heartbeat = time\nfield.heartbeat_source = string\n```\n\n## Step 2 — Heartbeat wiring\n\nEach on-call device must publish a heartbeat through the on-call app (PagerDuty mobile app push-acknowledgement, Opsgenie heartbeat ping) or a custom HEC event. The Splunk Add-on writes the latest heartbeat to the KV Store via `outputlookup`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.2: IMO DPA + CySO Roster Health]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.2,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-4\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`gap_indicator=true`** (owner: CISO + Head of Fleet Ops, severity P1): Within 30 minutes, restore coverage; within 24 hours, write a corrective-action note to the SMS audit log; at the next monthly governance meeting, present root cause.\n\n## Step 5 — Troubleshooting\n\n- **Sat-phone latency**: a vessel in deep-ocean satcom edge may take 60+ minutes for a heartbeat; tune per-vessel tolerance based on `last_known_position` and the company's satcom coverage map.\n- **Vessel without sat-phone**: rare but possible for inland-only operations; use VHF radio and a fall-back contact rather than the cyber roster.",
+  "grandmaExplanation": "When something goes wrong on a ship at any hour, there must always be someone ashore who can answer the phone and help. We watch the on-call schedule, ping each named person every 30 minutes, and ring the alarm if anyone goes missing or no-one is covering a shift."
+}

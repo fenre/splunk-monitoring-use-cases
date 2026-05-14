@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.13",
+  "title": "CIRCIA Third-Party Reporting Authorisation — IR firm, insurer, or MSSP may submit on the covered entity's behalf with written authority",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes the entity's own General-Counsel submissions (those are not 'third-party' submissions). Excludes informal IR-firm advisory communications (the report itself must be submitted by an authorised third party). Excludes purely advisory pre-submission reviews. Excludes routine MSSP detection alerts that have not reached the CIRCIA reporting threshold.",
+  "evidence": "Saved search `UC-22.54.13` archived every 30 minutes to `audit_evidence` with `circia_clause=\"CIRCIA-NPRM-third-party-reporting\"`. Every row pins (third_party_party_id, third_party_party_name, third_party_relationship, written_authority_doc_id, written_authority_signed_at, written_authority_signed_by, written_authority_expires_at, submission_id, submission_filed_by, submission_filed_at, authorisation_status). Dashboard `CIRCIA — Third-Party Reporting Authority` shows live submissions filed by IR firms / insurers / MSSPs and the authority chain.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-NPRM-third-party-reporting",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The NPRM § 226.13 permits a third party (IR firm, insurer, MSSP, legal counsel) to submit the CIRCIA report on the covered entity's behalf, provided the entity has issued written authority. The entity remains legally responsible for the report. Without an instrumented authority register, the entity cannot demonstrate that the submission was authorised and the General Counsel cannot defend against CISA RFI under § 681b(h). Marked 'full' because UC-22.54.13 operationalises the written-authority requirement directly.",
+      "controlObjective": "Proves every CIRCIA submission filed by a third party is backed by written authority from the covered entity, signed by an authorised officer, and within its validity window.",
+      "evidenceArtifact": "Saved search `UC-22.54.13` archived to `audit_evidence`, the `CIRCIA — Third-Party Reporting Authority` dashboard, the written-authority document store, and the submission-portal API audit trail.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-NPRM-third-party-reporting",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An IR firm files a submission via the CISA Services Portal using its own credentials with `submission_on_behalf_of=<entity>`. UC-22.54.13 MUST flag the submission with `authorisation_status=\"unauthorised\"` if no matching written-authority row exists in `circia_third_party_authority_lookup`, and route a notable to the General Counsel within 30 minutes.",
+    "negativeScenario": "The same IR firm files the same submission, but a valid written-authority row exists with `written_authority_signed_at` in the past, `written_authority_expires_at` in the future, and the IR firm's `third_party_party_id` matches. UC-22.54.13 MUST record `authorisation_status=\"authorised\"`."
+  },
+  "dataSources": "Written-authority register (KV Store `circia_third_party_authority_lookup`) populated by General Counsel intake workflow. CISA Services Portal submission audit trail (HEC `hec:circia:submission` with `submission_filed_by` and `submission_on_behalf_of` fields). ServiceNow Legal-Matter records (`snow:legal_matter`) for authority issuance / revocation. DocuSign / Adobe Sign HEC events confirming authority signing.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=audit_evidence sourcetype=\"hec:circia:submission\" submission_filed_by!=submission_on_behalf_of\n| eval submission_filed_at = _time\n| lookup circia_third_party_authority_lookup third_party_party_id AS submission_filed_by OUTPUT written_authority_doc_id written_authority_signed_at written_authority_signed_by written_authority_expires_at third_party_relationship\n| eval authorisation_status = case(\n    isnull(written_authority_doc_id), \"unauthorised\",\n    written_authority_signed_at > submission_filed_at, \"authority_signed_after_submission\",\n    isnotnull(written_authority_expires_at) AND written_authority_expires_at < submission_filed_at, \"authority_expired\",\n    1=1, \"authorised\")\n| where authorisation_status != \"authorised\"\n| table submission_id submission_filed_by submission_on_behalf_of submission_filed_at written_authority_doc_id written_authority_signed_at written_authority_signed_by written_authority_expires_at third_party_relationship authorisation_status",
+  "description": "Verifies that every CIRCIA submission filed by a third party on the covered entity's behalf is supported by an active, signed written-authority record. Surfaces unauthorised submissions, expired authorities, and authorities signed after the submission date.",
+  "value": "An unauthorised third-party submission creates two problems: (1) the entity may not even know a report was filed; (2) the entity remains legally responsible but cannot prove the submission represents its position. Without a written-authority register, the General Counsel learns of submissions retrospectively and the entity has no defence. This UC instruments the authority chain before, during, and after each submission.",
+  "implementation": "(1) Build the written-authority intake workflow in ServiceNow Legal-Matter; the General Counsel signs authority and the workflow records it to `circia_third_party_authority_lookup`. (2) DocuSign / Adobe Sign signing event HEC-emitted to `audit_evidence` with `sourcetype=hec:authority:signed`. (3) Schedule UC-22.54.13 every 30 minutes; route `authorisation_status != authorised` to General-Counsel notable. (4) Annual review removes expired authorities.",
+  "visualization": "(Panel 1) Active third-party authorities table: who, what relationship, validity window. (Panel 2) Recent submissions and authorisation status. (Panel 3) Unauthorised-submission queue. (Panel 4) Authority-expiry calendar showing upcoming renewals.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CISA NPRM — Third-Party Reporting (89 FR 23644 § 226.13)",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    },
+    {
+      "title": "CISA Cyber Incident Reporting — Third-Party Submission Guidance",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    }
+  ],
+  "knownFalsePositives": "1. **Standing-authority IR firm** — a long-term IR-retainer firm may have a standing authority with a long validity window; legitimate. Suppression: ensure the register row reflects the standing authority.\n\n2. **Insurer carrier of record** — the cyber-insurance carrier may have a perpetual reporting authority. Suppression: register row with `written_authority_expires_at` null or far-future; the SPL handles null.\n\n3. **Self-filing by GC routed through external counsel** — if external counsel files on behalf of GC, the authority comes via the engagement letter. Suppression: register row backed by engagement letter.\n\n**Suppression mechanism**: KV Store `circia_22_54_13_exceptions` with per-party grants requiring documented General Counsel approval and a 12-month maximum grant.",
+  "requiredFields": [
+    "submission_id",
+    "submission_filed_by",
+    "submission_on_behalf_of",
+    "authorisation_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + General Counsel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, third-party authority intake)",
+    "ServiceNow GRC + Legal Matter Management",
+    "DocuSign Cloud or Adobe Sign (signing-event HEC)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and authority-management workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1",
+    "UC-22.54.6"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow Legal-Matter (or equivalent) with intake workflow.\n- DocuSign Cloud or Adobe Sign with HEC integration.\n- KV Store `circia_third_party_authority_lookup`.\n\n## Step 1 — Define the authority collection\n\n```ini\n[circia_third_party_authority_lookup]\nenforceTypes = true\nfield.third_party_party_id = string\nfield.third_party_party_name = string\nfield.third_party_relationship = string\nfield.written_authority_doc_id = string\nfield.written_authority_signed_at = number\nfield.written_authority_signed_by = string\nfield.written_authority_expires_at = number\nfield.scope_description = string\nfield.entity_id = string\n```\n\n## Step 2 — Intake workflow\n\nGeneral Counsel signs the authority, DocuSign emits `envelope_completed` event to Splunk HEC. SOAR `circia-authority-intake` playbook normalises and writes to `circia_third_party_authority_lookup`.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.13: CIRCIA Third-Party Reporting Authorisation]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.13,reg=CIRCIA,clause=CIRCIA-NPRM-third-party-reporting\naction.notable.param.rule_title = CIRCIA submission filed by unauthorised third party\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Validate deployment\n\n**(a) Unauthorised-submission test**: simulate an IR-firm submission with `submission_filed_by=ir-firm-NOT-in-register`; UC-22.54.13 must alert within 30 minutes.\n\n**(b) Expired-authority test**: set `written_authority_expires_at` to yesterday; new submission must trip `authority_expired`.\n\n**(c) Standing-authority test**: register row with `written_authority_expires_at=null`; the SPL must record `authorised`.\n\n## Step 5 — Operationalize\n\n**Runbook for `unauthorised`** (owner: General Counsel, severity P1):\n\n1. Within 1 hour: contact the submitter to retract or ratify; if ratifying, issue retroactive authority. Document the gap and root-cause.\n\n**Runbook for `authority_expired`** (owner: General Counsel, severity P1):\n\n1. Within 1 business day: renew authority or repudiate the submission. Document.\n\n## Step 6 — Troubleshooting\n\n**Authority store not populated** — ServiceNow intake must complete to the Splunk KV Store; verify integration on each authority issuance.\n\n**Multiple parties on one authority** — list each party with its own row; do not group.\n\n**CIRCIA-specific failure modes**:\n\n- **Carrier sub-delegation**: the cyber-insurance carrier may sub-delegate to a panel IR firm; the entity must include the IR firm in the authority register.\n- **Carrier of record dispute**: if the carrier disputes the entity's repudiation, escalate to the General Counsel.\n- **Cross-jurisdictional authority**: an EU MSSP filing for a US entity may require US-residency authority in the engagement letter.",
+  "grandmaExplanation": "If our cyber-insurance company or incident-response firm files a report to the US cyber agency for us, we must have a signed letter saying they're allowed to. We keep a list of all such letters, when they were signed, and when they expire. Any report filed without a current letter rings a loud bell to our legal team."
+}

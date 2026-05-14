@@ -1,0 +1,99 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.20",
+  "title": "TSA-SD multi-modal log-retention, source-availability and audit_evidence retention surveillance",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes informational telemetry not in scope of TSA preservation. Excludes assets in decommission with documented retirement note.",
+  "evidence": "Saved search `UC-22.56.20` archived daily to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-multi-log-retention\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-log-retention",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA SDs require log preservation for forensic and inspector use. This UC surveys source-availability, retention conformance, and `audit_evidence` summary-index health.",
+      "controlObjective": "Proves source-availability across TSA-regulated logging assets and `audit_evidence` retention conforms to TSA inspection window.",
+      "evidenceArtifact": "Saved search, `TSA Log Source Health` dashboard, retention configuration audit.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-log-retention",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Stop the syslog forwarder on a TSA-critical asset. UC-22.56.20 MUST flag `source_status=silent` within 24h.",
+    "negativeScenario": "Restart forwarder; source resumes. UC-22.56.20 MUST NOT escalate."
+  },
+  "dataSources": "Splunk metadata (`| metadata type=hosts`, `| metadata type=sources`). TSA logging asset register (KV Store `tsa_log_source_lookup`). Splunk Distributed Management Console (DMC) for forwarder health.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup tsa_log_source_lookup\n| where tsa_in_scope=true\n| join type=left source [| metadata type=sources | stats latest(lastTime) as latest_event_time by source]\n| eval hours_since_event = round((now() - latest_event_time) / 3600, 1)\n| eval source_status = case(\n    isnull(latest_event_time), \"never_seen\",\n    hours_since_event > expected_silence_hours * 2, \"silent\",\n    hours_since_event > expected_silence_hours, \"degraded\",\n    1=1, \"healthy\")\n| where source_status IN (\"never_seen\",\"silent\",\"degraded\")\n| table facility_id source modality expected_silence_hours hours_since_event source_status owner",
+  "description": "Surveys TSA-regulated log sources for silence/degradation against per-source expected-silence baselines.",
+  "value": "TSA inspectors expect functioning log sources for the preservation window. Silent sources are findings.",
+  "implementation": "(1) Populate `tsa_log_source_lookup` with every TSA-relevant source and expected silence interval. (2) Schedule UC-22.56.20 daily. (3) Build the `TSA Log Source Health` dashboard.",
+  "visualization": "(Panel 1) Status by modality. (Panel 2) Silent-trend. (Panel 3) Owner-attribution. (Panel 4) Audit_evidence index lag.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "TSA SD cross-modal log preservation expectations",
+      "url": "https://www.tsa.gov/cybersecurity"
+    },
+    {
+      "title": "NIST 800-92 — Computer Security Log Management",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-92/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Maintenance windows**: scheduled maintenance produces silence. Pin via `tsa_22_56_20_exceptions` with `effective_until`.\n2. **Asset decommission lag**: ensure decommission updates the register.\n\n**Suppression mechanism**: KV Store `tsa_22_56_20_exceptions`.",
+  "requiredFields": [
+    "facility_id",
+    "source",
+    "modality",
+    "source_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + SOC Manager + Log Engineering",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk DMC"
+  ],
+  "mitreAttack": [
+    "T1562.008",
+    "T1070"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + KV Store `tsa_log_source_lookup`.\n\n## Step 1 — Define log-source register\n\n```ini\n[tsa_log_source_lookup]\nfield.facility_id = string\nfield.source = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.expected_silence_hours = number\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.20: TSA Log Source Health]\ncron_schedule = 51 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.20,reg=TSA-Surface,clause=TSA-SD-multi-log-retention\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`source_status=silent` on critical TSA source**: investigate within 4 hours; restore within 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Burst-mode sources**: certain OT logs are episodic; set `expected_silence_hours` generously.\n- **Decommissioned assets**: update register promptly.\n\n**TSA-specific failure modes**:\n- **Preservation order**: in active investigations, certain sources may be preservation-ordered; tag and exempt from rotation.",
+  "grandmaExplanation": "Every log feed we depend on must keep flowing. If one goes quiet, we catch it within a day so the inspector never asks why there's a gap."
+}

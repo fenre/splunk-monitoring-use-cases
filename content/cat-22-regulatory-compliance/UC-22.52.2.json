@@ -1,0 +1,116 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.2",
+  "title": "SOCI s 30AC CIRMP existence and material-risk completeness — evidence the program covers every required hazard family",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes hazards that have been formally accepted in the CIRMP risk-acceptance log with documented executive sign-off (these are tracked under UC-22.52.12). Excludes pre-Part-2A assets not yet declared in CIRMP scope. Excludes hazard families that the CISC has explicitly carved out of scope for this asset class (e.g. some food/grocery assets have a narrower hazard set).",
+  "evidence": "Saved search `UC-22.52.2` archived daily to `audit_evidence` with `soci_clause=\"SOCI-s30AC\"`. Every row pins (asset_id, asset_class, cirmp_version, hazard_family, covered, material_risks_count, last_reviewed_at, coverage_status, gap_description, board_approval_artefact). Dashboard `SOCI — CIRMP Coverage Map` shows the 4 mandatory hazard families per asset, a red/amber/green matrix, and an audit-ready CSV export for the Rule 10 annual report.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s30AC",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) that a written CIRMP exists for every in-scope asset and (b) that the CIRMP covers all 4 mandatory hazard families (cyber-and-information-security, personnel, supply-chain, physical-and-natural). Any uncovered family raises a notable within 24 hours. Combined with UC-22.52.12 (material-risk register currency) and UC-22.52.3 (annual review), this is sufficient evidence of s 30AC — hence 'full'.",
+      "controlObjective": "Proves that a documented CIRMP exists for every Part 2A asset and that the program identifies and addresses material risks across the 4 mandatory hazard families.",
+      "evidenceArtifact": "Saved search `UC-22.52.2` archived to `audit_evidence`, the `SOCI — CIRMP Coverage Map` dashboard, and the per-asset coverage attestation in the Rule 10 annual report — signed by the CISO and counter-signed by the accountable officer.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s30AC",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "In the CIRMP catalogue index, remove the `supply-chain` hazard family from one in-scope asset's CIRMP document. Within 24 hours UC-22.52.2 MUST flag the asset with `coverage_status=\"gap\"`, `hazard_family=\"supply-chain\"`, and route a notable to the CISO and the Head of CIRMP Programme.",
+    "negativeScenario": "Add the missing hazard family back with at least one documented material risk; UC-22.52.2 MUST record `coverage_status=\"covered\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "CIRMP documents catalogued in the entity's GRC system (ServiceNow GRC / RSA Archer / OneTrust), surfaced to Splunk via `index=grc sourcetype=\"snow:cirmp_register\"` or vendor-specific TA. CIRMP catalogue lookup `cirmp_catalogue_lookup` (asset_id → cirmp_document_id, cirmp_version, hazard_family_covered, last_reviewed_at, board_approval_artefact). In-scope asset lookup `soci_inscope_assets_lookup` (shared with UC-22.52.1).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| eval mandatory_hazards = split(\"cyber-and-information-security,personnel,supply-chain,physical-and-natural\", \",\")\n| mvexpand mandatory_hazards\n| rename mandatory_hazards AS hazard_family\n| lookup cirmp_catalogue_lookup asset_id hazard_family OUTPUT cirmp_document_id cirmp_version material_risks_count last_reviewed_at board_approval_artefact\n| eval covered = if(isnotnull(cirmp_document_id) AND coalesce(material_risks_count, 0) > 0, \"true\", \"false\")\n| eval coverage_status = case(\n    covered=\"true\" AND last_reviewed_at > relative_time(now(), \"-365d@d\"), \"covered\",\n    covered=\"true\" AND last_reviewed_at <= relative_time(now(), \"-365d@d\"), \"stale\",\n    1=1, \"gap\")\n| eval gap_description = case(\n    coverage_status=\"covered\", null(),\n    coverage_status=\"stale\", \"CIRMP exists but has not been reviewed in the last 12 months\",\n    isnull(cirmp_document_id), \"No CIRMP document linked for hazard family\",\n    1=1, \"CIRMP linked but no material risks recorded\")\n| table asset_id asset_class hazard_family covered coverage_status cirmp_document_id cirmp_version material_risks_count last_reviewed_at board_approval_artefact gap_description",
+  "description": "For every in-scope Part 2A asset, verifies a CIRMP document exists and that the program covers each of the 4 mandatory hazard families (cyber-and-information-security, personnel, supply-chain, physical-and-natural) with at least one documented material risk per family. Surfaces gaps and stale coverage.",
+  "value": "s 30AC is the central duty of Part 2A; without a CIRMP covering all 4 hazard families, every other CIRMP obligation collapses. The CISC routinely asks at first contact: 'Can you show me your CIRMP and tell me which hazards it covers?' This UC keeps the answer always-on. It is the single best proof of programme existence for the Rule 10 annual report.",
+  "implementation": "(1) Maintain `cirmp_catalogue_lookup` in the GRC system as the source of truth; the lookup carries one row per (asset_id, hazard_family) tuple with the latest CIRMP version, material-risk count, and review date. (2) Synchronise weekly from the GRC system into Splunk. (3) Schedule UC-22.52.2 daily; route `coverage_status IN (gap, stale)` to notable. (4) Archive every row to `audit_evidence` for the always-on positive evidence base.",
+  "visualization": "(Panel 1) Asset-by-hazard-family RAG matrix — rows are in-scope assets, columns are the 4 mandatory hazard families, cells are red/amber/green. (Panel 2) Sortable table: every `gap` or `stale` row in the last 365 days. (Panel 3) Trend: count of `gap` rows per quarter — must trend to zero by financial year end. (Panel 4) Coverage gauge: percentage of (asset, hazard_family) tuples in `covered` state.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure Act 2018 (Cth) — Part 2A (s 30AC duty to adopt a CIRMP)",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules (LIN 23/006) 2023",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    },
+    {
+      "title": "CISC — Critical Infrastructure Risk Management Program",
+      "url": "https://www.cisc.gov.au/legislation-regulation-and-compliance/critical-infrastructure-risk-management-program"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-acquired asset within grace period** — SOCI gives a 6-month onboarding window for newly-acquired in-scope assets. A new asset will show `gap` until its first CIRMP is published. Suppression: add to `soci_correction_window_lookup` with the grace expiry.\n\n2. **Hazard family deliberately scoped-out** — some asset classes (e.g. data-storage-and-processing) may have a narrower scope where one hazard family is explicitly out of scope. Suppression: extend the `mandatory_hazards` evaluation per asset class, sourced from the Rules' asset-class definitions.\n\n3. **GRC sync lag** — the weekly sync may lag the CIRMP document update. Suppression: trigger a one-shot sync on CIRMP-document publish and treat the previous-week snapshot as authoritative.\n\n4. **Material-risk count = 0 by acceptance** — a documented and signed risk-acceptance for a hazard family is also valid evidence; not the absence of risk. Suppression: extend `covered` evaluation to also allow `risk_acceptance_artefact` IS NOT NULL.\n\n**Suppression mechanism**: KV Store `soci_22_52_2_exceptions` per (asset_id, hazard_family) with documented executive sign-off; max grant 90 days.",
+  "requiredFields": [
+    "asset_id",
+    "hazard_family",
+    "covered",
+    "coverage_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (Vancouver / Washington, sn_grc tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_grc and sn_compliance modular inputs)",
+    "RSA Archer 6.x or OneTrust GRC (optional alternative GRC source)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + notable framework)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and programme-management workflow — measures CIRMP coverage, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928) OR a vendor-specific GRC TA (RSA Archer, OneTrust). The TA must surface the CIRMP-catalogue records into Splunk as either an index feed or a managed lookup.\n- `index=grc` (3-year retention online for trend analysis).\n- `index=audit_evidence` (7-year retention online).\n- Lookups:\n  - `soci_inscope_assets_lookup` (shared with UC-22.52.1).\n  - `cirmp_catalogue_lookup` — owned by the Head of CIRMP Programme. Columns: `asset_id`, `hazard_family` (one of the 4 mandatory values), `cirmp_document_id`, `cirmp_version` (semver), `material_risks_count`, `last_reviewed_at` (epoch), `board_approval_artefact` (URL to signed minutes), `risk_acceptance_artefact` (URL, if applicable).\n- ES notable framework configured with `audit` or `compliance` security domain.\n- The CIRMP itself is a document outside Splunk; what Splunk sees is the catalogue index. The catalogue index is the contract.\n\n## Step 1 — Configure data collection\n\nMaintain `cirmp_catalogue_lookup` as a managed lookup, synchronised weekly from the GRC system. The simplest pattern using ServiceNow GRC:\n\n```ini\n[snow://sn_grc_policy_statement]\nendpoint = https://<instance>.service-now.com/api/now/table/sn_grc_policy_statement\nquery = sys_class_name=sn_grc_cirmp\ninterval = 86400\nindex = grc\nsourcetype = snow:cirmp_register\nfield_mapping = u_asset_id:asset_id,u_hazard_family:hazard_family,sys_id:cirmp_document_id,u_version:cirmp_version,u_material_risks_count:material_risks_count,u_last_reviewed_at:last_reviewed_at,u_board_approval_url:board_approval_artefact\n```\n\nThen a daily summary materialises the lookup:\n\n```spl\nindex=grc sourcetype=snow:cirmp_register earliest=-1d@d\n| dedup asset_id hazard_family sortby - _time\n| table asset_id hazard_family cirmp_document_id cirmp_version material_risks_count last_reviewed_at board_approval_artefact risk_acceptance_artefact\n| outputlookup cirmp_catalogue_lookup\n```\n\nValidate:\n\n```spl\n| inputlookup cirmp_catalogue_lookup\n| stats count by hazard_family\n```\n\nA 4-row result (one per mandatory hazard family) confirms the catalogue covers the full hazard model.\n\n## Step 2 — Create the search and alert\n\nThe search is materialised entirely from lookups — no event-search load. The cross product of in-scope assets and mandatory hazard families is evaluated against the CIRMP catalogue. Missing tuples are `gap`; tuples with stale `last_reviewed_at` are `stale`.\n\nSchedule:\n\n```ini\n[UC-22.52.2: SOCI s 30AC CIRMP existence and material-risk completeness]\ncron_schedule = 15 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.2,reg=SOCI,clause=SOCI-s30AC\naction.notable.param.rule_title = SOCI s 30AC CIRMP coverage gap detected\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable creation on `coverage_status IN (gap, stale)`; archive every row including `covered` to `audit_evidence`.\n\n## Step 3 — Validate deployment\n\n**(a) Catalogue completeness**: every in-scope asset should appear in the catalogue:\n\n```spl\n| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup cirmp_catalogue_lookup asset_id OUTPUT cirmp_document_id\n| stats count(eval(isnull(cirmp_document_id))) AS missing count AS total by asset_class\n```\n\n`missing>0` is a P1 compliance gap.\n\n**(b) Hazard-family coverage**:\n\n```spl\n| inputlookup cirmp_catalogue_lookup\n| stats values(hazard_family) AS covered_families by asset_id\n| eval missing = mvfilter(NOT match(mvappend(\"cyber-and-information-security\",\"personnel\",\"supply-chain\",\"physical-and-natural\"), \"^(\" . mvjoin(covered_families,\"|\") . \")$\"))\n| where mvcount(missing)>0\n```\n\n**(c) Positive control**: temporarily remove an entry from the CIRMP catalogue. UC-22.52.2 must flag the resulting gap within the next daily run.\n\n**(d) Negative control**: re-add the entry with all required fields. The next run must not flag.\n\n**(e) Quarterly attestation**: the CISO signs a quarterly attestation that the catalogue accurately reflects the live CIRMP documents — filed in `audit_evidence` with `attestation=true`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — CIRMP Coverage Map`. Built for the CISO, the Head of CIRMP Programme, and the Department.\n\n- **Panel 1, asset-by-hazard-family matrix**: rows are in-scope assets (grouped by asset class), columns are the 4 hazard families, cells are colour-coded by `coverage_status`.\n- **Panel 2, sortable table**: every `gap` or `stale` row with drill-through to the GRC record.\n- **Panel 3, time chart**: count of gaps per quarter — should trend to zero.\n- **Panel 4, gauge**: percentage of (asset, hazard_family) tuples in `covered` state. The CIRMP steering KPI is 100%.\n- **Panel 5, breakdown by asset class**: which asset classes contribute most gaps?\n\n**Runbook for `coverage_status=gap`** (owner: Head of CIRMP Programme, severity P1):\n\n1. Within 5 business days: identify whether the gap is (a) genuine — the CIRMP truly does not cover this hazard — or (b) catalogue lag — the CIRMP covers it but the catalogue is out of sync.\n2. If genuine: open a CIRMP-update workstream to add the missing hazard family with at least one identified material risk and at least one mitigation. Target close within 90 days.\n3. If catalogue lag: update the catalogue and document the cause; if the catalogue lag is recurring, fix the underlying GRC integration.\n4. Document the case in the SOCI compliance steering committee agenda and ensure it appears in the Rule 10 annual report.\n\n**Runbook for `coverage_status=stale`** (owner: Head of CIRMP Programme, severity P3):\n\n1. Within 30 business days: complete the annual review (driven by UC-22.52.3).\n2. Update `last_reviewed_at` in the catalogue.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty for one asset class** — the GRC modular input is filtered too narrowly; check the `query` parameter.\n\n**All hazard families show as `gap`** — the hazard-family enumeration uses different strings between catalogue and lookup. Standardise on the 4 canonical strings in the Rules.\n\n**`cirmp_version` is null** — catalogue ingestion is dropping the field. Add explicit `field_mapping` for it.\n\n**Stale dates show as 1970** — epoch conversion bug. Confirm the source field is epoch-seconds, not ISO-8601, or transform.\n\n**SOCI-specific failure modes**:\n\n- **Multi-asset CIRMP**: an entity may run one CIRMP that covers multiple assets within the same class. Catalogue rows must be granular at (asset_id, hazard_family) but reference the same `cirmp_document_id`.\n- **Sector-specific Departments**: ASD-administered sectors (energy, water, communications) report to the relevant Commonwealth regulator, not Home Affairs. Reporting cadence and format differ; the dashboard must filter by regulator.\n- **Group-level CIRMP rollups**: a parent entity may roll multiple subsidiaries' CIRMPs into a group submission. Catalogue must record the rollup relationship.",
+  "grandmaExplanation": "We make sure every one of our most important systems has a written plan describing the dangers it faces — cyber attacks, dishonest insiders, dodgy suppliers, fires, and floods — and what we do about each one. If a plan is missing a danger type or hasn't been updated this year, we ring the bell."
+}

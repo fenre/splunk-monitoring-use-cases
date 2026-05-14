@@ -1,0 +1,123 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.12",
+  "title": "Wireless Access Controls and Rogue-AP Detection on OT Networks",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes corporate IT WiFi networks not adjacent to OT zones. Excludes radio-frequency telemetry channels operating in unlicensed industrial bands (902-928 MHz, 2.4 GHz LoRa) which are governed by physical security and protocol-specific UCs. Excludes deliberately-air-gapped OT zones with WiFi disabled at the chip level on every device.",
+  "evidence": "Saved search `UC-22.51.12` archived hourly to `audit_evidence` with `otcc_clause=\"OTCC-2-5-2-1\"`. Each row preserves (ap_mac, ap_location, ssid, security_protocol, encryption_strength, channel, observed_at, classification, expected_ap_flag, weak_crypto_flag, rogue_ap_flag, unauthorised_client_flag, client_mac, client_user). Dashboard `NCA OTCC – Wireless Controls` shows the rogue-AP map, weak-encryption AP list, and 13-month trend.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-2-5-2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evaluates every observed AP against the authoritative wireless inventory, classifies any unknown AP as rogue, surfaces APs with weak crypto, and flags unauthorised clients. Combined with periodic active wireless surveys filed via `index=audit_evidence`, this satisfies the wireless-control evidence requirement.",
+      "controlObjective": "Proves wireless access to OT environments is strictly controlled: only authorised access points operate within OT zones, use strong encryption (WPA3-Enterprise or WPA2-Enterprise), and accept only authenticated authorised clients.",
+      "evidenceArtifact": "Saved search `UC-22.51.12` archived to `audit_evidence` plus the `NCA OTCC – Wireless Controls` dashboard. Quarterly wireless-control report signed by Head of OT Security and Plant OT Engineering Manager, filed for NCA inspection.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-2-5-2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set up a test SSID `OT-LAB-ROGUE` from a portable hotspot inside the OT-zone surveillance area. Within one hour UC-22.51.12 MUST flag the AP with `rogue_ap_flag=true`, route an alert to the OT cybersecurity programme manager and SOC, and archive the row.",
+    "negativeScenario": "An authorised OT-WLAN AP broadcasting an approved SSID with WPA3-Enterprise must NOT be flagged."
+  },
+  "dataSources": "Cisco Catalyst 9800 Wireless LAN Controller via Splunk Add-on for Cisco WLC (`cisco:wlc:event`), Aruba ClearPass / Aruba Mobility Controller (`aruba:clearpass:event`, `aruba:mobility:event`), Cisco Meraki Cloud (`meraki:event`, `meraki:rogues`), Fortinet FortiGate Wireless Detection (`fortinet:event`). Lookups: `wireless_ap_inventory.csv` (authoritative SSID/MAC inventory), `wireless_authorized_clients.csv`, `wireless_zone_map.csv` (physical-zone to broadcast-area mapping).",
+  "app": "Splunk Add-on for Cisco WLC (Splunkbase 4242), Splunk Add-on for Cisco Meraki (Splunkbase 5046), Splunk Add-on for Aruba (Splunkbase 1969), Splunk Add-on for Fortinet (Splunkbase 2846), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 4242,
+      "name": "Splunk Add-on for Cisco WLC",
+      "url": "https://splunkbase.splunk.com/app/4242",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5046,
+      "name": "Splunk Add-on for Cisco Meraki",
+      "url": "https://splunkbase.splunk.com/app/5046",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=wireless (sourcetype IN (\"cisco:wlc:event\",\"meraki:rogues\",\"aruba:mobility:event\",\"fortinet:event\")) (event_class=\"ap_observed\" OR action=\"rogue\" OR alert_type IN (\"rogue_ap\",\"unauth_ssid\")) earliest=-2h@h\n| eval ap_mac=coalesce(ap_mac, bssid, rogue_mac, mac)\n| eval ssid=coalesce(ssid, rogue_ssid, network_name)\n| eval channel=coalesce(channel, channel_id)\n| eval encryption_strength=coalesce(encryption, security_protocol)\n| lookup wireless_ap_inventory.csv ap_mac OUTPUT expected_ssid expected_zone expected_encryption authorised_flag\n| eval expected_ap_flag = coalesce(authorised_flag, \"false\")\n| eval weak_crypto_flag = if(encryption_strength NOT IN (\"WPA3-Enterprise\",\"WPA3-Personal\",\"WPA2-Enterprise\") OR encryption_strength=\"open\", \"true\", \"false\")\n| eval rogue_ap_flag = case(\n    expected_ap_flag=\"false\" AND match(channel, \"^\\d+$\"), \"true\",\n    1=1, \"false\")\n| lookup wireless_zone_map.csv ap_mac OUTPUT ap_location plant\n| join ssid type=left [search index=wireless sourcetype IN (\"cisco:wlc:event\",\"aruba:clearpass:event\") action=\"associate\" earliest=-2h@h | dedup client_mac ssid | table client_mac client_user ssid]\n| lookup wireless_authorized_clients.csv client_mac OUTPUT client_authorised_flag\n| eval unauthorised_client_flag = if(isnotnull(client_mac) AND coalesce(client_authorised_flag,\"false\")=\"false\", \"true\", \"false\")\n| where rogue_ap_flag=\"true\" OR weak_crypto_flag=\"true\" OR unauthorised_client_flag=\"true\"\n| stats earliest(_time) AS observed_at latest(channel) AS channel latest(encryption_strength) AS encryption_strength latest(client_mac) AS client_mac latest(client_user) AS client_user latest(plant) AS plant latest(ap_location) AS ap_location BY ap_mac ssid expected_ap_flag weak_crypto_flag rogue_ap_flag unauthorised_client_flag\n| table observed_at ap_mac ssid ap_location plant channel encryption_strength expected_ap_flag weak_crypto_flag rogue_ap_flag client_mac client_user unauthorised_client_flag\n| sort - rogue_ap_flag weak_crypto_flag unauthorised_client_flag observed_at",
+  "description": "Continuously evaluates wireless AP observations from OT-area wireless infrastructure against the authoritative AP inventory, surfaces rogue APs, APs with weak crypto, and unauthorised clients associating with OT WLANs.",
+  "value": "Wireless attacks against OT environments are increasing — portable hotspots inside OT areas, weak-crypto OT WLANs that an attacker can crack, and unauthorised clients connecting to operational SSIDs. NCA OTCC inspectors will perform an active wireless survey during the audit and compare against this UC's continuous evidence trail. A 'no rogue APs were ever detected' claim that is not backed by continuous monitoring will fail.",
+  "implementation": "(1) Onboard wireless LAN controller event feeds from each vendor in scope (Cisco WLC, Aruba, Meraki, Fortinet). (2) Maintain `wireless_ap_inventory.csv` from the authoritative AP commissioning records. (3) Maintain `wireless_authorized_clients.csv` from the MDM and the engineering laptop register. (4) Maintain `wireless_zone_map.csv` from the plant facility/zoning records. (5) Schedule UC-22.51.12 hourly. Route `rogue_ap_flag=true` to ES notable.",
+  "visualization": "(Panel 1) Single-value 'Rogue APs detected in 24h'. (Panel 2) Map (or table) of rogue APs by plant location. (Panel 3) AP list with weak crypto. (Panel 4) Unauthorised-client table with `client_mac`, `client_user`, `ssid`. (Panel 5) 13-month trend of rogue-AP detections.",
+  "cimModels": [
+    "Network_Traffic",
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "Wi-Fi Alliance — WPA3 specification",
+      "url": "https://www.wi-fi.org/discover-wi-fi/security"
+    },
+    {
+      "title": "Cisco — Catalyst 9800 WLC rogue AP detection guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/17-3/config-guide/b_wl_17_3_cg/m_rogue_management.html"
+    }
+  ],
+  "knownFalsePositives": "1. **Neighbour office WLAN reaching OT zone** — a non-OT WLAN from an adjacent business unit may bleed into OT area. Suppression: maintain `wireless_neighbour_ssids.csv` listing those SSIDs; treat as informational rather than rogue.\n\n2. **Mobile hotspot from authorised vendor engineer** — a vendor on site with a corporate-issued mobile hotspot may register temporarily. Suppression: time-bound entries in `wireless_ap_inventory.csv` with `vendor_engagement_ref` and `expires_at`.\n\n3. **WLC failover during maintenance** — controller failover briefly leaves APs reporting `unknown` while re-associating. Suppression: extend the search window to absorb ≤5 minutes of failover; track WLC maintenance windows in `wlc_maintenance_log.csv`.\n\n4. **Bluetooth-classic devices misclassified** — some WLC scans mis-identify a Bluetooth device as a low-power WiFi AP. Suppression: filter by `tx_power_dbm < -75` to drop very-low-power scan results.\n\n**Suppression mechanism**: KV Store `otcc_22_51_12_exceptions` keyed on `ap_mac` with `expires_at`, `reason`, `approved_by`.",
+  "requiredFields": [
+    "ap_mac",
+    "ssid",
+    "observed_at",
+    "encryption_strength"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "cisco",
+    "aruba"
+  ],
+  "mitreAttack": [
+    "T1200",
+    "T1557.002"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- One or more wireless TAs depending on vendor in use: Cisco WLC (Splunkbase 4242), Cisco Meraki (Splunkbase 5046), Aruba (Splunkbase 1969), Fortinet (Splunkbase 2846), Juniper Mist via REST modular input.\n- Wireless controllers configured to publish:\n  - Periodic AP scan results (the WLC's own AP scanning every channel every few seconds, also called \"WIDS\" — wireless intrusion detection).\n  - Client association/disassociation events with `client_mac`, `client_user` (where 802.1X is in use), `ssid`.\n  - Rogue-AP classification events from the controller's built-in rogue detection.\n- Active wireless surveys quarterly per plant: handheld spectrum-analyser walkthroughs whose results are filed into `audit_evidence` for inspector traceability (the spectrum analyser proves coverage of physical areas the AP-based scans cannot see).\n- `index=wireless` (24-month retention), `index=audit_evidence` (already provisioned).\n- Lookups:\n  - `wireless_ap_inventory.csv` — owned by Plant Network Engineering. Columns: `ap_mac`, `expected_ssid`, `expected_zone`, `expected_encryption`, `authorised_flag`, `vendor_engagement_ref`, `expires_at`, `installation_change_ticket`.\n  - `wireless_authorized_clients.csv` — owned by IT Endpoint team. Columns: `client_mac`, `client_user`, `device_owner`, `expires_at`. Refreshed daily from MDM.\n  - `wireless_zone_map.csv` — owned by Plant Facilities. Columns: `ap_mac`, `ap_location`, `plant`, `purdue_level`.\n  - `wireless_neighbour_ssids.csv` — documented neighbour SSIDs not to flag.\n  - KV Store `otcc_22_51_12_exceptions`.\n\n## Step 1 — Configure data collection\n\nCisco Catalyst 9800 WLC — syslog destination plus REST polling:\n\n```ini\n[cisco_wlc://wireless_events]\nendpoint = https://wlc.example.com\napi_version = wlc/16.12\nindex = wireless\nsourcetype = cisco:wlc:event\ninterval = 600\n```\n\nMeraki Cloud — the Splunk Add-on uses the Dashboard API:\n\n```ini\n[meraki://network_events]\norganization_id = <org-id>\napi_key = <key-vault-reference>\nindex = wireless\nsourcetype = meraki:event\ninterval = 600\n```\n\nMeraki also exposes a dedicated `rogues` collection. Configure the rogues stanza separately for the most reliable rogue classification.\n\nAruba ClearPass + Mobility Controller — syslog + REST.\n\nValidate:\n\n```spl\nindex=wireless earliest=-1d\n| stats count by sourcetype event_class\n```\n\nThe `ap_observed` and `client_associate` event classes should both appear.\n\nVolume guidance: a 30-AP OT WLAN at one plant generates ~50k–200k events/day; license impact ~50–150 MB/day.\n\n## Step 2 — Create the search and alert\n\nThe search merges three streams:\n\n1. AP-observed events (the WLC's own scan output) plus rogue events from Meraki.\n2. Client association events for the join on `(client_mac, ssid)`.\n3. Inventory and authorised-client lookups for classification.\n\nThe three flags are independent:\n- `rogue_ap_flag` = true when the AP is not in the authoritative inventory.\n- `weak_crypto_flag` = true when encryption is not WPA3-Enterprise/Personal or WPA2-Enterprise (WPA2-Personal is sometimes acceptable in non-critical OT zones; tune the list to local policy).\n- `unauthorised_client_flag` = true when a client associates whose MAC is not in `wireless_authorized_clients.csv`.\n\nThe search collapses to one row per AP+SSID combination across the 2-hour window to avoid alert storms on repeating scan events.\n\n**Schedule**:\n\n```ini\n[UC-22.51.12: Wireless Access Controls and Rogue-AP Detection on OT Networks]\ncron_schedule = 15 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.12,reg=NCA_OTCC,clause=OTCC-2-5-2-1\naction.notable.param.rule_title = NCA OTCC unauthorised wireless on OT\naction.notable.param.security_domain = network\naction.notable.param.severity = high\naction.email.to = ot-cyber-programme@example.com,plant-network-engineering@example.com\nalert.severity = 4\n```\n\nNotable creation on `rogue_ap_flag=true`. The two other flags route via email + audit_evidence; both are persistent governance issues rather than acute investigations.\n\n## Step 3 — Validate deployment\n\n**(a) Controller telemetry**:\n\n```spl\nindex=wireless earliest=-1d\n| stats count by sourcetype\n```\n\nZero from a vendor in scope indicates the TA is broken.\n\n**(b) Inventory health**:\n\n```spl\n| inputlookup wireless_ap_inventory.csv\n| eval expired=if(strptime(expires_at, \"%Y-%m-%d\") < now() AND isnotnull(expires_at), \"yes\", \"no\")\n| stats count by expired authorised_flag\n```\n\nThe `expired=yes AND authorised_flag=true` count should be zero.\n\n**(c) Positive control**: per `controlTest.positiveScenario`. Confirm alert within one hour.\n\n**(d) Negative control**: per `controlTest.negativeScenario`. Confirm no flag.\n\n**(e) Quarterly active survey reconciliation**: confirm that the quarterly spectrum-analyser survey results in `audit_evidence` contain the same set of APs the WIDS sees:\n\n```spl\nindex=audit_evidence sourcetype=ot:wireless:survey earliest=-3mon@mon\n| stats values(ap_mac) AS survey_aps by plant\n| append [\n  index=wireless earliest=-3mon@mon event_class=ap_observed\n  | stats values(ap_mac) AS wids_aps by plant\n]\n| stats values(*) AS *_all by plant\n```\n\nThe set difference reveals APs the WIDS sees but the human survey did not, and vice versa.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Wireless Controls`.\n\n- **Row 1, single values**: 'Rogue APs in 24h', 'APs with weak crypto', 'Unauthorised clients in 24h'.\n- **Row 2, map/table**: rogue APs by plant location with drill-through to the AP-observation event detail.\n- **Row 3, table**: APs with weak crypto by SSID. Should be empty.\n- **Row 4, sortable table**: unauthorised clients with src_user and association timeline.\n- **Row 5, 13-month trend**: count of flags by flag type. Steering-committee KPI.\n\n**Runbook for `rogue_ap_flag=true`** (owner: OT cybersecurity programme manager and Plant Network Engineering):\n\n1. **Within 1 hour**: determine the physical location using the strongest-RSSI AP that detected the rogue. Triangulate to a plant zone.\n2. **Physical sweep**: dispatch Plant Network Engineering with a directional antenna to locate the rogue.\n3. **If located and unauthorised**: confiscate the device. If a vendor or contractor brought it, log against their engagement and open a P2 ticket against their company.\n4. **If located and authorised (e.g. forgotten commissioning AP)**: add to `wireless_ap_inventory.csv` or remove the device per the asset disposition register.\n5. **If unable to locate within 24 hours**: escalate to OT cybersecurity director; consider RF jamming countermeasures only with regulatory and safety MOC approval.\n\n## Step 5 — Troubleshooting\n\n**No rogue APs ever detected** — either the OT environment has truly no nearby WLAN activity (rare in modern facilities) or WIDS is misconfigured. Confirm Catalyst 9800 has `wireless wps rogue ap rldp` enabled, or for Meraki that 'Air Marshal' is in 'monitor' or 'auto-contain' mode.\n\n**`encryption_strength` is `unknown` for many APs** — the WLC's scan results may not parse the security IE bits for some APs (particularly newer WPA3 variants). Upgrade WLC firmware; if persistent, treat `unknown` as `weak_crypto_flag=true` until verified.\n\n**Client-association events lack `client_user`** — the AP is configured for open or WPA2-PSK rather than 802.1X. The `client_user` is only available for 802.1X-authenticated networks. For OT WLANs, OTCC strongly implies 802.1X; an OT WLAN with PSK is itself a governance finding.\n\n**OT-specific failure modes**:\n\n- **Industrial AP-WiFi vendors with non-standard MIBs**: some industrial APs (Phoenix Contact, Moxa) ship with proprietary management APIs not covered by mainstream TAs. Use SNMP polling via the Splunk Add-on for SNMP, mapping the proprietary MIBs to standard event fields.\n- **Roaming AP that appears 'new' as it joins a different controller**: in a multi-WLC OT estate, the same AP may register against different controllers during failover; reconcile by AP serial rather than just MAC.\n- **Visitor/contractor hotspots in OT-DMZ areas**: even on the OT-DMZ side, hotspot use is governed by this UC. Make the runbook explicit that contractor hotspots must be approved through OT cybersecurity engineering before being brought to site.\n- **Wireless-enabled tablets used as HMI**: industrial tablets (e.g. Allen-Bradley VersaView) running an HMI on WiFi to a back-haul AP must be inventoried; otherwise the tablet appears as an unauthorised client. Add `client_mac` to the authorised-clients lookup as part of the commissioning runbook.",
+  "grandmaExplanation": "We listen for any WiFi networks at the plant. If a new WiFi shows up that we did not install, or an old one uses weak security, or someone connects we did not expect, we ring the bell.",
+  "equipmentModels": [
+    "Cisco WLC AireOS 8.10+ / Catalyst 9800 17.x (wireless authentication + WIPS events)",
+    "Cisco Meraki MR series (wireless access logs via Meraki Dashboard API)",
+    "Aruba ClearPass 6.x / AOS-CX (wireless authentication events)",
+    "Splunk Add-on for Cisco WLC (Splunkbase 4242)",
+    "Splunk Add-on for Cisco Meraki (Splunkbase 5046)"
+  ]
+}

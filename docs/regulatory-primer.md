@@ -18,9 +18,9 @@
 1. [How to read this primer](#1-how-to-read-this-primer)
 2. [Legend and terminology](#2-legend-and-terminology)
 3. [Cross-cutting regulatory families (22.35 – 22.49)](#3-cross-cutting-regulatory-families-2235--2249)
-4. [Tier-1 regulation deep dives](#4-tier-1-regulation-deep-dives) — 11 in-depth entries
+4. [Tier-1 regulation deep dives](#4-tier-1-regulation-deep-dives) — 12 tier-1 + 1 tier-2 (NCA OTCC) in-depth entries
 5. [Derivative regulations (propagated via `derivesFrom`)](#5-derivative-regulations-propagated-via-derivesfrom)
-6. [Appendix A — All 34 per-regulation subcategories at a glance](#appendix-a--all-34-per-regulation-subcategories-at-a-glance)
+6. [Appendix A — Per-regulation subcategories at a glance](#appendix-a--per-regulation-subcategories-at-a-glance)
 7. [Appendix B — Data-protection / privacy regulations worldwide](#appendix-b--data-protection--privacy-regulations-worldwide)
 8. [Appendix C — Glossary](#appendix-c--glossary)
 9. [Appendix D — Provenance and authoritative sources](#appendix-d--provenance-and-authoritative-sources)
@@ -38,8 +38,8 @@ programmes think:
   tampered with?" or "can you demonstrate that breach notifications were sent
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
-- **By regulation** — 11 tier-1 frameworks covered deeply, plus 34 per-regulation
-  subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 56
+- **By regulation** — 15 tier-1 frameworks covered deeply, plus 34 per-regulation
+  subcategories (cat-22 subcategories 22.1 through 22.34) and an additional 58
   tier-2 frameworks in the appendix. Regulation-level reading is the right
   choice when you are answering a specific audit, mapping against a specific
   RFP, or preparing a regulator response.
@@ -63,8 +63,8 @@ referenced in [Appendix D](#appendix-d--provenance-and-authoritative-sources).
 
 | Badge | Meaning |
 |-------|---------|
-| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 11 frameworks; see `api/v1/compliance/coverage.json`. |
-| `T2`  | **Tier 2** — authored to meaningful partial coverage; 56 frameworks including all 5 derivative privacy regulations. |
+| `T1`  | **Tier 1** — a top-priority regulation the catalogue targets at 100% common-clauses coverage. 15 frameworks; see `api/v1/compliance/coverage.json`. |
+| `T2`  | **Tier 2** — authored to meaningful partial coverage; 58 frameworks including all 5 derivative privacy regulations. |
 | `T3`  | **Tier 3** — referenced or meta-frameworks; 2 today (`meta-multi`, `ferc-cip`). |
 
 ### Assurance levels
@@ -1193,6 +1193,605 @@ when WPA3-Enterprise is in scope.
 
 ---
 
+### 4.13 NCA OTCC — Saudi OT Cybersecurity Controls (KSA) · `T2`
+
+**Regulation:** *Operational Technology Cybersecurity Controls
+(OTCC-1:2022)*, published by Saudi Arabia's
+[National Cybersecurity Authority (NCA)](https://nca.gov.sa/en/regulatory-documents/controls-list/3).
+OTCC sits alongside the NCA *Essential Cybersecurity Controls (ECC-1:2018)*
+and *Critical Systems Cybersecurity Controls (CSCC-1:2019)* but applies
+specifically to operational technology — industrial control systems,
+SCADA, distributed control systems (DCS), safety instrumented systems
+(SIS), HMIs, historians, RTUs, PLCs, and the industrial demilitarised
+zones that connect them to enterprise IT and cloud services.
+
+**Who must comply:**
+
+- Saudi-domiciled organisations designated as critical national
+  infrastructure (CNI) by the NCA — energy production and distribution
+  (Saudi Aramco, SEC, Ma'aden, SABIC and downstream), water and
+  wastewater utilities (NWC, SWPC), refining and petrochemicals,
+  transport (Saudi Ports Authority, SAR, GACA-regulated ground
+  systems), critical manufacturing, healthcare OT, and government OT.
+- Foreign operators, EPC contractors, OEMs, and managed-service
+  providers that own, operate, host, or support OT inside the
+  Kingdom — OTCC reaches them through contractual flow-down, NCA
+  directive, and the *Personal Data Protection Law (PDPL)* data
+  residency regime.
+- The ICT supply chain that supplies engineering software, firmware,
+  remote-access tooling, or hosted services to in-scope OT operators —
+  caught by OTCC §4 (Third-Party and Cloud Cybersecurity).
+
+**Domain structure and catalogue coverage.** OTCC organises 47
+controls across four domains; this catalogue release ships 28
+monitored clauses (subcategory §22.51) and tracks the remainder under
+the wider cat-22 cross-cutting families. Priority weights follow the
+catalogue's *`priorityWeightRubric`* — `1.0` for safety / availability
+/ regulator-reporting clauses, `0.7` for material assurance clauses,
+`0.5` for procedural / training clauses.
+
+| Domain | Topic | Monitored clauses | Priority spread | Catalogue coverage |
+|--------|-------|-------------------|-----------------|---------------------|
+| 1 Governance | Policy, risk, training, audits | OTCC-1-2-1-1, 1-5-1-1, 1-7-1-1, 1-9-1-1 | 1.0 / 1.0 / 0.7 / 1.0 | full — §22.51.1, §22.51.2, §22.51.25, §22.51.27 |
+| 2 Defence | Asset, access, segmentation, baselines, vuln, patch, malware, removable media, wireless, segmentation, crypto, backup, logging, ICS protocol, email, IR, physical, SIS | OTCC-2-1-1-1 through 2-15-1-1 (18 clauses) | mostly 1.0; 0.7 on cryptography, wireless, email | full — §22.51.3 – §22.51.19 + §22.51.22, §22.51.24, §22.51.26 |
+| 3 Resilience | BCP exercises, RTO / RPO | OTCC-3-1-1-1, 3-1-2-1 | 1.0 / 0.7 | full — §22.51.20, §22.51.21 |
+| 4 Third-Party | Supply chain, cloud and hosting | OTCC-4-1-1-1, 4-2-1-1 | 1.0 / 0.7 | full — §22.51.23, §22.51.28 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.51 ships 28 dedicated NCA OTCC UCs, each
+sidecar carrying an `obligationRef` of the form
+`nca-otcc@current#OTCC-X-Y-Z-N`. The clause-by-clause coverage matrix
+is rendered in
+[`docs/evidence-packs/nca-otcc.md`](evidence-packs/nca-otcc.md) §4
+and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: nca-otcc`.
+
+**OT-specific evidence patterns.** Because OTCC inherits the layered
+defence model from IEC 62443<sup class="ref">[<a href="#ref-16">16</a>]</sup>
+and the safety-aware patch-and-change discipline from IEC 61508 /
+61511, every UC in §22.51 carries:
+
+- a `controlFamily` tag rooted in the OTCC domain (`policy`,
+  `asset-management`, `access-control`, `segmentation`,
+  `configuration-baseline`, `vulnerability-management`,
+  `patch-management`, `malware-protection`, `removable-media`,
+  `wireless-control`, `cryptography`, `backup-recovery`,
+  `logging`, `industrial-protocol-monitoring`, `email-borne-threats`,
+  `incident-response`, `physical-access`, `sis-protection`,
+  `business-continuity`, `rto-rpo`, `supply-chain`, `training`,
+  `audits-and-reviews`, `cloud-hosting`);
+- explicit `prerequisiteUseCases` linking back to upstream
+  ingest / CIM / monitoring UCs in cat-3 (asset inventory),
+  cat-9 (logging), cat-11 (incident detection), cat-17 (network
+  segmentation, privileged access), cat-19 (vulnerability and patch),
+  and cat-20 (industrial / OT) so the OT evidence chain is auditable
+  end-to-end;
+- a `dataResidency` posture aligned to PDPL — KSA-only summary
+  indexes and lookups for clauses §22.51.24, §22.51.26, and §22.51.28
+  that touch identity, cryptographic material, or cloud workload
+  metadata;
+- `notification.regulator = "NCA"` on every IR-related UC so the
+  reporting clock is unambiguous from notable-event to NCA submission.
+
+**Cisco Cyber Vision and ISA / IEC 62443 alignment.** OTCC §2.1
+(asset inventory) and §2.12 (industrial-protocol monitoring) map
+cleanly onto the deep-packet inspection of Cisco Cyber Vision, the
+flow telemetry of Cisco ISE for IoT, and the segmentation evidence
+captured by the cat-17 zero-trust UCs. Operators running a
+combined Cyber Vision + ISE + Splunk topology can reuse the
+[UC-17.1.38](../content/cat-17-network-security-zero-trust/UC-17.1.38.json),
+[UC-17.1.69](../content/cat-17-network-security-zero-trust/UC-17.1.69.json),
+and
+[UC-17.1.71](../content/cat-17-network-security-zero-trust/UC-17.1.71.json)
+evidence trails to satisfy OTCC §2-2-1-1 (privileged access),
+§2-2-3-1 (vendor remote access), and §2-5-3-1 (segmentation) without
+duplicating tooling.
+
+**Cloud / hosting (OTCC §4.2) and CCC alignment.** OTCC §4.2 ties
+into the NCA *Cloud Cybersecurity Controls (CCC-1:2020)* — every
+cloud workload that supports KSA OT must hold a current CCC
+attestation appropriate to its data classification, must keep KSA
+data in-Kingdom (Saudi cloud regions only for confidential and
+restricted data), and must surface customer-managed key custody and
+incident-response coordination to NCA. UC-22.51.28 captures the
+continuous-evidence posture for this clause.
+
+**Where to look:** §22.51 ·
+[`api/v1/compliance/regulations/nca-otcc.json`](../api/v1/compliance/regulations/nca-otcc.json) ·
+[`docs/evidence-packs/nca-otcc.md`](evidence-packs/nca-otcc.md) ·
+official source: [NCA OTCC controls list](https://nca.gov.sa/en/regulatory-documents/controls-list/3).
+
+---
+
+### 4.14 SOCI Act + CIRMP Rules (Australia) · `T1`
+
+**Regulation:** *Security of Critical Infrastructure Act 2018 (Cth)*,
+as amended by the *Security Legislation Amendment (Critical
+Infrastructure Protection) Act 2022* (SLACIP), and the *Security of
+Critical Infrastructure (Critical Infrastructure Risk Management
+Program) Rules 2023* (CIRMP Rules). Together they form an all-hazards
+regime for critical infrastructure, administered by the
+[Cyber and Infrastructure Security Centre (CISC)](https://www.cisc.gov.au)
+within the Department of Home Affairs, with cyber-incident-handling
+support from the [Australian Signals Directorate (ASD)](https://www.cyber.gov.au).
+
+**Who must comply:**
+
+- **Responsible entities** (operators / licensees) and **direct
+  interest holders** (10 % or greater holders) for assets across 11
+  declared critical-infrastructure sectors: electricity, gas, liquid
+  fuels, water and sewerage, telecommunications, broadcasting, postal,
+  financial services and markets, transport (aviation, ports, freight
+  rail, freight road), space, data storage and processing, hospitals,
+  higher education and research, food and grocery, and defence
+  industry. The asset-trigger thresholds are listed in the SOCI Act
+  Rules under each sector.
+- **Foreign-owned operators with Australian operations** — SOCI
+  applies extraterritorially through the asset's connection to
+  Australian territory, customers, or services. Foreign investment
+  triggers a parallel review under the *Foreign Acquisitions and
+  Takeovers Act 1975* with SOCI inputs.
+- **Service providers to in-scope assets** — managed-service providers,
+  EPC contractors, OEMs, and cloud providers are caught through the
+  responsible entity's supply-chain hazard management obligations
+  under CIRMP Rule 8.
+
+**Regime structure and catalogue coverage.** SOCI is a layered regime;
+this catalogue release ships 28 monitored clauses (subcategory §22.52)
+covering the obligations most directly evidenced through Splunk:
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| Asset registration | Register of Critical Infrastructure Assets currency | SOCI-s18, SOCI-Register-Currency | §22.52.1 |
+| Risk management programme (CIRMP) | Cyber, personnel, supply-chain, physical hazards; annual review; cyber framework attestation | SOCI-s30AC, SOCI-CIRMP-r5, r5.2, r6, r6.2, r6.3, r7, r7.2, r8, r8.2, r9, r10 | §22.52.2 – 4, §22.52.13 – 23 |
+| Critical cyber incident reporting | 12-hour and 72-hour reporting to ASD; written follow-up | SOCI-s30BC, SOCI-s30CD | §22.52.5, §22.52.6 |
+| Systems of National Significance | Enhanced cybersecurity obligations: IR plans, exercises, vulnerability assessments, system-information reporting | SOCI-Pt2C-r12, r13, r14 | §22.52.7 – 12 |
+| Enhanced Cybersecurity Obligation (ECSO) | 14-day Notice of Operations | SOCI-ECSO-NoOps | §22.52.26 |
+| Government Assistance Powers (Part 3A) | Information-gathering, action, and intervention directions | SOCI-Pt3A | §22.52.27 |
+| Protected Information (Part 6A) | Secrecy of SOCI data, lawful disclosure, on-disclosure offences | SOCI-Pt6A, SOCI-Pt6A-LawfulDisclosure | §22.52.24, §22.52.25 |
+| Cross-cutting | Compliance-health rollup | SOCI-CrossCutting-Health | §22.52.28 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.52 ships 28 dedicated SOCI UCs, each sidecar
+carrying an `obligationRef` of the form
+`soci@2022-SLACIP+CIRMP-2023#SOCI-X-Y`. The clause-by-clause coverage
+matrix is rendered in
+[`docs/evidence-packs/soci.md`](evidence-packs/soci.md) §4 and the
+canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: soci`.
+
+**All-hazards evidence patterns.** Because the CIRMP Rules require an
+*all-hazards* programme spanning cyber, personnel, supply-chain, and
+physical / natural hazards, every UC in §22.52 carries:
+
+- a `controlFamily` tag aligned to the CIRMP pillar (`asset-register`,
+  `cirmp-currency`, `incident-reporting`, `sons-ir`, `critical-worker`,
+  `supply-chain`, `physical-hazard`, `cyber-physical-convergence`,
+  `annual-report`, `protected-information`, `ecso`, `gap`,
+  `compliance-health`);
+- `prerequisiteUseCases` linking back to upstream ingest / CIM /
+  monitoring UCs in cat-3 (asset inventory), cat-9 (logging),
+  cat-11 (incident detection), and cat-17 (network segmentation,
+  privileged access) so the asset-and-IR evidence chain is auditable
+  end-to-end;
+- `notification.regulator = "CISC"` (CIRMP, asset register, Rule 10
+  annual report) or `"ASD"` (s30BC critical-cyber-incident, s30CD
+  cyber-incident, written follow-up) so the regulator-routing is
+  unambiguous from notable-event to formal submission;
+- Essential Eight maturity tagging on every Rule 6(3) cyber-framework
+  attestation UC so the catalogue can roll up an Essential Eight
+  maturity heatmap by SoNS asset.
+
+**Where to look:** §22.52 ·
+[`api/v1/compliance/regulations/soci.json`](../api/v1/compliance/regulations/soci.json) ·
+[`docs/evidence-packs/soci.md`](evidence-packs/soci.md) ·
+official sources: [CISC SOCI Act page](https://www.cisc.gov.au/legislation-regulation-and-compliance/soci-act-2018)
+and the [CIRMP Rules 2023](https://www.legislation.gov.au/F2023L00112/latest/text).
+
+---
+
+### 4.15 AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US) · `T2`
+
+**Regulation:** *Section 2013 of America's Water Infrastructure Act of
+2018* (Pub.L. 115-270), which amended *Section 1433 of the Safe
+Drinking Water Act* (42 U.S.C. § 300i-2), together with the EPA *Top
+Actions for Securing Water Systems*, the CISA *Pathway to Cybersecurity
+for the Water and Wastewater Sector*, and (in adopting states) the
+EPA *July 2024 Cybersecurity Action Plan* covering sanitary-survey
+cyber readiness. Administered by EPA's
+[Office of Water (Office of Water Resilience)](https://www.epa.gov/waterresilience)
+with cyber-incident-handling support from
+[CISA](https://www.cisa.gov/water) and
+[WaterISAC](https://www.waterisac.org).
+
+**Who must comply:**
+
+- **Community water systems (CWS)** within the meaning of the SDWA
+  serving **more than 3,300 persons** in all 50 US states, DC, Puerto
+  Rico, US Virgin Islands, Guam, American Samoa, and the Northern
+  Mariana Islands. Three statutory population tiers determine the
+  original RRA / ERP deadlines and continue to drive the 5-year
+  recertification cycle.
+- **Tribal CWS** served by an EPA Region.
+- **Wastewater utilities** — not statutorily in scope of s1433 but
+  covered by EPA's parallel water-sector resilience programme and
+  increasingly expected to meet similar cyber-readiness standards
+  under EPA's water-sector cybersecurity portfolio.
+
+**Regime structure and catalogue coverage.** AWIA is a statutory-cycle
+regime, with cyber depth provided by EPA Top Actions and CISA
+guidance; this catalogue release ships 28 monitored clauses
+(subcategory §22.53):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| Statutory base (RRA / ERP / certification) | RRA currency and content, ERP currency, partner coordination, certification audit | AWIA-s1433a, b, c, g | §22.53.1 – 5 |
+| RRA threat coverage | Malevolent acts, natural hazards, electronic systems, monitoring practices, chemicals, financial infrastructure | AWIA-RRA-malevolent-acts, natural-hazards, electronic-systems, monitoring-practices, chemicals, financial | §22.53.6 – 11 |
+| ERP procedures | Strategies and actions, detection, cyber-IR, mutual aid, review | AWIA-ERP-strategies-actions, detection, cyber-incident-response, mutual-aid, review | §22.53.12 – 16 |
+| EPA / CISA cyber overlay | EPA / WaterISAC reporting, sanitary-survey readiness, EPA top-actions checklist, J100 / M19 / VSAT methodology | AWIA-EPA-cwc-reporting, sanitary-survey, aware-checklist, vsat-j100 | §22.53.17 – 20 |
+| EPA / CISA top actions | MFA on remote access, IT/OT segmentation, backup, default credentials, training, vulnerability management, asset inventory | AWIA-EPA-mfa-remote-access, network-segmentation, backup-recovery, default-creds, training, vuln-mgmt, asset-inventory | §22.53.21 – 27 |
+| Records retention | RRA / ERP / certification retention | AWIA-EPA-records-retention | §22.53.28 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.53 ships 28 dedicated AWIA UCs, each sidecar
+carrying an `obligationRef` of the form
+`awia@2018-amended-SDWA-1433#AWIA-X-Y`. The clause-by-clause coverage
+matrix is rendered in
+[`docs/evidence-packs/awia.md`](evidence-packs/awia.md) §4 and the
+canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: awia`.
+
+**Water-sector evidence patterns.** AWIA is the only US statutory
+regime that requires water-sector OT cybersecurity evidence on a
+mandatory 5-year cycle; every UC in §22.53 carries:
+
+- a `controlFamily` tag aligned to the AWIA pillar (`rra-currency`,
+  `rra-coverage`, `erp-currency`, `erp-coordination`, `certification`,
+  `monitoring-integrity`, `chemical-dosing`, `cyber-incident-reporting`,
+  `sanitary-survey`, `top-actions`, `mfa-remote-access`,
+  `network-segmentation`, `backup-recovery`, `default-creds`,
+  `training`, `vuln-mgmt`, `asset-inventory`, `records-retention`);
+- alignment with the
+  [CISA AA23-335A advisory](https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-335a)
+  on Iranian-affiliated compromise of US water-sector PLCs — UC-22.53.22
+  (segmentation), UC-22.53.21 (MFA), and UC-22.53.24 (default
+  credentials) all explicitly evidence the controls that would have
+  prevented the AA23-335A intrusions;
+- `prerequisiteUseCases` linking back to ingest / CIM / OT monitoring
+  UCs in cat-3 (asset inventory), cat-9 (logging), cat-11 (incident
+  detection), cat-17 (network segmentation, privileged access), and
+  cat-20 (industrial / OT) so the water-sector evidence chain is
+  auditable;
+- `notification.regulator = "EPA"` for AWIA certification, sanitary
+  survey, RRA / ERP retention; `"WaterISAC"` for sector-wide cyber
+  reporting; `"CISA"` for CIRCIA covered-cyber-incident reporting
+  (once the final rule is in force) so the multi-regulator routing is
+  unambiguous from notable-event to formal submission.
+
+**Sanitary-survey cyber overlay.** In states that have voluntarily
+adopted the EPA July 2024 Cybersecurity Action Plan, sanitary surveys
+now include a cybersecurity component aligned to EPA Top Actions.
+UC-22.53.18 captures the continuous-evidence posture for
+sanitary-survey readiness so a CWS can satisfy the cyber-survey
+question set on inspection day rather than scramble in the days
+before.
+
+**Where to look:** §22.53 ·
+[`api/v1/compliance/regulations/awia.json`](../api/v1/compliance/regulations/awia.json) ·
+[`docs/evidence-packs/awia.md`](evidence-packs/awia.md) ·
+official sources: [EPA AWIA Section 2013](https://www.epa.gov/waterresilience/awia-section-2013)
+and the [CISA Water and Wastewater Sector page](https://www.cisa.gov/water).
+
+---
+
+### 4.16 CIRCIA + 6 USC 681b — US CISA Cyber Incident Reporting (US) · `T1`
+
+**Regulation:** *Cyber Incident Reporting for Critical Infrastructure
+Act of 2022*, enacted as Division Y of the *Consolidated Appropriations
+Act, 2022* (Pub. L. 117-103), codified at 6 U.S.C. § 681 et seq., as
+operationalised by the CISA *Notice of Proposed Rulemaking* published
+4 April 2024 (89 FR 23644). Administered by
+[CISA](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia)
+in coordination with the *Cyber Incident Reporting Council* and the
+sector-specific reporting regimes administered by NRC, FCC, FDA, FAA,
+FERC, SEC, EPA, FBI, and Secret Service.
+
+**Who must comply:**
+
+- **Covered entities** in 16 critical-infrastructure sectors enumerated
+  in *Presidential Policy Directive 21* — Chemical, Commercial
+  Facilities, Communications, Critical Manufacturing, Dams, Defense
+  Industrial Base, Emergency Services, Energy, Financial Services, Food
+  and Agriculture, Government Facilities, Healthcare and Public Health,
+  Information Technology, Nuclear, Transportation Systems, Water and
+  Wastewater Systems.
+- **Non-US parent companies** with covered US subsidiaries are reached
+  through the subsidiary's obligation.
+
+**Regime structure and catalogue coverage.** CIRCIA is a federal
+cyber-incident-reporting regime with two SLA clocks (72 hours for
+covered cyber incidents, 24 hours for ransom payments) and a 10-year
+records-preservation requirement; this catalogue release ships 28
+monitored clauses (subcategory §22.54):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| Statutory base (s2242) | Covered-entity definition, 72-hour clock, 24-hour ransom clock, supplemental reports, RFI tracking | CIRCIA-s2242a / a(1) / b / c, CIRCIA-NPRM-covered-entity, covered-incident, 72hr-reporting, 24hr-ransom, supplemental-report | §22.54.1 – 7 |
+| Report quality and authority | Report content, third-party reporter (CIRCIA Agreement), records preservation, recordkeeping quality | CIRCIA-NPRM-report-content, third-party-reporter, records-preservation, recordkeeping-quality | §22.54.8 – 11 |
+| Submission and coordination | CISA Portal health, voluntary interim posture, SRMA coordination, OT/ICS detection | CIRCIA-CISA-portal-submission-health, voluntary-interim, srma-coordination, ot-ics-incident-detection | §22.54.12 – 15 |
+| Board and SEC | Board fiduciary brief, Form 8-K materiality, tabletop, liability protection | CIRCIA-NPRM-board-fiduciary, sec-form-8k, annual-tabletop, liability-protection | §22.54.6, §22.54.16 – 18 |
+| Records and quality | 10-year report retention, quarterly attestation, forensic imaging, annual SLA review | CIRCIA-NPRM-records-retention, quarterly-attestation, forensic-imaging, annual-sla-review | §22.54.19 – 22, §22.54.24 |
+| Cross-cutting | Compliance-health rollup | CIRCIA-CrossCutting-Health | §22.54.23, §22.54.25 – 28 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.54 ships 28 dedicated CIRCIA UCs, each sidecar
+carrying an `obligationRef` of the form
+`circia@2022-act-with-2024-nprm#CIRCIA-X-Y`. The clause-by-clause
+coverage matrix is rendered in
+[`docs/evidence-packs/circia.md`](evidence-packs/circia.md) §4 and the
+canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: circia`.
+
+**Multi-regulator triangulation.** CIRCIA is unique among US federal
+regimes in covering all 16 critical-infrastructure sectors with a single
+72-hour clock; UC-22.54.17 triangulates the CIRCIA 72-hour clock with
+the SEC Form 8-K Item 1.05 4-business-day materiality clock for public
+companies, and UC-22.54.3 synchronises the 24-hour ransom-payment clock
+with OFAC sanctioned-entity screening and FinCEN SAR coordination.
+
+**Liability protection and CIRCIA Agreements.** Submissions to CISA
+carry liability protection under 6 U.S.C. § 681e; UC-22.54.6 instruments
+the liability-protection coversheet workflow and UC-22.54.9 instruments
+the CIRCIA Agreement third-party-reporter authority pathway. The
+catalogue records the legal basis on every submission so the protected
+status is preserved.
+
+**Where to look:** §22.54 ·
+[`api/v1/compliance/regulations/circia.json`](../api/v1/compliance/regulations/circia.json) ·
+[`docs/evidence-packs/circia.md`](evidence-packs/circia.md) ·
+official sources: [CIRCIA at CISA](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia)
+and the [2024 NPRM (89 FR 23644)](https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements).
+
+---
+
+### 4.17 CLC/TS 50701 — CENELEC Railway Cybersecurity (EU / EEA / UK / CH) · `T2`
+
+**Regulation:** *CENELEC Technical Specification 50701:2021 — Railway
+applications - Cybersecurity*, published August 2021 by CENELEC TC 9X
+and forward-aligned with the in-development IEC 63452. Administered by
+national rail-cyber regulators
+([ANSSI](https://cyber.gouv.fr/) in France,
+[BSI](https://www.bsi.bund.de/) in Germany,
+[NCSC](https://www.ncsc.gov.uk/) in the UK,
+[ENISA](https://www.enisa.europa.eu/topics/threat-risk-management/) at
+EU level) and coordinated with the
+[European Union Agency for Railways (ERA)](https://www.era.europa.eu/).
+The standard inherits IEC 62443 zone-and-conduit modelling, IEC
+62443-3-3 Foundational Requirements / Security Levels, and IEC 62443-4-2
+Component Security Requirements.
+
+**Who must comply:**
+
+- **Rail operators and infrastructure managers** — passenger rail
+  (heavy rail, metro, light rail, tram, high-speed) and freight rail
+  across the EU/EEA, Switzerland, and the UK.
+- **Rolling-stock manufacturers, signalling-equipment suppliers, and
+  rail-component suppliers** delivering into EU markets must
+  demonstrate compliance via IEC 62443-4-2 / ISA Secure / TÜV
+  certification.
+- **Carve-outs:** heritage / preservation railways, fairground rail,
+  mining rail (covered by mining-sector regulations).
+
+**Regime structure and catalogue coverage.** CLC/TS 50701 is a risk-
+based rail-OT cybersecurity standard with deep coordination with the
+EN 50126/8/9/50657 safety case; this catalogue release ships 28
+monitored clauses (subcategory §22.55):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| Cybersecurity Management System (CSMS) | Charter, governance roles, asset inventory | CLC-TS-50701-c5-1, c5-2, c5-3 | §22.55.1 – 3 |
+| Risk assessment | Zone-and-conduit risk, threat scenarios, risk treatment | CLC-TS-50701-c6-1, c6-2, c6-3, c6-4 | §22.55.4 – 6 |
+| Security requirements | SL-T coverage, IEC 62443-3-3 SR, IEC 62443-4-2 CR | CLC-TS-50701-c7-2, c7-4, c7-3, c9-2 | §22.55.7 – 9, §22.55.26 |
+| Cybersecurity assurance | Vulnerability handling, patch with safety case, maintenance, decommissioning | CLC-TS-50701-c8-1, c8-2, c8-3, c8-4 | §22.55.10, §22.55.11, §22.55.23, §22.55.24 |
+| Incident detection / response | Rail-OT detection, cyber-safety coordinated IR, NIS2 / ERA / NSA reporting | CLC-TS-50701-c8-4 (cont.) | §22.55.12 – 14 |
+| Supply chain / procurement | Supplier deliverables, supplier remote access, procurement cyber evaluation | CLC-TS-50701-c9-1, c9-5, c9-3, c9-4 | §22.55.15 – 17 |
+| Safety coordination | EN 50126/8/9/50657 coordination, joint risk acceptance | CLC-TS-50701-c10-1, c10-2 | §22.55.18, §22.55.19 |
+| Operator continuous obligations | Daily/weekly/monthly checks, training, sharing, audit cycle | CLC-TS-50701-c11-1, c11-2, c11-3, c11-4 | §22.55.20, §22.55.21, §22.55.22, §22.55.27, §22.55.28 |
+| Threat intelligence | Rail-relevant threat actors and MITRE ATT&CK ICS coverage | CLC-TS-50701-c6-3 (cont.) | §22.55.25 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.55 ships 28 dedicated CLC/TS 50701 UCs, each
+sidecar carrying an `obligationRef` of the form
+`clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-X-Y`. The
+clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/clc-ts-50701.md`](evidence-packs/clc-ts-50701.md)
+§4 and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: clc-ts-50701`.
+
+**Rail-cyber + safety integration.** CLC/TS 50701 is unique in
+mandating coordination between cyber controls and the EN 50126/8/9
+safety case; UC-22.55.11 enforces that no patch to a safety-significant
+asset is deployed without Head-of-Safety sign-off (the most-cited
+rail-cyber audit finding), UC-22.55.13 enforces joint command between
+the IR Commander and the Safety Lead, and UC-22.55.19 enforces joint
+risk-acceptance signatures from the cyber lead, safety lead, and
+operations director.
+
+**NIS2 transport-sector enforcement.** CLC/TS 50701 is the de-facto
+baseline that EU NSAs / NSBs use to evaluate transport-sector NIS2
+Article 21 risk-management measures and Article 23 incident reporting;
+UC-22.55.14 instruments the NIS2 24-hour early-warning and 72-hour
+incident-notification clocks against the rail-cyber incident workflow,
+and UC-22.55.28 instruments the annual self-assessment package that
+NSAs / NSBs request on inspection.
+
+**Where to look:** §22.55 ·
+[`api/v1/compliance/regulations/clc-ts-50701.json`](../api/v1/compliance/regulations/clc-ts-50701.json) ·
+[`docs/evidence-packs/clc-ts-50701.md`](evidence-packs/clc-ts-50701.md) ·
+official sources: [CLC/TS 50701 at CENELEC](https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987)
+and the [ENISA Rail Threat Landscape](https://www.enisa.europa.eu/topics/threat-risk-management/).
+
+---
+
+### 4.18 IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS UR E26/E27 — Maritime Cyber Risk Management (Global Shipping) · `T1` {#imo-msc-428-98}
+
+**Regulation:** *IMO Resolution MSC.428(98) — Maritime Cyber Risk
+Management in Safety Management Systems* (adopted 16 June 2017 by the
+IMO Maritime Safety Committee), with the operational guidance set out
+in *MSC-FAL.1/Circ.3 Rev.2 — Guidelines on Maritime Cyber Risk
+Management* (June 2022) and the new-build equipment-level requirements
+in *IACS UR E26 — Cyber Resilience of Ships* (Rev.4 2024) and
+*IACS UR E27 — Cyber Resilience of On-board Systems and Equipment*
+(Rev.3 2024). Reads alongside the *BIMCO Guidelines on Cyber Security
+Onboard Ships* (v5, 2025), jointly published with INTERTANKO, ICS,
+INTERCARGO, OCIMF and IUMI. Administered globally by the
+[International Maritime Organization (IMO)](https://www.imo.org/en/OurWork/Security/Pages/Cyber-security.aspx),
+operationally enforced by flag-State administrations (Panama, Liberia,
+Marshall Islands, Bahamas, Malta, Singapore, etc., typically via
+Recognised Organisations — the vessel's class society) under the
+International Safety Management (ISM) Code on the Document of
+Compliance (DoC) annual verification, by Port State Control inspectors
+under the
+[Paris MoU](https://www.parismou.org/),
+[Tokyo MoU](https://www.tokyo-mou.org/), Caribbean, Indian Ocean,
+Riyadh, Black Sea, Abuja, Viña del Mar, and Mediterranean MoUs, and by
+classification societies (DNV CyberSecure, ABS CyberSafety,
+LR ShipRight, BV Cyber Resilient, ClassNK Cyber) at the IACS UR E26 +
+E27 cyber survey.
+
+**Who must comply:**
+
+- **Ship-operating companies under the ISM Code** — every company
+  operating one or more SOLAS-Chapter-IX-in-scope vessels (≥ 500 GT
+  on international voyages). Approximately 50,000 companies and
+  99,000 ships worldwide. The cyber-SMS obligation entered practical
+  force on the first annual DoC verification after 1 January 2021.
+- **Ships contracted on or after 1 July 2024** under an IACS class
+  society — additional IACS UR E26 (ship-level) and UR E27
+  (equipment-level) cyber-resilience requirements; existing vessels
+  are grandfathered but may voluntarily adopt.
+- **Recognised Organisations (ROs)** — the classification societies
+  (DNV, ABS, LR, BV, ClassNK, CCS, KR, RINA, IRS, RS, PRS, CRS)
+  that perform statutory surveys on behalf of flag-States.
+- **Carve-outs:** warships, naval auxiliaries, fishing vessels below
+  the ISM threshold, and ships solely engaged in domestic voyages
+  under the SOLAS Chapter I carve-outs. Most flag-States nevertheless
+  apply the regime by reference.
+
+**Regime structure and catalogue coverage.** The maritime cyber-risk
+regime is a multi-instrument framework: a one-paragraph IMO
+Resolution, a NIST-CSF-shaped operational guideline, and a pair of
+IACS unified requirements at ship and equipment level. This catalogue
+release ships 17 monitored clauses (subcategory §22.59):
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|--------------------|---------------------|
+| Resolution (administrative) | DoC cyber-SMS verification register, evidence chain | IMO-MSC-428-98-p1, p2, p3 | §22.59.1, §22.59.17 |
+| Identify (MSC-FAL §2.1) | DPA + CySO roster, Cyber Risk Asset Register, §3.1 cyber-vulnerable systems enumeration | IMO-MSC-FAL-Circ-3-s2-1, s3-1 | §22.59.2, §22.59.3 |
+| Protect (MSC-FAL §2.2) | IT/OT segregation, IBS baseline, USB/removable media, satcom PAM, crew/passenger Wi-Fi | IMO-MSC-FAL-Circ-3-s2-2 | §22.59.4, §22.59.7, §22.59.10, §22.59.11, §22.59.12 |
+| Detect (MSC-FAL §2.3) | ECDIS / ENC chart-update integrity, AIS / GMDSS / VDES / GNSS, propulsion / DP anomaly, cargo system integrity | IMO-MSC-FAL-Circ-3-s2-3 | §22.59.5, §22.59.6, §22.59.8, §22.59.9 |
+| Respond (MSC-FAL §2.4) | 24-hour multi-authority incident clock: flag State + RO + USCG NRC + port State | IMO-MSC-FAL-Circ-3-s2-4, IMO-ISM-Code-s8-2 | §22.59.13 |
+| Recover (MSC-FAL §2.5) | Annual cyber-drill + tabletop after-action register | IMO-MSC-FAL-Circ-3-s2-5, IMO-ISM-Code-s8-2 | §22.59.14 |
+| IACS attestation | UR E26 ship-level + UR E27 equipment-level cyber-resilience register | IACS-UR-E26-r4, IACS-UR-E27-r3 | §22.59.15, §22.59.16 |
+| BIMCO bridge-systems guidance | IBS / ECDIS / GMDSS / VDR hardening | BIMCO-Cyber-bridge-systems | §22.59.5, §22.59.6, §22.59.7 |
+
+**What the catalogue delivers:** 100 % coverage of the 17 monitored
+clauses. Subcategory §22.59 ships 17 dedicated IMO UCs, each sidecar
+carrying an `obligationRef` of the form
+`imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#<clause>`.
+The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/imo-msc-428-98.md`](evidence-packs/imo-msc-428-98.md)
+§4 and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: imo-msc-428-98`.
+
+**Three-layer enforcement.** The maritime regime is enforced at three
+independent layers: the flag State (DoC annual verification under ISM
+Code §13, typically delegated to a Recognised Organisation), the port
+State (PSC inspection under one of nine MoU regimes, with periodic
+Concentrated Inspection Campaigns on cyber risk management — the Paris
+MoU 2023 cyber CIC issued detentions), and the classification society
+(IACS UR E26 / E27 surveys and the resulting class notation). A
+deficiency at any one layer can detain the vessel and lock it out of
+its trade route; loss of class triggers loss of insurance and
+charterer rejection. UC-22.59.17 anchors the cross-layer audit-
+evidence retrieval ledger so a PSC inspector, flag-State auditor, or
+class-society surveyor can pull a 90-day evidence packet in five
+minutes.
+
+**Maritime-specific evidence patterns.** §22.59 carries OT-specific
+controls that are unique to the maritime domain and not covered by
+adjacent regulations:
+
+- **ECDIS / ENC chart-update integrity** — UC-22.59.5 verifies digital
+  signatures and authorised-publisher cryptographic chains on every
+  electronic chart update applied to a bridge worldwide; fake-chart
+  attacks are the highest-impact bridge-system threat (a fake
+  shoaling chart can drive a VLCC aground).
+- **AIS / GMDSS / VDES / GNSS integrity** — UC-22.59.6 monitors
+  communication systems for jamming, spoofing and impossible-track
+  anomalies; GNSS spoofing in the Black Sea, Persian Gulf and Strait
+  of Hormuz is documented and routinely tracked by C4ADS, MarineLink
+  and the US Maritime Administration's MSCI advisories.
+- **IBS configuration-baseline drift** — UC-22.59.7 tracks Integrated
+  Bridge System (Furuno, Wärtsilä SAM, NAUDEQ, Northrop Grumman
+  Sperry Marine, Kongsberg) configuration against a golden baseline
+  signed by the master and the IBS vendor.
+- **Propulsion / Power Management System (PMS) / Dynamic Positioning
+  System (DPS) anomaly** — UC-22.59.8 detects cyber-driven anomalies
+  in engine and control systems by statistical deviation from
+  baseline (MAN Energy Solutions, Wärtsilä, Caterpillar, Rolls-Royce
+  marine engines; ABB, Siemens, Kongsberg DPS).
+- **Cargo Management System (CMS) integrity** — UC-22.59.9 monitors
+  tank gauging (Emerson Rosemount Tank Gauging, Honeywell Enraf),
+  inert-gas, and cargo-handling systems on tankers, chemical, LNG,
+  and dry-bulk vessels for integrity events.
+- **Shore-to-ship satcom remote access** — UC-22.59.11 enforces PAM
+  (CyberArk PSM, BeyondTrust), MFA, session recording and What-You-
+  See-Is-What-You-Sign (WYSIWYS) for every shore-to-ship satcom
+  remote-access session that touches OT.
+- **Crew / passenger Wi-Fi segregation** — UC-22.59.12 ensures strict
+  isolation between administrative, crew welfare, and passenger
+  networks and CBS (Computer-Based Systems) on cruise ships, ferries
+  and offshore-support vessels.
+
+**Flag-State + Recognised Organisation routing.** Most flag-States
+delegate the annual DoC verification to the vessel's class society
+(the "Recognised Organisation"). For incident reporting, UC-22.59.13
+parallelises submissions across the flag-State portal (e.g. Panama
+SEGUMAR PRA, Liberia LISCR, Marshall Islands IRI), the RO portal
+(DNV CSManager, ABS Eagle.org, LR Class Direct, BV Veristar), the
+USCG National Response Center (for US-port-visiting vessels under 33
+CFR 101), and the relevant PSC MoU portal — all within the 24-hour
+window required by MSC-FAL.1/Circ.3 §2.4.
+
+**Convergence with adjacent regimes.** Cat-22 §22.2 (NIS2) overlaps
+for EU-flagged vessels and maritime-transport "essential entities".
+Cat-22 §22.51 (NCA OTCC) overlaps for vessels operating to Saudi
+ports. Cat-22 §22.54 (SOCI Act) overlaps for Australian-port-visiting
+vessels under the maritime CI rules. The 24-hour clock in UC-22.59.13
+is deliberately conservative against the most aggressive of these
+regimes so that a single notable event produces compliant evidence
+across every overlapping regulator.
+
+**Where to look:** §22.59 ·
+[`api/v1/compliance/regulations/imo-msc-428-98.json`](../api/v1/compliance/regulations/imo-msc-428-98.json) ·
+[`docs/evidence-packs/imo-msc-428-98.md`](evidence-packs/imo-msc-428-98.md) ·
+official sources: [IMO Maritime Cyber Risk page](https://www.imo.org/en/OurWork/Security/Pages/Cyber-security.aspx),
+[IMO Resolution MSC.428(98)](https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428(98).pdf),
+[IMO MSC-FAL.1/Circ.3 Rev.2 Guidelines](https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf),
+the [IACS Unified Requirements register](https://iacs.org.uk/publications/unified-requirements/),
+the [BIMCO Cyber Security Onboard Ships Guidelines](https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships),
+the [Paris MoU Cyber CIC 2023](https://www.parismou.org/inspections-risk/library-faq/cic),
+and the [USCG Maritime Cyber Strategic Outlook](https://www.uscg.mil/maritimecyber/).
+
+---
+
 ## 5. Derivative regulations (propagated via `derivesFrom`)
 
 Derivative regulations re-use the substance of a parent framework. The
@@ -1253,7 +1852,7 @@ is the machine-readable view.
 
 ---
 
-## Appendix A — All 34 per-regulation subcategories at a glance
+## Appendix A — Per-regulation subcategories at a glance
 
 | Subcategory | Regulation | Jurisdiction | Tier | UCs | API endpoint |
 |-------------|------------|--------------|------|-----|--------------|
@@ -1291,8 +1890,11 @@ is the machine-readable view.
 | 22.32 | Americas Regulations | various | T2 | see §22.32 | `regulations/{lgpd,ccpa}.json` |
 | 22.33 | Middle East Cybersecurity | various | T2 | see §22.33 | `regulations/{nesa-uae-ias,qcb-cyber,sa-pdpl,sama-csf}.json` |
 | 22.34 | SWIFT CSP | GLOBAL | T2 | see §22.34 | `regulations/swift-csp.json` |
+| 22.51 | NCA OTCC (Saudi OT) | KSA | T2 | 28 | `regulations/nca-otcc.json` |
+| 22.52 | SOCI Act + CIRMP Rules | Australia | T1 | 28 | `regulations/soci.json` |
+| 22.53 | AWIA s2013 + EPA/CISA Water | US | T2 | 28 | `regulations/awia.json` |
 
-For the full 69-framework inventory (tier-1, tier-2, and meta), consult
+For the full 78-framework inventory (tier-1, tier-2, and meta), consult
 `data/regulations.json` or `api/v1/compliance/index.json`.
 
 ---

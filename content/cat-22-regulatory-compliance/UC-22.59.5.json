@@ -1,0 +1,147 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.5",
+  "title": "ECDIS / ENC chart-update integrity surveillance — corrupted-chart, fake-position, and unauthorised-update detection on bridge ECDIS / IBS workstations",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes test ENCs loaded for shoreside ECDIS-simulator training. Excludes engine-yard trial passages with explicit reduced safety-margin governance.",
+  "evidence": "Saved search `UC-22.59.5` archived hourly to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s3-1\"`. Every row pins (imo_number, ecdis_id, enc_cell_id, update_signature, ihb_publisher, update_time, baseline_signature, anomaly_indicator).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s3-1",
+      "mode": "detects-violation-of",
+      "assurance": "full",
+      "assurance_rationale": "Section 3.1 of MSC-FAL.1/Circ.3 Rev.2 enumerates ECDIS and the Integrated Bridge System as primary cyber-vulnerable bridge-systems. Compromise of ECDIS chart data is a high-impact, low-probability event with catastrophic safety consequence (grounding, collision); this UC detects the violation through signature integrity verification.",
+      "controlObjective": "Continuously verifies the integrity of ENC (Electronic Navigational Chart) updates loaded onto every fleet ECDIS / IBS workstation.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO ECDIS Integrity` dashboard, the IHB (International Hydrographic Bureau) authorised-publisher register.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s3-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "BIMCO-Cyber-bridge-systems",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "BIMCO Guidelines call out ECDIS and ENC chart updates as a primary cyber attack surface and require authenticated update channels. This UC implements the verification.",
+      "controlObjective": "Aligns shipboard ECDIS chart-update process with BIMCO best practice.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#BIMCO-Cyber-bridge-systems",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Load an ENC chart-update from an unauthorised source (e.g. a USB stick with a non-IHB-signed S-57 payload) onto a vessel's ECDIS. UC-22.59.5 MUST flag anomaly_indicator=true within 1 hour.",
+    "negativeScenario": "Load an IHB-authorised, signature-valid ENC update via the OEM update channel. UC-22.59.5 MUST record anomaly_indicator=false."
+  },
+  "dataSources": "ECDIS audit log (`ecdis:audit`, `ecdis:enc:update`). OEM bridge platform — Furuno FMD-3300/FAR-3xx0 (`furuno:ecdis:audit`), JRC JAN-9201/9202 (`jrc:ecdis:audit`), Sperry Marine VisionMaster FT (`sperry:vmft:audit`), Wartsila NACOS Platinum (`wartsila:nacos:audit`), Kongsberg K-Bridge (`kongsberg:kbridge:audit`). IHB authorised-publisher register (KV Store `imo_ihb_publisher_lookup`). USB / removable-media events (Windows Defender Device Control `mscs:wd:atp:device-control`). Splunk Stream for ECDIS-network protocol fingerprinting (`stream:nmea2000`, `stream:rtcm`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 6207,
+      "name": "Splunk Add-on for Microsoft Defender for Endpoint",
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=\"ecdis:enc:update\" OR sourcetype=\"furuno:ecdis:audit\" OR sourcetype=\"jrc:ecdis:audit\" OR sourcetype=\"sperry:vmft:audit\" OR sourcetype=\"wartsila:nacos:audit\" OR sourcetype=\"kongsberg:kbridge:audit\")\n    update_event=\"enc-load\"\n| lookup imo_ihb_publisher_lookup publisher_id OUTPUT publisher_name, publisher_status\n| eval signature_valid_str = case(\n    isnull(signature_valid), \"unknown\",\n    signature_valid = \"true\", \"true\",\n    1=1, \"false\")\n| eval publisher_authorised = case(\n    publisher_status = \"authorised\", \"true\",\n    1=1, \"false\")\n| eval update_channel_authorised = case(\n    update_channel IN (\"oem-cloud\",\"chart-update-service\",\"primary-iho-channel\"), \"true\",\n    update_channel IN (\"usb\",\"removable-media\",\"unknown\"), \"false\",\n    1=1, \"unknown\")\n| eval anomaly_indicator = case(\n    signature_valid_str = \"false\", \"true\",\n    publisher_authorised = \"false\", \"true\",\n    update_channel_authorised = \"false\", \"true\",\n    1=1, \"false\")\n| where anomaly_indicator = \"true\"\n| table _time imo_number ecdis_id enc_cell_id publisher_id publisher_name publisher_authorised update_channel update_channel_authorised signature_valid_str anomaly_indicator",
+  "description": "Surveils every ECDIS ENC chart update across the fleet; verifies digital signature, IHB-authorised publisher status, and update channel; flags unsigned, unauthorised, or out-of-channel updates within 1 hour.",
+  "value": "ENC chart-data spoofing is a documented attack vector (research by Pen Test Partners, 2017 onwards). A fake chart can steer a vessel onto a hazard. The 2018 USCG MSIB warning specifically called out ECDIS as a high-value target. This UC catches the unauthorised update before the OOW (Officer of the Watch) trusts the fake chart.",
+  "implementation": "(1) Onboard each OEM bridge platform via syslog and HEC; enable ECDIS audit-trail logging. (2) Populate `imo_ihb_publisher_lookup` with the IHO (International Hydrographic Organization) authorised-publisher list (UKHO, NOAA NCEI, NHC Brazil, JHA, KHOA, AHO, etc.). (3) Schedule UC-22.59.5 hourly; route anomaly_indicator=true at severity P1 to the OOW/Master + Fleet Cyber Lead.",
+  "visualization": "(Panel 1) ECDIS update anomalies per vessel (last 24h). (Panel 2) Update-channel distribution (oem-cloud vs USB vs unknown). (Panel 3) Top publishers (authorised vs unauthorised). (Panel 4) Per-OEM platform anomaly trend over 30 days.",
+  "cimModels": [
+    "Change",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §3.1 — Bridge systems including ECDIS",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "USCG MSIB 005-22 — Cyber Risk Management",
+      "url": "https://www.uscg.mil/Maritime-Commons/"
+    },
+    {
+      "title": "International Hydrographic Organization S-57 / S-100 standards",
+      "url": "https://iho.int/"
+    }
+  ],
+  "knownFalsePositives": "1. **Offline-chart-update fall-back**: vessels in poor satcom coverage may load updates via USB from the agent at the next port call; if the agent is on the authorised-USB register, treat as approved. 2. **Newbuild ECDIS first-load**: at delivery, the OEM seeds initial charts via factory-USB; allow during the first 30 days post-delivery. 3. **Time-skew on signature**: clock-drift on the ECDIS can break signature time-windows; correct via NTP and allow a 12-hour grace.\n\n**Suppression mechanism**: KV Store `imo_22_59_5_exceptions` with the Master's documented approval and a written justification.",
+  "requiredFields": [
+    "imo_number",
+    "ecdis_id",
+    "publisher_id",
+    "update_channel",
+    "anomaly_indicator"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Master representative + Bridge OEM Liaison",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "microsoft-defender",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Furuno FMD-3300 / FAR-3xx0 (ECDIS)",
+    "JRC JAN-9201 / JAN-9202 (ECDIS)",
+    "Sperry Marine VisionMaster FT (ECDIS)",
+    "Wartsila NACOS Platinum (Integrated Bridge System)",
+    "Kongsberg K-Bridge (Integrated Bridge System)",
+    "Transas T-Cube / Navi-Sailor 4000 (ECDIS)"
+  ],
+  "mitreAttack": [
+    "T1565.001",
+    "T0832",
+    "T0809"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.3",
+    "UC-22.59.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- ECDIS audit-trail logging enabled per OEM. Many OEMs require a service-engineer visit to enable extended logging; budget for this in the fleet-rollout plan.\n- Splunk Stream sensor on the bridge-network with NMEA-2000 / NMEA-0183 / RTCM protocol fingerprints.\n\n## Step 1 — IHB Publisher KV Store\n\n```ini\n[imo_ihb_publisher_lookup]\nenforceTypes = true\nfield.publisher_id = string\nfield.publisher_name = string\nfield.publisher_status = string\nfield.country = string\nfield.last_validated = time\n```\n\nSeed from the IHO authorised-publisher master list quarterly.\n\n## Step 2 — ECDIS sourcetype mapping (props.conf)\n\n```ini\n[ecdis:enc:update]\nSHOULD_LINEMERGE = false\nKV_MODE = json\nFIELDALIAS-imo_number = ship_id AS imo_number\nFIELDALIAS-publisher_id = chart_publisher AS publisher_id\n```\n\nReplicate per OEM sourcetype.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.5: IMO ECDIS Integrity]\ncron_schedule = 7 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.5,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_indicator=true`** (owner: Master + Fleet Cyber Lead, severity P1): Within 1 hour, the OOW must isolate the affected ECDIS and revert to backup ECDIS or paper chart; within 4 hours, the Fleet Cyber Lead and OEM run a chart-integrity audit; within 24h, root-cause + corrective action.\n\n## Step 5 — Maritime-specific notes\n\n- **GNSS-aided spoofing correlation**: an ECDIS anomaly correlated with a GNSS-time anomaly (UC-22.59.6) strongly suggests a coordinated attack; route the correlated case to the highest priority.\n- **Vessel in port vs at sea**: ECDIS at-sea anomalies are higher-impact than port-side ones.\n- **OEM remote update**: an OEM-initiated emergency chart correction via VSAT is rare but legitimate; capture the OEM authorisation in the KV Store before the change.",
+  "grandmaExplanation": "A ship navigates with electronic sea charts. If a fake chart is loaded, the ship can run aground. We watch every chart update on every ship to make sure it really came from the right map office and hasn't been tampered with."
+}

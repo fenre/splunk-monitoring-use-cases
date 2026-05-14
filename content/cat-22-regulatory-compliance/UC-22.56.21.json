@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.21",
+  "title": "TSA-SD multi-modal personnel-security + insider-threat detection (clearance, role-change, anomalous-access)",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Risk"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "HR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes role changes recorded in HR system with documented business justification. Excludes accepted-risk cases in `tsa_insider_exception_lookup`.",
+  "evidence": "Saved search `UC-22.56.21` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-multi-personnel-security\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-personnel-security",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "TSA cross-modal SDs reference personnel-security and role-based access. 'Partial' because complete insider-threat detection requires user-behaviour analytics beyond the scope of one UC.",
+      "controlObjective": "Proves clearance changes / role changes propagate to access changes within an acceptable window and anomalous access to TSA-regulated systems is investigated.",
+      "evidenceArtifact": "Saved search, `TSA Insider Risk` dashboard, HR liaison sign-off.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-personnel-security",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `clearance_revoked_date` in HR feed for a user with active access. Within 4 hours UC-22.56.21 MUST flag.",
+    "negativeScenario": "Disable access within 24h. UC-22.56.21 MUST NOT escalate."
+  },
+  "dataSources": "Workday HR feed (`workday:hcm`). Microsoft Entra ID (`azure:eventhub:aad`). ServiceNow HRSD (`snow:hr_case`). TSA badging system (`tsa:idms`). Splunk UBA scores (`uba:user_score`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk User Behavior Analytics (Splunkbase 4974), Splunk Add-on for Workday (Splunkbase 4179).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4974,
+      "name": "Splunk User Behavior Analytics",
+      "url": "https://splunkbase.splunk.com/app/4974",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4179,
+      "name": "Splunk Add-on for Workday",
+      "url": "https://splunkbase.splunk.com/app/4179",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk User Behavior Analytics"
+  ],
+  "spl": "(sourcetype=\"workday:hcm\" event_type=clearance_change OR sourcetype=\"workday:hcm\" event_type=termination)\n| eval upn = lower(email)\n| join type=left upn [search sourcetype=\"azure:eventhub:aad\" earliest=-7d | stats latest(_time) as last_signin by userPrincipalName | rename userPrincipalName as upn]\n| eval days_since_change = round((now() - event_timestamp) / 86400, 0)\n| eval risk_state = case(\n    event_type=\"termination\" AND isnotnull(last_signin) AND last_signin > event_timestamp, \"post_termination_access\",\n    event_type=\"clearance_change\" AND isnotnull(last_signin) AND last_signin > event_timestamp AND days_since_change > 1, \"clearance_lag\",\n    1=1, \"normal\")\n| where risk_state IN (\"post_termination_access\",\"clearance_lag\")\n| table upn event_type event_timestamp last_signin days_since_change risk_state",
+  "description": "Cross-references HR clearance/termination events with active sign-ins to detect access not yet rescinded.",
+  "value": "Insider risk on TSA-regulated systems is enforcement-critical. Late access rescission is a frequent finding.",
+  "implementation": "(1) Wire Workday HR feed. (2) Wire Entra ID sign-in feed. (3) Schedule UC-22.56.21 every 4 hours. (4) Build `TSA Insider Risk` dashboard.",
+  "visualization": "(Panel 1) Risk-state counts. (Panel 2) Days-to-rescission trend. (Panel 3) Top-10 lagging UPNs. (Panel 4) UBA top-risk overlay.",
+  "cimModels": [
+    "Authentication",
+    "Identity_Management"
+  ],
+  "references": [
+    {
+      "title": "TSA Personnel Security guidance (cross-modal)",
+      "url": "https://www.tsa.gov/personnel-security"
+    },
+    {
+      "title": "CISA Insider Threat Mitigation Resources",
+      "url": "https://www.cisa.gov/topics/physical-security/insider-threat-mitigation"
+    }
+  ],
+  "knownFalsePositives": "1. **HR system lag**: Workday-Splunk feed may lag; tune `expected_silence_hours`.\n2. **Contractor with multiple identities**: ensure contractor merge logic is correct.\n3. **Cross-organization moves**: documented business moves shouldn't be flagged; consume `transfer_type` from Workday.\n\n**Suppression mechanism**: KV Store `tsa_insider_exception_lookup`.",
+  "requiredFields": [
+    "upn",
+    "event_type",
+    "event_timestamp",
+    "risk_state"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + HR Liaison",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "workday",
+    "microsoft-entra",
+    "splunk-es",
+    "splunk-uba"
+  ],
+  "equipmentModels": [
+    "Workday HCM 2024R1",
+    "Microsoft Entra ID P2",
+    "Splunk ES 7.x",
+    "Splunk UBA 5.x"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "T1078.004"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + UBA + Workday TA.\n- KV Store `tsa_insider_exception_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.56.21: TSA Insider Risk]\ncron_schedule = 19 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.21,reg=TSA-Surface,clause=TSA-SD-multi-personnel-security\nalert.severity = 4\n```\n\n## Step 2 — Runbooks\n\n**`risk_state=post_termination_access`** (owner: Insider Threat Lead, severity P1):\n1. Within 30 min: disable account.\n2. Within 4 hours: review activity post-termination.\n3. Within 24 hours: post-mortem; tighten off-boarding.\n\n## Step 3 — Troubleshooting\n\n- **Multi-tenant Entra**: ensure all relevant tenants are ingested.\n- **Federated contractors**: cross-tenant federation may obscure identity; correlate via UPN normalisation.\n\n**TSA-specific failure modes**:\n- **TSA badge revocation**: TSA badging system events may precede HR system; correlate IDMS + HR.\n- **NDA holder identification**: NDA-bound contractors may have specific access; tag in lookup.",
+  "grandmaExplanation": "When somebody leaves the company or has their clearance taken away, we make sure they can no longer log in to important systems within hours — not days."
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.11",
+  "title": "SG Cyber Act IDA / SGNIC Domain Name Registrar / Registry obligations + DNSSEC compliance",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Performance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Telco / Internet Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-SG-TLD operations. Excludes upstream international registry operations.",
+  "evidence": "Saved search `UC-22.57.11` archived daily to `audit_evidence` with `csa_clause=\"CSA-DNR-COP\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-monitoring",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CSA-issued DNR-specific code of practice mandates DNSSEC, registrar-account hardening, abuse-response SLAs. This UC enforces DNSSEC presence on .sg-zone records and surfaces abuse-SLA breaches.",
+      "controlObjective": "Proves .sg zones are DNSSEC-signed with valid keys, registrar accounts are MFA-protected, and abuse reports are closed within SLA.",
+      "evidenceArtifact": "Saved search, `CSA DNR Health` dashboard, DNSSEC validation reports, abuse-ticket ledger.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-monitoring",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable DNSSEC on a .sg zone. UC-22.57.11 MUST flag within 24h.",
+    "negativeScenario": "Re-enable DNSSEC with valid signing keys. UC-22.57.11 MUST NOT escalate."
+  },
+  "dataSources": "DNS resolver telemetry (`dns:resolver`, `dns:authoritative`). Registrar audit logs. Abuse ticketing (`registrar:abuse`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4222,
+      "name": "Splunk Add-on for DNS",
+      "url": "https://splunkbase.splunk.com/app/4222",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=dns:authoritative zone=*.sg)\n| stats latest(_time) as last_query values(rrtype) as rrtypes by zone\n| eval has_dnssec = if(in(rrtypes, \"DNSKEY\") AND in(rrtypes, \"RRSIG\"), \"true\", \"false\")\n| where has_dnssec=\"false\"\n| table zone last_query has_dnssec rrtypes",
+  "description": "Surveys .sg authoritative answers for DNSSEC presence.",
+  "value": "DNR-COP mandates DNSSEC; missing DNSSEC is a registrar enforcement finding.",
+  "implementation": "(1) Ingest authoritative DNS feed. (2) Schedule UC-22.57.11 daily. (3) Build the `CSA DNR Health` dashboard.",
+  "visualization": "(Panel 1) DNSSEC coverage. (Panel 2) Recent un-signed zones. (Panel 3) Registrar abuse-ticket SLA. (Panel 4) Registrar MFA coverage.",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "references": [
+    {
+      "title": "CSA / SGNIC DNR COP",
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+    },
+    {
+      "title": "SGNIC",
+      "url": "https://www.sgnic.sg/"
+    }
+  ],
+  "knownFalsePositives": "1. **DS-record propagation lag**: TLD parent zone may take 24-48h to publish DS records; pin `propagation_until`.\n\n**Suppression mechanism**: KV Store `csa_22_57_11_exceptions`.",
+  "requiredFields": [
+    "zone",
+    "has_dnssec"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + DNS Security Lead + CC",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "bind",
+    "powerdns"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "BIND 9.18+",
+    "PowerDNS 4.7+"
+  ],
+  "mitreAttack": [
+    "T1583.001",
+    "T1071.004"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.",
+  "grandmaExplanation": "Singapore web addresses (.sg) must use a special 'tamper-proof' system called DNSSEC. We check every day to make sure it's working."
+}

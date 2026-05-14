@@ -1,0 +1,120 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.15",
+  "title": "SOCI CIRMP Rule 6(3) cyber framework attestation drift — Essential Eight / ISO 27001 / NIST CSF / AESCSF / C2M2 currency",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes assets that have been exempted by the Secretary in writing (rare, documented in `cirmp_framework_exemption_lookup`). Excludes assets in their first 6-month onboarding window for which the framework attestation is pending initial publication.",
+  "evidence": "Saved search `UC-22.52.15` archived daily to `audit_evidence` with `soci_clause=\"SOCI-CIRMP-r6.3\"`. Every row pins (asset_id, framework_id, framework_version, maturity_level, attested_at, attestor, attestor_role, attestation_artefact_url, framework_status). Dashboard `SOCI — Rule 6(3) Cyber Framework Attestation` shows the framework mix across the estate and surfaces attestations approaching the 12-month boundary.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-CIRMP-r6.3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every in-scope asset is mapped to a recognised cyber framework, (b) the attestation is current (≤ 365 days), (c) the framework achieved the minimum maturity (e.g. Essential Eight maturity level 1 or higher), and (d) the attestation artefact is recorded. This is the full scope of Rule 6(3).",
+      "controlObjective": "Proves compliance with the Rule 6(3) cyber framework attestation requirement that came into force on 17 August 2024.",
+      "evidenceArtifact": "Saved search `UC-22.52.15` archived to `audit_evidence`, the `SOCI — Rule 6(3) Cyber Framework Attestation` dashboard, and per-attestation artefact URLs. The dashboard's quarterly PDF, signed by the CISO, is filed in the Rule 10 annual report under 'Recognised cyber-security framework compliance'.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-CIRMP-r6.3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set an asset's `attested_at` to 380 days ago AND `maturity_level` to 0 (none). UC-22.52.15 MUST flag with `framework_status=\"non_compliant_overdue\"`.",
+    "negativeScenario": "Complete an Essential Eight maturity assessment at ML1 with a signed attestation artefact dated today. UC-22.52.15 MUST record `framework_status=\"compliant\"`."
+  },
+  "dataSources": "GRC system attestation records (`index=grc sourcetype=\"snow:framework_attestation\"`). Lookup `cirmp_framework_attestation_lookup` (asset_id, framework_id, framework_version, maturity_level, attested_at, attestor, attestor_role, attestation_artefact_url).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup cirmp_framework_attestation_lookup asset_id OUTPUT framework_id framework_version maturity_level attested_at attestor attestor_role attestation_artefact_url\n| eval days_since_attested = if(isnotnull(attested_at), round((now() - attested_at) / 86400, 0), null())\n| eval minimum_maturity_met = case(\n    framework_id=\"essential_eight\" AND maturity_level >= 1, \"true\",\n    framework_id=\"iso_27001\" AND maturity_level >= 1, \"true\",\n    framework_id=\"nist_csf\" AND maturity_level >= 1, \"true\",\n    framework_id=\"aescsf\" AND maturity_level >= 1, \"true\",\n    framework_id=\"c2m2\" AND maturity_level >= 1, \"true\",\n    framework_id=\"secretary_approved_equivalent\" AND maturity_level >= 1, \"true\",\n    1=1, \"false\")\n| eval framework_status = case(\n    isnull(framework_id), \"missing_framework\",\n    isnull(attested_at), \"never_attested\",\n    days_since_attested > 365 AND minimum_maturity_met=\"false\", \"non_compliant_overdue\",\n    days_since_attested > 365, \"attestation_overdue\",\n    minimum_maturity_met=\"false\", \"below_minimum_maturity\",\n    days_since_attested > 335, \"approaching_due\",\n    1=1, \"compliant\")\n| table asset_id framework_id framework_version maturity_level minimum_maturity_met attested_at days_since_attested attestor attestor_role attestation_artefact_url framework_status",
+  "description": "Validates every in-scope asset is mapped to one of the 5 recognised frameworks (Essential Eight, ISO 27001, NIST CSF, AESCSF, C2M2) or a Secretary-approved equivalent, that the latest attestation is current, that the minimum maturity (typically ML1 / Maturity Level 1) is met, and that the artefact URL is recorded.",
+  "value": "Rule 6(3) is the hardest CIRMP rule to defend because non-compliance is binary: either the entity meets the framework or it does not. The 17 August 2024 commencement date means many entities are still building. This UC keeps attestation currency and minimum-maturity status always-on so the CISO can intervene before audit.",
+  "implementation": "(1) Maintain `cirmp_framework_attestation_lookup` from the GRC system. (2) Schedule UC-22.52.15 daily; route `non_compliant_overdue`, `missing_framework`, `below_minimum_maturity` to notable severity=critical; route `attestation_overdue` and `approaching_due` to high. (3) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Per-asset compliance RAG. (Panel 2) Framework mix across the estate (pie). (Panel 3) Aging funnel of attestation currency. (Panel 4) Maturity-level distribution per framework.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules — Rule 6(3)",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
+    },
+    {
+      "title": "ACSC — Essential Eight Maturity Model",
+      "url": "https://www.cyber.gov.au/resources-business-and-government/essential-cybersecurity/essential-eight/essential-eight-maturity-model"
+    },
+    {
+      "title": "AESCSF — Australian Energy Sector Cyber Security Framework",
+      "url": "https://www.aemo.com.au/initiatives/major-programs/aescsf"
+    },
+    {
+      "title": "ISO/IEC 27001:2022 Information security management systems",
+      "url": "https://www.iso.org/standard/27001"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-framework assets** — an asset may attest to both ISO 27001 and NIST CSF; the lookup must support multi-valued framework rows.\n\n2. **Maturity-scoring disagreement** — some assessors apply CMM-style maturity (0–5), some apply E8 ML0–3. Standardise on the framework's native scale and convert during materialisation.\n\n3. **In-progress attestation** — a framework assessment running for >2 months may have `attested_at=null` until close. Suppression: tolerate up to 90 days from `assessment_started_at`.\n\n4. **Secretary-approved equivalent** — some entities use SOC2 Type II as equivalent; this requires Secretary written approval to count. Suppression: surface the approval reference in the lookup.\n\n**Suppression mechanism**: KV Store `soci_22_52_15_exceptions`; tight max grant 30 days with CISO sign-off.",
+  "requiredFields": [
+    "asset_id",
+    "framework_id",
+    "maturity_level",
+    "attested_at",
+    "framework_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (Vancouver / Washington, sn_grc_attestation tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and framework-attestation workflow — measures framework compliance evidence currency, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.2 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `cirmp_framework_attestation_lookup` — owned by Head of Cyber Frameworks. Columns: `asset_id`, `framework_id` (`essential_eight` | `iso_27001` | `nist_csf` | `aescsf` | `c2m2` | `secretary_approved_equivalent`), `framework_version` (e.g. `E8 ML1 v2024`), `maturity_level` (numeric), `attested_at` (epoch), `attestor` (named person), `attestor_role`, `attestation_artefact_url`.\n- ES notable framework.\n\n## Step 1 — Configure data collection\n\nMaintain the lookup from the GRC system, materialised daily:\n\n```spl\nindex=grc sourcetype=snow:framework_attestation earliest=-1d@d\n| dedup asset_id framework_id sortby - attested_at\n| table asset_id framework_id framework_version maturity_level attested_at attestor attestor_role attestation_artefact_url\n| outputlookup cirmp_framework_attestation_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.15: SOCI CIRMP Rule 6(3) cyber framework attestation drift]\ncron_schedule = 30 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.15,reg=SOCI,clause=SOCI-CIRMP-r6.3\naction.notable.param.rule_title = SOCI Rule 6(3) cyber framework attestation gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity tiered:\n- `non_compliant_overdue`, `missing_framework`, `below_minimum_maturity` → critical (urgency=Critical).\n- `attestation_overdue`, `never_attested` → high (urgency=High).\n- `approaching_due` → medium (digest email).\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: set an asset's `maturity_level` to 0; UC flags `below_minimum_maturity`.\n\n**(b)** Negative control: complete attestation; UC clears.\n\n**(c)** Coverage: every in-scope asset has at least one framework row.\n\n**(d)** Quarterly CISO attestation: the CISO signs a quarterly attestation that the lookup faithfully reflects completed framework attestations.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 6(3) Cyber Framework Attestation`.\n\n- **Panel 1**: Per-asset compliance RAG.\n- **Panel 2**: Framework mix pie (Essential Eight dominant in most Australian deployments).\n- **Panel 3**: Aging funnel of attestation currency.\n- **Panel 4**: Maturity-level distribution per framework — if many at ML1 (the floor), the steering committee may push for ML2 as a 24-month target.\n- **Panel 5**: Attestor concentration — reveals over-reliance on a single assessor.\n\n**Runbook for `non_compliant_overdue` / `below_minimum_maturity`** (owner: CISO, severity P1):\n\n1. Within 5 business days: open a remediation workstream to close the maturity gap.\n2. Self-disclose in the next Rule 10 annual report; this is the Rule with the highest non-compliance risk.\n\n**Runbook for `attestation_overdue`** (owner: Head of Cyber Frameworks, severity P2):\n\n1. Within 30 business days: complete the attestation cycle and update the lookup.\n\n## Step 5 — Troubleshooting\n\n**Maturity-scoring disagreement** — standardise scale.\n\n**Multi-framework asset** — lookup-key on (asset_id, framework_id) not just asset_id.\n\n**Secretary-approved equivalent claim** — require evidence of approval; otherwise treat as `missing_framework`.\n\n**SOCI-specific failure modes**:\n\n- **Sector-specific framework expectation**: ASD recommends AESCSF for the energy sector; entities choosing Essential Eight for energy assets may be questioned. Document rationale.\n- **Subsidiary attestation inheritance**: a subsidiary may inherit the parent's ISO 27001 certificate scope; the lookup must reflect the scope statement so the inheritance is defensible.\n- **OT-specific maturity calibration**: Essential Eight scoring for OT assets requires adaptation; the Cyber Frameworks team should publish an OT scoring guide.",
+  "grandmaExplanation": "The new rule from August 2024 says every important system must be checked against a recognised cyber-security yard-stick — like the Essential Eight or ISO 27001 — every year, and reach at least the basic level. We track every check, ring the loud bell if the yard-stick is missing or stale, or if the score is too low."
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.8",
+  "title": "OT Patch Deployment Evidence: Window, Validation, and Vendor Approval",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Change",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Excludes IT-only patches against assets not in the OT inventory. Excludes firmware/configuration changes covered by UC-22.51.6 baseline drift (which captures the change-event itself, while this UC captures the patching governance). Excludes emergency patching authorised by the SIRT during an active incident — those are tracked separately in UC-22.51.18 incident evidence.",
+  "evidence": "Saved search `UC-22.51.8` archived daily to `audit_evidence` with `otcc_clause=\"OTCC-2-10-2-1\"`. Each row preserves (patch_id, kb_or_cve_id, asset_key, asset_class, change_ticket_id, vendor_approval_artefact_url, window_start, window_end, deployment_started_at, deployment_completed_at, post_deploy_validation_result, validation_evidence_url, late_window_flag, missing_vendor_approval_flag, validation_failed_flag, validation_overdue_flag). Dashboard `NCA OTCC – OT Patch Evidence` shows in-flight patches, post-deploy validation status, and 13-month trend.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-2-10-2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Captures every step of the OT patch governance: vendor approval artefact link, approved maintenance window adherence, post-deployment validation, and final completion. Combined with UC-22.51.7 (which proves the patch was needed in the first place), this provides full assurance for OTCC-2-10-2-1.",
+      "controlObjective": "Proves OT patches are deployed only inside approved maintenance windows, carry documented vendor approval, are validated against safety and process performance after deployment, and are evidenced from initiation through completion.",
+      "evidenceArtifact": "Saved search `UC-22.51.8` archived to `audit_evidence` plus the `NCA OTCC – OT Patch Evidence` dashboard. Quarterly patch-governance report signed by Head of OT Security and OT Operations Director, filed for NCA inspection, attaches the vendor-approval artefact URLs and post-deployment validation evidence for every patch in the period.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-2-10-2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject a synthetic patch event `PATCH-TEST-001` against a test OT asset, with `change_ticket_id` populated but `vendor_approval_artefact_url` empty and `post_deploy_validation_result=fail`. Run UC-22.51.8. The search MUST return the patch with `missing_vendor_approval_flag=true` and `validation_failed_flag=true`, route an alert to the OT cybersecurity programme manager and OT operations director, and archive the row to `audit_evidence`.",
+    "negativeScenario": "Inject a complete patch event `PATCH-TEST-002` with `change_ticket_id`, `vendor_approval_artefact_url` populated, `window_start` and `window_end` covering the deployment timestamp, and `post_deploy_validation_result=pass`. UC-22.51.8 MUST classify the row with all four flags false and archive it as compliant evidence."
+  },
+  "dataSources": "`index=ot_patch sourcetype=\"sccm:patch:deployment\"` (Microsoft Endpoint Configuration Manager via Splunk_TA_microsoft_sccm), `wsus:event`, vendor-specific patch consoles (`rockwell:assetcentre:patch`, `siemens:tia:deployment`, `schneider:ecostruxure:patch`), `index=ot_change_management` for approval workflows, `index=ot_validation` for post-deploy test results (HMI ping check, controller heartbeat, process-variable trend). Lookups: `ot_maintenance_windows.csv`, `ot_vendor_approvals.csv`, `ot_validation_required.csv`.",
+  "app": "Splunk Add-on for Microsoft SCCM (Splunkbase 4923), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 4923,
+      "name": "Splunk Add-on for Microsoft SCCM",
+      "url": "https://splunkbase.splunk.com/app/4923",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=ot_patch earliest=-7d@d latest=now\n| eval asset_key=coalesce(asset_key, host)\n| lookup ot_asset_inventory_lookup asset_key OUTPUT asset_class asset_criticality environment\n| where environment=\"prod\" AND isnotnull(asset_class)\n| stats latest(_time) AS latest_event values(deployment_started_at) AS deployment_started_at values(deployment_completed_at) AS deployment_completed_at values(change_ticket_id) AS change_ticket_id values(vendor_approval_artefact_url) AS vendor_approval_artefact_url BY patch_id kb_or_cve_id asset_key asset_class asset_criticality\n| eval deployment_started_epoch = strptime(deployment_started_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval deployment_completed_epoch = strptime(deployment_completed_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| join change_ticket_id type=left [search index=ot_change_management state=\"approved\" earliest=-30d | dedup change_ticket_id | table change_ticket_id window_start window_end approver_role]\n| eval window_start_epoch = strptime(window_start, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval window_end_epoch = strptime(window_end, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval late_window_flag = case(\n    isnull(window_start_epoch), \"true\",\n    deployment_started_epoch < window_start_epoch - 300, \"true\",\n    coalesce(deployment_completed_epoch, deployment_started_epoch) > window_end_epoch + 300, \"true\",\n    1=1, \"false\")\n| eval missing_vendor_approval_flag = if(isnull(vendor_approval_artefact_url) OR vendor_approval_artefact_url=\"\", \"true\", \"false\")\n| join asset_class patch_id type=left [search index=ot_validation earliest=-30d | dedup asset_key patch_id | table patch_id asset_key post_deploy_validation_result validation_evidence_url validation_completed_at]\n| eval validation_failed_flag = if(post_deploy_validation_result IN (\"fail\",\"warn\"), \"true\", \"false\")\n| eval validation_overdue_flag = case(\n    isnull(deployment_completed_epoch), \"false\",\n    isnull(post_deploy_validation_result) AND (now() - deployment_completed_epoch) > 86400, \"true\",\n    1=1, \"false\")\n| where late_window_flag=\"true\" OR missing_vendor_approval_flag=\"true\" OR validation_failed_flag=\"true\" OR validation_overdue_flag=\"true\"\n| table patch_id kb_or_cve_id asset_key asset_class asset_criticality change_ticket_id window_start window_end deployment_started_at deployment_completed_at vendor_approval_artefact_url post_deploy_validation_result validation_evidence_url late_window_flag missing_vendor_approval_flag validation_failed_flag validation_overdue_flag\n| sort - validation_failed_flag late_window_flag missing_vendor_approval_flag",
+  "description": "Detects OT patch deployments that fall outside their approved maintenance window, that lack a vendor-approval artefact, that fail post-deployment validation, or whose validation has been outstanding for more than 24 hours after deployment.",
+  "value": "An OT patch deployed without vendor approval, outside its window, or without post-deployment validation is the single most common safety incident in OT cybersecurity programmes. NCA OTCC inspectors will ask 'show me three deployed patches and prove each was approved, in-window, and validated' — this UC produces that evidence continuously and surfaces deviations while they are still reversible.",
+  "implementation": "(1) Configure SCCM/WSUS/vendor patch consoles to publish deployment events into `index=ot_patch`. (2) Build `ot_vendor_approvals.csv` from the OT cybersecurity engineering team's vendor-approval workflow (linked to the OEM's product-security bulletin pages). (3) Build `ot_validation_required.csv` defining which patches require which post-deploy tests (HMI ping, controller heartbeat, process-variable correlation against historian). (4) Onboard `index=ot_validation` from the validation tooling (process-control test scripts, OPC clients writing validation rows). (5) Schedule UC-22.51.8 daily at 04:30 local; route `late_window_flag` or `validation_failed_flag` to OT cybersecurity programme manager and OT operations director.",
+  "visualization": "(Panel 1) Single-value 'Open patch evidence gaps' — red ≥1. (Panel 2) Sortable table of every flagged patch with drill-through to change ticket and vendor approval URL. (Panel 3) 13-month trend of `count by flag` — demonstrates the patch-governance maturity to the steering committee. (Panel 4) Stacked bar of patch deployments by `asset_class` and `validation_result` for the current quarter — surfaces which asset classes have the weakest validation coverage.",
+  "cimModels": [
+    "Change",
+    "Updates"
+  ],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "NIST SP 800-82r3 — Guide to Operational Technology (OT) Security §6.6 (System Maintenance)",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-82/rev-3/final"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft SCCM",
+      "url": "https://splunkbase.splunk.com/app/4923"
+    },
+    {
+      "title": "Splunk CIM: Updates data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Updates"
+    }
+  ],
+  "knownFalsePositives": "1. **Vendor approval pending on a freshly-published patch** — a critical OEM patch may be deployed under emergency authority before the formal vendor-approval artefact arrives. Suppression: maintain `emergency_patch_authorisations.csv` keyed on patch_id with a 7-day grace period; the artefact must arrive within the grace.\n\n2. **Asynchronous post-deploy validation** — some validations (process-variable correlation against the prior shift) are inherently 24+ hours after deployment. Suppression: per `ot_validation_required.csv`, allow validations classified as 'lagging' (e.g. `validation_type=process_correlation`) to have a 72-hour grace before `validation_overdue_flag` fires.\n\n3. **Distributed-deployment timing drift** — SCCM rolls out to a group sequentially; the last host in the group may complete slightly after the documented window-end. Suppression: a 5-minute tolerance is built into the SPL (`+ 300` on the window comparison); for larger groups, document the planned drift in the change ticket via a `permitted_drift_minutes` attribute.\n\n4. **Validation pass with a warning rather than a clean pass** — some validations return `warn` for normal-but-non-baseline process behaviour (e.g. cooler ambient air affecting motor current draw). Suppression: route `warn` to a review queue rather than treating as `fail`; only `fail` triggers the safety-incident escalation.\n\n**Suppression mechanism**: KV Store `otcc_22_51_8_exceptions` keyed on `patch_id` with `exception_active`, `expires_at`, `reason`, `approved_by` plus optional `validation_grace_minutes`.",
+  "requiredFields": [
+    "patch_id",
+    "asset_key",
+    "change_ticket_id",
+    "deployment_started_at",
+    "post_deploy_validation_result"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "microsoft",
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "T1195"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.3",
+    "UC-22.51.7"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Microsoft SCCM (Splunkbase 4923) on Heavy Forwarders bridging the SCCM data source.\n- Vendor-specific patch consoles onboarded via REST or syslog: Rockwell FactoryTalk AssetCentre (export-driven CSV ingestion or REST), Schneider EcoStruxure Process Expert, Siemens TIA Portal (Openness SDK + scripted input).\n- `index=ot_patch` (13-month retention), `index=ot_change_management` (24-month retention, shared with UC-22.51.9), `index=ot_validation` (24-month retention).\n- `index=audit_evidence` (already provisioned).\n- Lookups:\n  - `ot_maintenance_windows.csv` (already maintained for UC-22.51.4).\n  - `ot_vendor_approvals.csv` — owned by OT cybersecurity engineering. Columns: `patch_id`, `kb_or_cve_id`, `vendor`, `approval_artefact_url`, `approval_signed_at`, `approval_signer`.\n  - `ot_validation_required.csv` — owned by OT operations engineering. Columns: `asset_class`, `patch_class`, `validation_type` (`ping`, `heartbeat`, `process_correlation`, `safety_loop_proof_test`), `validation_grace_minutes`, `validation_owner`.\n  - KV Store `otcc_22_51_8_exceptions` for manual exceptions.\n- A validation pipeline that writes events into `index=ot_validation` after each deployment. The pipeline can be a scripted Python suite, Splunk SOAR playbook, or vendor's built-in test runner. Each event must carry `patch_id`, `asset_key`, `validation_type`, `result`, `evidence_url`, `validation_completed_at`.\n\n## Step 1 — Configure data collection\n\nThe `Splunk Add-on for Microsoft SCCM` modular input pulls deployment status from the SCCM database:\n\n```ini\n[sccm://patch_deployments]\nendpoint = https://sccm.example.com/sms\ntable = v_UpdateDeploymentSummary\ninterval = 3600\nindex = ot_patch\nsourcetype = sccm:patch:deployment\n```\n\nFor Rockwell FactoryTalk AssetCentre, the export-driven approach: a Windows scheduled task drops a CSV into a monitored directory:\n\n```ini\n[monitor://D:\\OT\\AssetCentre\\Exports\\patch_log_*.csv]\ndisabled = 0\nindex = ot_patch\nsourcetype = rockwell:assetcentre:patch\ncrcSalt = <SOURCE>\n```\n\nValidate fields:\n\n```spl\nindex=ot_patch earliest=-1d\n| fieldsummary\n| search field IN (patch_id, asset_key, deployment_started_at, deployment_completed_at, change_ticket_id, vendor_approval_artefact_url)\n```\n\nAll six fields should be present in ≥95% of events. Lower coverage means the upstream tool needs configuration changes.\n\nValidation events from `index=ot_validation` should carry:\n\n```spl\nindex=ot_validation earliest=-1d\n| fieldsummary\n| search field IN (patch_id, asset_key, validation_type, result, evidence_url, validation_completed_at)\n```\n\nVolume guidance: a busy OT estate of 500 hosts generates 5,000–20,000 patch events per quarter and a similar number of validation events. License impact <1 GB/month.\n\n## Step 2 — Create the search and alert\n\nThe search joins four streams:\n\n1. **Patch deployment events** from `index=ot_patch` — the canonical source of 'this patch was applied to this asset'.\n2. **Change-ticket window** from `index=ot_change_management` — the canonical source of 'this window was approved for this change ticket'.\n3. **Vendor-approval artefact** from `ot_vendor_approvals.csv` via `vendor_approval_artefact_url` already on the patch event (if the SCCM custom-field is populated) or via the lookup if not.\n4. **Post-deployment validation** from `index=ot_validation` — the canonical source of 'we tested this asset after the patch and the result was X'.\n\nThe four flags are computed independently. `late_window_flag` allows a 5-minute tolerance on both sides of the window. `missing_vendor_approval_flag` is the strictest — no exceptions other than the emergency-grace path. `validation_failed_flag` triggers on `fail` or `warn` results; the runbook differentiates the response. `validation_overdue_flag` triggers when a deployment completed >24h ago but no validation event exists.\n\n**Schedule**:\n\n```ini\n[UC-22.51.8: OT Patch Deployment Evidence: Window, Validation, and Vendor Approval]\ncron_schedule = 30 4 * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.8,reg=NCA_OTCC,clause=OTCC-2-10-2-1\naction.notable.param.rule_title = NCA OTCC OT patch evidence gap\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\naction.email.to = ot-cyber-programme@example.com,ot-operations-director@example.com\nalert.severity = 4\n```\n\nNotable creation on `validation_failed_flag=true` (immediate safety risk) or any combination of `late_window_flag` + `missing_vendor_approval_flag` (governance breach).\n\n## Step 3 — Validate deployment\n\n**(a) Patch-event throughput**: confirm that yesterday's patches reached Splunk:\n\n```spl\nindex=ot_patch earliest=-1d@d latest=now\n| stats count by sourcetype\n```\n\nA count of zero from a sourcetype known to be active (SCCM) means the modular input is broken.\n\n**(b) Validation coverage**: every completed patch should have at least one validation event within 24 hours:\n\n```spl\n(index=ot_patch earliest=-2d deployment_completed_at=*) OR (index=ot_validation earliest=-2d)\n| eval src=if(index==\"ot_patch\", \"patch\", \"validation\")\n| stats values(src) AS srcs by patch_id asset_key\n| where NOT mvfind(srcs, \"validation\")>=0\n```\n\nNon-empty result is the same set the UC's `validation_overdue_flag` will fire on — use it to monitor pre-flight.\n\n**(c) Positive control**: inject `PATCH-TEST-001` per `controlTest.positiveScenario`. Confirm all four flags evaluate as expected.\n\n**(d) Negative control**: inject `PATCH-TEST-002` per `controlTest.negativeScenario`. Confirm no flags fire and the row is archived.\n\n**(e) Cross-reference UC-22.51.7**: a vulnerability that was open in UC-22.51.7 should disappear from `remediation_status=open` within 14 days of a successful patch deployment evidenced here:\n\n```spl\n| inputlookup ot_patch_to_cve.csv\n| where deployment_completed_at < relative_time(now(), \"-14d\") AND validation_result=\"pass\"\n| join cve_id type=left [search index=vuln earliest=-1d remediation_status=open | stats count by cve_id | rename count as still_open]\n| where isnotnull(still_open)\n```\n\nNon-empty result means UC-22.51.7's `remediation_status` is not picking up patched CVEs; the patch-to-CVE link in the vulnerability tool needs configuration.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Patch Evidence`.\n\n- **Row 1, single values**: 'Open patch evidence gaps', 'Validation overdue', 'Validation failed in last 7 days'.\n- **Row 2, sortable table**: every flagged patch with drill-through to vendor approval URL, change ticket, and validation evidence.\n- **Row 3, validation results stacked bar**: pass / warn / fail / overdue by asset_class for the current quarter.\n- **Row 4, 13-month trend**: count by flag type. Steering-committee KPI.\n- **Row 5, top patches**: which patches have the highest 'validation failed' rates — informs the vendor-approval conversation for those patches.\n\n**Runbook for `validation_failed_flag=true`** (owner: OT operations director, with OT cybersecurity programme manager on copy):\n\n1. **Within 1 hour**: confirm via the validation evidence URL what failed (process variable out of band, controller heartbeat lost, safety loop proof-test failure). Convene the OT engineering on-call.\n2. **If safety affected**: declare a P1 safety incident. Pause further patches in the rollout group. Initiate the safety MOC procedure (which is outside this UC's scope but is referenced here).\n3. **If only process performance**: tune the deployment group cadence; consider patch rollback per vendor procedure.\n4. **Document the outcome** in the change ticket and in `index=audit_evidence` for the OTCC audit pack.\n\n**Runbook for `missing_vendor_approval_flag=true`** (owner: OT cybersecurity programme manager):\n\n1. **Within 1 business day**: trace the patch back to its vendor. Locate the vendor's product-security bulletin or approval letter.\n2. **If artefact exists**: link the URL in `ot_vendor_approvals.csv` and the alert clears on the next run.\n3. **If artefact does not exist**: the patch was deployed without OEM approval. Open a P2 governance ticket. The OT cybersecurity programme manager must obtain the artefact retroactively or document a justified deviation with steering-committee sign-off.\n\n## Step 5 — Troubleshooting\n\n**Validation rows never appear** — the validation pipeline writes to a different index than configured. Inspect the validation pipeline's write configuration; common issue is a typo in `index=ot_validation` vs `index=ot-validation`.\n\n**`deployment_completed_at` is in the future** — a vendor patch console reports UTC differently to the rest of the estate. Normalise to UTC at search time: `| eval deployment_completed_epoch = strptime(deployment_completed_at, \"%Y-%m-%dT%H:%M:%S%z\")` plus a sanity check `| where deployment_completed_epoch <= now() + 3600`.\n\n**Search joins overflow the subsearch limit** — SCCM produces many rows per patch (one per host). Use `tstats` against an accelerated data model or replace joins with a multi-stream `union` + `stats`.\n\n**OT-specific failure modes**:\n\n- **Validation requires plant-state context** — a process-correlation validation comparing pre- and post-patch behaviour needs the historian's data for the prior shift. Onboarding a historian (OSIsoft PI, Aveva Wonderware) into `index=ot_historian` and writing a separate validation search that computes deltas is the standard pattern; the validation pipeline writes the result row.\n- **Firmware patches on PLCs require physical confirmation** — some PLC firmware updates are visible only via a physical LED or vendor console. Manual attestation rows must be written to `index=ot_validation` by the on-site engineer; this UC then treats them like any other validation event.\n- **SIS firmware special handling** — SIS patches require functional-safety MOC sign-off in addition to cybersecurity sign-off. The change ticket must reference both authorisations; UC-22.51.15 cross-validates this.\n- **Vendor-rollback scenarios** — if a patch is rolled back, the original deployment evidence must remain in `audit_evidence` (chain of custody) and a new row 'rollback' must be added. The rollback path is governed by the same vendor-approval and validation rules.",
+  "grandmaExplanation": "We watch every plant patch as it goes in. We check the vendor said it was safe, it went in during a planned shutdown window, and that the plant still ran right afterwards. If any of those is missing or fails, we ring the bell while we can still pull the patch back.",
+  "equipmentModels": [
+    "Microsoft System Center Configuration Manager (MECM) 2403+ (patch deployment evidence)",
+    "Splunk Add-on for Microsoft SCCM (Splunkbase 4923, deployment status events)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, CAB and emergency-change tickets)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, change framework with safety-validation tags)"
+  ]
+}

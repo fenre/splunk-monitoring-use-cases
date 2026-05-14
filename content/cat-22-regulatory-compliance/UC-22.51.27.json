@@ -1,0 +1,122 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.27",
+  "title": "OT Compliance Programme Posture and KPI Reporting",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "board-exec-reporting",
+  "exclusions": "Excludes external-audit findings tracking (handled separately under GRC tooling). Excludes raw-control-test data of individual UCs (those are covered in UCs 22.51.1 through 22.51.26).",
+  "evidence": "Saved search `UC-22.51.27` archived daily to `audit_evidence` with `otcc_clause=\"OTCC-1-9-1-1\"`. Each row preserves (uc_id, clause, ot_control_family, last_evidence_at, evidence_count_24h, alert_count_24h, days_since_evidence, evidence_drought_flag, kpi_score). Dashboard `NCA OTCC – Compliance Posture` is the executive view: 28 OTCC clauses × their UC coverage × evidence-currency × KPI score.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-1-9-1-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Provides continuous internal cybersecurity review evidence for the OT programme by tracking every OTCC clause's covering UC(s), evidence currency, and a programme-level KPI. Continuous monitoring is the modern fulfilment of OTCC-1-9 'internal cybersecurity reviews at planned intervals'; the dashboard plus the audit_evidence archive form the basis for both annual internal audits and triennial external assessments. Combined with the underlying 26 UCs whose evidence flows into this dashboard, this satisfies the audits-and-reviews control.",
+      "controlObjective": "Proves the OT cybersecurity programme is continuously reviewed against its OTCC clauses with measurable KPIs reported to executive sponsors and that the underlying evidence is current and available for internal-audit and external-assessment scrutiny.",
+      "evidenceArtifact": "Saved search `UC-22.51.27` archived to `audit_evidence` plus the `NCA OTCC – Compliance Posture` executive dashboard.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-1-9-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable UC-22.51.3 for 4 days. UC-22.51.27 MUST flag clause OTCC-2-2-2-1 with `evidence_drought_flag=true` (no evidence in 24h) and route an alert to the OT cybersecurity steering committee.",
+    "negativeScenario": "An OTCC clause with daily evidence from its mapped UC(s) MUST NOT be flagged."
+  },
+  "dataSources": "`index=audit_evidence` (output of all 26 prior UCs). Lookups: `otcc_clause_uc_map.csv` (the master matrix of 27 OTCC clauses × covering UCs).",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup otcc_clause_uc_map.csv\n| eval covering_ucs=split(covering_ucs, \"|\")\n| mvexpand covering_ucs\n| rename covering_ucs AS uc_id\n| join uc_id type=left [search index=audit_evidence earliest=-30d uc=* | stats latest(_time) AS last_evidence_at count AS evidence_count_30d count(eval(_time > now()-86400)) AS evidence_count_24h BY uc | rename uc AS uc_id]\n| join uc_id type=left [search index=notable earliest=-30d uc=* | stats count(eval(_time > now()-86400)) AS alert_count_24h BY uc | rename uc AS uc_id]\n| eval days_since_evidence = round((now() - last_evidence_at)/86400)\n| eval evidence_drought_flag = if(evidence_count_24h IS NULL OR evidence_count_24h = 0, \"true\", \"false\")\n| eval kpi_score = case(evidence_drought_flag=\"true\", 0, evidence_count_24h > 0 AND alert_count_24h = 0, 100, evidence_count_24h > 0 AND alert_count_24h > 0 AND alert_count_24h < 5, 90, evidence_count_24h > 0 AND alert_count_24h >= 5, 70, true(), 0)\n| stats values(uc_id) AS covering_ucs avg(kpi_score) AS clause_kpi_score max(evidence_drought_flag) AS evidence_drought_flag latest(last_evidence_at) AS last_evidence_at sum(evidence_count_24h) AS evidence_count_24h sum(alert_count_24h) AS alert_count_24h BY clause control_family\n| eval evidence_completeness = if(evidence_drought_flag=\"true\", 0, 1)\n| eventstats sum(evidence_completeness) AS clauses_with_evidence count AS total_clauses\n| eval programme_kpi = round((clauses_with_evidence / total_clauses) * 100, 1)\n| table clause control_family covering_ucs last_evidence_at evidence_count_24h alert_count_24h clause_kpi_score evidence_drought_flag programme_kpi\n| sort - evidence_drought_flag - clause_kpi_score",
+  "description": "Aggregates evidence-currency and alert volumes from every NCA OTCC UC (22.51.1 through 22.51.26 and 22.51.28) into a clause-by-clause posture matrix and a programme-level KPI suitable for executive reporting.",
+  "value": "OTCC inspectors and the OT cybersecurity steering committee both need a single-page view of the entire programme. Without this UC, posture reporting is a quarterly manual exercise; with it, posture is live and continuous.",
+  "implementation": "(1) Build `otcc_clause_uc_map.csv` mapping each of the 27 OTCC clauses to its covering UCs (output by UC-22.51.1 through .26). (2) Schedule UC-22.51.27 daily. (3) Build the executive dashboard.",
+  "visualization": "(Panel 1) Programme KPI gauge (target ≥95%). (Panel 2) Clause-by-clause matrix sortable by KPI score. (Panel 3) 13-month KPI trend. (Panel 4) Top-5 evidence-droughts. (Panel 5) Top-5 alert-volume drivers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "NIST CSF 2.0 — Govern function (GV.OC, GV.RM, GV.SC, GV.RR, GV.PO, GV.OV)",
+      "url": "https://www.nist.gov/cyberframework"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled-UC pause for known maintenance** — a UC may be intentionally paused during a Splunk platform upgrade. Suppression: maintain `uc_maintenance_windows.csv` excluding affected UC × time window.\n\n2. **Brand-new UC not yet generating evidence** — a UC added today has no 24h evidence. Suppression: only flag drought if UC `verified_status_since` is older than 7 days.\n\n**Suppression mechanism**: KV Store `otcc_22_51_27_exceptions`.",
+  "requiredFields": [
+    "clause",
+    "covering_ucs"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "mitreAttack": [
+    "N/A (compliance-tracking UC, not a detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.1",
+    "UC-22.51.2",
+    "UC-22.51.3",
+    "UC-22.51.4",
+    "UC-22.51.5",
+    "UC-22.51.6",
+    "UC-22.51.7",
+    "UC-22.51.8",
+    "UC-22.51.9",
+    "UC-22.51.10",
+    "UC-22.51.11",
+    "UC-22.51.12",
+    "UC-22.51.13",
+    "UC-22.51.14",
+    "UC-22.51.15",
+    "UC-22.51.16",
+    "UC-22.51.17",
+    "UC-22.51.18",
+    "UC-22.51.19",
+    "UC-22.51.20",
+    "UC-22.51.21",
+    "UC-22.51.22",
+    "UC-22.51.23",
+    "UC-22.51.24",
+    "UC-22.51.25",
+    "UC-22.51.26",
+    "UC-22.51.28"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- All 27 prior NCA OTCC UCs (22.51.1 through 22.51.26 and 22.51.28) operational and writing to `index=audit_evidence`.\n- `index=audit_evidence`, `index=notable`.\n- Lookups:\n  - `otcc_clause_uc_map.csv` — owned by Head of OT Security. The 28 NCA OTCC clauses with their covering UCs. Columns: `clause`, `control_family`, `covering_ucs` (pipe-separated mvfield). Maintained as a single canonical map. Example rows:\n\n    ```csv\n    clause,control_family,covering_ucs\n    OTCC-1-2-1-1,governance,UC-22.51.1\n    OTCC-1-5-1-1,governance,UC-22.51.2\n    OTCC-1-7-1-1,governance,UC-22.51.25\n    OTCC-1-9-1-1,governance,UC-22.51.27\n    OTCC-2-1-1-1,defense,UC-22.51.3\n    OTCC-2-2-1-1,defense,UC-22.51.4\n    OTCC-2-2-3-1,defense,UC-22.51.24\n    OTCC-2-3-1-1,defense,UC-22.51.6\n    OTCC-2-3-2-1,defense,UC-22.51.9\n    OTCC-2-3-3-1,defense,UC-22.51.10\n    OTCC-2-5-1-1,defense,UC-22.51.11\n    OTCC-2-5-2-1,defense,UC-22.51.12\n    OTCC-2-5-3-1,defense,UC-22.51.5\n    OTCC-2-8-1-1,defense,UC-22.51.26\n    OTCC-2-9-1-1,resilience,UC-22.51.22\n    OTCC-2-10-1-1,defense,UC-22.51.7\n    OTCC-2-10-2-1,defense,UC-22.51.8\n    OTCC-2-12-1-1,defense,UC-22.51.13\n    OTCC-2-12-2-1,defense,UC-22.51.14\n    OTCC-2-12-3-1,defense,UC-22.51.15\n    OTCC-2-13-1-1,defense,UC-22.51.16\n    OTCC-2-13-2-1,defense,UC-22.51.17\n    OTCC-2-14-1-1,defense,UC-22.51.18\n    OTCC-2-15-1-1,defense,UC-22.51.19\n    OTCC-3-1-1-1,resilience,UC-22.51.20\n    OTCC-3-1-2-1,resilience,UC-22.51.21\n    OTCC-4-1-1-1,third_party,UC-22.51.23\n    OTCC-4-2-1-1,third_party,UC-22.51.28\n    ```\n\n  - KV Store `otcc_22_51_27_exceptions`.\n\n## Step 1 — Verify upstream evidence flow\n\nEach of the 27 prior UCs must write to `audit_evidence` with their `uc=22.51.N,reg=NCA_OTCC,clause=OTCC-X-Y-Z-N` markers. Cross-check via:\n\n```spl\nindex=audit_evidence reg=NCA_OTCC earliest=-1d\n| stats latest(_time) AS last_evidence_at count AS evidence_count_24h BY uc clause\n| sort uc\n```\n\nEnsure all 27 UCs are present.\n\n## Step 2 — Create the search and alert\n\nThe SPL aggregates per clause across covering UCs (some clauses are covered by multiple UCs, taking the max score).\n\n**Schedule**:\n\n```ini\n[UC-22.51.27: OT Compliance Programme Posture and KPI Reporting]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -30d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.27,reg=NCA_OTCC,clause=OTCC-1-9-1-1\naction.email.to = ot-cyber-steering-committee@example.com,ciso@example.com\nalert.severity = 2\n```\n\nEmail-only governance alert with the dashboard link in the body.\n\n## Step 3 — Validate deployment\n\n**(a)** All 28 OTCC clauses present in the clause map and each has at least one covering UC.\n\n**(b)** Evidence is flowing for all 27 prior UCs.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Compliance Posture` (executive).\n\n- **Row 1, KPI gauge**: programme KPI today, with target line at 95%.\n- **Row 2, matrix**: clause-by-clause status with colour-coded KPI score.\n- **Row 3, 13-month trend** of the programme KPI.\n- **Row 4, top-5 evidence-droughts** with drill-through to the affected UC.\n- **Row 5, top-5 alert-volume drivers** with drill-through.\n\n**Quarterly OT Cybersecurity Steering Committee reporting**: a Splunk PDF export of the dashboard plus a narrative section authored by Head of OT Security. Archived in the GRC tool as quarterly evidence.\n\n**Annual NCA OTCC self-assessment**: the dashboard plus the `audit_evidence` archive serve as the evidence basis. The Head of OT Security maps each clause to its UC × evidence × control-test outcome.\n\n## Step 5 — Troubleshooting\n\n**Programme KPI mysteriously low** — most likely cause is one or more upstream UCs stopped writing evidence. Drill down via the evidence-drought panel.\n\n**Inspector-week stress test** — run a dry run by simulating an evidence query for any random clause. The dashboard plus the `audit_evidence` index should answer in under a minute. If not, accelerate the relevant search.\n\n**OT-specific failure modes**:\n\n- **Splunk platform incident**: a Splunk outage during the audit window will mask all evidence. Maintain the cross-region warm-stand-by from your platform resilience runbook; UC-22.51.20 (BCP exercise) should include Splunk recovery.\n- **Clause-mapping drift**: as NCA publishes new OTCC versions, the clause map must be re-mapped. Track via `data/regulations.json` versions and re-issue `otcc_clause_uc_map.csv`.\n- **Programme-KPI gaming**: avoid the temptation to inflate evidence by writing empty events. The evidence schema must contain measurable fields; the SME panel reviews evidence quality quarterly.",
+  "grandmaExplanation": "We make one big scoreboard that shows whether every single rule in our cyber-safety book has fresh proof. If any rule is missing fresh proof, the board lights up red and we go and fix it before the inspector arrives.",
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index roll-up)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, audit table for finding lifecycle)",
+    "Splunk IT Service Intelligence 4.x (KPI base searches for OTCC clause posture)",
+    "Splunk Dashboard Studio (NCA OTCC KPI summary visualisation)"
+  ]
+}

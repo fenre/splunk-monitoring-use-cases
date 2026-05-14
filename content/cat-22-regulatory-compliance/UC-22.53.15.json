@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.15",
+  "title": "AWIA ERP Mutual-Aid — evidence WARN membership and activation criteria are documented; LEPC and state / federal contacts are recorded",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes utilities in jurisdictions without an active WARN network (rare) where alternative mutual-aid agreements are documented in `awia_mutual_aid_alt_lookup`. Excludes ad-hoc neighbour-utility helpers not formalised in writing.",
+  "evidence": "Saved search `UC-22.53.15` archived weekly to `audit_evidence` with `awia_clause=\"AWIA-ERP-mutual-aid\"`. Every row pins (pwsid, warn_state, warn_member, warn_annual_roster_signed_at, lepc_contact_at, state_eoc_contact_at, epa_regional_wpc_contact_at, cisa_fbi_cyber_contact_at, last_review_at, mutual_aid_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-ERP-mutual-aid",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences WARN membership and annual roster, LEPC contact, state EOC contact, EPA Regional WPC contact, and CISA / FBI cyber contact are documented and current per CWS.",
+      "controlObjective": "Proves AWIA ERP mutual-aid coordination.",
+      "evidenceArtifact": "Saved search `UC-22.53.15` archived; WARN annual roster signature scans retained.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-ERP-mutual-aid",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "WARN annual roster expired 12 months ago. UC-22.53.15 MUST surface within 7 days with `mutual_aid_status=\"warn_roster_stale\"`.",
+    "negativeScenario": "All five contact rows current within 12 months. UC-22.53.15 MUST record `mutual_aid_status=\"current\"`."
+  },
+  "dataSources": "GRC mutual-aid lookup curated by the Emergency Management Coordinator.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_mutual_aid_lookup pwsid OUTPUT warn_state warn_member warn_annual_roster_signed_at lepc_contact_at state_eoc_contact_at epa_regional_wpc_contact_at cisa_fbi_cyber_contact_at last_review_at\n| eval mutual_aid_status = case(\n    warn_member=\"false\" OR isnull(warn_member), \"warn_not_a_member\",\n    isnull(warn_annual_roster_signed_at) OR (now() - warn_annual_roster_signed_at) > (365 * 86400), \"warn_roster_stale\",\n    isnull(lepc_contact_at) OR (now() - lepc_contact_at) > (365 * 86400), \"lepc_contact_stale\",\n    isnull(state_eoc_contact_at) OR (now() - state_eoc_contact_at) > (365 * 86400), \"state_eoc_contact_stale\",\n    isnull(epa_regional_wpc_contact_at) OR (now() - epa_regional_wpc_contact_at) > (365 * 86400), \"epa_regional_wpc_stale\",\n    isnull(cisa_fbi_cyber_contact_at) OR (now() - cisa_fbi_cyber_contact_at) > (365 * 86400), \"cisa_fbi_contact_stale\",\n    isnull(last_review_at) OR (now() - last_review_at) > (365 * 86400), \"review_overdue\",\n    1=1, \"current\")\n| table pwsid system_name warn_state warn_member warn_annual_roster_signed_at lepc_contact_at state_eoc_contact_at epa_regional_wpc_contact_at cisa_fbi_cyber_contact_at last_review_at mutual_aid_status",
+  "description": "Audits WARN and external-contact freshness across the AWIA mutual-aid contact set.",
+  "value": "Mutual aid is the difference between hours and weeks of outage. Stale contacts are the leading reason a WARN activation fails to find the right person at 2am. This UC keeps the contacts fresh.",
+  "implementation": "(1) Maintain `awia_mutual_aid_lookup`. (2) Weekly UC-22.53.15. (3) Archive.",
+  "visualization": "(Panel 1) Mutual-aid RAG. (Panel 2) Contact-aging by category.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "WARN — Water and Wastewater Agency Response Network",
+      "url": "https://www.awwa.org/Resources-Tools/Resource-Topics/Risk-Resilience/Mutual-Aid-WARN"
+    },
+    {
+      "title": "AWIA ERP Mutual Aid",
+      "url": "https://www.epa.gov/waterresilience/awia-section-2013"
+    }
+  ],
+  "knownFalsePositives": "1. **WARN-state without active network** — alt-mutual-aid in lookup.\n\n2. **Real activation in place of roster sign** — acceptable.\n\n**Suppression**: `awia_22_53_15_exceptions`; 60-day max.",
+  "requiredFields": [
+    "pwsid",
+    "warn_member",
+    "warn_annual_roster_signed_at",
+    "mutual_aid_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC Mutual-Aid module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (mutual-aid governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.4 deployed.\n- Splunk ES, ServiceNow add-on.\n- Lookup `awia_mutual_aid_lookup`.\n\n## Step 1 — Configure data collection\n\nEmergency Management Coordinator updates the lookup at every contact event.\n\n## Step 2 — Create the search and alert\n\nWeekly Monday 07:00.\n\n```ini\n[UC-22.53.15: AWIA Mutual Aid]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.15,reg=AWIA,clause=AWIA-ERP-mutual-aid\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: backdate roster; UC fires.  Negative: refresh; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Mutual Aid Currency`. Runbook: refresh contact within 30 days.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **State EOC contact churn**: a state may reorganise its emergency management agency; update the lookup at first signal of reorganisation.\n- **EPA Regional WPC vs HQ**: AWIA mutual-aid coordination is regional; HQ engagement is exceptional.",
+  "grandmaExplanation": "If our water system breaks, we get help from a neighbour-utility network called WARN, our local emergency office, EPA, and the FBI for cyber. The phone numbers must be current. We watch them and ring the bell if anyone hasn't been spoken to in over a year."
+}

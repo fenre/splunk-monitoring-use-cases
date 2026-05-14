@@ -1,0 +1,113 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.4",
+  "title": "SOCI s 30AG board approval evidence — every CIRMP and annual report has a signed board minute",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Board / Audit Committee",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes entities that do not have a board and are governed by an equivalent accountable officer (in which case the accountable-officer signed attestation is the equivalent artefact and is captured under the same lookup). Excludes interim CIRMP drafts circulated for board feedback that have not yet been formally tabled for approval.",
+  "evidence": "Saved search `UC-22.52.4` archived daily to `audit_evidence` with `soci_clause=\"SOCI-s30AG\"`. Every row pins (asset_id, cirmp_version, board_approved_at, board_minute_url, signatory, signatory_role, annual_report_year, annual_report_approved_at, annual_report_minute_url). Dashboard `SOCI — CIRMP Board Approval Register` lists every CIRMP version and annual report with linked minute artefacts, surfaces any CIRMP without a corresponding board approval, and exports an attestation pack for the Rule 10 annual report.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s30AG",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) that every current CIRMP version has been approved by the board (or equivalent accountable officer) and (b) that the annual report under Rule 10 has been board-approved before submission. The artefact links go directly to the signed board minute. This is the entire substance of s 30AG — hence 'full'.",
+      "controlObjective": "Proves the CIRMP and each annual report have been approved by the board or equivalent governing body / accountable officer.",
+      "evidenceArtifact": "Saved search `UC-22.52.4` archived to `audit_evidence`, the `SOCI — CIRMP Board Approval Register` dashboard, and the signed board-minute URLs (artefacts stored in the entity's board-portal). The dashboard's quarterly export, signed by the Company Secretary, is the formal artefact filed in the Rule 10 annual report under 'Board approval'.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s30AG",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Publish a new CIRMP version in the GRC system but DO NOT record a corresponding board-approval minute. Within 24 hours UC-22.52.4 MUST flag the CIRMP with `approval_status=\"missing_board_approval\"`, route a notable to the Company Secretary, and prevent the CIRMP version from being marked 'in force' by the GRC workflow.",
+    "negativeScenario": "Publish a new CIRMP version AND record a corresponding board-approval minute (board_approved_at, signed_minute_url, signatory). UC-22.52.4 MUST record `approval_status=\"approved\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "Board-portal events (Diligent Boards / Nasdaq Boardvantage / OnBoard via webhook + HEC ingest into `index=board_secretariat sourcetype=\"board:portal:resolution\"`). CIRMP catalogue lookup `cirmp_catalogue_lookup` (shared with UC-22.52.2). Board approval lookup `cirmp_board_approval_lookup` (asset_id → cirmp_version, board_approved_at, signatory, signatory_role, minute_url).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk HTTP Event Collector (for board-portal webhook ingest).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup cirmp_catalogue_lookup\n| dedup asset_id cirmp_version\n| lookup cirmp_board_approval_lookup asset_id cirmp_version OUTPUT board_approved_at signatory signatory_role minute_url\n| eval approval_status = case(\n    isnotnull(board_approved_at) AND isnotnull(minute_url) AND isnotnull(signatory), \"approved\",\n    isnotnull(board_approved_at) AND isnull(minute_url), \"approved_no_artefact\",\n    1=1, \"missing_board_approval\")\n| eval annual_report_year = strftime(now(), \"%Y\")\n| join type=left asset_id annual_report_year [\n    search index=board_secretariat sourcetype=\"board:portal:resolution\" earliest=-1y@y resolution_type=\"cirmp_annual_report\"\n    | rename _time AS annual_report_approved_at, signed_minute_url AS annual_report_minute_url\n    | eval annual_report_year = strftime(_time, \"%Y\")\n    | fields asset_id annual_report_year annual_report_approved_at annual_report_minute_url\n]\n| eval annual_report_status = if(isnotnull(annual_report_approved_at), \"approved\", \"missing_annual_report_approval\")\n| table asset_id cirmp_version approval_status board_approved_at signatory signatory_role minute_url annual_report_year annual_report_status annual_report_approved_at annual_report_minute_url",
+  "description": "For every CIRMP version in force AND for the current year's annual report, verifies a signed board-approval minute artefact exists with named signatory, approval date, and a link to the signed minute. Surfaces missing approvals and missing artefacts separately so the Company Secretary can chase the right step.",
+  "value": "Without board approval the CIRMP has no legal weight under s 30AG. The CISC will ask: 'Show me the board minute approving the current CIRMP and the annual report.' This UC keeps that artefact register always-on; without it, the Company Secretary spends days at audit time chasing PDFs across drives.",
+  "implementation": "(1) Build the board-portal webhook integration: every board resolution is HECd to `index=board_secretariat` with `resolution_type` (`cirmp_approval`, `cirmp_annual_report`, etc.). (2) Materialise `cirmp_board_approval_lookup` from `cirmp_approval` resolutions, keyed by (asset_id, cirmp_version), with the signed minute URL. (3) Schedule UC-22.52.4 daily; route `approval_status=missing_board_approval` to notable (severity critical) and to Company Secretary email. (4) Archive all rows to `audit_evidence`.",
+  "visualization": "(Panel 1) RAG table: every in-force CIRMP version with approval status, signatory, and minute URL. (Panel 2) Sortable table: every CIRMP version missing board approval. (Panel 3) Annual-report board-approval status by asset and year. (Panel 4) Timeline of approvals across the last 5 years — establishes a longitudinal evidence base.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure Act 2018 (Cth) — s 30AG",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "CISC — CIRMP annual report guidance",
+      "url": "https://www.cisc.gov.au/legislation-regulation-and-compliance/critical-infrastructure-risk-management-program"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Out-of-cycle board sub-committee approval** — some entities delegate CIRMP approval to a board risk sub-committee with a different resolution type. Suppression: extend the `resolution_type` enumeration in the webhook integration and the lookup.\n\n2. **Approval in a foreign jurisdiction** — ASX-listed entities with overseas parent boards may have approval at the parent-board level. Suppression: support a `parent_board_approval_artefact` field in the lookup.\n\n3. **Accountable-officer signature (no board)** — single-shareholder or government-owned entities may have an accountable officer instead of a board. Suppression: treat `signatory_role IN (\"Accountable Officer\", \"Secretary of the Department\", \"Chief Executive\")` as equivalent.\n\n4. **Minute artefact in a different store** — some entities store minutes in SharePoint not the board portal. Suppression: extend the webhook integration or surface a manual lookup row for those entities.\n\n**Suppression mechanism**: KV Store `soci_22_52_4_exceptions` with Company Secretary sign-off; max grant 30 days because board-approval gap is high-risk.",
+  "requiredFields": [
+    "asset_id",
+    "cirmp_version",
+    "approval_status",
+    "board_approved_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Diligent Boards / Nasdaq Boardvantage / OnBoard / Convene (board-portal source of board-resolution events)",
+    "Splunk HTTP Event Collector (HEC) for board-portal webhook ingest",
+    "ServiceNow GRC (Vancouver / Washington, sn_grc_cirmp tables)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + notable framework)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and statutory-attestation workflow — measures board approval, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.2",
+    "UC-22.52.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.2 deployed (provides `cirmp_catalogue_lookup`) and UC-22.52.3 deployed (provides `cirmp_review_lookup`).\n- Board-portal webhook integration. Most modern board portals (Diligent Boards, OnBoard, Convene) emit a resolution-passed webhook; subscribe with a long-lived secret stored in a vault.\n- HEC token configured for `index=board_secretariat sourcetype=board:portal:resolution`.\n- `index=board_secretariat` (10-year retention online — board minutes are corporate records).\n- `index=audit_evidence` (7-year retention online).\n- Lookups:\n  - `cirmp_catalogue_lookup` (shared with UC-22.52.2).\n  - `cirmp_board_approval_lookup` — owned by Board Secretariat. Columns: `asset_id`, `cirmp_version`, `board_approved_at` (epoch), `signatory` (name), `signatory_role` (Chair / Director / Accountable Officer), `minute_url` (link to signed PDF in board portal).\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\n### Board-portal webhook\n\nMost modern board portals support outbound webhooks for resolution-passed events. Subscribe the webhook to a Splunk HEC endpoint behind an authentication layer. Example payload (Diligent Boards-style):\n\n```json\n{\n  \"resolution_id\": \"DLG-2026-0142\",\n  \"resolution_type\": \"cirmp_approval\",\n  \"asset_id\": \"AU-NEM-GEN-001\",\n  \"cirmp_version\": \"4.2\",\n  \"approved_at\": \"2026-05-13T11:00:00+10:00\",\n  \"signatory\": \"J. Smith\",\n  \"signatory_role\": \"Chair of the Board\",\n  \"signed_minute_url\": \"https://boards.responsible-entity.local/minutes/DLG-2026-0142\"\n}\n```\n\nA small Splunk-edge proxy (or Splunk Connect for HTTP) normalises this into `sourcetype=board:portal:resolution` and HECs to `index=board_secretariat`.\n\nThen materialise the lookup nightly:\n\n```spl\nindex=board_secretariat sourcetype=board:portal:resolution resolution_type=cirmp_approval earliest=-5y@y\n| dedup asset_id cirmp_version sortby - _time\n| rename _time AS board_approved_at, signed_minute_url AS minute_url\n| table asset_id cirmp_version board_approved_at signatory signatory_role minute_url\n| outputlookup cirmp_board_approval_lookup\n```\n\nValidate:\n\n```spl\nindex=board_secretariat earliest=-12mon\n| stats count by resolution_type\n```\n\nExpect to see `cirmp_approval`, `cirmp_annual_report`, `policy_approval` types. The presence of `cirmp_approval` confirms the webhook is wired.\n\n## Step 2 — Create the search and alert\n\nThe search is two left-joins: one against `cirmp_board_approval_lookup` for the per-version approval, and one against `index=board_secretariat` for the annual-report approval for the current year.\n\nSchedule:\n\n```ini\n[UC-22.52.4: SOCI s 30AG board approval evidence]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.4,reg=SOCI,clause=SOCI-s30AG\naction.notable.param.rule_title = SOCI s 30AG CIRMP missing board approval\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable creation on `approval_status IN (missing_board_approval, approved_no_artefact)` or `annual_report_status=missing_annual_report_approval`. Archive every row.\n\n## Step 3 — Validate deployment\n\n**(a) Webhook health**:\n\n```spl\nindex=board_secretariat sourcetype=board:portal:resolution earliest=-30d\n| timechart span=1d count\n```\n\nFlat-zero during business days suggests the webhook is broken or the secret has expired.\n\n**(b) Coverage**:\n\n```spl\n| inputlookup cirmp_catalogue_lookup\n| dedup asset_id cirmp_version\n| lookup cirmp_board_approval_lookup asset_id cirmp_version OUTPUT board_approved_at\n| stats count(eval(isnull(board_approved_at))) AS missing count AS total\n```\n\nGap > 0 is a P1 finding.\n\n**(c) Positive control**: publish a new CIRMP version in the GRC sandbox without registering a board approval. Next-day UC must flag with `approval_status=missing_board_approval`.\n\n**(d) Negative control**: publish a new version AND emit a corresponding board-portal webhook. Next-day UC must record `approval_status=approved`.\n\n**(e) Quarterly Company-Secretary attestation**: the Company Secretary signs a quarterly attestation that the approval register is complete; filed in `audit_evidence`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — CIRMP Board Approval Register`.\n\n- **Panel 1, RAG table**: in-force CIRMP versions per asset, with approval status, signatory, minute URL.\n- **Panel 2, sortable table**: every CIRMP version with missing or artefact-incomplete approvals — the Company Secretary's chase list.\n- **Panel 3, annual-report approval status**: per asset and year, with drill-through to the resolution.\n- **Panel 4, 5-year timeline**: every approval event — a longitudinal evidence base for the CIRMP annual report.\n- **Panel 5, signatory mix**: which directors signed off on which CIRMPs — supports board-rotation considerations.\n\n**Runbook for `approval_status=missing_board_approval`** (owner: Company Secretary, severity P1):\n\n1. Within 5 business days: place the CIRMP on the next board agenda; if the next board meeting is >30 days away, organise a flying minute (circular resolution).\n2. Record the approval as soon as it is granted; the webhook should auto-populate the lookup.\n3. Withdraw the 'in force' status in the GRC system until approval is recorded — prevents the CIRMP catalogue from showing an unapproved CIRMP as authoritative.\n4. Self-report any operating period without approval in the next Rule 10 annual report.\n\n**Runbook for `annual_report_status=missing_annual_report_approval`** (owner: Company Secretary, severity P1):\n\n1. The annual report is due to the Department within 90 days of financial-year end. Without board approval the report cannot be submitted under s 30AG.\n2. Calendar the approval into the board meeting that falls within 60 days of financial-year end.\n3. Escalate to the Chair if the meeting slips.\n\n## Step 5 — Troubleshooting\n\n**Webhook secret expired** — the board portal silently stops emitting; coverage panel goes red. Rotate the secret and replay the missed events via the board-portal admin console.\n\n**Signatory role ambiguous** — the portal sends 'Director' but the lookup expects 'Chair'. Normalise in the modular input field-mapping.\n\n**One CIRMP shows two approvals** — amendments or re-approvals. `dedup` by `latest(_time)`.\n\n**Annual-report approval looks missing but a verbal approval was granted** — the SOCI Act requires evidence; verbal approval is insufficient. Insist on a signed resolution.\n\n**SOCI-specific failure modes**:\n\n- **Parent-board approval delegation**: an ASX-listed entity with a foreign parent may have approval delegated. Document the delegation chain in the lookup and supply both signatories.\n- **Joint-venture assets**: an asset jointly owned by multiple responsible entities requires board approval from each. Lookup must surface every responsible entity's approval.\n- **Government-shareholder approval**: state-owned entities may have shareholder-Minister approval as the equivalent of board approval; treat the Treasurer's letter as the artefact.",
+  "grandmaExplanation": "We make sure the board has formally signed off on the written risk plan, and on the annual report sent to the regulator. If a plan is in use without a signature on file, or the annual report is about to go out without a board nod, we ring the bell so the Company Secretary can chase it down."
+}

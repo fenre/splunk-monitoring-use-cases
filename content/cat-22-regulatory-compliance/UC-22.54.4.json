@@ -1,0 +1,137 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.4",
+  "title": "CIRCIA Supplemental-Report Pipeline — evidence every new material finding lands at CISA promptly until the incident is fully resolved",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents whose original CISA report was withdrawn (because the entity later determined the incident was not in fact CIRCIA-reportable) — those carry no supplemental duty. Excludes incidents fully concluded and recorded as such in the final supplemental report — once `incident_concluded=true` is submitted, no further supplements are required. Excludes minor IR-workflow updates that do NOT meet the 'substantial new information' threshold (e.g. routine triage notes, status comments) tracked in the IR system but not in `circia_supplemental_required_lookup`.",
+  "evidence": "Saved search `UC-22.54.4` archived every 15 minutes to `audit_evidence` with `circia_clause=\"CIRCIA-s2242d\"`. Every row pins (incident_id, original_cisa_receipt_id, supplemental_trigger_event, supplemental_trigger_at, supplemental_required_by, supplemental_submitted_at, supplemental_receipt_id, days_since_trigger, supplemental_status, ir_commander, supplemental_trigger_kind). Dashboard `CIRCIA — Supplemental Reports` shows open incidents with pending supplemental triggers, recent supplemental history, and the timeline of supplements per original incident.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242d",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "6 U.S.C. § 681b(d) requires the covered entity to file supplemental reports 'promptly' when substantial new or different information about the incident emerges, until the incident is fully mitigated. The NPRM operationalises this through five trigger conditions (new information, severity revision, ransom payment after original report, forensic findings, conclusion). This UC ties the supplemental-trigger events from the IR system to CISA portal supplemental-report receipts and surfaces gaps. Marked 'full' because the UC covers trigger detection, submission tracking, and final-conclusion handling — the entirety of the s 2242(d) supplemental-reporting duty.",
+      "controlObjective": "Proves every supplemental-report trigger event for an open CIRCIA-reported incident results in a supplemental submission to the CISA Services Portal within the entity's documented 'promptness' SLA, and that every incident is finally concluded with a closing supplemental report.",
+      "evidenceArtifact": "Saved search `UC-22.54.4` archived to `audit_evidence`, the `CIRCIA — Supplemental Reports` dashboard, and the CISA Services Portal supplemental-report receipts. The audit_evidence rollup is the artefact filed for any CISA RFI for any reported incident under 6 U.S.C. § 681b(h).",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242d",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-NPRM-supplemental-trigger",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The NPRM enumerates five supplemental trigger conditions: (a) new substantial information; (b) revised severity; (c) ransom payment after original report; (d) completed forensic analysis with new findings; (e) incident concluded and full recovery achieved. UC-22.54.4 implements all five as IR-system event-types, ties them to required supplemental submissions, and rates each open incident's supplemental health. Marked 'full' because the UC operationalises the NPRM trigger schema directly.",
+      "controlObjective": "Proves the five NPRM supplemental triggers are detected systematically and trigger an appropriate supplemental-report obligation within the SLA.",
+      "evidenceArtifact": "Saved search `UC-22.54.4` archived to `audit_evidence` and the supplemental-trigger timeline panel in the `CIRCIA — Supplemental Reports` dashboard.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-NPRM-supplemental-trigger",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "For an incident with an existing CISA receipt (from UC-22.54.2), in ServiceNow Security Incident Response add a `circia_supplemental_trigger=new_substantial_information` event with `supplemental_trigger_at` set to 5 days ago and no supplemental receipt. Within 15 minutes UC-22.54.4 MUST flag the trigger with `supplemental_status=\"overdue\"` and route a notable to the IR Commander.",
+    "negativeScenario": "For the same incident, add the trigger event, then submit a supplemental report via the CISA Services Portal within the entity's documented promptness SLA (default 5 business days). UC-22.54.4 MUST record `supplemental_status=\"submitted\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "ServiceNow Security Incident Response with custom CIRCIA supplemental-trigger fields (`circia_supplemental_trigger`, `circia_supplemental_trigger_at`, `circia_supplemental_trigger_kind`). CISA Services Portal supplemental-report receipts (`index=audit_evidence sourcetype=\"hec:circia:supplemental_submission\"` with `original_cisa_receipt_id` linkage). KV Store `circia_supplemental_required_lookup` (managed by IR Engineering) mapping each trigger kind to its promptness SLA in business days. Cross-reference to `circia_reporting_status_lookup` for original receipt and IR Commander information.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" circia_reportable=true circia_supplemental_trigger=* earliest=-90d@d\n| rename _time AS supplemental_trigger_at\n| eval trigger_kind = circia_supplemental_trigger\n| lookup circia_reporting_status_lookup incident_id OUTPUT ir_commander cisa_receipt_id AS original_cisa_receipt_id\n| lookup circia_supplemental_required_lookup trigger_kind OUTPUT promptness_business_days promptness_rationale\n| eval promptness_business_days = coalesce(promptness_business_days, 5)\n| join type=left incident_id trigger_kind [\n    search index=audit_evidence sourcetype=\"hec:circia:supplemental_submission\" earliest=-90d@d\n    | rename _time AS supplemental_submitted_at\n    | fields incident_id trigger_kind supplemental_submitted_at cisa_receipt_id AS supplemental_receipt_id submitted_by\n]\n| eval days_since_trigger = round((coalesce(supplemental_submitted_at, now()) - supplemental_trigger_at) / 86400, 1)\n| eval supplemental_status = case(\n    trigger_kind=\"incident_concluded\" AND isnotnull(supplemental_submitted_at), \"concluded\",\n    trigger_kind=\"incident_concluded\" AND isnull(supplemental_submitted_at), \"conclusion_pending\",\n    isnotnull(supplemental_submitted_at) AND days_since_trigger <= promptness_business_days, \"submitted_on_time\",\n    isnotnull(supplemental_submitted_at) AND days_since_trigger > promptness_business_days, \"submitted_late\",\n    isnull(supplemental_submitted_at) AND days_since_trigger > promptness_business_days, \"overdue\",\n    isnull(supplemental_submitted_at) AND days_since_trigger > (promptness_business_days * 0.6), \"approaching_deadline\",\n    1=1, \"in_flight\")\n| table incident_id original_cisa_receipt_id supplemental_trigger_at trigger_kind promptness_business_days promptness_rationale supplemental_submitted_at supplemental_receipt_id days_since_trigger supplemental_status ir_commander submitted_by",
+  "description": "Detects supplemental-report trigger events on open CIRCIA-reported incidents and matches each to a CISA portal supplemental submission. Five trigger kinds (new information, severity revision, ransom payment after original report, forensic findings, conclusion) each have a documented promptness SLA. Overdue or missing supplemental submissions raise notables, and incident-conclusion supplements are tracked specifically.",
+  "value": "6 U.S.C. § 681b(d) imposes a supplemental-reporting duty that is open-ended and easy to forget. An IR team that submits the initial 72-hour report and then closes the incident in ServiceNow without filing a final supplemental report has technically failed CIRCIA. This UC creates the structural linkage between IR system events and supplemental-report obligations, so the General Counsel can produce on demand the evidence that supplemental reports have been filed for every material development.",
+  "implementation": "(1) Extend ServiceNow SIR with `circia_supplemental_trigger`, `circia_supplemental_trigger_at`, and the five enum values for trigger kinds. (2) Populate `circia_supplemental_required_lookup` with the entity's documented promptness SLA per trigger kind (default 5 business days; faster for high-impact triggers). (3) Build SOAR playbook `circia-supplemental-submit` that surfaces the prefilled supplemental-report payload to the General Counsel for review and submission. (4) Schedule UC-22.54.4 every 15 minutes; route `supplemental_status IN (overdue, approaching_deadline, submitted_late)` to notables. (5) Drive the dashboard so the IR Commander can see at a glance which open incidents have pending supplemental triggers.",
+  "visualization": "(Panel 1) Open-incident supplemental health: every open CIRCIA-reported incident with pending supplemental triggers, days-since-trigger, and IR Commander. (Panel 2) Trigger-kind histogram: which trigger kinds occur most often (forensic findings, new information). (Panel 3) Submission timeliness distribution: days-from-trigger-to-submission. (Panel 4) Conclusion compliance: every CISA-reported incident, with `incident_concluded` status; surfaces incidents that have gone quiet without a closing supplemental. (Panel 5) Top sources of overdue supplements: which IR Commanders, which incident classes contribute most lateness.",
+  "cimModels": [
+    "Alerts",
+    "Incident-Management"
+  ],
+  "references": [
+    {
+      "title": "CIRCIA — 6 U.S.C. § 681b(d) Supplemental Reports",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    },
+    {
+      "title": "CISA NPRM — Supplemental Reporting (89 FR 23644 § 226.7)",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    },
+    {
+      "title": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413"
+    }
+  ],
+  "knownFalsePositives": "1. **Trigger event with no underlying substantial change** — an IR analyst may set `circia_supplemental_trigger=new_substantial_information` on a routine triage update. Suppression: the trigger must require a free-text rationale and the General Counsel reviews triggers weekly to confirm they meet the 'substantial' threshold.\n\n2. **Conclusion misclassified** — the IR system marks the incident closed in ServiceNow without setting `circia_supplemental_trigger=incident_concluded`. Suppression: the ServiceNow workflow must force the trigger on close.\n\n3. **Multiple triggers same day** — a forensic-completion event and a severity-revision event may occur the same day; both warrant their own supplemental, but most operators consolidate. The NPRM allows consolidation if all triggered information is included in one supplement. Suppression: tolerate one submission for multiple same-day triggers if the receipt explicitly cites both.\n\n4. **Late filing intentionally** — the General Counsel may instruct the IR Commander to delay filing pending external counsel review. The promptness SLA is a default; the GC may grant a documented exception. Suppression: KV Store `circia_22_54_4_exceptions` with explicit GC approval and a 7-day maximum grant.\n\n**Suppression mechanism**: KV Store `circia_22_54_4_exceptions` with per-trigger grants requiring documented General Counsel approval and a 7-day maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "supplemental_trigger_at",
+    "trigger_kind",
+    "supplemental_submitted_at",
+    "supplemental_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + IR Director",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
+    "ServiceNow Security Incident Response with custom CIRCIA supplemental-trigger columns",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-supplemental-submit playbook)"
+  ],
+  "mitreAttack": [
+    "N/A (post-incident statutory-reporting workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.2",
+    "UC-22.54.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928), with `sn_si_incident` polling at 60-second interval (same as UC-22.54.2).\n- Splunk SOAR (Splunkbase 4413) with playbook `circia-supplemental-submit`.\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- `index=itsm` (90-day retention online; longer if you want supplemental archaeology beyond 90 days).\n- `index=audit_evidence` (10-year retention online).\n- KV Stores `circia_reporting_status_lookup`, `circia_supplemental_required_lookup`.\n- A small operator-owned orchestration around the CISA Services Portal supplemental-submission endpoint, emitting HEC events on each submission.\n\n## Step 1 — Populate the promptness lookup\n\n```csv\n# circia_supplemental_required_lookup.csv\ntrigger_kind,promptness_business_days,promptness_rationale\nnew_substantial_information,5,\"NPRM § 226.7 — 'promptly' for new substantial information; entity policy is 5 business days.\"\nseverity_revision,3,\"NPRM § 226.7 — severity revision indicates revised public-interest impact; entity policy is 3 business days.\"\nransom_payment_post_report,1,\"Ransom payment after original incident report; 24 hours under § 681b(c) measured from payment-made.\"\nforensic_completion,5,\"NPRM § 226.7 — forensic completion with new findings; entity policy is 5 business days.\"\nincident_concluded,10,\"NPRM § 226.7 — final supplemental on full recovery; entity policy is 10 business days from declared conclusion.\"\n```\n\n## Step 2 — Extend ServiceNow SIR\n\nAdd custom columns to `sn_si_incident`:\n\n| Column | Type | Notes |\n|---|---|---|\n| `circia_supplemental_trigger` | Choice | One of `new_substantial_information`, `severity_revision`, `ransom_payment_post_report`, `forensic_completion`, `incident_concluded`. Append-only event log via Audit table. |\n| `circia_supplemental_trigger_at` | Date/Time | When the trigger was identified. |\n| `circia_supplemental_trigger_rationale` | Long text | Mandatory free-text rationale describing the substantial new information / severity revision / forensic finding. |\n\nWorkflow rule: setting `circia_supplemental_trigger` requires also setting `circia_supplemental_trigger_rationale`. The fields are append-only — each trigger is a new row in the IR work-notes log, not an overwrite of the previous trigger.\n\n## Step 3 — SOAR `circia-supplemental-submit` playbook\n\nWhen ES creates a notable for `supplemental_status=approaching_deadline`, SOAR runs:\n\n1. Prefill the CISA supplemental-report payload from `sn_si_incident` and the original CISA receipt.\n2. Route to the General Counsel queue for review and submission.\n3. On submission, emit a HEC event sourcetype `hec:circia:supplemental_submission` with the trigger kind, the original receipt ID, and the supplemental receipt ID.\n4. Update `sn_si_incident` with the supplemental receipt ID.\n\n## Step 4 — Create the search and alert\n\n```ini\n[UC-22.54.4: CIRCIA Supplemental-Report Pipeline]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.4,reg=CIRCIA,clause=CIRCIA-s2242d\naction.notable.param.rule_title = CIRCIA supplemental-report obligation overdue or approaching deadline\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\nalert.suppress = 1\nalert.suppress.fields = incident_id,trigger_kind\nalert.suppress.period = 24h\n```\n\n## Step 5 — Validate deployment\n\n**(a) Trigger detection**: in a non-production SIR, set `circia_supplemental_trigger=new_substantial_information` on an open CIRCIA-reportable incident; within 15 minutes UC-22.54.4 must show `supplemental_status=in_flight`.\n\n**(b) Promptness SLA validation**: leave the trigger un-submitted; at 60% of the SLA (3 business days for new_substantial_information), UC-22.54.4 must flag `approaching_deadline`; at 100% of SLA, `overdue`.\n\n**(c) Conclusion test**: set `circia_supplemental_trigger=incident_concluded` on an open incident; verify the dashboard `Conclusion compliance` panel surfaces the conclusion-supplement as pending until submitted.\n\n**(d) Multi-trigger consolidation test**: set two trigger kinds on the same incident the same day; submit a single supplemental that cites both. UC-22.54.4 must record both triggers as `submitted_on_time` with the same supplemental_receipt_id.\n\n## Step 6 — Operationalize\n\n**Dashboard**: `CIRCIA — Supplemental Reports`. Built for the IR Commander, CISO, General Counsel.\n\n- Panel 1: open-incident supplemental health table.\n- Panel 2: trigger-kind frequency histogram.\n- Panel 3: timeliness distribution.\n- Panel 4: conclusion compliance.\n- Panel 5: late-source rank.\n\n**Runbook for `approaching_deadline`** (owner: IR Commander, severity P2):\n\n1. Within 1 business day: pull together the supplemental-report content; submit via SOAR.\n\n**Runbook for `overdue`** (owner: General Counsel, severity P1):\n\n1. Within 4 business hours: submit; document delay.\n2. Add to the next CIRCIA Determination Committee agenda.\n\n## Step 7 — Troubleshooting\n\n**Triggers never appear** — the ServiceNow workflow is not enforcing the new fields. Check workflow rules.\n\n**Submissions arrive without trigger correlation** — the operator orchestration is not preserving `trigger_kind` on the HEC event. Fix the payload.\n\n**Conclusion supplements never trigger** — ServiceNow `state=closed` is not auto-setting `circia_supplemental_trigger=incident_concluded`. Add a workflow rule.\n\n**CIRCIA-specific failure modes**:\n\n- **Multi-incident supplement**: a single supplemental may cover a chain of related incidents. The CISA portal supports linking; the operator orchestration must preserve all linked `incident_id`s on the HEC event.\n- **Forensic completion delayed by months**: if forensic analysis runs months past the initial 72-hour report, the supplemental is still due 'promptly' after forensic completion — not after the original incident. The promptness clock runs from `supplemental_trigger_at`, not from incident open.\n- **Ransom-payment supplement vs ransom-payment original report**: if a ransom payment occurs after the covered-incident 72-hour report, the entity must file (a) a 24-hour ransom-payment report under UC-22.54.3 AND (b) a supplemental to the original 72-hour report linking the ransom event. UC-22.54.4 handles (b); UC-22.54.3 handles (a).\n- **Premature conclusion**: an IR team may declare 'full recovery' before forensic analysis is truly complete. The conclusion supplement should mention any in-progress forensic work; if further findings emerge, file additional supplements even after conclusion.",
+  "grandmaExplanation": "Once we've told the cyber agency about an incident, we must keep them updated when we learn something new — a bigger impact, a new finding, the ransom got paid afterwards, or we've fully recovered. We track every update so nothing slips through the cracks."
+}

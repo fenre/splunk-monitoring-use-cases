@@ -1,0 +1,122 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.8",
+  "title": "AWIA RRA Electronic Systems Inventory — evidence enterprise IT, SCADA, PLC / RTU, plant networks, billing portals, and remote-access pathways are inventoried and assessed",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "Head of IT Operations",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes air-gapped lab instruments not connected to any utility network. Excludes hardware decommissioned and physically removed (documented removal certificate retained). Excludes consumer-facing read-only public web pages (e.g. tariff publication site) that have no payment / authentication / OT control function.",
+  "evidence": "Saved search `UC-22.53.8` archived hourly to `audit_evidence` with `awia_clause=\"AWIA-RRA-electronic-systems\"`. Every row pins (pwsid, asset_id, asset_class, asset_subclass, hostname, ip, network_segment, scada_role, vendor, model, firmware_version, in_rra, rra_artefact_url, last_assessed_at, assessment_method, coverage_status). Dashboard `AWIA — Electronic Systems Coverage` shows the cyber-asset coverage matrix.",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-RRA-electronic-systems",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences enterprise IT, SCADA (HMI / controller / historian / engineering workstation), PLC / RTU at treatment plants and lift stations, plant network infrastructure, billing and customer-portal systems, and remote-access pathways are present in the asset inventory and assessed in the RRA with per-asset artefact URLs.",
+      "controlObjective": "Proves AWIA RRA electronic-systems-and-cyber scope coverage.",
+      "evidenceArtifact": "Saved search `UC-22.53.8` archived to `audit_evidence`, `AWIA — Electronic Systems Coverage` dashboard, per-asset RRA artefact deep links, last-assessed timestamps.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-RRA-electronic-systems",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Onboard a new PLC at a lift station, register in the asset inventory with `asset_class=plc`, no RRA coverage. UC-22.53.8 MUST surface within 1 hour with `coverage_status=\"missing_in_rra\"`.",
+    "negativeScenario": "Add RRA coverage row with `in_rra=true`, `rra_artefact_url`, `last_assessed_at` within 12 months, `assessment_method` populated. UC-22.53.8 MUST record `coverage_status=\"current\"`."
+  },
+  "dataSources": "Asset inventory (ServiceNow CMDB / Lansweeper / Dragos / Claroty / Nozomi / Armis), SCADA asset broker, network scanner outputs, RRA coverage lookup.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Claroty (Splunkbase 5031).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index IN (cmdb, ot_asset) sourcetype IN (servicenow:cmdb_ci, dragos:asset, claroty:asset, nozomi:asset, armis:device) earliest=-1h@h\n| eval asset_class = lower(coalesce(asset_class, ci_class, device_type))\n| where asset_class IN (\"scada_hmi\",\"plc\",\"rtu\",\"historian\",\"engineering_workstation\",\"plant_switch\",\"plant_firewall\",\"jump_host\",\"remote_access\",\"billing_app\",\"customer_portal\",\"enterprise_workstation\",\"enterprise_server\",\"vpn\")\n| lookup awia_rra_asset_coverage_lookup asset_id OUTPUT in_rra rra_artefact_url last_assessed_at assessment_method\n| eval last_assessed_days = if(isnotnull(last_assessed_at), round((now() - last_assessed_at) / 86400, 0), null())\n| eval coverage_status = case(\n    isnull(in_rra) OR in_rra=\"false\", \"missing_in_rra\",\n    isnull(rra_artefact_url), \"undocumented\",\n    last_assessed_days > 365 OR isnull(last_assessed_days), \"assessment_stale\",\n    isnull(assessment_method), \"method_unrecorded\",\n    1=1, \"current\")\n| stats first(hostname) as hostname first(ip) as ip first(network_segment) as network_segment first(scada_role) as scada_role first(vendor) as vendor first(model) as model first(firmware_version) as firmware_version first(in_rra) as in_rra first(rra_artefact_url) as rra_artefact_url first(last_assessed_at) as last_assessed_at first(last_assessed_days) as last_assessed_days first(assessment_method) as assessment_method first(coverage_status) as coverage_status by pwsid asset_id asset_class\n| table pwsid asset_id asset_class hostname ip network_segment scada_role vendor model firmware_version in_rra rra_artefact_url last_assessed_at last_assessed_days assessment_method coverage_status",
+  "description": "Cross-references the live OT/IT asset inventory against the AWIA RRA cyber-asset coverage lookup, surfacing assets present in the inventory but absent or stale in the RRA.",
+  "value": "EPA published water-sector advisories repeatedly find that the asset attacked was not in the RRA inventory. AWIA exposure is determined at inventory time, not at attack time. This UC closes the inventory-to-RRA gap continuously.",
+  "implementation": "(1) Onboard CMDB + OT asset broker (Dragos / Claroty / Nozomi / Armis) to Splunk. (2) Maintain `awia_rra_asset_coverage_lookup` keyed `asset_id` with `in_rra`, `rra_artefact_url`, `last_assessed_at`, `assessment_method`. (3) Schedule UC-22.53.8 hourly; route `missing_in_rra` to notable severity=high and assign to OT Cybersecurity Lead. (4) Archive.",
+  "visualization": "(Panel 1) Asset-class coverage RAG. (Panel 2) Last-assessed aging. (Panel 3) Missing-in-RRA list. (Panel 4) Per-segment coverage rollup.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Safe Drinking Water Act 1433(a) electronic systems scope",
+      "url": "https://www.epa.gov/waterresilience/awia-section-2013"
+    },
+    {
+      "title": "CISA — Pathway to Cybersecurity for Water and Wastewater Sector",
+      "url": "https://www.cisa.gov/water"
+    },
+    {
+      "title": "AWWA G430-14 Security Practices for Operation and Management",
+      "url": "https://www.awwa.org/Store/Product-Details/productId/56906497"
+    }
+  ],
+  "knownFalsePositives": "1. **Asset class genuinely out of AWIA cyber scope** — lab instrument with no network. Mitigation: scope filter; if classified, explicitly tag `out_of_scope=true` with reviewer attestation.\n\n2. **Newly commissioned within 30-day grace** — a new asset has 30 days for RRA coverage update; suppress within window.\n\n3. **Decommissioned but not yet removed from CMDB** — cross-check `decommissioning_status=\"removed\"`.\n\n**Suppression mechanism**: KV Store `awia_22_53_8_exceptions`; 30-day max grant for new assets; OT Cybersecurity Lead sign-off.",
+  "requiredFields": [
+    "pwsid",
+    "asset_id",
+    "asset_class",
+    "in_rra",
+    "last_assessed_at",
+    "coverage_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "dragos"
+  ],
+  "equipmentModels": [
+    "ServiceNow CMDB",
+    "Dragos OT asset visibility",
+    "Claroty CTD / xDome",
+    "Nozomi Networks Guardian",
+    "Armis Centrix",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "T1133",
+    "T1190"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.1",
+    "UC-22.51.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 (RRA currency) and UC-22.51.5 (asset inventory baseline) deployed.\n- Splunk Add-on for ServiceNow, ES.\n- OT asset broker integrated (Dragos / Claroty / Nozomi / Armis).\n- Indexes `index=cmdb`, `index=ot_asset`, `index=audit_evidence`.\n- Lookup `awia_rra_asset_coverage_lookup`.\n\n## Step 1 — Configure data collection\n\n**CMDB**: ServiceNow CMDB streams `ci_class`, `hostname`, `ip_address`, `vendor`, `model`. Map `ci_class` into the AWIA asset-class taxonomy via a transform.\n\n**OT asset broker**: Dragos / Claroty / Nozomi / Armis feed PLC, RTU, HMI, historian, engineering-workstation, plant-switch detail. Use the vendor add-on or HEC.\n\n**RRA coverage lookup**: OT Cybersecurity Lead writes per-asset coverage row.\n\n## Step 2 — Create the search and alert\n\nSchedule hourly.\n\n```ini\n[UC-22.53.8: AWIA RRA Electronic Systems coverage]\ncron_schedule = 5 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.8,reg=AWIA,clause=AWIA-RRA-electronic-systems\naction.notable.param.rule_title = AWIA Electronic Systems coverage gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\nalert.suppress = 1\nalert.suppress.period = 4h\nalert.suppress.fields = pwsid,asset_id\n```\n\n## Step 3 — Validate deployment\n\n**(a) Positive**: onboard a new PLC; UC surfaces.\n\n**(b) Negative**: add coverage; UC clears.\n\n**(c) Stale**: backdate `last_assessed_at` 2 years; UC surfaces `assessment_stale`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Electronic Systems Coverage`.\n\n**Runbook for `missing_in_rra`** (P2, OT Cybersecurity Lead):\n\n- Within 5 business days: classify asset, add RRA coverage row with artefact URL, last-assessed date, assessment method (J100, VSAT-Web, AWWA G430).\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Vendor-managed remote engineering workstation**: when a SCADA integrator maintains a remote engineering workstation, the asset is in scope of the utility's RRA and must appear in coverage; document the vendor-managed status and the contractual control on the workstation.\n- **Cloud SCADA / managed-service SCADA**: a managed SCADA service is in AWIA scope; the asset entry references the service provider's SOC 2 report or equivalent as the assessment-method evidence.\n- **Remote lift-station PLCs over cellular**: each remote PLC is its own asset; the cellular gateway is also in scope. Both must appear.\n- **Engineering-workstation virtualisation**: a virtual engineering workstation has the same AWIA scope as a physical one.",
+  "grandmaExplanation": "If you don't know what computers and controllers run your water plant, you can't protect them. We watch the live asset list and ring the bell when something new appears that isn't yet in the risk check, or when an asset hasn't been re-checked in over a year."
+}

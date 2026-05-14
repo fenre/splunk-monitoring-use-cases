@@ -1,0 +1,143 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.11",
+  "title": "Shore-to-ship satcom remote-access governance — VSAT / Iridium Certus / Inmarsat-FleetBroadband PAM enforcement with WYSIWYS for OT-changes",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "CISO",
+  "controlFamily": "privileged-session-recording",
+  "exclusions": "Excludes vessel-to-vessel comms within the same fleet on a private satcom plan. Excludes emergency GMDSS distress comms.",
+  "evidence": "Saved search `UC-22.59.11` archived hourly to `audit_evidence` with `imo_clause=\"BIMCO-Cyber-satcom\"`. Every row pins (imo_number, session_id, source_user, source_company, target_vessel, target_zone, target_system, satcom_path, mfa_present, session_recorded, wysiwys_confirmed, governance_indicator).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "BIMCO-Cyber-satcom",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "BIMCO Guidelines specifically require PAM with session recording, WYSIWYS (What-You-See-Is-What-You-Sign), MFA on the shore side, and time-bounded access for satcom-mediated remote sessions. This UC enforces all four.",
+      "controlObjective": "Demonstrates that every shore-to-ship remote-access session is PAM-mediated, MFA-authenticated, time-bounded, and recorded; WYSIWYS-confirmed for OT-system changes.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO Satcom Remote-Access Governance` dashboard, the PAM session-recording archive.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#BIMCO-Cyber-satcom",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IACS-UR-E26-r5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "IACS UR E26 r5 requires strong authentication preferring MFA for privileged remote access.",
+      "controlObjective": "Aligns satcom remote-access with IACS UR E26 newbuild standard.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IACS-UR-E26-r5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An OEM engineer connects directly to a vessel ECDIS through VSAT without going through the PAM gateway. UC-22.59.11 MUST flag governance_indicator=true within 1 hour with mfa_present=false and session_recorded=false.",
+    "negativeScenario": "OEM engineer connects via PAM gateway with MFA, session recording, and WYSIWYS confirmation for an OT-config change. UC-22.59.11 MUST record governance_indicator=false."
+  },
+  "dataSources": "CyberArk PSM (Privileged Session Manager) — session events (`cyberark:session`, `cyberark:audit`). BeyondTrust Privileged Remote Access. Satcom firewall logs (PAN PA-220R / FortiGate 60F onboard — `pan:traffic`, `fortinet:fortigate:traffic`). Iridium Certus / Inmarsat satellite-side terminal logs (`iridium:certus:audit`, `inmarsat:fbb:audit`). KV Store `imo_satcom_session_lookup` for session metadata + WYSIWYS attestation.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2891,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Palo Alto Networks Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=\"cyberark:session\" OR sourcetype=\"cyberark:audit\" OR sourcetype=\"pan:traffic\" OR sourcetype=\"fortinet:fortigate:traffic\" OR sourcetype=\"iridium:certus:audit\" OR sourcetype=\"inmarsat:fbb:audit\")\n    satcom_path IN (\"vsat\",\"iridium-certus\",\"inmarsat-fleetbroadband\",\"inmarsat-c\")\n    target_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\")\n| eval session_recorded = case(sourcetype = \"cyberark:session\", \"true\", session_via_pam = \"true\", \"true\", 1=1, \"false\")\n| eval mfa_present = case(auth_factors >= 2, \"true\", 1=1, \"false\")\n| lookup imo_satcom_session_lookup session_id OUTPUT wysiwys_confirmed wysiwys_signed_by wysiwys_signed_at\n| eval governance_indicator = case(\n    session_recorded = \"false\", \"true\",\n    mfa_present = \"false\", \"true\",\n    isnull(wysiwys_confirmed) OR wysiwys_confirmed = \"false\", \"true\",\n    1=1, \"false\")\n| where governance_indicator = \"true\"\n| table _time imo_number session_id source_user source_company target_vessel target_zone target_system satcom_path mfa_present session_recorded wysiwys_confirmed governance_indicator",
+  "description": "Inspects every shore-to-ship remote-access session over satcom; verifies PAM mediation, MFA presence, session recording, and WYSIWYS confirmation for OT-system changes; raises a notable on any governance gap.",
+  "value": "OEM remote-support sessions and shore-IT remote-admin sessions are the highest-risk daily activities on a connected fleet. The 2019 'Marine Money' analysis estimated 35% of fleet cyber-incidents had a remote-session as the entry vector. Without PAM + WYSIWYS, a single OEM-engineer mistake or compromised endpoint can affect dozens of vessels at once. This UC closes the gap with continuous evidence.",
+  "implementation": "(1) Deploy CyberArk PSM (or equivalent — BeyondTrust, Senhasegura, Delinea) on the shore-side network with reverse-proxy mediation for every fleet OT system. (2) Implement WYSIWYS workflow: for any OT-config change, the OEM engineer signs an attestation in PSM specifying the intended change and the vessel ID before commit. (3) Schedule UC-22.59.11 hourly; route at severity P1 for any governance gap on OT zones.",
+  "visualization": "(Panel 1) Open governance gaps (24h). (Panel 2) Per-vessel session distribution by satcom path. (Panel 3) Top OEM companies by session volume. (Panel 4) WYSIWYS attestation cadence.",
+  "cimModels": [
+    "Authentication",
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "title": "BIMCO Guidelines on Cyber Security Onboard Ships — Satcom and remote access",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    },
+    {
+      "title": "IACS UR E26 — Cyber resilience of ships, access control",
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+    },
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 — Communication systems",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    }
+  ],
+  "knownFalsePositives": "1. **Iridium-only vessel low-bandwidth**: PAM session recording may be skipped on Iridium-only operation due to bandwidth; allow with `vessel_satcom_class=iridium-only` AND `session_replay_offline=true` (the session is recorded ashore and replayed on the next port-call). 2. **Emergency-distress comms via GMDSS**: GMDSS distress comms are exempt. 3. **Iridium-Certus tunnel maintenance**: scheduled satcom-tunnel maintenance windows.\n\n**Suppression mechanism**: KV Store `imo_22_59_11_exceptions` with the CISO + DPA's documented approval.",
+  "requiredFields": [
+    "imo_number",
+    "session_id",
+    "target_zone",
+    "mfa_present",
+    "session_recorded",
+    "governance_indicator"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + DPA + Shore-IT Security",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "cyberark",
+    "palo-alto"
+  ],
+  "equipmentModels": [
+    "CyberArk Privileged Session Manager (PSM)",
+    "BeyondTrust Privileged Remote Access (PRA)",
+    "Senhasegura Privileged Session Recorder",
+    "Delinea Secret Server (with PAM)",
+    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
+    "Fortinet FortiGate-60F / 100F (onboard)",
+    "Iridium Certus (sub-700 kbps maritime broadband)",
+    "Inmarsat-FleetBroadband / FleetXpress / GX Maritime",
+    "VSAT (Marlink, KVH, Speedcast)"
+  ],
+  "mitreAttack": [
+    "T1133",
+    "T1078",
+    "T0883"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- A PAM solution (CyberArk PSM, BeyondTrust PRA, Senhasegura, Delinea) deployed shore-side with reverse-proxy mediation for every fleet OT system.\n- Onboard firewall configured to deny direct satcom-to-OT traffic; only the PAM gateway is allowed to initiate.\n\n## Step 1 — Satcom-session KV Store\n\n```ini\n[imo_satcom_session_lookup]\nenforceTypes = true\nfield.session_id = string\nfield.imo_number = string\nfield.source_user = string\nfield.source_company = string\nfield.target_zone = string\nfield.target_system = string\nfield.satcom_path = string\nfield.wysiwys_confirmed = string\nfield.wysiwys_signed_by = string\nfield.wysiwys_signed_at = time\nfield.intent_description = string\nfield.approved_by = string\nfield.session_start = time\nfield.session_end = time\n```\n\n## Step 2 — WYSIWYS workflow\n\nBefore committing any OT change, the PAM session prompts the engineer with a structured form: vessel ID, target system, intended change description, change ticket reference, sign-off. The form is hashed and the hash + signature are written to the KV Store.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.11: IMO Satcom Remote-Access Governance]\ncron_schedule = 35 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.11,reg=IMO-MSC-428-98,clause=BIMCO-Cyber-satcom\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`governance_indicator=true` on target_zone in [ibs, ecdis, gmdss, ais, propulsion, dps]** (owner: CISO + DPA, severity P1): Within 1 hour, terminate any in-progress session; investigate; document for the next DoC verification.\n\n## Step 5 — Maritime-specific notes\n\n- **Bandwidth-sensitive operation**: PAM session recording can be heavy on Iridium-only operation; the offline-replay variant captures locally and uploads at port-call.\n- **OEM-cloud direct connections**: when OEMs use their own cloud platforms (Wartsila Online Services, ABB Marine OneView, Kongsberg CloudPort) that side-step the PAM gateway, that's a governance gap; either bring them into PAM or accept the documented exception.",
+  "grandmaExplanation": "Ships are visited by remote engineers from shore — they fix problems over satellite without coming on board. We make sure every one of these remote visits goes through a controlled gateway, that the engineer has logged in properly, the session is recorded, and the engineer signs off on what they did."
+}

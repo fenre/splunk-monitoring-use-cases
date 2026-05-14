@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.59.14",
+  "title": "Annual cyber-drill + tabletop after-action register — recover function MSC-FAL.1/Circ.3 §2.5 and ISM §8.2 evidence chain",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Operations"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Maritime / Shipping",
+  "owner": "Head of OT Security",
+  "controlFamily": "ir-drill-evidence",
+  "exclusions": "Excludes non-cyber drills (fire, abandon-ship, oil-spill) tracked under ISM emergency-preparedness UCs.",
+  "evidence": "Saved search `UC-22.59.14` archived weekly to `audit_evidence` with `imo_clause=\"IMO-MSC-FAL-Circ-3-s2-5\"`. Every row pins (vessel_or_fleet, last_cyber_drill, drill_type, drill_scenario, lessons_logged, action_items_open, action_items_overdue, status).",
+  "compliance": [
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-MSC-FAL-Circ-3-s2-5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Section 2.5 of MSC-FAL.1/Circ.3 Rev.2 (Recover) requires drills to validate recovery plans. This UC ensures every vessel has a documented annual cyber-drill with after-action follow-up.",
+      "controlObjective": "Demonstrates that every vessel has performed at least one cyber-drill in the past 365 days, that lessons-learned are logged, and that action items are closed within the SLA.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `IMO Cyber-Drill Register` dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s2-5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "imo-msc-428-98",
+      "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
+      "clause": "IMO-ISM-Code-s8-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "ISM Code §8.2 requires emergency-preparedness drills; cyber drills are now explicitly in scope.",
+      "controlObjective": "Aligns with ISM Code emergency-preparedness function.",
+      "evidenceArtifact": "Same auditor-facing evidence chain as the primary clause: saved-search row in `audit_evidence` plus the linked Splunk dashboard.",
+      "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-ISM-Code-s8-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A vessel completed its last cyber-drill 400 days ago. UC-22.59.14 MUST flag status=overdue.",
+    "negativeScenario": "Vessel completed a tabletop 90 days ago and all action items closed. UC-22.59.14 MUST record status=current."
+  },
+  "dataSources": "KV Store `imo_cyber_drill_lookup` (drill register). ServiceNow ITSM tasks for action items (`snow:task`). Splunk SOAR drill-related playbooks (`soar:case` where `case_type=cyber_drill`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup imo_cyber_drill_lookup\n| eval now_ts = now()\n| eval days_since_drill = round((now_ts - last_drill_completed_at) / 86400, 1)\n| eval drill_status = case(\n    days_since_drill > 365, \"overdue\",\n    days_since_drill > 330, \"due-soon\",\n    1=1, \"current\")\n| eval action_overdue_count = if(isnotnull(action_items_overdue), action_items_overdue, 0)\n| eval status = case(\n    drill_status = \"overdue\", \"breach-no-drill\",\n    drill_status = \"due-soon\", \"warning-drill-due\",\n    action_overdue_count > 0, \"breach-actions-overdue\",\n    1=1, \"compliant\")\n| where status NOT IN (\"compliant\")\n| sort 0 -days_since_drill\n| table vessel_or_fleet imo_number last_drill_completed_at drill_type drill_scenario days_since_drill action_items_open action_items_overdue status",
+  "description": "Validates that every vessel in the fleet has performed at least one cyber-drill within the past 365 days, that the drill scenario and lessons-learned are documented, and that action items from the after-action review are closed within the SLA.",
+  "value": "ISM emergency-preparedness drills are a known PSC inspection item; cyber drills are now in scope. Without an evidence chain, the auditor records the gap as a major non-conformity; the same finding can lead to detention at PSC inspection.",
+  "implementation": "(1) Build the drill register KV Store. (2) Wire the company training department to log drill completion + after-action items into the register. (3) Wire ServiceNow tasks to feed action-item-closure status. (4) Schedule UC-22.59.14 weekly; route as P2 for overdue drills and P3 for action-item closure breach.",
+  "visualization": "(Panel 1) Fleet drill currency table (days since last drill). (Panel 2) Overdue-action histogram. (Panel 3) Drill cadence trend (last 24 months). (Panel 4) Top scenario types.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §2.5 Recover",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "BIMCO Guidelines on Cyber Security Onboard Ships — drills annex",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    }
+  ],
+  "knownFalsePositives": "1. **New-build vessels**: a vessel under construction or delivered <30 days has no drill history; honour a 90-day onboarding grace window. 2. **Fleet-level drills**: a single SCAREX tabletop may cover multiple vessels; the drill register must enumerate every vessel attending.\n\n**Suppression mechanism**: KV Store `imo_22_59_14_exceptions` with the Company Security Officer documented approval.",
+  "requiredFields": [
+    "vessel_or_fleet",
+    "imo_number",
+    "last_drill_completed_at",
+    "days_since_drill",
+    "status"
+  ],
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Company Security Officer + DPA",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow ITSM (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (training and preparedness control)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.59.1",
+    "UC-22.59.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.1 and UC-22.59.2 in production so vessel + DPA registers are authoritative.\n- ServiceNow ITSM task workflow for cyber-drill action items.\n\n## Step 1 — Drill register KV Store\n\n```ini\n[imo_cyber_drill_lookup]\nenforceTypes = true\nfield.vessel_or_fleet = string\nfield.imo_number = string\nfield.last_drill_completed_at = time\nfield.drill_type = string  # tabletop | simulation | full-exercise\nfield.drill_scenario = string  # ransomware-shore | ecdis-spoof | gnss-jam | propulsion-malware | satcom-mitm | etc\nfield.action_items_logged = number\nfield.action_items_open = number\nfield.action_items_overdue = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.14: IMO Cyber-Drill Register]\ncron_schedule = 0 6 * * 1\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.14,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-5\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`status=breach-no-drill`** (owner: CySO + DPA, severity P2): Schedule a drill within 30 days; record in the drill register on completion.\n\n**`status=breach-actions-overdue`** (owner: CySO + Master, severity P3): Close action items within 14 days; escalate to DPA + Company Security Officer if not closed.\n\n## Step 4 — Maritime-specific notes\n\n- **SOLAS Chapter VII drills**: align cyber-drill scheduling with SOLAS emergency drills already in the master's schedule.\n- **Mixed cyber + safety drills**: a fire-in-server-room drill exercising both cyber-response and safety-emergency response can satisfy this UC for that vessel.",
+  "grandmaExplanation": "Like fire drills on a ship, the crew must also practice handling a cyber incident at least once a year, and afterwards they write down what they learned and what to fix. We watch each ship's drill log and warn the company when a drill is overdue or a lesson has not been acted on."
+}

@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **7,364 IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **7,885 IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable API** (`dist/api/catalog-index.json`) for automation and integrations.
 

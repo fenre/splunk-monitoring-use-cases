@@ -1,0 +1,128 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.27",
+  "title": "CIRCIA Forensic Imaging Pipeline — evidence capture of affected endpoints and OT controllers with cryptographic chain of custody",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes endpoints proven to be unaffected by the incident (those don't require imaging). Excludes OT controllers where imaging would create safety risk and a safer alternative (memory dump via diagnostic port) is documented. Excludes cloud workloads where the provider's forensic snapshot is the authoritative image.",
+  "evidence": "Saved search `UC-22.54.27` archived hourly to `audit_evidence` with `circia_clause=\"CIRCIA-s2242f\"` and `circia_clause=\"CIRCIA-NPRM-data-preservation\"`. Every row pins (incident_id, host_id, image_id, image_taken_at, image_sha256, image_size_bytes, image_authority_signed, image_storage_location, image_status). Dashboard `CIRCIA — Forensic Imaging Pipeline` shows imaging coverage per incident.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242f",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Forensic imaging is the primary mechanism by which the entity discharges its records-preservation obligation for affected endpoints. UC-22.54.27 instruments the imaging pipeline.",
+      "controlObjective": "Proves every affected host has a forensic image captured, hashed, signed, and stored with auditable chain of custody.",
+      "evidenceArtifact": "Saved search `UC-22.54.27` archived to `audit_evidence`, the `CIRCIA — Forensic Imaging Pipeline` dashboard, and the image-store metadata.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242f",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-NPRM-data-preservation",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "The NPRM data-preservation rule includes 'logs' and 'analyses', for which the host image is the canonical source.",
+      "controlObjective": "Proves the data-preservation set is augmented with forensic images.",
+      "evidenceArtifact": "Inherited from the primary compliance entry: saved search archived to audit_evidence with regulatory clause tag, dashboard, SOAR case file, and evidence pack.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-NPRM-data-preservation",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "For an active CIRCIA-reported incident, mark a host as 'affected' but skip imaging. UC-22.54.27 MUST flag `image_status=\"image_missing\"` within 24 hours.",
+    "negativeScenario": "Image the affected host with `dc3dd` or `FTK Imager`, compute SHA-256, sign with internal CA, upload to evidence-store with hash recorded. UC-22.54.27 MUST record `image_status=\"compliant\"`."
+  },
+  "dataSources": "Forensic-imaging-tool audit logs (dc3dd, FTK Imager, Magnet AXIOM, Cellebrite). KV Store `circia_forensic_image_lookup`. Evidence-store metadata (Veeam Backup & Replication, EnCase Forensic, Magnet AXIOM Cyber). Affected-host registry from incident SIR ticket (`snow:sir` `affected_ci_list`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup circia_classification_lookup\n| where classification_class=\"circia-reportable\"\n| eval reported_at = classification_made_at\n| join type=left incident_id [\n    | inputlookup circia_reporting_status_lookup\n    | stats values(affected_ci) AS affected_hosts by incident_id\n]\n| mvexpand affected_hosts\n| rename affected_hosts AS host_id\n| join type=left host_id incident_id [\n    | inputlookup circia_forensic_image_lookup\n    | fields incident_id host_id image_id image_taken_at image_sha256 image_size_bytes image_authority_signed image_storage_location\n]\n| eval image_age_hours = if(isnotnull(image_taken_at), round((now() - image_taken_at) / 3600, 1), null())\n| eval image_status = case(\n    isnull(image_taken_at), \"image_missing\",\n    isnull(image_sha256) OR image_sha256=\"\", \"image_unhashed\",\n    isnull(image_authority_signed) OR image_authority_signed=\"\", \"image_unsigned\",\n    isnull(image_storage_location) OR image_storage_location=\"\", \"image_unstored\",\n    1=1, \"compliant\")\n| where image_status != \"compliant\"\n| table incident_id host_id reported_at image_id image_taken_at image_sha256 image_authority_signed image_storage_location image_status",
+  "description": "Joins CIRCIA-classified incidents to affected-host list and verifies each host has a complete forensic image record (hashed, signed, stored).",
+  "value": "Forensic images are the entity's strongest evidence of what happened. Missing or unhashed images make the incident inquiry indefensible. This UC ensures every affected host is imaged.",
+  "implementation": "(1) On classification, SOAR `circia-forensic-imaging` playbook auto-creates imaging tickets per affected host. (2) Forensics team images using dc3dd or FTK Imager; uploads to evidence-store. (3) Tool emits HEC event with hash + cert sig. (4) Schedule UC-22.54.27 hourly.",
+  "visualization": "(Panel 1) Imaging coverage per incident. (Panel 2) Image-status distribution. (Panel 3) Imaging latency. (Panel 4) Storage utilisation.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "SWGDE Best Practices for Forensic Imaging",
+      "url": "https://www.swgde.org/"
+    },
+    {
+      "title": "NIST SP 800-86 — Guide to Integrating Forensic Techniques into Incident Response",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-86/final"
+    }
+  ],
+  "knownFalsePositives": "1. **OT controller — imaging unsafe** — some OT controllers cannot be imaged without operational risk. Suppression: documented `safe_alternative=memory_dump_diagnostic` with OT Engineering sign-off.\n\n2. **Cloud-workload — provider snapshot only** — AWS EBS snapshot is the canonical image. Suppression: `image_status_override=cloud_provider_snapshot`.\n\n3. **Volatile-only host** — a host that is intermittent (e.g., personal laptop in field) may be imaged later. Suppression: 7-day grace.\n\n**Suppression mechanism**: KV Store `circia_22_54_27_exceptions` with documented IR-Commander approval and 7-day maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "host_id",
+    "image_sha256",
+    "image_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + Forensics Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-forensic-imaging playbook)",
+    "Magnet AXIOM Cyber + AXIOM Cloud (forensic imaging)",
+    "AccessData FTK Imager (free) for endpoint imaging",
+    "dc3dd (DOD-recommended dd derivative)",
+    "Veeam Backup & Replication v12.x (evidence-store)"
+  ],
+  "mitreAttack": [
+    "N/A (forensic-evidence-acquisition workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.5",
+    "UC-22.54.14",
+    "UC-22.54.19"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `circia-forensic-imaging` playbook.\n- Forensic-imaging toolset deployed.\n\n## Step 1 — Imaging collection\n\n```ini\n[circia_forensic_image_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.host_id = string\nfield.image_id = string\nfield.image_taken_at = number\nfield.image_taken_by = string\nfield.image_sha256 = string\nfield.image_size_bytes = number\nfield.image_authority_signed = string\nfield.image_storage_location = string\n```\n\n## Step 2 — SOAR auto-create imaging tickets\n\nOn classification → `circia-reportable`, SOAR creates imaging tickets per `affected_ci`.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.27: CIRCIA Forensic Imaging Pipeline]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.27,reg=CIRCIA\naction.notable.param.rule_title = CIRCIA forensic-imaging gap on affected host\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `image_missing`** (owner: Forensics Lead, severity P2):\n\n1. Within 24 hours: deploy forensic team to host; image; hash; sign; store.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **OT-imaging operational risk**: many OT controllers can't be imaged without ops impact; document the safer alternative.\n- **Encrypted endpoint** (FileVault, BitLocker, LUKS): obtain decryption key from IT or owner before imaging.\n- **Massive-storage host**: a 100TB file server may take hours; track image-in-progress.",
+  "grandmaExplanation": "When an attack hits a computer or factory machine, we make a perfect copy of it — like a photograph that captures every speck of dust. We compute a special fingerprint, sign it like a notary, and lock it up. If a copy is missing, the forensics team is told to fix it."
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.26",
+  "title": "SOCI ECSO 14-day Notice of Operations — evidence material-change notification within 14 days for Enhanced Cyber Security Obligations (ECSO) assets",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes operational changes that fall below the materiality threshold defined in the entity's ECSO playbook (e.g. minor patching). Excludes assets that have been declared SoNS but where the 14-day clock has been varied by direction; track that in `ecso_clock_variation_lookup`.",
+  "evidence": "Saved search `UC-22.52.26` archived hourly to `audit_evidence` with `soci_clause=\"SOCI-ECSO-14-day\"`. Every row pins (asset_id, change_id, change_class, change_detected_at, materiality_score, notice_due_at, notice_lodged_at, notice_status, lodgement_artefact_url). Dashboard `SOCI — ECSO 14-day Notice` shows clock-status.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-ECSO-notice-of-ops",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every material change in operations for an ECSO-declared (or SoNS) asset is detected, (b) the 14-day lodgement clock is tracked, (c) the lodgement is captured with the portal acknowledgement, and (d) breach of the 14-day clock raises a critical incident. This is the full scope of the ECSO Notice-of-Operations obligation.",
+      "controlObjective": "Proves the entity discharges its ECSO 14-day Notice-of-Operations duty.",
+      "evidenceArtifact": "Saved search `UC-22.52.26` archived to `audit_evidence`, the `SOCI — ECSO 14-day Notice` dashboard, the lodgement-artefact URL, and the CISC ECSO portal acknowledgement.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-ECSO-notice-of-ops",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Generate a CMDB-recognised material change on an ECSO-declared asset; do NOT lodge a notice. On day 15, UC-22.52.26 MUST flag `notice_status=\"overdue\"`.",
+    "negativeScenario": "Generate the same material change and lodge a notice within 14 days. UC-22.52.26 MUST record `notice_status=\"current\"`."
+  },
+  "dataSources": "CMDB change records for material change classes (`index=itsm sourcetype=\"snow:cmdb_ci\"` and `change_request`). Lookup `ecso_assets_lookup` (asset_id, declared (true/false), declared_at, notice_class_csv, materiality_threshold_csv) maintained by Head of Critical-Infrastructure Compliance. Lookup `ecso_notice_lookup` (asset_id, change_id, notice_lodged_at, lodgement_artefact_url, lodgement_acknowledgement_id).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=itsm (sourcetype=\"snow:cmdb_ci\" OR sourcetype=\"snow:change_request\") earliest=-24h\n| lookup ecso_assets_lookup asset_id OUTPUT declared notice_class_csv materiality_threshold_csv\n| where declared=\"true\"\n| eval change_class = coalesce(category, type, change_class)\n| eval is_material = case(\n    like(notice_class_csv, \"%\" . change_class . \"%\") AND coalesce(materiality_score, 0) >= coalesce(materiality_threshold, 50), \"true\",\n    change_class=\"emergency\" OR (impact=\"1\" AND priority<=2), \"true\",\n    1=1, \"false\")\n| where is_material=\"true\"\n| stats earliest(_time) AS change_detected_at by asset_id change_id change_class materiality_score\n| eval notice_due_at = change_detected_at + 14*86400\n| lookup ecso_notice_lookup asset_id change_id OUTPUT notice_lodged_at lodgement_artefact_url lodgement_acknowledgement_id\n| eval notice_status = case(\n    isnull(notice_lodged_at) AND notice_due_at < now(), \"overdue\",\n    isnull(notice_lodged_at) AND (notice_due_at - now()) <= 3*86400, \"approaching_due\",\n    isnotnull(notice_lodged_at) AND notice_lodged_at <= notice_due_at AND isnull(lodgement_acknowledgement_id), \"awaiting_acknowledgement\",\n    isnotnull(lodgement_acknowledgement_id) AND notice_lodged_at <= notice_due_at, \"current\",\n    isnotnull(notice_lodged_at) AND notice_lodged_at > notice_due_at, \"lodged_late\",\n    1=1, \"unknown\")\n| table asset_id change_id change_class change_detected_at materiality_score notice_due_at notice_lodged_at notice_status lodgement_artefact_url",
+  "description": "Detects material changes on ECSO-declared assets and tracks the 14-day Notice-of-Operations lodgement clock.",
+  "value": "ECSO is the Government's mechanism for direct oversight of the most-critical assets. The 14-day Notice-of-Operations is the regulator's eyes on operational change. Missed notice is the most-visible compliance failure for ECSO-declared assets. This UC keeps the clock always-on.",
+  "implementation": "(1) Maintain `ecso_assets_lookup` from the Department of Home Affairs ECSO declaration register (CISO is informed by Government direction). (2) Maintain `ecso_notice_lookup` from the lodgement workflow. (3) Schedule UC-22.52.26 hourly; route `overdue`, `lodged_late`, `approaching_due` to notable severity=high. (4) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Live 14-day clock per material change. (Panel 2) Lodgement-aging distribution. (Panel 3) Material-change inventory by class. (Panel 4) Breach trend.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "SOCI Act 2018 (Cth) — Part 2C Enhanced Cyber Security Obligations",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "Department of Home Affairs — ECSO obligations",
+      "url": "https://www.cisc.gov.au/legislative-information-and-reforms/critical-infrastructure"
+    }
+  ],
+  "knownFalsePositives": "1. **Inheritance change** — a system inheriting parent-change properties may trigger duplicate change events. Mitigation: deduplicate on `parent_change_id`.\n\n2. **Class drift** — a change reclassified after creation; track via change-history.\n\n3. **Test environment change** — changes flagged as test should not count; use environment field.\n\n**Suppression mechanism**: KV Store `soci_22_52_26_exceptions`; max grant 5 business days with CISO sign-off.",
+  "requiredFields": [
+    "asset_id",
+    "change_id",
+    "change_class",
+    "change_detected_at",
+    "notice_due_at",
+    "notice_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow CMDB and Change (Vancouver / Washington)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "N/A (regulator-notification workflow — measures ECSO Notice-of-Operations lodgement timeliness, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.1 deployed (provides CMDB integration).\n- ES, ServiceNow add-on.\n- `index=itsm`, `index=audit_evidence`.\n- Lookup `ecso_assets_lookup` (asset_id, declared (true/false), declared_at, notice_class_csv, materiality_threshold).\n- Lookup `ecso_notice_lookup` (asset_id, change_id, notice_lodged_at, lodgement_artefact_url, lodgement_acknowledgement_id, lodgement_owner).\n\n## Step 1 — Configure data collection\n\nThe ECSO declaration register is small (typically a handful of assets per entity). The Head of Critical-Infrastructure Compliance maintains the lookup manually upon Departmental notification.\n\nMaterial-change classes typically include:\n\n- Change of operational state (commissioning, decommissioning).\n- Change of ownership / direct-interest-holder.\n- Change of operating model (handover to a new MSP).\n- Major SCADA software upgrade.\n- Site relocation.\n\n## Step 2 — Create the search and alert\n\nSchedule hourly:\n\n```ini\n[UC-22.52.26: SOCI ECSO 14-day Notice of Operations]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -24h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.26,reg=SOCI,clause=SOCI-ECSO-notice-of-ops\naction.notable.param.rule_title = SOCI ECSO 14-day notice clock\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity by `notice_status`: `overdue` and `lodged_late` → critical (urgency=Critical), `approaching_due` → high.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: simulate material change on ECSO asset without lodgement; on day 15 UC flags `overdue`.\n\n**(b)** Negative control: lodge within 14 days; UC records `current`.\n\n**(c)** Coverage: every declared ECSO asset has at least one materiality class defined.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — ECSO 14-day Notice`.\n\n**Runbook for `approaching_due`** (owner: Head of Critical-Infrastructure Compliance, severity P2):\n\n1. Lodge promptly via CISC ECSO portal.\n\n**Runbook for `overdue`** (owner: Head of Critical-Infrastructure Compliance + CISO + CEO, severity P1):\n\n1. Within 4 hours: lodge with explanation.\n2. Within 1 business day: notify CISC of the late lodgement.\n3. Within 5 business days: produce a remediation plan.\n\n## Step 5 — Troubleshooting\n\n**Materiality scoring**: the materiality_threshold and the materiality_score must be tuned per asset.\n\n**Change deduplication**: ensure parent-child changes don't double-count.\n\n**SOCI-specific failure modes**:\n\n- **SoNS (Systems of National Significance)** intersection: a SoNS-declared asset has ECSO obligations including this notice but plus additional duties; ensure coordination with UC-22.52.7 (SoNS IR plan).\n- **Confidentiality**: ECSO notice content may be Protected Information; ensure lodgement channel handles classification.\n- **Multi-entity material change**: a change spanning multiple ECSO assets generates multiple required notices.",
+  "grandmaExplanation": "For our most-critical systems, the Government can issue a special order saying 'tell us about big operational changes within 14 days'. We watch the change management system and start a 14-day clock when something important changes — like a major upgrade or a change of owner. If we don't lodge the notice in time, the bell rings."
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.3",
+  "title": "SOCI s 30AH CIRMP annual review currency — evidence each program has been reviewed in the last 365 days",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes CIRMPs with a documented and CISC-acknowledged extension (e.g. a recent major incident triggered a deferred review). Excludes CIRMPs for assets that have been formally divested or decommissioned mid-year (the CIRMP closure record is the alternative artefact).",
+  "evidence": "Saved search `UC-22.52.3` archived daily to `audit_evidence` with `soci_clause=\"SOCI-s30AH\"`. Every row pins (asset_id, cirmp_version, last_reviewed_at, days_since_review, review_status, next_review_due, review_artefact, reviewer, board_approved_at). Dashboard `SOCI — CIRMP Annual Review Currency` shows the fleet review-status by asset class and an aging-funnel that highlights CIRMPs approaching the 12-month boundary.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s30AH",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences that every CIRMP has been reviewed within the statutory 12-month window AND that an update has been recorded each time a material risk emerged. Combined with UC-22.52.4 (board approval) and UC-22.52.12 (material-risk register currency), this is sufficient evidence of s 30AH — hence 'full'.",
+      "controlObjective": "Proves the CIRMP is reviewed regularly and at least once each financial year, and that the review evidence base is recorded.",
+      "evidenceArtifact": "Saved search `UC-22.52.3` archived to `audit_evidence`, the `SOCI — CIRMP Annual Review Currency` dashboard, and the per-asset review attestation in the Rule 10 annual report — signed by the Head of CIRMP Programme.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s30AH",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `last_reviewed_at` on an in-scope CIRMP to a date 380 days ago in the GRC system. Within 24 hours UC-22.52.3 MUST flag the CIRMP with `review_status=\"overdue\"`, `days_since_review=380`, and route a notable to the Head of CIRMP Programme.",
+    "negativeScenario": "Complete a documented annual review and update `last_reviewed_at` to today, with a signed review artefact URL. UC-22.52.3 MUST record `review_status=\"current\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "GRC system CIRMP records via the same modular input used for UC-22.52.2 (`index=grc sourcetype=\"snow:cirmp_register\"`). Lookup `cirmp_review_lookup` (asset_id → cirmp_version, last_reviewed_at, reviewer, board_approved_at, review_artefact_url). In-scope asset lookup `soci_inscope_assets_lookup`.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup cirmp_review_lookup asset_id OUTPUT cirmp_version last_reviewed_at reviewer board_approved_at review_artefact_url\n| eval days_since_review = if(isnotnull(last_reviewed_at), round((now() - last_reviewed_at) / 86400, 0), null())\n| eval next_review_due = if(isnotnull(last_reviewed_at), strftime(last_reviewed_at + 31536000, \"%F\"), null())\n| eval review_status = case(\n    isnull(last_reviewed_at), \"never_reviewed\",\n    days_since_review > 365, \"overdue\",\n    days_since_review > 335, \"approaching_due\",\n    1=1, \"current\")\n| table asset_id asset_class cirmp_version last_reviewed_at days_since_review review_status next_review_due reviewer board_approved_at review_artefact_url",
+  "description": "For every in-scope Part 2A asset, computes days since the last CIRMP review and flags CIRMPs that are overdue (>365 days), approaching due (>335 days), or never reviewed. Includes board-approval date, reviewer identity, and the artefact URL for audit traceability.",
+  "value": "s 30AH is the closest SOCI obligation to a hard 365-day SLA. Missing the annual review is the single most damaging finding because it cascades into every other CIRMP obligation — if the CIRMP is stale, the material risks it manages are presumptively stale too. This UC makes the SLA always-on and prevents the year-end scramble.",
+  "implementation": "(1) The `cirmp_review_lookup` is a curated subset of the GRC catalogue with the review-specific fields. Refresh weekly via the same scheduled summary used for UC-22.52.2. (2) Schedule UC-22.52.3 daily; route `review_status IN (overdue, never_reviewed)` to notable (severity high), and `approaching_due` to email-only digest. (3) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Aging funnel: 0–150 / 151–300 / 301–335 / 336–365 / >365 days. (Panel 2) Sortable table: every overdue or approaching-due CIRMP. (Panel 3) 13-month trend: count of overdue CIRMPs per quarter. (Panel 4) Calendar heatmap: review-completion dates per asset class.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Security of Critical Infrastructure Act 2018 (Cth) — s 30AH",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "CISC — CIRMP annual review guidance",
+      "url": "https://www.cisc.gov.au/legislation-regulation-and-compliance/critical-infrastructure-risk-management-program"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Recent major incident triggered review deferral** — the CISC will accept a deferred review where a serious incident is consuming the same team. Suppression: add CIRMP to `soci_review_deferral_lookup` with documented case-reference and revised deadline.\n\n2. **Asset divested mid-year** — the CIRMP is closed rather than reviewed. Suppression: surface a `cirmp_closure_artefact` field via the lookup and treat closure as a terminal state.\n\n3. **Group-level CIRMP rollup** — a single parent CIRMP may cover many subsidiary assets; one review satisfies many rows. Suppression: tag subsidiary rows with `parent_cirmp_id` and use the parent's `last_reviewed_at`.\n\n4. **Calendar-vs-financial-year ambiguity** — 'at least once each financial year' is the statutory test. Where review cadence aligns to calendar year and the financial year is July–June, an asset reviewed in October 2025 then next reviewed in August 2026 has not technically missed the cycle. Suppression: enrich the lookup with `last_reviewed_at_fy` and use the financial-year window instead of rolling 365 days where the entity's policy is FY-aligned.\n\n**Suppression mechanism**: KV Store `soci_22_52_3_exceptions` with Head of CIRMP Programme sign-off; max grant 60 days.",
+  "requiredFields": [
+    "asset_id",
+    "last_reviewed_at",
+    "days_since_review",
+    "review_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (Vancouver / Washington, sn_grc tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_grc and sn_compliance modular inputs)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + notable framework)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and programme-management workflow — measures CIRMP review currency, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.52.2"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.2 deployed and operational — this UC re-uses its `cirmp_catalogue_lookup` and complements it with `cirmp_review_lookup`.\n- `index=grc` (3-year retention online).\n- `index=audit_evidence` (7-year retention online).\n- Lookups:\n  - `soci_inscope_assets_lookup` (shared with UC-22.52.1).\n  - `cirmp_review_lookup` — owned by the Head of CIRMP Programme. Columns: `asset_id`, `cirmp_version`, `last_reviewed_at` (epoch), `reviewer` (person responsible), `board_approved_at` (epoch), `review_artefact_url`.\n  - `soci_review_deferral_lookup` (optional) for CISC-acknowledged deferrals.\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\nRe-use the GRC modular input from UC-22.52.2, but materialise a per-asset review lookup:\n\n```spl\nindex=grc sourcetype=snow:cirmp_register earliest=-7d@d\n| dedup asset_id sortby - last_reviewed_at\n| table asset_id cirmp_version last_reviewed_at reviewer board_approved_at review_artefact_url\n| outputlookup cirmp_review_lookup\n```\n\nSchedule this as a daily scheduled search at 04:00.\n\nValidate:\n\n```spl\n| inputlookup cirmp_review_lookup\n| stats count, min(last_reviewed_at), max(last_reviewed_at), avg(last_reviewed_at) by reviewer\n```\n\nThis exposes outlier reviewers (e.g. a single overworked compliance manager owning every CIRMP review) and concentration risk.\n\n## Step 2 — Create the search and alert\n\nThe search is a left-join of in-scope assets to the review lookup. The `days_since_review` math is `(now - last_reviewed_at) / 86400`. The bucketing into `current` / `approaching_due` / `overdue` / `never_reviewed` is the SLA judgement.\n\nSchedule:\n\n```ini\n[UC-22.52.3: SOCI s 30AH CIRMP annual review currency]\ncron_schedule = 30 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.3,reg=SOCI,clause=SOCI-s30AH\naction.notable.param.rule_title = SOCI s 30AH CIRMP annual review overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable creation on `review_status IN (overdue, never_reviewed)`; `approaching_due` triggers a daily digest email to the Head of CIRMP Programme; archive every row to `audit_evidence`.\n\n## Step 3 — Validate deployment\n\n**(a) Lookup completeness**: every in-scope asset has a `cirmp_review_lookup` row:\n\n```spl\n| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup cirmp_review_lookup asset_id OUTPUT last_reviewed_at\n| stats count(eval(isnull(last_reviewed_at))) AS missing count AS total\n```\n\n**(b) Reviewer concentration**: no single reviewer should hold more than 30% of the portfolio.\n\n**(c) Positive control**: set a CIRMP's `last_reviewed_at` to 400 days ago in the GRC sandbox. Next-day UC-22.52.3 run must flag with `review_status=overdue`.\n\n**(d) Negative control**: set `last_reviewed_at` to today. UC must record `current`.\n\n**(e) Quarterly attestation**: the Head of CIRMP Programme signs a quarterly attestation that the lookup faithfully reflects completed reviews; filed in `audit_evidence`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — CIRMP Annual Review Currency`.\n\n- **Panel 1, aging funnel**: how many CIRMPs at each maturity band? The funnel shape over time reveals review-cadence health.\n- **Panel 2, sortable table**: every overdue or approaching-due CIRMP with the responsible reviewer, drill-through to the GRC record and the artefact.\n- **Panel 3, 13-month trend**: count of overdue CIRMPs per quarter. Target zero.\n- **Panel 4, calendar heatmap**: review completion dates per asset class — reveals whether reviews are bunched at year-end.\n- **Panel 5, reviewer load**: count of CIRMPs by reviewer — detects single-point-of-failure assignments.\n\n**Runbook for `review_status=overdue`** (owner: Head of CIRMP Programme, severity P1):\n\n1. Within 5 business days: schedule the review with the named reviewer and asset owner.\n2. Complete the review within 30 days. The review must address every material risk in the register (driven by UC-22.52.12), validate that mitigations are still operating, and document any new hazards.\n3. Update `last_reviewed_at` and the artefact URL.\n4. Disclose the lateness in the next Rule 10 annual report; the CISC distinguishes 'late but completed' from 'not done' and treats the former as a process gap.\n\n**Runbook for `review_status=approaching_due`** (owner: Head of CIRMP Programme, severity P3):\n\n1. Within 14 days: schedule the review on the reviewer's calendar.\n2. Complete before the 365-day boundary.\n\n## Step 5 — Troubleshooting\n\n**`last_reviewed_at` shows as 1970** — epoch conversion bug from ISO-8601 string. Use `strptime(last_reviewed_at, \"%Y-%m-%dT%H:%M:%S\")` in the lookup-materialise stage.\n\n**Single asset reports as never_reviewed despite being current** — lookup-key mismatch. Confirm `asset_id` casing and trim whitespace.\n\n**Reviewer field is null** — the GRC field is not surfacing. Add `u_reviewer` to the modular input field-mapping.\n\n**SOCI-specific failure modes**:\n\n- **Cyber framework attestation cycle**: the framework chosen under r 6(3) (Essential Eight, ISO 27001, NIST CSF, AESCSF, C2M2) often has its own attestation cycle that may not align with the CIRMP review cycle. Coordinate the two reviews where possible to reduce the burden.\n- **Multi-jurisdictional dependencies**: a CIRMP may depend on a sister entity's CIRMP (e.g. a transmission CIRMP depends on a generator CIRMP); review must consider upstream changes.\n- **Pending CISC Rule amendments**: the CISC actively maintains the Rules; review must verify the CIRMP still aligns with the in-force Rules at review time, not the Rules in force when the CIRMP was first authored.",
+  "grandmaExplanation": "We make sure our written risk plan for every important system is checked and refreshed at least once a year. We start nagging at the 11-month mark and ring the loud bell if anyone goes past 12 months."
+}

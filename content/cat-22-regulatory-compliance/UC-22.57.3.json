@@ -1,0 +1,99 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.3",
+  "title": "SG Cyber Act Cybersecurity Code of Practice (CCoP 2.0) compliance roll-up scorecard",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes accepted-risk items in `csa_ccop_exception_lookup` with documented Commissioner-acknowledged risk.",
+  "evidence": "Saved search `UC-22.57.3` archived daily to `audit_evidence` with `csa_clause=\"CSA-CII-s11\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s11",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "§11 requires the CIIO to comply with the Cybersecurity Code of Practice (currently CCoP 2.0, 2022) issued by the Commissioner. CCoP covers Governance, Identification, Protection, Detection, Response, Recovery (12 control families, ~80 controls). 'Partial' because the UC measures evidence presence per control family and surfaces gaps; SME judgement still required for substantive compliance.",
+      "controlObjective": "Provides per-control-family CCoP scorecard with last-evidence timestamp and gap-trend.",
+      "evidenceArtifact": "Saved search, `CSA CCoP Scorecard` dashboard, monthly CCoP self-assessment.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s11",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Force any required CCoP control family to lack evidence for >30 days. UC-22.57.3 MUST flag.",
+    "negativeScenario": "Maintain fresh evidence per family. UC-22.57.3 MUST NOT escalate."
+  },
+  "dataSources": "KV Store `csa_ccop_control_lookup` (control_id, control_family, evidence_search). `audit_evidence` summary index (cross-search via lookup). KV Store `csa_ccop_exception_lookup`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup csa_ccop_control_lookup\n| map maxsearches=120 search=\"search index=audit_evidence $evidence_search$ earliest=-30d@d | head 1 | eval control_id=\\\"$control_id$\\\" | eval control_family=\\\"$control_family$\\\" | eval evidence_present=\\\"true\\\" | eval last_evidence=_time | fields control_id control_family evidence_present last_evidence\"\n| fillnull value=\"false\" evidence_present\n| eval hours_since_evidence = case(isnotnull(last_evidence), round((now()-last_evidence)/3600,1), 1=1, null)\n| eval health = case(\n    evidence_present=\"false\", \"missing\",\n    hours_since_evidence > 720, \"stale\",\n    1=1, \"current\")\n| stats values(control_id) as control_ids count(eval(health=\"missing\")) as missing count(eval(health=\"stale\")) as stale count(eval(health=\"current\")) as current count as total by control_family\n| eval gap_pct = round((missing+stale)*100/total, 1)\n| table control_family total current stale missing gap_pct",
+  "description": "Cross-references the CCoP control register against `audit_evidence` index to score each control family.",
+  "value": "CCoP compliance is the single most-inspected dimension of CSA enforcement. This dashboard converts noisy evidence into one scorecard.",
+  "implementation": "(1) Populate `csa_ccop_control_lookup` mapping each CCoP control to a Splunk evidence search. (2) Schedule UC-22.57.3 daily. (3) Build the `CSA CCoP Scorecard` dashboard.",
+  "visualization": "(Panel 1) Control-family heat-map. (Panel 2) Gap trend (90 days). (Panel 3) Top-10 missing controls. (Panel 4) Exception-register expiry.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Code of Practice 2.0",
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+    },
+    {
+      "title": "Cybersecurity Act 2018 §11",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr11-"
+    }
+  ],
+  "knownFalsePositives": "1. **CCoP version drift**: ensure register matches the version in effect (CCoP 2.0 from 4 Jul 2022, with future amendments).\n2. **Search latency**: some control evidence may emit weekly; tune `expected_silence_hours` per control.\n3. **Sector-specific addenda**: certain sectors have sector-CCoP appendices; capture in extended register.\n\n**Suppression mechanism**: KV Store `csa_ccop_exception_lookup`.",
+  "requiredFields": [
+    "control_family",
+    "total",
+    "current",
+    "stale",
+    "missing",
+    "gap_pct"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + Commissioner Liaison + CISO + GRC Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ccop_control_lookup`.\n- `audit_evidence` summary index populated by other UCs.\n\n## Step 1 — Control register\n\n```ini\n[csa_ccop_control_lookup]\nfield.control_id = string\nfield.control_family = string\nfield.control_name = string\nfield.evidence_search = string\nfield.expected_silence_hours = number\nfield.sector_specific = string\n```\n\nPopulate with all CCoP 2.0 controls (e.g., `GOV-1` Information Security Policy, `IDP-3` Asset Management, `PRO-5` Network Segmentation, `DET-2` Continuous Monitoring, etc.).\n\nMap each to a search that should produce evidence rows (e.g., `PRO-5` → `index=audit_evidence reg=SG-Cyber-Act clause=PRO-5`).\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.3: CSA CCoP Scorecard]\ncron_schedule = 37 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.3,reg=SG-Cyber-Act,clause=CSA-CII-s11\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`gap_pct > 20`** (owner: CC Officer, severity P2):\n1. Within 7 days: assign owners to missing controls.\n2. Within 30 days: produce evidence or pin exceptions.\n3. Within 60 days: re-score; report to CISO.\n\n## Step 4 — Troubleshooting\n\n- **Subsearch limit**: 120 maxsearches works for CCoP 2.0; if exceeded, partition into family-scoped passes.\n- **Performance**: use cached `audit_evidence` summary index, not raw events.\n\n**SG-specific failure modes**:\n- **CCoP 3.0 timing**: CCoP typically refreshes every 3–4 years; pre-build the migration register.\n- **Commissioner-directed remediation**: under §11 the Commissioner may direct specific remediation; ensure direction is captured in the register.",
+  "grandmaExplanation": "Singapore has a long checklist of cyber rules for important systems. We have one screen that shows which items have fresh proof, which need attention, and which are missing."
+}

@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.53.24",
+  "title": "AWIA Default Passwords — detect OT and IT devices commissioned or still operating with vendor default credentials (PLC, HMI, network equipment, IP camera, BMS)",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Water",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes devices where the vendor default has been replaced with a centrally-managed unique credential, evidenced in `awia_credential_rotation_lookup`. Excludes lab / training devices isolated on a non-production network and labelled.",
+  "evidence": "Saved search `UC-22.53.24` archived hourly to `audit_evidence` with `awia_clause=\"AWIA-EPA-default-creds\"`. Every row pins (pwsid, device_id, asset_class, vendor, model, default_credential_signature_detected, credential_rotated_at, last_admin_login_account, credential_status).",
+  "compliance": [
+    {
+      "regulation": "awia",
+      "version": "2018-amended-SDWA-1433",
+      "clause": "AWIA-EPA-default-creds",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences vendor default credentials are detected and replaced on every OT / IT device named in the AWIA scope (PLC, HMI, network equipment, IP cameras, BMS, engineering workstations).",
+      "controlObjective": "Proves AWIA default-credential elimination.",
+      "evidenceArtifact": "Saved search `UC-22.53.24` archived; rotation evidence per device.",
+      "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-default-creds",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Default-cred attempt detected on a Rockwell PLC. UC-22.53.24 MUST surface within 1 hour with `credential_status=\"default_in_use\"`.",
+    "negativeScenario": "Rotation evidence current. UC-22.53.24 MUST record `credential_status=\"current\"`."
+  },
+  "dataSources": "Authentication audit logs (SSH / Telnet / HTTPS / SNMP) on PLCs, HMIs, switches, IP cameras, BMS controllers, OT visibility platforms (Dragos / Claroty / Nozomi default-cred signatures), engineering-workstation audit.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Claroty (Splunkbase 5031), Splunk Add-on for Nozomi Networks (Splunkbase 5081).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(index=ot_asset sourcetype IN (dragos:asset, claroty:asset, nozomi:asset) earliest=-1h@h default_credential_signature_detected=\"true\") OR\n(index=auth sourcetype IN (ssh:auth, telnet:auth, https:auth, snmp:auth) earliest=-1h@h user IN (\"admin\",\"root\",\"administrator\",\"user\",\"guest\",\"factory\",\"vendor\",\"plc\",\"siemens\",\"rockwell\",\"schneider\",\"hach\")) \n| lookup awia_credential_rotation_lookup device_id OUTPUT credential_rotated_at evidence_url\n| eval credential_status = case(\n    isnull(credential_rotated_at), \"never_rotated\",\n    default_credential_signature_detected=\"true\", \"default_in_use\",\n    1=1, \"current\")\n| where credential_status != \"current\"\n| stats first(asset_class) as asset_class first(vendor) as vendor first(model) as model first(credential_rotated_at) as credential_rotated_at first(default_credential_signature_detected) as default_credential_signature_detected last(_time) as last_seen first(credential_status) as credential_status by pwsid device_id\n| table pwsid device_id asset_class vendor model default_credential_signature_detected credential_rotated_at last_seen credential_status",
+  "description": "Detects vendor default credentials in use through OT visibility platforms and through authentication audit logs.",
+  "value": "CISA's water-sector advisories repeatedly cite vendor default credentials as the initial-access vector. This UC continuously surfaces residual default-credential exposure.",
+  "implementation": "(1) Onboard OT visibility platform default-cred signatures. (2) Onboard SSH / Telnet / HTTPS / SNMP authentication logs. (3) Maintain `awia_credential_rotation_lookup`. (4) Hourly UC-22.53.24; severity=critical. (5) Archive.",
+  "visualization": "(Panel 1) Live default-cred feed. (Panel 2) Vendor / model heatmap. (Panel 3) Rotation aging.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "EPA / CISA — Default Credentials",
+      "url": "https://www.cisa.gov/water"
+    },
+    {
+      "title": "CISA — Iranian-Affiliated Cyber Actors Compromised Water Sector (October 2023)",
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-335a"
+    }
+  ],
+  "knownFalsePositives": "1. **Lab / training device** — isolated.\n\n2. **Vendor-account temporary access** — documented short-lived.\n\n**Suppression**: `awia_22_53_24_exceptions`; max 4h grant; OT Cybersecurity Lead sign-off.",
+  "requiredFields": [
+    "pwsid",
+    "device_id",
+    "asset_class",
+    "vendor",
+    "credential_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "dragos",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Dragos OT visibility",
+    "Claroty CTD / xDome",
+    "Nozomi Networks Guardian",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "T1078.001",
+    "T1078.003",
+    "T0810"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.53.8",
+    "UC-22.53.21"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 and UC-22.53.21 deployed.\n- Splunk ES.\n- Indexes `index=ot_asset`, `index=auth`, `index=audit_evidence`.\n- Lookup `awia_credential_rotation_lookup`.\n\n## Step 1 — Configure data collection\n\nOT visibility platforms emit default-cred signature detection (Dragos / Claroty / Nozomi maintain known-default lists per vendor / model). Authentication logs on devices that support them are also captured.\n\n## Step 2 — Create the search and alert\n\nHourly.\n\n```ini\n[UC-22.53.24: AWIA Default Credentials]\ncron_schedule = 5 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.24,reg=AWIA,clause=AWIA-EPA-default-creds\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\nPositive: simulate; UC fires.  Negative: rotate; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Default Credentials`. Runbook: rotate the credential, document the rotation, and capture vendor default in the lookup.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **HMI default-creds via internet (Iran-affiliated 2023 advisory)**: CISA advisory AA23-335A documents attackers reaching Unitronics PLCs with default 'Vision' / '1111' creds via internet exposure. Pair UC-22.53.22 (segmentation) to catch the exposure first.\n- **Field-engineering reset**: a field tech may temporarily reset a device to vendor default during commissioning; ensure the commissioning workflow requires immediate rotation before plant connection.\n- **IP camera default-creds**: Hikvision / Dahua default creds are widely-known; rotate at commissioning and track per device.",
+  "grandmaExplanation": "Every PLC, controller, camera, and switch ships with a known factory password. Attackers try those first. We watch for anyone still using a factory password and ring the bell immediately."
+}

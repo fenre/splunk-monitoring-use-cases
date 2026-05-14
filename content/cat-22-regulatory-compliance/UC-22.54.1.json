@@ -1,0 +1,118 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.1",
+  "title": "CIRCIA Covered-Entity Determination Registry — maintain authoritative scope evidence so the 72-hour clock starts the moment it must",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes entities outside the 16 critical-infrastructure sectors defined in PPD-21 (an entity that operates exclusively in retail, consumer entertainment, etc.). Excludes sector-only reporting obligations (NERC CIP for electricity, EPA AWIA for water, TSA SD for pipeline / rail / aviation) that do not by themselves create CIRCIA scope; those are tracked by their own UCs. Excludes pre-rule voluntary submissions (which CISA encourages but does not enforce until the Final Rule is in force) — the registry still records voluntary scope but with `assurance=contributing` rather than `full` because the statutory enforcement is not yet in force.",
+  "evidence": "Saved search `UC-22.54.1` archived every hour to `audit_evidence` with `circia_clause=\"CIRCIA-s2242a\"`. Every row pins (entity_legal_name, entity_ein, sector, sub_sector, naics_code, employees, revenue_usd_m, sba_size_threshold_met, sector_based_criteria_met, covered_entity_determination, determination_signed_by, determination_signed_at, determination_doc_url, last_reviewed_at). Dashboard `CIRCIA — Covered-Entity Registry` shows current determination per legal entity in the group, with the supporting documentation linked to the General Counsel's evidence vault.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242a",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The statutory text of 6 U.S.C. § 681b(a) defines 'covered entity' by reference to PPD-21 critical-infrastructure sectors and the criteria CISA establishes by regulation. Without an authoritative, signed registry of which legal entities in the corporate group are covered, the company cannot start the 72-hour clock with confidence — every incident-response call must first re-litigate scope. This UC creates a living determination registry signed by the General Counsel, refreshed when material changes occur, and exported as evidence whenever CISA issues an RFI. Marked 'full' because the UC covers (a) which entities are covered, (b) signing authority, (c) review currency — the entirety of the s 2242(a) scope-determination obligation as operationalised by the NPRM.",
+      "controlObjective": "Proves the company has formally determined, for every legal entity in scope, whether it is a 'covered entity' under CIRCIA, who signed the determination, and when the determination was last reviewed.",
+      "evidenceArtifact": "Saved search `UC-22.54.1` archived to `audit_evidence`, the `CIRCIA — Covered-Entity Registry` dashboard, and the signed determination memorandum filed in the General Counsel's evidence vault. The memorandum is the formal artefact filed for any CISA RFI under 6 U.S.C. § 681b(h).",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242a",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Update `circia_entity_register_lookup` to remove the `covered_entity_determination` field from a legal entity that previously had one (or set it to null). Within one hour UC-22.54.1 MUST flag the entity with `determination_status=\"missing\"` and route a notable to the General Counsel.",
+    "negativeScenario": "Add a new legal entity with `covered_entity_determination=\"covered\"`, `determination_signed_by=\"General Counsel\"`, `determination_signed_at` within the last 12 months, and a valid `determination_doc_url`. UC-22.54.1 MUST record the entity with `determination_status=\"current\"` and MUST NOT raise an alert."
+  },
+  "dataSources": "CIRCIA covered-entity register KV Store (`circia_entity_register_lookup`) maintained by General Counsel with columns: entity_legal_name, entity_ein, sector (one of 16 PPD-21 sectors), sub_sector, naics_code, employees, revenue_usd_m, sba_size_threshold_met (bool), sector_based_criteria_met (bool), covered_entity_determination (`covered` | `not_covered` | `under_review`), determination_signed_by, determination_signed_at (epoch), determination_doc_url, last_reviewed_at (epoch), notes. ServiceNow CMDB legal-entity records (`index=itsm sourcetype=\"snow:core_company\"`) for cross-check of legal-entity inventory. M&A activity feed from the corporate development team (`hec:corpdev:transaction`) so newly-acquired subsidiaries trigger a fresh determination workflow. Optional cross-reference to `circia_sba_size_standards_lookup` (NAICS → SBA small-business threshold).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup circia_entity_register_lookup\n| eval determination_age_days = round((now() - last_reviewed_at) / 86400, 0)\n| eval determination_status = case(\n    isnull(covered_entity_determination) OR covered_entity_determination=\"\", \"missing\",\n    covered_entity_determination=\"under_review\" AND determination_age_days > 30, \"stale_under_review\",\n    covered_entity_determination IN (\"covered\",\"not_covered\") AND determination_age_days > 365, \"stale\",\n    covered_entity_determination IN (\"covered\",\"not_covered\") AND determination_age_days <= 365, \"current\",\n    1=1, \"unknown\")\n| eval signing_authority_ok = case(\n    isnull(determination_signed_by) OR determination_signed_by=\"\", \"false\",\n    match(determination_signed_by, \"(?i)general counsel|chief compliance officer|deputy general counsel\"), \"true\",\n    1=1, \"false\")\n| eval evidence_doc_ok = if(isnotnull(determination_doc_url) AND match(determination_doc_url, \"^https?://\"), \"true\", \"false\")\n| where determination_status IN (\"missing\",\"stale\",\"stale_under_review\") OR signing_authority_ok=\"false\" OR evidence_doc_ok=\"false\"\n| table entity_legal_name entity_ein sector sub_sector naics_code employees revenue_usd_m sba_size_threshold_met sector_based_criteria_met covered_entity_determination determination_signed_by determination_signed_at determination_doc_url last_reviewed_at determination_age_days determination_status signing_authority_ok evidence_doc_ok",
+  "description": "Inspects the CIRCIA covered-entity register every hour and surfaces legal entities whose determination is missing, stale (>365 days since last review), stuck in `under_review` for more than 30 days, lacks an authorised signing authority (General Counsel or Chief Compliance Officer), or lacks a valid evidence-document URL.",
+  "value": "Under CIRCIA, the 72-hour incident-reporting clock starts when the covered entity 'reasonably believes' a covered cyber incident has occurred. An incident-response team cannot make that determination at 0200 if it does not already know which legal entities in the corporate group are covered — and the determination requires fact-finding (sector, SBA size, sector-based criteria) that takes days, not hours. This UC moves the determination upstream, signed by the General Counsel, refreshed annually, so the IR team can act with confidence on the night.",
+  "implementation": "(1) General Counsel populates `circia_entity_register_lookup` from the entity's corporate-secretarial system; refresh after every M&A or divestment. (2) Schedule UC-22.54.1 every hour; route `determination_status=missing` or `stale` to notable with severity=high; archive every row to `audit_evidence`. (3) Build the `CIRCIA — Covered-Entity Registry` dashboard pinned to the General Counsel's audit binder. (4) On every M&A close, the corporate development team emits a HEC event that triggers a follow-up workflow for the General Counsel.",
+  "visualization": "(Panel 1) Sortable table: every legal entity with current determination status, sector, signing authority, and last-reviewed date — colour-coded by `determination_status`. (Panel 2) Counters: number covered, number not covered, number under review, number missing. (Panel 3) Sector breakdown: which PPD-21 sectors the group operates across, and the count of covered entities per sector. (Panel 4) 24-month trend: changes in determination over time (acquisitions added, divestments removed). (Panel 5) Top stale determinations: entities overdue for review, sorted by age.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cyber Incident Reporting for Critical Infrastructure Act of 2022 — 6 U.S.C. § 681b",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    },
+    {
+      "title": "CISA NPRM — 89 FR 23644 (April 4, 2024)",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    },
+    {
+      "title": "Presidential Policy Directive 21 — Critical Infrastructure Security and Resilience",
+      "url": "https://obamawhitehouse.archives.gov/the-press-office/2013/02/12/presidential-policy-directive-critical-infrastructure-security-and-resil"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Newly-acquired entity in the determination-pending grace period** — immediately after acquisition, the new subsidiary may legitimately be `under_review` for up to 90 days while the General Counsel runs the sector / size / sector-criteria fact-finding. Suppression: pin the entity in `circia_22_54_1_grace_window_lookup` with a 90-day grace until first determination.\n\n2. **Holding company with no operational subsidiaries** — a top-tier holding company may legitimately be `not_covered` because operations live in subsidiaries; the determination is `current` but the entity is statutorily out of scope. Confirm with the General Counsel and document the rationale.\n\n3. **NAICS-code drift after sector reorganisation** — if the corporate structure has shifted business lines between legal entities, the `naics_code` field may be temporarily out of date. Suppression: schedule a quarterly NAICS-currency review with the corporate-secretarial team.\n\n4. **CISA Final Rule pending** — the NPRM has not been finalised at the time of writing; the Final Rule may refine the covered-entity criteria. Suppression: keep the `last_reviewed_at` cadence tight during the Final Rule transition (quarterly rather than annual).\n\n**Suppression mechanism**: KV Store `circia_22_54_1_exceptions` with per-entity grants requiring documented General Counsel approval and a 90-day maximum grant.",
+  "requiredFields": [
+    "entity_legal_name",
+    "covered_entity_determination",
+    "determination_signed_by",
+    "determination_signed_at",
+    "determination_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel (General Counsel, Chief Compliance Officer, CISO)",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, core_company table input)",
+    "ServiceNow ITSM (Vancouver / Washington / Xanadu release, core_company table for legal-entity inventory)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + notable framework)",
+    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Inventory data model)"
+  ],
+  "mitreAttack": [
+    "N/A (governance and statutory-scope determination workflow — establishes the precondition for incident-reporting clocks, not adversary detection)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.44.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) if the legal-entity inventory lives in ServiceNow `core_company`.\n- `index=audit_evidence` (10-year retention online — CIRCIA statute of limitations under 28 U.S.C. § 2462 is 5 years; CISA enforcement can reach back, so we hold 10 years).\n- KV Store collection `circia_entity_register_lookup` (definition below).\n- ES notable framework with `audit` or `compliance` security domain.\n\n## Step 1 — Define the registry collection\n\nIn `transforms.conf` and `collections.conf` on the search head:\n\n```ini\n# collections.conf\n[circia_entity_register_lookup]\nenforceTypes = true\nfield.entity_legal_name = string\nfield.entity_ein = string\nfield.sector = string\nfield.sub_sector = string\nfield.naics_code = string\nfield.employees = number\nfield.revenue_usd_m = number\nfield.sba_size_threshold_met = bool\nfield.sector_based_criteria_met = bool\nfield.covered_entity_determination = string\nfield.determination_signed_by = string\nfield.determination_signed_at = number\nfield.determination_doc_url = string\nfield.last_reviewed_at = number\nfield.notes = string\n```\n\n```ini\n# transforms.conf\n[circia_entity_register_lookup]\nexternal_type = kvstore\ncollection = circia_entity_register_lookup\nfields_list = _key, entity_legal_name, entity_ein, sector, sub_sector, naics_code, employees, revenue_usd_m, sba_size_threshold_met, sector_based_criteria_met, covered_entity_determination, determination_signed_by, determination_signed_at, determination_doc_url, last_reviewed_at, notes\n```\n\nGrant write access only to the `circia_admin` role (a small group: General Counsel deputies plus a CISO designate). Read access to `power` and above for ES analyst use.\n\n## Step 2 — Populate the registry from corporate-secretarial source of truth\n\nMost large corporates manage legal entities in a corporate-secretarial system (Workiva, Diligent, BoardWorks, FileTime, or an in-house SharePoint). A weekly Python job exports the legal-entity inventory and writes it back:\n\n```python\nimport requests, json, time, os\n\n# Pull from corporate-secretarial (example: Workiva API)\ndata = requests.get(\n    \"https://api.workiva.com/v1/legal-entities\",\n    headers={\"Authorization\": f\"Bearer {os.environ['WORKIVA_TOKEN']}\"},\n).json()\n\n# Cross-reference with the General Counsel's signed determination memos\n# (memos live in a SharePoint folder; the URL is the determination_doc_url)\ndeterminations = {\n    d[\"entity_ein\"]: d for d in json.load(open(\"/srv/legal/circia_determinations.json\"))\n}\n\nfor entity in data[\"entities\"]:\n    det = determinations.get(entity[\"ein\"], {})\n    row = {\n        \"entity_legal_name\": entity[\"name\"],\n        \"entity_ein\": entity[\"ein\"],\n        \"sector\": det.get(\"sector\"),\n        \"sub_sector\": det.get(\"sub_sector\"),\n        \"naics_code\": entity[\"naics\"],\n        \"employees\": entity[\"employees\"],\n        \"revenue_usd_m\": entity[\"revenue\"] / 1e6,\n        \"sba_size_threshold_met\": det.get(\"sba_met\", False),\n        \"sector_based_criteria_met\": det.get(\"sector_criteria_met\", False),\n        \"covered_entity_determination\": det.get(\"determination\"),\n        \"determination_signed_by\": det.get(\"signed_by\"),\n        \"determination_signed_at\": det.get(\"signed_at\"),\n        \"determination_doc_url\": det.get(\"doc_url\"),\n        \"last_reviewed_at\": det.get(\"last_reviewed_at\", time.time()),\n        \"notes\": det.get(\"notes\", \"\"),\n    }\n    requests.post(\n        f\"https://<search-head>:8089/servicesNS/nobody/circia/storage/collections/data/circia_entity_register_lookup\",\n        auth=(\"<svc_account>\", os.environ[\"SPLUNK_PWD\"]),\n        json=row,\n        verify=True,\n    )\n```\n\nThe job is owned by the Legal Operations team, not Splunk. The contract is the row schema above.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.1: CIRCIA Covered-Entity Determination Registry — maintain authoritative scope evidence]\ncron_schedule = 7 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.1,reg=CIRCIA,clause=CIRCIA-s2242a\naction.notable.param.rule_title = CIRCIA covered-entity determination is missing, stale, or unsigned\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\nalert.suppress = 1\nalert.suppress.fields = entity_ein\nalert.suppress.period = 24h\n```\n\nThe `audit_evidence` rollup captures every legal entity, not just the alerting rows, so the General Counsel can produce the full registry on demand.\n\n## Step 4 — Validate deployment\n\n**(a) Registry currency check**:\n\n```spl\n| inputlookup circia_entity_register_lookup\n| eval age_days = round((now() - last_reviewed_at) / 86400, 0)\n| stats count avg(age_days) max(age_days) p95(age_days) by covered_entity_determination\n```\n\nA p95 above 365 days indicates the General Counsel review cadence has slipped.\n\n**(b) Positive control**: in a non-production registry, clear the `covered_entity_determination` field on one entity. Within an hour, UC-22.54.1 must flag it with `determination_status=missing`.\n\n**(c) Negative control**: re-populate the field with a valid determination, signing authority, and document URL. UC-22.54.1 must NOT raise an alert.\n\n**(d) M&A integration test**: simulate a new subsidiary acquisition by adding a row to `circia_entity_register_lookup` with `covered_entity_determination=under_review` and `last_reviewed_at=now()`. The row should NOT alert for the first 30 days (it is legitimately under review); after 30 days it should alert with `determination_status=stale_under_review`.\n\n## Step 5 — Operationalize\n\n**Dashboard**: `CIRCIA — Covered-Entity Registry`. Built for the General Counsel and Chief Compliance Officer.\n\n- **Panel 1, sortable table**: every legal entity colour-coded by `determination_status` (`current` green, `stale` amber, `missing` red).\n- **Panel 2, counters**: number covered, not covered, under review, missing.\n- **Panel 3, sector breakdown**: pie of covered entities by PPD-21 sector (Communications, Energy, Financial Services, Healthcare, IT, Transportation, Water, etc.).\n- **Panel 4, 24-month trend**: count of determination changes per quarter.\n- **Panel 5, top stale**: 10 oldest determinations needing review.\n\n**Runbook for `determination_status=missing`** (owner: General Counsel deputy, severity P2):\n\n1. Within 1 business day: confirm the legal entity is actively operating; if dissolved, archive the row.\n2. Within 5 business days: run the sector / SBA size / sector-criteria fact-finding for the entity.\n3. Convene the CIRCIA Determination Committee (General Counsel, Chief Compliance Officer, CISO) to sign the determination.\n4. Upload the signed memorandum to the evidence vault; populate `determination_doc_url`.\n5. The alert clears on the next hour-cycle.\n\n**Runbook for `determination_status=stale`** (owner: General Counsel deputy, severity P3):\n\n1. Within 30 calendar days: run a refresh review against the prior determination. Most reviews will reaffirm the prior position; some will need to be re-determined (e.g. a covered-now-not-covered transition after divestment).\n2. Re-sign the memorandum; bump `last_reviewed_at` to now.\n\n## Step 6 — Troubleshooting\n\n**Workiva / corporate-secretarial export stale** — the weekly job is failing; check its job-runner. The registry will start drifting from corporate reality after a couple of weeks.\n\n**EIN mismatch across systems** — a legal entity may use different EINs in different internal systems (state-tax EIN vs federal EIN). Standardise on the federal EIN as primary key.\n\n**Sector-based criteria ambiguity** — the NPRM uses sector-based criteria (e.g. CWS serving >3,300 persons; healthcare with >100 ICU beds). These are not always present in the corporate-secretarial system. Add the relevant fact (population served, bed count, transaction volume) to `circia_entity_register_lookup` as a custom column.\n\n**Determination signed by an unauthorised person** — the test `match(determination_signed_by, \"general counsel|chief compliance officer|deputy general counsel\")` is intentionally narrow. If your group has a different authorised signer (e.g. Senior Vice President, Legal), extend the regex on General Counsel sign-off; the regex is the operational definition of CIRCIA signing authority for your group.\n\n**CIRCIA-specific failure modes**:\n\n- **Cross-border subsidiary**: a non-US subsidiary may operate in a US critical-infrastructure sector through a US-incorporated branch. The branch (not the parent) is the covered entity.\n- **JV with shared operational control**: a 50/50 joint venture with shared operational control may be a single covered entity (the JV) or two (each parent through its share). Resolve to the JV legal entity if it has independent governance, else to each parent.\n- **Newly-listed public entity**: a recently-IPO'd subsidiary may have a different reporting cadence under the SEC cybersecurity rules; CIRCIA still applies, but the corporate-secretarial pipeline may not yet treat the IPO entity as a separate legal entity. Trigger an explicit re-review.\n- **Pre-Final-Rule status**: until the CISA Final Rule is in force, the determination is operationally voluntary but legally prudent. The registry is the company's evidence of good-faith compliance.",
+  "grandmaExplanation": "We keep a tidy list of all the companies in our group, with a clear note next to each one saying whether the US government's cyber-reporting rule applies to it, who decided that, and when they last checked. If anything is missing or out of date, we ring the bell so the legal team can fix it before there's any real emergency."
+}

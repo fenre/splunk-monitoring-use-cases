@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.23",
+  "title": "CIRCIA + SEC Form 8-K Item 1.05 Materiality-Triangulation — every public-issuer incident is dual-tracked for SEC + CIRCIA",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes private companies (no SEC reporting obligation). Excludes companies that are not public issuers under SEC Regulation S-K. Excludes incidents at non-consolidated subsidiaries.",
+  "evidence": "Saved search `UC-22.54.23` archived hourly to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-sec-form-8-k\"`. Every row pins (incident_id, sec_issuer_id, circia_classification, sec_materiality_determined_at, sec_materiality_decision, sec_8k_filed_at, sec_8k_form_id, dual_track_status). Dashboard `CIRCIA — SEC 8-K Dual-Track` shows the dual-track posture.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-sec-form-8-k",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "SEC public-issuers face dual obligations: (1) CIRCIA's 72-hour 'substantial cyber incident' clock, and (2) SEC Form 8-K Item 1.05's 'materiality determination + 4-business-day' clock. The two clocks are independent and the materiality test is different. UC-22.54.23 instruments the dual-track decision to ensure each clock is honoured. Marked 'full'.",
+      "controlObjective": "Proves every CIRCIA-classified incident at a SEC public-issuer is also evaluated for SEC materiality, and if material, a Form 8-K Item 1.05 is filed within the 4-business-day clock.",
+      "evidenceArtifact": "Saved search `UC-22.54.23` archived to `audit_evidence`, the `CIRCIA — SEC 8-K Dual-Track` dashboard, and the SEC EDGAR filing index.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-sec-form-8-k",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark an incident as `circia_classification=circia-reportable` at a SEC public-issuer entity; do NOT make a SEC materiality determination within 48 hours. UC-22.54.23 MUST flag `dual_track_status=\"sec_materiality_overdue\"` and route a notable to the General Counsel.",
+    "negativeScenario": "Sign `sec_materiality_decision=material` and file Form 8-K Item 1.05 within 4 business days of the determination. UC-22.54.23 MUST record `dual_track_status=\"dual_filed\"`."
+  },
+  "dataSources": "KV Store `circia_classification_lookup` (UC-22.54.19). KV Store `sec_8k_filing_lookup` (SEC EDGAR submissions + materiality determinations). SEC EDGAR API for filing confirmation. Cross-reference to `circia_entity_register_lookup` (UC-22.54.1) for issuer status.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup circia_classification_lookup\n| where classification_class=\"circia-reportable\"\n| lookup circia_entity_register_lookup entity_id OUTPUT entity_sec_issuer entity_sec_cik\n| where entity_sec_issuer=true\n| lookup sec_8k_filing_lookup incident_id OUTPUT sec_materiality_determined_at sec_materiality_decision sec_8k_filed_at sec_8k_form_id\n| eval now_ts = now()\n| eval classification_age_hours = round((now_ts - classification_made_at) / 3600, 1)\n| eval business_days_since_decision = if(isnotnull(sec_materiality_determined_at), round((now_ts - sec_materiality_determined_at) / 86400 * 5/7, 1), null())\n| eval dual_track_status = case(\n    isnull(sec_materiality_determined_at) AND classification_age_hours > 48, \"sec_materiality_overdue\",\n    isnull(sec_materiality_determined_at), \"sec_materiality_pending\",\n    sec_materiality_decision=\"not_material\" AND isnotnull(sec_materiality_determined_at), \"not_material\",\n    sec_materiality_decision=\"material\" AND isnull(sec_8k_filed_at) AND business_days_since_decision > 4, \"sec_8k_overdue\",\n    sec_materiality_decision=\"material\" AND isnull(sec_8k_filed_at), \"sec_8k_pending\",\n    sec_materiality_decision=\"material\" AND isnotnull(sec_8k_filed_at), \"dual_filed\",\n    1=1, \"unknown\")\n| where dual_track_status IN (\"sec_materiality_overdue\", \"sec_8k_overdue\", \"unknown\")\n| table incident_id entity_sec_cik classification_age_hours sec_materiality_determined_at sec_materiality_decision sec_8k_filed_at business_days_since_decision dual_track_status",
+  "description": "Cross-references CIRCIA-classified incidents at SEC public-issuer entities with their SEC Form 8-K Item 1.05 materiality determinations and filings. Surfaces materiality determinations not made within 48 hours of CIRCIA classification and 8-K filings overdue beyond the 4-business-day window.",
+  "value": "When a public-issuer has a CIRCIA incident, the SEC clock is independent and operates on materiality-determination-to-8K-filing in 4 business days. The two reporting tracks can diverge: a CIRCIA-substantial incident may be SEC-not-material (e.g., financial impact is below materiality threshold) or vice versa. This UC ensures the SEC track is not forgotten under the pressure of the CIRCIA 72-hour clock.",
+  "implementation": "(1) Maintain `entity_sec_issuer` and `entity_sec_cik` in the entity register. (2) The General Counsel and CFO sign the materiality determination within 48 hours of CIRCIA classification. (3) SEC 8-K Form 1.05 filing via EDGAR within 4 business days of materiality. (4) Schedule UC-22.54.23 hourly.",
+  "visualization": "(Panel 1) Dual-track posture: incidents and their CIRCIA + SEC status. (Panel 2) Materiality-decision latency distribution. (Panel 3) 8-K filing-latency distribution. (Panel 4) Divergence cases: CIRCIA-reportable but SEC-not-material.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "SEC Cybersecurity Risk Management, Strategy, Governance, and Incident Disclosure (Final Rule)",
+      "url": "https://www.sec.gov/rules/final/2023/33-11216.pdf"
+    },
+    {
+      "title": "SEC Form 8-K Item 1.05 Guidance",
+      "url": "https://www.sec.gov/forms"
+    },
+    {
+      "title": "SEC EDGAR System",
+      "url": "https://www.sec.gov/edgar"
+    }
+  ],
+  "knownFalsePositives": "1. **National-security delay** — SEC permits delay of 8-K filing if Attorney General determines disclosure would pose substantial national-security risk. Suppression: `dual_track_status_override=ag_delay` with documented AG letter.\n\n2. **Materiality decision documented but not yet logged** — GC may have decided but lookup not yet populated. Suppression: SOAR closes the loop with mandatory logging.\n\n3. **Updated 8-K filing** — supplemental 8-K may be filed; the lookup must track each filing version.\n\n**Suppression mechanism**: KV Store `circia_22_54_23_exceptions` with per-incident grants requiring documented General Counsel approval and a 7-day maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "entity_sec_cik",
+    "sec_materiality_decision",
+    "dual_track_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + General Counsel + CFO + SEC Compliance Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, sec-8k-filing playbook)",
+    "SEC EDGAR Filing Portal"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory-disclosure dual-track workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1",
+    "UC-22.54.2",
+    "UC-22.54.9",
+    "UC-22.54.19"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `sec-8k-filing` playbook.\n- KV Store `sec_8k_filing_lookup`.\n- SEC EDGAR API account (read-only for confirmation).\n\n## Step 1 — Entity-register SEC fields\n\nAdd to `circia_entity_register_lookup`:\n\n- `entity_sec_issuer` (bool).\n- `entity_sec_cik` (10-digit Central Index Key).\n- `entity_sec_filer_status` (large accelerated, accelerated, non-accelerated, smaller reporting).\n\n## Step 2 — Filing collection\n\n```ini\n[sec_8k_filing_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.sec_materiality_determined_at = number\nfield.sec_materiality_decision = string\nfield.sec_materiality_signed_by = string\nfield.sec_8k_filed_at = number\nfield.sec_8k_form_id = string\nfield.sec_8k_filing_url = string\n```\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.23: CIRCIA SEC 8-K Dual-Track]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.23,reg=CIRCIA,clause=CIRCIA-CISA-sec-form-8-k\naction.notable.param.rule_title = CIRCIA-classified incident missing SEC 8-K dual-track\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Validate deployment\n\n**(a) SEC-materiality-overdue test**: classify an incident as `circia-reportable` at a SEC-issuer entity; wait 50 hours without materiality decision; UC-22.54.23 must alert.\n\n**(b) 8-K-overdue test**: sign `sec_materiality_decision=material`; wait 5 business days without filing; UC-22.54.23 must trip `sec_8k_overdue`.\n\n## Step 5 — Operationalize\n\n**Runbook for `sec_materiality_overdue`** (owner: General Counsel, severity P1):\n\n1. Within 4 business hours: convene materiality determination meeting with CFO; sign the decision.\n\n**Runbook for `sec_8k_overdue`** (owner: General Counsel, severity P1):\n\n1. Within 1 business day: file the 8-K via SOAR `sec-8k-filing` playbook; document the delay rationale.\n\n## Step 6 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **AG-delay coordination**: AG-delay requests must be made before the 4-business-day clock expires; the entity cannot retroactively claim delay.\n- **CIRCIA-vs-SEC materiality misalignment**: SEC materiality is a quantitative + qualitative test; CIRCIA substantial-incident is operational. The two can legitimately disagree.\n- **Form 8-K Item 1.05 vs Item 8.01**: a material-but-unfinished investigation may file Item 8.01 instead of 1.05 (free-form). Document the choice.",
+  "grandmaExplanation": "If we are a public company and we have a cyber-incident the cyber agency cares about, we also have to tell stockholders within 4 business days — but only if it's 'material', meaning it really matters to the company's value. The lawyer and CFO decide that, and we make sure both clocks (cyber agency and stockholders) are honoured."
+}

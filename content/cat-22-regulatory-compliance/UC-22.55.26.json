@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.26",
+  "title": "CLC/TS 50701 Rail Reference Security Architecture Compliance — deployments aligned to operator-approved reference architecture",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes legacy systems formally exempted with documented compensating controls. Excludes pilot deployments with approved variance.",
+  "evidence": "Saved search `UC-22.55.26` archived monthly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c7-3\"`. Every row pins (deployment_id, ref_arch_version, deployment_signed_at, drift_findings, ref_arch_status). Dashboard `CLC/TS 50701 — Reference Architecture Drift` shows architecture posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c7-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 7.3 (annex B) provides reference architecture patterns. The operator must define and enforce its own reference architecture aligned with these patterns. UC-22.55.26 instruments compliance drift.",
+      "controlObjective": "Proves every rail-OT deployment is validated against the operator's reference architecture and any drift is documented with approval.",
+      "evidenceArtifact": "Saved search `UC-22.55.26` archived to `audit_evidence`, the `CLC/TS 50701 — Reference Architecture Drift` dashboard, and architecture-compliance certificate.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c7-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Deploy a new signalling subsystem without alignment to reference architecture. UC-22.55.26 MUST flag `ref_arch_status=\"drift_unapproved\"`.",
+    "negativeScenario": "Document drift, get architect sign-off, register exemption; UC-22.55.26 MUST record `ref_arch_status=\"aligned_with_documented_drift\"` or `compliant`."
+  },
+  "dataSources": "KV Store `rail_ref_arch_lookup`. Architecture-review pipeline (Confluence, JIRA architecture-review process). Cisco Cyber Vision flow analysis for actual topology verification.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_ref_arch_lookup\n| where deployment_status=\"active\"\n| eval now_ts = now()\n| eval ref_arch_status = case(\n    isnull(deployment_signed_at), \"alignment_review_missing\",\n    drift_findings_count > 0 AND isnull(architect_drift_signed_at), \"drift_unapproved\",\n    isnotnull(architect_drift_signed_at), \"aligned_with_documented_drift\",\n    1=1, \"compliant\")\n| where ref_arch_status != \"compliant\"\n| table deployment_id ref_arch_version deployment_signed_at drift_findings_count ref_arch_status",
+  "description": "Tracks rail-OT deployments against operator's reference architecture, flagging drift and missing reviews.",
+  "value": "Reference architectures provide proven security patterns; unmanaged drift erodes those patterns.",
+  "implementation": "(1) Document reference architecture. (2) Architecture-review process logs to Splunk. (3) Schedule UC-22.55.26 monthly on 1st 10:00.",
+  "visualization": "(Panel 1) Architecture status. (Panel 2) Drift queue. (Panel 3) Architecture-coverage by zone.",
+  "cimModels": [
+    "Change",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 7.3 + Annex B",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Phase rollout** — architectures may have intentional staged drift. Suppression: tracked under rollout-plan.\n\n**Suppression mechanism**: KV Store `clc_22_55_26_exceptions` with documented Rail Cybersecurity Architect approval and 90-day maximum grant.",
+  "requiredFields": [
+    "deployment_id",
+    "ref_arch_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Rail Cybersecurity Architect",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071)"
+  ],
+  "mitreAttack": [
+    "N/A (architecture governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Cisco Cyber Vision.\n- KV Store `rail_ref_arch_lookup`.\n\n## Step 1 — Architecture collection\n\n```ini\n[rail_ref_arch_lookup]\nenforceTypes = true\nfield.deployment_id = string\nfield.ref_arch_version = string\nfield.deployment_signed_at = number\nfield.drift_findings_count = number\nfield.architect_drift_signed_at = number\nfield.deployment_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.26: CLC/TS 50701 Reference Architecture Drift]\ncron_schedule = 0 10 1 * *\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.26,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-3\naction.notable.param.rule_title = Rail reference architecture drift unapproved\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `drift_unapproved`** (owner: Rail Cybersecurity Architect, severity P2): review drift; document; sign exemption or remediate.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Topology-discovery vs design-of-record drift**: actual Cyber Vision flows vs documented architecture.\n- **Vendor-imposed drift**: vendor delivers different topology than spec.",
+  "grandmaExplanation": "We have a 'gold standard' design for how rail networks should be set up. We check that every new system follows the design — and if a team has to deviate, an architect must sign off."
+}

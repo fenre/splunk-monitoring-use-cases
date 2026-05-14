@@ -1,0 +1,121 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.9",
+  "title": "TSA-SD Freight-Rail 24-Hour Reporting (SD-1580/82-2022-01) — automated submission pipeline mirrored to CISA Form 1",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Freight Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes events on non-TSA-regulated rail assets (commuter rail under FTA — covered by UC-22.56.17). Excludes voluntary CIRCIA reports.",
+  "evidence": "Saved search `UC-22.56.9` archived every 5 minutes to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1580-2022-01-s2\"`. Every row pins (incident_id, railroad_id, train_consist_id, incident_category, awareness_time, cisa_submission_time, hours_to_submission, submission_status).",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1580-82-2022-01-s2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Mirrors UC-22.56.1 for freight-rail jurisdiction (SD-1580). The 24-hour clock applies identically; the only differences are: covered-entity register, reportable-category list, parallel-FRA notification on safety-impacting events. Marked 'full' because all four constitutive elements (category, clock, submission, evidence) are operational.",
+      "controlObjective": "Proves freight-rail covered cyber incidents are reported to CISA within 24 hours and to FRA in parallel on safety-impacting events.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD Freight Rail 24h Reporting Health` dashboard, the CISA receipt, and the FRA notification log.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1580-82-2022-01-s2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject a synthetic IR ticket with `tsa_rail_in_scope=true` and `awareness_time=now()-23h`. Within 5 minutes UC-22.56.9 MUST escalate to `submission_status=clock_burning`.",
+    "negativeScenario": "Close synthetic ticket with `cisa_submission_time` < 24h after `awareness_time`. UC-22.56.9 MUST record `submission_status=on_time`."
+  },
+  "dataSources": "ServiceNow Security Incident Response (`snow:sn_si_incident` with `tsa_rail_in_scope=true`). KV Store `tsa_rail_railroad_lookup` (Class-I + selected Class-II/III). Splunk SOAR `tsa_rail_cisa_submission` playbook. CISA portal receipts via HEC. PTC system event correlation (`ptc:wabtec:event`, `ptc:siemens:event`). FRA notification log via SharePoint audit.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_rail_in_scope=true tsa_reportable_category=*\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval cisa_submission_time = strptime(cisa_submission_time, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval hours_to_submission = case(\n    isnotnull(cisa_submission_time), round((cisa_submission_time - awareness_time) / 3600, 2),\n    1=1, hours_since_awareness)\n| eval submission_status = case(\n    isnotnull(cisa_submission_time) AND hours_to_submission <= 24, \"on_time\",\n    isnotnull(cisa_submission_time) AND hours_to_submission > 24, \"late\",\n    isnull(cisa_submission_time) AND hours_since_awareness <= 23, \"in_window\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 23 AND hours_since_awareness <= 24, \"clock_burning\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 24, \"missed\",\n    1=1, \"unknown\")\n| eval fra_parallel = case(\n    safety_impacting=true AND isnotnull(fra_notification_time), \"notified\",\n    safety_impacting=true AND isnull(fra_notification_time), \"missing\",\n    1=1, \"na\")\n| where submission_status IN (\"clock_burning\",\"missed\",\"late\") OR fra_parallel=\"missing\"\n| table incident_id railroad_id train_consist_id tsa_reportable_category awareness_time cisa_submission_time hours_to_submission submission_status fra_parallel",
+  "description": "Mirror of UC-22.56.1 for freight-rail SD-1580. Adds FRA parallel-notification check for safety-impacting events.",
+  "value": "Freight-rail operators face dual clocks: CISA-24h and FRA-immediate (safety). Missing either is enforcement-actionable.",
+  "implementation": "(1) Populate `tsa_rail_railroad_lookup`. (2) Add `tsa_rail_in_scope`, `tsa_reportable_category`, `safety_impacting`, `fra_notification_time` to ServiceNow SIR. (3) Schedule UC-22.56.9 every 5 min. (4) SOAR `tsa_rail_cisa_submission` mirrors `tsa_cisa_submission` with FRA parallel-routing. (5) Build dashboard.",
+  "visualization": "(Panel 1) Live clock-burn (rail). (Panel 2) FRA parallel-notification status. (Panel 3) p50/p95 hours-to-submission. (Panel 4) Late + missed table.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD-1580/82-2022-01 (freight rail cybersecurity)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-1580-82-2022-01.pdf"
+    },
+    {
+      "title": "TSA reissues freight rail cyber requirements (Oct 2024)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/10/24/tsa-reissues-cybersecurity-requirements-rail-industry"
+    },
+    {
+      "title": "FRA Office of Railroad Safety",
+      "url": "https://railroads.dot.gov/divisions/safety"
+    }
+  ],
+  "knownFalsePositives": "1. **Dual-mode operator (passenger + freight)**: ensure incidents that affect both are tagged for both clocks and both UCs fire.\n2. **PTC-related events with no safety impact**: PTC degradations may not reach reportable threshold; the CC's documented determination governs.\n\n**Suppression mechanism**: KV Store `tsa_22_56_9_exceptions` with documented CC approval.",
+  "requiredFields": [
+    "incident_id",
+    "railroad_id",
+    "awareness_time",
+    "submission_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + FRA Liaison",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x (tsa_rail_cisa_submission playbook)",
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory reporting clock)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.1 but freight-rail scoped.\n\n## Step 1 — Define railroad register\n\n```ini\n[tsa_rail_railroad_lookup]\nfield.railroad_id = string\nfield.railroad_name = string\nfield.class_designation = string\nfield.tsa_in_scope = string\nfield.ptc_vendor = string\n```\n\n## Step 2 — SOAR playbook `tsa_rail_cisa_submission`\n\nMirrors `tsa_cisa_submission` (UC-22.56.1 step 3) with these differences: (a) routes to CC + FRA Liaison; (b) on `safety_impacting=true`, parallel-dispatch FRA Form 6180; (c) consolidates CISA receipt + FRA acknowledgement into `evidence_doc_url`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.56.9: TSA-SD Freight Rail 24h Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.9,reg=TSA-Surface,clause=TSA-SD-1580-2022-01-s2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\nSame as UC-22.56.1 with FRA parallel branch on `safety_impacting=true`.\n\n## Step 5 — Troubleshooting\n\n**Cross-modal pipeline-rail incident**: tag both `tsa_pipeline_in_scope` and `tsa_rail_in_scope`; both UCs (22.56.1 and 22.56.9) must fire.\n\n**TSA-specific failure modes**:\n- **PTC event reporting**: PTC may generate cyber-looking events that are actually mechanical; require CC review before reporting.\n- **Surface modal divisions**: TSA reorg may shift modal jurisdiction; review every 6 months.",
+  "grandmaExplanation": "Same as pipelines but for freight trains: if there's a cyber incident, we must tell CISA within 24 hours and the train-safety regulator immediately if trains might be unsafe."
+}

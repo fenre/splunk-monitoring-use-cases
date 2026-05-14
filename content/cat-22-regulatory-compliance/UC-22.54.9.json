@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.9",
+  "title": "CIRCIA Substantial-Cyber-Incident Classification Engine — deterministically flag every IR ticket against the NPRM §226.1 four-prong test",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents at non-covered entities (UC-22.54.1 / UC-22.54.8 are authoritative). Excludes incidents that are demonstrably benign (false-positive IR tickets, drill events, scheduled penetration tests) tracked with `is_real_incident=false` in SIR. Excludes sector-only-reportable incidents that do NOT meet the NPRM substantial threshold (those are tracked by sectoral UCs and flagged here as `circia_classification=not_reportable`).",
+  "evidence": "Saved search `UC-22.54.9` archived every 15 minutes to `audit_evidence` with `circia_clause=\"CIRCIA-NPRM-covered-incident\"`. Every row pins (incident_id, covered_entity_legal_name, opened_at, prong_confidentiality_integrity_availability, prong_safety_resiliency, prong_business_disruption, prong_third_party_compromise, prong_total, circia_classification, classification_signed_by, classification_signed_at, classification_rationale). Dashboard `CIRCIA — Substantial-Cyber-Incident Classification` shows live in-flight tickets with the four-prong evaluation and the resulting CIRCIA classification.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-NPRM-covered-incident",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The NPRM § 226.1 'covered cyber incident' definition is a four-prong test: substantial loss of confidentiality, integrity, or availability of information systems; serious impact on safety and resiliency of operational systems and processes; disruption of business or industrial operations; unauthorized access via a cloud / MSP / third-party data hosting compromise. Without a deterministic classifier, IR teams default to subjective judgement, which produces inconsistent reporting decisions. UC-22.54.9 operationalises the four-prong test as data-driven signals against the IR ticket plus operator telemetry. Marked 'full' because the UC instantiates the NPRM definition directly.",
+      "controlObjective": "Proves every IR ticket at a covered entity has been classified against the NPRM four-prong test, with each prong evaluated against deterministic data signals.",
+      "evidenceArtifact": "Saved search `UC-22.54.9` archived to `audit_evidence`, the `CIRCIA — Substantial-Cyber-Incident Classification` dashboard, and the IR Commander's signed classification memo in the General Counsel evidence vault.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-NPRM-covered-incident",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a SIR incident with `confidentiality_integrity_availability_impact=substantial` and a covered-entity ID. Within 15 minutes UC-22.54.9 MUST classify the incident as `circia_classification=reportable_72h_clock`. The IR Commander then signs the classification memo (`classification_signed_by`, `classification_signed_at`), and UC-22.54.2 starts the 72-hour clock.",
+    "negativeScenario": "Open a SIR incident with no substantial impact across any prong (`confidentiality_integrity_availability_impact=none`, `operational_safety_impact=none`, `business_disruption=none`, `third_party_compromise=false`). UC-22.54.9 MUST classify the incident as `circia_classification=not_reportable` and MUST NOT trigger the 72-hour clock."
+  },
+  "dataSources": "ServiceNow Security Incident Response with custom NPRM four-prong fields (`confidentiality_integrity_availability_impact`, `operational_safety_impact`, `business_disruption`, `third_party_compromise`, `cloud_msp_compromise_kind`). EDR / NDR detection feed with severity (`mscs:wd:atp:detection`, `crowdstrike:falcon:detection`, `pan:threat`, `cortex_xdr:alert`). Splunk ES notable index with risk-score (`notable` index). Cloud-service-provider security advisory feed (Microsoft MSRC, AWS Security Bulletins, Salesforce Trust). Operational-impact feed from BMS / SCADA / production monitoring where the covered entity has OT systems (UC-22.54.24 for OT-incident detail). Cross-reference to `circia_entity_register_lookup` (UC-22.54.1) for covered-entity validation.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" is_real_incident=true earliest=-30d@d\n| rename _time AS opened_at\n| lookup circia_entity_register_lookup entity_legal_name AS covered_entity_legal_name OUTPUT covered_entity_determination\n| where covered_entity_determination=\"covered\"\n| eval prong_confidentiality_integrity_availability = case(\n    confidentiality_integrity_availability_impact IN (\"substantial\",\"severe\",\"catastrophic\"), 1,\n    1=1, 0)\n| eval prong_safety_resiliency = case(\n    operational_safety_impact IN (\"serious\",\"severe\",\"catastrophic\"), 1,\n    1=1, 0)\n| eval prong_business_disruption = case(\n    business_disruption IN (\"meaningful\",\"significant\",\"complete\"), 1,\n    1=1, 0)\n| eval prong_third_party_compromise = case(\n    third_party_compromise=\"true\" AND isnotnull(cloud_msp_compromise_kind), 1,\n    1=1, 0)\n| eval prong_total = prong_confidentiality_integrity_availability + prong_safety_resiliency + prong_business_disruption + prong_third_party_compromise\n| eval circia_classification = case(\n    prong_total >= 1, \"reportable_72h_clock\",\n    1=1, \"not_reportable\")\n| eval classification_supports_review = case(\n    prong_total >= 1 AND isnull(classification_signed_by), \"pending_ir_commander_review\",\n    prong_total >= 1 AND isnotnull(classification_signed_by), \"signed\",\n    1=1, \"not_required\")\n| where prong_total >= 1 OR classification_supports_review=\"pending_ir_commander_review\"\n| table incident_id covered_entity_legal_name opened_at prong_confidentiality_integrity_availability prong_safety_resiliency prong_business_disruption prong_third_party_compromise prong_total circia_classification classification_signed_by classification_signed_at classification_rationale classification_supports_review",
+  "description": "Applies the NPRM § 226.1 four-prong covered-cyber-incident test to every open SIR incident at a covered entity. Each prong is evaluated against a deterministic data signal; any prong fulfilled triggers `circia_classification=reportable_72h_clock`. Requires the IR Commander to sign the classification memo before UC-22.54.2 starts the 72-hour clock.",
+  "value": "Classification is the most consequential decision in the CIRCIA workflow: a wrong 'not reportable' call leads to enforcement, while a wrong 'reportable' call burns the privilege protection on data CISA does not need. A deterministic classifier removes the ambiguity from the in-incident decision and exposes the prong-by-prong rationale for audit defence.",
+  "implementation": "(1) Extend SIR with the four-prong custom fields. (2) Configure the SIR workflow so the IR Commander cannot close an incident until classification is signed. (3) Schedule UC-22.54.9 every 15 minutes. (4) SOAR playbook `circia-classification-review` routes pending-signature classifications to the IR Commander's queue with prefilled rationale and the four prong evaluations. (5) On signed classification, SOAR emits the trigger that starts the UC-22.54.2 72-hour clock.",
+  "visualization": "(Panel 1) In-flight classification table: every open incident with prong scores, current classification, sign-off status. (Panel 2) Classification volume trend: 24-month history of reportable vs not-reportable per quarter. (Panel 3) Prong-distribution heatmap: which prongs trigger most often. (Panel 4) Reportable-without-signature queue: pending IR Commander signature.",
+  "cimModels": [
+    "Alerts",
+    "Incident-Management"
+  ],
+  "references": [
+    {
+      "title": "CISA NPRM § 226.1 — Definition of Covered Cyber Incident",
+      "url": "https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements"
+    },
+    {
+      "title": "CIRCIA — 6 U.S.C. § 681b(a) Definitions",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    }
+  ],
+  "knownFalsePositives": "1. **EDR alerts auto-population** — high-severity EDR alerts may set `confidentiality_integrity_availability_impact=substantial` as a default. Suppression: the IR Commander triage step must validate the impact before classification is finalised.\n\n2. **Substantial vs minor data exposure** — the NPRM 'substantial loss of confidentiality' is a judgement call. Suppression: maintain a `circia_impact_definitions_lookup` with operator-defined criteria for `substantial` (e.g. PII of >500 individuals, customer database access).\n\n3. **OT incident with no IT impact** — an OT-only incident may legitimately fulfil only the operational safety prong. Suppression: not a false positive; UC-22.54.24 handles OT-specific classification detail.\n\n4. **Drill / penetration test** — a planned exercise can match the prongs but is not a covered incident. Suppression: SIR `is_real_incident=false` excludes these.\n\n**Suppression mechanism**: KV Store `circia_22_54_9_exceptions` with per-incident grants requiring documented General Counsel approval and a 24-hour maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "prong_total",
+    "circia_classification",
+    "classification_signed_by"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + IR Director",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
+    "ServiceNow SIR with custom NPRM four-prong columns",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-classification-review playbook)"
+  ],
+  "mitreAttack": [
+    "N/A (statutory-classification workflow — the UC's prongs map to the NPRM definition, not to MITRE techniques; the underlying detections that feed the prongs may carry MITRE tags separately)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1",
+    "UC-22.54.8"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928).\n- Splunk SOAR (Splunkbase 4413) with `circia-classification-review` playbook.\n- KV Stores `circia_entity_register_lookup`, `circia_impact_definitions_lookup`.\n- ServiceNow SIR with NPRM four-prong custom columns.\n\n## Step 1 — Extend ServiceNow SIR with the four prongs\n\n| Column | Type | Values |\n|---|---|---|\n| `is_real_incident` | True/False | exclude drills, penetration tests, false positives |\n| `confidentiality_integrity_availability_impact` | Choice | `none`, `minor`, `substantial`, `severe`, `catastrophic` |\n| `operational_safety_impact` | Choice | `none`, `minor`, `serious`, `severe`, `catastrophic` |\n| `business_disruption` | Choice | `none`, `minor`, `meaningful`, `significant`, `complete` |\n| `third_party_compromise` | True/False | proximate cause is a third-party CSP/MSP/cloud-hosting compromise |\n| `cloud_msp_compromise_kind` | Choice | `cloud_provider`, `mssp`, `data_hosting`, `software_supply_chain` |\n| `circia_classification` | Choice | `not_reportable`, `under_evaluation`, `reportable_72h_clock`, `ransom_24h_clock` |\n| `classification_signed_by` | String | user_id of IR Commander |\n| `classification_signed_at` | Date/Time | epoch |\n| `classification_rationale` | Long text | free-text |\n\nWorkflow rules:\n\n1. Setting any prong field to a non-default value automatically transitions `circia_classification` to `under_evaluation`.\n2. Setting `circia_classification=reportable_72h_clock` is restricted to the `CIRCIA Determination Committee` role.\n3. The state cannot move past `In Progress` without `classification_signed_at`.\n\n## Step 2 — Maintain the impact-definitions lookup\n\n```csv\nprong,severity_label,definition\nconfidentiality_integrity_availability,substantial,\"Unauthorised access to customer PII >500 individuals OR write access to a production database OR exfiltration >1GB\"\nconfidentiality_integrity_availability,severe,\"Substantial criteria PLUS full-table customer database exposure OR encryption keys exposed\"\noperational_safety,serious,\"Capability degradation of >10% in safety-relevant OT system OR loss of safety instrumented function (SIS) over a defined window\"\noperational_safety,severe,\"Serious criteria PLUS plant shutdown OR safety-system bypass with no compensating control\"\nbusiness_disruption,meaningful,\"Outage of a public-facing service for >1 hour OR internal capability outage affecting >25% of staff\"\nbusiness_disruption,significant,\"Meaningful criteria PLUS multi-hour customer impact OR financial impact >USD 1M\"\nthird_party_compromise,true,\"Documented compromise of a CSP / MSP / cloud-hosting provider whose access pathway reached the covered entity\"\n```\n\nThe IR Commander uses this lookup to apply consistent definitions across incidents.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.9: CIRCIA Substantial-Cyber-Incident Classification Engine]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.9,reg=CIRCIA,clause=CIRCIA-NPRM-covered-incident\naction.notable.param.rule_title = CIRCIA classification pending IR Commander signature\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nAlert only on rows with `classification_supports_review=pending_ir_commander_review`.\n\n## Step 4 — SOAR `circia-classification-review` playbook\n\nOn notable creation, prefill the IR Commander's review queue with: (a) the four-prong evaluation, (b) the data signals supporting each prong, (c) the prefilled classification memo template citing NPRM § 226.1.\n\n## Step 5 — Validate deployment\n\n**(a) Substantial impact test**: open a SIR incident with `confidentiality_integrity_availability_impact=substantial`; UC-22.54.9 must classify it `reportable_72h_clock`.\n\n**(b) All-prongs-none test**: open with all prongs at default `none`; UC-22.54.9 must classify it `not_reportable`.\n\n**(c) Third-party compromise test**: `third_party_compromise=true`, `cloud_msp_compromise_kind=cloud_provider`; UC-22.54.9 must classify it `reportable_72h_clock` even if other prongs are `none`.\n\n**(d) Signature requirement**: an unsigned `reportable_72h_clock` must NOT trigger the UC-22.54.2 72-hour clock; the SIR workflow rule prevents close.\n\n## Step 6 — Operationalize\n\n**Dashboard**: `CIRCIA — Substantial-Cyber-Incident Classification`.\n\n- Panel 1: in-flight classification table.\n- Panel 2: 24-month classification trend.\n- Panel 3: prong-distribution heatmap.\n- Panel 4: pending-signature queue.\n\n**Runbook for pending classification**:\n\n1. The IR Commander reviews the prefilled SOAR queue within 4 hours of incident open.\n2. Approves or amends the classification with a rationale memo.\n3. The memo is countersigned by the General Counsel for `reportable_72h_clock` classifications.\n\n## Step 7 — Troubleshooting\n\n**Misclassification by automation** — EDR alerts may auto-set prongs. The IR Commander review step is mandatory.\n\n**Cross-prong correlation** — a single incident may fulfil multiple prongs (e.g. OT-affecting ransomware fulfils confidentiality + safety + business + supply chain). The classification remains `reportable_72h_clock` (any prong triggers it); the prong_total provides analytical context but the binary classification is the operative result.\n\n**Borderline cases** — incidents on the boundary of `substantial` vs `minor` should default to `under_evaluation` until the IR Commander signs.\n\n**CIRCIA-specific failure modes**:\n\n- **NPRM Final Rule may sharpen definitions**: the four prongs may be refined by the Final Rule. The lookup is the operator-defined operational layer; revise within 60 days of Final Rule publication.\n- **Severity inflation from EDR**: vendors may over-classify their detections to drive deal value. The IR Commander review is the safeguard.\n- **OT-only incident**: UC-22.54.24 handles OT-specific evaluation; UC-22.54.9 still produces the binary classification.\n- **Multi-incident chain**: a cascade of related minor incidents may collectively meet a prong; the IR Commander may consolidate to one parent incident for classification purposes.",
+  "grandmaExplanation": "We have a checklist for deciding if an incident is bad enough to tell the cyber agency about. We tick four boxes — was confidentiality / integrity / availability seriously hit, was safety affected, was business stopped, did a cloud provider get hit — and any single tick means we must report. The team leader signs the form so we have a clear record of how we decided."
+}

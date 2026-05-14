@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.5",
+  "title": "CLC/TS 50701 Rail Threat-Scenario Library Currency — railway-specific threats mapped to MITRE ATT&CK and CISA rail advisories",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "HR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes legacy threat-actor profiles superseded by current intelligence. Excludes threats outside the rail-cyber threat landscape (e.g., generic-banking-trojans). Excludes hypothetical academic scenarios without observed-in-the-wild evidence.",
+  "evidence": "Saved search `UC-22.55.5` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c6-2\"`. Every row pins (scenario_id, scenario_name, threat_actor_type, mitre_technique_ids, last_reviewed_at, last_reviewed_by, scenario_status). Dashboard `CLC/TS 50701 — Rail Threat-Scenario Library` shows scenario currency.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c6-2",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 6.2 requires a documented rail-specific threat-scenario library. Scenarios must reflect current threat landscape including state-sponsored actors targeting rail, ransomware impacting rail operations (notably Norske Tog 2022, Tatts Group 2021), and supply-chain compromises. UC-22.55.5 instruments library currency.",
+      "controlObjective": "Proves the threat-scenario library is current, mapped to MITRE ATT&CK / ATT&CK for ICS, and references rail-specific CISA / ENISA / ERA advisories.",
+      "evidenceArtifact": "Saved search `UC-22.55.5` archived to `audit_evidence`, the `CLC/TS 50701 — Rail Threat-Scenario Library` dashboard, and the per-scenario research dossier.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c6-2",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `last_reviewed_at` on a scenario to 13+ months ago. UC-22.55.5 MUST flag `scenario_status=\"review_overdue\"` within 7 days.",
+    "negativeScenario": "Refresh the scenario, set `last_reviewed_at=now`, `last_reviewed_by=Threat Intel Lead`. UC-22.55.5 MUST record `scenario_status=\"current\"`."
+  },
+  "dataSources": "KV Store `rail_threat_scenario_lookup`. CISA ICS advisories (HEC `hec:cisa:advisory:ics`). ENISA Threat Landscape feed. ERA Cybersecurity Alerts. MITRE ATT&CK technique mapping.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_threat_scenario_lookup\n| where scenario_status_in_library=\"active\"\n| eval now_ts = now()\n| eval review_age_days = round((now_ts - last_reviewed_at) / 86400, 0)\n| eval scenario_status = case(\n    isnull(last_reviewed_at), \"never_reviewed\",\n    review_age_days > 365, \"review_overdue\",\n    isnull(mitre_technique_ids) OR mitre_technique_ids=\"\", \"mitre_mapping_missing\",\n    isnull(threat_actor_type) OR threat_actor_type=\"\", \"actor_type_missing\",\n    1=1, \"current\")\n| where scenario_status != \"current\"\n| table scenario_id scenario_name threat_actor_type mitre_technique_ids last_reviewed_at last_reviewed_by review_age_days scenario_status",
+  "description": "Audits the rail threat-scenario library for review currency, MITRE mapping completeness, and threat-actor typing.",
+  "value": "Without a current threat-scenario library, risk assessments operate on outdated assumptions. Recent rail-targeted incidents (Norske Tog 2022, Tatts Group 2021, Italian high-speed rail 2022) underscore that the threat landscape is active.",
+  "implementation": "(1) Maintain `rail_threat_scenario_lookup` with the operator's library. (2) Threat Intel Lead reviews scenarios annually; SOAR `rail-threat-scenario-refresh` triggers on CISA / ENISA advisory arrival. (3) Schedule UC-22.55.5 weekly Monday 03:30.",
+  "visualization": "(Panel 1) Scenario currency scorecard. (Panel 2) Review-due calendar. (Panel 3) MITRE-mapping coverage matrix. (Panel 4) Actor-type distribution.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 Annex A — Rail threat-actor types",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "MITRE ATT&CK for ICS",
+      "url": "https://attack.mitre.org/matrices/ics/"
+    },
+    {
+      "title": "ENISA Transport Sector Cyber Threat Landscape",
+      "url": "https://www.enisa.europa.eu/topics/critical-information-infrastructures-and-services/transport"
+    }
+  ],
+  "knownFalsePositives": "1. **Scenario archived** — a scenario may legitimately be archived after threat actor retires. Suppression: `scenario_status_in_library=archived`.\n\n2. **Newly-added scenario** — scenario added today has `last_reviewed_at` = creation date; allow 7-day grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_5_exceptions` with documented Threat Intel Lead approval and 90-day maximum grant.",
+  "requiredFields": [
+    "scenario_id",
+    "last_reviewed_at",
+    "scenario_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Threat Intel Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "mitreAttack": [
+    "T0813",
+    "T0827",
+    "T0879",
+    "T0880",
+    "T0881",
+    "T0828"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_threat_scenario_lookup`.\n\n## Step 1 — Scenario library\n\nSeed the library with rail-specific scenarios such as:\n\n- `SCN-RAIL-001` Ransomware impacting station-management system\n- `SCN-RAIL-002` Compromise of signalling RBC\n- `SCN-RAIL-003` Compromise of CBTC zone controller\n- `SCN-RAIL-004` GSM-R / FRMCS spoofing\n- `SCN-RAIL-005` Compromise of rolling-stock CCS via maintenance laptop\n- `SCN-RAIL-006` Supply-chain compromise of signal vendor\n- `SCN-RAIL-007` Insider threat from depot maintenance staff\n- `SCN-RAIL-008` State-sponsored disruption of cross-border interlocking\n\nEach scenario carries MITRE ATT&CK / ATT&CK for ICS technique IDs.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.5: CLC/TS 50701 Threat-Scenario Library Currency]\ncron_schedule = 30 3 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.5,reg=CLC-TS-50701,clause=CLC-TS-50701-c6-2\naction.notable.param.rule_title = Rail threat-scenario stale or unmapped\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `review_overdue`** (owner: Threat Intel Lead, severity P2):\n\n1. Within 30 days: re-research scenario; map new MITRE techniques; document threat-actor evolution; re-sign.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **State-sponsored mapping**: per Annex A, scenarios should distinguish state-sponsored, organised crime, insider, hacktivist actor types.\n- **Real-incident integration**: when a real rail incident becomes public (Norske Tog, Italian rail 2022), add or refresh corresponding scenarios.",
+  "grandmaExplanation": "We keep a library of bad-guys-and-bad-things that could attack our railway — ransomware, foreign-government spies, careless workers. Once a year someone re-reads each entry and updates it with the latest news. If a chapter goes unread for over a year, the team is alerted."
+}

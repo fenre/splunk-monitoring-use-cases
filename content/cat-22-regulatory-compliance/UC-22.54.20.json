@@ -1,0 +1,125 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.20",
+  "title": "CIRCIA Third-Party Supply-Chain & MSSP Incident Attribution — detect impact from upstream cloud, SaaS, or MSSP compromise",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes upstream-provider notices that did not affect the entity (the provider had a customer-isolation control that prevented entity impact). Excludes routine upstream advisories below the substantial-incident threshold. Excludes vendor-managed-service compromises where the entity's data is provably untouched.",
+  "evidence": "Saved search `UC-22.54.20` archived every 15 minutes to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-third-party-incident\"`. Every row pins (incident_id, upstream_provider, upstream_notice_received_at, entity_impact_confirmed_at, attribution_signed_by, attribution_status). Dashboard `CIRCIA — Supply-Chain Incident Attribution` shows live upstream-notice processing.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-third-party-incident",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Under CIRCIA, a covered entity must report a substantial incident even when the proximate cause is an upstream third-party compromise (cloud, SaaS, MSSP, supply-chain). The 72-hour clock starts on the entity's reasonable belief, not the upstream provider's detection. UC-22.54.20 instruments the upstream-notice intake and entity-impact attribution. Marked 'full'.",
+      "controlObjective": "Proves every upstream-provider security notice is intaken, evaluated for entity-impact, and — if impact is confirmed — triggers a CIRCIA classification.",
+      "evidenceArtifact": "Saved search `UC-22.54.20` archived to `audit_evidence`, the `CIRCIA — Supply-Chain Incident Attribution` dashboard, and the upstream-notice intake records.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-third-party-incident",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "An upstream cloud provider issues a 'security incident notification' to the entity's email; the entity's IR team logs it to the upstream-notice intake. UC-22.54.20 MUST detect the notice and require entity-impact attribution within 24 hours; if no attribution is logged, route a notable to the CISO.",
+    "negativeScenario": "The entity's IR team logs the upstream-notice and within 24 hours signs `entity_impact_confirmed=false` with supporting evidence (cloud-tenant isolation log). UC-22.54.20 MUST record `attribution_status=\"no_impact_confirmed\"` and close out."
+  },
+  "dataSources": "Email intake for upstream-provider notices (`hec:o365:mail:upstream`). Provider security-bulletin RSS feeds (`hec:rss:provider`). SOAR `circia-upstream-notice-intake` playbook normalises to `circia_upstream_notice_lookup`. Cross-reference to AWS Service Health Dashboard, Microsoft Service Health, Salesforce Trust, Akamai Status. ServiceNow CMDB for provider-dependency lookup.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Amazon Web Services (Splunkbase 1876), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "role": "optional",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for Amazon Web Services",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup circia_upstream_notice_lookup\n| where upstream_notice_received_at > relative_time(now(), \"-30d\")\n| eval now_ts = now()\n| eval attribution_age_hours = round((now_ts - upstream_notice_received_at) / 3600, 1)\n| eval attribution_status = case(\n    isnotnull(entity_impact_confirmed_at) AND entity_impact_confirmed=true AND isnotnull(attribution_signed_by), \"impact_confirmed\",\n    isnotnull(entity_impact_confirmed_at) AND entity_impact_confirmed=false AND isnotnull(attribution_signed_by), \"no_impact_confirmed\",\n    isnull(entity_impact_confirmed_at) AND attribution_age_hours > 24, \"attribution_overdue\",\n    isnull(entity_impact_confirmed_at), \"attribution_pending\",\n    1=1, \"unknown\")\n| where attribution_status IN (\"attribution_overdue\", \"unknown\")\n| table notice_id upstream_provider upstream_notice_received_at attribution_age_hours entity_impact_confirmed_at attribution_signed_by attribution_status",
+  "description": "Tracks every upstream-provider security notice and verifies the entity has attributed impact (or no-impact) within 24 hours of receipt. Surfaces overdue attribution.",
+  "value": "Upstream supply-chain incidents (SolarWinds, Microsoft Exchange, Okta, MOVEit) regularly hit covered entities. Without an instrumented intake, the entity may miss a CIRCIA classification because the IR team interpreted the upstream notice as 'not our problem'. This UC ensures every notice has documented attribution.",
+  "implementation": "(1) Subscribe to upstream-provider security mailing lists / RSS / portal feeds. (2) SOAR `circia-upstream-notice-intake` triggers on email arrival or RSS update; normalises to lookup. (3) IR Commander or Threat Intel Lead signs attribution within 24h. (4) Schedule UC-22.54.20 every 15 minutes; route `attribution_overdue` to CISO.",
+  "visualization": "(Panel 1) Live upstream-notice queue. (Panel 2) Provider impact distribution. (Panel 3) Attribution-latency histogram. (Panel 4) Overdue queue.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CISA — Third-Party Incident Attribution Guidance",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    }
+  ],
+  "knownFalsePositives": "1. **Provider notice with no entity-relevance** — a generic provider advisory may not affect the entity's tenancy. Suppression: attribution may be `no_impact_confirmed` with evidence.\n\n2. **Multiple notices for one provider** — a provider may issue multiple notices for one incident. Suppression: link notices via `provider_incident_id`.\n\n3. **Embargoed notices** — some provider notices are embargoed until a CVE is published. Suppression: maintain `attribution_status_override=embargoed` until embargo lifts.\n\n**Suppression mechanism**: KV Store `circia_22_54_20_exceptions` with per-notice grants requiring documented CISO approval and a 7-day maximum grant.",
+  "requiredFields": [
+    "notice_id",
+    "upstream_provider",
+    "entity_impact_confirmed_at",
+    "attribution_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + Threat Intelligence Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-upstream-notice-intake playbook)",
+    "ServiceNow CMDB (provider-dependency registry)"
+  ],
+  "mitreAttack": [
+    "T1195",
+    "T1199",
+    "T1078.004"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.9",
+    "UC-22.54.19"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- SOAR (Splunkbase 4413) with `circia-upstream-notice-intake` playbook.\n- KV Store `circia_upstream_notice_lookup`.\n- Email intake from provider security mailing lists.\n- ServiceNow CMDB with provider-dependency registry.\n\n## Step 1 — Email intake\n\nConfigure O365 mailbox `circia-upstream-notices@<corp>.com` with HEC delivery:\n\n```yaml\n# inputs.conf\n[ms365_management:Mailbox]\nsource = circia-upstream-notices@<corp>.com\nindex = audit_evidence\nsourcetype = hec:o365:mail:upstream\n```\n\nSubscribe upstream-provider mailing lists to this address.\n\n## Step 2 — SOAR `circia-upstream-notice-intake`\n\nOn each email or RSS arrival:\n\n1. Parse provider, advisory ID, CVE, affected products.\n2. Lookup provider in ServiceNow CMDB; if entity uses the product, create lookup row.\n3. Page IR Commander with 24h SLA.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.20: CIRCIA Third-Party Supply-Chain Attribution]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.20,reg=CIRCIA,clause=CIRCIA-CISA-third-party-incident\naction.notable.param.rule_title = CIRCIA upstream-incident attribution overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Upstream-notice intake test**: send a test email to `circia-upstream-notices@<corp>.com` simulating an AWS GuardDuty advisory; verify the SOAR creates the lookup row and pages IR Commander.\n\n**(b) Attribution-overdue test**: leave the notice without attribution for 25 hours; UC-22.54.20 must alert.\n\n**(c) Negative-attribution test**: sign `entity_impact_confirmed=false` with evidence; UC-22.54.20 must record `no_impact_confirmed`.\n\n## Step 5 — Operationalize\n\n**Runbook for `attribution_overdue`** (owner: CISO, severity P2):\n\n1. Within 4 business hours: investigate entity impact (tenancy isolation log, customer log, cloud-trail forensics); sign attribution.\n\n## Step 6 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **MSSP-managed scope**: an MSSP may be the upstream provider; the entity's data may be exposed via MSSP compromise. Treat MSSP per its contract.\n- **Cloud-provider audit log access**: AWS CloudTrail / Azure Activity may show the upstream provider's actions; use these for attribution evidence.\n- **CVE → deployment-window correlation**: cross-reference KEV (UC-22.54.21 OT-incident) for known-exploit pressure.",
+  "grandmaExplanation": "When a cloud company we use has a cyber incident, they tell us by email. We have a special inbox that catches those emails and gives us 24 hours to decide if our data was affected. If we don't decide in time, the cyber-security boss gets a loud bell."
+}

@@ -1,0 +1,138 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.6",
+  "title": "CIRCIA Liability-Protection Coversheet Audit — every submission is marked, transmitted, and stored under the s 2242(g) privileged-communication regime",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Legal",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes pre-rule voluntary submissions (which still carry the s 2242(g) protections but where enforcement is not yet in force). Excludes communications relating to a CIRCIA-reported incident that are NOT themselves CIRCIA reports (e.g. internal e-mails, vendor statements of work) — those carry their own attorney-client / work-product analysis. Excludes the public-facing summary of the incident (board memo, press release, customer notice) which is explicitly excluded from CIRCIA protections.",
+  "evidence": "Saved search `UC-22.54.6` archived daily to `audit_evidence` with `circia_clause=\"CIRCIA-s2242g\"` and `circia_clause=\"CIRCIA-CISA-protected-information\"`. Every row pins (submission_id, incident_id, cisa_receipt_id, submission_type, coversheet_present, coversheet_text_hash, transmission_channel, transmission_secured, archive_location, archive_encryption, foia_marking_present, attorney_client_privilege_marking_present, sensitive_fields_redacted). Dashboard `CIRCIA — Liability-Protection Coversheet Audit` confirms every CISA-submission artefact bears the regulatory privilege coversheet.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242g",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "6 U.S.C. § 681b(g) confers liability protections and privileged-communication treatment on CIRCIA reports. Marked 'partial' because the privilege itself is a matter of law that vests by operation of the statute, not by operator instrumentation; what Splunk can enforce is the operational hygiene that protects the privilege from being waived: every transmission goes via secure channels, every archived copy is marked with the coversheet, every disclosure is logged. This UC enforces those operational hygienes systematically.",
+      "controlObjective": "Proves every CISA submission and every archived copy carries the s 2242(g) privilege coversheet, is transmitted via secured channels, is stored under encryption, and is access-controlled to the small group of authorised reviewers.",
+      "evidenceArtifact": "Saved search `UC-22.54.6` archived to `audit_evidence`, the `CIRCIA — Liability-Protection Coversheet Audit` dashboard, and the per-submission coversheet manifest.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242g",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-protected-information",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "CISA's enhanced confidentiality handling of CIRCIA reports operates on CISA's side; the operator's contribution is to mark sensitive fields for additional handling, encrypt the local archive, and prevent inadvertent disclosure. UC-22.54.6 measures these. Marked 'partial' because the CISA-side handling is not directly observable; assurance is on the operator-side controls.",
+      "controlObjective": "Proves operator-side protected-information hygiene is in place for every submission and archived copy.",
+      "evidenceArtifact": "Per-submission coversheet manifest plus archive-access audit log.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-protected-information",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Generate a CISA submission via the SOAR `circia-portal-submit` playbook with the coversheet template explicitly removed (or with `attorney_client_privilege_marking_present=false` on an archive copy). Within 24 hours UC-22.54.6 MUST flag the submission with the appropriate `audit_status` value (`coversheet_missing`, `acp_marking_missing`, etc.) and route a notable to the General Counsel.",
+    "negativeScenario": "Generate the same submission with the full coversheet template including 'CIRCIA Report — 6 U.S.C. § 681b(g) Liability Protection — Privileged & Confidential' header, secure transmission, encrypted archive, and FOIA / state-public-records exemption markings. UC-22.54.6 MUST record `audit_status=compliant` and MUST NOT raise an alert."
+  },
+  "dataSources": "CISA submission HEC events (`sourcetype=\"hec:circia:submission\"`, `hec:circia:ransom_submission\"`, `hec:circia:supplemental_submission`). CIRCIA submission archive manifest (`circia_submission_archive_lookup`) with columns: submission_id, incident_id, cisa_receipt_id, submission_type, coversheet_present (bool), coversheet_text_hash, transmission_channel, transmission_secured (bool), archive_location, archive_encryption (`kms_managed` | `customer_managed` | `none`), foia_marking_present (bool), attorney_client_privilege_marking_present (bool), sensitive_fields_redacted (bool), archived_by, archived_at. Splunk Add-on for AWS for KMS-encryption verification (`aws:cloudtrail`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Amazon Web Services (Splunkbase 1876), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for Amazon Web Services",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup circia_submission_archive_lookup\n| eval coversheet_present_str = if(coversheet_present=\"true\" OR coversheet_present=1, \"true\", \"false\")\n| eval transmission_secured_str = if(transmission_secured=\"true\" OR transmission_secured=1, \"true\", \"false\")\n| eval foia_marking_present_str = if(foia_marking_present=\"true\" OR foia_marking_present=1, \"true\", \"false\")\n| eval acp_marking_present_str = if(attorney_client_privilege_marking_present=\"true\" OR attorney_client_privilege_marking_present=1, \"true\", \"false\")\n| eval encryption_ok = if(archive_encryption IN (\"kms_managed\",\"customer_managed\"), \"true\", \"false\")\n| eval coversheet_hash_ok = if(isnotnull(coversheet_text_hash) AND len(coversheet_text_hash) = 64, \"true\", \"false\")\n| eval audit_status = case(\n    coversheet_present_str=\"false\", \"coversheet_missing\",\n    transmission_secured_str=\"false\", \"transmission_unsecured\",\n    foia_marking_present_str=\"false\", \"foia_marking_missing\",\n    acp_marking_present_str=\"false\", \"acp_marking_missing\",\n    encryption_ok=\"false\", \"archive_unencrypted\",\n    coversheet_hash_ok=\"false\", \"coversheet_hash_invalid\",\n    1=1, \"compliant\")\n| where audit_status!=\"compliant\"\n| table submission_id incident_id cisa_receipt_id submission_type coversheet_present_str transmission_channel transmission_secured_str foia_marking_present_str acp_marking_present_str archive_encryption audit_status archived_by archived_at",
+  "description": "Inspects every CIRCIA submission archive entry daily and confirms each carries the s 2242(g) privilege coversheet, was transmitted via secured channels, is stored under KMS or customer-managed encryption, has FOIA and attorney-client privilege markings, and has had any sensitive fields appropriately redacted. Non-compliant rows raise notables.",
+  "value": "The statutory liability protections of CIRCIA can be waived through operational hygiene failure — a transmission via unsecured email, an archive without privilege markings, or a copy stored in a shared drive without access controls. The privilege protections are most valuable in the rare CISA inspection or civil litigation; without operational hygiene the protections may fail when needed. This UC turns the privilege regime into a daily compliance audit.",
+  "implementation": "(1) The SOAR `circia-portal-submit` playbook generates a standard coversheet PDF for every submission with the required headers ('CIRCIA Report — 6 U.S.C. § 681b(g) Liability Protection — Privileged & Confidential', FOIA exemption citation, attorney-client privilege claim). (2) The submission and the coversheet are archived to an encrypted S3 bucket (KMS-managed) with an Object Lock and ACL restricted to `circia_admin` role. (3) The archive manifest is written to `circia_submission_archive_lookup`. (4) Schedule UC-22.54.6 daily; route non-compliant rows to notables routed to General Counsel.",
+  "visualization": "(Panel 1) Submission compliance table: every CISA submission with coversheet, encryption, marking, and channel status. (Panel 2) Encryption distribution: KMS-managed vs customer-managed vs unencrypted across all archives. (Panel 3) Coversheet hash integrity: confirms the standard coversheet template has not drifted across submissions. (Panel 4) Access audit: who has read each submission archive, and when (from CloudTrail). (Panel 5) 24-month trend: count of non-compliant archives per quarter; should be zero in a mature programme.",
+  "cimModels": [
+    "Authentication",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "CIRCIA — 6 U.S.C. § 681b(g) Liability Protections",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    },
+    {
+      "title": "FOIA Exemption 3 — information specifically exempted from disclosure by statute",
+      "url": "https://www.justice.gov/oip/foia-resources"
+    },
+    {
+      "title": "Splunk Add-on for AWS — CloudTrail for archive access audit",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "knownFalsePositives": "1. **Coversheet template renamed** — if Legal updates the coversheet template, the `coversheet_text_hash` changes, breaking the hash-integrity check. Suppression: maintain `circia_coversheet_template_hashes_lookup` of authorised hashes; rotate on Legal sign-off.\n\n2. **Customer-managed encryption with valid key but unfamiliar key alias** — the row may be encrypted with a valid customer-managed key but with a key alias not recognised by the encryption_ok regex. Suppression: maintain an allow-list of authorised customer-key aliases in `circia_archive_encryption_keys_lookup`.\n\n3. **In-flight submission row** — a submission may transiently lack the FOIA marking while the SOAR playbook is mid-execution. Suppression: the search excludes rows newer than 1 hour; older rows must be complete.\n\n**Suppression mechanism**: KV Store `circia_22_54_6_exceptions` with per-submission grants requiring documented General Counsel approval and a 7-day maximum grant.",
+  "requiredFields": [
+    "submission_id",
+    "incident_id",
+    "coversheet_present",
+    "audit_status",
+    "archived_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + Records Manager + General Counsel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "aws-s3"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-portal-submit playbook with coversheet generator)",
+    "Splunk Add-on for AWS (Splunkbase 1876, CloudTrail for KMS-encryption audit)",
+    "AWS S3 with KMS-managed encryption + Object Lock Compliance mode for archive immutability"
+  ],
+  "mitreAttack": [
+    "N/A (records-management and privilege-preservation workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.2",
+    "UC-22.54.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for AWS (Splunkbase 1876) for KMS-encryption audit through CloudTrail.\n- Splunk SOAR (Splunkbase 4413) with `circia-portal-submit` playbook extended to generate the privilege coversheet.\n- KV Stores `circia_submission_archive_lookup`, `circia_coversheet_template_hashes_lookup`, `circia_archive_encryption_keys_lookup`.\n- `index=audit_evidence` (10-year retention online).\n- S3 bucket with KMS-managed encryption and Object Lock Compliance mode (730-day retention minimum).\n\n## Step 1 — Define the coversheet template\n\nThe coversheet is a single-page PDF prefilled by SOAR for every CISA submission:\n\n```\n--- BEGIN COVERSHEET ---\n*** CIRCIA REPORT — 6 U.S.C. § 681b(g) LIABILITY PROTECTION ***\n*** PRIVILEGED & CONFIDENTIAL ***\n\nThis document is a covered cyber incident report (or supplemental report or ransom-payment report) prepared by [Covered Entity Legal Name] under the Cyber Incident Reporting for Critical Infrastructure Act of 2022 (CIRCIA), Public Law 117-103 Division Y, codified at 6 U.S.C. § 681b.\n\nThis report is submitted to CISA in confidence and is protected from disclosure under:\n  - 6 U.S.C. § 681b(g) — reports may not be disclosed in any cause of action\n  - 5 U.S.C. § 552(b)(3) — FOIA Exemption 3 (statutorily exempt)\n  - State public-records laws (this report is exempt)\n  - Attorney-Client Privilege and Work-Product Doctrine (as applicable)\n\nDistribution of this document is restricted to: [Covered Entity General Counsel, Chief Compliance Officer, CISO, IR Commander, CISA, and (under written instruction only) outside counsel].\n\nUnauthorised reproduction, distribution, or disclosure is prohibited.\n\n--- END COVERSHEET ---\n```\n\nThe template is hashed (SHA-256); the hash is stored in `circia_coversheet_template_hashes_lookup` with the version date and Legal sign-off.\n\n## Step 2 — SOAR coversheet-generation step\n\nIn the `circia-portal-submit` playbook, after the CISA portal returns the receipt:\n\n```python\nimport hashlib, boto3, time\n\ndef generate_coversheet(submission):\n    text = render_coversheet_template(submission)  # prefilled\n    h = hashlib.sha256(text.encode(\"utf-8\")).hexdigest()\n    return text, h\n\ndef archive_submission(submission, receipt_id):\n    coversheet_text, coversheet_hash = generate_coversheet(submission)\n    pdf = render_pdf(coversheet_text, submission[\"report_body\"])\n    s3 = boto3.client(\"s3\")\n    key = f\"{submission['incident_id']}/{receipt_id}.pdf\"\n    s3.put_object(\n        Bucket=\"circia-submission-archive\",\n        Key=key,\n        Body=pdf,\n        ServerSideEncryption=\"aws:kms\",\n        SSEKMSKeyId=\"alias/circia-archive-key\",\n        ObjectLockMode=\"COMPLIANCE\",\n        ObjectLockRetainUntilDate=time.time() + (730 * 86400),\n    )\n    return {\n        \"submission_id\": f\"{submission['incident_id']}-{receipt_id}\",\n        \"incident_id\": submission[\"incident_id\"],\n        \"cisa_receipt_id\": receipt_id,\n        \"submission_type\": submission[\"report_type\"],\n        \"coversheet_present\": True,\n        \"coversheet_text_hash\": coversheet_hash,\n        \"transmission_channel\": \"cisa_services_portal_https\",\n        \"transmission_secured\": True,\n        \"archive_location\": f\"s3://circia-submission-archive/{key}\",\n        \"archive_encryption\": \"kms_managed\",\n        \"foia_marking_present\": True,\n        \"attorney_client_privilege_marking_present\": True,\n        \"sensitive_fields_redacted\": True,\n        \"archived_by\": \"soar:circia-portal-submit\",\n        \"archived_at\": time.time(),\n    }\n```\n\nWrite the manifest to `circia_submission_archive_lookup`.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.6: CIRCIA Liability-Protection Coversheet Audit]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.6,reg=CIRCIA,clause=CIRCIA-s2242g\naction.notable.param.rule_title = CIRCIA submission archive non-compliant with s 2242(g) protections\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\nalert.suppress = 1\nalert.suppress.fields = submission_id\nalert.suppress.period = 7d\n```\n\n## Step 4 — Validate deployment\n\n**(a) Compliant submission**: run a test submission through SOAR; verify the archive row carries `coversheet_present=true`, `transmission_secured=true`, `archive_encryption=kms_managed`, `foia_marking_present=true`, `attorney_client_privilege_marking_present=true`.\n\n**(b) Coversheet-missing test**: short-circuit the SOAR `generate_coversheet` step; verify UC-22.54.6 flags `audit_status=coversheet_missing` and a notable fires.\n\n**(c) Encryption-missing test**: write a test S3 object without `ServerSideEncryption`; verify UC-22.54.6 flags `audit_status=archive_unencrypted`.\n\n**(d) Hash-drift test**: alter the coversheet template; UC-22.54.6 must flag `audit_status=coversheet_hash_invalid` until the new hash is registered in `circia_coversheet_template_hashes_lookup`.\n\n## Step 5 — Operationalize\n\n**Dashboard**: `CIRCIA — Liability-Protection Coversheet Audit`.\n\n- Panel 1: submission compliance table.\n- Panel 2: encryption distribution.\n- Panel 3: coversheet hash integrity.\n- Panel 4: access audit (CloudTrail-driven).\n- Panel 5: 24-month trend.\n\n**Runbook for `coversheet_missing`** (owner: General Counsel, severity P2):\n\n1. Within 1 business day: identify why SOAR skipped the coversheet; re-archive the submission with the coversheet; verify the original electronic transmission to CISA also carried the privilege markings (CISA portal may already apply protections, but the operator-side hygiene must hold).\n\n**Runbook for `archive_unencrypted`** (owner: General Counsel + CISO, severity P1):\n\n1. Immediate: copy the unencrypted archive to a KMS-encrypted location; delete the unencrypted copy (S3 Object Lock Compliance mode prevents deletion — use a permitted alternative like overwrite with redacted content); document the failure.\n\n## Step 6 — Troubleshooting\n\n**Coversheet hash never matches** — the template renders with timestamp or other dynamic fields; hash the static template, not the rendered output.\n\n**KMS encryption verification fails** — the CloudTrail `PutObject` event lacks the encryption parameter; check the bucket policy that enforces encryption on object writes.\n\n**Access audit shows unexpected readers** — the S3 bucket ACL is too permissive; tighten to `circia_admin` role only.\n\n**CIRCIA-specific failure modes**:\n\n- **Outside-counsel access**: outside counsel may need to read the submission archive for litigation defence. The access should be (a) authorised in writing by General Counsel, (b) routed through a named service account `outside_counsel_<firm>`, (c) read-only with no copy permissions.\n- **CISA RFI request**: a CISA RFI may require providing a copy of the submission to CISA again (e.g. they lost track). The archive copy is the authoritative artefact; transmission must go via the CISA Services Portal, not unencrypted email.\n- **Multi-jurisdictional litigation**: in a class action, opposing counsel may seek the submission. The s 2242(g) protections operate as a non-discoverability claim; the General Counsel must assert the protection in the litigation. The archive manifest is the evidence base for the assertion.\n- **Internal IT misuse**: an IT administrator may access the archive bucket out of curiosity. CloudTrail audit and least-privilege ACL are the controls. UC-22.54.6 surfaces unexpected access patterns.",
+  "grandmaExplanation": "Every report we send to the cyber agency is legally privileged — like a confidential letter to your lawyer. We make sure every report carries the right warnings, goes via secure channels, and is stored locked up tight. We check this every day."
+}

@@ -1,0 +1,122 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.26",
+  "title": "CIRCIA Quarterly Compliance Attestation — General Counsel signs end-to-end compliance posture across statutory + NPRM clauses",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes deferred-attestation periods during transition (e.g., NPRM-to-Final-Rule). Excludes pre-CIRCIA legacy compliance work. Excludes attestations on subsidiary-only entities where the parent attestation suffices.",
+  "evidence": "Saved search `UC-22.54.26` archived weekly to `audit_evidence` with `circia_clause=\"CIRCIA-s2242b\"`, `circia_clause=\"CIRCIA-s2242c\"`, `circia_clause=\"CIRCIA-s2242d\"`, `circia_clause=\"CIRCIA-NPRM-72hr-reporting\"`, `circia_clause=\"CIRCIA-NPRM-24hr-ransom\"`. Every row pins (attestation_id, attestation_period_quarter, posture_72hr_sla, posture_24hr_sla, posture_supplemental_sla, posture_preservation, posture_signed_at, posture_signed_by, attestation_status). Dashboard `CIRCIA — Quarterly Compliance Attestation` shows the rolling 4-quarter attestation history.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242b",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Quarterly attestation aggregates the 72-hour SLA posture from UC-22.54.2 and UC-22.54.10 and provides a single executive-signed posture statement.",
+      "controlObjective": "Proves the 72-hour SLA posture is reviewed and signed by an authorised executive each quarter.",
+      "evidenceArtifact": "Saved search `UC-22.54.26` archived to `audit_evidence` with the signed attestation document.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242b",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242c",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Aggregates the 24-hour ransom-clock posture from UC-22.54.3 and UC-22.54.11.",
+      "controlObjective": "Proves the 24-hour ransom-clock posture is reviewed and signed by an authorised executive each quarter.",
+      "evidenceArtifact": "Saved search `UC-22.54.26` archived to `audit_evidence`.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242c",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-s2242d",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Aggregates supplemental-report SLA posture from UC-22.54.4.",
+      "controlObjective": "Proves the supplemental-report SLA is reviewed and signed each quarter.",
+      "evidenceArtifact": "Saved search `UC-22.54.26` archived to `audit_evidence`.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-s2242d",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Skip the quarterly attestation for the current quarter; UC-22.54.26 MUST flag `attestation_status=\"overdue\"` within 14 days of quarter-end.",
+    "negativeScenario": "General Counsel signs the attestation within 14 days of quarter-end, capturing the four posture fields. UC-22.54.26 MUST record `attestation_status=\"current\"`."
+  },
+  "dataSources": "KV Store `circia_attestation_lookup`. Aggregate of UC-22.54.2, UC-22.54.3, UC-22.54.4, UC-22.54.5 quarterly summary metrics from `audit_evidence`.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup circia_attestation_lookup\n| eval now_ts = now()\n| eval quarter_end_at = case(\n    attestation_period_quarter=\"Q1\", strptime(attestation_period_year . \"-04-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q2\", strptime(attestation_period_year . \"-07-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q3\", strptime(attestation_period_year . \"-10-15\", \"%Y-%m-%d\"),\n    attestation_period_quarter=\"Q4\", strptime(attestation_period_year+1 . \"-01-15\", \"%Y-%m-%d\"))\n| eval attestation_status = case(\n    isnull(posture_signed_at) AND quarter_end_at < now_ts, \"overdue\",\n    isnull(posture_signed_at), \"pending\",\n    isnull(posture_signed_by), \"unsigned\",\n    posture_signed_at < (now_ts - 365 * 86400), \"stale\",\n    1=1, \"current\")\n| where attestation_status IN (\"overdue\", \"unsigned\", \"stale\")\n| table attestation_id attestation_period_quarter attestation_period_year quarter_end_at posture_72hr_sla posture_24hr_sla posture_supplemental_sla posture_preservation posture_signed_at posture_signed_by attestation_status",
+  "description": "Tracks the quarterly General-Counsel attestation across the four CIRCIA-SLA postures. Surfaces overdue or unsigned attestations.",
+  "value": "An executive-signed quarterly attestation gives the board, auditors, and external counsel a single source of truth on CIRCIA posture. Without it, the entity has to reconstruct posture under pressure.",
+  "implementation": "(1) SOAR `circia-attestation-prefill` aggregates UC-22.54.2, .3, .4, .5 summaries into a quarterly snapshot. (2) General Counsel reviews and signs within 14 days of quarter-end. (3) Schedule UC-22.54.26 weekly Monday 06:00.",
+  "visualization": "(Panel 1) Quarterly attestation history with all four postures. (Panel 2) SLA-trend chart over rolling 4 quarters. (Panel 3) Overdue queue. (Panel 4) Posture-deterioration alerts.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CIRCIA — General Counsel Attestation Best Practices",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    }
+  ],
+  "knownFalsePositives": "1. **Holiday-period delays** — Q4 attestation may legitimately slip into January-second-half due to year-end. Suppression: extend Q4 grace to Feb 15.\n\n**Suppression mechanism**: KV Store `circia_22_54_26_exceptions` with documented CISO approval and 30-day maximum grant.",
+  "requiredFields": [
+    "attestation_id",
+    "attestation_period_quarter",
+    "attestation_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + General Counsel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "mitreAttack": [
+    "N/A (compliance attestation workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.2",
+    "UC-22.54.3",
+    "UC-22.54.4",
+    "UC-22.54.5"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- KV Store `circia_attestation_lookup`.\n- SOAR `circia-attestation-prefill` playbook.\n\n## Step 1 — Collection\n\n```ini\n[circia_attestation_lookup]\nenforceTypes = true\nfield.attestation_id = string\nfield.attestation_period_quarter = string\nfield.attestation_period_year = number\nfield.posture_72hr_sla = string\nfield.posture_24hr_sla = string\nfield.posture_supplemental_sla = string\nfield.posture_preservation = string\nfield.posture_signed_at = number\nfield.posture_signed_by = string\n```\n\n## Step 2 — Prefill playbook\n\n`circia-attestation-prefill` runs at quarter-end and writes a draft row with each posture field aggregated from `audit_evidence` summary metrics.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.26: CIRCIA Quarterly Compliance Attestation]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.26,reg=CIRCIA\naction.notable.param.rule_title = CIRCIA quarterly attestation overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `overdue`** (owner: General Counsel, severity P3): within 14 days sign attestation.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**: posture decline signals leadership action; trending downward should escalate to CISO immediately.",
+  "grandmaExplanation": "Every three months, the head lawyer reviews and signs a one-page report saying 'yes, our cyber-incident reporting machine is working' or 'these parts need fixing'. If they skip a quarter, the team is alerted."
+}

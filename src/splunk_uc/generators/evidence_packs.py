@@ -87,6 +87,27 @@ VERSION_PATH = ROOT / "VERSION"
 # coverage in practice, and Phase 3.3 propagation produces 100 %
 # derived clause coverage. UK GDPR closes the Brexit-era gap that every
 # UK-based privacy officer asks about first.
+# NCA OTCC is tier=2 but included here because it is mandatory regulation
+# in the Kingdom of Saudi Arabia for any CNI OT operator. Saudi-based
+# energy / petrochemicals / utilities customers cannot use the catalogue
+# without an OTCC-aligned evidence pack.
+# SOCI Act is tier=1 (Australia all-hazards critical infrastructure regime,
+# mandatory across 11 sectors, with criminal penalties on Part 6A Protected
+# Information). Australian responsible entities cannot use the catalogue
+# without a SOCI-aligned evidence pack.
+# AWIA is tier=2 but included here because it is the only US statutory
+# regime that requires water-sector OT cybersecurity evidence on a mandatory
+# 5-year cycle. US community water-system operators cannot use the
+# catalogue without an AWIA-aligned evidence pack.
+# CIRCIA is tier=1 (US federal cyber-incident reporting for all 16
+# critical-infrastructure sectors). Any US covered entity needs a CIRCIA-
+# aligned evidence pack to navigate the 72-hour incident / 24-hour ransom
+# clocks, supplemental reports, records preservation, and CIRCIA Agreements.
+# CLC/TS 50701 is tier=2 (rail-sector cybersecurity technical specification
+# for EU/EEA/UK rail operators and infrastructure managers, increasingly
+# enforced by national rail-cyber regulators and the de-facto baseline for
+# NIS2 transport-sector compliance). Rail operators cannot use the
+# catalogue without a CLC/TS-50701-aligned evidence pack.
 PACK_TARGETS = [
     "gdpr",
     "uk-gdpr",
@@ -100,6 +121,11 @@ PACK_TARGETS = [
     "nis2",
     "dora",
     "cmmc",
+    "nca-otcc",
+    "soci",
+    "awia",
+    "circia",
+    "clc-ts-50701",
 ]
 
 # Fixed order for display in the index and README to ensure stable sort.

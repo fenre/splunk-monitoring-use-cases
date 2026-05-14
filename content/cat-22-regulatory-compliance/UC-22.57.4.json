@@ -1,0 +1,94 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.4",
+  "title": "SG Cyber Act annual cybersecurity risk assessment evidence + Commissioner submission tracker",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes draft assessments not yet finalised.",
+  "evidence": "Saved search `UC-22.57.4` archived daily to `audit_evidence` with `csa_clause=\"CSA-CII-s15(1)\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s15(1)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "§15(1) requires the CIIO to conduct an annual cybersecurity risk assessment. This UC tracks the assessment cycle, completion, attestation, and submission to the Commissioner.",
+      "controlObjective": "Proves an annual cyber risk assessment was completed, attested by the CII Officer, and submitted to the Commissioner.",
+      "evidenceArtifact": "Saved search, `CSA Annual Risk Assessment Tracker` dashboard, the signed risk-assessment PDF, the Commissioner submission acknowledgement.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s15(1)",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `submission_due_date` to yesterday with `submitted_at=null`. UC-22.57.4 MUST flag.",
+    "negativeScenario": "Submit before due date with attestation. UC-22.57.4 MUST NOT escalate."
+  },
+  "dataSources": "KV Store `csa_ra_lookup` (cii_id, ra_year, due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, commissioner_acknowledgement_id).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup csa_ra_lookup\n| eval days_to_due = round((due_date - now())/86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table cii_id ra_year due_date submitted_at submission_status assessment_doc_url attestation_signer commissioner_acknowledgement_id",
+  "description": "Mirror of TSA CAP tracker (UC-22.56.8) for CSA annual cyber risk assessment.",
+  "value": "Missing the annual RA submission is a §15(1) violation with personal liability.",
+  "implementation": "(1) Populate `csa_ra_lookup` annually. (2) Schedule UC-22.57.4 daily. (3) Build the `CSA Annual RA Tracker` dashboard.",
+  "visualization": "(Panel 1) Status by CII. (Panel 2) Days-to-due. (Panel 3) Attestation chain. (Panel 4) 5-year history.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Act 2018 §15",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr15-"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-year cycle**: certain CIIs may have multi-year RA cycles per Commissioner exemption; pin in lookup.\n\n**Suppression mechanism**: KV Store `csa_22_57_4_exceptions`.",
+  "requiredFields": [
+    "cii_id",
+    "ra_year",
+    "due_date",
+    "submission_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC Officer + Risk Lead",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ra_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.4: CSA Annual RA Tracker]\ncron_schedule = 41 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.4,reg=SG-Cyber-Act,clause=CSA-CII-s15(1)\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`submission_status=overdue`** (owner: CC Officer, severity P1):\n1. Within 7 days: complete and submit.\n2. Within 14 days: report to CISO + Commissioner liaison.\n\n**SG-specific failure modes**:\n- **Commissioner-directed off-cycle RA**: under §15(2) Commissioner may direct an off-cycle RA; pin in lookup.",
+  "grandmaExplanation": "Each year, every important Singapore system must do a cyber risk assessment and submit it to the cyber agency. We track that and chase any that are overdue."
+}

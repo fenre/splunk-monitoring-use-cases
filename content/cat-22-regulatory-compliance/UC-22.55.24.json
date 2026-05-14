@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.24",
+  "title": "CLC/TS 50701 Rail Asset Decommissioning — secure end-of-life for every retired signalling, communications, and rolling-stock asset",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "Procurement",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes assets sold to other operators (chain-of-custody transferred). Excludes leased assets returned to lessor (contractual obligation). Excludes museum / preservation assets.",
+  "evidence": "Saved search `UC-22.55.24` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c8-4\"`. Every row pins (asset_id, retired_at, sanitization_signed_at, certificate_destruction_signed_at, key_revocation_signed_at, decom_status). Dashboard `CLC/TS 50701 — Rail Decommissioning` shows decom posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c8-4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.4 requires secure end-of-life: data sanitization, key/credential revocation, certificate destruction, physical destruction or transfer.",
+      "controlObjective": "Proves every retired rail-OT asset has data sanitized, keys revoked, certificates destroyed, sign-off completed.",
+      "evidenceArtifact": "Saved search `UC-22.55.24` archived to `audit_evidence`, the `CLC/TS 50701 — Rail Decommissioning` dashboard, and per-asset sanitization certificate.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c8-4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark an asset retired but skip key revocation. UC-22.55.24 MUST flag `decom_status=\"key_revocation_missing\"`.",
+    "negativeScenario": "Sanitize, revoke keys, destroy certificates, sign certificate; UC-22.55.24 MUST record `decom_status=\"complete\"`."
+  },
+  "dataSources": "KV Store `rail_decom_lookup`. HSM and certificate-authority audit logs. Asset-management system retirement events.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup rail_decom_lookup\n| where asset_status=\"retired\"\n| eval now_ts = now()\n| eval days_since_retired = if(isnotnull(retired_at), round((now_ts - retired_at) / 86400, 0), null())\n| eval decom_status = case(\n    isnull(sanitization_signed_at) AND days_since_retired > 30, \"sanitization_missing\",\n    isnull(certificate_destruction_signed_at), \"certificate_destruction_missing\",\n    isnull(key_revocation_signed_at), \"key_revocation_missing\",\n    isnull(decom_certificate_signed_at) AND days_since_retired > 60, \"certificate_missing\",\n    1=1, \"complete\")\n| where decom_status != \"complete\"\n| table asset_id retired_at sanitization_signed_at certificate_destruction_signed_at key_revocation_signed_at decom_certificate_signed_at decom_status",
+  "description": "Tracks decommissioning workflow for retired rail-OT assets.",
+  "value": "Retired assets with unrevoked credentials are a key risk for unauthorized re-entry. This UC forces the workflow.",
+  "implementation": "(1) Asset-management retirement triggers decom workflow in `rail_decom_lookup`. (2) HSM and CA log revocations to Splunk. (3) Schedule UC-22.55.24 weekly Monday 09:30.",
+  "visualization": "(Panel 1) Decom-status by phase. (Panel 2) Overdue queue. (Panel 3) Sanitization-throughput trend.",
+  "cimModels": [
+    "Change",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 8.4",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "NIST SP 800-88 r1 (Media Sanitization)",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-88/rev-1/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Asset in transit to disposal vendor** — sanitization signed but physical disposal pending. Suppression: tracked under disposal-vendor workflow.\n\n**Suppression mechanism**: KV Store `clc_22_55_24_exceptions` with documented Asset Management Lead approval and 30-day maximum grant.",
+  "requiredFields": [
+    "asset_id",
+    "decom_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Asset Management Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Thales Luna HSM / Entrust nShield"
+  ],
+  "mitreAttack": [
+    "N/A (decommissioning governance)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_decom_lookup`.\n- HSM / CA audit log forwarding.\n\n## Step 1 — Decom collection\n\n```ini\n[rail_decom_lookup]\nenforceTypes = true\nfield.asset_id = string\nfield.retired_at = number\nfield.sanitization_signed_at = number\nfield.certificate_destruction_signed_at = number\nfield.key_revocation_signed_at = number\nfield.decom_certificate_signed_at = number\nfield.asset_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.24: CLC/TS 50701 Rail Decommissioning]\ncron_schedule = 30 9 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.24,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-4\naction.notable.param.rule_title = Rail decommissioning incomplete\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `key_revocation_missing`** (owner: Rail Cybersecurity Lead, severity P2): revoke HSM keys; confirm CA revocation; sign workflow.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **HSM key extraction**: keys may be exportable from older HSMs.\n- **Certificate revocation lag**: OCSP propagation can take hours/days.",
+  "grandmaExplanation": "When old trains and signal-cabinets are retired, we must erase their secret keys and digital certificates so nobody can sneak back in. We track every retirement and make sure the team completes the wipe."
+}

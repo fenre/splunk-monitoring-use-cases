@@ -1,0 +1,134 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.24",
+  "title": "SOCI Part 6A Protected Information — access auditing and on-disclosure offence prevention",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Legal",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes information that is no longer Protected Information after a defined declassification event (track in `protected_info_lifecycle_lookup`). Excludes legitimate disclosure to authorised recipients (Government, Court, ASD, named legal advisers) documented in `protected_info_authorised_disclosure_lookup`.",
+  "evidence": "Saved search `UC-22.52.24` archived every 15 minutes to `audit_evidence` with `soci_clause=\"SOCI-Part-6A\"`. Every row pins (artefact_id, classification, accessor_id, action, src_ip, app, recipient_email_domain, recipient_country, evidence_artefact, first_seen, last_seen, status). Dashboard `SOCI — Part 6A Protected Information Audit` surfaces accesses and outbound transfers.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-s46",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) every access to Protected Information is logged with an identity, (b) outbound transfers (email, cloud share, USB) are detected, (c) the recipient classification (authorised / unauthorised / unknown) is captured, and (d) suspected on-disclosure offences are routed to legal counsel. This is the full scope of the Part 6A on-disclosure-offence control surface.",
+      "controlObjective": "Proves the entity controls Protected Information access and disclosure consistent with the Part 6A offence regime.",
+      "evidenceArtifact": "Saved search `UC-22.52.24` archived to `audit_evidence`, the `SOCI — Part 6A Protected Information Audit` dashboard, and per-event evidence-artefact URLs in the audit-evidence store.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-s46",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Email a Protected Information document to an external personal email address. UC-22.52.24 MUST surface within 15 minutes with `status=\"unauthorised_disclosure_suspect\"`.",
+    "negativeScenario": "Email the same document to a documented authorised recipient. UC-22.52.24 MUST record `status=\"authorised_disclosure\"`."
+  },
+  "dataSources": "DLP (Microsoft Purview, Forcepoint DLP) for outbound email, cloud, USB. SharePoint Online audit log (`o365:management:activity`) for SharePoint Protected Information sites. Microsoft Defender for Cloud Apps (CASB) for cloud-share detection. Email gateway logs (Mimecast / Proofpoint).",
+  "app": "Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4055,
+      "name": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "((index=dlp sourcetype IN (microsoft:purview:dlp, forcepoint:dlp) classification=\"protected\" earliest=-15m@m) OR\n (index=email sourcetype IN (mimecast:siem, ms365:email_audit) earliest=-15m@m attachment_classification=\"protected\") OR\n (index=cloud sourcetype IN (mscas:event, splunk:mscs:gws) earliest=-15m@m item_classification=\"protected\" event_type IN (\"file_external_share\",\"file_download\")))\n| eval action = case(\n    sourcetype IN (microsoft:purview:dlp, forcepoint:dlp), action,\n    sourcetype IN (mimecast:siem, ms365:email_audit), \"email_send\",\n    1=1, event_type)\n| eval recipient_email_domain = lower(coalesce(recipient_email_domain, mvindex(split(recipient,\"@\"),1)))\n| eval recipient_country = coalesce(recipient_country, \"unknown\")\n| lookup protected_info_authorised_disclosure_lookup recipient_email_domain OUTPUT authorised\n| eval status = case(\n    authorised=\"true\", \"authorised_disclosure\",\n    recipient_email_domain IN (\"gmail.com\",\"outlook.com\",\"yahoo.com\",\"hotmail.com\",\"icloud.com\",\"proton.me\"), \"unauthorised_disclosure_suspect_personal_email\",\n    isnull(recipient_email_domain), \"unauthorised_disclosure_suspect_internal\",\n    1=1, \"requires_review\")\n| stats earliest(_time) AS first_seen latest(_time) AS last_seen count AS event_count by artefact_id classification accessor_id action src_ip app recipient_email_domain recipient_country status",
+  "description": "Detects access, outbound email, cloud-share, and USB transfer of Protected Information. Cross-references against authorised-disclosure lookup; routes suspected on-disclosure offences to legal counsel.",
+  "value": "Part 6A criminalises unauthorised disclosure of Protected Information; a single missed event can be a criminal liability. This UC keeps protected-information audit always-on with high-fidelity detection and ties every event to the audit-evidence trail.",
+  "implementation": "(1) Classify Protected Information at-source (Microsoft Information Protection / Forcepoint labelling). (2) Onboard DLP, email gateway, SharePoint, CASB into Splunk. (3) Maintain `protected_info_authorised_disclosure_lookup` of authorised recipient domains. (4) Schedule UC-22.52.24 every 15 minutes; route `unauthorised_disclosure_suspect_*` and `requires_review` to notable severity=high. (5) Archive every row.",
+  "visualization": "(Panel 1) Live unauthorised-suspect feed. (Panel 2) Per-accessor inventory. (Panel 3) Recipient-domain distribution. (Panel 4) Country distribution.",
+  "cimModels": [
+    "Email",
+    "Web",
+    "Endpoint"
+  ],
+  "references": [
+    {
+      "title": "SOCI Act 2018 (Cth) — Part 6A Protected Information — sections 41 through 47",
+      "url": "https://www.legislation.gov.au/C2018A00029/latest/text"
+    },
+    {
+      "title": "Microsoft Information Protection / Purview — Sensitivity Labels",
+      "url": "https://learn.microsoft.com/en-au/microsoft-365/compliance/sensitivity-labels"
+    },
+    {
+      "title": "Forcepoint DLP",
+      "url": "https://www.forcepoint.com/product/dlp-data-loss-prevention"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "knownFalsePositives": "1. **Internal classification drift** — documents mislabelled as Protected; mitigation via Information Manager review.\n\n2. **Authorised recipient using personal email** — some Government recipients use personal accounts in remote roles; pair with named-individual exception.\n\n3. **Auto-classified false positives** — a draft document mis-classified at creation. Mitigation: align label policies with stakeholder review.\n\n4. **Encrypted attachment**: encrypted ZIP / OneDrive with password may not surface content; ensure DLP exception or block policy.\n\n**Suppression mechanism**: KV Store `soci_22_52_24_exceptions`; tight max grant 4 hours with Information Security Manager + General Counsel joint sign-off.",
+  "requiredFields": [
+    "artefact_id",
+    "classification",
+    "accessor_id",
+    "action",
+    "recipient_email_domain",
+    "status",
+    "first_seen"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "microsoft-365",
+    "splunk-es",
+    "microsoft-defender"
+  ],
+  "equipmentModels": [
+    "Microsoft Purview Information Protection + DLP",
+    "Microsoft Defender for Cloud Apps (CASB)",
+    "Microsoft 365 audit log",
+    "Forcepoint DLP (alternative)",
+    "Mimecast / Proofpoint email gateway",
+    "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
+    "Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "mitreAttack": [
+    "T1567",
+    "T1530"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.13"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.51.13 deployed (provides general audit-log baseline).\n- ES, Microsoft 365 add-on, Microsoft Cloud Services add-on.\n- `index=dlp`, `index=email`, `index=cloud`, `index=audit_evidence`.\n- Document classification scheme published; Protected Information labelled at-source.\n- Lookup `protected_info_authorised_disclosure_lookup` of authorised recipient domains/individuals; owned by Information Security Manager.\n\n## Step 1 — Configure data collection\n\nEnable DLP in Microsoft Purview (or Forcepoint DLP):\n\n- Rule pattern: classification label `Protected` OR sensitivity-label `SOCI-Protected`.\n- Action: alert + audit (block in stricter environments).\n\nOnboard email-gateway logs:\n\n```ini\n[mimecast://siem]\nbase_url = https://eu-api.mimecast.com\nlog_type = siem\ninterval = 600\nindex = email\nsourcetype = mimecast:siem\n```\n\nOnboard Microsoft 365 audit:\n\n```ini\n[ms365_management_activity://splunk]\ntenant_id = <tenant>\ncontent_type = Audit.SharePoint,Audit.Exchange\ninterval = 300\nindex = cloud\nsourcetype = o365:management:activity\n```\n\n## Step 2 — Create the search and alert\n\nSchedule every 15 minutes:\n\n```ini\n[UC-22.52.24: SOCI Part 6A Protected Information audit]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.24,reg=SOCI,clause=SOCI-s46\naction.notable.param.rule_title = SOCI Part 6A Protected Information suspected disclosure\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 5\n```\n\nNotable severity by `status`: `unauthorised_disclosure_suspect_*` → critical; `requires_review` → high; `authorised_disclosure` → audit-evidence only.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: from a test account, email a labelled-Protected file to a personal Gmail; UC must surface within 15 minutes.\n\n**(b)** Negative control: same to documented authorised recipient; UC records `authorised_disclosure`.\n\n**(c)** Coverage: validate at-source labelling on a sample of 10 Protected documents.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Part 6A Protected Information Audit`.\n\n**Runbook for `unauthorised_disclosure_suspect_*`** (owner: Information Security Manager + General Counsel, severity P1):\n\n1. Within 30 minutes: triage. Engage General Counsel.\n2. Within 24 hours: if confirmed: notify CISC under Part 6A obligation; consider mandatory-breach notification under the Privacy Act.\n3. Document the disposition.\n\n## Step 5 — Troubleshooting\n\n**Labelling drift**: ensure documents are auto-labelled on creation or labelled by the Information Manager.\n\n**Encrypted attachments**: implement policy to deny encrypted outbound emails containing Protected labels.\n\n**Internal SharePoint sharing**: `file_external_share` to unauthorised users is also surfaced.\n\n**SOCI-specific failure modes**:\n\n- **Cross-jurisdictional sharing**: a multinational entity may legitimately share Protected information internationally; consider data-residency restriction policy.\n- **Government recipient mismatch**: a Government recipient using a personal email address; require named individual exception with formal documentation.\n- **MSSP access**: an MSSP analyst legitimately accessing Protected as part of incident response; tracked separately in `protected_info_authorised_access_lookup`.\n- **Legal-privilege protection**: communications with named legal counsel are usually privileged; document the disclosure even though it is authorised.",
+  "grandmaExplanation": "Some pieces of information about our critical-infrastructure asset are 'Protected' — the law makes it a crime to share them with the wrong people. We watch every email, cloud share, and USB transfer of those documents. If we see one going to a personal email, an unknown address or an unknown country, we ring the bell and call the lawyers."
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.24",
+  "title": "TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes confirmed simulated phishing tests. Excludes documented red-team exercises.",
+  "evidence": "Saved search `UC-22.56.24` archived hourly to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-multi-phishing-credential\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SCAS-phishing-credential",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Phishing is the #1 predicate to TSA-reportable events. 'Partial' because the UC focuses on detection-evidence rather than user training (covered separately).",
+      "controlObjective": "Proves credential-harvesting events targeting TSA-regulated personnel are detected, contained, and reported to the sector ISAC.",
+      "evidenceArtifact": "Saved search, `TSA Phishing Surveillance` dashboard, sector-ISAC sharing log.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SCAS-phishing-credential",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Simulate AiTM phishing event against TSA-personnel UPN. UC-22.56.24 MUST flag within 1h.",
+    "negativeScenario": "Simulated phishing test tagged `simulation=true`. UC-22.56.24 MUST NOT escalate."
+  },
+  "dataSources": "Microsoft Defender for Office 365 (`o365:management:purview`, `mscs:o365:atp`). Proofpoint (`proofpoint:tap:campaign`). Microsoft Entra ID Identity Protection (`azure:eventhub:idprotection`). Reported-phishing mailbox (`o365:management:UserSubmission`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Proofpoint TAP (Splunkbase 3776).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 3776,
+      "name": "Splunk Add-on for Proofpoint TAP",
+      "url": "https://splunkbase.splunk.com/app/3776",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(sourcetype=mscs:o365:atp OR sourcetype=proofpoint:tap:campaign OR sourcetype=azure:eventhub:idprotection)\n| eval upn = coalesce(recipient_email, userPrincipalName)\n| lookup tsa_personnel_lookup upn AS upn OUTPUT tsa_in_scope role modality\n| where tsa_in_scope=true\n| where event_type IN (\"phishing_delivered\",\"adversaryInTheMiddle\",\"riskySignIn\",\"impossibleTravel\",\"unfamiliarLocation\")\n| eval simulation = coalesce(simulation, \"false\")\n| where simulation=\"false\"\n| stats count as events values(event_type) as event_types values(role) as role values(modality) as modality by upn\n| where events > 0\n| table upn role modality events event_types",
+  "description": "Detects credential-harvesting events targeting TSA-regulated personnel; routes to CC for ISAC sharing.",
+  "value": "Phishing-driven credential compromise is the most common predicate to TSA-reportable cyber events; rapid containment matters.",
+  "implementation": "(1) Populate `tsa_personnel_lookup`. (2) Schedule UC-22.56.24 hourly. (3) Build the `TSA Phishing Surveillance` dashboard.",
+  "visualization": "(Panel 1) Affected personnel by modality. (Panel 2) Event-type trend. (Panel 3) Contained vs in-progress. (Panel 4) ISAC sharing log.",
+  "cimModels": [
+    "Email",
+    "Authentication"
+  ],
+  "references": [
+    {
+      "title": "CISA Phishing Resistance Guide",
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-074a"
+    }
+  ],
+  "knownFalsePositives": "1. **Simulated phishing**: SOC training simulations must be tagged.\n2. **Legitimate impossible travel**: VPN-related; tune via Entra ID conditional access.\n\n**Suppression mechanism**: KV Store `tsa_22_56_24_exceptions`.",
+  "requiredFields": [
+    "upn",
+    "role",
+    "modality",
+    "events",
+    "event_types"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + SOC Lead",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "microsoft-defender-o365",
+    "proofpoint",
+    "microsoft-entra",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft Defender for Office 365 P2",
+    "Proofpoint TAP",
+    "Microsoft Entra ID P2",
+    "Splunk ES 7.x"
+  ],
+  "mitreAttack": [
+    "T1566",
+    "T1556",
+    "T1078.004"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.56.4"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Microsoft + Proofpoint TAs.\n- KV Store `tsa_personnel_lookup`.\n\n## Step 1 — Personnel register\n\n```ini\n[tsa_personnel_lookup]\nfield.upn = string\nfield.tsa_in_scope = string\nfield.role = string\nfield.modality = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.24: TSA Phishing Surveillance]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.24,reg=TSA-Surface,clause=TSA-SD-multi-phishing-credential\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Phishing against TSA-CC** (owner: SOC + CC, severity P1):\n1. Within 1 hour: revoke session, force credential reset.\n2. Within 4 hours: scope investigation.\n3. Within 24 hours: share TLP:GREEN indicators with sector ISAC.\n\n## Step 4 — Troubleshooting\n\n- **Roaming users**: tune impossible-travel thresholds.\n- **Conditional access fatigue**: ensure CA policies block, not just warn.\n\n**TSA-specific failure modes**:\n- **Cross-modal phishing campaigns**: oil/gas + rail/aviation may share threat actors; coordinate cross-ISAC.\n- **C-suite spear-phishing**: CISO / CC / CFO frequently targeted; pre-position step-up controls.",
+  "grandmaExplanation": "Crooks try to trick our pipeline, rail, and airport staff into giving up their passwords. We catch those attempts within an hour and warn the rest of the industry."
+}

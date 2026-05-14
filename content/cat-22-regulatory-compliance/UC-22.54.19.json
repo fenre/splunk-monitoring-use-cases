@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.54.19",
+  "title": "CIRCIA Internal Incident Classification Triage — distinguish CIRCIA-reportable from sectoral-only and notice-only",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents whose initial triage determined no impact on a covered entity (UC-22.54.1 entity register is authoritative). Excludes incidents under embargoed coordination (the classification is still made but routing is delayed). Excludes pre-incident threat-intelligence events (those are notice-only, not incidents).",
+  "evidence": "Saved search `UC-22.54.19` archived every 15 minutes to `audit_evidence` with `circia_clause=\"CIRCIA-CISA-incident-classification\"`. Every row pins (incident_id, classification_made_at, classification_signed_by, classification_class, sectoral_obligations, classification_status). Dashboard `CIRCIA — Incident Classification Triage` shows the live classification queue.",
+  "compliance": [
+    {
+      "regulation": "circia",
+      "version": "2022-act-with-2024-nprm",
+      "clause": "CIRCIA-CISA-incident-classification",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Internal classification is the bridge between the four-prong substantial-incident test (UC-22.54.9) and the operational decision to report. Each incident must be classified into one of: CIRCIA-reportable (with optional sectoral overlay), sectoral-only (NERC, SEC, FCC, etc.), notice-only (informational), or below-threshold. Without a documented classification step, the entity defaults to the IR Commander's recall. UC-22.54.19 instruments the classification.",
+      "controlObjective": "Proves every IR ticket has a documented, signed classification with the CIRCIA classification class and any overlapping sectoral obligations.",
+      "evidenceArtifact": "Saved search `UC-22.54.19` archived to `audit_evidence`, the `CIRCIA — Incident Classification Triage` dashboard, and per-incident signed classification record.",
+      "obligationRef": "circia@2022-act-with-2024-nprm#CIRCIA-CISA-incident-classification",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Open a SIR ticket with `priority=1-critical` and `impact=high` but leave the classification field empty. UC-22.54.19 MUST flag the ticket with `classification_status=\"unclassified\"` within 15 minutes and route a notable to the IR Commander.",
+    "negativeScenario": "The IR Commander signs the classification: `classification_class=circia-reportable`, `sectoral_obligations=NERC-CIP-008-6,SEC-8K-1.05`. UC-22.54.19 MUST record `classification_status=\"classified\"`."
+  },
+  "dataSources": "ServiceNow SIR (`snow:sir`) tickets with classification fields. SOAR `circia-classification-intake` playbook records the classification to `circia_classification_lookup`. Cross-reference to `circia_entity_register_lookup` and `circia_four_prong_lookup` (UC-22.54.9).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "index=snow_sir sourcetype=\"snow:sir\" priority IN (1,2) impact IN (\"high\",\"critical\")\n| eval ticket_opened_at = strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| where ticket_opened_at > relative_time(now(), \"-7d\")\n| lookup circia_classification_lookup incident_id AS sys_id OUTPUT classification_made_at classification_signed_by classification_class sectoral_obligations\n| eval classification_status = case(\n    isnull(classification_made_at) AND ticket_opened_at < relative_time(now(), \"-2h\"), \"unclassified_overdue\",\n    isnull(classification_made_at), \"unclassified\",\n    isnotnull(classification_made_at) AND isnull(classification_signed_by), \"classified_unsigned\",\n    1=1, \"classified\")\n| where classification_status != \"classified\"\n| table sys_id ticket_opened_at priority impact classification_made_at classification_signed_by classification_class sectoral_obligations classification_status",
+  "description": "Cross-checks high-priority IR tickets against the classification register. Surfaces tickets opened more than 2 hours without classification, classifications without signature, and missing classifications.",
+  "value": "Without an instrumented classification step, the entity might attempt to file a CIRCIA report on a sectoral-only event (wasting CISA bandwidth) or miss a CIRCIA report on a sectoral event that crosses the substantial-incident threshold.",
+  "implementation": "(1) Add `circia_classification_class` and `circia_sectoral_obligations` fields to SIR ticket template. (2) SOAR `circia-classification-intake` triggers on field-update and writes to `circia_classification_lookup`. (3) Schedule UC-22.54.19 every 15 minutes; route `unclassified_overdue` to IR Commander.",
+  "visualization": "(Panel 1) Live classification queue. (Panel 2) Classification-class distribution. (Panel 3) Classification-latency histogram. (Panel 4) Overdue queue with age.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "CISA Cyber Incident Reporting — Internal Classification Guidance",
+      "url": "https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia"
+    }
+  ],
+  "knownFalsePositives": "1. **Investigation in progress** — classification may legitimately be delayed if the IR team is still scoping the incident. Suppression: 2-hour grace period before `unclassified_overdue`.\n\n2. **Pre-incident threat-intel false-positive** — tickets opened from threat-intel feeds may close before classification. Suppression: only flag tickets in active state.\n\n**Suppression mechanism**: KV Store `circia_22_54_19_exceptions` with per-ticket grants requiring documented IR-Commander approval and a 6-hour maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "classification_class",
+    "classification_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + IR Director",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-classification-intake playbook)",
+    "ServiceNow SIR (Security Incident Response)"
+  ],
+  "mitreAttack": [
+    "N/A (incident-management classification workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.54.1",
+    "UC-22.54.9"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow SIR with classification field.\n- SOAR (Splunkbase 4413) with `circia-classification-intake` playbook.\n- KV Store `circia_classification_lookup`.\n\n## Step 1 — SIR template\n\nAdd to the SIR ticket template:\n\n- `circia_classification_class` (enum: `circia-reportable`, `sectoral-only`, `notice-only`, `below-threshold`).\n- `circia_sectoral_obligations` (multi-value: `NERC-CIP-008-6`, `SEC-8K-1.05`, `FCC-NORS`, etc.).\n- `circia_classification_signed_by` (user reference).\n- `circia_classification_signed_at` (timestamp).\n\n## Step 2 — SOAR playbook\n\n`circia-classification-intake` triggers on `circia_classification_class` field-update:\n\n1. Validate sig is from authorised IR Commander or General Counsel.\n2. Write row to `circia_classification_lookup`.\n3. If `circia-reportable`, trigger UC-22.54.2 SLA timer.\n4. If `sectoral-only`, route to sectoral-reporting flow.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.19: CIRCIA Internal Incident Classification Triage]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.19,reg=CIRCIA,clause=CIRCIA-CISA-incident-classification\naction.notable.param.rule_title = CIRCIA classification missing or overdue on high-priority IR ticket\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Unclassified-overdue test**: open a P1 SIR ticket; wait 3 hours without classification; UC-22.54.19 must alert.\n\n**(b) Classified-signed test**: complete classification with signature; UC-22.54.19 must clear notable.\n\n## Step 5 — Operationalize\n\n**Runbook for `unclassified_overdue`** (owner: IR Commander, severity P2):\n\n1. Within 30 minutes: sign the classification; if scoping is incomplete, mark `working` with rationale.\n\n## Step 6 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Classification mid-investigation**: classification may evolve as scope changes. Maintain audit trail with `classification_history` events.\n- **Sectoral-only → CIRCIA transition**: a sectoral-only classification can escalate to CIRCIA-reportable; the supplemental-report flow under UC-22.54.4 handles this.\n- **Multiple sectoral obligations**: list all applicable; downstream UCs (UC-22.54.23 SEC 8-K) read this field.",
+  "grandmaExplanation": "Every serious incident gets a label: 'tell the cyber agency' or 'tell the sector regulator' or 'just for our records'. The label is signed by the team leader so anyone reviewing later knows who decided and why."
+}

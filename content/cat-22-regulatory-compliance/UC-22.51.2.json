@@ -1,0 +1,115 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.2",
+  "title": "OT Cybersecurity Risk Register Staleness, Ownership, and Treatment Tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Risk",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "policy-to-control-traceability",
+  "exclusions": "Excludes risks tagged as `inherent_only=true` that the organisation has formally accepted with documented sign-off (these are tracked separately under SAMA / board-risk-appetite governance, not under OTCC operational evidence). Excludes legacy paper-based risk registers that have not yet been migrated to the GRC tool — these must be migrated as part of the OTCC rollout, not monitored in this state.",
+  "evidence": "Saved search `UC-22.51.2` archived nightly to `audit_evidence` with `otcc_clause=\"OTCC-1-5-1-1\"`. Fields preserved: risk_id, risk_title, inherent_score, residual_score, owner_role, last_reviewed_at, treatment_status, treatment_target_date, days_since_review, days_to_treatment_target. Dashboard `NCA OTCC – Risk Register Health` renders the same data with a 13-month trend timechart of average residual-risk score — the headline metric NCA inspectors request.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-1-5-1-1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Continuous evidence of register existence, ownership, review cadence, and treatment progress for OT cyber risks. The UC does not by itself validate the *quality* of the risk assessment (whether the assigned scores are realistic) — that is a manual SME judgement — so assurance is 'partial'.",
+      "controlObjective": "Proves the organisation operates a continuously maintained OT cyber risk register, that every risk has a named owner and a review cadence, and that risks with planned treatments are progressing against their target dates.",
+      "evidenceArtifact": "Saved search `UC-22.51.2` archived to `audit_evidence` index plus `NCA OTCC – Risk Register Health` dashboard. Row-level evidence carries risk_id, last_reviewed_at, owner_role, treatment_status and treatment_target_date. Quarterly PDF export delivered to the OT cybersecurity steering committee.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-1-5-1-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject a test risk `OT-RISK-TEST-001` in the GRC tool with `last_reviewed_at` set to 13 months ago, `owner_role` set to a non-existent role, and `treatment_target_date` set to 30 days in the past. The next run of UC-22.51.2 MUST return the test risk with `overdue_review=true`, `owner_unknown=true`, and `treatment_overdue=true` and the dashboard MUST count it three times across the three single-value tiles.",
+    "negativeScenario": "Inject a control risk `OT-RISK-TEST-002` with `last_reviewed_at` 6 months ago, a recognised `owner_role`, and `treatment_target_date` 30 days in the future. The search MUST NOT return that risk; the alert MUST NOT fire."
+  },
+  "dataSources": "`index=grc sourcetype=\"servicenow:grc:risk\"` from the Splunk Add-on for ServiceNow (Splunkbase 1928); equivalents: `archer:risk`, `metricstream:risk`, `rsam:risk`. Lookups `ot_risk_owner_roles.csv` (recognised owner-role IDs) and `ot_risk_threat_intel.csv` (KV Store, refreshed daily from the threat-intel pipeline, mapping CVE/threat-actor IDs to OT risk register entries to detect register-staleness against active threats).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263) recommended for notable-event escalation of `treatment_overdue` cases.",
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "primary",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "index=grc sourcetype=\"servicenow:grc:risk\" risk_scope=\"OT\" state!=\"retired\" earliest=-7d@d latest=now\n| dedup risk_id sortby -_time\n| eval days_since_review = round((now() - strptime(last_reviewed_at, \"%Y-%m-%dT%H:%M:%S%z\")) / 86400)\n| eval days_to_treatment_target = round((strptime(treatment_target_date, \"%Y-%m-%d\") - now()) / 86400)\n| lookup ot_risk_owner_roles.csv role_id AS owner_role_id OUTPUT recognised_owner_flag\n| eval overdue_review = if(days_since_review > 365, \"true\", \"false\")\n| eval owner_unknown = if(recognised_owner_flag!=\"true\", \"true\", \"false\")\n| eval treatment_overdue = if(treatment_status IN (\"in_progress\",\"planned\") AND days_to_treatment_target < 0, \"true\", \"false\")\n| eval high_risk_no_treatment = if(residual_score >= 16 AND treatment_status IN (\"none\",\"accepted_pending\"), \"true\", \"false\")\n| where overdue_review=\"true\" OR owner_unknown=\"true\" OR treatment_overdue=\"true\" OR high_risk_no_treatment=\"true\"\n| table risk_id risk_title inherent_score residual_score owner_role_id last_reviewed_at days_since_review treatment_status treatment_target_date days_to_treatment_target overdue_review owner_unknown treatment_overdue high_risk_no_treatment\n| sort - residual_score",
+  "description": "Detects OT cyber risks whose annual review has lapsed, whose owner role is not a recognised accountable role, whose planned treatment date has slipped, or whose residual score remains in the critical band without an active treatment — the four most common OTCC-1-5-1-1 evidence gaps.",
+  "value": "An OT cyber risk register that is allowed to age out is the single fastest way to fail an OTCC audit and the second-fastest way to be surprised by an incident the register foretold. This UC keeps the register honest day to day, escalates rotting entries to named owners, and produces the trend evidence the OT cybersecurity steering committee uses to demonstrate programme effectiveness to the board.",
+  "implementation": "(1) Enable the `sn_risk_risk` (or equivalent) modular input in the Splunk_TA_snow stanza on the GRC heavy forwarder. (2) Build `ot_risk_owner_roles.csv` from HR-validated role definitions for OT-cyber-accountable functions. (3) Build `ot_risk_threat_intel.csv` as a KV Store collection updated by a separate scheduled search that joins active CVE-to-OT-asset mappings to risk-register IDs. (4) Schedule UC-22.51.2 daily at 02:30 (offset from UC-22.51.1 to spread GRC API load). (5) Route `high_risk_no_treatment=true` rows to ES notable for SOC awareness; route the rest to the OT programme manager.",
+  "visualization": "Four-panel layout. (Panel 1) 13-month line chart: avg `residual_score` of OT risk register — the headline metric for the OT cybersecurity steering committee. (Panel 2) Stacked bar: count of risks by `treatment_status` for the current month vs same month last year. (Panel 3) Single-value tile: 'OT risks with overdue treatment' — red ≥1, gold = 0. (Panel 4) Sortable table of all flagged risks with drill-down to the GRC record.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NCA Operational Technology Cybersecurity Controls (OTCC) — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "ISO 31000:2018 Risk Management Guidelines — risk register principles",
+      "url": "https://www.iso.org/standard/65694.html"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Risk under formal acceptance** — some risks are formally accepted by the OT cybersecurity steering committee without a planned treatment and that acceptance is recorded with a signed minute and an annual re-affirmation. Suppression: maintain `risk_acceptance_register.csv` and `| where treatment_status!=\"accepted\" OR (now() - strptime(last_acceptance_at, \"%Y-%m-%d\")) > 31536000`.\n\n2. **New acquisitions** — newly-onboarded sites import a backlog of risks dated to their original assessment, which can be older than the OTCC 365-day cadence. Grace period of 90 days from `tenant_onboarded_at`. Suppression: join against `grc_tenants.csv` and exclude tenants in their grace window.\n\n3. **Re-keyed risk after merge/split** — when two risks merge or one splits, the GRC tool typically resets `last_reviewed_at` to null until the first review of the new record. A 14-day grace window from `created_at` avoids these noise alerts. Suppression: `| where created_age_days > 14`.\n\n4. **Treatment-target date in a planned, future maintenance window** — a treatment whose target was scheduled into a refinery turnaround scheduled to be moved by 60 days will show `treatment_target_date` in the past until the GRC field is updated by the change-management team. Suppression: maintain a `planned_window_shifts.csv` lookup of risks whose target date is being re-baselined and grant a 30-day grace.\n\n**Suppression mechanism**: KV Store `otcc_22_51_2_exceptions` keyed on `risk_id` with `exception_active`, `expires_at`, `reason`, `approved_by`. Appended to the base SPL as a final filter.",
+  "requiredFields": [
+    "risk_id",
+    "residual_score",
+    "owner_role_id",
+    "last_reviewed_at",
+    "treatment_status",
+    "treatment_target_date"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "walk",
+  "equipment": [
+    "splunk-es"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud. Search head needs enough memory to hold `ot_risk_owner_roles.csv` (<1 MB) and the `otcc_22_51_2_exceptions` KV Store collection (<5 MB even at thousands of risks).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) installed on the GRC-facing heavy forwarder. Verify connectivity with `| rest /servicesNS/-/Splunk_TA_snow/configs/conf-account | table title`.\n- `index=grc` and `index=audit_evidence` already provisioned by UC-22.51.1 prerequisites.\n- Lookups:\n  - `ot_risk_owner_roles.csv` — owner-role definitions, daily refresh from HR.\n  - `ot_risk_threat_intel.csv` (KV Store) — populated by a separate daily search that joins active CVE advisories from the Splunk Add-on for CISA KEV (or equivalent) to risk-register entries that explicitly name those vulnerabilities. This is the input to a follow-on detection 'register vs threat' but is also referenced here for the `high_risk_no_treatment` decision when threat intel uplifts the residual score.\n  - `risk_acceptance_register.csv` — formally accepted risks with annual reaffirmation dates.\n  - `grc_tenants.csv` — GRC tenant inventory with onboarding dates.\n  - KV Store `otcc_22_51_2_exceptions` for manual exclusions.\n- Modular-input cadence: 30 minutes for the risk table. Higher cadence is unnecessary because risk reviews are a human-cadence activity.\n- Owners: this UC is owned by the same role that owns the OT cyber risk register itself (typically Head of OT Security or a Senior Risk Manager reporting to them). The dashboard is the OT cybersecurity steering committee's quarterly review artefact.\n\n## Step 1 — Configure data collection\n\nThe ServiceNow GRC risk table is `sn_risk_risk` (or `grc_risk` depending on the ServiceNow GRC version). Configure the modular input:\n\n```ini\n[snow://risk_table]\nrest_endpoint = sn_risk_risk\nrecord_type = json\nfilter_data = sys_class_name=sn_risk_risk^state!=retired^scope=OT\ninterval = 1800\nindex = grc\nsourcetype = servicenow:grc:risk\n```\n\nThe critical extracted fields are:\n\n- `risk_id` (sys_id)\n- `risk_title`\n- `risk_scope` (free-form; must contain `OT`)\n- `inherent_score`, `residual_score` (integer 1–25 on a 5×5 matrix, or 0–100 on a normalised scale)\n- `owner_role_id` (the role-table sys_id for the accountable role)\n- `last_reviewed_at` (ISO-8601 with timezone)\n- `treatment_status` (`none`, `planned`, `in_progress`, `complete`, `accepted`, `accepted_pending`)\n- `treatment_target_date` (date)\n- `created_at` (date the record was created; used for the 14-day grace window)\n- `tenant_id` (GRC tenant in multi-tenant deployments)\n\nValidate field completeness:\n\n```spl\nindex=grc sourcetype=servicenow:grc:risk earliest=-1d\n| fieldsummary\n| search field IN (risk_id, residual_score, owner_role_id, last_reviewed_at, treatment_status, treatment_target_date)\n| eval coverage_pct = round(100 * count / mvindex(values(count), 0), 1)\n| table field coverage_pct\n```\n\nIf any field has `coverage_pct < 100`, GRC has rows with missing values. Filter retired or template rows out upstream rather than tolerating nulls.\n\nVolume note: at most organisations the OT risk register holds 50–500 entries; 30-minute polling produces <30,000 events/day and is essentially free in license terms.\n\n## Step 2 — Create the search and alert\n\nThe search has four independent conditions joined by `OR`. Each is computed as a boolean so the dashboard can show counts per condition. Run on a 7-day window to absorb brief polling delays.\n\n`overdue_review` triggers at `days_since_review > 365`. We use `>` strictly: a risk reviewed 365 days ago today is still compliant.\n\n`owner_unknown` triggers when `recognised_owner_flag != \"true\"`. The flag is set on the lookup row corresponding to the role. Roles that have been deprecated, deleted, or that were never registered as OT-cyber-accountable will fail this test.\n\n`treatment_overdue` triggers when the risk is in `planned` or `in_progress` and `treatment_target_date` is in the past. We exclude `complete` and `accepted` from this rule because they have already exited the treatment pipeline.\n\n`high_risk_no_treatment` triggers when `residual_score >= 16` (high or critical band on a 25-point scale) AND `treatment_status` is `none` or `accepted_pending`. This is the most important rule: a high residual risk without a plan is the strongest single signal of an OTCC governance failure.\n\nSchedule:\n\n```ini\n[UC-22.51.2: OT Cybersecurity Risk Register Staleness, Ownership, and Treatment Tracking]\ncron_schedule = 30 2 * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.2,reg=NCA_OTCC,clause=OTCC-1-5-1-1\naction.email.to = ot-cyber-programme@example.com,head-of-ot-security@example.com\naction.email.subject = NCA OTCC-1-5-1-1 — daily risk register health (UC-22.51.2)\nalert.track = 1\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Lookup ownership freshness**:\n\n```spl\n| rest /servicesNS/-/-/data/transforms/lookups/ot_risk_owner_roles\n| eval age_days = round((now() - updated_epoch) / 86400)\n| where age_days > 35\n| table title age_days\n```\n\nAny result is a stale lookup; alert HR-business-partner-to-cyber.\n\n**(b) Volume baseline**:\n\n```spl\nindex=grc sourcetype=servicenow:grc:risk earliest=-7d@d latest=now\n| dedup risk_id\n| stats count by risk_scope\n```\n\nConfirm the OT scope count matches the OT cybersecurity programme's manually-maintained risk count (±5%). Drift indicates filter mis-configuration or a GRC scope-tag mistake.\n\n**(c) Positive control**: inject `OT-RISK-TEST-001` with three deliberately failing conditions; rerun UC-22.51.2 and confirm three flags fire on it.\n\n**(d) Negative control**: inject `OT-RISK-TEST-002` with clean fields; confirm it is not in the output.\n\n**(e) Chain-of-custody**: confirm yesterday's results were written to `audit_evidence`:\n\n```spl\nindex=audit_evidence source_uc=22.51.2 earliest=-2d\n| stats values(clause) as clauses count by source_uc\n```\n\n## Step 4 — Operationalize\n\n**Dashboard name**: `NCA OTCC – Risk Register Health`.\n\n- **Row 1, large line chart**: 13-month timechart of `avg(residual_score)` and `count by residual_band` (where band is low/medium/high/critical). This is the chart the OT cybersecurity steering committee presents to the board quarterly.\n- **Row 2, three single values**: 'Risks overdue for review', 'Risks with overdue treatment', 'High-residual risks without an active treatment'. Red thresholds ≥1 on each.\n- **Row 3, sortable table**: every flagged risk. Columns: `risk_id`, `risk_title`, `residual_score`, `owner_role_id`, `days_since_review`, `treatment_status`, `treatment_target_date`. Row drill-down opens the GRC record.\n- **Row 4, sankey**: `treatment_status` distribution this month vs last month — highlights whether treatments are advancing or stalling.\n\n**Runbook** (owner: Head of OT Security):\n\n1. Open the dashboard. Note which of the four conditions has fired.\n2. For `overdue_review`: trigger the GRC review workflow; assign 30 days for completion.\n3. For `owner_unknown`: trace via HR to confirm the role's current status. Update the lookup if the role is current but mis-keyed; reassign the risk if the role no longer exists.\n4. For `treatment_overdue`: open a P2 ticket on the treatment owner. Slipped treatments on high or critical risks may require steering-committee escalation.\n5. For `high_risk_no_treatment`: schedule an emergency review at the next OT cybersecurity steering committee. Document the rationale, the planned treatment, and a target date. If the risk is being accepted, move it through formal acceptance with board awareness.\n6. Update the OT cybersecurity programme RAID log.\n\n## Step 5 — Troubleshooting\n\n**Search returns zero rows ever** — the `risk_scope=\"OT\"` filter may not match. Some organisations use `business_unit_tag=\"ot\"` instead. Inspect a few raw events: `index=grc sourcetype=servicenow:grc:risk earliest=-1h | head 5 | table risk_id risk_scope business_unit_tag scope_tag`. Adjust the search filter to match the actual tagging convention.\n\n**Search returns thousands of rows** — the scope filter is too loose and is matching IT risks too. Make the filter stricter; consider a regex like `risk_scope=\"*OT*\" OR risk_scope=\"*Operational Technology*\"`.\n\n**`days_since_review` is negative** — someone set `last_reviewed_at` in the future. Almost always a data-entry mistake in the GRC tool; raise a P3 ticket to correct it. Until corrected, exclude with `| where days_since_review >= 0`.\n\n**`treatment_target_date` parses but always reads as NULL** — the field uses a different format than expected (e.g. `dd/MM/yyyy` instead of `yyyy-MM-dd`). Inspect raw events and add a parsing branch:\n\n```spl\n| eval treatment_target_date_iso = case(\n    match(treatment_target_date, \"^\\d{4}-\\d{2}-\\d{2}$\"), treatment_target_date,\n    match(treatment_target_date, \"^\\d{2}/\\d{2}/\\d{4}$\"), strftime(strptime(treatment_target_date, \"%d/%m/%Y\"), \"%Y-%m-%d\"),\n    1=1, null())\n```\n\n**Steering committee notes 'flagged risks I already closed'** — the GRC tool's update lag. Increase polling cadence to 15 minutes for the risk table only, or filter to the latest update timestamp per risk with `dedup risk_id sortby -_time` (already in the base search).\n\n**OTCC-specific failure modes**:\n\n- **Treatment 'accepted_pending' is not 'accepted'** — NCA inspectors will challenge a register where many risks are marked `accepted_pending` for long periods. Track the age of `accepted_pending` separately and escalate any older than 90 days.\n- **Risk-scoring scale drift** — if the organisation moves from a 5×5 matrix (max 25) to a 10×10 matrix (max 100), the `residual_score >= 16` threshold becomes wrong overnight. Maintain `risk_scale_version.csv` and version-aware thresholds, or normalise residual scores to a 0–1 scale before applying thresholds.\n- **Multi-tenant treatments** — in groups operating multiple operating companies, treatments are sometimes owned at group level. Verify that `owner_role_id` is meaningful in the tenant's directory; cross-tenant role IDs must be present in `ot_risk_owner_roles.csv` for both tenants.",
+  "grandmaExplanation": "We watch the list of cyber risks for the OT side of the business. If a risk is not reviewed in a year, has no clear owner, or the planned fix is late, we ring the bell. That way risks do not get forgotten on the shelf.",
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_risk_risk and sn_risk_assessment_template)",
+    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Change data model)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, risk score field for OT-tagged risks)"
+  ]
+}

@@ -25,6 +25,11 @@
 | **NIS2<sup class="ref">[<a href="#ref-2">2</a>]</sup>** | Tier 1 | EU | `Directive (EU) 2022/2555` | 100.0% | 100.0% | [`nis2.md`](nis2.md) |
 | **DORA<sup class="ref">[<a href="#ref-4">4</a>]</sup>** | Tier 1 | EU | `Regulation (EU) 2022/2554` | 100.0% | 100.0% | [`dora.md`](dora.md) |
 | **CMMC<sup class="ref">[<a href="#ref-12">12</a>]</sup>** | Tier 1 | US | `2.0` | 100.0% | 100.0% | [`cmmc.md`](cmmc.md) |
+| **NCA OTCC** | Tier 2 | SA | `1:2022` | 100.0% | 100.0% | [`nca-otcc.md`](nca-otcc.md) |
+| **SOCI Act** | Tier 1 | AU | `2022-SLACIP+CIRMP-2023` | 0.0% | 0.0% | [`soci.md`](soci.md) |
+| **AWIA** | Tier 1 | US | `2018-amended-SDWA-1433` | 0.0% | 0.0% | [`awia.md`](awia.md) |
+| **CIRCIA** | Tier 1 | US | `2022-act-with-2024-nprm` | 0.0% | 0.0% | [`circia.md`](circia.md) |
+| **CLC/TS 50701** | Tier 2 | EU, EEA, UK, CH, international | `2021-with-iec63452-alignment` | 0.0% | 0.0% | [`clc-ts-50701.md`](clc-ts-50701.md) |
 
 ## Structure of an evidence pack
 
@@ -58,7 +63,7 @@ python3 scripts/generate_evidence_packs.py
 python3 scripts/generate_evidence_packs.py --check
 ```
 
-Last regenerated against catalogue version `8.2.1`.
+Last regenerated against catalogue version `8.4.0`.
 
 ## Related documentation
 

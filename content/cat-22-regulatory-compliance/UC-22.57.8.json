@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.8",
+  "title": "SG Cyber Act (2024 amendment) Critical Information Infrastructure Service Provider (CIISP) register + obligations tracker",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Risk",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII + CIISP",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes generic SaaS providers not in CIISP scope. Excludes registered exempt providers.",
+  "evidence": "Saved search `UC-22.57.8` archived daily to `audit_evidence` with `csa_clause=\"CSA-CIISP-2024\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s14(2)",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "The 2024 amendment to the Cybersecurity Act expanded scope to CIISPs (providers of essential services to CII). This UC ensures CIISPs are registered, monitored, and their obligations are tracked.",
+      "controlObjective": "Proves every CIISP supplier is registered, has signed CIISP-COP obligations, and is in compliance.",
+      "evidenceArtifact": "Saved search, `CSA CIISP Register` dashboard, signed CIISP-COP contracts, audit evidence.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s14(2)",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a vendor providing essential service to a CII without CIISP registration. UC-22.57.8 MUST flag.",
+    "negativeScenario": "Vendor on CIISP register with signed COP-CIISP. UC-22.57.8 MUST NOT escalate."
+  },
+  "dataSources": "KV Store `csa_ciisp_lookup` (vendor_id, vendor_name, cii_ids, service_type, registration_date, cop_signed_at, last_audit_date). ServiceNow vendor master (`snow:cmdb_ci_vendor`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "| inputlookup csa_ciisp_lookup\n| eval days_since_audit = round((now() - last_audit_date) / 86400, 0)\n| eval ciisp_status = case(\n    isnull(registration_date), \"unregistered\",\n    isnull(cop_signed_at), \"cop_missing\",\n    isnull(last_audit_date), \"never_audited\",\n    days_since_audit > 730, \"audit_overdue\",\n    1=1, \"current\")\n| where ciisp_status IN (\"unregistered\",\"cop_missing\",\"never_audited\",\"audit_overdue\")\n| table vendor_id vendor_name cii_ids service_type registration_date cop_signed_at last_audit_date days_since_audit ciisp_status",
+  "description": "Tracks the CIISP supplier register and their CIISP-COP + audit status.",
+  "value": "2024 amendment imposes CIISP regulatory obligations on suppliers. Missing registration is a hard violation.",
+  "implementation": "(1) Populate `csa_ciisp_lookup` from vendor master + CIISP designation letters. (2) Schedule UC-22.57.8 daily. (3) Build the `CSA CIISP Register` dashboard.",
+  "visualization": "(Panel 1) CIISP status by service type. (Panel 2) Top-10 missing-COP. (Panel 3) Audit-overdue. (Panel 4) New-supplier onboarding.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity (Amendment) Act 2024",
+      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
+    },
+    {
+      "title": "CSA — Cybersecurity Amendment Act key changes",
+      "url": "https://www.csa.gov.sg/News-Events/Press-Releases/2024"
+    }
+  ],
+  "knownFalsePositives": "1. **Pre-amendment vendors**: existing vendors may have grace period; pin in lookup with `grace_until`.\n\n**Suppression mechanism**: KV Store `csa_22_57_8_exceptions`.",
+  "requiredFields": [
+    "vendor_id",
+    "cii_ids",
+    "ciisp_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC Officer + Third-Party Risk Lead",
+  "status": "verified",
+  "wave": "crawl",
+  "equipment": [
+    "splunk-es",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "ServiceNow CMDB"
+  ],
+  "mitreAttack": [
+    "T1195"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + ServiceNow TA.\n- KV Store `csa_ciisp_lookup`.\n- 2024 CIISP designation letters.\n\n## Step 1 — CIISP register\n\n```ini\n[csa_ciisp_lookup]\nfield.vendor_id = string\nfield.vendor_name = string\nfield.cii_ids = string\nfield.service_type = string\nfield.registration_date = number\nfield.cop_signed_at = number\nfield.last_audit_date = number\nfield.grace_until = number\nfield.designated_officer = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.8: CSA CIISP Register]\ncron_schedule = 23 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.8,reg=SG-Cyber-Act,clause=CSA-CIISP-2024\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`ciisp_status=unregistered`** (owner: Third-Party Risk, severity P2):\n1. Within 7 days: initiate CIISP registration.\n2. Within 30 days: sign CIISP-COP.\n\n**SG-specific failure modes**:\n- **Multi-CII vendor**: vendor serving multiple CIIs requires aggregate registration.\n- **Foreign vendor**: foreign vendors may need local representative; capture in register.",
+  "grandmaExplanation": "Companies that provide important services to our critical systems must now also be registered and audited under the cyber rules. We track every one of them."
+}

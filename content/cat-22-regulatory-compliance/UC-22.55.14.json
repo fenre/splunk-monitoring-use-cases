@@ -1,0 +1,111 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.14",
+  "title": "CLC/TS 50701 Regulatory Reporting Bridge — NIS2, ERA, NSA / NSB submission deadlines and receipt tracking",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Governance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Transportation",
+  "owner": "Legal",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes incidents below all applicable reporting thresholds. Excludes incidents under coordination with law-enforcement-only (those follow separate intelligence-sharing pipelines). Excludes operator-internal investigation reports that never trigger regulatory submission.",
+  "evidence": "Saved search `UC-22.55.14` archived every 30 minutes to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c8-5\"`. Every row pins (incident_id, applicable_regulators, nis2_early_due_at, nis2_full_due_at, nis2_final_due_at, era_relay_at, nsa_submission_at, submission_acks, reporting_status). Dashboard `CLC/TS 50701 — Regulatory Reporting Bridge` shows submission deadlines and receipt confirmation.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c8-5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.5 requires a regulatory-reporting bridge between CSMS incident response and statutory regulators. For EU rail operators, the typical applicable regulators include NIS2 competent authority (Member-State CSIRT), ERA (European Union Agency for Railways), and the National Safety Authority. UC-22.55.14 instruments the multi-regulator submission pipeline.",
+      "controlObjective": "Proves every rail-cyber-incident meeting any regulatory threshold is submitted within the regulator-specific SLA, the submission is acknowledged, and the receipt is recorded.",
+      "evidenceArtifact": "Saved search `UC-22.55.14` archived to `audit_evidence`, the `CLC/TS 50701 — Regulatory Reporting Bridge` dashboard, and per-regulator submission receipts.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c8-5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark an incident as `nis2_applicable=true`, leave `nis2_early_submitted_at=null` after 24h. UC-22.55.14 MUST flag `reporting_status=\"nis2_early_breach\"`.",
+    "negativeScenario": "Submit NIS2 early-warning within 24h, NIS2 incident-notification within 72h, NIS2 final-report within 1 month, with portal acknowledgements. UC-22.55.14 MUST record `reporting_status=\"compliant\"`."
+  },
+  "dataSources": "KV Store `rail_regulatory_reporting_lookup`. NIS2 portal submission receipts (HEC `hec:nis2:submission`). ERA submission receipts (HEC `hec:era:submission`). NSA submission receipts (HEC `hec:nsa:submission`). Cross-reference to `circia_classification_lookup` for cross-jurisdiction US incidents.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "spl": "| inputlookup rail_regulatory_reporting_lookup\n| where reporting_status_in_register=\"open\"\n| eval now_ts = now()\n| eval nis2_early_age_h = if(isnotnull(incident_detected_at), round((now_ts - incident_detected_at) / 3600, 1), null())\n| eval nis2_full_age_h = nis2_early_age_h\n| eval nis2_final_age_d = round(nis2_early_age_h / 24, 1)\n| eval reporting_status = case(\n    nis2_applicable=true AND isnull(nis2_early_submitted_at) AND nis2_early_age_h > 24, \"nis2_early_breach\",\n    nis2_applicable=true AND isnull(nis2_full_submitted_at) AND nis2_full_age_h > 72, \"nis2_full_breach\",\n    nis2_applicable=true AND isnull(nis2_final_submitted_at) AND nis2_final_age_d > 30, \"nis2_final_breach\",\n    era_applicable=true AND isnull(era_submitted_at) AND nis2_early_age_h > 24, \"era_breach\",\n    nsa_applicable=true AND isnull(nsa_submitted_at) AND nis2_full_age_h > 72, \"nsa_breach\",\n    isnotnull(nis2_final_submitted_at), \"compliant\",\n    1=1, \"in_progress\")\n| where reporting_status != \"compliant\" AND reporting_status != \"in_progress\"\n| table incident_id applicable_regulators nis2_early_submitted_at nis2_full_submitted_at nis2_final_submitted_at era_submitted_at nsa_submitted_at reporting_status",
+  "description": "Tracks NIS2 (24h early warning + 72h notification + 1 month final), ERA, and NSA submission deadlines for every rail-cyber incident.",
+  "value": "Multi-regulator reporting is the highest-risk part of rail-cyber compliance. Missing the NIS2 24h-early-warning alone can trigger administrative fines. This UC ensures the operator hits every deadline.",
+  "implementation": "(1) Maintain `rail_regulatory_reporting_lookup`. (2) SOAR `rail-reg-reporting` triggers on joint-command opening; identifies applicable regulators; auto-prepares draft submissions; pages General Counsel for sign-off. (3) Schedule UC-22.55.14 every 30 minutes.",
+  "visualization": "(Panel 1) Live submission queue with countdown timers. (Panel 2) Per-regulator SLA performance. (Panel 3) Acknowledgement-latency. (Panel 4) Breached-SLA history.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "NIS2 Directive (EU 2022/2555)",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32022L2555"
+    },
+    {
+      "title": "ERA - European Union Agency for Railways",
+      "url": "https://www.era.europa.eu/"
+    },
+    {
+      "title": "CLC/TS 50701:2021 clause 8.5",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Initially-applicable but reclassified** — an incident initially marked NIS2-applicable may be reclassified within 24h as below-threshold. Suppression: log reclassification reason.\n\n2. **National-security delay** — Member-State CSIRT can grant short delay for active operational reasons. Suppression: `nis2_status_override=csirt_delay` with documented CSIRT letter.\n\n**Suppression mechanism**: KV Store `clc_22_55_14_exceptions` with documented General Counsel approval and 48-hour maximum grant.",
+  "requiredFields": [
+    "incident_id",
+    "applicable_regulators",
+    "reporting_status"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + General Counsel + NIS2 Compliance Lead",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-reg-reporting playbook)"
+  ],
+  "mitreAttack": [
+    "N/A (regulatory-reporting workflow)"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.55.13"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_regulatory_reporting_lookup`.\n- Splunk SOAR (Splunkbase 4413).\n\n## Step 1 — Reporting collection\n\n```ini\n[rail_regulatory_reporting_lookup]\nenforceTypes = true\nfield.incident_id = string\nfield.incident_detected_at = number\nfield.applicable_regulators = string\nfield.nis2_applicable = bool\nfield.era_applicable = bool\nfield.nsa_applicable = bool\nfield.nis2_early_submitted_at = number\nfield.nis2_full_submitted_at = number\nfield.nis2_final_submitted_at = number\nfield.era_submitted_at = number\nfield.nsa_submitted_at = number\nfield.reporting_status_in_register = string\n```\n\n## Step 2 — SOAR playbook\n\n`rail-reg-reporting`:\n\n1. On joint-command opening (UC-22.55.13), identify applicable regulators.\n2. Auto-prefill submission templates.\n3. Page General Counsel for sign-off.\n4. Submit via API or portal.\n5. Capture acknowledgement.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.14: CLC/TS 50701 Regulatory Reporting Bridge]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.14,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-5\naction.notable.param.rule_title = Rail regulatory-reporting SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `nis2_early_breach`** (owner: General Counsel, severity P1): submit within 1 hour; document delay rationale.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Multi-jurisdiction**: cross-border rail may face multiple Member-State CSIRTs; document each.\n- **CIRCIA + NIS2 overlap**: a US-operating rail entity also bound by CIRCIA (22.54.x); coordinate both flows.\n- **ERA-vs-NSA**: ERA is EU-wide; NSA is Member-State. Both can apply.",
+  "grandmaExplanation": "When something cyber-bad happens to the railway, we must tell the EU cyber agency (within 1 day), the railway agency, and our country's safety agency — each with its own deadline. We watch all the clocks and ring loud bells if any deadline is about to be missed."
+}

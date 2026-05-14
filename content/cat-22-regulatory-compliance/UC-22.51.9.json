@@ -1,0 +1,124 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.51.9",
+  "title": "OT Change-Control Evidence Chain: Authorisation, Impact Assessment, Validation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Change",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Critical Infrastructure",
+  "owner": "Head of OT Security",
+  "controlFamily": "evidence-continuity",
+  "exclusions": "Excludes patch deployments (governed by UC-22.51.8) and config-file drift (governed by UC-22.51.6) which are tracked through their respective evidence chains; this UC focuses on change activities that those two do not catch — account additions, group memberships, firewall rule changes, network device configuration changes, vendor-tool option changes. Excludes routine operational tag-value changes on PLCs and DCS that are not configuration changes (process setpoint adjustments performed by operators are operational events, not changes).",
+  "evidence": "Saved search `UC-22.51.9` archived every 4 hours to `audit_evidence` with `otcc_clause=\"OTCC-2-3-2-1\"`. Each row carries (change_event_id, change_type, asset_key, src_user, change_summary, change_ticket_id, impact_assessment_url, approver_role, approver_signed_at, validation_status, validation_url, event_observed_at, ticket_state_at_event, missing_ticket_flag, missing_approval_flag, missing_impact_assessment_flag, missing_validation_flag). Dashboard `NCA OTCC – Change-Control Evidence` aggregates all flagged changes per week with drill-through to source systems.",
+  "compliance": [
+    {
+      "regulation": "nca-otcc",
+      "version": "1:2022",
+      "clause": "OTCC-2-3-2-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Combines four canonical change-event streams (accounts, firewall rules, network device configs, vendor-tool options) and reconciles every event against the documented change-management workflow. Combined with UC-22.51.6 (config files) and UC-22.51.8 (patches), the three UCs together cover OTCC-2-3-2-1 in full.",
+      "controlObjective": "Proves every OT change is preceded by a documented impact assessment, formally approved before implementation, executed within an approved window, and validated after execution — with deviations detected automatically within four hours.",
+      "evidenceArtifact": "Saved search `UC-22.51.9` archived to `audit_evidence` plus the `NCA OTCC – Change-Control Evidence` dashboard. Quarterly change-governance report signed by Head of OT Security filed for NCA inspection.",
+      "obligationRef": "nca-otcc@1:2022#OTCC-2-3-2-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Add a new account `ot-tester-001` to the `OT_ENGINEERING_LOCAL_ADMIN` group on a test engineering workstation, without an approved change ticket. Within four hours UC-22.51.9 MUST surface the change with `missing_ticket_flag=true` and `change_type=\"account_group_add\"`, route the alert to OT cybersecurity programme manager, and archive the row.",
+    "negativeScenario": "Add the same account to the same group via the documented privileged-access workflow with an approved change ticket and an impact assessment URL. The row MUST appear with all four flags false and be archived as compliant evidence."
+  },
+  "dataSources": "`index=wineventlog sourcetype=\"WinEventLog:Security\"` for EventCode 4728/4732/4720/4738 (account changes); `index=network sourcetype=\"pan:config\"` / `cisco:ios:config\"` / `fortinet:event` for network device configuration changes; `index=ot_jumphost sourcetype=\"cyberark:vault:audit\"` for vault policy changes; `index=ot_vendor_tool` for vendor-console option changes (Rockwell FactoryTalk Admin Console, Schneider EcoStruxure System Manager, Siemens TIA Portal Project events). Lookups: `ot_change_window.csv`, `ot_change_management_register` (KV Store).",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco IOS (Splunkbase 1875), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263).",
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "spl": "(index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4720,4722,4724,4725,4728,4732,4738,4754) earliest=-4h)\n  OR (index=network (sourcetype=\"pan:config\" OR sourcetype=\"cisco:ios:config\" OR sourcetype=\"fortinet:event\") action=\"change\" earliest=-4h)\n  OR (index=ot_jumphost sourcetype=\"cyberark:vault:audit\" event_subtype IN (\"policy_change\",\"safe_change\",\"member_change\") earliest=-4h)\n  OR (index=ot_vendor_tool earliest=-4h event_class=\"configuration_change\")\n| eval asset_key=coalesce(dest_nt_host, dest, asset_key)\n| lookup ot_asset_inventory_lookup asset_key OUTPUT asset_class asset_criticality environment\n| where environment=\"prod\" AND isnotnull(asset_class)\n| eval change_type=case(\n    EventCode==4720, \"account_create\",\n    EventCode==4722, \"account_enable\",\n    EventCode==4724, \"account_pw_reset\",\n    EventCode==4725, \"account_disable\",\n    EventCode==4728 OR EventCode==4732, \"account_group_add\",\n    EventCode==4738, \"account_attribute_change\",\n    EventCode==4754, \"universal_group_add\",\n    sourcetype LIKE \"pan:config\" OR sourcetype LIKE \"cisco:ios:config\" OR sourcetype LIKE \"fortinet:event\", \"network_config_change\",\n    sourcetype LIKE \"cyberark:vault:audit\", \"vault_policy_change\",\n    sourcetype LIKE \"*vendor_tool*\" OR index==\"ot_vendor_tool\", \"vendor_tool_change\",\n    1=1, \"other_change\")\n| eval change_summary=coalesce(change_summary, message, msg, _raw)\n| eval src_user=coalesce(user, src_user, account_name)\n| eval event_observed_at=_time\n| eval change_ticket_id=coalesce(change_ticket_id, ticket_id)\n| join change_ticket_id type=left [search index=itsm sourcetype=\"servicenow:change_request\" state IN (\"approved\",\"implement\",\"closed\") earliest=-30d | dedup change_ticket_id | rename state AS ticket_state_at_event | table change_ticket_id ticket_state_at_event window_start window_end impact_assessment_url approver_role approver_signed_at]\n| eval missing_ticket_flag = if(isnull(change_ticket_id) OR change_ticket_id=\"\", \"true\", \"false\")\n| eval missing_approval_flag = if(isnull(approver_signed_at) OR approver_signed_at=\"\", \"true\", \"false\")\n| eval missing_impact_assessment_flag = if(isnull(impact_assessment_url) OR impact_assessment_url=\"\", \"true\", \"false\")\n| join change_ticket_id type=left [search index=ot_validation earliest=-30d | dedup change_ticket_id | table change_ticket_id post_change_validation_status post_change_validation_url]\n| eval missing_validation_flag = if(event_observed_at < relative_time(now(), \"-1d\") AND (isnull(post_change_validation_status) OR post_change_validation_status=\"\"), \"true\", \"false\")\n| where missing_ticket_flag=\"true\" OR missing_approval_flag=\"true\" OR missing_impact_assessment_flag=\"true\" OR missing_validation_flag=\"true\"\n| table event_observed_at change_type asset_key asset_class asset_criticality src_user change_summary change_ticket_id ticket_state_at_event approver_role approver_signed_at impact_assessment_url post_change_validation_status post_change_validation_url missing_ticket_flag missing_approval_flag missing_impact_assessment_flag missing_validation_flag\n| sort - event_observed_at",
+  "description": "Reconciles four OT change-event streams (accounts, network configs, jump-host vault policies, vendor-tool options) against the documented change-management register and surfaces any change that lacks a ticket, approver signature, impact assessment, or post-change validation.",
+  "value": "OT change-control failures rarely appear in a single tool; they hide because accounts are added in AD, firewall rules in a different console, vendor-tool options in a third. NCA inspectors will probe across all of them in a single audit. This UC unifies the evidence chain so the OT cybersecurity programme can answer 'show me every change in the last 30 days and prove each was approved, assessed, executed, and validated' in a single dashboard view rather than four separate exports.",
+  "implementation": "(1) Onboard Windows Security event logs from every engineering workstation, jump host, and HMI into `index=wineventlog`. (2) Onboard network-device config events from Palo Alto / Cisco / Fortinet via the respective TAs. (3) Onboard CyberArk Vault audit into `index=ot_jumphost`. (4) Onboard vendor-tool audit (Rockwell FactoryTalk Admin Console, Schneider EcoStruxure System Manager, Siemens TIA Portal Openness) into `index=ot_vendor_tool`. (5) Onboard ServiceNow change records into `index=itsm`. (6) Schedule UC-22.51.9 every 4 hours.",
+  "visualization": "(Panel 1) Single-value 'Unticketed changes in last 24h' — red ≥1. (Panel 2) Stacked bar of flagged changes by `change_type` over the last 7 days. (Panel 3) Sortable table of every flagged change with drill-through to the change ticket and the source-system audit log. (Panel 4) 13-month trend by flag type, the steering-committee KPI.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "NCA OTCC — control list portal",
+      "url": "https://nca.gov.sa/en/regulatory-documents/controls-list/3"
+    },
+    {
+      "title": "ISA/IEC 62443-2-4: Security program requirements for IACS service providers (Change Management)",
+      "url": "https://www.isa.org/products/isa-iec-62443-2-4-2015-iec-62443-2-4-2015"
+    },
+    {
+      "title": "Splunk CIM: Change data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+    }
+  ],
+  "knownFalsePositives": "1. **Account creation by automated provisioning** — IAM provisioning workflows (e.g. SailPoint, Okta lifecycle) create accounts based on HR feeds without a per-account change ticket. Suppression: maintain `iam_provisioning_workflows.csv` listing workflow service accounts and the master authorisation reference; events created by these accounts inherit the master authorisation.\n\n2. **Vendor-tool routine config saves** — routine `save` operations in vendor consoles (e.g. an engineer presses 'save and lock' after every edit) appear as 'configuration change' to the audit log even when there is no change. Suppression: ingest the diff alongside the save event; only changes with non-empty diff fire the alert. Where the vendor tool does not expose the diff, the alert is acceptable and gets quickly closed via the runbook.\n\n3. **Approved changes whose ticket transitioned through 'implement' faster than the audit-log capture cadence** — ticket-state lag of a few minutes can make a properly-ticketed change appear unticketed in the search window. Suppression: extend the search window from -4h to -8h to absorb the lag, accepting a 4-hour delay in alert detection in exchange for fewer false positives.\n\n4. **Disaster-recovery drills** — DR drills explicitly bypass routine change-management because their purpose is to exercise rapid response. Suppression: drill tickets carry `is_dr_drill=true` in ServiceNow; the lookup gives those tickets a pass on the impact-assessment and approver-signed checks (validated against the DR programme).\n\n5. **Vendor-applied silent updates** — some vendor tools apply auto-updates that change configuration silently. Same handling as UC-22.51.6 #2: maintain `vendor_silent_update_register.csv` and treat as 'vendor non-compliance' tickets.\n\n**Suppression mechanism**: KV Store `otcc_22_51_9_exceptions` keyed on `(change_event_id)` with 7-day max grants.",
+  "requiredFields": [
+    "change_type",
+    "asset_key",
+    "src_user",
+    "change_ticket_id",
+    "event_observed_at"
+  ],
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "status": "verified",
+  "wave": "run",
+  "equipment": [
+    "splunk-es",
+    "microsoft"
+  ],
+  "mitreAttack": [
+    "T1136",
+    "T1098",
+    "T1562.007"
+  ],
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Microsoft Windows (Splunkbase 742) on engineering workstations, jump hosts, HMIs. Verify on a Search Head: `| rest /services/apps/local | search label=\"Splunk Add-on for Microsoft Windows\" | table label version`.\n- Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Cisco IOS (Splunkbase 1875), Fortinet (Splunkbase 2846) on Heavy Forwarders that bridge each network device family.\n- Splunk Add-on for CyberArk (Splunkbase 2891) on the CyberArk-feeding Heavy Forwarder.\n- Vendor-tool ingestion: most OT vendor consoles support a Windows event source or a flat-file audit log. The reference patterns are:\n  - Rockwell FactoryTalk AssetCentre → SQL Server table polled via DB Connect Splunkbase 2686.\n  - Schneider EcoStruxure System Manager → Windows event log forwarded by the local UF.\n  - Siemens TIA Portal Openness → PowerShell wrapper invoked nightly, emits JSON, ingested as `siemens:tia:project_audit`.\n- Splunk Add-on for ServiceNow (Splunkbase 1928) for change-record ingestion.\n- `index=wineventlog`, `index=network`, `index=ot_jumphost`, `index=ot_vendor_tool`, `index=itsm`, `index=ot_validation` (shared with UC-22.51.8), `index=audit_evidence` (already provisioned).\n- Lookups: `ot_asset_inventory_lookup`, `iam_provisioning_workflows.csv`, `vendor_silent_update_register.csv`, KV Store `otcc_22_51_9_exceptions`.\n- Splunk Enterprise Security configured with the Change Analysis dashboard.\n\n## Step 1 — Configure data collection\n\nWindows Security event ingestion is standard — enable audit categories \"Account Management\" and \"Group Management\" success+failure on every in-scope host via Group Policy. Validate:\n\n```spl\nindex=wineventlog sourcetype=WinEventLog:Security EventCode IN (4720,4722,4724,4725,4728,4732,4738,4754) earliest=-1d\n| stats count by EventCode\n```\n\nFor Palo Alto config events:\n\n```spl\nindex=network sourcetype=pan:config earliest=-1d\n| stats count by action\n```\n\n`action=\"change\"` events should be present; if not, the firewall's config-log destination is not the Splunk Heavy Forwarder.\n\nFor Cisco IOS config events: archive logging must be enabled on the device (`archive log config persistent` plus `notify syslog`). Without it, only `RUNCFG-3-RUNCFG_NOTIFY` events appear and `terminal monitor` console activity is invisible.\n\nFor CyberArk Vault audit, the Splunk_TA_cyberark already onboards `cyberark:vault:audit`. Confirm `event_subtype` is present.\n\nFor vendor-tool audit, the precise sourcetype depends on the vendor. Add the appropriate sourcetype to the base search if your vendor's audit is named differently.\n\nVolume guidance: account events ~1k–10k/day, network config events ~100–1k/day, vendor-tool events <500/day. Total <20 MB/day.\n\n## Step 2 — Create the search and alert\n\nThe search has five sequential layers:\n\n1. **Stream merge**: pull events from each of the four change-event streams (account, network, vault, vendor-tool). Each stream contributes its own `change_type` value.\n2. **Asset filter**: drop events whose asset_key does not resolve to a production OT asset.\n3. **Ticket lookup**: left-join against the change-management register on `change_ticket_id`. Events whose ticket is null are flagged `missing_ticket_flag`. Events whose ticket is present but missing approver signature are flagged `missing_approval_flag`. Events missing impact assessment are flagged `missing_impact_assessment_flag`.\n4. **Validation lookup**: left-join against `index=ot_validation` for post-change validation. Events whose deployment is >24h ago and lack a validation row are flagged `missing_validation_flag`.\n5. **Filter**: any of the four flags fires the row.\n\n**Schedule**:\n\n```ini\n[UC-22.51.9: OT Change-Control Evidence Chain: Authorisation, Impact Assessment, Validation]\ncron_schedule = 0 */4 * * *\ndispatch.earliest_time = -8h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.9,reg=NCA_OTCC,clause=OTCC-2-3-2-1\naction.notable.param.rule_title = NCA OTCC unticketed / unapproved / unvalidated OT change\naction.notable.param.security_domain = change\naction.notable.param.severity = high\naction.email.to = ot-cyber-programme@example.com\nalert.severity = 4\n```\n\nNotable creation only on `missing_ticket_flag=true OR missing_approval_flag=true` — these are the cases SOC should review. `missing_impact_assessment_flag` and `missing_validation_flag` route via email + audit_evidence only.\n\n## Step 3 — Validate deployment\n\n**(a) Stream coverage**: every stream should be active:\n\n```spl\n(index=wineventlog sourcetype=WinEventLog:Security EventCode IN (4720,4722,4724,4725,4728,4732,4738,4754) earliest=-1d)\n  OR (index=network (sourcetype=pan:config OR sourcetype=cisco:ios:config) action=change earliest=-1d)\n  OR (index=ot_jumphost sourcetype=cyberark:vault:audit event_subtype IN (policy_change,safe_change,member_change) earliest=-1d)\n  OR (index=ot_vendor_tool earliest=-1d)\n| stats count by index\n```\n\nA zero count from any stream means an upstream feed is broken; investigate.\n\n**(b) Lookup health**:\n\n```spl\n| inputlookup ot_asset_inventory_lookup | stats count\n| append [| inputlookup iam_provisioning_workflows.csv | stats count]\n```\n\nNon-zero on both.\n\n**(c) Positive control**: per `controlTest.positiveScenario`. Confirm the alert fires within four hours.\n\n**(d) Negative control**: per `controlTest.negativeScenario`. Confirm no flags fire.\n\n**(e) Cross-correlation**: a change with `missing_validation_flag=true` AND `change_ticket_id` not null but the ticket is closed in ITSM is the most actionable case — evidence the ticket was closed before validation was completed. Verify the search surfaces these correctly.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Change-Control Evidence`.\n\n- **Row 1, single values**: 'Unticketed changes', 'Unvalidated changes', 'Unapproved changes', 'Unassessed changes' — each red ≥1.\n- **Row 2, table**: every flagged change in the last 7 days with row-drill-through to the source system and to the change ticket (if any).\n- **Row 3, stacked bar**: `change_type` distribution. Reveals whether the bulk of failures are in account management, network config, or vendor-tool configuration.\n- **Row 4, 13-month trend**: count by flag type — steering-committee KPI.\n- **Row 5, user heat-map**: which `src_user` is the most frequent source of unticketed changes — useful for targeted training under UC-22.51.25.\n\n**Runbook for an `missing_ticket_flag=true` alert** (owner: OT cybersecurity programme manager):\n\n1. Within 1 business day: inspect the change event. Identify the change author and the asset.\n2. Contact the change author. Either an existing ticket can be linked retrospectively (correcting the ticket's target_asset field) or a new retrospective ticket must be raised.\n3. If the change was intentionally outside the change-management process: open a P3 governance ticket against the author's manager. Targeted training via UC-22.51.25.\n4. If the change author is a service account (automated provisioning): inspect `iam_provisioning_workflows.csv` for coverage; if the automation is legitimate but uncovered, add it.\n\n**Runbook for `missing_validation_flag=true`** (owner: change owner, OT cybersecurity programme manager):\n\n1. Within 1 business day: confirm the change was implemented. Conduct or commission the post-change validation. Write the result to `index=ot_validation`.\n2. Document any compensating validation (manual operator confirmation, vendor field engineer attestation) in the change ticket.\n3. The alert clears on the next run.\n\n## Step 5 — Troubleshooting\n\n**Network config-change events absent from a particular firewall** — the firewall's logging level is too low. Set logging level to 'change' or 'config' as appropriate; restart the syslog destination if needed.\n\n**False `missing_ticket_flag` on every change executed by a particular service account** — the service account is making changes without populating `change_ticket_id` in the change event. Either configure the source tool to inject the ticket ID into the event, or add the service account to `iam_provisioning_workflows.csv` to inherit the master authorisation.\n\n**Vendor-tool changes only appear weekly** — vendor-tool audit logs ship via SQL polling on a weekly cadence. Move to a higher cadence (hourly or 15-minute polling) or switch to event-driven streaming if the vendor tool supports it.\n\n**OT-specific failure modes**:\n\n- **PLC-program changes via offline-engineering laptops**: an engineer downloads the program from a PLC, edits offline, uploads. The download/upload activity is visible via Cyber Vision flows but may not appear in any vendor-tool audit log. Add a vendor-tool-equivalent detection that triggers on Cyber Vision flow records carrying Modbus function code 41 (Read User Data Area) or 90 (Read Configuration) between an engineering workstation and a controller.\n- **Vendor remote-support tunnels**: changes made through a vendor tunnel may be invisible to the customer's audit. The runbook for `missing_ticket_flag` includes 'check the vendor-support session log' as a step.\n- **Air-gapped engineering systems**: changes on systems isolated from the network must be manually attested via paper or scanned forms. Maintain a `ot_airgapped_change_register.csv` for periodic manual attestation and exclude air-gapped assets from the asset filter when their CMDB entry indicates `air_gapped=true`.",
+  "grandmaExplanation": "We watch every change to anything on the plant side — new accounts, network rule changes, settings on plant tools. Each change should have a ticket, a manager's sign-off, a written impact check, and a follow-up test. If any of those is missing, we ring the bell.",
+  "equipmentModels": [
+    "Microsoft Windows Server 2022 (Security EventLog 4624/4720/4732/4738 for change events)",
+    "Palo Alto Networks PAN-OS 11.x (config audit log)",
+    "Cisco IOS-XE 17.x (syslog change records)",
+    "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, Change data model + notable for unapproved change)"
+  ]
+}
