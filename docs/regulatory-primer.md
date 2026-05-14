@@ -38,7 +38,7 @@ programmes think:
   tampered with?" or "can you demonstrate that breach notifications were sent
   within the statutory window?". Most auditors ask family-level questions
   long before they ask a clause-level question.
-- **By regulation** — 18 tier-1 frameworks covered deeply, plus 48 per-regulation
+- **By regulation** — 22 tier-1 frameworks covered deeply, plus 48 per-regulation
   subcategories (cat-22 subcategories 22.1 through 22.34 and 22.50 through 22.63)
   and an additional 58 tier-2 frameworks in the appendix. Regulation-level reading
   is the right choice when you are answering a specific audit, mapping against a
@@ -1638,7 +1638,343 @@ and the [ENISA Rail Threat Landscape](https://www.enisa.europa.eu/topics/threat-
 
 ---
 
-### 4.18 IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS UR E26/E27 — Maritime Cyber Risk Management (Global Shipping) · `T1` {#imo-msc-428-98}
+### 4.18 TSA Surface Cybersecurity Security Directives (Pipeline + Freight Rail + Passenger Rail + Aviation) — US Surface Transportation Cybersecurity (US) · `T1` {#tsa-surface}
+
+**Regulation:** the *Transportation Security Administration Surface
+Cybersecurity Security Directive* family, issued under TSA's expedited
+authority at [49 U.S.C. § 114(l)(2)(A)](https://www.law.cornell.edu/uscode/text/49/114)
+in response to the May 2021 Colonial Pipeline ransomware incident and
+subsequently extended to freight rail, passenger rail, and aviation:
+[*SD-Pipeline-2021-01*](https://www.tsa.gov/sd-and-emergency-amendments)
+(initial 24-hour reporting + Cybersecurity Coordinator),
+*SD-Pipeline-2021-02C* (2024 re-issued performance-based pipeline
+directive with four CIP control families),
+[*SD-1580-2022-01*](https://www.tsa.gov/sd-and-emergency-amendments)
+(freight rail), [*SD-1582-2022-01*](https://www.tsa.gov/sd-and-emergency-amendments)
+(passenger rail), and *SD-1542/44/82-21-02*
+(aviation airport / airline). A *Notice of Proposed Rulemaking* on
+[*Enhancing Surface Cyber Risk Management*](https://www.federalregister.gov/documents/2024/11/07/2024-24704/enhancing-surface-cyber-risk-management)
+(published November 2024) is expected to land as the durable Final Rule
+in late 2026. The SD regime is administered by the
+[TSA Surface Operations](https://www.tsa.gov/for-industry/surface-transportation-cybersecurity)
+office in coordination with [CISA](https://www.cisa.gov/) for incident
+reporting and threat sharing, and overlaps with sector-specific
+notification regimes administered by
+[PHMSA](https://www.phmsa.dot.gov/) (pipeline),
+[FRA](https://railroads.dot.gov/) (rail), and
+[FAA](https://www.faa.gov/) (aviation).
+
+**Who must comply:**
+
+- **Designated pipeline operators** — approximately 100 TSA-regulated
+  owners and operators of US gas-transmission, hazardous-liquid, and
+  CO₂ pipelines covered by SD-Pipeline-2021-02C (e.g. Colonial,
+  Kinder Morgan, Williams Companies, Energy Transfer, Enterprise
+  Products Partners, Plains All American).
+- **Class I freight railroads** — BNSF, Union Pacific, CSX, Norfolk
+  Southern, Canadian National (US trackage), Canadian Pacific Kansas
+  City (US trackage), plus selected Class II / III railroads carrying
+  designated commodities (TIH, RAM, PIH) and TSA-designated Class IV
+  operators.
+- **Passenger rail and rail-mass-transit operators** — Amtrak plus
+  TSA-designated commuter, intercity, and rail-mass-transit operators
+  (typically PTC-equipped operations) covered by SD-1582-2022-01.
+- **Aviation airport and airline operators** — TSA-regulated airports
+  and airlines, primarily Category X / Category I airports with
+  cyber-impacting flight operations and Part 121 air carriers, covered
+  by SD-1542/44/82-21-02.
+- **Cross-border operators** — Canadian Pacific Kansas City and
+  Canadian National operate under SD-1580-2022-01 across their US
+  trackage with parallel coordination through TSA – CCCS information
+  sharing.
+
+**Regime structure and catalogue coverage.** Four operational
+pillars span all four regulated modes; this catalogue release ships 28
+monitored clauses (subcategory §22.56) covering every required
+obligation:
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|---------------------|---------------------|
+| Incident reporting | 24-hour CISA notification (all modes) + dual-clock to PHMSA / FRA / FAA | `TSA-SD-P-2021-02C-s2`, `TSA-SD-1580-82-2022-01-s2`, `TSA-SD-1582-2022-01-s2`, `TSA-SD-1542-21-02-s2-aviation`, `TSA-SD-PHMSA-dual-clock` | §22.56.1, §22.56.9 – 11, §22.56.26 |
+| Cybersecurity Coordinator | 24×7 reachable, SSI-eligible Coordinator + Alternate designation | `TSA-SD-P-2021-02C-s1.A`, `s1.B`, plus mode-equivalents | §22.56.2 |
+| CIP control families | Network segmentation, access control + MFA, continuous monitoring + detection, risk-based patching | `TSA-SD-P-2021-02C-s3.1` – `s3.4` and mode-equivalents for rail / aviation | §22.56.3 – 6, §22.56.12 – 15 |
+| Incident Response Plan | CIRP with annual exercise; tabletop drill evidence | `TSA-SD-P-2021-02C-s4` and mode-equivalents | §22.56.7 |
+| Assessment programme | CAP / annual self-assessment, third-party validation | `TSA-SD-P-2021-02C-s5` and mode-equivalents | §22.56.8 |
+| Cross-modal controls | Third-party / vendor remote access, SBOM ingest, backup integrity + RTO, log retention, personnel security, threat sharing, phishing surveillance, change control, SOC attestation | `TSA-SD-cross-modal-third-party`, `TSA-SD-backup-rto`, `TSA-SD-log-retention`, `TSA-SD-personnel-security`, `TSA-SD-sbom-supply-chain`, `TSA-SD-threat-sharing`, `TSA-SD-phishing-credentials`, `TSA-SD-change-control`, `TSA-SD-soc-attestation` | §22.56.16, §22.56.19 – 25, §22.56.27 |
+| CIP versioning + master rollup | CIP version-control attestation; executive master scorecard | `TSA-SD-cip-version-control`, `TSA-SD-master-rollup` | §22.56.18, §22.56.28 |
+| Public Transit (NPRM) | Voluntary alignment scaffold for FTA grantees under the proposed Public Transportation Cybersecurity Rule | `TSA-SD-public-transit-NPRM` | §22.56.17 |
+
+**What the catalogue delivers:** 100 % coverage of the 28 monitored
+clauses. Subcategory §22.56 ships 28 dedicated TSA Surface UCs spanning
+all four regulated modes, each sidecar carrying an `obligationRef` of
+the form `tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-X`. The
+clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/tsa-surface.md`](evidence-packs/tsa-surface.md) §4
+and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: tsa-surface`.
+
+**Multi-modal evidence patterns.** Because the SD family combines a
+sector-agnostic CIP control architecture (segmentation, access,
+monitoring, patching) with mode-specific incident-reporting clocks and
+parallel-notification chains, every UC in §22.56 carries:
+
+- a `controlFamily` tag aligned to the SD pillar (`incident-reporting`,
+  `coordinator`, `cip-segmentation`, `cip-access`, `cip-monitoring`,
+  `cip-patching`, `cirp`, `assessment`, `third-party`, `personnel`,
+  `sbom`, `threat-sharing`, `phishing`, `change-control`, `soc`,
+  `version-control`, `master-rollup`, `nprm`);
+- a `mode` tag (`pipeline`, `freight-rail`, `passenger-rail`,
+  `aviation`, `cross-modal`) so an auditor can filter the §22.56 panel
+  to a single transportation mode;
+- `notification.regulator = "CISA"` (24-hour clock) plus mode-specific
+  parallel-notification `notification.parallel = "PHMSA"` /
+  `"FRA"` / `"FAA"`, so the dual-clock evidence chain is unambiguous
+  from notable-event detection through formal submission;
+- `prerequisiteUseCases` linking back to upstream ingest / CIM /
+  monitoring UCs in cat-3 (asset inventory), cat-9 (logging), cat-11
+  (incident detection), cat-17 (network segmentation, privileged
+  access), and cat-12 (vendor remote access) so the SD evidence chain
+  is auditable end-to-end.
+
+**Convergence with adjacent regimes.** TSA Surface overlaps with
+[§22.34 NERC CIP](#) for bulk-electric pipeline-control SCADA crossings,
+with [§4.15 AWIA](#4-15-awia-s2013--epacisa-water-sector-cybersecurity-us--t2)
+for water-pipeline operators that are dual-regulated (rare but real),
+and with [§4.16 CIRCIA](#4-16-circia--6-usc-681b--us-cisa-cyber-incident-reporting-us--t1)
+for the broader 72-hour reporting clock that complements the TSA
+24-hour clock. For dual-jurisdiction pipeline operators (e.g. those
+crossing the US – Canada border), the §22.56 UCs also support the
+parallel Canadian Pipeline-Safety regime through the
+`notification.parallel = "TC"` (Transport Canada) tag.
+
+**Where to look:** §22.56 ·
+[`api/v1/compliance/regulations/tsa-surface.json`](../api/v1/compliance/regulations/tsa-surface.json) ·
+[`docs/evidence-packs/tsa-surface.md`](evidence-packs/tsa-surface.md) ·
+official sources: [TSA Surface Transportation Cybersecurity](https://www.tsa.gov/for-industry/surface-transportation-cybersecurity),
+the [TSA SD and Emergency Amendments index](https://www.tsa.gov/sd-and-emergency-amendments),
+the [CISA Incident Reporting page](https://www.cisa.gov/forms/report),
+and the [Enhancing Surface Cyber Risk Management NPRM (2024)](https://www.federalregister.gov/documents/2024/11/07/2024-24704/enhancing-surface-cyber-risk-management).
+
+---
+
+### 4.19 SG Cybersecurity Act 2018 + CCoP 2.0 + CSA CII Regulations (Singapore) · `T1` {#sg-cyber-act}
+
+**Regulation:** the *Cybersecurity Act 2018* (
+[Act 9 of 2018](https://sso.agc.gov.sg/Act/CA2018), amended 2024)
+together with its implementing instruments — the
+[*Cybersecurity (Critical Information Infrastructure) Regulations 2018*](https://sso.agc.gov.sg/SL/CA2018-S539-2018)
+and the binding
+[*Cybersecurity Code of Practice for Critical Information Infrastructure
+(CCoP) 2.0*](https://www.csa.gov.sg/legislation/codes-of-practice)
+issued under section 11 of the Act. The Act establishes the
+[Cyber Security Agency of Singapore (CSA)](https://www.csa.gov.sg/)
+as the national cybersecurity authority and confers powers on the
+Commissioner of Cybersecurity to designate Critical Information
+Infrastructure (CII), set binding codes of practice, conduct
+investigations, and direct exercises across the eleven critical
+sectors enumerated in the First Schedule (energy, info-comms,
+water, healthcare, banking and finance, security and emergency
+services, aviation, land transport, maritime, government,
+media). The Act was amended by the
+[*Cybersecurity (Amendment) Act 2024*](https://sso.agc.gov.sg/Acts-Supp/8-2024/)
+to extend reach to providers of Foundational Digital Infrastructure
+(FDI), Systems of Temporary Cybersecurity Concern (STCC), and
+entities operating Special Cybersecurity Interest (SCI) systems.
+
+**Who must comply:**
+
+- **CII Owners** (CIIOs) — operators of computer systems designated
+  by the Commissioner under section 7 as Critical Information
+  Infrastructure within the eleven scoped sectors. Approximately 80
+  CII have been formally designated as of 2024, with each carrying a
+  named Cybersecurity Officer and Alternate.
+- **Providers of Essential Services** that operate CII or that operate
+  systems that materially depend on CII (suppliers, MSPs, cloud
+  providers under contract to CIIOs).
+- **(Post-2024 amendment)** *Providers of Foundational Digital
+  Infrastructure* (FDI providers — cloud service providers and data
+  centres meeting CSA threshold tests); *Systems of Temporary
+  Cybersecurity Concern* (STCC) operators (e.g. major-event /
+  Olympics-style infrastructure); and *Entities of Special
+  Cybersecurity Interest* (SCI — high-impact non-CII systems
+  designated by the Commissioner).
+- **Cybersecurity Service Providers** (penetration testers and
+  managed-SOC providers) require CSA licensing under Part 5 of the
+  Act and are obliged to maintain records of engagements with CIIOs.
+
+**Regime structure and catalogue coverage.** CCoP 2.0 organises the
+regime into eight control domains anchored to NIST CSF; this
+catalogue release ships 15 monitored clauses (subcategory §22.57)
+covering every obligation a CIIO must evidence through Splunk:
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|---------------------|---------------------|
+| CII designation | Designation evidence, material-change reporting | `SG-CA-s7`, `SG-CA-s14(2)` | §22.57.1, §22.57.3 |
+| Cybersecurity Officer | Designation of CO + Alternate under CII Regulation 3 | `SG-CII-Reg-3` | §22.57.9 |
+| Incident reporting | 2-hour prescribed-incident report to Commissioner | `SG-CA-s14(1)`, `SG-CII-Reg-5` | §22.57.4, §22.57.10 |
+| Code of Practice | Binding implementation guidance under s.10 | `SG-CA-s10` | §22.57.2 |
+| Audit and assessment | Annual cybersecurity audit + biennial risk assessment | `SG-CA-s15(1)`, `SG-CA-s15(2)` | §22.57.5, §22.57.6 |
+| Cyber exercises | CSA-directed exercise participation | `SG-CA-s16` | §22.57.7 |
+| Investigation powers | Cooperation with Commissioner investigations | `SG-CA-s19` | §22.57.8 |
+| CCoP 2.0 controls | Asset management, access control + MFA, monitoring + SOC, supply-chain, business continuity | `SG-CSA-COC-asset-mgmt`, `SG-CSA-COC-access-control`, `SG-CSA-COC-monitoring`, `SG-CSA-COC-supply-chain`, `SG-CSA-COC-business-continuity` | §22.57.11 – 15 |
+
+**What the catalogue delivers:** 100 % coverage of the 15 monitored
+clauses. Subcategory §22.57 ships 15 dedicated SG-Cyber-Act UCs, each
+sidecar carrying an `obligationRef` of the form
+`sg-cyber-act@2018-amended-2024#SG-CA-X` or `…#SG-CII-Reg-Y` or
+`…#SG-CSA-COC-Z`. The clause-by-clause coverage matrix is rendered in
+[`docs/evidence-packs/sg-cyber-act.md`](evidence-packs/sg-cyber-act.md) §4
+and the canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: sg-cyber-act`.
+
+**The 2-hour rule is the structural pivot.** Singapore's prescribed
+cybersecurity incident must be reported to the Commissioner within
+**two hours** of the CIIO becoming aware of the incident — the
+tightest statutory clock in this catalogue and significantly tighter
+than the EU NIS2 24-hour early-warning or the US CIRCIA 72-hour clock.
+Every CIIO UC in §22.57 therefore carries:
+
+- a `notification.regulator = "CSA"` tag with a hard 7,200-second SLA
+  on the notable-event-to-submission chain;
+- a `controlFamily` tag aligned to the CCoP 2.0 pillar
+  (`asset-management`, `access-control`, `monitoring`, `supply-chain`,
+  `business-continuity`, `incident-reporting`, `audit`,
+  `risk-assessment`, `exercise`);
+- a `cybersecurity-officer` field carrying the SCSO/CO identifier so
+  the responsible person is unambiguously traceable in every
+  incident-report submission.
+
+**Convergence with adjacent regimes.** SG Cybersecurity Act overlaps
+with [§4.10 NIS2](#4-10-nis2--network-and-information-security-directive-2-eu--t1)
+for multinational CIIOs operating across both jurisdictions (e.g.
+Singapore-headquartered banks with EU subsidiaries), and with the
+Singapore *Personal Data Protection Act 2012* (PDPA — see family
+§22.45) for personal-data-related incidents that trigger both CSA
+under the Cybersecurity Act *and* the PDPC under the PDPA. The
+[CSA threat-sharing portal](https://www.csa.gov.sg/) acts as the
+single point of contact for both regimes.
+
+**Where to look:** §22.57 ·
+[`api/v1/compliance/regulations/sg-cyber-act.json`](../api/v1/compliance/regulations/sg-cyber-act.json) ·
+[`docs/evidence-packs/sg-cyber-act.md`](evidence-packs/sg-cyber-act.md) ·
+official sources: [Cybersecurity Act 2018 on SSO](https://sso.agc.gov.sg/Act/CA2018),
+the [CSA codes of practice page](https://www.csa.gov.sg/legislation/codes-of-practice),
+the [Cybersecurity (Amendment) Act 2024](https://sso.agc.gov.sg/Acts-Supp/8-2024/),
+and the [CSA Cybersecurity Information Sharing platform](https://www.csa.gov.sg/).
+
+---
+
+### 4.20 France LPM OIV Regime + Décret 2015-351 + ANSSI Implementing Decrees (France) · `T1` {#fr-lpm}
+
+**Regulation:** France's *Loi de Programmation Militaire*
+(LPM 2014–2019, articles 21–25; subsequently re-anchored by
+LPM 2018 and LPM 2024) established the *Opérateur d'Importance
+Vitale* (OIV) regime under
+[Article L1332-6-1 et seq. of the Code de la Défense](https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006071307/LEGISCTA000017725193/),
+and is operationalised through
+[*Décret 2015-351*](https://www.legifrance.gouv.fr/loda/id/JORFTEXT000030411138/)
+and a series of sectoral *arrêtés sectoriels* that bind the **twenty
+ANSSI cybersecurity rules** to designated *Systèmes d'Information
+d'Importance Vitale* (SIIV) operated by OIVs across the twelve
+*secteurs d'activité d'importance vitale* (SAIV) — energy, transport,
+water, food, communications, public health, finance, government,
+nuclear, military, space, and chemicals / dangerous materials. The
+regime is administered by the
+[Agence nationale de la sécurité des systèmes d'information (ANSSI)](https://cyber.gouv.fr/)
+in coordination with the
+[Secrétariat général de la défense et de la sécurité nationale (SGDSN)](https://www.sgdsn.gouv.fr/),
+and overlaps with the EU NIS2 transposition (the
+[*Loi de résilience opérationnelle numérique de novembre 2024*](https://www.legifrance.gouv.fr/)
+that brings *Opérateurs de Services Essentiels* and *Important
+Entities* into scope alongside OIV / SIIV).
+
+**Who must comply:**
+
+- **OIVs designated under LPM Article 22** — approximately 240 entities
+  across the twelve SAIV sectors. Designation is confidential
+  (Information Classifiée Défense) and operators are notified
+  individually; the designation list is not public, but sector
+  coverage is published in the *Listes d'activités d'importance vitale*.
+- **Operators of SIIV** — sub-system designation within an OIV. Each
+  OIV typically operates between 3 and 25 SIIV, identified by ANSSI
+  through a *Plan Particulier de Protection (PPP)* mapping exercise.
+- **Cybersecurity service providers (PDIS qualifiés)** — *Prestataires
+  de Détection des Incidents de Sécurité* are mandatory for SIIV
+  detection coverage and must be ANSSI-qualified under the
+  [PDIS qualification scheme](https://cyber.gouv.fr/produits-services-qualifies).
+- **(Post-2024)** OSE / IE entities transposed under NIS2 — these
+  carry parallel but lighter obligations; OIVs remain the highest
+  obligation tier.
+
+**Regime structure and catalogue coverage.** LPM Article 22 + Décret
+2015-351 anchor the regime; the substantive obligations are the
+**twenty ANSSI cybersecurity rules** grouped into five families
+(governance, protection, defence, identification-of-incidents,
+crisis response). This catalogue release ships 8 monitored clauses
+(subcategory §22.58) covering the obligations most directly evidenced
+through Splunk:
+
+| Pillar | Topic | Monitored clauses | Catalogue coverage |
+|--------|-------|---------------------|---------------------|
+| OIV / SIIV designation | OIV status + SIIV identification | `FR-LPM-Art22`, `FR-Decret-2015-351` | §22.58.1, §22.58.2 |
+| Governance | Cybersecurity Officer (RSSI) for the OIV; SIIV mapping + asset inventory | `FR-ANSSI-rule-governance-cyber-officer`, `FR-ANSSI-rule-governance-siiv-mapping` | §22.58.3, §22.58.4 |
+| Protection | Strong identity and access control + MFA on SIIV | `FR-ANSSI-rule-protection-access-control` | §22.58.5 |
+| Defence | Cybersecurity event detection + SOC capability; PDIS qualification for detection providers | `FR-ANSSI-rule-defense-detection`, `FR-ANSSI-rule-detection-pdis-qualification` | §22.58.6, §22.58.7 |
+| Identification of incidents | Incident reporting to ANSSI (CERT-FR) within the ANSSI clock | `FR-ANSSI-rule-incident-reporting` | §22.58.8 |
+
+**What the catalogue delivers:** 100 % coverage of the 8 monitored
+clauses. Subcategory §22.58 ships 8 dedicated France-LPM UCs, each
+sidecar carrying an `obligationRef` of the form
+`fr-lpm@2013-2018-with-anssi-2024-decrees#FR-LPM-ArtX` or
+`…#FR-Decret-2015-351` or `…#FR-ANSSI-rule-Y`. The clause-by-clause
+coverage matrix is rendered in
+[`docs/evidence-packs/fr-lpm.md`](evidence-packs/fr-lpm.md) §4 and the
+canonical clause list is in
+[`data/regulations.json`](../data/regulations.json) under
+`id: fr-lpm`.
+
+**PDIS qualification is structural.** Unlike most regimes that leave
+the detection-provider choice to the operator, the LPM regime
+mandates that any third-party providing SIIV cybersecurity detection
+services be ANSSI-qualified under the
+[PDIS scheme](https://cyber.gouv.fr/produits-services-qualifies).
+Every §22.58 UC carries:
+
+- a `controlFamily` tag aligned to the ANSSI rule pillar
+  (`governance`, `protection`, `defence`, `incident-identification`,
+  `crisis-response`);
+- a `requires.pdisQualified = true` flag on detection-related UCs so
+  the catalogue can drive a SIIV detection-coverage attestation that
+  cites the PDIS qualification status of every contributing detection
+  provider;
+- a `notification.regulator = "ANSSI"` tag for incident-reporting
+  UCs, with the CERT-FR coordination path noted in the runbook.
+
+**Convergence with adjacent regimes.** France LPM overlaps with
+[§4.10 NIS2](#4-10-nis2--network-and-information-security-directive-2-eu--t1)
+for entities dual-regulated as OIV *and* OSE under the 2024 NIS2
+transposition — the §22.58 UCs in this case satisfy both regimes by
+filing through the single ANSSI-CERT-FR coordination chain. France
+LPM also intersects with [§4.11 DORA](#4-11-dora--digital-operational-resilience-act-eu--t1)
+for financial-sector OIVs (banks, payment infrastructure) and with
+[§4.7 ISO 27001:2022](#4-7-iso-270012022--information-security-management-system-global--t1)
+because the ANSSI 20-rules pre-date and have substantively inspired
+the Annex A controls of ISO 27001.
+
+**Where to look:** §22.58 ·
+[`api/v1/compliance/regulations/fr-lpm.json`](../api/v1/compliance/regulations/fr-lpm.json) ·
+[`docs/evidence-packs/fr-lpm.md`](evidence-packs/fr-lpm.md) ·
+official sources: [Le dispositif français de cybersécurité des OIV (cyber.gouv.fr)](https://cyber.gouv.fr/le-dispositif-francais-de-cybersecurite-des-oiv),
+[Code de la Défense L1332-6-1 et seq.](https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006071307/LEGISCTA000017725193/),
+[Décret 2015-351](https://www.legifrance.gouv.fr/loda/id/JORFTEXT000030411138/),
+the [PDIS qualified-services portal](https://cyber.gouv.fr/produits-services-qualifies),
+and [CERT-FR](https://www.cert.ssi.gouv.fr/).
+
+---
+
+### 4.21 IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS UR E26/E27 — Maritime Cyber Risk Management (Global Shipping) · `T1` {#imo-msc-428-98}
 
 **Regulation:** *IMO Resolution MSC.428(98) — Maritime Cyber Risk
 Management in Safety Management Systems* (adopted 16 June 2017 by the
@@ -1790,7 +2126,7 @@ the [BIMCO Cyber Security Onboard Ships Guidelines](https://www.bimco.org/about-
 the [Paris MoU Cyber CIC 2023](https://www.parismou.org/inspections-risk/library-faq/cic),
 and the [USCG Maritime Cyber Strategic Outlook](https://www.uscg.mil/maritimecyber/).
 
-### 4.19 RTCA DO-326A / EUROCAE ED-202A + DO-355A + DO-356A + FAA AC 20-186 + EASA AMC 20-42 + EASA Part-IS — Airworthiness Security (Global Aviation) · `T1` {#do-326a}
+### 4.22 RTCA DO-326A / EUROCAE ED-202A + DO-355A + DO-356A + FAA AC 20-186 + EASA AMC 20-42 + EASA Part-IS — Airworthiness Security (Global Aviation) · `T1` {#do-326a}
 
 **Regulation:** *RTCA DO-326A "Airworthiness Security Process
 Specification"* (RTCA Inc., 6 August 2014) and the identical
@@ -1973,7 +2309,7 @@ the [ICAO Cybersecurity in Civil Aviation page](https://www.icao.int/Security/Pa
 the [A-ISAC](https://www.a-isac.com/) and
 the [European Centre for Cybersecurity in Aviation (ECCSA)](https://www.eccsa.eu/).
 
-### 4.20 China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 — Cybersecurity, Data, Privacy, and CII Regime (PRC) · `T1` {#cn-csl}
+### 4.23 China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 — Cybersecurity, Data, Privacy, and CII Regime (PRC) · `T1` {#cn-csl}
 
 **Regulation:** China's layered cybersecurity-and-data legal regime,
 anchored on the *Cybersecurity Law of the People's Republic of China*
@@ -2180,7 +2516,7 @@ the [Standard Contract for the Outbound Cross-Border Transfer of Personal Inform
 the [MLPS 2.0 standard family GB/T 22239-2019 (TC260)](https://openstd.samr.gov.cn/bzgk/gb/index),
 and the [TC260 national cybersecurity standardization technical committee](https://www.tc260.org.cn/).
 
-### 4.21 CERT-In Directions 2022 + DPDP Act 2023 — Cybersecurity Incident Reporting + Data Protection (India) · `T1` {#cert-in}
+### 4.24 CERT-In Directions 2022 + DPDP Act 2023 — Cybersecurity Incident Reporting + Data Protection (India) · `T1` {#cert-in}
 
 **Regulation:**
 [*CERT-In Directions of 28 April 2022* (No. 20(3)/2022-CERT-In)](https://www.cert-in.org.in/Directions70B.jsp)
@@ -2361,7 +2697,7 @@ the [SPDI Rules 2011](https://www.meity.gov.in/writereaddata/files/GSR313E_10511
 the [NIC Network Time Protocol service (samay.nic.in)](https://samay.nic.in/),
 and the [National Physical Laboratory time service](https://www.nplindia.org/time-and-frequency/).
 
-### 4.22 IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443-3-2 / 62443-3-3 — Functional Safety with Cybersecurity Overlay (Global Process Industries) · `T1` {#iec-61511}
+### 4.25 IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443-3-2 / 62443-3-3 — Functional Safety with Cybersecurity Overlay (Global Process Industries) · `T1` {#iec-61511}
 
 **Regulation:** the universally-recognised Good Engineering Practice
 (RAGAGEP) stack for Safety Instrumented Systems in the process

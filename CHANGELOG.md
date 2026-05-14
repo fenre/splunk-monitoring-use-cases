@@ -411,9 +411,153 @@ the release notes block in `index.html` by hand.
   `lint` job of `.github/workflows/validate.yml`. The next §P4
   burndown target is `src/splunk_uc/generators/*`.
 
+## [8.6.4] - 2026-05-15
+
+### Phase 4 primer back-fill — three new tier-1 deep dives close the OT-regulation primer gap (TSA Surface §4.18, SG Cyber Act 2018 §4.19, France LPM §4.20)
+
+This release closes the **plan-gap** in the six-phase OT regulation
+deep-dive arc shipped through v8.5.0 → v8.6.3: the Phase 4 batch
+(TSA Surface + SG Cyber Act + France LPM) had registered each
+framework in `data/regulations.json`, populated subcategories 22.56 /
+22.57 / 22.58, authored 51 gold-tier UCs and three evidence packs,
+and added three areas to `non-technical-view.js` — **but had skipped
+the corresponding `## ` primer deep-dive sections in
+[`docs/regulatory-primer.md`](docs/regulatory-primer.md)**. The
+non-technical-view entries pointed at `#tsa-surface`, `#sg-cyber-act`,
+and `#fr-lpm` anchors that did not yet exist in the primer.
+
+This patch lands those three primer sections, renumbers the
+subsequent §4.x deep-dives to keep numerical and subcategory order
+aligned, fixes a one-line introductory count-drift in §1 of the
+primer, and back-fills the `evidencePack` field on three
+`non-technical-view.js` areas that pointed at evidence packs that
+have existed on disk since v8.6.0 but were not surfaced through the
+non-technical mode.
+
+#### Three new tier-1 primer deep dives
+
+- **`§4.18 TSA Surface Cybersecurity Security Directives` (US Pipeline + Freight Rail + Passenger Rail + Aviation).**
+  Full primer deep-dive on the TSA Surface SD family issued under
+  expedited authority at 49 U.S.C. § 114(l)(2)(A) after the May 2021
+  Colonial Pipeline incident: *SD-Pipeline-2021-01* and -02C
+  (re-issued 2024), *SD-1580-2022-01* (freight rail),
+  *SD-1582-2022-01* (passenger rail), and *SD-1542/44/82-21-02*
+  (aviation airport / airline). Covers the four CIP control families
+  (network segmentation, access control + MFA, continuous monitoring +
+  detection, risk-based patching), the 24-hour CISA-reporting clock
+  with PHMSA/FRA/FAA parallel-notification dual clocks, the
+  Cybersecurity Coordinator + Alternate designation, the CIRP
+  annual-exercise requirement, the Cybersecurity Assessment Programme
+  (CAP), and the multi-modal cross-cutting controls (third-party
+  remote access, SBOM ingest, threat sharing, phishing, change
+  control, SOC attestation, master rollup). Also tracks the
+  *Enhancing Surface Cyber Risk Management* NPRM (November 2024) as
+  the pending durable Final Rule. Subcategory §22.56 ships 28 UCs;
+  primer cross-refs §22.34 NERC CIP for pipeline-control SCADA
+  crossings, §4.15 AWIA for water-pipeline operators, and §4.16
+  CIRCIA for the 72-hour overlay clock.
+- **`§4.19 SG Cybersecurity Act 2018 + CCoP 2.0 + CSA CII Regulations` (Singapore).**
+  Full primer deep-dive on the *Cybersecurity Act 2018* (Act 9 of
+  2018, amended 2024) and its implementing instruments: the
+  *Cybersecurity (Critical Information Infrastructure) Regulations
+  2018* and the binding *Cybersecurity Code of Practice for
+  Critical Information Infrastructure (CCoP) 2.0* issued under
+  section 11. Covers the CSA designation process (~80 CII across
+  eleven sectors), the **2-hour prescribed-incident reporting clock —
+  the tightest statutory clock in this catalogue**, the Cybersecurity
+  Officer (CO) + Alternate designation under CII Regulation 3, the
+  annual cybersecurity audit + biennial risk assessment, the
+  CSA-directed exercise programme, and the 2024-amendment scope
+  expansion to *Foundational Digital Infrastructure* (FDI), *Systems
+  of Temporary Cybersecurity Concern* (STCC), and *Entities of
+  Special Cybersecurity Interest* (SCI). Subcategory §22.57 ships
+  15 UCs; primer cross-refs §4.10 NIS2 for multinational CIIOs and
+  Singapore PDPA (family §22.45) for personal-data-incident overlap.
+- **`§4.20 France LPM OIV Regime + Décret 2015-351 + ANSSI Implementing Decrees` (France).**
+  Full primer deep-dive on the *Loi de Programmation Militaire*
+  (LPM 2014–2019 / 2018 / 2024) and the *Code de la Défense*
+  Articles L1332-6-1 et seq., operationalised through *Décret
+  2015-351* and the **twenty ANSSI cybersecurity rules** bound to
+  designated *Systèmes d'Information d'Importance Vitale* (SIIV)
+  operated by ~240 OIVs across the twelve SAIV sectors. Covers OIV
+  / SIIV designation (under Information Classifiée Défense), the
+  Cybersecurity Officer (RSSI) role, SIIV mapping + asset inventory,
+  strong identity + access control + MFA, ANSSI-mandated detection
+  capability with **PDIS qualification** for any third-party
+  detection provider, and CERT-FR incident reporting. Subcategory
+  §22.58 ships 8 UCs; primer cross-refs §4.10 NIS2 for OIV-OSE
+  dual-regulated entities, §4.11 DORA for financial-sector OIVs,
+  and §4.7 ISO 27001:2022 for the substantive lineage from the
+  ANSSI 20-rules into ISO Annex A.
+
+#### Section renumbering for downstream §4.x deep dives
+
+To preserve subcategory-aligned section ordering inside §4 of the
+primer, the five tier-1 deep dives that landed in v8.6.1–v8.6.3 move
+down by three positions. All explicit `{#anchor}` identifiers are
+preserved — only the section-header numbers change:
+
+| Anchor | v8.6.3 number | v8.6.4 number | Subcategory |
+|---|---|---|---|
+| `#imo-msc-428-98` | §4.18 | §4.21 | §22.59 |
+| `#do-326a` | §4.19 | §4.22 | §22.60 |
+| `#cn-csl` | §4.20 | §4.23 | §22.61 |
+| `#cert-in` | §4.21 | §4.24 | §22.62 |
+| `#iec-61511` | §4.22 | §4.25 | §22.63 |
+
+All v8.6.x release-note prose and `ROADMAP.md` references that
+quoted these numbers have been updated to the new numbering. Markdown
+links keyed off the `{#xxx}` anchors continue to resolve unchanged.
+
+#### Catalogue-wide ratchet
+
+- **Primer §1 count drift.** The introduction at
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §1 now
+  reads "**22 tier-1 frameworks covered deeply**" (was "18 tier-1
+  frameworks covered deeply"), matching the actual tier-1 count in
+  `data/regulations.json` and the badge in primer §2.
+- **`non-technical-view.js` evidencePack back-fill.** Three tier-1
+  cat-22 areas (TSA Surface, SG Cyber Act, France LPM) now carry the
+  `evidencePack` field that the `non-technical-sync.mdc` rule requires
+  on every tier-1 cat-22 area. Evidence packs themselves
+  (`tsa-surface.md`, `sg-cyber-act.md`, `fr-lpm.md`) have existed
+  on disk since v8.6.0; this patch surfaces them through the
+  non-technical view.
+- **Catalogue counts unchanged.** No new UCs, no new regulations, no
+  schema changes. The catalogue remains **7,929 UCs / 23 categories
+  / 82 regulations (22 tier-1, 58 tier-2, 2 tier-3)**.
+
+#### Audit posture
+
+All 14 CI gates pass at HEAD:
+
+- `audit-regulatory-primer` — clean (0 findings; the three new
+  primer sections cite authoritative regulator URLs that match
+  `data/regulations.json` versionLabel + authoritativeUrl).
+- `audit-uc-structure --full` — 7,929 UCs, 0 new issues vs.
+  baseline.
+- `audit-compliance-mappings` — passed (clause coverage tier-1
+  90.89 %, tier-2 97.55 %, tier-3 100 %; 52 / 52 golden tests pass;
+  baseline tolerated = 0, new-errors = 0).
+- `audit-prerequisites --check` — passed (only pre-existing
+  wave-monotonicity warnings in cat-5 DevOps remain; no new
+  prerequisites issues).
+- `audit-catalog-schema` — 23 categories, 265 subcategories, 7,929
+  UCs.
+- `audit-spl-grammar` / `audit-spl-hallucinations` /
+  `audit-monitoring-type` / `audit-mitre-taxonomy` — 0 findings each.
+- `audit-splunk-cloud-compat` — fail = 0, warn = 7 (pre-existing),
+  info = 229.
+- `audit-compliance-gaps` — refreshed
+  [`docs/compliance-gaps.md`](docs/compliance-gaps.md) and
+  [`reports/compliance-gaps.json`](reports/compliance-gaps.json).
+- `prepare-release --check` — passes after the VERSION /
+  CITATION.cff / openapi.yaml / CHANGELOG / index.html /
+  ROADMAP / README sync.
+
 ## [8.6.3] - 2026-05-14
 
-### Phase 6 — China CSL/DSL/PIPL/CII + CERT-In Directions 2022/DPDP 2023 + IEC 61511 functional-safety cybersecurity overlay — three tier-1 deep dives (27 gold-tier UCs, three evidence packs, primer §4.20-§4.22)
+### Phase 6 — China CSL/DSL/PIPL/CII + CERT-In Directions 2022/DPDP 2023 + IEC 61511 functional-safety cybersecurity overlay — three tier-1 deep dives (27 gold-tier UCs, three evidence packs, primer §4.23-§4.25)
 
 This release **closes the six-phase OT regulation deep-dive arc** that
 began in v8.5.0 (Phase 3: NCA OTCC + SOCI + AWIA), continued through
@@ -429,7 +573,7 @@ global maritime regime (IMO), the global civil-aviation regime
 safety regime (IEC 61511 / 61508 with ISA-TR84.00.09 + IEC 62443
 cybersecurity overlay).
 
-#### Phase 6a — China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 (12 gold-tier UCs, subcategory 22.61, evidence pack `cn-csl.md`, primer §4.20)
+#### Phase 6a — China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 (12 gold-tier UCs, subcategory 22.61, evidence pack `cn-csl.md`, primer §4.23)
 
 - **Cybersecurity Law of the People's Republic of China (CSL — 2017)
   with Data Security Law (DSL — 2021), Personal Information
@@ -487,7 +631,7 @@ cybersecurity overlay).
   Art-21 + MLPS-2-0-L3 + DSL-Art-29 composite) but is not currently
   bound on that specific sub-article.
 
-#### Phase 6b — CERT-In Directions 2022 + DPDP Act 2023 (8 gold-tier UCs, subcategory 22.62, evidence pack `cert-in.md`, primer §4.21)
+#### Phase 6b — CERT-In Directions 2022 + DPDP Act 2023 (8 gold-tier UCs, subcategory 22.62, evidence pack `cert-in.md`, primer §4.24)
 
 - **CERT-In Directions of 28 April 2022 (No. 20(3)/2022-CERT-In)
   under IT Act Section 70B(6), binding from 27 June 2022, plus
@@ -529,7 +673,7 @@ cybersecurity overlay).
   UC-22.62.5 (VPN/VPS) and UC-22.62.6 (VASP) but is not currently
   bound on that specific direction.
 
-#### Phase 6c — IEC 61508 / 61511 functional safety with ISA-TR84.00.09 / IEC 62443 cybersecurity overlay (7 gold-tier UCs, subcategory 22.63, evidence pack `iec-61511.md`, primer §4.22)
+#### Phase 6c — IEC 61508 / 61511 functional safety with ISA-TR84.00.09 / IEC 62443 cybersecurity overlay (7 gold-tier UCs, subcategory 22.63, evidence pack `iec-61511.md`, primer §4.25)
 
 - **IEC 61511 Edition 2 (2016) Functional safety: Safety
   Instrumented Systems for the process industry sector, with parent
@@ -590,8 +734,8 @@ cybersecurity overlay).
   Tier-1 grew from 19 frameworks (post-Phase 5b) to **22 frameworks**
   (post-Phase 6). T2 unchanged at 58 frameworks; T3 unchanged at 2.
   Subcategory §22.61 / §22.62 / §22.63 add 27 UCs and three new
-  per-regulation primer sections (§4.20 China CSL/DSL/PIPL/CII,
-  §4.21 CERT-In + DPDP, §4.22 IEC 61511 + cybersecurity overlay).
+  per-regulation primer sections (§4.23 China CSL/DSL/PIPL/CII,
+  §4.24 CERT-In + DPDP, §4.25 IEC 61511 + cybersecurity overlay).
 - **Three new auditor evidence packs land:**
   [`docs/evidence-packs/cn-csl.md`](docs/evidence-packs/cn-csl.md),
   [`docs/evidence-packs/cert-in.md`](docs/evidence-packs/cert-in.md),
@@ -634,7 +778,7 @@ cybersecurity overlay).
 
 ## [8.6.2] - 2026-05-14
 
-### Phase 5b — RTCA DO-326A / EUROCAE ED-202A airworthiness security — full tier-1 deep dive (21 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.19)
+### Phase 5b — RTCA DO-326A / EUROCAE ED-202A airworthiness security — full tier-1 deep dive (21 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.22)
 
 - **RTCA DO-326A / EUROCAE ED-202A — Airworthiness Security Process
   Specification, plus DO-355A / ED-204A Information Security Guidance
@@ -715,8 +859,8 @@ cybersecurity overlay).
   audit-deficiency catalogue with remediation guidance, roles
   matrix, machine-readable cross-reference to per-UC `compliance[]`
   entries, and provenance trail.
-- **Regulatory primer §4.19 —
-  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §4.19.**
+- **Regulatory primer §4.22 —
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §4.22.**
   Aviation-aware framework overview: who must comply (TC-holders,
   airframers, Tier-1 / Tier-2 suppliers, airlines, CAMOs, MROs,
   ANSPs), regime structure (DO-326A airworthiness side + Part-IS
@@ -764,7 +908,7 @@ cybersecurity overlay).
 
 ## [8.6.1] - 2026-05-14
 
-### Phase 5a — IMO MSC.428(98) maritime cyber risk management — full tier-1 deep dive (17 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.18)
+### Phase 5a — IMO MSC.428(98) maritime cyber risk management — full tier-1 deep dive (17 monitored clauses, 17 gold-tier UCs, evidence pack, primer §4.21)
 
 - **IMO Resolution MSC.428(98) — Maritime Cyber Risk Management in
   Safety Management Systems, plus MSC-FAL.1/Circ.3 Rev.2 Guidelines
@@ -892,7 +1036,7 @@ cybersecurity overlay).
   3 representative UCs and their `why` rationale),
   [`docs-uc-map.js`](docs-uc-map.js) (forward map from the evidence
   pack to nine representative UCs),
-  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §4.18
+  [`docs/regulatory-primer.md`](docs/regulatory-primer.md) §4.21
   (full primer section covering the regulation anatomy, ISM Code +
   ISPS Code + SOLAS chain, three-layer enforcement, port-State
   Control under the nine MoUs, IACS UR E26 / UR E27 new-build
