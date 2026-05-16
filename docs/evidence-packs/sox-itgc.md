@@ -68,17 +68,17 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 ### 4.1 Contributing UC detail
 
 <a id='uc-12-2-17'></a>
-- **UC-12.2.17** —
+- **UC-12.2.17** — Deploy Approval Bypass Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-12-devops-ci-cd/UC-12.2.17.json`](../../content/cat-12-devops-ci-cd/UC-12.2.17.json)
 <a id='uc-16-4-1'></a>
-- **UC-16.4.1** —
+- **UC-16.4.1** — Unauthorized Change Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-16-service-management-itsm/UC-16.4.1.json`](../../content/cat-16-service-management-itsm/UC-16.4.1.json)
 <a id='uc-17-1-32'></a>
 - **UC-17.1.32** — Cisco ISE<sup class="ref">[<a href="#ref-4">4</a>]</sup> License Consumption, Endpoint Capacity and MnT Log Retention
   - Control family: `—`
@@ -122,11 +122,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.76.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.76.json)
 <a id='uc-22-11-95'></a>
-- **UC-22.11.95** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.11.95** — PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Head of Platform`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.11.95.json`](../../content/cat-22-regulatory-compliance/UC-22.11.95.json)
 <a id='uc-22-12-1'></a>
 - **UC-22.12.1** — User provisioning evidence tied to financial application accounts
   - Control family: `—`
@@ -212,29 +212,29 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.12.3.json`](../../content/cat-22-regulatory-compliance/UC-22.12.3.json)
 <a id='uc-22-12-36'></a>
-- **UC-22.12.36** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.12.36** — SOX-ITGC AccessMgmt.Provisioning — Financial-system user provisioning SLA & workflow adherence
+  - Control family: `access-review-cadence`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.36.json`](../../content/cat-22-regulatory-compliance/UC-22.12.36.json)
 <a id='uc-22-12-37'></a>
-- **UC-22.12.37** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.12.37** — SOX-ITGC AccessMgmt.Termination — Deprovisioning SLA after HR termination event
+  - Control family: `access-review-cadence`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.37.json`](../../content/cat-22-regulatory-compliance/UC-22.12.37.json)
 <a id='uc-22-12-39'></a>
-- **UC-22.12.39** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.12.39** — SOX-ITGC ChangeMgmt.Approval — Segregation of duties in financial-system change approval
+  - Control family: `policy-to-control-traceability`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.39.json`](../../content/cat-22-regulatory-compliance/UC-22.12.39.json)
 <a id='uc-22-12-40'></a>
-- **UC-22.12.40** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.12.40** — SOX-ITGC Operations.JobSchedule — Batch-schedule monitoring: financial-job exception visibility
+  - Control family: `regulation-specific`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.12.40.json`](../../content/cat-22-regulatory-compliance/UC-22.12.40.json)
 <a id='uc-22-12-41'></a>
 - **UC-22.12.41** — SOX / ITGC — Cisco ISE Admin Role Change Evidence (Logical Access)
   - Control family: `—`
@@ -290,11 +290,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.42.1.json`](../../content/cat-22-regulatory-compliance/UC-22.42.1.json)
 <a id='uc-22-45-3'></a>
-- **UC-22.45.3** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.45.3** — Backup coverage gap — regulated workloads with no successful backup in the protection window
+  - Control family: `backup-restore-evidence`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.45.3.json`](../../content/cat-22-regulatory-compliance/UC-22.45.3.json)
 <a id='uc-22-47-2'></a>
 - **UC-22.47.2** — Repeat audit findings — same control deficiency across consecutive audit cycles
   - Control family: `policy-to-control-traceability`
@@ -320,11 +320,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.49.3.json`](../../content/cat-22-regulatory-compliance/UC-22.49.3.json)
 <a id='uc-22-6-55'></a>
-- **UC-22.6.55** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+- **UC-22.6.55** — ISO/IEC 27001:2022<sup class="ref">[<a href="#ref-6">6</a>]</sup> Clause 8.1 — Operational planning: change advisory board (CAB) approval evidence
+  - Control family: `policy-to-control-traceability`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.6.55.json`](../../content/cat-22-regulatory-compliance/UC-22.6.55.json)
 <a id='uc-22-9-8'></a>
 - **UC-22.9.8** — Compliance Trending — Auditor Evidence Pack Generation Volume and Deficiency Rate
   - Control family: `—`
@@ -344,29 +344,29 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [`content/cat-05-network-infrastructure/UC-5.13.46.json`](../../content/cat-05-network-infrastructure/UC-5.13.46.json)
 <a id='uc-7-1-13'></a>
-- **UC-7.1.13** —
+- **UC-7.1.13** — Schema Change Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-07-database-data-platforms/UC-7.1.13.json`](../../content/cat-07-database-data-platforms/UC-7.1.13.json)
 <a id='uc-7-1-21'></a>
-- **UC-7.1.21** —
+- **UC-7.1.21** — Database User and Privilege Change Audit
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-07-database-data-platforms/UC-7.1.21.json`](../../content/cat-07-database-data-platforms/UC-7.1.21.json)
 <a id='uc-7-1-40'></a>
-- **UC-7.1.40** —
+- **UC-7.1.40** — Database Audit Log Tampering Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-07-database-data-platforms/UC-7.1.40.json`](../../content/cat-07-database-data-platforms/UC-7.1.40.json)
 <a id='uc-9-5-15'></a>
-- **UC-9.5.15** —
+- **UC-9.5.15** — Okta<sup class="ref">[<a href="#ref-8">8</a>]</sup> User Lifecycle Events (Provisioning / Deprovisioning)
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
+  - Source: [`content/cat-09-identity-access-management/UC-9.5.15.json`](../../content/cat-09-identity-access-management/UC-9.5.15.json)
 
 ## 5. Evidence collection
 
@@ -493,9 +493,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:
@@ -540,20 +540,22 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-7"></a>**[7]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
 
-<a id="ref-8"></a>**[8]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+<a id="ref-8"></a>**[8]** Okta, Inc. (2026). *Okta Documentation*. Retrieved May 11, 2026, from https://developer.okta.com/docs/
 
-<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <details>
 <summary>Additional online sources cited in the document body (4)</summary>
 
-<a id="ref-10"></a>**[10]** coso.org. *coso.org: Ic.Aspx*. Retrieved May 11, 2026, from https://www.coso.org/Pages/ic.aspx
+<a id="ref-11"></a>**[11]** coso.org. *coso.org: Ic.Aspx*. Retrieved May 11, 2026, from https://www.coso.org/Pages/ic.aspx
 
-<a id="ref-11"></a>**[11]** isaca.org. *isaca.org: Cobit*. Retrieved May 11, 2026, from https://www.isaca.org/resources/cobit
+<a id="ref-12"></a>**[12]** isaca.org. *isaca.org: Cobit*. Retrieved May 11, 2026, from https://www.isaca.org/resources/cobit
 
-<a id="ref-12"></a>**[12]** sec.gov. *U.S. SEC: 33 8810.Pdf*. Retrieved May 11, 2026, from https://www.sec.gov/rules/interp/2007/33-8810.pdf
+<a id="ref-13"></a>**[13]** sec.gov. *U.S. SEC: 33 8810.Pdf*. Retrieved May 11, 2026, from https://www.sec.gov/rules/interp/2007/33-8810.pdf
 
-<a id="ref-13"></a>**[13]** pcaobus.org. *PCAOB: Inspections*. Retrieved May 11, 2026, from https://pcaobus.org/oversight/inspections
+<a id="ref-14"></a>**[14]** pcaobus.org. *PCAOB: Inspections*. Retrieved May 11, 2026, from https://pcaobus.org/oversight/inspections
 
 </details>
 

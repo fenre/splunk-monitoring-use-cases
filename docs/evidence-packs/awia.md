@@ -40,9 +40,9 @@ Applies to community water systems (CWS) within the meaning of the Safe Drinking
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 0 / 28 (0.0%)
-- **Priority-weighted coverage**: 0.0%
-- **Contributing UCs**: 0
+- **Clauses covered by at least one UC**: 27 / 28 (96.4%)
+- **Priority-weighted coverage**: 97.2%
+- **Contributing UCs**: 27
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,34 +52,199 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`AWIA-s1433a`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433a) | Risk and Resilience Assessment (RRA) — duty and scope | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-s1433a(1)`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433a(1)) | RRA submission deadlines by system size | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-s1433b`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433b) | Emergency Response Plan (ERP) — duty and content | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-s1433c`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433c) | ERP coordination with state, local, tribal, and territorial partners | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-s1433g`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433g) | Certification — RRA and ERP | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-RRA-malevolent-acts`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-malevolent-acts) | Baseline Information on Malevolent Acts — EPA-defined cyber and physical threat set | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-RRA-natural-hazards`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-natural-hazards) | Natural hazards in the RRA — flood, drought, wildfire, seismic, severe weather | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-RRA-electronic-systems`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-electronic-systems) | RRA — electronic, computer, and automated systems (cyber scope) | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-RRA-monitoring-practices`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-monitoring-practices) | RRA — monitoring practices (continuous data quality and integrity) | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-RRA-chemicals`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-chemicals) | RRA — chemical storage, handling, and dosing | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-RRA-financial`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-financial) | RRA — financial infrastructure | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-ERP-strategies-actions`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-strategies-actions) | ERP — strategies, resources, and actions to mitigate identified risks | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-ERP-detection`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-detection) | ERP — detection strategies for malevolent acts and natural hazards | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-ERP-cyber-incident-response`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-cyber-incident-response) | ERP — cyber-incident response procedures | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-ERP-mutual-aid`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-mutual-aid) | ERP — mutual-aid coordination (WARN networks and local partners) | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-ERP-review`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-review) | ERP — review and revision every 5 years (and after material change) | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-EPA-cwc-reporting`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-cwc-reporting) | Cyber-incident reporting — WaterISAC and EPA Region pathway | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-sanitary-survey`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-sanitary-survey) | EPA Cybersecurity Action Plan — voluntary cyber-incorporation into sanitary surveys | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-EPA-aware-checklist`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-aware-checklist) | EPA / CISA Top Cyber Actions for Water Utilities (Top 8 / 9 / Pathway) | 1.0 | `—` | _not yet covered_ |
+| [`AWIA-s1433a`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433a) | Risk and Resilience Assessment (RRA) — duty and scope | 1.0 | `full` | [UC-22.53.1](#uc-22-53-1) |
+| [`AWIA-s1433a(1)`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433a(1)) | RRA submission deadlines by system size | 1.0 | `full` | [UC-22.53.2](#uc-22-53-2) |
+| [`AWIA-s1433b`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433b) | Emergency Response Plan (ERP) — duty and content | 1.0 | `full` | [UC-22.53.3](#uc-22-53-3) |
+| [`AWIA-s1433c`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433c) | ERP coordination with state, local, tribal, and territorial partners | 0.7 | `full` | [UC-22.53.4](#uc-22-53-4) |
+| [`AWIA-s1433g`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-s1433g) | Certification — RRA and ERP | 1.0 | `full` | [UC-22.53.5](#uc-22-53-5) |
+| [`AWIA-RRA-malevolent-acts`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-malevolent-acts) | Baseline Information on Malevolent Acts — EPA-defined cyber and physical threat set | 1.0 | `full` | [UC-22.53.6](#uc-22-53-6) |
+| [`AWIA-RRA-natural-hazards`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-natural-hazards) | Natural hazards in the RRA — flood, drought, wildfire, seismic, severe weather | 0.7 | `full` | [UC-22.53.7](#uc-22-53-7) |
+| [`AWIA-RRA-electronic-systems`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-electronic-systems) | RRA — electronic, computer, and automated systems (cyber scope) | 1.0 | `full` | [UC-22.53.8](#uc-22-53-8) |
+| [`AWIA-RRA-monitoring-practices`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-monitoring-practices) | RRA — monitoring practices (continuous data quality and integrity) | 1.0 | `full` | [UC-22.53.9](#uc-22-53-9) |
+| [`AWIA-RRA-chemicals`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-chemicals) | RRA — chemical storage, handling, and dosing | 1.0 | `full` | [UC-22.53.10](#uc-22-53-10) |
+| [`AWIA-RRA-financial`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-RRA-financial) | RRA — financial infrastructure | 0.7 | `full` | [UC-22.53.11](#uc-22-53-11) |
+| [`AWIA-ERP-strategies-actions`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-strategies-actions) | ERP — strategies, resources, and actions to mitigate identified risks | 1.0 | `full` | [UC-22.53.12](#uc-22-53-12) |
+| [`AWIA-ERP-detection`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-detection) | ERP — detection strategies for malevolent acts and natural hazards | 1.0 | `full` | [UC-22.53.13](#uc-22-53-13) |
+| [`AWIA-ERP-cyber-incident-response`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-cyber-incident-response) | ERP — cyber-incident response procedures | 1.0 | `full` | [UC-22.53.14](#uc-22-53-14) |
+| [`AWIA-ERP-mutual-aid`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-mutual-aid) | ERP — mutual-aid coordination (WARN networks and local partners) | 0.7 | `full` | [UC-22.53.15](#uc-22-53-15) |
+| [`AWIA-ERP-review`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-ERP-review) | ERP — review and revision every 5 years (and after material change) | 0.7 | `full` | [UC-22.53.16](#uc-22-53-16) |
+| [`AWIA-EPA-cwc-reporting`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-cwc-reporting) | Cyber-incident reporting — WaterISAC and EPA Region pathway | 1.0 | `full` | [UC-22.53.17](#uc-22-53-17) |
+| [`AWIA-EPA-sanitary-survey`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-sanitary-survey) | EPA Cybersecurity Action Plan — voluntary cyber-incorporation into sanitary surveys | 0.7 | `full` | [UC-22.53.18](#uc-22-53-18) |
+| [`AWIA-EPA-aware-checklist`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-aware-checklist) | EPA / CISA Top Cyber Actions for Water Utilities (Top 8 / 9 / Pathway) | 1.0 | `full` | [UC-22.53.19](#uc-22-53-19) |
 | [`AWIA-EPA-vsat-j100`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-vsat-j100) | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-EPA-asset-inventory`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-asset-inventory) | OT/IT asset inventory (cyber baseline) | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-mfa-remote-access`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-mfa-remote-access) | Multi-factor authentication on all remote access | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-network-segmentation`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-network-segmentation) | Network segmentation between IT and OT | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-backup-recovery`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-backup-recovery) | System and data backup and tested recovery | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-EPA-default-creds`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-default-creds) | Change default passwords on all OT and IT devices | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-training`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-training) | Cybersecurity awareness training | 0.7 | `—` | _not yet covered_ |
-| [`AWIA-EPA-vuln-mgmt`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-vuln-mgmt) | Reduce exposure to vulnerabilities — patching and configuration | 1.0 | `—` | _not yet covered_ |
-| [`AWIA-EPA-records-retention`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-records-retention) | RRA / ERP / certification records retention | 0.7 | `—` | _not yet covered_ |
+| [`AWIA-EPA-asset-inventory`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-asset-inventory) | OT/IT asset inventory (cyber baseline) | 1.0 | `full` | [UC-22.53.27](#uc-22-53-27) |
+| [`AWIA-EPA-mfa-remote-access`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-mfa-remote-access) | Multi-factor authentication on all remote access | 1.0 | `full` | [UC-22.53.21](#uc-22-53-21) |
+| [`AWIA-EPA-network-segmentation`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-network-segmentation) | Network segmentation between IT and OT | 1.0 | `full` | [UC-22.53.22](#uc-22-53-22) |
+| [`AWIA-EPA-backup-recovery`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-backup-recovery) | System and data backup and tested recovery | 0.7 | `full` | [UC-22.53.23](#uc-22-53-23) |
+| [`AWIA-EPA-default-creds`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-default-creds) | Change default passwords on all OT and IT devices | 1.0 | `full` | [UC-22.53.24](#uc-22-53-24) |
+| [`AWIA-EPA-training`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-training) | Cybersecurity awareness training | 0.7 | `full` | [UC-22.53.25](#uc-22-53-25) |
+| [`AWIA-EPA-vuln-mgmt`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-vuln-mgmt) | Reduce exposure to vulnerabilities — patching and configuration | 1.0 | `full` | [UC-22.53.26](#uc-22-53-26) |
+| [`AWIA-EPA-records-retention`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-records-retention) | RRA / ERP / certification records retention | 0.7 | `full` | [UC-22.53.28](#uc-22-53-28) |
+
+### 4.1 Contributing UC detail
+
+<a id='uc-22-53-1'></a>
+- **UC-22.53.1** — AWIA Risk and Resilience Assessment (RRA) currency — evidence the 5-year cycle and population-tier deadlines are met
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.1.json`](../../content/cat-22-regulatory-compliance/UC-22.53.1.json)
+<a id='uc-22-53-10'></a>
+- **UC-22.53.10** — AWIA RRA Chemical Handling — detect cyber-controllable dosing-setpoint manipulation, over-dose, under-dose, and dosing-stop on treatment chemicals
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.10.json`](../../content/cat-22-regulatory-compliance/UC-22.53.10.json)
+<a id='uc-22-53-11'></a>
+- **UC-22.53.11** — AWIA RRA Financial Infrastructure — evidence billing, customer-payment, and vendor-payment systems are inventoried in the RRA and continuity controls are documented
+  - Control family: `regulation-specific`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.11.json`](../../content/cat-22-regulatory-compliance/UC-22.53.11.json)
+<a id='uc-22-53-12'></a>
+- **UC-22.53.12** — AWIA ERP Strategies and Actions — evidence every material RRA risk has a named owner, listed resources, and an actionable mitigation strategy in the ERP
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.12.json`](../../content/cat-22-regulatory-compliance/UC-22.53.12.json)
+<a id='uc-22-53-13'></a>
+- **UC-22.53.13** — AWIA ERP Detection Strategies — evidence the detection pipeline (SCADA alarms, WQ monitoring, perimeter intrusion, video, public tip-line, WaterISAC / EPA / CISA threat feeds) is operational and escalating to incident response
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.13.json`](../../content/cat-22-regulatory-compliance/UC-22.53.13.json)
+<a id='uc-22-53-14'></a>
+- **UC-22.53.14** — AWIA ERP Cyber-Incident Response — evidence the cyber IR procedure is exercised annually with documented triage, isolation, manual fallback, notification, recovery, and lessons-learned
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.14.json`](../../content/cat-22-regulatory-compliance/UC-22.53.14.json)
+<a id='uc-22-53-15'></a>
+- **UC-22.53.15** — AWIA ERP Mutual-Aid — evidence WARN membership and activation criteria are documented; LEPC and state / federal contacts are recorded
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.15.json`](../../content/cat-22-regulatory-compliance/UC-22.53.15.json)
+<a id='uc-22-53-16'></a>
+- **UC-22.53.16** — AWIA ERP Review Cycle — evidence the Emergency Response Plan is reviewed and revised every 5 years and after material change
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.16.json`](../../content/cat-22-regulatory-compliance/UC-22.53.16.json)
+<a id='uc-22-53-17'></a>
+- **UC-22.53.17** — AWIA EPA / WaterISAC Cyber-Incident Reporting — evidence cyber-incidents are reported to WaterISAC and EPA Regional WPC, with CIRCIA 72-hour readiness
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.17.json`](../../content/cat-22-regulatory-compliance/UC-22.53.17.json)
+<a id='uc-22-53-18'></a>
+- **UC-22.53.18** — AWIA EPA Sanitary-Survey Cyber Readiness — evidence basic cyber hygiene (segmentation, MFA, patching, backup, IR) demonstrable during PWS sanitary survey
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.18.json`](../../content/cat-22-regulatory-compliance/UC-22.53.18.json)
+<a id='uc-22-53-19'></a>
+- **UC-22.53.19** — EPA / CISA Top Cyber Actions for Water Utilities — evidence the 9-item baseline (internet exposure, assessments, defaults, inventory, IR, backups, vulns, training, MFA) is implemented and reviewed
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.19.json`](../../content/cat-22-regulatory-compliance/UC-22.53.19.json)
+<a id='uc-22-53-2'></a>
+- **UC-22.53.2** — AWIA RRA content completeness — evidence all 7 required components are addressed
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.2.json`](../../content/cat-22-regulatory-compliance/UC-22.53.2.json)
+<a id='uc-22-53-21'></a>
+- **UC-22.53.21** — AWIA MFA on All Remote Access — detect remote-access logins (VPN, jump host, vendor engineering, SCADA cloud portal, management UIs) without multi-factor authentication
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.21.json`](../../content/cat-22-regulatory-compliance/UC-22.53.21.json)
+<a id='uc-22-53-22'></a>
+- **UC-22.53.22** — AWIA IT / OT Segmentation — detect direct corporate-IT-to-OT traffic that violates the documented segmentation policy and internet-exposed SCADA / HMI / engineering workstations
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.22.json`](../../content/cat-22-regulatory-compliance/UC-22.53.22.json)
+<a id='uc-22-53-23'></a>
+- **UC-22.53.23** — AWIA Backup and Recovery — evidence SCADA configurations, PLC programs, historian data, water-quality data, and business systems are backed up to offline / immutable storage and restoration is tested
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.23.json`](../../content/cat-22-regulatory-compliance/UC-22.53.23.json)
+<a id='uc-22-53-24'></a>
+- **UC-22.53.24** — AWIA Default Passwords — detect OT and IT devices commissioned or still operating with vendor default credentials (PLC, HMI, network equipment, IP camera, BMS)
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.24.json`](../../content/cat-22-regulatory-compliance/UC-22.53.24.json)
+<a id='uc-22-53-25'></a>
+- **UC-22.53.25** — AWIA Cybersecurity Awareness Training — evidence operators, engineers, administrators, contractors, and board members complete annual cyber-awareness training
+  - Control family: `regulation-specific`
+  - Owner: `HR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.25.json`](../../content/cat-22-regulatory-compliance/UC-22.53.25.json)
+<a id='uc-22-53-26'></a>
+- **UC-22.53.26** — AWIA Vulnerability Management — evidence CISA KEV / vendor / ICS-CERT vulnerabilities are tracked and remediated or compensated within SLA, with safety validation for OT
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.26.json`](../../content/cat-22-regulatory-compliance/UC-22.53.26.json)
+<a id='uc-22-53-27'></a>
+- **UC-22.53.27** — AWIA OT / IT Asset Inventory — evidence the continuously maintained inventory covers SCADA, PLCs, HMIs, RTUs at remote sites, network infrastructure, internet-exposed services, and remote-access endpoints
+  - Control family: `regulation-specific`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.27.json`](../../content/cat-22-regulatory-compliance/UC-22.53.27.json)
+<a id='uc-22-53-28'></a>
+- **UC-22.53.28** — AWIA Records Retention — evidence the RRA, ERP, and EPA certifications are retained for 5 years and producible to EPA on request
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.28.json`](../../content/cat-22-regulatory-compliance/UC-22.53.28.json)
+<a id='uc-22-53-3'></a>
+- **UC-22.53.3** — AWIA Emergency Response Plan (ERP) currency — evidence the ERP is completed and certified within 6 months of RRA
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.3.json`](../../content/cat-22-regulatory-compliance/UC-22.53.3.json)
+<a id='uc-22-53-4'></a>
+- **UC-22.53.4** — AWIA Section 1433(c) ERP coordination — evidence the Emergency Response Plan is coordinated with state, local, tribal, and territorial partners
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.4.json`](../../content/cat-22-regulatory-compliance/UC-22.53.4.json)
+<a id='uc-22-53-5'></a>
+- **UC-22.53.5** — AWIA Section 1433(g) certification — evidence RRA and ERP certifications are submitted to EPA through the AWIA portal on cycle and the certification audit trail is intact
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.5.json`](../../content/cat-22-regulatory-compliance/UC-22.53.5.json)
+<a id='uc-22-53-6'></a>
+- **UC-22.53.6** — AWIA Baseline Malevolent Acts — evidence the RRA covers EPA's defined cyber-and-physical threat set against community water systems
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.6.json`](../../content/cat-22-regulatory-compliance/UC-22.53.6.json)
+<a id='uc-22-53-7'></a>
+- **UC-22.53.7** — AWIA Natural Hazards in the RRA — evidence flood, drought, wildfire, seismic, severe weather, and climate-shift hazards are sourced from authoritative providers
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.7.json`](../../content/cat-22-regulatory-compliance/UC-22.53.7.json)
+<a id='uc-22-53-8'></a>
+- **UC-22.53.8** — AWIA RRA Electronic Systems Inventory — evidence enterprise IT, SCADA, PLC / RTU, plant networks, billing portals, and remote-access pathways are inventoried and assessed
+  - Control family: `regulation-specific`
+  - Owner: `Head of IT Operations`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.8.json`](../../content/cat-22-regulatory-compliance/UC-22.53.8.json)
+<a id='uc-22-53-9'></a>
+- **UC-22.53.9** — AWIA RRA Monitoring Practices integrity — detect stuck values, suppressed alarms, falsified readings, and operator-shielded data on online analysers and SCADA monitoring chain
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.9.json`](../../content/cat-22-regulatory-compliance/UC-22.53.9.json)
 
 ## 5. Evidence collection
 
@@ -230,34 +395,7 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 
 | Clause | Topic | Priority |
 |---|---|---|
-| `AWIA-EPA-asset-inventory` | OT/IT asset inventory (cyber baseline) | 1.0 |
-| `AWIA-EPA-aware-checklist` | EPA / CISA Top Cyber Actions for Water Utilities (Top 8 / 9 / Pathway) | 1.0 |
-| `AWIA-EPA-cwc-reporting` | Cyber-incident reporting — WaterISAC and EPA Region pathway | 1.0 |
-| `AWIA-EPA-default-creds` | Change default passwords on all OT and IT devices | 1.0 |
-| `AWIA-EPA-mfa-remote-access` | Multi-factor authentication on all remote access | 1.0 |
-| `AWIA-EPA-network-segmentation` | Network segmentation between IT and OT | 1.0 |
-| `AWIA-EPA-vuln-mgmt` | Reduce exposure to vulnerabilities — patching and configuration | 1.0 |
-| `AWIA-ERP-cyber-incident-response` | ERP — cyber-incident response procedures | 1.0 |
-| `AWIA-ERP-detection` | ERP — detection strategies for malevolent acts and natural hazards | 1.0 |
-| `AWIA-ERP-strategies-actions` | ERP — strategies, resources, and actions to mitigate identified risks | 1.0 |
-| `AWIA-RRA-chemicals` | RRA — chemical storage, handling, and dosing | 1.0 |
-| `AWIA-RRA-electronic-systems` | RRA — electronic, computer, and automated systems (cyber scope) | 1.0 |
-| `AWIA-RRA-malevolent-acts` | Baseline Information on Malevolent Acts — EPA-defined cyber and physical threat set | 1.0 |
-| `AWIA-RRA-monitoring-practices` | RRA — monitoring practices (continuous data quality and integrity) | 1.0 |
-| `AWIA-s1433a` | Risk and Resilience Assessment (RRA) — duty and scope | 1.0 |
-| `AWIA-s1433a(1)` | RRA submission deadlines by system size | 1.0 |
-| `AWIA-s1433b` | Emergency Response Plan (ERP) — duty and content | 1.0 |
-| `AWIA-s1433g` | Certification — RRA and ERP | 1.0 |
-| `AWIA-EPA-backup-recovery` | System and data backup and tested recovery | 0.7 |
-| `AWIA-EPA-records-retention` | RRA / ERP / certification records retention | 0.7 |
-| `AWIA-EPA-sanitary-survey` | EPA Cybersecurity Action Plan — voluntary cyber-incorporation into sanitary surveys | 0.7 |
-| `AWIA-EPA-training` | Cybersecurity awareness training | 0.7 |
 | `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.7 |
-| `AWIA-ERP-mutual-aid` | ERP — mutual-aid coordination (WARN networks and local partners) | 0.7 |
-| `AWIA-ERP-review` | ERP — review and revision every 5 years (and after material change) | 0.7 |
-| `AWIA-RRA-financial` | RRA — financial infrastructure | 0.7 |
-| `AWIA-RRA-natural-hazards` | Natural hazards in the RRA — flood, drought, wildfire, seismic, severe weather | 0.7 |
-| `AWIA-s1433c` | ERP coordination with state, local, tribal, and territorial partners | 0.7 |
 
 ## 12. Questions an auditor should ask
 
@@ -315,9 +453,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:

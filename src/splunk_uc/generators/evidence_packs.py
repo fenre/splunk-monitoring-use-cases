@@ -131,6 +131,62 @@ PACK_TARGETS = [
 # Fixed order for display in the index and README to ensure stable sort.
 PACK_DISPLAY_ORDER = PACK_TARGETS[:]
 
+# Hand-authored evidence packs that the maintainer ships outside the
+# generator's scope.  Each entry is the stem of a markdown file under
+# ``docs/evidence-packs/`` (i.e. without the ``.md`` suffix).  The
+# generator must:
+#   1. NOT report these as ``orphan:`` in ``--check`` mode, and
+#   2. NOT delete them in write-mode ``_prune_orphans``.
+# These packs follow the same 13-14 section auditor-facing layout used
+# by the generated packs but carry deliberately hand-customised
+# sections that the template-driven generator cannot reproduce:
+#   * ``cert-in``        — CERT-In Directions 2022 + DPDP Act 2023
+#                          carries an India-specific MeitY / CERT-In
+#                          dual-track reporting section.
+#   * ``cn-csl``         — China CSL / DSL / PIPL / CII / MLPS 2.0
+#                          carries a five-statute cross-reference
+#                          matrix beyond the generator's clause table.
+#   * ``do-326a``        — RTCA DO-326A / EUROCAE ED-202A airworthiness
+#                          security carries a stage-of-certification
+#                          (DO-355A / DO-356A) hierarchy beyond a flat
+#                          clause table.
+#   * ``fr-lpm``         — France LPM OIV regime + ANSSI 20-Rules
+#                          carries bilingual (FR/EN) auditor questions
+#                          and a Delegue OIV role matrix.
+#   * ``iec-61511``      — IEC 61511 + 61508 + ISA-TR84.00.09 + IEC
+#                          62443 functional-safety + cybersecurity
+#                          overlay carries a SIS / BPCS / SCS three-
+#                          layer separation-of-concerns table.
+#   * ``imo-msc-428-98`` — IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS
+#                          UR E26/E27 maritime cyber carries hand-
+#                          customised flag-State / PSC / class-society
+#                          inspector-questions section §11.
+#   * ``sg-cyber-act``   — Singapore Cyber Act + CSA CCoP 2.0 carries
+#                          a CSA-Commissioner / CO / DPO 3-role matrix
+#                          and §6.1/§6.2 inspector vs CO testing flow.
+#   * ``tsa-surface``    — TSA Surface Cybersecurity Directives
+#                          (pipeline + freight rail + passenger rail)
+#                          carries an SD 1580/1582-2024-01 cross-mode
+#                          comparison table.
+# To promote a hand-authored pack into the generator's scope (so the
+# generator owns the clause table and coverage rollups while the
+# hand-authored sections live behind a per-slug "extras" hook), move
+# the slug from ``EXEMPT_ORPHANS`` to ``PACK_TARGETS`` and extend the
+# generator template to consume the hand-customised sections from
+# ``data/evidence-pack-extras.json``.
+EXEMPT_ORPHANS = frozenset(
+    [
+        "cert-in",
+        "cn-csl",
+        "do-326a",
+        "fr-lpm",
+        "iec-61511",
+        "imo-msc-428-98",
+        "sg-cyber-act",
+        "tsa-surface",
+    ]
+)
+
 
 # ----------------------------------------------------------------------
 # I/O helpers
@@ -1469,7 +1525,13 @@ def _generate_all(check: bool, chain_citations: bool = True) -> int:
 
 def _prune_orphans(planned: dict[Path, bytes]) -> None:
     """Remove any .md / .json files in the output dirs that the
-    generator no longer produces. Keeps the surface honest."""
+    generator no longer produces. Keeps the surface honest.
+
+    Hand-authored packs listed in ``EXEMPT_ORPHANS`` are explicitly
+    preserved on both surfaces (``docs/evidence-packs/<slug>.md`` and
+    ``api/v1/evidence-packs/<slug>.json``) — the generator must never
+    delete content the maintainer ships outside its scope.
+    """
     allow: set[Path] = set(planned.keys())
     for base in (DOCS_OUT_DIR, API_OUT_DIR):
         if not base.exists():
@@ -1478,6 +1540,8 @@ def _prune_orphans(planned: dict[Path, bytes]) -> None:
             if not entry.is_file():
                 continue
             if entry.name.startswith("."):
+                continue
+            if entry.stem in EXEMPT_ORPHANS:
                 continue
             if entry not in allow:
                 entry.unlink()
@@ -1589,6 +1653,9 @@ def _check_drift(planned: dict[Path, bytes]) -> list[str]:
                 if len(diff) > 30:
                     drift.append(f"  ... ({len(diff) - 30} more diff lines)")
     # Extra-file check: anything in output dir not in plan.
+    # Hand-authored packs listed in ``EXEMPT_ORPHANS`` are skipped on
+    # both surfaces — the generator deliberately does not own them and
+    # ``--check`` must not flag them as drift.
     allow: set[Path] = set(planned.keys())
     for base in (DOCS_OUT_DIR, API_OUT_DIR):
         if not base.exists():
@@ -1597,6 +1664,8 @@ def _check_drift(planned: dict[Path, bytes]) -> list[str]:
             if not entry.is_file():
                 continue
             if entry.name.startswith("."):
+                continue
+            if entry.stem in EXEMPT_ORPHANS:
                 continue
             if entry not in allow:
                 drift.append(f"orphan: {entry.relative_to(ROOT)}")

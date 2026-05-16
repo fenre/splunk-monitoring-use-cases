@@ -91,61 +91,61 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.1.json`](../../content/cat-22-regulatory-compliance/UC-22.51.1.json)
 <a id='uc-22-51-10'></a>
 - **UC-22.51.10** — OT Malware Protection Coverage and Detection Evidence
-  - Control family: `endpoint-protection`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.10.json`](../../content/cat-22-regulatory-compliance/UC-22.51.10.json)
 <a id='uc-22-51-11'></a>
 - **UC-22.51.11** — Removable Media Controls on OT Endpoints
-  - Control family: `media-protection`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.11.json`](../../content/cat-22-regulatory-compliance/UC-22.51.11.json)
 <a id='uc-22-51-12'></a>
 - **UC-22.51.12** — Wireless Access Controls and Rogue-AP Detection on OT Networks
-  - Control family: `wireless-control`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.12.json`](../../content/cat-22-regulatory-compliance/UC-22.51.12.json)
 <a id='uc-22-51-13'></a>
 - **UC-22.51.13** — OT Event Logging Completeness, Continuity, and Retention
-  - Control family: `audit-logging`
+  - Control family: `log-source-completeness`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.13.json`](../../content/cat-22-regulatory-compliance/UC-22.51.13.json)
 <a id='uc-22-51-14'></a>
 - **UC-22.51.14** — Industrial Protocol Monitoring: Unauthorised Function Codes and Anomalous Operations
-  - Control family: `industrial-protocol`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.14.json`](../../content/cat-22-regulatory-compliance/UC-22.51.14.json)
 <a id='uc-22-51-15'></a>
 - **UC-22.51.15** — OT-Tier Phishing and Email-Borne Threat Detection
-  - Control family: `anti-phishing`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.15.json`](../../content/cat-22-regulatory-compliance/UC-22.51.15.json)
 <a id='uc-22-51-16'></a>
 - **UC-22.51.16** — OT Cybersecurity Incident Detection and Classification
-  - Control family: `incident-detection`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.16.json`](../../content/cat-22-regulatory-compliance/UC-22.51.16.json)
 <a id='uc-22-51-17'></a>
 - **UC-22.51.17** — OT Cybersecurity Incident Reporting to NCA: Deadline and Evidence Pack Tracking
-  - Control family: `regulatory-reporting`
+  - Control family: `evidence-continuity`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.17.json`](../../content/cat-22-regulatory-compliance/UC-22.51.17.json)
 <a id='uc-22-51-18'></a>
 - **UC-22.51.18** — Physical Access Control to OT Environments
-  - Control family: `physical-access`
+  - Control family: `privileged-session-recording`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.18.json`](../../content/cat-22-regulatory-compliance/UC-22.51.18.json)
 <a id='uc-22-51-19'></a>
 - **UC-22.51.19** — Safety Instrumented System (SIS) Cybersecurity Protection
-  - Control family: `safety-system`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.19.json`](../../content/cat-22-regulatory-compliance/UC-22.51.19.json)
@@ -157,55 +157,55 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.2.json`](../../content/cat-22-regulatory-compliance/UC-22.51.2.json)
 <a id='uc-22-51-20'></a>
 - **UC-22.51.20** — OT Business Continuity Exercise Programme Evidence
-  - Control family: `resilience`
+  - Control family: `ir-drill-evidence`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.20.json`](../../content/cat-22-regulatory-compliance/UC-22.51.20.json)
 <a id='uc-22-51-21'></a>
 - **UC-22.51.21** — OT Recovery Time and Recovery Point Objectives Evidence
-  - Control family: `resilience`
+  - Control family: `ir-drill-evidence`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.21.json`](../../content/cat-22-regulatory-compliance/UC-22.51.21.json)
 <a id='uc-22-51-22'></a>
 - **UC-22.51.22** — OT Backup Integrity and Recovery Testing Evidence
-  - Control family: `backup`
+  - Control family: `backup-restore-evidence`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.22.json`](../../content/cat-22-regulatory-compliance/UC-22.51.22.json)
 <a id='uc-22-51-23'></a>
 - **UC-22.51.23** — Third-Party and Supply-Chain Cybersecurity Assurance for OT
-  - Control family: `third-party`
+  - Control family: `third-party-activity`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.23.json`](../../content/cat-22-regulatory-compliance/UC-22.51.23.json)
 <a id='uc-22-51-24'></a>
 - **UC-22.51.24** — Third-Party Remote Access to OT Environments
-  - Control family: `remote-access`
+  - Control family: `break-glass-access`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.24.json`](../../content/cat-22-regulatory-compliance/UC-22.51.24.json)
 <a id='uc-22-51-25'></a>
 - **UC-22.51.25** — OT Cybersecurity Training and Awareness Compliance
-  - Control family: `training`
+  - Control family: `training-effectiveness`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.25.json`](../../content/cat-22-regulatory-compliance/UC-22.51.25.json)
 <a id='uc-22-51-26'></a>
 - **UC-22.51.26** — OT Cryptographic Controls and Key Management Evidence
-  - Control family: `cryptography`
+  - Control family: `crypto-drift`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.26.json`](../../content/cat-22-regulatory-compliance/UC-22.51.26.json)
 <a id='uc-22-51-27'></a>
 - **UC-22.51.27** — OT Compliance Programme Posture and KPI Reporting
-  - Control family: `governance`
+  - Control family: `board-exec-reporting`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.27.json`](../../content/cat-22-regulatory-compliance/UC-22.51.27.json)
 <a id='uc-22-51-28'></a>
 - **UC-22.51.28** — OT Cloud and Hosting Cybersecurity Assurance
-  - Control family: `cloud`
+  - Control family: `regulation-specific`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.28.json`](../../content/cat-22-regulatory-compliance/UC-22.51.28.json)
@@ -399,9 +399,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:

@@ -12,6 +12,117 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Post-corpus-expansion `generate-evidence-packs` follow-on — clears the sixth (and final OT-arc) masked freshness gate (Phase 4.2 evidence-packs).**
+  Direct follow-on to the cascade in commit `1c631b33a` below. With
+  the cat-22 NTV gate (Phase 4.3) and the compliance-gaps timestamp
+  realignment (Phase 2.1) cleared, the next gate in
+  `validate.yml`'s `audits-content` job-script surfaced under
+  `set -e`: `Phase 4.2 evidence-pack generator regeneration check`
+  (line 724). The gate was failing on two distinct surfaces:
+
+  1. **18 `changed:` files** (the 17 in-`PACK_TARGETS` MD packs +
+     `README.md`) where the on-disk content had stale coverage
+     percentages and clause-by-clause tables. The OT-arc UCs
+     landed compliance coverage for SOCI / AWIA / CIRCIA /
+     CLC-TS-50701 / NCA OTCC, lifting the previously-zero clause
+     counts on those packs from 0.0% to 75-100% (SOCI 75.0%, AWIA
+     96.4%, CIRCIA 100.0%, CLC-TS-50701 82.1%). The
+     clause-by-clause tables on each pack also picked up real UC
+     IDs in place of the "_not yet covered_" placeholders. This is
+     legitimate post-OT-arc refresh — the generator template emits
+     it deterministically.
+
+  2. **8 `orphan:` files** (`cert-in.md`, `cn-csl.md`,
+     `do-326a.md`, `fr-lpm.md`, `iec-61511.md`,
+     `imo-msc-428-98.md`, `sg-cyber-act.md`, `tsa-surface.md`) —
+     hand-authored OT-arc evidence packs that the maintainer
+     ships with structural customisations the generator template
+     cannot reproduce: SG pack has §6.1/§6.2 inspector-vs-CO
+     testing flows, IMO pack has custom §11 *"Questions a
+     flag-State / PSC / class-society inspector should ask"*, LPM
+     pack has bilingual FR/EN auditor questions and a Délégué OIV
+     role matrix, IEC 61511 pack has a SIS/BPCS/SCS three-layer
+     separation table, DO-326A has a stage-of-certification
+     (DO-355A / DO-356A) hierarchy, cert-in has MeitY/CERT-In
+     dual-track reporting, cn-csl has a five-statute
+     cross-reference matrix (CSL/DSL/PIPL/CII/MLPS 2.0), and
+     tsa-surface has an SD 1580/1582-2024-01 cross-mode comparison
+     table. Adding these slugs to `PACK_TARGETS` would regenerate
+     the MD files from the generic template and *delete* every
+     hand-authored section. Path (a) — extending the template to
+     consume per-slug hand-customised section bodies from
+     `data/evidence-pack-extras.json` — is the long-term
+     direction but is more invasive than appropriate for this
+     cascade.
+
+  This commit therefore picks path **(b)** from the originally
+  documented options: a tiny generator change exempts the 8
+  OT-arc hand-authored packs from both the orphan-check and the
+  orphan-prune, leaving them on disk untouched. The 18
+  in-`PACK_TARGETS` files are then refreshed via the legitimate
+  post-OT-arc coverage regen. Concretely:
+
+  - `src/splunk_uc/generators/evidence_packs.py` gains an
+    `EXEMPT_ORPHANS = frozenset([...])` constant (8 slugs) right
+    after `PACK_DISPLAY_ORDER`, plus three-line skip-guards in
+    `_check_drift()`'s orphan loop and `_prune_orphans()`.
+  - `docs/evidence-packs/README.md` + 17 in-`PACK_TARGETS` MD
+    files refreshed (1000 insertions, 389 deletions across
+    docs/evidence-packs/).
+
+  All gates green pre-push:
+
+      generate-evidence-packs --check       OK (no drift in 36 files)
+      audit-compliance-gaps --check         OK
+      migrate-cat22-ntv --check             OK
+      generate-equipment-tags --check       OK
+      generate-phase3-1/2/3 --check         OK
+      generate-recommender-app --check      OK
+      generate-md-from-json --check         OK
+      audit-perf-a11y --check               PERF+A11Y GATE: GREEN
+      generate_doc_references.py --check    OK (213 docs)
+
+  All 8 OT-arc hand-authored packs verified still on disk
+  post-regen. Drift ledger F16 in
+  `docs/health-check-2026-progress.md` now records the cascade
+  closure across both Phase 4.3 (promotion) and Phase 4.2
+  (exemption).
+
+  Future direction: extend `generators/evidence_packs.py` to
+  consume per-slug hand-customised section bodies from
+  `data/evidence-pack-extras.json` so each OT-arc pack can be
+  promoted from `EXEMPT_ORPHANS` to `PACK_TARGETS` while keeping
+  its hand-authored sections intact and gaining the generator's
+  clause table / coverage rollup / citation injection / API JSON
+  twin automatically. Tracked as an enhancement; the
+  `EXEMPT_ORPHANS` set is the right migration boundary.
+
+- **Post-corpus-expansion `audit-compliance-gaps` follow-on — clears the fifth masked freshness gate (Phase 2.1 compliance-gaps timestamp drift).**
+  Direct follow-on to commit `1740d1321` below. With Phase 4.3
+  (cat-22 NTV) cleared, the next gate in `audits-content` surfaced
+  under `set -e`: `Clause-level gap report regeneration check`
+  (validate.yml line 716). `audit-compliance-gaps --check` does a
+  strict byte-for-byte comparison between the committed report and
+  a fresh render. The embedded `generated_utc` string is derived
+  deterministically from `git log -1 --format=%ct --
+  data/regulations.json` so it tracks the commit time of the
+  regulations index, not wall-clock now().
+
+  The committed copy on `main` carried `2026-05-14T11:09:06Z` (the
+  prior `data/regulations.json` commit time at the moment the
+  report was last regenerated). The OT-arc Phase 6 commit
+  `2ed1861b8` (2026-05-16T10:55:25Z) landed China CSL / DSL / PIPL
+  / CII + CERT-In 2022 + DPDP 2023 + IEC 61511/61508 cybersecurity
+  overlay, which rewrote `data/regulations.json`. The next commit
+  `6e67126a0` (1 second later) bumped the version and the release
+  notes but did not regenerate the report, so the embedded
+  timestamp drifted relative to the regulations.json commit time.
+
+  Pure timestamp realignment — the rollup numbers are unchanged
+  (tier-1 90.89%, tier-2 97.55%, tier-3 100.00%). Diff is exactly
+  2 lines (1 in JSON, 1 in MD): only the `generated_utc` /
+  `_Generated:` header strings change.
+
 - **Post-corpus-expansion `migrate-cat22-ntv` follow-on — clears the fourth masked freshness gate (Phase 4.3 cat-22 NTV).**
   Direct follow-on to the cascade in commit `cd1f0b65b` below. With the
   `Equipment-tags regeneration check` failure cleared, the next freshness

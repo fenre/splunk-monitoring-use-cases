@@ -135,7 +135,7 @@ including the deferred sample-data shape ADR).
 | **P9** Monorepo split (apps/ + packages/) | NOT STARTED | — |
 | **P10** Performance + a11y hardening | PARTIAL (2026-05-13) | F8 closure unblocked P10. First a11y deliverable landed 2026-05-13: `index.html` and `scorecard.html` now ship with a visually-hidden `<h1>` inside the correct landmark (banner / main), and both search-bar wrappers on `index.html` carry `role="search"` + distinguishing `aria-label`, so the `region` warning that the F8 closure re-anchored on `#search-input` is gone. `reports/perf-a11y.json` regenerated: `index.html` 0 violations / 0 warnings (was 0 / 1); `scorecard.html` 0 / 0 (unchanged). New `.visually-hidden` utility added to `src/styles/05-helpers.css` + mirrored in `index.html` inline `<style>` + duplicated in `scorecard.html` `<style>` (separate file, no shared stylesheet — chrome unification is F17). Still open under P10: Lighthouse CI, CSP `'unsafe-inline'` tightening on both `script-src` and `style-src` (F8 PR-C precondition), and the virtual-scroll renderer `<template>`-clone refactor (F8 PR-C proper, deferred to P10 as documented in the F8 inventory). |
 | **P11** OSS release polish | PARTIAL (2026-05-13, reclassified) | The original "no `.devcontainer/`" caveat is wrong at HEAD: [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json) ships **pinned by OCI image-index digest** (Microsoft `mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15…`), with Node 20 + GitHub CLI features, ruff + mypy + markdownlint + YAML extensions, pre-forwarded port 8000, pip-cache volume mount, and an 8-assertion structural test suite ([`tests/build/test_devcontainer.py`](../tests/build/test_devcontainer.py)) that pins the invariants. **Closed gap (2026-05-13):** the `postCreateCommand: make devcontainer-init` reference used to point at a Make target that did not exist (the structural test for that was deliberately skipped with `pytest.mark.skip("deferred to v8.x")`). PR — adds the `devcontainer-init` target to `Makefile` (installs `pip install -e .[audits,dev,test]`, registers pre-commit hooks, warm-builds `dist/`), unskips `test_make_target_exists`, and asserts that `devcontainer-init` is listed in `.PHONY`. The "ROADMAP.md still says v7.1" half of the original caveat was already resolved on 2026-05-12 (loose-end ledger #1). **What's still open:** no automated workflow that pushes `reports/roadmap-export.json` to a public Project board (the `make export-roadmap` target produces the snapshot; the sync side is the residual P11 work). |
-| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-7">7</a>]</sup> gate. |
+| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect gate. |
 | **P13** Recommender TA hardening | NOT STARTED | The recommender TA was overhauled in v8.0.0 (CHANGELOG mentions "single Cloud-safe recommender app") but P13's threat model + Sigstore on `.spl` + AppInspect Cloud gate not visible. |
 | **P14** Content stewardship | DONE (2026-05-14; cadence side still open) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. **Still open** — the cadence side: automated rotation reminders that consume the CODEOWNERS rows + the new scorecard drill-downs (e.g. quarterly "owner of cat-N has not approved a content change in 90 days; nudge"). |
 | **P15** Specification compliance moonshot | NOT STARTED | 2027 target per plan; no `clauseText[]` bindings. |
@@ -256,7 +256,7 @@ findings but should not be lost:
 10. **Cat-22 OT regulation deep-dive arc shipped.** New ledger entry
     2026-05-16 for the 252-UC content arc that landed on local `main`
     between v8.5.0 and v8.6.4 across four commits — `458a50f8b`
-    (Phases 1-5a rollup: ISA/IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>, NERC CIP<sup class="ref">[<a href="#ref-6">6</a>]</sup> v8, EU NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> OT,
+    (Phases 1-5a rollup: ISA/IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>, NERC CIP<sup class="ref">[<a href="#ref-7">7</a>]</sup> v8, EU NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> OT,
     UK CAF / NIS Regulations, US CIRCIA, ENISA NIS2 sectoral, IMO
     cyber), `debb1d9b5` (Phase 5b: DO-326A / ED-202A aviation),
     `c25e80ec1` (Phase 6 closure: China CSL / DSL / PIPL / CII +
@@ -564,18 +564,56 @@ findings but should not be lost:
     treats the maintainer's additions as either orphan files (1) or
     drift (2).**
 
-    1. **Phase 4.2 evidence-pack orphan gate:** running
-       `splunk_uc generate-evidence-packs --check` locally surfaces 8
-       `orphan: docs/evidence-packs/<slug>.md` errors for the OT-arc
-       regulations the maintainer added evidence-pack markdown for —
-       `cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
-       `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
-       `tsa-surface.md`. The MD files exist on disk and are tracked,
-       but the generator's hardcoded `PACK_TARGETS` list in
-       [`src/splunk_uc/generators/evidence_packs.py`](../src/splunk_uc/generators/evidence_packs.py)
-       (currently 17 slugs) does not include them, so `--check`
-       reports them as orphans and `generate-evidence-packs` (without
-       `--check`) would *delete* them.
+    1. ~~**Phase 4.2 evidence-pack orphan gate:**~~ **RESOLVED** in
+       cascade follow-on commit (see below). The maintainer's OT-arc
+       added 8 hand-authored evidence packs (`cert-in.md`,
+       `cn-csl.md`, `do-326a.md`, `fr-lpm.md`, `iec-61511.md`,
+       `imo-msc-428-98.md`, `sg-cyber-act.md`, `tsa-surface.md`) that
+       carry sections the generator template cannot reproduce
+       (e.g. §6.1/§6.2 inspector-vs-CO testing flows on the SG pack,
+       custom §11 "Questions a flag-State / PSC / class-society
+       inspector should ask" on the IMO pack, bilingual FR/EN
+       auditor questions on the LPM pack, SIS/BPCS/SCS three-layer
+       table on the IEC 61511 pack, stage-of-certification
+       hierarchy on the DO-326A pack, MeitY / CERT-In dual-track
+       reporting on the cert-in pack, five-statute cross-reference
+       matrix on the cn-csl pack, SD 1580/1582-2024-01 cross-mode
+       comparison on the tsa-surface pack). Resolution chose path
+       **(b)** from the originally documented options below:
+       `evidence_packs.py` grew an `EXEMPT_ORPHANS` frozenset (the 8
+       slugs) and both `_check_drift()`'s orphan loop and
+       `_prune_orphans()` learned to skip entries whose stem is in
+       that set. The generator now:
+
+       - Owns the 17 packs in `PACK_TARGETS` (generator-owned,
+         template-driven).
+       - Leaves the 8 packs in `EXEMPT_ORPHANS` alone on both
+         `docs/evidence-packs/<slug>.md` and the (gitignored)
+         `api/v1/evidence-packs/<slug>.json` surface — they live
+         outside generator scope but ship at predictable URLs that
+         match the rest of the pack-catalogue naming convention.
+       - Reports byte-identical output for both modes (no `changed:`,
+         no `orphan:`, no `missing:` in `--check`).
+
+       Future direction (path **(a)**) is still open: extend
+       `evidence_packs.py` to consume per-slug hand-customised
+       section bodies from `data/evidence-pack-extras.json` so each
+       OT-arc pack can be promoted from `EXEMPT_ORPHANS` to
+       `PACK_TARGETS` while keeping its hand-authored §6.1/§11
+       sections intact and gaining the generator's clause table /
+       coverage rollup / citation injection / API JSON twin
+       automatically. Tracked as a separate enhancement, not a CI
+       blocker.
+
+       Same commit also refreshed 18 in-`PACK_TARGETS` MD files
+       (coverage-table refresh after the OT-arc UCs landed
+       compliance coverage for SOCI / AWIA / CIRCIA / CLC-TS-50701 /
+       NCA OTCC / SOX-ITGC / NIST 800-53<sup class="ref">[<a href="#ref-6">6</a>]</sup> — the maintainer's UCs
+       brought the *previously-zero* clause counts on those packs
+       from 0.0% to 75-100%). The clause-by-clause tables on
+       AWIA / CIRCIA / CLC-TS-50701 / SOCI in particular gained
+       ~150-200 lines each as the "_not yet covered_" placeholder
+       rows were replaced with real UC-ID lists.
 
     2. ~~**Phase 4.3 cat-22 non-technical block regeneration check:**~~
        **RESOLVED** in cascade follow-on commit (see below). The
@@ -617,34 +655,49 @@ findings but should not be lost:
        commit; the resulting `_AREAS` list is now the canonical
        source-of-truth and the cat-22 NTV `--check` gate passes.
 
-    Phase 4.2 evidence-packs was masked on the prior CI runs by the
-    Phase 3.2 cross-cutting failure (and on `e2f467cf6` by the
-    Equipment-tags failure that masked Phase 4.3 in turn) stopping
-    the job script early under `set -e`. With this cascade clearing
-    those and Phase 4.3 now resolved, the next CI run on `main` will
-    surface Phase 4.2 (line 724 of `validate.yml`) as the next red
-    gate.
+    **Cascade closure (2026-05-16).** Both gates that the original
+    F16 narrative flagged as pre-existing OT-arc generator gaps —
+    Phase 4.3 cat-22 non-technical block (`migrate-cat22-ntv
+    --check`, line 698 of `validate.yml`) and Phase 4.2
+    evidence-pack regeneration (`generate-evidence-packs --check`,
+    line 724) — are now resolved through separate cascade follow-on
+    commits. The path chosen for each:
 
-    **Phase 4.2 NOT fixed in this cascade** because the safest fix
-    for `generate-evidence-packs` is more invasive than the cat-22
-    NTV equivalent: the maintainer's evidence packs carry
-    hand-customised TOC sections (e.g. *"Questions a flag-State /
-    PSC / class-society inspector should ask"* on
-    `imo-msc-428-98.md`) that the generic template in
-    `generators/evidence_packs.py` does not produce. Adding the 8
-    slugs to `PACK_TARGETS` would regenerate the MD files from
-    `data/evidence-pack-extras.json` + UC compliance entries and
-    overwrite those hand-customised sections. The decision needs the
-    maintainer: either (a) the evidence-pack generator template
-    gains the OT-arc-specific TOC sections (the hand-customised
-    flag-State/PSC questions on the IMO pack, the
-    CSA-Commissioner-facing scorecard on the SG pack, the Délégué-
-    OIV bilingual scorecard on the LPM pack) by name, or (b) the 8
-    OT-arc evidence packs are re-classified as hand-authored
-    documents outside the generator's scope (and the orphan check is
-    taught to ignore an explicit allow-list of "manually maintained"
-    slugs). Tracked here so the post-push CI failure on Phase 4.2 is
-    expected, not a surprise.
+    - **Phase 4.3** — promotion: maintainer's content moved
+      *into* the generator (the 13 OT-arc `_AREAS` entries spliced
+      into `regenerate_cat22_ntv.py` via a JSON round-trip), so the
+      generator becomes the canonical source-of-truth and the
+      maintainer's multilingual narrative survives byte-identical.
+
+    - **Phase 4.2** — exemption: the 8 OT-arc evidence packs stay
+      hand-authored and the generator gains an `EXEMPT_ORPHANS` set
+      that excludes them from both the orphan-check and the
+      orphan-prune. Plus a separate refresh of the 18
+      in-`PACK_TARGETS` MD files (legitimate coverage update after
+      the OT-arc UCs landed).
+
+    Both choices are defensible:
+
+    - Promotion (path 4.3) is preferred when the generator template
+      can re-emit the maintainer's content byte-identical. The
+      cat-22 NTV `_AREAS` entries are dict-shaped data with a
+      stable schema, so promotion is mechanical.
+
+    - Exemption (path 4.2) is preferred when the maintainer's
+      content has *structural* customisations the template cannot
+      reproduce without an invasive template extension. The 8
+      OT-arc evidence packs each have custom section bodies (§6.1
+      inspector-vs-CO testing flows, §11 jurisdiction-specific
+      inspector questions, three-layer separation matrices) that
+      vary per regulation, so exemption is the low-risk choice.
+
+    Future direction for path 4.2: extend
+    `generators/evidence_packs.py` to consume per-slug
+    hand-customised section bodies from
+    `data/evidence-pack-extras.json` so each OT-arc pack can be
+    promoted from `EXEMPT_ORPHANS` to `PACK_TARGETS` while keeping
+    its hand-authored sections intact. Tracked as an enhancement
+    rather than a CI blocker.
 
 ## Recommended next actions, in size order
 
@@ -873,9 +926,9 @@ without verification at HEAD.
 
 <a id="ref-5"></a>**[5]** National Cyber Security Centre (UK). (2025). *Cyber Essentials — Montpellier (2025)*. NCSC, IASME Consortium. https://www.ncsc.gov.uk/cyberessentials/overview
 
-<a id="ref-6"></a>**[6]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
+<a id="ref-6"></a>**[6]** National Institute of Standards and Technology. (2020). *Security and Privacy Controls for Information Systems and Organizations* (Revision 5). U.S. Department of Commerce. NIST SP 800-53 Rev. 5. https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
 
-<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+<a id="ref-7"></a>**[7]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
 <a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 

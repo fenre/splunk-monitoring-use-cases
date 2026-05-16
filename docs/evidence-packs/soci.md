@@ -40,9 +40,9 @@ Applies to responsible entities for the assets defined in the SOCI Act as critic
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 0 / 28 (0.0%)
-- **Priority-weighted coverage**: 0.0%
-- **Contributing UCs**: 0
+- **Clauses covered by at least one UC**: 21 / 28 (75.0%)
+- **Priority-weighted coverage**: 77.7%
+- **Contributing UCs**: 22
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,34 +52,169 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`SOCI-s18`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s18) | Asset register — responsible entity reporting (Part 2) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30AC`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AC) | Duty to adopt and maintain a Critical Infrastructure Risk Management Program (CIRMP) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30AH`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AH) | Annual review of the CIRMP | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30AG`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AG) | Board (or equivalent) approval and annual report | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30BC`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BC) | Critical cyber-security incident — 12-hour notification (Part 2B) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30BD`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BD) | Other (significant) cyber-security incident — 72-hour notification | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30BF`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BF) | Subsequent written report — 84-hour requirement | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-s30CB`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CB) | Statutory cyber-incident response plan for Systems of National Significance (SoNS) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-s30CG`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CG) | Cyber-security exercise on demand for SoNS | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-s30CM`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CM) | Vulnerability assessment on demand for SoNS | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-s30DJ`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30DJ) | System information periodic reporting (event-log telemetry) for SoNS | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r5`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r5) | CIRMP Rules — General requirements and material-risk identification | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r6.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.1) | CIRMP Rules — Cyber-and-information-security material risks (general) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r6.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.2) | CIRMP Rules — Cyber-and-information-security continuous monitoring | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r6.3`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.3) | CIRMP Rules — Mandatory cyber framework adoption (Aug 2024 deadline) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r7.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r7.1) | CIRMP Rules — Personnel hazards: critical-worker identification and assessment | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r7.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r7.2) | CIRMP Rules — Personnel hazards: insider-threat detection and removal | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r8.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.1) | CIRMP Rules — Supply-chain hazards: vendor risk register | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r8.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.2) | CIRMP Rules — Supply-chain hazards: continuous supplier monitoring | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r9.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.1) | CIRMP Rules — Physical and natural hazards: site security | 0.7 | `—` | _not yet covered_ |
+| [`SOCI-s18`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s18) | Asset register — responsible entity reporting (Part 2) | 1.0 | `full` | [UC-22.52.1](#uc-22-52-1) |
+| [`SOCI-s30AC`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AC) | Duty to adopt and maintain a Critical Infrastructure Risk Management Program (CIRMP) | 1.0 | `full` | [UC-22.52.2](#uc-22-52-2) |
+| [`SOCI-s30AH`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AH) | Annual review of the CIRMP | 1.0 | `full` | [UC-22.52.3](#uc-22-52-3) |
+| [`SOCI-s30AG`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30AG) | Board (or equivalent) approval and annual report | 1.0 | `full` | [UC-22.52.4](#uc-22-52-4) |
+| [`SOCI-s30BC`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BC) | Critical cyber-security incident — 12-hour notification (Part 2B) | 1.0 | `full` | [UC-22.52.5](#uc-22-52-5) |
+| [`SOCI-s30BD`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BD) | Other (significant) cyber-security incident — 72-hour notification | 1.0 | `full` | [UC-22.52.6](#uc-22-52-6) |
+| [`SOCI-s30BF`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30BF) | Subsequent written report — 84-hour requirement | 0.7 | `full` | [UC-22.52.7](#uc-22-52-7) |
+| [`SOCI-s30CB`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CB) | Statutory cyber-incident response plan for Systems of National Significance (SoNS) | 1.0 | `partial` | [UC-22.52.8](#uc-22-52-8) |
+| [`SOCI-s30CG`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CG) | Cyber-security exercise on demand for SoNS | 0.7 | `full` | [UC-22.52.9](#uc-22-52-9) |
+| [`SOCI-s30CM`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30CM) | Vulnerability assessment on demand for SoNS | 0.7 | `full` | [UC-22.52.10](#uc-22-52-10) |
+| [`SOCI-s30DJ`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-s30DJ) | System information periodic reporting (event-log telemetry) for SoNS | 0.7 | `full` | [UC-22.52.11](#uc-22-52-11) |
+| [`SOCI-CIRMP-r5`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r5) | CIRMP Rules — General requirements and material-risk identification | 1.0 | `full` | [UC-22.52.12](#uc-22-52-12) |
+| [`SOCI-CIRMP-r6.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.1) | CIRMP Rules — Cyber-and-information-security material risks (general) | 1.0 | `partial` | [UC-22.52.13](#uc-22-52-13) |
+| [`SOCI-CIRMP-r6.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.2) | CIRMP Rules — Cyber-and-information-security continuous monitoring | 1.0 | `full` | [UC-22.52.14](#uc-22-52-14) |
+| [`SOCI-CIRMP-r6.3`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r6.3) | CIRMP Rules — Mandatory cyber framework adoption (Aug 2024 deadline) | 1.0 | `full` | [UC-22.52.15](#uc-22-52-15) |
+| [`SOCI-CIRMP-r7.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r7.1) | CIRMP Rules — Personnel hazards: critical-worker identification and assessment | 1.0 | `full` | [UC-22.52.16](#uc-22-52-16) |
+| [`SOCI-CIRMP-r7.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r7.2) | CIRMP Rules — Personnel hazards: insider-threat detection and removal | 1.0 | `partial` | [UC-22.52.17](#uc-22-52-17) |
+| [`SOCI-CIRMP-r8.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.1) | CIRMP Rules — Supply-chain hazards: vendor risk register | 1.0 | `full` | [UC-22.52.18](#uc-22-52-18) |
+| [`SOCI-CIRMP-r8.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.2) | CIRMP Rules — Supply-chain hazards: continuous supplier monitoring | 0.7 | `full` | [UC-22.52.19](#uc-22-52-19) |
+| [`SOCI-CIRMP-r9.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.1) | CIRMP Rules — Physical and natural hazards: site security | 0.7 | `full` | [UC-22.52.20](#uc-22-52-20) |
 | [`SOCI-CIRMP-r9.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.2) | CIRMP Rules — Natural hazards and business continuity exercises | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-CIRMP-r10`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r10) | CIRMP Rules — Annual report to the Department | 1.0 | `—` | _not yet covered_ |
+| [`SOCI-CIRMP-r10`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r10) | CIRMP Rules — Annual report to the Department | 1.0 | `full` | [UC-22.52.22](#uc-22-52-22), [UC-22.52.23](#uc-22-52-23) |
 | [`SOCI-ECSO-vulnerability`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-ECSO-vulnerability) | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.7 | `—` | _not yet covered_ |
 | [`SOCI-cross-segmentation`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-segmentation) | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.0 | `—` | _not yet covered_ |
 | [`SOCI-cross-asset-inventory`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-asset-inventory) | OT asset inventory with criticality classification (CISC expectation) | 1.0 | `—` | _not yet covered_ |
 | [`SOCI-cross-data-residency`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-data-residency) | Australian data residency and operational-data sovereignty | 0.7 | `—` | _not yet covered_ |
 | [`SOCI-cross-encryption`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-encryption) | Encryption of operational data in transit between zones | 0.7 | `—` | _not yet covered_ |
 | [`SOCI-cross-audit-evidence`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-audit-evidence) | Audit-evidence retention for CIRMP and incident reporting | 0.7 | `—` | _not yet covered_ |
+
+### 4.1 Contributing UC detail
+
+<a id='uc-22-52-1'></a>
+- **UC-22.52.1** — SOCI Asset Register currency — evidence every s 18 reportable change is lodged within 30 days
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.1.json`](../../content/cat-22-regulatory-compliance/UC-22.52.1.json)
+<a id='uc-22-52-10'></a>
+- **UC-22.52.10** — SOCI s 30CM SoNS vulnerability assessment on demand — compliance with Secretary notices and ASD assessor access
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.10.json`](../../content/cat-22-regulatory-compliance/UC-22.52.10.json)
+<a id='uc-22-52-11'></a>
+- **UC-22.52.11** — SOCI s 30DJ SoNS system-information periodic reporting — ASD event-log telemetry feed health
+  - Control family: `regulation-specific`
+  - Owner: `Head of Platform`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.11.json`](../../content/cat-22-regulatory-compliance/UC-22.52.11.json)
+<a id='uc-22-52-12'></a>
+- **UC-22.52.12** — SOCI CIRMP Rule 5 material-risk register currency — every identified material risk is owned, scored, and reviewed
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.12.json`](../../content/cat-22-regulatory-compliance/UC-22.52.12.json)
+<a id='uc-22-52-13'></a>
+- **UC-22.52.13** — SOCI CIRMP Rule 6(1) unauthorised access / modification / interference — detect cyber compromise on assets supporting the SoNS
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.13.json`](../../content/cat-22-regulatory-compliance/UC-22.52.13.json)
+<a id='uc-22-52-14'></a>
+- **UC-22.52.14** — SOCI CIRMP Rule 6(2) continuous detection effectiveness — evidence detection / response / recovery is tested at least annually
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.14.json`](../../content/cat-22-regulatory-compliance/UC-22.52.14.json)
+<a id='uc-22-52-15'></a>
+- **UC-22.52.15** — SOCI CIRMP Rule 6(3) cyber framework attestation drift — Essential Eight<sup class="ref">[<a href="#ref-1">1</a>]</sup> / ISO 27001<sup class="ref">[<a href="#ref-4">4</a>]</sup> / NIST CSF<sup class="ref">[<a href="#ref-6">6</a>]</sup> / AESCSF / C2M2 currency
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.15.json`](../../content/cat-22-regulatory-compliance/UC-22.52.15.json)
+<a id='uc-22-52-16'></a>
+- **UC-22.52.16** — SOCI CIRMP Rule 7 critical-worker register currency and screening status
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.16.json`](../../content/cat-22-regulatory-compliance/UC-22.52.16.json)
+<a id='uc-22-52-17'></a>
+- **UC-22.52.17** — SOCI CIRMP Rule 7(2) insider-threat anomaly detection — UEBA on critical workers with documented removal-test cadence
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.17.json`](../../content/cat-22-regulatory-compliance/UC-22.52.17.json)
+<a id='uc-22-52-18'></a>
+- **UC-22.52.18** — SOCI CIRMP Rule 8 supply-chain hazard register currency and Tier-1 supplier attestation
+  - Control family: `regulation-specific`
+  - Owner: `Procurement`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.18.json`](../../content/cat-22-regulatory-compliance/UC-22.52.18.json)
+<a id='uc-22-52-19'></a>
+- **UC-22.52.19** — SOCI CIRMP Rule 8(2) sanctions & FOCI screening — detect supplier or beneficial-owner additions to sanctions / consolidated lists
+  - Control family: `regulation-specific`
+  - Owner: `Procurement`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.19.json`](../../content/cat-22-regulatory-compliance/UC-22.52.19.json)
+<a id='uc-22-52-2'></a>
+- **UC-22.52.2** — SOCI s 30AC CIRMP existence and material-risk completeness — evidence the program covers every required hazard family
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.2.json`](../../content/cat-22-regulatory-compliance/UC-22.52.2.json)
+<a id='uc-22-52-20'></a>
+- **UC-22.52.20** — SOCI CIRMP Rule 9 physical and natural-hazard register currency
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.20.json`](../../content/cat-22-regulatory-compliance/UC-22.52.20.json)
+<a id='uc-22-52-22'></a>
+- **UC-22.52.22** — SOCI Rule 10 annual report production — evidence the Rule 10 board-approved report is filed within 90 days of EOFY
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.22.json`](../../content/cat-22-regulatory-compliance/UC-22.52.22.json)
+<a id='uc-22-52-23'></a>
+- **UC-22.52.23** — SOCI Rule 10 annual report content audit — evidence section-by-section completeness against CIRMP Rules 4-9
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.23.json`](../../content/cat-22-regulatory-compliance/UC-22.52.23.json)
+<a id='uc-22-52-3'></a>
+- **UC-22.52.3** — SOCI s 30AH CIRMP annual review currency — evidence each program has been reviewed in the last 365 days
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.3.json`](../../content/cat-22-regulatory-compliance/UC-22.52.3.json)
+<a id='uc-22-52-4'></a>
+- **UC-22.52.4** — SOCI s 30AG board approval evidence — every CIRMP and annual report has a signed board minute
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.4.json`](../../content/cat-22-regulatory-compliance/UC-22.52.4.json)
+<a id='uc-22-52-5'></a>
+- **UC-22.52.5** — SOCI s 30BC critical cyber incident — 12-hour ASD notification SLA timer
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.5.json`](../../content/cat-22-regulatory-compliance/UC-22.52.5.json)
+<a id='uc-22-52-6'></a>
+- **UC-22.52.6** — SOCI s 30BD other (significant) cyber incident — 72-hour ASD notification SLA timer
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.6.json`](../../content/cat-22-regulatory-compliance/UC-22.52.6.json)
+<a id='uc-22-52-7'></a>
+- **UC-22.52.7** — SOCI s 30BF 84-hour written follow-up after an oral cyber notification
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.7.json`](../../content/cat-22-regulatory-compliance/UC-22.52.7.json)
+<a id='uc-22-52-8'></a>
+- **UC-22.52.8** — SOCI s 30CB SoNS statutory cyber-incident response plan currency
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.8.json`](../../content/cat-22-regulatory-compliance/UC-22.52.8.json)
+<a id='uc-22-52-9'></a>
+- **UC-22.52.9** — SOCI s 30CG SoNS cyber exercise compliance — every Secretary-issued exercise notice has a tracked evaluation report
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.9.json`](../../content/cat-22-regulatory-compliance/UC-22.52.9.json)
 
 ## 5. Evidence collection
 
@@ -109,7 +244,7 @@ Auditors typically request the following records when examining this regulation:
 | Rule 10 annual report and board-approval records | Duration of CIRMP currency + 10 years | SOCI Act 2018 (Cth) s30AG; CIRMP Rules 2023 r10 |
 | ECSO 14-day Notice-of-Operations lodgements and acknowledgements | Duration of SoNS declaration + 10 years | SOCI Act 2018 (Cth) Part 2C ECSO obligations |
 | Government Assistance Powers (Part 3A) directions, responses, and evidence artefacts | Duration of direction validity + 15 years (extended for national-security records) | SOCI Act 2018 (Cth) Part 3A; Archives Act 1983 (Cth) national-security retention |
-| Cyber framework attestations (Rule 6(3)) — Essential Eight<sup class="ref">[<a href="#ref-1">1</a>]</sup>, ISO 27001<sup class="ref">[<a href="#ref-4">4</a>]</sup>, NIST CSF<sup class="ref">[<a href="#ref-6">6</a>]</sup>, AESCSF, C2M2, or Secretary-approved equivalent | Duration of CIRMP currency + 7 years | CIRMP Rules 2023 r6(3); ACSC Essential Eight Maturity Model documentation |
+| Cyber framework attestations (Rule 6(3)) — Essential Eight, ISO 27001, NIST CSF, AESCSF, C2M2, or Secretary-approved equivalent | Duration of CIRMP currency + 7 years | CIRMP Rules 2023 r6(3); ACSC Essential Eight Maturity Model documentation |
 | Critical-worker register, screening evidence, training records (Rule 7) | Worker engagement duration + 7 years | CIRMP Rules 2023 r7; AGSVA / NCCHC retention guidance |
 | Supply-chain hazard register, tier-1 attestations, sanctions-screening disposition records (Rule 8) | Engagement duration + 7 years | CIRMP Rules 2023 r8; Autonomous Sanctions Act 2011 record-keeping requirements |
 | Physical and natural-hazard assessments and mitigations (Rule 9) | Duration of asset operation + 7 years | CIRMP Rules 2023 r9 |
@@ -194,34 +329,13 @@ Clauses tracked in `data/regulations.json` that are **not yet covered** by any U
 
 | Clause | Topic | Priority |
 |---|---|---|
-| `SOCI-CIRMP-r10` | CIRMP Rules — Annual report to the Department | 1.0 |
-| `SOCI-CIRMP-r5` | CIRMP Rules — General requirements and material-risk identification | 1.0 |
-| `SOCI-CIRMP-r6.1` | CIRMP Rules — Cyber-and-information-security material risks (general) | 1.0 |
-| `SOCI-CIRMP-r6.2` | CIRMP Rules — Cyber-and-information-security continuous monitoring | 1.0 |
-| `SOCI-CIRMP-r6.3` | CIRMP Rules — Mandatory cyber framework adoption (Aug 2024 deadline) | 1.0 |
-| `SOCI-CIRMP-r7.1` | CIRMP Rules — Personnel hazards: critical-worker identification and assessment | 1.0 |
-| `SOCI-CIRMP-r7.2` | CIRMP Rules — Personnel hazards: insider-threat detection and removal | 1.0 |
-| `SOCI-CIRMP-r8.1` | CIRMP Rules — Supply-chain hazards: vendor risk register | 1.0 |
 | `SOCI-cross-asset-inventory` | OT asset inventory with criticality classification (CISC expectation) | 1.0 |
 | `SOCI-cross-segmentation` | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.0 |
-| `SOCI-s18` | Asset register — responsible entity reporting (Part 2) | 1.0 |
-| `SOCI-s30AC` | Duty to adopt and maintain a Critical Infrastructure Risk Management Program (CIRMP) | 1.0 |
-| `SOCI-s30AG` | Board (or equivalent) approval and annual report | 1.0 |
-| `SOCI-s30AH` | Annual review of the CIRMP | 1.0 |
-| `SOCI-s30BC` | Critical cyber-security incident — 12-hour notification (Part 2B) | 1.0 |
-| `SOCI-s30BD` | Other (significant) cyber-security incident — 72-hour notification | 1.0 |
-| `SOCI-s30CB` | Statutory cyber-incident response plan for Systems of National Significance (SoNS) | 1.0 |
-| `SOCI-CIRMP-r8.2` | CIRMP Rules — Supply-chain hazards: continuous supplier monitoring | 0.7 |
-| `SOCI-CIRMP-r9.1` | CIRMP Rules — Physical and natural hazards: site security | 0.7 |
 | `SOCI-CIRMP-r9.2` | CIRMP Rules — Natural hazards and business continuity exercises | 0.7 |
 | `SOCI-ECSO-vulnerability` | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.7 |
 | `SOCI-cross-audit-evidence` | Audit-evidence retention for CIRMP and incident reporting | 0.7 |
 | `SOCI-cross-data-residency` | Australian data residency and operational-data sovereignty | 0.7 |
 | `SOCI-cross-encryption` | Encryption of operational data in transit between zones | 0.7 |
-| `SOCI-s30BF` | Subsequent written report — 84-hour requirement | 0.7 |
-| `SOCI-s30CG` | Cyber-security exercise on demand for SoNS | 0.7 |
-| `SOCI-s30CM` | Vulnerability assessment on demand for SoNS | 0.7 |
-| `SOCI-s30DJ` | System information periodic reporting (event-log telemetry) for SoNS | 0.7 |
 
 ## 12. Questions an auditor should ask
 
@@ -274,9 +388,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:

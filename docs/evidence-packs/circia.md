@@ -40,9 +40,9 @@ Applies to 'covered entities' within the 16 critical-infrastructure sectors enum
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 0 / 28 (0.0%)
-- **Priority-weighted coverage**: 0.0%
-- **Contributing UCs**: 0
+- **Clauses covered by at least one UC**: 28 / 28 (100.0%)
+- **Priority-weighted coverage**: 100.0%
+- **Contributing UCs**: 28
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,34 +52,205 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`CIRCIA-s2242a`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242a) | Definitions — 'covered entity' and 'covered cyber incident' | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242b`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242b) | Mandatory covered-cyber-incident report — within 72 hours of reasonable belief | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242c`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242c) | Mandatory ransom-payment report — within 24 hours | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242d`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242d) | Supplemental report — when new material information emerges | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242f`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242f) | Records preservation — preserve data and records related to the incident | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242g`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242g) | Liability protections and privileged-communication treatment | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-s2242h`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242h) | Enforcement — request for information and subpoena authority | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-covered-entity`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-covered-entity) | Covered-entity scope (proposed in 2024 NPRM) | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-covered-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-covered-incident) | Covered-incident definition (proposed in 2024 NPRM) — 'substantial' cyber incident | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-72hr-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-72hr-reporting) | 72-hour reporting clock — operationalisation | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-24hr-ransom`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-24hr-ransom) | 24-hour ransom-payment clock — operationalisation | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-report-content`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-report-content) | Required report content — the CIRCIA report template | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-third-party-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-third-party-reporting) | Third-party reporting — incident-response firms, insurance carriers, MSSP partners | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-data-preservation`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-data-preservation) | Data and records preservation — 2-year retention | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-supplemental-trigger`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-supplemental-trigger) | Supplemental-report trigger conditions | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-cisa-agreement`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-cisa-agreement) | CIRCIA Agreement — sector-specific bridge to other federal reporting | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-NPRM-recordkeeping-quality`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-recordkeeping-quality) | Recordkeeping quality — auditable timestamp evidence | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-portal`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-portal) | CISA Services Portal — the canonical reporting channel | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-interim-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-interim-reporting) | Interim reporting (pre-Final Rule) — voluntary but CISA-encouraged | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-protected-information`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-protected-information) | Protected information handling — CISA's safeguards on the report content | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-coordination-with-sector-srma`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-coordination-with-sector-srma) | Sector Risk Management Agency coordination (SRMA) | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-incident-classification`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-incident-classification) | Internal classification — distinguishing CIRCIA-reportable from sectoral-only | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-third-party-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-third-party-incident) | Third-party incident attribution — supply chain, MSSP, cloud | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-ot-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-ot-incident) | OT / ICS / SCADA incidents — explicit in-scope under CIRCIA | 1.0 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-board-fiduciary`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-board-fiduciary) | Board fiduciary awareness — pre-incident assignment of responsibility | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-sec-form-8-k`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-sec-form-8-k) | SEC Form 8-K Item 1.05 alignment — materiality + CIRCIA | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-tabletop`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-tabletop) | Annual tabletop — CIRCIA reporting workflow exercise | 0.7 | `—` | _not yet covered_ |
-| [`CIRCIA-CISA-records-retention`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-records-retention) | CIRCIA-specific records retention — 2 years per NPRM | 0.7 | `—` | _not yet covered_ |
+| [`CIRCIA-s2242a`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242a) | Definitions — 'covered entity' and 'covered cyber incident' | 1.0 | `full` | [UC-22.54.1](#uc-22-54-1) |
+| [`CIRCIA-s2242b`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242b) | Mandatory covered-cyber-incident report — within 72 hours of reasonable belief | 1.0 | `full` | [UC-22.54.2](#uc-22-54-2), [UC-22.54.26](#uc-22-54-26) |
+| [`CIRCIA-s2242c`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242c) | Mandatory ransom-payment report — within 24 hours | 1.0 | `full` | [UC-22.54.26](#uc-22-54-26), [UC-22.54.3](#uc-22-54-3) |
+| [`CIRCIA-s2242d`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242d) | Supplemental report — when new material information emerges | 1.0 | `full` | [UC-22.54.26](#uc-22-54-26), [UC-22.54.4](#uc-22-54-4) |
+| [`CIRCIA-s2242f`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242f) | Records preservation — preserve data and records related to the incident | 1.0 | `full` | [UC-22.54.27](#uc-22-54-27), [UC-22.54.5](#uc-22-54-5) |
+| [`CIRCIA-s2242g`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242g) | Liability protections and privileged-communication treatment | 0.7 | `partial` | [UC-22.54.6](#uc-22-54-6) |
+| [`CIRCIA-s2242h`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-s2242h) | Enforcement — request for information and subpoena authority | 1.0 | `full` | [UC-22.54.7](#uc-22-54-7) |
+| [`CIRCIA-NPRM-covered-entity`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-covered-entity) | Covered-entity scope (proposed in 2024 NPRM) | 1.0 | `full` | [UC-22.54.8](#uc-22-54-8) |
+| [`CIRCIA-NPRM-covered-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-covered-incident) | Covered-incident definition (proposed in 2024 NPRM) — 'substantial' cyber incident | 1.0 | `full` | [UC-22.54.9](#uc-22-54-9) |
+| [`CIRCIA-NPRM-72hr-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-72hr-reporting) | 72-hour reporting clock — operationalisation | 1.0 | `full` | [UC-22.54.10](#uc-22-54-10) |
+| [`CIRCIA-NPRM-24hr-ransom`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-24hr-ransom) | 24-hour ransom-payment clock — operationalisation | 1.0 | `full` | [UC-22.54.11](#uc-22-54-11) |
+| [`CIRCIA-NPRM-report-content`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-report-content) | Required report content — the CIRCIA report template | 1.0 | `full` | [UC-22.54.12](#uc-22-54-12) |
+| [`CIRCIA-NPRM-third-party-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-third-party-reporting) | Third-party reporting — incident-response firms, insurance carriers, MSSP partners | 1.0 | `full` | [UC-22.54.13](#uc-22-54-13) |
+| [`CIRCIA-NPRM-data-preservation`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-data-preservation) | Data and records preservation — 2-year retention | 1.0 | `full` | [UC-22.54.27](#uc-22-54-27), [UC-22.54.5](#uc-22-54-5) |
+| [`CIRCIA-NPRM-supplemental-trigger`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-supplemental-trigger) | Supplemental-report trigger conditions | 1.0 | `full` | [UC-22.54.4](#uc-22-54-4) |
+| [`CIRCIA-NPRM-cisa-agreement`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-cisa-agreement) | CIRCIA Agreement — sector-specific bridge to other federal reporting | 0.7 | `full` | [UC-22.54.15](#uc-22-54-15) |
+| [`CIRCIA-NPRM-recordkeeping-quality`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-NPRM-recordkeeping-quality) | Recordkeeping quality — auditable timestamp evidence | 1.0 | `full` | [UC-22.54.14](#uc-22-54-14) |
+| [`CIRCIA-CISA-portal`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-portal) | CISA Services Portal — the canonical reporting channel | 1.0 | `full` | [UC-22.54.16](#uc-22-54-16) |
+| [`CIRCIA-CISA-interim-reporting`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-interim-reporting) | Interim reporting (pre-Final Rule) — voluntary but CISA-encouraged | 0.7 | `partial` | [UC-22.54.17](#uc-22-54-17) |
+| [`CIRCIA-CISA-protected-information`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-protected-information) | Protected information handling — CISA's safeguards on the report content | 0.7 | `partial` | [UC-22.54.6](#uc-22-54-6) |
+| [`CIRCIA-CISA-coordination-with-sector-srma`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-coordination-with-sector-srma) | Sector Risk Management Agency coordination (SRMA) | 0.7 | `full` | [UC-22.54.18](#uc-22-54-18) |
+| [`CIRCIA-CISA-incident-classification`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-incident-classification) | Internal classification — distinguishing CIRCIA-reportable from sectoral-only | 1.0 | `full` | [UC-22.54.19](#uc-22-54-19), [UC-22.54.28](#uc-22-54-28) |
+| [`CIRCIA-CISA-third-party-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-third-party-incident) | Third-party incident attribution — supply chain, MSSP, cloud | 1.0 | `full` | [UC-22.54.20](#uc-22-54-20) |
+| [`CIRCIA-CISA-ot-incident`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-ot-incident) | OT / ICS / SCADA incidents — explicit in-scope under CIRCIA | 1.0 | `full` | [UC-22.54.21](#uc-22-54-21) |
+| [`CIRCIA-CISA-board-fiduciary`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-board-fiduciary) | Board fiduciary awareness — pre-incident assignment of responsibility | 0.7 | `full` | [UC-22.54.22](#uc-22-54-22) |
+| [`CIRCIA-CISA-sec-form-8-k`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-sec-form-8-k) | SEC Form 8-K Item 1.05 alignment — materiality + CIRCIA | 0.7 | `full` | [UC-22.54.23](#uc-22-54-23) |
+| [`CIRCIA-CISA-tabletop`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-tabletop) | Annual tabletop — CIRCIA reporting workflow exercise | 0.7 | `full` | [UC-22.54.24](#uc-22-54-24), [UC-22.54.28](#uc-22-54-28) |
+| [`CIRCIA-CISA-records-retention`](https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia#CIRCIA-CISA-records-retention) | CIRCIA-specific records retention — 2 years per NPRM | 0.7 | `full` | [UC-22.54.25](#uc-22-54-25) |
+
+### 4.1 Contributing UC detail
+
+<a id='uc-22-54-1'></a>
+- **UC-22.54.1** — CIRCIA Covered-Entity Determination Registry — maintain authoritative scope evidence so the 72-hour clock starts the moment it must
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.1.json`](../../content/cat-22-regulatory-compliance/UC-22.54.1.json)
+<a id='uc-22-54-10'></a>
+- **UC-22.54.10** — CIRCIA 72-Hour Clock Determination-Point Detection — timestamp the 'reasonably believes' decision with auditable provenance
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.10.json`](../../content/cat-22-regulatory-compliance/UC-22.54.10.json)
+<a id='uc-22-54-11'></a>
+- **UC-22.54.11** — CIRCIA 24-Hour Ransom-Payment Clock Operationalisation — capture broadcast / debit timestamp from wallet-custodian and treasury workstation
+  - Control family: `regulation-specific`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.11.json`](../../content/cat-22-regulatory-compliance/UC-22.54.11.json)
+<a id='uc-22-54-12'></a>
+- **UC-22.54.12** — CIRCIA Report-Content Template Validator — every submission includes the 11 NPRM §226.8 required elements before transmission
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.12.json`](../../content/cat-22-regulatory-compliance/UC-22.54.12.json)
+<a id='uc-22-54-13'></a>
+- **UC-22.54.13** — CIRCIA Third-Party Reporting Authorisation — IR firm, insurer, or MSSP may submit on the covered entity's behalf with written authority
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.13.json`](../../content/cat-22-regulatory-compliance/UC-22.54.13.json)
+<a id='uc-22-54-14'></a>
+- **UC-22.54.14** — CIRCIA Recordkeeping-Quality Audit — auditable timestamp evidence for every reported determination, broadcast, and submission
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.14.json`](../../content/cat-22-regulatory-compliance/UC-22.54.14.json)
+<a id='uc-22-54-15'></a>
+- **UC-22.54.15** — CIRCIA Agreement Inventory — evidence every sectoral-bridge agreement (NRC, FCC, FDA, FAA, FERC, SEC, EPA) is current and operationalised
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.15.json`](../../content/cat-22-regulatory-compliance/UC-22.54.15.json)
+<a id='uc-22-54-16'></a>
+- **UC-22.54.16** — CIRCIA CISA Services Portal Submission Health — verify every submission is acknowledged with a portal receipt and a CISA case number
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.16.json`](../../content/cat-22-regulatory-compliance/UC-22.54.16.json)
+<a id='uc-22-54-17'></a>
+- **UC-22.54.17** — CIRCIA Interim Voluntary-Reporting Posture — documented decision-and-implementation framework for pre-Final-Rule reporting
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.17.json`](../../content/cat-22-regulatory-compliance/UC-22.54.17.json)
+<a id='uc-22-54-18'></a>
+- **UC-22.54.18** — CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.18.json`](../../content/cat-22-regulatory-compliance/UC-22.54.18.json)
+<a id='uc-22-54-19'></a>
+- **UC-22.54.19** — CIRCIA Internal Incident Classification Triage — distinguish CIRCIA-reportable from sectoral-only and notice-only
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.19.json`](../../content/cat-22-regulatory-compliance/UC-22.54.19.json)
+<a id='uc-22-54-2'></a>
+- **UC-22.54.2** — CIRCIA 72-Hour Covered-Cyber-Incident Reporting SLA Timer — every reasonable-belief determination must land at CISA in 72 hours
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.2.json`](../../content/cat-22-regulatory-compliance/UC-22.54.2.json)
+<a id='uc-22-54-20'></a>
+- **UC-22.54.20** — CIRCIA Third-Party Supply-Chain & MSSP Incident Attribution — detect impact from upstream cloud, SaaS, or MSSP compromise
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.20.json`](../../content/cat-22-regulatory-compliance/UC-22.54.20.json)
+<a id='uc-22-54-21'></a>
+- **UC-22.54.21** — CIRCIA OT / ICS / SCADA Incident Detection — industrial-environment substantial-incident triggers wired into the CIRCIA flow
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.21.json`](../../content/cat-22-regulatory-compliance/UC-22.54.21.json)
+<a id='uc-22-54-22'></a>
+- **UC-22.54.22** — CIRCIA Board Fiduciary Awareness — evidence pre-incident assignment of responsibility, training, and quarterly briefing
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.22.json`](../../content/cat-22-regulatory-compliance/UC-22.54.22.json)
+<a id='uc-22-54-23'></a>
+- **UC-22.54.23** — CIRCIA + SEC Form 8-K Item 1.05 Materiality-Triangulation — every public-issuer incident is dual-tracked for SEC + CIRCIA
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.23.json`](../../content/cat-22-regulatory-compliance/UC-22.54.23.json)
+<a id='uc-22-54-24'></a>
+- **UC-22.54.24** — CIRCIA Annual Tabletop — evidence end-to-end 72-hour / 24-hour reporting workflow exercised with executive participation
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.24.json`](../../content/cat-22-regulatory-compliance/UC-22.54.24.json)
+<a id='uc-22-54-25'></a>
+- **UC-22.54.25** — CIRCIA Records Retention — enforce 2-year preservation from most-recent-report, with integrity verification quarterly
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.25.json`](../../content/cat-22-regulatory-compliance/UC-22.54.25.json)
+<a id='uc-22-54-26'></a>
+- **UC-22.54.26** — CIRCIA Quarterly Compliance Attestation — General Counsel signs end-to-end compliance posture across statutory + NPRM clauses
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.26.json`](../../content/cat-22-regulatory-compliance/UC-22.54.26.json)
+<a id='uc-22-54-27'></a>
+- **UC-22.54.27** — CIRCIA Forensic Imaging Pipeline — evidence capture of affected endpoints and OT controllers with cryptographic chain of custody
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.27.json`](../../content/cat-22-regulatory-compliance/UC-22.54.27.json)
+<a id='uc-22-54-28'></a>
+- **UC-22.54.28** — CIRCIA Annual SLA & KPI Review — board-level review of reporting performance, miss rates, and remediation actions
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.28.json`](../../content/cat-22-regulatory-compliance/UC-22.54.28.json)
+<a id='uc-22-54-3'></a>
+- **UC-22.54.3** — CIRCIA 24-Hour Ransom-Payment Reporting SLA Timer — every ransom payment, however small, lands at CISA in 24 hours
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.3.json`](../../content/cat-22-regulatory-compliance/UC-22.54.3.json)
+<a id='uc-22-54-4'></a>
+- **UC-22.54.4** — CIRCIA Supplemental-Report Pipeline — evidence every new material finding lands at CISA promptly until the incident is fully resolved
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.4.json`](../../content/cat-22-regulatory-compliance/UC-22.54.4.json)
+<a id='uc-22-54-5'></a>
+- **UC-22.54.5** — CIRCIA Records-Preservation Activation — freeze and retain every artefact relevant to a reported incident for at least 2 years
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.5.json`](../../content/cat-22-regulatory-compliance/UC-22.54.5.json)
+<a id='uc-22-54-6'></a>
+- **UC-22.54.6** — CIRCIA Liability-Protection Coversheet Audit — every submission is marked, transmitted, and stored under the s 2242(g) privileged-communication regime
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.6.json`](../../content/cat-22-regulatory-compliance/UC-22.54.6.json)
+<a id='uc-22-54-7'></a>
+- **UC-22.54.7** — CIRCIA Request-for-Information & Subpoena Compliance Tracker — every CISA RFI is answered within the 72-hour statutory response window
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.7.json`](../../content/cat-22-regulatory-compliance/UC-22.54.7.json)
+<a id='uc-22-54-8'></a>
+- **UC-22.54.8** — CIRCIA NPRM Covered-Entity Scope Self-Assessment — SBA size + sector criteria + NAICS evidence for every legal entity
+  - Control family: `regulation-specific`
+  - Owner: `CFO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.8.json`](../../content/cat-22-regulatory-compliance/UC-22.54.8.json)
+<a id='uc-22-54-9'></a>
+- **UC-22.54.9** — CIRCIA Substantial-Cyber-Incident Classification Engine — deterministically flag every IR ticket against the NPRM §226.1 four-prong test
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.54.9.json`](../../content/cat-22-regulatory-compliance/UC-22.54.9.json)
 
 ## 5. Evidence collection
 
@@ -194,38 +365,7 @@ CIRCIA s 2242 establishes civil enforcement under 6 U.S.C. § 681c with civil pe
 
 ## 11. Pack gaps and remediation backlog
 
-Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
-
-| Clause | Topic | Priority |
-|---|---|---|
-| `CIRCIA-CISA-incident-classification` | Internal classification — distinguishing CIRCIA-reportable from sectoral-only | 1.0 |
-| `CIRCIA-CISA-ot-incident` | OT / ICS / SCADA incidents — explicit in-scope under CIRCIA | 1.0 |
-| `CIRCIA-CISA-portal` | CISA Services Portal — the canonical reporting channel | 1.0 |
-| `CIRCIA-CISA-third-party-incident` | Third-party incident attribution — supply chain, MSSP, cloud | 1.0 |
-| `CIRCIA-NPRM-24hr-ransom` | 24-hour ransom-payment clock — operationalisation | 1.0 |
-| `CIRCIA-NPRM-72hr-reporting` | 72-hour reporting clock — operationalisation | 1.0 |
-| `CIRCIA-NPRM-covered-entity` | Covered-entity scope (proposed in 2024 NPRM) | 1.0 |
-| `CIRCIA-NPRM-covered-incident` | Covered-incident definition (proposed in 2024 NPRM) — 'substantial' cyber incident | 1.0 |
-| `CIRCIA-NPRM-data-preservation` | Data and records preservation — 2-year retention | 1.0 |
-| `CIRCIA-NPRM-recordkeeping-quality` | Recordkeeping quality — auditable timestamp evidence | 1.0 |
-| `CIRCIA-NPRM-report-content` | Required report content — the CIRCIA report template | 1.0 |
-| `CIRCIA-NPRM-supplemental-trigger` | Supplemental-report trigger conditions | 1.0 |
-| `CIRCIA-NPRM-third-party-reporting` | Third-party reporting — incident-response firms, insurance carriers, MSSP partners | 1.0 |
-| `CIRCIA-s2242a` | Definitions — 'covered entity' and 'covered cyber incident' | 1.0 |
-| `CIRCIA-s2242b` | Mandatory covered-cyber-incident report — within 72 hours of reasonable belief | 1.0 |
-| `CIRCIA-s2242c` | Mandatory ransom-payment report — within 24 hours | 1.0 |
-| `CIRCIA-s2242d` | Supplemental report — when new material information emerges | 1.0 |
-| `CIRCIA-s2242f` | Records preservation — preserve data and records related to the incident | 1.0 |
-| `CIRCIA-s2242h` | Enforcement — request for information and subpoena authority | 1.0 |
-| `CIRCIA-CISA-board-fiduciary` | Board fiduciary awareness — pre-incident assignment of responsibility | 0.7 |
-| `CIRCIA-CISA-coordination-with-sector-srma` | Sector Risk Management Agency coordination (SRMA) | 0.7 |
-| `CIRCIA-CISA-interim-reporting` | Interim reporting (pre-Final Rule) — voluntary but CISA-encouraged | 0.7 |
-| `CIRCIA-CISA-protected-information` | Protected information handling — CISA's safeguards on the report content | 0.7 |
-| `CIRCIA-CISA-records-retention` | CIRCIA-specific records retention — 2 years per NPRM | 0.7 |
-| `CIRCIA-CISA-sec-form-8-k` | SEC Form 8-K Item 1.05 alignment — materiality + CIRCIA | 0.7 |
-| `CIRCIA-CISA-tabletop` | Annual tabletop — CIRCIA reporting workflow exercise | 0.7 |
-| `CIRCIA-NPRM-cisa-agreement` | CIRCIA Agreement — sector-specific bridge to other federal reporting | 0.7 |
-| `CIRCIA-s2242g` | Liability protections and privileged-communication treatment | 0.7 |
+All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
 
 ## 12. Questions an auditor should ask
 
@@ -278,9 +418,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:

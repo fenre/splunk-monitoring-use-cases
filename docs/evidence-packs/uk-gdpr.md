@@ -55,24 +55,24 @@ Because this regulation derives from `gdpr` with identity inheritance, the claus
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
 | [`Art.5`](https://www.legislation.gov.uk/eur/2016/679/article/Art.5) | Principles of processing | 1.0 | `partial` | [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
-| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `partial` | [UC-22.37.1](#uc-22-37-1) |
+| [`Art.6`](https://www.legislation.gov.uk/eur/2016/679/article/Art.6) | Lawful basis | 1.0 | `contributing` | [UC-22.37.1](#uc-22-37-1) |
 | [`Art.7`](https://www.legislation.gov.uk/eur/2016/679/article/Art.7) | Conditions for consent | 0.7 | `partial` | [UC-22.1.5](#uc-22-1-5), [UC-22.37.1](#uc-22-37-1), [UC-22.37.2](#uc-22-37-2), [UC-22.8.39](#uc-22-8-39) |
 | [`Art.15`](https://www.legislation.gov.uk/eur/2016/679/article/Art.15) | Right of access | 1.0 | `partial` | [UC-22.36.1](#uc-22-36-1) |
 | [`Art.16`](https://www.legislation.gov.uk/eur/2016/679/article/Art.16) | Right to rectification | 0.7 | `—` | _not yet covered_ |
 | [`Art.17`](https://www.legislation.gov.uk/eur/2016/679/article/Art.17) | Right to erasure | 1.0 | `partial` | [UC-22.36.2](#uc-22-36-2), [UC-22.49.5](#uc-22-49-5) |
-| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `partial` | [UC-22.1.16](#uc-22-1-16) |
+| [`Art.18`](https://www.legislation.gov.uk/eur/2016/679/article/Art.18) | Right to restrict processing | 0.7 | `contributing` | [UC-22.1.16](#uc-22-1-16) |
 | [`Art.20`](https://www.legislation.gov.uk/eur/2016/679/article/Art.20) | Right to data portability | 0.7 | `partial` | [UC-22.36.3](#uc-22-36-3) |
-| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `partial` | [UC-22.1.46](#uc-22-1-46) |
+| [`Art.21`](https://www.legislation.gov.uk/eur/2016/679/article/Art.21) | Right to object | 0.7 | `contributing` | [UC-22.1.46](#uc-22-1-46) |
 | [`Art.22`](https://www.legislation.gov.uk/eur/2016/679/article/Art.22) | Automated decision making | 0.7 | `—` | _not yet covered_ |
 | [`Art.25`](https://www.legislation.gov.uk/eur/2016/679/article/Art.25) | Data protection by design and by default | 1.0 | `—` | _not yet covered_ |
 | [`Art.28`](https://www.legislation.gov.uk/eur/2016/679/article/Art.28) | Processor obligations | 1.0 | `partial` | [UC-22.44.2](#uc-22-44-2) |
 | [`Art.30`](https://www.legislation.gov.uk/eur/2016/679/article/Art.30) | Records of processing | 1.0 | `—` | _not yet covered_ |
 | [`Art.32`](https://www.legislation.gov.uk/eur/2016/679/article/Art.32) | Security of processing | 1.0 | `partial` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.3](#uc-22-35-3), [UC-22.41.1](#uc-22-41-1) |
-| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `full` | [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) |
+| [`Art.33`](https://www.legislation.gov.uk/eur/2016/679/article/Art.33) | Breach notification to supervisory authority | 1.0 | `partial` | [UC-22.39.1](#uc-22-39-1), [UC-22.39.2](#uc-22-39-2) |
 | [`Art.34`](https://www.legislation.gov.uk/eur/2016/679/article/Art.34) | Breach communication to data subjects | 1.0 | `partial` | [UC-22.39.3](#uc-22-39-3) |
 | [`Art.35`](https://www.legislation.gov.uk/eur/2016/679/article/Art.35) | DPIA | 0.7 | `—` | _not yet covered_ |
 | [`Art.44`](https://www.legislation.gov.uk/eur/2016/679/article/Art.44) | International transfers — general principle | 1.0 | `partial` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.3](#uc-22-38-3), [UC-22.38.5](#uc-22-38-5) |
-| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `partial` | [UC-22.38.2](#uc-22-38-2), [UC-22.38.5](#uc-22-38-5) |
+| [`Art.45`](https://www.legislation.gov.uk/eur/2016/679/article/Art.45) | Transfers via adequacy decision | 0.7 | `contributing` | [UC-22.38.2](#uc-22-38-2), [UC-22.38.5](#uc-22-38-5) |
 | [`Art.46`](https://www.legislation.gov.uk/eur/2016/679/article/Art.46) | Transfers subject to safeguards | 0.7 | `full` | [UC-22.38.1](#uc-22-38-1), [UC-22.38.2](#uc-22-38-2), [UC-22.38.4](#uc-22-38-4) |
 
 ### 4.1 Contributing UC detail
@@ -348,9 +348,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.4.0
+catalogue_version: 8.6.4
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     a6f699ddf0cc3af8307960b8c3944af07e6560cd1fb779afaf1fc5666f143b1a
+inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```
 
 To re-generate:
