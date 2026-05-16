@@ -2,7 +2,8 @@
 
 > Verified status of every plan finding (F1–F23) and phase (P0–P19) from
 > `/Users/fsudmann/.cursor/plans/repo_health_and_architecture_overhaul_b0cd1852.plan.md`
-> as of HEAD **v8.6.4** (commit `0f892bbab`+ cleanup-chain, pushed 2026-05-16).
+> as of HEAD **v8.6.4** (commit `b9f17b407` + post-corpus-expansion
+> regen cascade, pushed 2026-05-16 evening).
 > The doc was first generated 2026-05-12 against v8.2.0
 > (commit `a36aa4db4`); the 2026-05-16 refresh re-anchored counts and
 > status against the post-OT-deep-dive HEAD plus the open work it
@@ -22,10 +23,24 @@
 > `spl_references.py:_load_reference`, ATT&CK ID hygiene removing
 > `T0810` / `TA0008` / `T1551` from 5 cat-22 UCs, and surgical
 > absorption of the four new SPL-reference modules into the per-file
-> coverage baseline — all in drift ledger #15), and the OT-arc
+> coverage baseline — all in drift ledger #15), the OT-arc
 > post-regen chain (`reports/sandbox-validation.json` +
 > `splunk-apps/splunk-uc-recommender/` refreshed to absorb the 217
-> new UCs introduced by Phases 1-6 of the OT regulation arc).
+> new UCs introduced by Phases 1-6 of the OT regulation arc), and the
+> **post-corpus-expansion regen cascade** (drift ledger #16): after the
+> maintainer's `2032c631a` (SPL reference corpus expansion + glob-aware
+> sourcetype matching) and the Phase 4 backfill in `b9f17b407` landed,
+> two `validate.yml` jobs were still red on the new HEAD —
+> `audits-content` / Phase 3.2 cross-cutting regeneration check and
+> `frontend` / Phase 4.5f perf + a11y Node drift guard. The cascade
+> runs the canonical dependency chain end-to-end
+> (`generate-phase3-2-cross-cutting` → `generate-phase3-3-derivatives`
+> → `generate-mapping-ledger` → `generate-api-surface` →
+> `generate-clause-index` → `generate-story-payload` →
+> `generate-recommender-app` → `generate-md-from-json` →
+> `scripts/generate_backlinks.py` → `scripts/generate_doc_references.py`
+> → rebuild `dist/` → `audit-perf-a11y`) so CI converges in one push
+> instead of bouncing between freshness audits.
 >
 > Every status below is backed by a concrete file:line citation or a
 > command output. Nothing is "assumed done"; if it's marked DONE the
@@ -120,7 +135,7 @@ including the deferred sample-data shape ADR).
 | **P9** Monorepo split (apps/ + packages/) | NOT STARTED | — |
 | **P10** Performance + a11y hardening | PARTIAL (2026-05-13) | F8 closure unblocked P10. First a11y deliverable landed 2026-05-13: `index.html` and `scorecard.html` now ship with a visually-hidden `<h1>` inside the correct landmark (banner / main), and both search-bar wrappers on `index.html` carry `role="search"` + distinguishing `aria-label`, so the `region` warning that the F8 closure re-anchored on `#search-input` is gone. `reports/perf-a11y.json` regenerated: `index.html` 0 violations / 0 warnings (was 0 / 1); `scorecard.html` 0 / 0 (unchanged). New `.visually-hidden` utility added to `src/styles/05-helpers.css` + mirrored in `index.html` inline `<style>` + duplicated in `scorecard.html` `<style>` (separate file, no shared stylesheet — chrome unification is F17). Still open under P10: Lighthouse CI, CSP `'unsafe-inline'` tightening on both `script-src` and `style-src` (F8 PR-C precondition), and the virtual-scroll renderer `<template>`-clone refactor (F8 PR-C proper, deferred to P10 as documented in the F8 inventory). |
 | **P11** OSS release polish | PARTIAL (2026-05-13, reclassified) | The original "no `.devcontainer/`" caveat is wrong at HEAD: [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json) ships **pinned by OCI image-index digest** (Microsoft `mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15…`), with Node 20 + GitHub CLI features, ruff + mypy + markdownlint + YAML extensions, pre-forwarded port 8000, pip-cache volume mount, and an 8-assertion structural test suite ([`tests/build/test_devcontainer.py`](../tests/build/test_devcontainer.py)) that pins the invariants. **Closed gap (2026-05-13):** the `postCreateCommand: make devcontainer-init` reference used to point at a Make target that did not exist (the structural test for that was deliberately skipped with `pytest.mark.skip("deferred to v8.x")`). PR — adds the `devcontainer-init` target to `Makefile` (installs `pip install -e .[audits,dev,test]`, registers pre-commit hooks, warm-builds `dist/`), unskips `test_make_target_exists`, and asserts that `devcontainer-init` is listed in `.PHONY`. The "ROADMAP.md still says v7.1" half of the original caveat was already resolved on 2026-05-12 (loose-end ledger #1). **What's still open:** no automated workflow that pushes `reports/roadmap-export.json` to a public Project board (the `make export-roadmap` target produces the snapshot; the sync side is the residual P11 work). |
-| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-6">6</a>]</sup> gate. |
+| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-7">7</a>]</sup> gate. |
 | **P13** Recommender TA hardening | NOT STARTED | The recommender TA was overhauled in v8.0.0 (CHANGELOG mentions "single Cloud-safe recommender app") but P13's threat model + Sigstore on `.spl` + AppInspect Cloud gate not visible. |
 | **P14** Content stewardship | DONE (2026-05-14; cadence side still open) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. **Still open** — the cadence side: automated rotation reminders that consume the CODEOWNERS rows + the new scorecard drill-downs (e.g. quarterly "owner of cat-N has not approved a content change in 90 days; nudge"). |
 | **P15** Specification compliance moonshot | NOT STARTED | 2027 target per plan; no `clauseText[]` bindings. |
@@ -181,7 +196,7 @@ findings but should not be lost:
    - 105 equipment slugs → **106 equipment**
    - 60 regulations → **82 regulations** (+22 over plan, +13 since
      the 2026-05-13 anchor — Phase 6 added DO-326A / ED-202A, China
-     CSL/DSL/PIPL<sup class="ref">[<a href="#ref-7">7</a>]</sup>/CII, India CERT-In 2022 / DPDP 2023, IEC 61511 /
+     CSL/DSL/PIPL<sup class="ref">[<a href="#ref-8">8</a>]</sup>/CII, India CERT-In 2022 / DPDP 2023, IEC 61511 /
      61508 cybersecurity overlay; Phase 5a/b added IMO Resolutions
      MSC.428(98) + MSC-FAL.1/Circ.3, TSA Surface, SG Cyber Act, FR
      LPM)
@@ -241,7 +256,7 @@ findings but should not be lost:
 10. **Cat-22 OT regulation deep-dive arc shipped.** New ledger entry
     2026-05-16 for the 252-UC content arc that landed on local `main`
     between v8.5.0 and v8.6.4 across four commits — `458a50f8b`
-    (Phases 1-5a rollup: ISA/IEC 62443<sup class="ref">[<a href="#ref-2">2</a>]</sup>, NERC CIP<sup class="ref">[<a href="#ref-4">4</a>]</sup> v8, EU NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> OT,
+    (Phases 1-5a rollup: ISA/IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>, NERC CIP<sup class="ref">[<a href="#ref-6">6</a>]</sup> v8, EU NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> OT,
     UK CAF / NIS Regulations, US CIRCIA, ENISA NIS2 sectoral, IMO
     cyber), `debb1d9b5` (Phase 5b: DO-326A / ED-202A aviation),
     `c25e80ec1` (Phase 6 closure: China CSL / DSL / PIPL / CII +
@@ -347,7 +362,7 @@ findings but should not be lost:
     return + `isinstance(data, dict)` narrowing before returning
     `dict[str, Any]`. The `lint` job goes green; no runtime
     behaviour change.
-    (b) **MITRE ATT&CK<sup class="ref">[<a href="#ref-3">3</a>]</sup> ID hygiene across 5 cat-22 UCs** — the
+    (b) **MITRE ATT&CK<sup class="ref">[<a href="#ref-4">4</a>]</sup> ID hygiene across 5 cat-22 UCs** — the
     Phase 4.5d ATT&CK simulation gate (`scripts/simulate_controltest.py`,
     runs in the `frontend` job) flagged five OT-arc UCs that
     referenced invalid identifiers in their `mitreAttack` arrays.
@@ -467,6 +482,67 @@ findings but should not be lost:
     migration, validates the toolchain on real content) — and that
     PR is the one that wires `npm test` + `npm run typecheck`
     into `.github/workflows/validate.yml`, closing F16 properly.
+
+16. **Post-corpus-expansion regen cascade (2026-05-16 evening).** New
+    drift-ledger entry for the cascade triggered by the previous day's
+    landings on `origin/main`. The maintainer's `2032c631a` (SPL
+    reference corpus expansion + glob-aware sourcetype matching +
+    Splunk 9 `IN (…)` parser fix) and the Phase 4
+    `controlObjective` / `evidenceArtifact` backfill in `b9f17b407`
+    were both green on their own commits but left **two `validate.yml`
+    jobs red on the resulting HEAD** — `audits-content` ↪
+    `Phase 3.2 cross-cutting compliance generator regeneration check`
+    (the expanded vocabulary surfaces 53 cross-cutting UCs / 182
+    mappings the on-disk sidecars were missing) and `frontend` ↪
+    `Phase 4.5f perf + a11y Node drift guard` (`reports/perf-a11y.json`
+    stale relative to the regenerated `dist/` after `complianceEntries`
+    rose 2,693 → 2,790 and `dist/catalog.json` grew ~75 KiB / +0.09 %).
+    The cascade runs the canonical dependency chain in one pass so CI
+    converges in a single push rather than bouncing between freshness
+    audits: **(1)** `splunk_uc generate-phase3-2-cross-cutting` updates
+    53 UC sidecars across the cross-cutting compliance families with
+    182 mappings; **(2)** `splunk_uc generate-phase3-3-derivatives`
+    rewrites 32 derivative sidecars with 54 inherited entries (e.g.
+    `uk-gdpr` → `UK GDPR` regulation-name normalisation, parent
+    GDPR<sup class="ref">[<a href="#ref-2">2</a>]</sup> assurance one-step downgrades, Cyber Essentials<sup class="ref">[<a href="#ref-5">5</a>]</sup> Montpellier
+    2025 derivations); **(3)** `splunk_uc generate-mapping-ledger`
+    refreshes `data/provenance/mapping-ledger.json` (+14,760 / −3,062
+    lines, the bulk of the byte delta and the file that carries the
+    full provenance trail); **(4)** `splunk_uc generate-api-surface`
+    rewrites 9,828 files under `api/v1/`; **(5)**
+    `splunk_uc generate-clause-index` rewrites 1,288 clause-level
+    JSON; **(6)** `splunk_uc generate-story-payload` rewrites the
+    82 compliance-story payloads; **(7)**
+    `splunk_uc generate-recommender-app` rewrites the Splunk recommender
+    app's lookups + catalog-fallback + README; **(8)**
+    `splunk_uc generate-md-from-json` re-checks all 7,929 `.md` twins
+    (zero rewritten — already in sync); **(9)**
+    `scripts/generate_backlinks.py` re-checks `docs/backlinks.md`
+    (zero rewritten); **(10)** `scripts/generate_doc_references.py`
+    re-scans 213 docs (zero rewritten); **(11)** `tools/build/build.py
+    --out dist` rebuilds the static site (47.18 s, 40,536 files,
+    984.8 MiB); **(12)** `splunk_uc audit-perf-a11y` rewrites
+    `reports/perf-a11y.json` with the new `dist/catalog.json` size
+    measurement so the Node drift guard returns to green.
+    Net diff on disk: **89 file changes (88 modified)** — dominated
+    by the mapping-ledger refresh + the 88 sidecar updates spread
+    across cats 01, 03-07, 09, 11-17, 22 (cat-22 alone accounts for
+    32 of the 88). Verification at push time: all gates green
+    locally (`generate-phase3-2-cross-cutting --check`,
+    `generate-phase3-3-derivatives --check`, `generate-md-from-json
+    --check`, `scripts/generate_backlinks.py --check`,
+    `scripts/generate_doc_references.py --check`,
+    `audit-compliance-mappings`, `audit-perf-a11y --check`,
+    `audit-uc-structure`). `coverage-report.json` left under the repo
+    root by the local coverage run is **deliberately untracked** — it
+    is a `pytest-cov` build artefact (`--cov-report=json:coverage-report.json`
+    in `validate.yml` line 343), never committed; CI regenerates it
+    per-run. **Pattern note:** this is the third cascade-style regen
+    on `main` in 24 hours (after the OT-arc post-regen of `sandbox-validation.json`
+    + recommender-app, and the cleanup-chain ATT&CK / coverage fixes).
+    A future refactor could collapse them all into a single
+    `make sync-generated` umbrella target so contributors don't need
+    to learn the dependency order each time the corpus widens.
 
 ## Recommended next actions, in size order
 
@@ -687,17 +763,19 @@ without verification at HEAD.
 
 <a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-2"></a>**[2]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
-<a id="ref-3"></a>**[3]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+<a id="ref-3"></a>**[3]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
 
-<a id="ref-4"></a>**[4]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
+<a id="ref-4"></a>**[4]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-5"></a>**[5]** National Cyber Security Centre (UK). (2025). *Cyber Essentials — Montpellier (2025)*. NCSC, IASME Consortium. https://www.ncsc.gov.uk/cyberessentials/overview
 
-<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+<a id="ref-6"></a>**[6]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
-<a id="ref-7"></a>**[7]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+
+<a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
 ### Related repository documents
 

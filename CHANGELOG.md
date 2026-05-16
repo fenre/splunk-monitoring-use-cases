@@ -12,6 +12,49 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Post-corpus-expansion generator cascade — clears the two `validate.yml` failures left on `b9f17b407`.**
+  After the maintainer's `2032c631a` (SPL reference corpus expansion +
+  glob-aware sourcetype matching) and the Phase 4 backfill in `b9f17b407`
+  landed on `origin/main`, two `validate.yml` jobs were still red even
+  though the new commits themselves were green:
+    - `audits-content` → **Phase 3.2 cross-cutting compliance generator regeneration check** — the new SPL corpus expanded the catalogue's effective rule vocabulary, so the cross-cutting compliance generator wanted to write fresh derivations that were not yet on disk.
+    - `frontend` → **Phase 4.5f perf + a11y Node drift guard** — `reports/perf-a11y.json` was stale relative to the regenerated `dist/` (the catalog grew ~75 KiB from the new compliance entries).
+
+  This commit runs the canonical dependency chain end-to-end in one go so
+  CI can converge without bouncing between freshness audits:
+  `generate-phase3-2-cross-cutting` (53 UCs, 182 mappings) →
+  `generate-phase3-3-derivatives` (32 sidecars, 54 inherited entries) →
+  `generate-mapping-ledger` (`data/provenance/mapping-ledger.json`) →
+  `generate-api-surface` (9,828 files under `api/v1/`) →
+  `generate-clause-index` (1,288 clauses) →
+  `generate-story-payload` (82 stories) →
+  `generate-recommender-app` (lookups + catalog-fallback + README) →
+  `generate-md-from-json` (7,929 sidecars; 0 rewritten — `--check` clean) →
+  `scripts/generate_backlinks.py` (`docs/backlinks.md`, 0 rewritten) →
+  `scripts/generate_doc_references.py` (213 docs scanned, 0 rewritten) →
+  `tools/build/build.py --out dist` →
+  `splunk_uc audit-perf-a11y` (rewrites `reports/perf-a11y.json`).
+
+  Net diff on disk: **88 file changes (87 modified + 1 newly tracked
+  data file)**, dominated by `data/provenance/mapping-ledger.json`
+  (+14,760 / −3,062 lines, the bulk of the byte delta) plus the
+  per-sidecar Cyber Essentials (Montpellier 2025) derivations the
+  cross-cutting pass adds and the `UK GDPR` / `uk-gdpr` regulation-name
+  normalisation pass. `dist/catalog.json` grew **83,889,069 → 83,963,983
+  bytes (+74,914 / +0.09 %)** still well inside the 100 MiB
+  generated-data budget; `complianceEntries` rose **2,693 → 2,790
+  (+97)`; `compliance-coverage` tier metrics unchanged (tier-1 clause %
+  90.89, priority % 90.90, assurance % 74.95; tier-2 / tier-3 also
+  unchanged). All gates green locally before push:
+  `generate-phase3-2-cross-cutting --check`,
+  `generate-phase3-3-derivatives --check`,
+  `generate-md-from-json --check`, `scripts/generate_backlinks.py
+  --check`, `scripts/generate_doc_references.py --check`,
+  `audit-compliance-mappings`, `audit-perf-a11y --check`,
+  `audit-uc-structure`. The `coverage-report.json` left under the
+  repo root by the local coverage run is **deliberately untracked** —
+  it is a `pytest-cov` build artefact, never committed.
+
 - **SPL reference corpus expansion + glob-aware sourcetype matching + Splunk 9 `IN (…)` parser fix.**
   Builds on the bootstrap `audit-spl-references` work (see the
   follow-on bullet) with three coordinated improvements:
