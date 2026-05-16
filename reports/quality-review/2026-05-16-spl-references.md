@@ -1,36 +1,49 @@
 # SPL Reference Validation — 2026-05-16
 
-> **First run** of the new `audit-spl-references` audit, introduced after
-> studying the [Searchbase app for Splunk](https://splunkbase.splunk.com/app/7188)
-> as a reference SPL corpus. The audit cross-checks every identifier in
-> our SPL (commands, macros, sourcetypes, indexes, datamodel paths,
-> eval / stats functions) against a known-good vocabulary built from
-> Splunk's published SPL reference, the CIM 6.x catalogue, a curated
-> top-tier of Splunkbase add-on sourcetypes, ESCU macros, and the
-> local Searchbase corpus.
+> **Initial delivery + corpus expansion run** of the
+> `audit-spl-references` audit. Introduced after studying the
+> [Searchbase app for Splunk](https://splunkbase.splunk.com/app/7188),
+> the audit cross-checks every identifier in our SPL (commands, macros,
+> sourcetypes, indexes, datamodel paths, eval / stats functions)
+> against a known-good vocabulary unified from Splunk's published SPL
+> reference, the CIM 8.x catalogue, the
+> [Splunk Lantern Use Case Explorer](https://splunkbase.splunk.com/app/7186)
+> sourcetype index, ESCU, Splunk Security Essentials, and a glob-aware
+> matcher for the Splunkbase wildcard sourcetype convention.
 
 ## Method
 
 The numbers below are the **effective vocabulary** at audit time — i.e.
 the union of the static baseline, the curated well-known layer, and
-the local Searchbase corpus.
+five third-party corpora when present under `external/`.
 
 | Layer | Source | Effective size |
 |-------|--------|---------------:|
-| SPL commands | [SearchReference / ListOfSearchCommands](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ListOfSearchCommands) + add-on commands | 181 |
-| Eval functions | [SearchReference / CommonEvalFunctions](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions) | 122 |
-| Stats / aggregator functions | [Statistical-and-charting-functions](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Statistical-and-charting-functions) ∪ eval (Splunk lets `stats(eval(...))`) | 152 |
-| CIM 6.x datamodel paths | `splunk_uc.audits.spl_hallucinations.CIM_DATASETS` (29 models) | 129 |
-| Sourcetypes | `_spl_well_known.WELL_KNOWN_SOURCETYPES` (curated TA registry) ∪ Searchbase corpus | 416 |
-| Macros | `_spl_well_known.WELL_KNOWN_MACROS` (ESCU + URL Toolbox + ES) ∪ Searchbase corpus | 72 |
-| Indexes | Splunk-core builtin (19) ∪ ES/ITSI/UF (11) ∪ Searchbase corpus | 31 |
-| Local reference corpus | Searchbase 1.1.5 (Splunkbase 7188) — 770 vetted SPL searches | — |
+| SPL commands | [SearchReference / ListOfSearchCommands](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ListOfSearchCommands) + add-on commands | 194 |
+| Eval functions | [SearchReference / CommonEvalFunctions](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions) ∪ ESCU/SSE macros | 81 |
+| Stats / aggregator functions | [Statistical-and-charting-functions](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Statistical-and-charting-functions) ∪ eval (Splunk lets `stats(eval(...))`) | 61 |
+| CIM datamodel paths | CIM 8.x datamodel JSON (Splunkbase #1621) walked recursively | 271 (across 33 models) |
+| Sourcetypes — literal | `_spl_well_known.WELL_KNOWN_SOURCETYPES` ∪ IS4S `uce_sourcetype_mapping.csv` ∪ `ssef_splunkbase_apps.csv.gz` ∪ SSE inventory ∪ Searchbase corpus | 9,601 |
+| Sourcetypes — globs | Splunkbase wildcard convention (`cisco:ise:*`, `*365:cas:api`, …) compiled to a single fnmatch-translated regex | 1,118 |
+| Macros | ESCU macros (`splunk/security_content`) ∪ Searchbase ∪ IS4S ∪ SSE ∪ `_spl_well_known.WELL_KNOWN_MACROS` | 2,407 |
+| Indexes | Splunk-core builtin (19) ∪ ES/ITSI/UF (11) ∪ live corpora | 16 |
+| CIM tags | CIM `tags.conf` ∪ Splunkbase `cim_tags` column (stored for future audit phase, not yet enforced) | 331 |
 
 The vocabulary is the **union** of all layers above. The local reference
 corpus is built by `tools/research/build_spl_reference.py` and lives in
-`data/spl-reference.local.json` (gitignored — Searchbase content is
-not redistributable). When that file is missing the audit still runs
+`data/spl-reference.local.json` (gitignored — Splunkbase apps are not
+redistributable). When that file is missing the audit still runs
 against the static layers.
+
+Corpora consumed (each path-existence-gated):
+
+| Source | Splunkbase | License |
+|--------|-----------:|---------|
+| Searchbase App for Splunk | [#7188](https://splunkbase.splunk.com/app/7188) | Splunk General Terms |
+| Insights Suite for Splunk (IS4S) | [#7186](https://splunkbase.splunk.com/app/7186) | Splunk General Terms |
+| Splunk Security Essentials (SSE) | [#3435](https://splunkbase.splunk.com/app/3435) | Splunk General Terms |
+| Splunk Common Information Model add-on | [#1621](https://splunkbase.splunk.com/app/1621) | Splunk General Terms |
+| `splunk/security_content` (ESCU) | — | Apache-2.0 |
 
 The new audit is **distinct from** the existing two SPL audits:
 
@@ -46,6 +59,8 @@ The new audit is **distinct from** the existing two SPL audits:
 
 ## Results
 
+### Initial bootstrap run (commit `4bd2954d5`)
+
 | Severity | Count | UCs |
 |----------|------:|----:|
 | HIGH (unknown command, invalid datamodel) | **0** | 0 |
@@ -53,10 +68,31 @@ The new audit is **distinct from** the existing two SPL audits:
 | LOW (unknown eval / stats function, suspicious index) | 88 | 70 |
 | **Total** | **3,108** | **2,000** |
 
+This first run shipped with **0 HIGH on the catalogue**, claimed via the
+audit summary at the time. A subsequent re-audit after corpus expansion
+(below) revealed that the original parser had a latent regression on
+the Splunk 9+ `index IN (…)` predicate form — see "HIGH cleared" §2.
+
+### Post-expansion run (current)
+
+| Severity | Count | UCs |
+|----------|------:|----:|
+| HIGH | **0** | 0 |
+| MEDIUM (unknown macro) | 57 | — |
+| LOW (unknown eval / stats function, suspicious index) | 76 | — |
+| **Total** | **133** | **73** |
+
+**Net delta: −2,975 findings (−95.7%)** versus the bootstrap run, with
+**zero MEDIUM/HIGH unknown-sourcetype findings** for the first time.
+Audit run-time also dropped from ~24 s to ~4.6 s thanks to the
+union-compiled glob regex.
+
 ### HIGH cleared
 
-After three quick fixes baked into this same delivery, **the catalogue
-has zero HIGH-severity SPL reference findings**:
+The catalogue has zero HIGH-severity SPL reference findings, achieved
+in two waves:
+
+#### Wave 1 — bootstrap (commit `4bd2954d5`)
 
 1. `audit-spl-references` boot-strap surfaced **33 HIGH findings across
    11 UCs**.
@@ -74,17 +110,45 @@ has zero HIGH-severity SPL reference findings**:
    regex `|` chars surface as pipe boundaries. Fixed in
    `audits/spl_grammar.py` — also benefits `audit-spl-grammar`.
 
-After those landed: 0 HIGH on the entire catalogue. The audit now
+#### Wave 2 — corpus expansion + parser fix
+
+When IS4S, SSE, CIM, and ESCU were added to the corpus, an audit
+re-run surfaced **6 new HIGH findings** all with the message
+`unknown SPL command \`index\``. Investigation showed these were
+false positives: the parser's `extract_commands()` correctly skipped
+the `<field>=<value>` predicate form (e.g. `index=foo`) but had never
+handled the modern Splunk 9+ `<field> IN (…)` membership form
+(e.g. `index IN ("a","b","c")`). Six UCs in cat-05 / cat-22 had been
+authored against the modern form and were misreported as command
+`index` invocations all along — the bootstrap run had simply not
+spotted them due to a mismatch in the audit's run order at the time.
+
+The fix lives in `_spl_parse.extract_commands()` and adds two
+behaviours:
+
+1. Skip leading boolean operators (`NOT`, `OR`, `AND`) so that
+   `NOT index IN (…)` resolves the inner predicate.
+2. Skip `<field> IN (…)` predicates the same way `<field>=<value>`
+   was already skipped.
+
+After both waves: **0 HIGH on the entire catalogue.** The audit now
 runs cleanly against `--check`.
 
 ### MEDIUM signal
 
-Of the **3,020 MEDIUM findings**, the breakdown is:
+#### Bootstrap run (3,020 MEDIUM)
 
 | Category | Count | Real signal |
 |----------|------:|------------|
 | `unknown-sourcetype` | 2,907 | Mostly "TA not yet catalogued in `_spl_well_known.py`" |
 | `unknown-macro` | 113 | Real authoring signal — see below |
+
+#### Post-expansion run (57 MEDIUM)
+
+| Category | Count | Real signal |
+|----------|------:|------------|
+| `unknown-sourcetype` | **0** | The IS4S Use Case Explorer + Splunkbase app catalogue + glob matching collapsed every prior false positive to zero. Sample audit on the same flagged sourcetypes (cisco:ise:auth, vmware:nsxt:syslog, etc.) showed **1,818 / 1,818** would resolve to a corpus glob; activating glob-aware matching in the audit eliminated all of them. |
+| `unknown-macro` | 57 | Real authoring signal — same pattern as below, just with stale findings cleaned out by the corpus growth. |
 
 #### unknown-macro highlights (real bugs found)
 

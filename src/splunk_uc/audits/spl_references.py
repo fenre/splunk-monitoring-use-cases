@@ -41,7 +41,9 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from difflib import get_close_matches
@@ -108,6 +110,7 @@ class Vocabulary:
     commands: set[str]
     macros: set[str]
     sourcetypes: set[str]
+    sourcetype_glob_patterns: set[str]  # e.g. ``*365:cas:api``, ``cisco:ise:*``
     indexes: set[str]
     datamodel_paths: set[str]
     lookups: set[str]
@@ -115,6 +118,30 @@ class Vocabulary:
     stats_functions: set[str]
     cim_models: set[str]  # just the model names, used for partial datamodel refs
     sources: list[dict[str, Any]]  # provenance of the loaded reference corpus
+
+    # Cached compiled glob regex; built lazily on first access so the
+    # cost is paid once per process rather than per-UC.
+    _glob_re: "re.Pattern[str] | None" = None
+
+    def matches_sourcetype(self, value: str) -> bool:
+        """True if ``value`` is a known literal or matches a known glob.
+
+        We use ``fnmatch.translate`` to compile each glob into a Python
+        regex and then ``|``-combine them into a single pattern, so a
+        membership test is one regex search regardless of corpus size.
+        """
+        if value in self.sourcetypes:
+            return True
+        if not self.sourcetype_glob_patterns:
+            return False
+        if self._glob_re is None:
+            # ``fnmatch.translate`` returns ``(?s:<pattern>)\Z`` already
+            # anchored; just join with ``|`` for the union.
+            joined = "|".join(
+                fnmatch.translate(g) for g in sorted(self.sourcetype_glob_patterns)
+            )
+            self._glob_re = re.compile(joined)
+        return self._glob_re.match(value) is not None
 
 
 def _load_reference(path: Path) -> dict[str, Any]:
@@ -142,6 +169,7 @@ def build_vocabulary() -> Vocabulary:
         commands=set(VALID_COMMANDS) | set(ref.get("commands", [])),
         macros=set(WELL_KNOWN_MACROS) | set(ref.get("macros", [])),
         sourcetypes=set(WELL_KNOWN_SOURCETYPES) | set(ref.get("sourcetypes", [])),
+        sourcetype_glob_patterns=set(ref.get("sourcetype_glob_patterns", [])),
         indexes=set(BUILTIN_FIELD_TOKENS) | set(WELL_KNOWN_INDEXES) | set(ref.get("indexes", [])),
         datamodel_paths=cim_paths | set(ref.get("datamodel_paths", [])),
         lookups=set(ref.get("lookups", [])),
@@ -149,7 +177,7 @@ def build_vocabulary() -> Vocabulary:
         stats_functions=set(VALID_STATS_FUNCTIONS)
         | set(VALID_EVAL_FUNCTIONS)  # eval funcs are valid inside stats(eval(...))
         | set(ref.get("stats_functions", [])),
-        cim_models=set(CIM_DATASETS.keys()),
+        cim_models=set(CIM_DATASETS.keys()) | set(ref.get("cim_models", [])),
         sources=ref.get("sources", []),
     )
 
@@ -294,6 +322,13 @@ def check_one_spl_field(
         if not v or _looks_like_token(v):
             continue
         if v in known_sourcetypes:
+            continue
+        # Splunk add-ons frequently ship sourcetypes as glob patterns
+        # (e.g. ``cisco:ise:*``, ``*365:cas:api``) rather than enumerating
+        # every concrete value. The local reference corpus collects those
+        # globs separately so we can match them after the literal lookup
+        # fails.
+        if vocab.matches_sourcetype(v):
             continue
         # Tolerate sourcetypes the UC declared with wildcards: a search
         # for sourcetype="aws:cloudtrail" is fine if the UC declared

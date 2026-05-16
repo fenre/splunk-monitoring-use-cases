@@ -364,3 +364,194 @@ def test_audit_main_json_output_contains_summary_and_vocabulary(
     assert payload["vocabulary"]["commands"] >= 100, payload["vocabulary"]
     assert payload["vocabulary"]["datamodel_paths"] >= 100, payload["vocabulary"]
     assert payload["summary"]["by_severity"] == {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
+
+
+# ---------------------------------------------------------------------------
+# Splunk 9+ ``IN (...)`` predicate: must not be flagged as command ``index``
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "spl,expected",
+    [
+        # ``index IN (...)`` is the Splunk 9+ membership predicate.
+        ('index IN ("a","b","c")\n| stats count', ["stats"]),
+        # Multi-clause variant.
+        ('index IN ("a") OR index IN ("b") | stats count', ["stats"]),
+        # ``NOT`` is an operator, not a command — strip it before matching.
+        ('NOT index IN ("a","b") | stats count', ["stats"]),
+        ('NOT sourcetype="aws:cloudtrail" | stats count', ["stats"]),
+        # ``OR`` / ``AND`` as leading tokens of an implicit clause.
+        ("OR foo=bar AND baz=qux | stats count", ["stats"]),
+        # Lower-case ``in`` with a list — same predicate.
+        ("status in (200, 302) | stats count", ["stats"]),
+        # Sanity: the literal ``index`` SPL command (rare but legal at
+        # the start of a piped clause) must still surface.
+        ("| index foo bar", ["index"]),
+    ],
+    ids=[
+        "index_in_list",
+        "index_in_or_index_in",
+        "not_index_in",
+        "not_sourcetype_eq",
+        "leading_or_and",
+        "lowercase_in",
+        "literal_index_command",
+    ],
+)
+def test_extract_commands_skips_in_list_predicates(spl: str, expected: list[str]) -> None:
+    """Regression: Splunk 9 ``index IN (...)`` is a predicate, not the ``index`` command.
+
+    The previous parser surfaced ``index`` as an unknown SPL command
+    (HIGH severity finding) for every UC that used the modern membership
+    syntax. The fix in ``extract_commands`` must skip ``IN (...)``
+    predicates and step over leading boolean operators (NOT/OR/AND) the
+    same way it steps over ``=`` predicates.
+    """
+    from splunk_uc.audits._spl_parse import extract_commands
+
+    assert extract_commands(spl) == expected
+
+
+# ---------------------------------------------------------------------------
+# Sourcetype glob matching: corpus-shipped wildcards (``cisco:ise:*``)
+# must resolve concrete sourcetypes the catalogue cites.
+# ---------------------------------------------------------------------------
+
+
+def _make_vocab_for_glob_test():
+    """Build a Vocabulary with a small, representative glob corpus."""
+    from splunk_uc.audits.spl_references import Vocabulary
+
+    return Vocabulary(
+        commands=set(),
+        macros=set(),
+        sourcetypes={"aws:cloudtrail"},
+        sourcetype_glob_patterns={
+            "cisco:ise:*",  # trailing-wildcard family
+            "*365:cas:api",  # leading-wildcard family
+            "vmware:*:syslog",  # mid-wildcard family
+        },
+        indexes=set(),
+        datamodel_paths=set(),
+        lookups=set(),
+        eval_functions=set(),
+        stats_functions=set(),
+        cim_models=set(),
+        sources=[],
+    )
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("aws:cloudtrail", True),  # literal hit
+        ("cisco:ise:auth", True),  # cisco:ise:* glob
+        ("cisco:ise:profiler", True),  # cisco:ise:* glob
+        ("o365:cas:api", True),  # *365:cas:api glob
+        ("M365:cas:api", True),  # *365:cas:api glob, case-respecting
+        ("vmware:nsxt:syslog", True),  # vmware:*:syslog glob
+        ("vmware:vsan:syslog", True),  # vmware:*:syslog glob
+        ("not_a_real_sourcetype", False),  # truly unknown
+        ("aws:cloudwatch", False),  # close but not declared
+        ("cisco:foo", False),  # right vendor, wrong family
+    ],
+)
+def test_vocabulary_matches_sourcetype(value: str, expected: bool) -> None:
+    """Both literal and glob membership are honoured by ``matches_sourcetype``."""
+    vocab = _make_vocab_for_glob_test()
+    assert vocab.matches_sourcetype(value) is expected
+
+
+def test_vocabulary_glob_regex_compiled_once() -> None:
+    """The compiled regex is cached so per-UC checks stay O(1)."""
+    vocab = _make_vocab_for_glob_test()
+    # Force compile via first call.
+    assert vocab.matches_sourcetype("cisco:ise:auth") is True
+    first = vocab._glob_re
+    # Subsequent calls reuse the same compiled object.
+    assert vocab.matches_sourcetype("vmware:nsxt:syslog") is True
+    assert vocab._glob_re is first
+
+
+def test_audit_skips_glob_matching_sourcetypes() -> None:
+    """End-to-end: a sourcetype that only matches a glob is NOT flagged."""
+    from splunk_uc.audits.spl_references import (
+        Vocabulary,
+        check_one_spl_field,
+    )
+
+    vocab = Vocabulary(
+        commands={"search", "stats"},
+        macros=set(),
+        sourcetypes=set(),  # no literal "cisco:ise:auth"
+        sourcetype_glob_patterns={"cisco:ise:*"},
+        indexes={"main"},
+        datamodel_paths=set(),
+        lookups=set(),
+        eval_functions=set(),
+        stats_functions={"count"},
+        cim_models=set(),
+        sources=[],
+    )
+    findings = check_one_spl_field(
+        uc_id="0.0.0",
+        file_label="test.json",
+        field="spl",
+        spl='index=main sourcetype="cisco:ise:auth" | stats count',
+        vocab=vocab,
+        declared_sourcetypes=set(),
+        declared_indexes=set(),
+    )
+    cats = [f.category for f in findings]
+    assert "unknown-sourcetype" not in cats, (
+        f"glob-matching sourcetype should not be flagged; got {findings!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# build_spl_reference: the new corpus readers
+# ---------------------------------------------------------------------------
+
+
+def test_build_script_routes_globs_and_literals() -> None:
+    """Wildcard sourcetypes go to ``sourcetype_glob_patterns``, plain ones to ``sourcetypes``."""
+    from tools.research.build_spl_reference import _add_sourcetype, _new_state
+
+    state = _new_state()
+    _add_sourcetype(state, "aws:cloudtrail")
+    _add_sourcetype(state, "cisco:ise:*")
+    _add_sourcetype(state, "*365:cas:api")
+    _add_sourcetype(state, "")  # ignored
+    _add_sourcetype(state, "<<placeholder>>")  # ignored
+
+    assert state["sourcetypes"] == {"aws:cloudtrail"}
+    assert state["sourcetype_glob_patterns"] == {"cisco:ise:*", "*365:cas:api"}
+
+
+def test_build_script_state_has_new_buckets() -> None:
+    """``_new_state`` must include the new corpus buckets so readers don't KeyError."""
+    from tools.research.build_spl_reference import _new_state
+
+    s = _new_state()
+    for k in (
+        "sourcetypes",
+        "sourcetype_glob_patterns",
+        "cim_models",
+        "cim_tags",
+    ):
+        assert k in s, f"missing bucket {k!r}"
+
+
+def test_build_script_serialise_includes_new_buckets() -> None:
+    """``_serialise`` exposes the new buckets in the output JSON shape."""
+    from tools.research.build_spl_reference import _new_state, _serialise
+
+    payload = _serialise(_new_state(), [])
+    for k in (
+        "sourcetype_glob_patterns",
+        "cim_models",
+        "cim_tags",
+    ):
+        assert k in payload, f"missing serialised key {k!r}"
+        assert payload[k] == []  # empty state ⇒ empty arrays

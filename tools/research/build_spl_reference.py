@@ -3,20 +3,42 @@
 
 This script reads any of the following sources that happen to be
 present under ``external/`` and writes a normalised JSON vocabulary to
-``data/spl-reference.local.json`` (gitignored):
+``data/spl-reference.local.json`` (gitignored). All sources are
+optional — readers gracefully no-op when their root directory is
+missing, so a partial install still produces a valid corpus file.
 
-* ``external/searchbase/searchbase/default/searchbase.conf`` — Splunk
-  Works' Searchbase app (``Splunkbase #7188``); 771 vetted SPL searches
-  spanning Splunk-platform monitoring, security, web servers, threat
-  hunting, and industry-specific use cases. **Licensed under Splunk
-  General Terms — not redistributable.** This script extracts only
-  *vocabulary fingerprints* (macro names, sourcetypes, indexes,
-  datamodel paths, function names) — never SPL bodies or descriptive
-  prose.
+Splunkbase / Splunk Works (Splunk General Terms — *not redistributable*):
+
+* ``external/searchbase/searchbase/`` — Searchbase app
+  (`Splunkbase #7188 <https://splunkbase.splunk.com/app/7188>`_); 770
+  vetted SPL searches and 15 macro definitions.
+* ``external/is4s/splunk_insights/`` — Insights Suite for Splunk
+  (`Splunkbase #7186 <https://splunkbase.splunk.com/app/7186>`_); the
+  umbrella that bundles Searchbase, Use Case Explorer, and Value
+  Insights. The Use Case Explorer ships canonical
+  ``uce_sourcetype_mapping.csv`` (~7k Splunk-curated sourcetypes
+  cross-referenced to Splunk Lantern), ``uce_usecase_mapping.csv``
+  (~760 Lantern UCs), and ``ssef_splunkbase_apps.csv.gz`` (~4.5k
+  Splunkbase apps with sourcetype + CIM-tag columns).
+* ``external/sse/Splunk_Security_Essentials/`` — SSE
+  (`Splunkbase #3435 <https://splunkbase.splunk.com/app/3435>`_); ~600
+  curated security searches plus a ``SSE-default-data-inventory-products.csv``
+  product/sourcetype regex catalogue.
+* ``external/cim/Splunk_SA_CIM/`` — Common Information Model add-on
+  (`Splunkbase #1621 <https://splunkbase.splunk.com/app/1621>`_); 27
+  CIM datamodel JSON files with full dataset hierarchy and CIM-tag
+  vocabulary in ``tags.conf``.
+
+Open source:
 
 * ``external/security_content/detections/**/*.yml`` — Splunk's public
-  ``splunk/security_content`` repo (Apache 2.0 — redistributable).
-  ~2,073 detection YAMLs with full SPL.
+  ``splunk/security_content`` (ESCU) repo (Apache 2.0). ~2,073
+  detection YAMLs and 234 macro YAMLs.
+
+This script extracts *vocabulary fingerprints* only — macro names,
+sourcetype strings, index names, datamodel paths, function names, CIM
+tag names — never SPL bodies, descriptive prose, or anything else
+covered by the upstream license that prohibits redistribution.
 
 The output JSON has stable top-level keys::
 
@@ -27,17 +49,20 @@ The output JSON has stable top-level keys::
       "macros": ["security_content_summariesonly", ...],
       "macros_with_arity": {"security_content_ctime": [1], ...},
       "sourcetypes": ["WinEventLog", "aws:cloudtrail", ...],
+      "sourcetype_glob_patterns": ["*365:cas:api", ...],
       "indexes": ["_internal", "main", ...],
       "datamodel_paths": ["Risk.All_Risk", ...],
+      "cim_models": ["Authentication", "Network_Traffic", ...],
+      "cim_tags": ["authentication", "endpoint", ...],
       "lookups": ["asset_categories", ...],
       "eval_functions": ["coalesce", ...],
       "stats_functions": ["count", ...],
       "commands": ["search", "stats", ...]
     }
 
-When neither corpus is present the script still emits a valid JSON
-shell with empty arrays so downstream audits can rely on the file
-shape. Use ``--check`` to fail fast if no corpus is available.
+When no corpus is present the script still emits a valid JSON shell
+with empty arrays so downstream audits can rely on the file shape.
+Use ``--check`` to fail fast if no corpus is available.
 
 Usage::
 
@@ -51,7 +76,10 @@ maintainer-side helper, not a CI gate.
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime
+import gzip
+import io
 import json
 import re
 import sys
@@ -68,6 +96,11 @@ from splunk_uc.audits import _spl_parse as parse  # noqa: E402
 # placeholders. They aren't real values — strip them from the corpus.
 _PLACEHOLDER_RE = re.compile(r"^<<.*>>$")
 
+# Splunk allows ``*`` in sourcetype names as a wildcard. We track those
+# separately so the audit can do glob-aware matching downstream
+# without conflating them with concrete sourcetypes.
+_WILDCARD_CHARS = set("*?")
+
 
 def _is_real_value(v: str) -> bool:
     if not v or v != v.strip():
@@ -77,8 +110,19 @@ def _is_real_value(v: str) -> bool:
     return True
 
 
+def _is_glob(v: str) -> bool:
+    return any(c in _WILDCARD_CHARS for c in v)
+
+
 DEFAULT_OUT = _REPO / "data" / "spl-reference.local.json"
+
+# Splunkbase / Splunk Works apps (Splunk General Terms — not redistributable).
 SEARCHBASE_DIR = _REPO / "external" / "searchbase" / "searchbase"
+IS4S_DIR = _REPO / "external" / "is4s" / "splunk_insights"
+SSE_DIR = _REPO / "external" / "sse" / "Splunk_Security_Essentials"
+CIM_DIR = _REPO / "external" / "cim" / "Splunk_SA_CIM"
+
+# splunk/security_content (ESCU). Apache-2.0.
 SECURITY_CONTENT_DIR = _REPO / "external" / "security_content"
 
 # Searchbase and ESCU both ship MITRE ATT&CK enrichment lookups — we
@@ -86,6 +130,18 @@ SECURITY_CONTENT_DIR = _REPO / "external" / "security_content"
 SEARCHBASE_CONF = SEARCHBASE_DIR / "default" / "searchbase.conf"
 SEARCHBASE_MACROS_CONF = SEARCHBASE_DIR / "default" / "macros.conf"
 SEARCHBASE_LOOKUPS_DIR = SEARCHBASE_DIR / "lookups"
+
+IS4S_DEFAULT = IS4S_DIR / "default"
+IS4S_LOOKUPS = IS4S_DIR / "lookups"
+
+SSE_DEFAULT = SSE_DIR / "default"
+SSE_LOOKUPS = SSE_DIR / "lookups"
+
+CIM_DEFAULT = CIM_DIR / "default"
+CIM_DATAMODELS_DIR = CIM_DEFAULT / "data" / "models"
+CIM_TAGS_CONF = CIM_DEFAULT / "tags.conf"
+CIM_EVENTTYPES_CONF = CIM_DEFAULT / "eventtypes.conf"
+
 ESCU_DETECTIONS_DIR = SECURITY_CONTENT_DIR / "detections"
 ESCU_MACROS_DIR = SECURITY_CONTENT_DIR / "macros"
 
@@ -180,6 +236,14 @@ def _ingest_one_spl(spl: str, state: dict[str, Any]) -> None:
         state["stats_functions"].add(fref.name)
 
 
+def _add_sourcetype(state: dict[str, Any], value: str) -> None:
+    """Route a sourcetype string to the right bucket (literal vs. glob)."""
+    if not _is_real_value(value):
+        return
+    bucket = "sourcetype_glob_patterns" if _is_glob(value) else "sourcetypes"
+    state[bucket].add(value)
+
+
 def _ingest_searchbase_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
     """Walk Searchbase ``searchbase.conf`` and ``macros.conf`` if present."""
     if not SEARCHBASE_CONF.exists():
@@ -234,6 +298,251 @@ def _ingest_searchbase_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
         "search_count": len(spls),
         "defined_macros": len(sb_defined),
         "mitre_lookup_present": mitre_lookup_present,
+    }
+
+
+# ---------------------------------------------------------------------------
+# IS4S — Insights Suite for Splunk (Splunkbase #7186)
+# ---------------------------------------------------------------------------
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    """Read a CSV (optionally gzip-compressed by extension) into a list of dicts.
+
+    Returns an empty list if the file is missing, empty, or unreadable.
+    """
+    if not path.exists():
+        return []
+    try:
+        if path.suffix == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8", errors="replace", newline="") as fh:
+                return list(csv.DictReader(fh))
+        with path.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            return list(csv.DictReader(fh))
+    except (OSError, csv.Error):
+        return []
+
+
+def _ingest_is4s_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Walk the IS4S app: Searchbase + Use Case Explorer + Value Insights.
+
+    The Use Case Explorer lookups are the highest-value payload because
+    ``uce_sourcetype_mapping.csv`` is a Splunk-curated catalogue of
+    legitimate sourcetypes mapped to vendor / product / data model /
+    Splunk Lantern use case. ``ssef_splunkbase_apps.csv.gz`` covers
+    every published Splunkbase app with its ``sourcetypes`` and
+    ``cim_tags`` columns, providing canonical CIM tag vocabulary.
+    """
+    if not IS4S_DEFAULT.exists():
+        return None
+
+    counters: dict[str, int] = {
+        "searchbase_spls": 0,
+        "savedsearches": 0,
+        "macros_defined": 0,
+        "uce_sourcetypes": 0,
+        "uce_lantern_use_cases": 0,
+        "splunkbase_apps": 0,
+    }
+
+    # IS4S ships its own copy of searchbase.conf; dedupe is implicit
+    # because both feeds add to the same set.
+    is4s_searchbase_conf = IS4S_DEFAULT / "searchbase.conf"
+    if is4s_searchbase_conf.exists():
+        for _name, kv in _read_conf_stanzas(is4s_searchbase_conf):
+            spl = kv.get("search", "").strip()
+            if spl and spl != "| noop":
+                _ingest_one_spl(spl, state)
+                counters["searchbase_spls"] += 1
+
+    # Value Insights' scheduled searches.
+    savedsearches_conf = IS4S_DEFAULT / "savedsearches.conf"
+    if savedsearches_conf.exists():
+        for _name, kv in _read_conf_stanzas(savedsearches_conf):
+            spl = kv.get("search", "").strip()
+            if spl:
+                _ingest_one_spl(spl, state)
+                counters["savedsearches"] += 1
+
+    # Macros defined by IS4S itself are known-good identifiers.
+    macros_conf = IS4S_DEFAULT / "macros.conf"
+    if macros_conf.exists():
+        for stanza_name, _kv in _read_conf_stanzas(macros_conf):
+            m = re.match(r"^(?P<name>[^(]+)(?:\(\d+\))?\s*$", stanza_name)
+            if m:
+                state["macros"].add(m.group("name").strip())
+                counters["macros_defined"] += 1
+
+    # Use Case Explorer sourcetype catalogue.
+    uce_st = IS4S_LOOKUPS / "uce_sourcetype_mapping.csv"
+    for row in _read_csv_rows(uce_st):
+        st = (row.get("sourcetype_name") or "").strip()
+        if st:
+            _add_sourcetype(state, st)
+            counters["uce_sourcetypes"] += 1
+        # The ``data_model`` column lists the CIM datasets that this
+        # sourcetype feeds (pipe-separated free text). Strip the
+        # cosmetic " data" suffix and route into cim_models.
+        for dm in (row.get("data_model") or "").split("|"):
+            dm = dm.strip().removesuffix(" data").strip()
+            if dm and " " not in dm and "/" not in dm:
+                # Filter out free-text values; CIM model names are
+                # CamelCase or underscore_separated, never multi-word.
+                state["cim_models"].add(dm)
+
+    # Splunk Lantern use case index (provides UC names; we don't
+    # store the URLs, only the names used for sanity checks).
+    uce_uc = IS4S_LOOKUPS / "uce_usecase_mapping.csv"
+    counters["uce_lantern_use_cases"] = sum(1 for _ in _read_csv_rows(uce_uc))
+
+    # Splunkbase app catalogue: pull the sourcetypes & CIM tags columns.
+    sb_apps = IS4S_LOOKUPS / "ssef_splunkbase_apps.csv.gz"
+    for row in _read_csv_rows(sb_apps):
+        counters["splunkbase_apps"] += 1
+        for st in (row.get("sourcetypes") or "").split("|"):
+            st = st.strip()
+            if st:
+                _add_sourcetype(state, st)
+        for tag in (row.get("cim_tags") or "").split("|"):
+            tag = tag.strip().lower()
+            # CIM tag names are short, alphanumeric (with `_`), no spaces.
+            if tag and re.match(r"^[a-z][a-z0-9_]{0,31}$", tag):
+                state["cim_tags"].add(tag)
+
+    return {
+        "name": "Insights Suite for Splunk (IS4S)",
+        "splunkbase_id": 7186,
+        "license": "Splunk General Terms (not redistributable)",
+        "path": str(IS4S_DIR.relative_to(_REPO)),
+        **counters,
+    }
+
+
+# ---------------------------------------------------------------------------
+# SSE — Splunk Security Essentials (Splunkbase #3435)
+# ---------------------------------------------------------------------------
+
+
+def _ingest_sse_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
+    if not SSE_DEFAULT.exists():
+        return None
+
+    counters: dict[str, int] = {
+        "savedsearches": 0,
+        "macros_defined": 0,
+        "data_inventory_products": 0,
+    }
+
+    savedsearches = SSE_DEFAULT / "savedsearches.conf"
+    if savedsearches.exists():
+        for _name, kv in _read_conf_stanzas(savedsearches):
+            spl = kv.get("search", "").strip()
+            if spl:
+                _ingest_one_spl(spl, state)
+                counters["savedsearches"] += 1
+
+    macros_conf = SSE_DEFAULT / "macros.conf"
+    if macros_conf.exists():
+        for stanza_name, _kv in _read_conf_stanzas(macros_conf):
+            m = re.match(r"^(?P<name>[^(]+)(?:\(\d+\))?\s*$", stanza_name)
+            if m:
+                state["macros"].add(m.group("name").strip())
+                counters["macros_defined"] += 1
+
+    # SSE's data-inventory products lookup includes a regex column that
+    # implies the canonical sourcetype prefix (e.g. ``^aws:cloudtrail.*$``).
+    # We extract literal sourcetypes from the ``default_sourcetype_search``
+    # column when it is a simple ``sourcetype=...`` form.
+    products = SSE_LOOKUPS / "SSE-default-data-inventory-products.csv"
+    for row in _read_csv_rows(products):
+        counters["data_inventory_products"] += 1
+        search_clause = (row.get("default_sourcetype_search") or "").strip()
+        m = re.match(r"^sourcetype\s*=\s*(?P<v>[^\s]+)$", search_clause)
+        if m:
+            _add_sourcetype(state, m.group("v"))
+
+    return {
+        "name": "Splunk Security Essentials (SSE)",
+        "splunkbase_id": 3435,
+        "license": "Splunk General Terms (not redistributable)",
+        "path": str(SSE_DIR.relative_to(_REPO)),
+        **counters,
+    }
+
+
+# ---------------------------------------------------------------------------
+# CIM — Common Information Model add-on (Splunkbase #1621)
+# ---------------------------------------------------------------------------
+
+
+def _ingest_cim_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Read the CIM datamodel JSONs and tag/eventtype configs.
+
+    The datamodel JSONs are the canonical source for CIM model and
+    dataset names; ``tags.conf`` plus the cim_tags column we already
+    harvested from IS4S ssef_splunkbase_apps give us the CIM tag
+    vocabulary that end users put in ``tag=...`` predicates.
+    """
+    if not CIM_DEFAULT.exists():
+        return None
+
+    counters: dict[str, int] = {
+        "datamodel_files": 0,
+        "datasets": 0,
+        "tags_conf_lines": 0,
+    }
+
+    if CIM_DATAMODELS_DIR.exists():
+        for jpath in sorted(CIM_DATAMODELS_DIR.glob("*.json")):
+            try:
+                payload = json.loads(jpath.read_text(encoding="utf-8", errors="replace"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            counters["datamodel_files"] += 1
+            model_name = payload.get("modelName") or jpath.stem
+            state["cim_models"].add(model_name)
+
+            # Walk the (possibly nested) object hierarchy collecting
+            # every ``objectName`` as a dataset path (Model.dataset).
+            def _walk_objects(objs: Any, path_prefix: str) -> None:
+                if not isinstance(objs, list):
+                    return
+                for obj in objs:
+                    if not isinstance(obj, dict):
+                        continue
+                    name = obj.get("objectName")
+                    if not isinstance(name, str) or not name:
+                        continue
+                    full = f"{path_prefix}.{name}" if path_prefix else f"{model_name}.{name}"
+                    state["datamodel_paths"].add(full)
+                    counters["datasets"] += 1
+                    _walk_objects(obj.get("children"), full)
+
+            _walk_objects(payload.get("objects"), model_name)
+            # Also add the bare model so audit-spl-references treats
+            # ``datamodel=Authentication`` (no dataset) as known.
+            state["datamodel_paths"].add(model_name)
+
+    # tags.conf — parsed manually because Splunk's stanzas use the
+    # ``[key=value]`` form, not the simple ``[name]`` form, so the
+    # standard reader's stanza names look like ``action=failure``.
+    if CIM_TAGS_CONF.exists():
+        text = CIM_TAGS_CONF.read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
+            counters["tags_conf_lines"] += 1
+            line = line.strip()
+            if not line or line.startswith(("#", "[")):
+                continue
+            m = re.match(r"^(?P<tag>[A-Za-z][\w]*)\s*=\s*enabled\s*$", line)
+            if m:
+                state["cim_tags"].add(m.group("tag").lower())
+
+    return {
+        "name": "Splunk Common Information Model (CIM) add-on",
+        "splunkbase_id": 1621,
+        "license": "Splunk General Terms (not redistributable)",
+        "path": str(CIM_DIR.relative_to(_REPO)),
+        **counters,
     }
 
 
@@ -338,8 +647,11 @@ def _new_state() -> dict[str, Any]:
         "macros": set(),
         "macros_with_arity": {},  # name -> set of arities
         "sourcetypes": set(),
+        "sourcetype_glob_patterns": set(),
         "indexes": set(),
         "datamodel_paths": set(),
+        "cim_models": set(),
+        "cim_tags": set(),
         "lookups": set(),
         "eval_functions": set(),
         "stats_functions": set(),
@@ -360,8 +672,11 @@ def _serialise(state: dict[str, Any], sources: list[dict[str, Any]]) -> dict[str
             for name in sorted(state["macros_with_arity"])
         },
         "sourcetypes": sorted(state["sourcetypes"]),
+        "sourcetype_glob_patterns": sorted(state["sourcetype_glob_patterns"]),
         "indexes": sorted(state["indexes"]),
         "datamodel_paths": sorted(state["datamodel_paths"]),
+        "cim_models": sorted(state["cim_models"]),
+        "cim_tags": sorted(state["cim_tags"]),
         "lookups": sorted(state["lookups"]),
         "eval_functions": sorted(state["eval_functions"]),
         "stats_functions": sorted(state["stats_functions"]),
@@ -389,6 +704,15 @@ def main(argv: list[str] | None = None) -> int:
     sb = _ingest_searchbase_corpus(state)
     if sb:
         sources.append(sb)
+    is4s = _ingest_is4s_corpus(state)
+    if is4s:
+        sources.append(is4s)
+    sse = _ingest_sse_corpus(state)
+    if sse:
+        sources.append(sse)
+    cim = _ingest_cim_corpus(state)
+    if cim:
+        sources.append(cim)
     escu = _ingest_escu_corpus(state)
     if escu:
         sources.append(escu)
@@ -398,6 +722,9 @@ def main(argv: list[str] | None = None) -> int:
             "ERROR: no reference corpus found.\n"
             "Looked under:\n"
             f"  {SEARCHBASE_CONF.relative_to(_REPO)}\n"
+            f"  {IS4S_DIR.relative_to(_REPO)}\n"
+            f"  {SSE_DIR.relative_to(_REPO)}\n"
+            f"  {CIM_DIR.relative_to(_REPO)}\n"
             f"  {ESCU_DETECTIONS_DIR.relative_to(_REPO)}\n"
         )
         return 1
@@ -410,10 +737,14 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(
             f"Wrote {args.out.relative_to(_REPO) if args.out.is_relative_to(_REPO) else args.out}\n"
             f"  sources:        {len(sources)}\n"
+            f"  commands:       {len(payload['commands'])}\n"
             f"  macros:         {len(payload['macros'])}\n"
             f"  sourcetypes:    {len(payload['sourcetypes'])}\n"
+            f"  sourcetype globs: {len(payload['sourcetype_glob_patterns'])}\n"
             f"  indexes:        {len(payload['indexes'])}\n"
             f"  datamodels:     {len(payload['datamodel_paths'])}\n"
+            f"  cim models:     {len(payload['cim_models'])}\n"
+            f"  cim tags:       {len(payload['cim_tags'])}\n"
             f"  lookups:        {len(payload['lookups'])}\n"
             f"  eval functions: {len(payload['eval_functions'])}\n"
             f"  stats funcs:    {len(payload['stats_functions'])}\n"

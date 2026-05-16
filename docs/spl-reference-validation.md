@@ -43,25 +43,34 @@ for the first run's findings.
                 ┌─────────────────────────────────┐
                 │  Local reference corpus         │
                 │  (data/spl-reference.local.json)│
-                │  • Searchbase: ~770 SPL searches│
-                │  • (optional) ESCU detections   │
                 │  Built by build_spl_reference   │
+                │  from up to FIVE corpora:       │
+                │  • Searchbase           (#7188) │
+                │  • Insights Suite IS4S  (#7186) │
+                │  • Sec Essentials SSE   (#3435) │
+                │  • CIM add-on           (#1621) │
+                │  • splunk/security_content      │
+                │       (ESCU, Apache-2.0)        │
                 └────────────┬────────────────────┘
                              │
                              ▼
                 ┌─────────────────────────────────┐
                 │  Effective vocabulary (union)   │
-                │  When all three layers loaded:  │
-                │  • commands       181           │
-                │  • eval funcs     122           │
-                │  • stats funcs    152*          │
-                │  • sourcetypes    416           │
-                │  • macros          72           │
-                │  • indexes         31           │
-                │  • datamodels     129           │
+                │  When every layer is loaded:    │
+                │  • commands         194         │
+                │  • macros         2,407         │
+                │  • sourcetypes    9,601 literal │
+                │                + 1,118 globs    │
+                │  • indexes           16         │
+                │  • datamodels       271         │
+                │  • eval funcs        81         │
+                │  • stats funcs       61         │
+                │  • CIM tags         331         │
                 │                                 │
-                │  *stats accepts eval funcs too  │
-                │   (Splunk lets stats(eval(...)))│
+                │  Globs (`cisco:ise:*`,          │
+                │  `*365:cas:api`) are matched    │
+                │  via fnmatch-translated regex,  │
+                │  union-compiled once per run.   │
                 └────────────┬────────────────────┘
                              │
    per UC SPL field          │
@@ -173,12 +182,28 @@ just lists zero entries and the audit falls back to the static layers.
 
 | Source | Path | License | Redistributable? |
 |--------|------|---------|------------------|
-| Searchbase (Splunkbase 7188) | `external/searchbase/` | Splunk General Terms | **No.** Vocabulary fingerprints only. |
+| Searchbase ([Splunkbase 7188](https://splunkbase.splunk.com/app/7188)) | `external/searchbase/` | Splunk General Terms | **No.** Vocabulary fingerprints only. |
+| Insights Suite for Splunk — IS4S ([Splunkbase 7186](https://splunkbase.splunk.com/app/7186)) | `external/is4s/` | Splunk General Terms | **No.** Wraps Searchbase, Use Case Explorer (with Splunk Lantern UC mapping), and Value Insights. |
+| Splunk Security Essentials — SSE ([Splunkbase 3435](https://splunkbase.splunk.com/app/3435)) | `external/sse/` | Splunk General Terms | **No.** ~600 curated security searches and a product/sourcetype regex catalogue. |
+| Splunk Common Information Model add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) | `external/cim/` | Splunk General Terms | **No.** 27 CIM 8.x datamodel JSON files plus the canonical CIM tag vocabulary. |
 | `splunk/security_content` (ESCU) | `external/security_content/` | Apache-2.0 | Yes. Optional vendoring. |
 
-The audit consumes only macro names, sourcetype strings, datamodel
-paths, and function names. It does **not** copy SPL bodies, descriptive
-prose, or any other content into the repository.
+The audit consumes only macro names, sourcetype strings (literal and
+glob), datamodel paths, CIM tag names, and function names. It does
+**not** copy SPL bodies, descriptive prose, or any other content into
+the repository. Each reader is path-existence-gated, so a partial set
+of corpora still produces a valid `data/spl-reference.local.json`.
+
+#### Why the breakdown matters
+
+With only `_spl_well_known.py` (392 hand-curated sourcetypes),
+`audit-spl-references` produced ~3,000 `unknown-sourcetype` MEDIUM
+findings against the catalogue. With the IS4S Splunkbase app catalogue
+loaded (4,519 apps × their `sourcetypes` column) plus glob-aware
+matching for patterns like `cisco:ise:*`, that signal collapsed to
+**zero** unknown-sourcetype findings — the catalogue's authors were
+correct; the previous corpus simply hadn't seen the vendor sourcetypes
+they were citing.
 
 ## Growing the well-known TA list
 

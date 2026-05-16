@@ -345,28 +345,57 @@ def extract_lookups(spl: str) -> list[LookupRef]:
     return out
 
 
+# Boolean / set operators that appear as bare leading tokens of an
+# implicit-search clause (``NOT foo=bar``, ``OR action=success``). These
+# are SPL operators, not commands. ``in`` is the Splunk 9+ membership
+# operator (``index IN ("a","b")``); when it appears mid-clause the
+# leading-token check below catches it via the field name.
+_LEADING_BOOLEAN_OPERATORS = frozenset({"not", "or", "and"})
+
+
 def extract_commands(spl: str) -> list[str]:
     """Return every per-segment leading command in the SPL.
 
-    Implicit-search predicates of the form ``<field>=<value>`` (e.g.
-    ``source="WinEventLog"``, ``index=foo sourcetype=bar``) are NOT
-    commands — they're the implicit ``search`` clause. We detect them
-    by checking whether the leading identifier is immediately followed
-    by ``=`` (after optional whitespace) and skip them.
+    Implicit-search predicates that are NOT commands and must be skipped:
+
+    * ``<field>=<value>`` form — ``index=foo``, ``sourcetype="aws:s3"``.
+      Detected by an ``=`` directly following the leading identifier.
+    * ``<field> IN (<list>)`` form (Splunk 9+) — ``index IN ("a","b")``,
+      ``status IN (200,302)``. Detected by an ``IN`` (case-insensitive)
+      followed by ``(`` directly after the leading identifier.
+    * Boolean operators as a leading token — ``NOT index=foo``,
+      ``OR sourcetype=bar``. Detected by a fixed allowlist; we then
+      try the next token.
     """
     cleaned = _strip_comments(spl)
     out: list[str] = []
     for seg in _split_pipes(cleaned):
-        m = _CMD_HEAD_RE.match(seg)
+        # Step over leading boolean operators (NOT/OR/AND ...) so that
+        # ``NOT index IN (...)`` can be recognised as an implicit
+        # search predicate on ``index``, not as command ``not``.
+        seg_tail = seg.lstrip()
+        while True:
+            m = _CMD_HEAD_RE.match(seg_tail)
+            if not m:
+                break
+            head = m.group("cmd").lower()
+            if head in _LEADING_BOOLEAN_OPERATORS:
+                seg_tail = seg_tail[m.end() :].lstrip()
+                continue
+            break
         if not m:
             continue
-        # Look ahead past the matched identifier to see whether the next
-        # non-space character is ``=`` (predicate form).
-        tail = seg[m.end() :].lstrip()
+        # Look ahead past the matched identifier.
+        tail = seg_tail[m.end() :].lstrip()
+        # ``<field>=<value>`` form: predicate, not a command.
         if tail.startswith("="):
             continue
-        cmd = m.group("cmd").lower()
-        out.append(cmd)
+        # ``<field> IN (...)`` form: predicate, not a command. Match
+        # case-insensitively and require the keyword to be a whole word
+        # (followed by either whitespace or ``(``).
+        if len(tail) >= 2 and tail[:2].lower() == "in" and (len(tail) == 2 or tail[2] in " \t("):
+            continue
+        out.append(m.group("cmd").lower())
     return out
 
 
