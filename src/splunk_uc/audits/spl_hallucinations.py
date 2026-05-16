@@ -138,6 +138,8 @@ CIM_DATASETS: dict[str, set[str]] = {
     # Splunk IT Service Intelligence — service-tier KPI summary index. Used
     # by ITSI-aware detections to query KPI snapshots via tstats.
     "Service_KPI_Summary": {"Service_KPI_Summary"},
+    # ITSI legacy alias still found in older content packs.
+    "ITSI_KPI_Summary": {"ITSI_KPI_Summary"},
 }
 
 # Valid top-level Splunk SPL commands (search commands)
@@ -315,6 +317,17 @@ VALID_COMMANDS: set[str] = {
     "relative_entropy",
     # Community / Splunkbase custom commands referenced in ESCU detections
     "cyberchef",
+    # Splunk DB Connect — generates rows from an external relational DB.
+    "dbxquery",
+    # Splunk Enterprise Security risk-framework helper (also available as
+    # the ``es_notable`` macro; the bare command exists when ES is loaded).
+    "es_notable",
+    # Splunk metric-store catalogue (sister of ``mstats`` / ``tstats``).
+    "mcatalog",
+    # Splunk Add-on for ServiceNow — generators that emit Incident/Event
+    # records into the connected ServiceNow instance.
+    "snowevent",
+    "snowrequest",
 }
 
 # Bad patterns we know about

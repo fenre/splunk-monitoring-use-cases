@@ -495,6 +495,14 @@ register(
 )
 register(
     Verb(
+        name="audit-spl-references",
+        module="audits.spl_references",
+        help="Validate SPL identifiers (macros, sourcetypes, datamodels, funcs) against vocab.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-splunk-cloud-compat",
         module="audits.splunk_cloud_compat",
         help="Audit SPL + content packs for Splunk Cloud (Victoria/Classic) compatibility.",

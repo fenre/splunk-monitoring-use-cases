@@ -115,47 +115,76 @@ _TOKEN_RE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_.:]*(?:\|[A-Za-z_]+)?\$")
 
 
 def _split_pipes(spl: str) -> list[str]:
-    """Split on unquoted, untokenised `|` at segment boundaries."""
+    """Split on unquoted, untokenised ``|`` at segment boundaries.
+
+    String literals (single or double-quoted) protect their contents from
+    splitting; ``rex field=_raw "(?i)(a|b|c)..."`` must stay one segment.
+    Backslash-escaped quotes inside a string (``"... \\"...\\" ..."``) do
+    NOT close the string; without that handling, an embedded regex with
+    ``\\"`` causes the rest of the SPL to be treated as unquoted, and
+    every regex ``|`` then surfaces as a fake pipe boundary.
+    """
     masked = _TOKEN_RE.sub(lambda m: "\x00" * len(m.group(0)), spl)
     segments: list[str] = []
     buf: list[str] = []
     in_dq = in_sq = False
     depth = 0
-    for c in masked:
+    i, n = 0, len(masked)
+    while i < n:
+        c = masked[i]
         if c == "\x00":
             buf.append("X")
+            i += 1
             continue
         if in_dq:
+            if c == "\\" and i + 1 < n:
+                buf.append(c)
+                buf.append(masked[i + 1])
+                i += 2
+                continue
             if c == '"':
                 in_dq = False
             buf.append(c)
+            i += 1
             continue
         if in_sq:
+            if c == "\\" and i + 1 < n:
+                buf.append(c)
+                buf.append(masked[i + 1])
+                i += 2
+                continue
             if c == "'":
                 in_sq = False
             buf.append(c)
+            i += 1
             continue
         if c == '"':
             in_dq = True
             buf.append(c)
+            i += 1
             continue
         if c == "'":
             in_sq = True
             buf.append(c)
+            i += 1
             continue
         if c == "(":
             depth += 1
             buf.append(c)
+            i += 1
             continue
         if c == ")":
             depth -= 1
             buf.append(c)
+            i += 1
             continue
         if c == "|" and depth == 0:
             segments.append("".join(buf).strip())
             buf = []
+            i += 1
             continue
         buf.append(c)
+        i += 1
     if buf:
         segments.append("".join(buf).strip())
     return segments

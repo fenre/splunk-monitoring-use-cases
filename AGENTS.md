@@ -137,6 +137,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Catalog schema shape
 - Prerequisite graph (cycles, unknown IDs, wave monotonicity)
 - SPL hallucination audit (unknown commands, invalid eval functions)
+- SPL reference validation (`python -m splunk_uc audit-spl-references --check` — unknown macros / sourcetypes / datamodel paths against curated vocabulary; see [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md))
 - Build freshness (regenerate and diff)
 - Version triple consistency (`VERSION` ↔ `CHANGELOG.md` ↔ `index.html`)
 - Roadmap consistency (`python3 -m splunk_uc audit-roadmap-consistency --check`)
@@ -163,6 +164,8 @@ make snapshot-metrics                               # write data/metrics-history
 make stewardship-digest                             # generate dist/stewardship-digest.{json,md}
 make audit-reproducibility                          # two --reproducible builds must match (~90s)
 make audit-reproducibility-fast                     # single --reproducible build smoke (~30s)
+make audit-spl-references                           # validate macros / sourcetypes / datamodel paths in catalog SPL
+make audit-spl-references-build                     # rebuild data/spl-reference.local.json (local-only)
 make splunk-uc-help                                 # show the python -m splunk_uc CLI help
 PYTHONPATH=src python3 -m splunk_uc --help          # canonical splunk_uc dispatcher entry point (P6)
 PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations  # fill missing plain-language fields
@@ -183,6 +186,7 @@ PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate impl
 - [`docs/stewardship-digest.md`](docs/stewardship-digest.md) — weekly stewardship digest runbook
 - [`docs/roadmap-sync.md`](docs/roadmap-sync.md) — Project-board sync runbook
 - [`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md) — `splunk_uc` package + dispatcher runbook (P6)
+- [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md) — three-layer SPL identifier validation (commands, macros, sourcetypes, datamodels) and how to grow the curated vocabulary
 
 ---
 

@@ -1,7 +1,8 @@
 .PHONY: build serve clean clean-tree audit audit-full audit-ntv audit-all audit-structure \
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
-       audit-spl-hallucinations audit-splunk-cloud-compat \
+       audit-spl-hallucinations audit-spl-references audit-spl-references-build \
+       audit-splunk-cloud-compat \
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
@@ -101,6 +102,12 @@ audit-spl-grammar: ## Check SPL grammar issues
 
 audit-spl-hallucinations: ## Detect SPL hallucinations (unknown commands, bad CIM datasets)
 	$(SPLUNK_UC) audit-spl-hallucinations
+
+audit-spl-references: ## Validate SPL identifiers against curated vocabulary (HIGH gate)
+	$(SPLUNK_UC) audit-spl-references --check
+
+audit-spl-references-build: ## Rebuild data/spl-reference.local.json from external/ corpora
+	$(PYTHON) -m tools.research.build_spl_reference
 
 audit-splunk-cloud-compat: ## Audit SPL + content packs for Splunk Cloud compatibility
 	$(SPLUNK_UC) audit-splunk-cloud-compat
