@@ -2,13 +2,25 @@
 
 > Verified status of every plan finding (F1–F23) and phase (P0–P19) from
 > `/Users/fsudmann/.cursor/plans/repo_health_and_architecture_overhaul_b0cd1852.plan.md`
-> as of **v8.2.0** (commit `a36aa4db4`, 2026-05-11).
+> as of local HEAD **v8.6.4** (commit `fd2f09cc5`, authored 2026-05-14).
+> The doc was first generated 2026-05-12 against v8.2.0
+> (commit `a36aa4db4`); the 2026-05-16 refresh re-anchors counts and
+> status against the post-OT-deep-dive HEAD plus the open work it
+> introduced.
 >
 > Every status below is backed by a concrete file:line citation or a
 > command output. Nothing is "assumed done"; if it's marked DONE the
 > plan finding has been verified resolved at HEAD.
 >
-> Generated 2026-05-12 to prevent rework on already-closed plan items.
+> **Branch divergence at refresh time:** local `main` carries four
+> commits not yet on `origin/main` — `458a50f8b` (Phases 1-5a rollup),
+> `debb1d9b5` (Phase 5b DO-326A), `c25e80ec1` (Phase 6 closure), and
+> `fd2f09cc5` (v8.6.4 primer back-fill). `origin/main` carries one
+> commit not yet local — `00729f198` (per-category scorecard
+> drill-downs, §P14 extension). The latest green `Validate catalog`
+> CI run (`headSha: 00729f198`, 2026-05-14T12:35:53Z) reflects
+> `origin/main`, not local HEAD. The F7 parity status (below) is
+> different for the two trees — see drift ledger items #11 + #12.
 
 ## Headline
 
@@ -57,7 +69,7 @@ including the deferred sample-data shape ADR).
 | F4 | H | ADR-0001 says markdown canonical; DESIGN.md says JSON | DONE | `docs/adr/0001-markdown-as-source-of-truth.md` carries `Superseded by: ADR-0007: JSON sidecars as source of truth for UC content`. |
 | F5 | H | ~3,300 modified files in working tree | DONE | Working tree clean at HEAD post v8.2.0 commit. |
 | F6 | H | `audit_uc_structure.py` scans `use-cases/cat-*.md` | DONE | `src/splunk_uc/audits/uc_structure.py:4` walks `content/cat-*/UC-*.json` (JSON SSOT per ADR-0007). The legacy `use-cases/` corpus itself was retired in v8.2.0 (CHANGELOG entry "Legacy `use-cases/` markdown corpus retired"). |
-| F7 | H | Quality gates run `continue-on-error: true` | **DONE** (2026-05-12) | Verified locally: `audit-gold-profile --summary` exits 0 by design (printing 9.4% gold / 0.5% silver / 79.5% bronze / 10.5% none across 7,677 UCs), and `generate-md-from-json --check` exits 0 (`All 7677 .md files are up-to-date.`). Both `continue-on-error: true` lines removed from `.github/workflows/validate.yml`; explanatory `F7 (2026-05-12)` comments added in their place. `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. |
+| F7 | H | Quality gates run `continue-on-error: true` | **DONE on `origin/main`, REGRESSED on local `main`** (2026-05-16 refresh) | The `continue-on-error: true` strip from 2026-05-12 still stands — `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. The two formerly-flagged gates are now wired to fail PRs on drift. **However**: on local HEAD (v8.6.4, post-OT-arc), `python -m splunk_uc generate-md-from-json --check` exits 1 with `216/7929 .md files are stale or missing` — 168 UCs in cat-22 subcategories 22.54-22.63 ship JSON-only (no committed `.md` companion) and 48 existing `.md` files are stale relative to their JSON. The latest green CI on `origin/main` (commit `00729f198`) does not exhibit this because the four un-pushed local commits (`458a50f8b` / `debb1d9b5` / `c25e80ec1` / `fd2f09cc5`) are the ones that introduced the gap. The pre-push fix is one mechanical regen — `python -m splunk_uc generate-md-from-json` without `--check` — tagged `[generated]` per the §4 per-PR contract. Tracked as drift ledger item #12. |
 | F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | DONE — PR-A + PR-B landed 2026-05-13 (PR-C tracked under P10) | At HEAD `b3f0da75a`: **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline), originally **29 `.innerHTML =` sinks** (the plan's "33" included four overview-roadmap sites since inlined into the build), **0** `eval` / `new Function` / `document.write` calls, and **1 CSP meta tag with `'unsafe-inline'` on both `script-src` *and* `style-src`** (not just `style-src` — the plan baseline understated this). Authored [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md), a single-page bounded scope: one row per `innerHTML` site (categorised A-E), per-helper escape audit (`esc`, `buildMitreDdList`, `_invBuildBody`), CSP `'unsafe-inline'` accounting (2 inline `<script>`, 104 inline `on*=` handlers; 1 inline `<style>`, 42 inline `style="…"` attrs), and a three-PR migration plan. **PR-A landed 2026-05-13** — the seven static-option Category-A sites now route through one `_resetEquipmentModelSelect(ms)` helper (created via `document.createElement`/`replaceChildren`, not raw HTML); innerHTML sink count: 29 → 22. **PR-B landed 2026-05-13** — three new DOM-construction helpers (`_appendEquipmentModelOption`, `_makeInventoryLink`, `_appendSizingHintSpan`) replace the only `innerHTML +=` per-iteration loop, the Category-D `innerHTML = summary` write, and both `innerHTML += '<br><span …>'` append sites. The two inline `onclick="event.preventDefault();openInventoryModal()"` HTML attributes are gone (rebound via `addEventListener`). Final counter movement: `.innerHTML =` sites = **21**, `.innerHTML +=` code sites = **0** (one comment-only match remains in a helper docstring); index.html = 651,770 bytes, perf-a11y headroom 65,030 / 716,800 (~9% slack). F8 close criteria satisfied; PR-C (virtual-scroll renderer `<template>`-clone refactor) is the explicit known-cost follow-up and CSP `'unsafe-inline'` tightening both fold into the existing **P10** phase (Performance + a11y hardening) which already names F8 as its prerequisite. |
 | F9 | H | No CodeQL / dependency-review / SBOM | DONE (mostly) | `.github/workflows/codeql.yml` + `dependency-review.yml` + `gitleaks.yml` all present as separate workflows. SBOM via `anchore/sbom-action` in `release.yml` — verify in P2.5 audit. |
 | F10 | H | `secrets.env` not in `.cursorignore` | **DONE** (2026-05-12) | `.cursorignore` now carries an explicit "Secrets and local environment overrides" block listing `secrets.env`, `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`. `.gitignore` lines 88-90 already block them from commits; the new entries also hide them from the Cursor agent's index so a stray `Read` cannot surface credentials. |
@@ -71,7 +83,7 @@ including the deferred sample-data shape ADR).
 | F18 | L | Root `openapi.yaml` legacy vs. `api/v1/openapi.yaml` canonical | **DONE** (2026-05-12) | Re-verified at HEAD: `openapi.yaml` line 16 carries `> **Status: legacy (hand-maintained)**` followed by a four-paragraph block pointing readers to the canonical `/api/v1/openapi.yaml`, documenting the eventual move to `archive/openapi-legacy.yaml`, and explaining how the OpenAPI drift audit (`audit-openapi-drift`) keeps the two specs in sync. Both specs continue to coexist (root 565 lines / api/v1 210 lines), which is the documented contract — there is no in-progress deletion to wait on. |
 | F19 | M | 7 other workflows unaudited | **DONE** (2026-05-12) | Closed by PR #8 (commit `85b680f5d`): every workflow under `.github/workflows/*.yml` now consumes `./.github/actions/setup-python`. The previously skipped guard `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly` is unskipped and runs in the `audits-content` job, so any future direct `actions/setup-python@<sha>` pin in a workflow fails CI. The 14-workflow inventory itself moves into P2.5 below — that is the remaining work, not F19. |
 | F20 | M | Thin test coverage (10 Python + 5 mjs) | **DONE** (2026-05-13, reclassified) | **47 test files / 660 collected tests** in `tests/` + `mcp/tests/` (the "<10 tests" plan baseline far surpassed). The "P16 coverage % targets not yet baselined" caveat in earlier revisions was wrong at HEAD: [`data/baselines/coverage-v9.1.0.json`](../data/baselines/coverage-v9.1.0.json) is a real, in-use, schema-validated coverage baseline (4,093 covered lines / 19,606 statements / 19.76% total, with per-file ratchet records for **24 tier-1 modules** under `tools/build/` and **68 tier-2 modules** under `src/splunk_uc/audits/` + `src/splunk_uc/generators/`, plus 26 tier-3 exempted files). The audit `src/splunk_uc/audits/coverage_budget.py` consumes it as the no-regression contract; baseline integrity is locked by `tests/scripts/test_audit_coverage_budget.py::test_committed_baseline_version_matches_VERSION`. The plan's reference to a missing `coverage-v7.4.2.json` predates the actual capture (`3cafd8e56`, 2026-05-12, refreshed in PR-5 hotfix #3 + #5); the **v9.1.0** filename is the forward-looking floor convention spelled out in [`schemas/changelogs/coverage-baseline.md`](../schemas/changelogs/coverage-baseline.md). P16 burndown work (mutation testing, property-based testing, raising per-tier floors) is still open; the *baseline existence* gate is closed. |
-| F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** | **7,677 `.md` + 7,677 `.json` matched pairs** under `content/cat-*/UC-*.{md,json}`. Markdown corpus still committed. `--check` gate for parity is now blocking (F7 closed 2026-05-12) but the markdown files themselves are still committed — F21 is about removing them from git, not the gate. |
+| F21 | L | 7,657 markdown companions tracked alongside JSON | **NOT DONE** (counts updated 2026-05-16) | At local HEAD: **7,929 `.json` files** + **7,761 `.md` files** under `content/cat-*/UC-*.{md,json}` — i.e. 168 JSON-only UCs all clustered in cat-22 subcategories 22.54-22.63 (the post-2026-05-13 OT regulation Phases 2b-6 work; see drift ledger #10 + #12). Plus 48 stale `.md` files relative to current JSON, for a total `--check` gap of 216/7929 = 2.7%. The markdown corpus is still committed; F21 close still requires deleting them from git in favour of generation at build time, not tightening the gate. |
 | F22 | L | Two parallel sample regimes (95 dirs + 97 files) | **DONE** (2026-05-13) | **94 `samples/UC-*/` directories + 97 `sample-data/uc-*-fixture.json` files.** The §P12 "pick one" framing was wrong on close inspection: the two regimes serve different purposes (raw-event SPL validation vs. compliance-control evidence fixtures) and merging them creates a worse failure mode in both directions. [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) (2026-05-13) ratifies the split, mechanically forbids cross-tree references, and cross-links both READMEs to the ADR. The deferred schema-shape rationalisation inside `sample-data/` (three observed shapes — `positive`/`negative`, `events_positive`/`events_negative`, `positiveCase`/`negativeCase`) was closed the same day by [ADR-0012](adr/0012-sample-data-canonical-shape.md), which ratifies the **phase3** (`positive`/`negative`) shape as canonical: 57 of 97 fixtures already use it, all 57 populated; the 39 phase2 fixtures are all empty placeholders renamed mechanically in the follow-on PR; the single phase-legacy file (`uc-22.35.1`) is a misclassified SPL fixture that moves to `samples/UC-22.35.1/` per ADR-0010. |
 | F23 | L | 12+ schemas, no governance plan | **DONE** (2026-05-13) | **18 schemas** under `schemas/` (up from "12+"): the 9 in plan, plus `coverage-baseline`, `baselines`, `license-inventory`, and the `v2/` tree (`catalog-index`, `metrics-history-index`, `stewardship-digest`, `search-index`, `build-telemetry`, `metrics`). Governance plan **already** in place at HEAD: contract doc [`docs/schema-versioning.md`](schema-versioning.md) defines required metadata (`$schema`, `$id`, `version`, `x-stability`, `x-since`, `x-changelog`), semver bump rules, breaking-change table, 12-month parallel-major window, distribution and migration plan; 18/18 schemas carry the full metadata set (verified by `tools/audits/schema_meta.py`, live in CI at `validate.yml` line 137); 18/18 schemas have a per-schema changelog under [`schemas/changelogs/`](../schemas/changelogs); breaking-change detection live via `tools/audits/schema_diff.py` (validate.yml line 413). F23 closed 2026-05-13 by [ADR-0011](adr/0011-schema-lineage-governance.md) — ratifies the contract, refreshes the inventory in `schema-versioning.md` (11 → 18 schemas; planned-vs-live audits relabelled), and documents the residual `$id` host-name drift as a tracked follow-on (not a F23 blocker). |
 
@@ -94,7 +106,7 @@ including the deferred sample-data shape ADR).
 | **P11** OSS release polish | PARTIAL (2026-05-13, reclassified) | The original "no `.devcontainer/`" caveat is wrong at HEAD: [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json) ships **pinned by OCI image-index digest** (Microsoft `mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15…`), with Node 20 + GitHub CLI features, ruff + mypy + markdownlint + YAML extensions, pre-forwarded port 8000, pip-cache volume mount, and an 8-assertion structural test suite ([`tests/build/test_devcontainer.py`](../tests/build/test_devcontainer.py)) that pins the invariants. **Closed gap (2026-05-13):** the `postCreateCommand: make devcontainer-init` reference used to point at a Make target that did not exist (the structural test for that was deliberately skipped with `pytest.mark.skip("deferred to v8.x")`). PR — adds the `devcontainer-init` target to `Makefile` (installs `pip install -e .[audits,dev,test]`, registers pre-commit hooks, warm-builds `dist/`), unskips `test_make_target_exists`, and asserts that `devcontainer-init` is listed in `.PHONY`. The "ROADMAP.md still says v7.1" half of the original caveat was already resolved on 2026-05-12 (loose-end ledger #1). **What's still open:** no automated workflow that pushes `reports/roadmap-export.json` to a public Project board (the `make export-roadmap` target produces the snapshot; the sync side is the residual P11 work). |
 | **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-2">2</a>]</sup> gate. |
 | **P13** Recommender TA hardening | NOT STARTED | The recommender TA was overhauled in v8.0.0 (CHANGELOG mentions "single Cloud-safe recommender app") but P13's threat model + Sigstore on `.spl` + AppInspect Cloud gate not visible. |
-| **P14** Content stewardship | DONE (2026-05-14) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. |
+| **P14** Content stewardship | DONE (2026-05-14; cadence side still open) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. **Still open** — the cadence side: automated rotation reminders that consume the CODEOWNERS rows + the new scorecard drill-downs (e.g. quarterly "owner of cat-N has not approved a content change in 90 days; nudge"). |
 | **P15** Specification compliance moonshot | NOT STARTED | 2027 target per plan; no `clauseText[]` bindings. |
 | **P16** Test coverage burndown | PARTIAL | 660 tests collected ✓. Coverage baseline floor in place at [`data/baselines/coverage-v9.1.0.json`](../data/baselines/coverage-v9.1.0.json) — schema-validated (`schemas/coverage-baseline.schema.json`), consumed by `src/splunk_uc/audits/coverage_budget.py` as the no-regression contract, with 24 tier-1 / 68 tier-2 per-file records + 26 tier-3 exempt files. **What's still open**: P16 burndown work proper — *raising* per-tier floors via new tests, plus mutation testing (`mutmut` / `cosmic-ray`) and property-based testing (`hypothesis`) haven't been adopted. The headline 19.76% total is the floor we ratchet *from*; whose-side-still-low is plainly visible in the per-file records (e.g. `tools/build/templates/uc.py` at 4.77%, `src/splunk_uc/generators/api_surface.py` at 0% — both currently large untested surfaces). |
 | **P17** AI-readiness + LLM eval | NOT STARTED | `llms.txt` + `llms-full.txt` exist (AGENTS.md), but no LLM-eval harness, no `dist/rag/`, no embedding fingerprints. |
@@ -133,21 +145,45 @@ findings but should not be lost:
    entry (lines 26-36 of `.gitignore` at HEAD) so the target only
    ever touches local-only build output; nothing tracked is at risk.
    Listed under `make help` so it's discoverable.
+   **Target actually executed 2026-05-14** — confirmed all seven
+   directories absent on disk after `make clean-tree`; recovered
+   ~3.7 GB locally (the 782 MB plan estimate covered just
+   `dist-content/` + `dist-legacy/`; the rest came from accumulated
+   `dist/` / `dist1/` / `dist2/` from prior reproducibility-check runs).
+   Re-runnable any time the local tree balloons again.
 4. **CHANGELOG narrative count typo** in v8.2.0 entry was fixed in this
    commit ("two" → "three" pure documentation generators).
 5. **Plan baselines have shifted** since the plan was written
-   (content has grown):
-   - 7,657 UCs → **7,677 UCs** (+20)
-   - 222 subcategories → **239 subcategories** (+17)
+   (content has grown). Re-anchored 2026-05-16 against local HEAD
+   `fd2f09cc5` via `tools/build/parse_content.load()`,
+   `data/regulations.json`, `wc -l`, and `du`:
+   - 7,657 UCs → **7,929 UCs** (+272 over plan, +252 since the
+     2026-05-13 anchor — the cat-22 OT regulation deep-dive arc,
+     drift ledger item #10)
+   - 222 subcategories → **265 subcategories** (+43 over plan,
+     +26 since the 2026-05-13 anchor)
    - 105 equipment slugs → **106 equipment**
-   - 60 regulations → **69 regulations**
-   - 12+ schemas → **18 schemas**
+   - 60 regulations → **82 regulations** (+22 over plan, +13 since
+     the 2026-05-13 anchor — Phase 6 added DO-326A / ED-202A, China
+     CSL/DSL/PIPL/CII, India CERT-In 2022 / DPDP 2023, IEC 61511 /
+     61508 cybersecurity overlay; Phase 5a/b added IMO Resolutions
+     MSC.428(98) + MSC-FAL.1/Circ.3, TSA Surface, SG Cyber Act, FR
+     LPM)
+   - 12+ schemas → **19 schemas** (+1 since the 2026-05-13 anchor —
+     `schemas/v2/regulation.schema.json` added for the OT framework
+     metadata block)
    - 9,500 lines of build code → ~10,900 (`enrichment.py` grew by ~870)
-   - `index.html` 621 KB → 645 KB raw / 173 KB gzipped
-   - `validate.yml` 953 lines → **1,366 lines across 5 parallel jobs**
-     (PR-5 / F12 closure, 2026-05-12) — line count rose because each
-     parallel job carries its own setup block, but the critical-path
-     wall-clock dropped sharply.
+   - `index.html` 621 KB → **702 KB raw / 189 KB gzipped** (the
+     +57 KB raw / +16 KB gzipped jump over the 645 KB / 173 KB anchor
+     is the cat-22 OT non-technical-view content + evidence-pack
+     plain-language blocks added in Phases 1-6; this is now a P10
+     follow-up, not a new finding)
+   - `validate.yml` 953 lines → **1,386 lines across 5 parallel jobs**
+     (PR-5 / F12 closure, 2026-05-12; the +20 lines since the
+     2026-05-13 anchor are the OT-regulation related audit steps and
+     a P14 scorecard-drilldown step on the un-pulled `origin/main`
+     commit `00729f198`)
+   - `pytest --collect-only` 660 tests (unchanged since 2026-05-13)
    The plan's next refresh should re-anchor these numbers.
 6. ~~**F10 — `.cursorignore` lacks dotenv / secrets patterns.**~~
    **Resolved 2026-05-12** — appended a "Secrets and local environment
@@ -155,6 +191,14 @@ findings but should not be lost:
    `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`.
    `.gitignore` lines 88-90 already prevent commits; the new block
    stops the Cursor agent itself from indexing or surfacing them.
+   **Extended 2026-05-14** — the original close handled the secrets
+   half of the F10 quick-win but skipped the bytecode / pytest-cache
+   half called out in the same plan instruction. A "Python build /
+   test caches" block was appended adding `__pycache__/` and
+   `.pytest_cache/` (both already in `.gitignore` lines 6 + 39); the
+   new block keeps churned bytecode and pytest caches out of the
+   Cursor agent's index across all 19 nested `__pycache__/`
+   directories and both `.pytest_cache/` roots (root + `mcp/`).
 7. ~~**F19 — workflows duplicated `actions/setup-python` setup.**~~
    **Resolved 2026-05-12** — PR #8 (commit `85b680f5d`) migrated the
    remaining 9 workflows (`release.yml`, `stewardship.yml`,
@@ -178,6 +222,48 @@ findings but should not be lost:
    open alerts at HEAD. The npm-deps group hygiene bump (PR #17,
    2026-05-13) covers the remaining 5 dev-dependency upgrades plus
    the matching `reports/perf-a11y.json` snapshot refresh.
+10. **Cat-22 OT regulation deep-dive arc shipped.** New ledger entry
+    2026-05-16 for the 252-UC content arc that landed on local `main`
+    between v8.5.0 and v8.6.4 across four commits — `458a50f8b`
+    (Phases 1-5a rollup: ISA/IEC 62443, NERC CIP v8, EU NIS2 OT,
+    UK CAF / NIS Regulations, US CIRCIA, ENISA NIS2 sectoral, IMO
+    cyber), `debb1d9b5` (Phase 5b: DO-326A / ED-202A aviation),
+    `c25e80ec1` (Phase 6 closure: China CSL / DSL / PIPL / CII +
+    India CERT-In 2022 + India DPDP 2023 + IEC 61511 / 61508
+    cybersecurity overlay), and `fd2f09cc5` (v8.6.4 primer back-fill
+    for TSA Surface §4.18, SG Cyber Act §4.19, France LPM §4.20 +
+    renumber + count drift fix). Net effect on plan baselines: +13
+    tier-1 frameworks, +10 evidence packs, +252 UCs, +26
+    subcategories, +1 schema (`schemas/v2/regulation.schema.json`).
+    None of these four commits are on `origin/main` yet — see #11.
+11. **Branch divergence — local vs `origin/main`.** New ledger
+    entry 2026-05-16. `git rev-list --left-right --count HEAD…origin/main`
+    returns `4 1`: local has four un-pushed commits (the cat-22 OT
+    arc above) and `origin/main` has one un-pulled commit
+    (`00729f198`, per-category scorecard drill-downs — extends P14,
+    see Phases table above). The latest green `Validate catalog` CI
+    run reflects `origin/main`, not local HEAD. **Action required**
+    before the next push: either (a) regenerate the missing /
+    stale `.md` companions (#12) so the F7 gate stays green
+    post-push, or (b) push with the gate broken and fix in a
+    follow-up. Pulling `origin/main` is mechanical; no expected
+    merge conflict (the un-pulled commit only touches
+    `src/splunk_uc/generators/scorecard.py`, `reports/*.json`,
+    `scorecard.json`, `openapi.yaml`, `tests/build/test_scorecard_drilldowns.py`
+    — none of these are touched by the four un-pushed commits).
+12. **F7 — `.md` parity gap on local HEAD.** New ledger entry
+    2026-05-16, sub-finding of F7. Local HEAD reports
+    `216/7929 .md files are stale or missing` via
+    `python -m splunk_uc generate-md-from-json --check`. Breakdown:
+    168 JSON-only UCs (the JSON file exists, no matching `.md`
+    has been committed) clustered in cat-22 subcategories 22.54 ⇒
+    22.63 (drift ledger #10's Phases 2b-6 commits ship JSON-only),
+    plus 48 existing `.md` files stale relative to their JSON. Fix
+    is mechanical — `python -m splunk_uc generate-md-from-json`
+    without `--check` regenerates all 7,929 markdown twins in a
+    single pass, tagged `[generated]` per the §4 per-PR contract.
+    The gate itself is correctly wired (F7's `continue-on-error: true`
+    strip stands); it just hasn't been re-run after the OT arc.
 
 ## Recommended next actions, in size order
 
@@ -293,19 +379,55 @@ findings but should not be lost:
    ADR-0010 because ADRs are numbered by acceptance, not by
    reservation — see ADR-0011 §"Alternatives considered" point C.
 9. **`docs/health-check-2026-progress.md`** (this file) refreshed every
-   minor version to keep "what's done" honest.
+   minor version to keep "what's done" honest. **Refreshed
+   2026-05-16** against local HEAD `fd2f09cc5` (v8.6.4) — the
+   refresh updated the headline + F7 + F21 + P10 + P14 rows,
+   added drift ledger items #10/#11/#12 covering the cat-22 OT
+   regulation arc, the branch divergence, and the .md parity gap,
+   and re-anchored drift ledger #5's baselines against
+   `tools/build/parse_content.load()` (23 / 265 / 7929) +
+   `data/regulations.json` (82) + `wc -l` (`validate.yml` 1,386
+   lines).
+10. **All nine bites above are crossed-out.** Forward-looking
+    work as of 2026-05-16 in size order:
+    - `~1 mechanical PR, 216 files [generated]` — Regenerate the
+      missing/stale `.md` companions via
+      `python -m splunk_uc generate-md-from-json` so the F7 gate
+      stays green when the four un-pushed OT phase commits land
+      on `origin/main`. Tagged `[generated]` per the §4 per-PR
+      contract (skips the LoC budget).
+    - `~no code, 1 PR` — Take a first cut at **P5 frontend
+      rebuild scaffolding**: empty `apps/web/` with Vite + TS +
+      Vitest config, a single passing smoke test, and an ADR
+      ratifying the bundler / framework / migration shape. F16
+      and F17 then anchor on that scaffold instead of being
+      monolithic "rebuild" verbs.
+    - `~250 line PR` — Wire the **automated rotation reminders**
+      that consume the per-category CODEOWNERS rows + the new
+      scorecard drill-downs landed on `origin/main` 2026-05-14
+      (the second-half closure for P14).
+    - `~500 line PR` — Start **P12 content-quality moonshot** by
+      adding the per-UC `thresholds` field to `schemas/uc.schema.json`
+      (minor version bump) + a one-shot back-fill of crawl/walk
+      defaults for the existing 7,929 UCs.
 
 ## Method note
 
-Status here is derived from: actual file contents at HEAD (post
-2026-05-12 + 2026-05-13 closures, latest main carries the F8 PR-B
-squash-merge `c947c5a61` — the trailing edge of the 2026-05-13 sprint
-that landed PR-A `82d59ccbd`, PR-B `c947c5a61`, and the §P14
-per-category CODEOWNERS scaffold `7be03f4c0`);
-the v8.2.0 CHANGELOG narrative + the `[Unreleased]` section; the
-`docs/migration-status.md` ledger; `git log --oneline -30`; live
-`wc -l` on the workflow / build files; the `gh pr checks 8` rollup on
-PR #8 (CI partition wall-clock evidence); the post-PR-#13/#17
+Status here is derived from: actual file contents at local HEAD
+`fd2f09cc5` (v8.6.4, 2026-05-14) and `origin/main` HEAD `00729f198`
+(2026-05-14T12:35:53Z); the post-2026-05-12 + 2026-05-13 closure
+sprints (PR-A `82d59ccbd`, PR-B `c947c5a61`, the §P14 per-category
+CODEOWNERS scaffold `7be03f4c0`, plus the `origin/main`-only
+scorecard drill-down extension `00729f198`); the cat-22 OT regulation
+arc (commits `458a50f8b` / `debb1d9b5` / `c25e80ec1` / `fd2f09cc5`,
+local-only at refresh time); the v8.2.0 + v8.5.0 + v8.6.x CHANGELOG
+narratives + the `[Unreleased]` section; the `docs/migration-status.md`
+ledger; `git log --oneline -30`; `git rev-list --left-right --count
+HEAD…origin/main`; live `wc -l` on the workflow / build files; live
+`du -sh` + raw-content header inspection for the `index.html` size
+delta; live `python -m splunk_uc generate-md-from-json --check` for
+the 216-file parity gap; the `gh pr checks 8` rollup on PR #8 (CI
+partition wall-clock evidence); the post-PR-#13/#17
 `gh api repos/.../dependabot/alerts` rollup (0 open at HEAD); the
 `docs/workflow-audit.md` 14-row inventory generated from a direct
 sweep of `.github/workflows/*.yml`; `pytest --collect-only`; and

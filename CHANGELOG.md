@@ -12,6 +12,54 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Refresh `docs/health-check-2026-progress.md` against local HEAD
+  `fd2f09cc5` (v8.6.4).** The canonical in-repo progress report for the
+  §1b repo-health overhaul plan was last fully refreshed 2026-05-13
+  against v8.2.0; this update re-anchors it against the post-OT-arc
+  state and the open work that arc introduced. Five rows updated
+  (headline `>` quote block, F7, F21, P10, P14); three new drift
+  ledger items added covering (a) the 252-UC cat-22 OT regulation
+  deep-dive arc that shipped across four commits between v8.5.0 and
+  v8.6.4 (`458a50f8b` / `debb1d9b5` / `c25e80ec1` / `fd2f09cc5`,
+  +13 tier-1 frameworks, +10 evidence packs, +26 subcategories, +1
+  schema), (b) the current branch divergence (`4 1` local-vs-origin
+  via `git rev-list --left-right --count HEAD…origin/main` — local
+  carries the OT arc, `origin/main` carries the `00729f198`
+  per-category scorecard drill-downs that extend P14), and (c) the
+  F7 sub-finding for the 216/7929 `.md` parity gap on local HEAD
+  (168 JSON-only UCs in cat-22 22.54-22.63 + 48 stale `.md` files)
+  — the gate is correctly wired, it just hasn't been re-run after
+  the OT arc. Drift ledger #5 baselines re-anchored against
+  `tools/build/parse_content.load()` (23 / 265 / 7929) +
+  `data/regulations.json` (82) + `wc -l` on `validate.yml`
+  (1,386 lines). A tenth "Recommended next action" replaces the
+  fully-crossed-out 1-9 list with four forward-looking bites in
+  size order. Method note refreshed to cite the new HEAD + the new
+  measurement sources. No code or schema change; doc-only.
+
+- **Close the trailing half of the §P0 F10 quick-win — bytecode /
+  pytest-cache patterns + actually run `make clean-tree`.** The
+  2026-05-12 close on F10 added the secrets / dotenv block to
+  `.cursorignore` but skipped the `__pycache__/` and `.pytest_cache/`
+  patterns the same plan instruction called out, and the 2026-05-13
+  close on loose-end ledger #3 added the `make clean-tree` target
+  without ever executing it (so the 391 MB × 2 of stale
+  `dist-content/` + `dist-legacy/` content kept living on local disk
+  alongside the matching `dist/` / `dist1/` / `dist2/` reproducibility
+  outputs). This PR closes both halves: (1) appends a "Python build /
+  test caches" block to `.cursorignore` covering `__pycache__/`
+  (catches all 19 nested directories) and `.pytest_cache/` (catches
+  both root and `mcp/` instances) — both already in `.gitignore`
+  lines 6 + 39, the new entries just hide them from the Cursor agent
+  index too; (2) executes `make clean-tree` on the working tree,
+  recovering ~3.7 GB locally (782 MB from `dist-content/` +
+  `dist-legacy/` per the original plan estimate, plus ~2.9 GB from
+  accumulated `dist/` / `dist1/` / `dist2/` from prior
+  reproducibility-check runs). `docs/health-check-2026-progress.md`
+  ledger items #3 and #6 now both carry "Extended 2026-05-14"
+  parentheticals capturing what actually happened. No new tracked
+  files; no schema or behaviour change.
+
 - **§P14 second half — per-category scorecard drill-downs with
   stable CODEOWNERS anchors.** The first half of §P14 (PR #35,
   2026-05-13) introduced the per-category `.github/CODEOWNERS`
