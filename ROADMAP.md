@@ -35,7 +35,7 @@ Three new tier-1 primer deep dives:
    the Cybersecurity Coordinator role, the CIRP annual exercise,
    the Cybersecurity Assessment Programme (CAP), and the *Enhancing
    Surface Cyber Risk Management* NPRM as the pending durable Final
-   Rule. Cross-refs NERC CIP / AWIA / CIRCIA.
+   Rule. Cross-refs NERC CIP<sup class="ref">[<a href="#ref-5">5</a>]</sup> / AWIA / CIRCIA.
 2. **§4.19 SG Cybersecurity Act 2018 + CCoP 2.0 + CSA CII
    Regulations** (Singapore) — the *Cybersecurity Act 2018* (Act 9
    of 2018, amended 2024) and its implementing instruments
@@ -92,7 +92,7 @@ notes.
 
 ## Previous releases
 
-**v8.6.3 — OT Regulation Deep-Dive (Phase 6: China CSL / DSL / PIPL / CII + CERT-In Directions 2022 / DPDP Act 2023 + IEC 61511 / 61508 functional-safety cybersecurity overlay) — closes the six-phase OT regulation deep-dive arc** *(shipped 2026-05-14)*
+**v8.6.3 — OT Regulation Deep-Dive (Phase 6: China CSL / DSL / PIPL<sup class="ref">[<a href="#ref-8">8</a>]</sup> / CII + CERT-In Directions 2022 / DPDP Act 2023 + IEC 61511 / 61508 functional-safety cybersecurity overlay) — closes the six-phase OT regulation deep-dive arc** *(shipped 2026-05-14)*
 
 Theme: **Phase 6 of the multi-phase OT-regulation programme — final
 phase that closes the six-phase, 247-UC arc that opened with v8.5.0
@@ -114,7 +114,7 @@ ED-202A).** v8.6.3 lands three tier-1 frameworks in a single release:
    SPDI Rules 2011. Carries the **6-hour incident-reporting clock —
    the shortest such clock in any major jurisdiction**. 8 hand-
    written gold-tier UCs.
-3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443-3-2 / 62443-3-3**
+3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>-3-2 / 62443-3-3**
    — the universally-recognised Good Engineering Practice (RAGAGEP)
    for Safety Instrumented Systems in the process industries,
    incorporated by reference into OSHA PSM (29 CFR 1910.119), EPA
@@ -357,8 +357,8 @@ evidence pack and **DO-326A becomes the first tier-1 framework with
   22.60.17); full primer section `docs/regulatory-primer.md`
   §4.22 covering DO-326A + DO-355A + DO-356A + DO-391 + FAA
   AC 20-186 + EASA AMC 20-42 + EASA Part-IS, the four-layer
-  enforcement model, and convergence with NIS2 (transport
-  sector) + DORA (financial-services aviation vendors) + TSA
+  enforcement model, and convergence with NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> (transport
+  sector) + DORA<sup class="ref">[<a href="#ref-2">2</a>]</sup> (financial-services aviation vendors) + TSA
   SD-1582-21 (US aviation) + ICAO Annex 17 (security of civil
   aviation).
 - **100% clause closure** — DO-326A reaches the catalogue's
@@ -530,7 +530,7 @@ rises to 14 frameworks.
   quality with curated `equipmentModels[]` for the US surface-
   transportation stack (ServiceNow CMDB, Microsoft AD, Cisco ISE for
   OT segmentation, Claroty / Dragos / Nozomi for pipeline and rail
-  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR for
+  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-7">7</a>]</sup> for
   CISA submission, ServiceNow Records Management for the TSA 5-year
   retention regime, CyberArk PSM / BeyondTrust for vendor remote
   access, Tenable / Qualys for vulnerability scoring), the Singapore
@@ -755,7 +755,7 @@ correct and every quality signal transparently measured.
 
 - 100 % references coverage across 6,304 UCs
 - 100 % KFP coverage on security categories
-- MITRE ATT&CK<sup class="ref">[<a href="#ref-3">3</a>]</sup> coverage ≥80 % on security categories
+- MITRE ATT&CK<sup class="ref">[<a href="#ref-4">4</a>]</sup> coverage ≥80 % on security categories
 - Weekly link-check workflow
 - Per-UC quality metadata chips (Status, Last reviewed, Splunk versions)
 
@@ -778,7 +778,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 With the v7.0 per-UC architecture and the v7.1 non-technical rewrite in
 place, **this program elevates content quality across the entire catalog**
-to match the standard set by the Catalyst Center<sup class="ref">[<a href="#ref-2">2</a>]</sup> subcategory (5.13). The guiding
+to match the standard set by the Catalyst Center subcategory (5.13). The guiding
 principle: *quality is operational utility, not field-count compliance;
 fewer excellent UCs beat many shallow ones.*
 
@@ -927,17 +927,21 @@ See [`GOVERNANCE.md`](GOVERNANCE.md) for the full decision-making process.
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** Anthropic, et al. (2026). *Model Context Protocol Specification*. Anthropic PBC. Retrieved May 11, 2026, from https://modelcontextprotocol.io/
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-2"></a>**[2]** Cisco Systems, Inc. (2026). *Cisco Catalyst Center Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/site/us/en/products/networking/catalyst-center/index.html
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 
-<a id="ref-3"></a>**[3]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+<a id="ref-3"></a>**[3]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
 
-<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-4"></a>**[4]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Cloud Platform Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud
+<a id="ref-5"></a>**[5]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
+
+<a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
 ### Related repository documents
 

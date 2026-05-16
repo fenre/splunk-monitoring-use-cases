@@ -80,7 +80,7 @@ legal values:
 
 Inherited entries (provenance = `derived-from-parent`) are always degraded one
 step from the parent assurance. A UC that satisfies GDPR Art.32 at `full`
-produces an inherited UK GDPR<sup class="ref">[<a href="#ref-41">41</a>]</sup> Art.32 entry at `partial`, never `full`.
+produces an inherited UK GDPR<sup class="ref">[<a href="#ref-43">43</a>]</sup> Art.32 entry at `partial`, never `full`.
 
 ### Clause citations
 
@@ -90,7 +90,7 @@ the authoritative source:
 - `Art.32(1)(b)` — Article 32, paragraph 1, sub-point (b) (GDPR style).
 - `§1798.100` — California Civil Code section 1798.100 (CCPA<sup class="ref">[<a href="#ref-3">3</a>]</sup> style).
 - `3.5.1`  — PCI DSS-style numbered requirement.
-- `AC-2`   — NIST 800-53<sup class="ref">[<a href="#ref-23">23</a>]</sup>-style control identifier.
+- `AC-2`   — NIST 800-53<sup class="ref">[<a href="#ref-25">25</a>]</sup>-style control identifier.
 - `CC6.1`  — SOC 2<sup class="ref">[<a href="#ref-1">1</a>]</sup> / AICPA Trust Services Criterion identifier.
 
 Every clause in `data/regulations.json` is validated against a regulator-
@@ -174,7 +174,7 @@ fewer than 100 unresolved requests in many EU member states.
 subject rights" chapter); UK GDPR Art.15 – 22 (identical onshoring);
 CCPA §1798.100 (right to know), §1798.105 (right to delete), §1798.110
 (right to portability), §1798.120 (right to opt-out of sale), §1798.125
-(non-discrimination); LGPD<sup class="ref">[<a href="#ref-15">15</a>]</sup> Art.18 (data subject rights); APPI Arts.32 – 34
+(non-discrimination); LGPD<sup class="ref">[<a href="#ref-16">16</a>]</sup> Art.18 (data subject rights); APPI Arts.32 – 34
 (disclosure, correction, cessation); Swiss nFADP Art.25 (right of access),
 Art.26 (right to rectification). Operationally cited under HIPAA Privacy
 §164.524 (access), §164.526 (amendment).
@@ -296,7 +296,7 @@ privileged-access governance); PCI DSS 7.2.x (privileged-access management),
 access); HIPAA Security §164.308(a)(4) (access authorisation); NIST
 800-53 AC-2(7) (privileged accounts), AC-5 (separation of duties); ISO
 27001:2022 A.8.2 (privileged access rights); SOC 2 CC6.3 (privileged
-access); CMMC<sup class="ref">[<a href="#ref-34">34</a>]</sup> AC.L2-3.1.5 (least privilege); NIS2 Art.21.2(j) (access control
+access); CMMC<sup class="ref">[<a href="#ref-36">36</a>]</sup> AC.L2-3.1.5 (least privilege); NIS2 Art.21.2(j) (access control
 policies).
 
 **What the catalogue delivers:** just-in-time (JIT) access grant attestation,
@@ -535,7 +535,7 @@ across application access and change management); NIST 800-53 AC-5
 (separation of duties); ISO 27001:2022 A.5.3 (segregation of duties);
 SOC 2 CC6.3; PCI DSS 6.4.x (change management and SoD); HIPAA Security
 §164.308(a)(3)(ii)(A) (workforce-clearance procedure implicit SoD); MAS
-TRM 11.2 (segregation of duties); MiFID II<sup class="ref">[<a href="#ref-8">8</a>]</sup> Delegated Regulation Art.26
+TRM 11.2 (segregation of duties); MiFID II<sup class="ref">[<a href="#ref-9">9</a>]</sup> Delegated Regulation Art.26
 (record-keeping and SoD).
 
 **What the catalogue delivers:** conflict-matrix-driven access analysis,
@@ -592,7 +592,7 @@ clause-grammar regexes for every regulation are in `data/regulations.json`.
 
 ### 4.1 GDPR — General Data Protection Regulation (EU/EEA) · `T1`
 
-**Regulation:** Regulation (EU) 2016/679<sup class="ref">[<a href="#ref-9">9</a>]</sup> (*GDPR*), in force 25 May 2018.
+**Regulation:** Regulation (EU) 2016/679<sup class="ref">[<a href="#ref-10">10</a>]</sup> (*GDPR*), in force 25 May 2018.
 Applies to the processing of personal data in the European Economic Area,
 plus extraterritorial reach to non-EEA controllers that offer goods or
 services to EEA data subjects (Art.3).
@@ -666,7 +666,7 @@ evidence flows with §22.1.
 
 ### 4.3 PCI DSS v4.0 — Payment Card Industry Data Security Standard (GLOBAL) · `T1`
 
-**Regulation:** PCI DSS v4.0<sup class="ref">[<a href="#ref-28">28</a>]</sup> (30 Mar 2024 effective; v3.2.1 sunset 31 Mar
+**Regulation:** PCI DSS v4.0<sup class="ref">[<a href="#ref-30">30</a>]</sup> (30 Mar 2024 effective; v3.2.1 sunset 31 Mar
 2024). Issued by the PCI Security Standards Council (PCI SSC); mandated
 contractually by card brands. Supplemented by **PCI DSS v4.0.1** (Jun 2024)
 minor clarification.
@@ -693,7 +693,7 @@ boundary detection, CHD-in-logs prevention, PAN-in-email detection,
 key-custody attestation, and PCI DSS 4.0 customised-approach-alternative
 evidence packaging.
 
-**Cisco ISE evidence.** Cisco Identity Services Engine<sup class="ref">[<a href="#ref-4">4</a>]</sup> is a primary
+**Cisco ISE evidence.** Cisco Identity Services Engine<sup class="ref">[<a href="#ref-5">5</a>]</sup> is a primary
 evidence source for clauses 1.4 (segmentation around the CDE), 4.2
 (strong cryptography for CHD in transit), 8.3-8.6 (strong
 authentication, MFA, and per-account credentials), and 10.2 (audit
@@ -719,7 +719,7 @@ reference architecture.
 
 ### 4.4 HIPAA Security — Health Insurance Portability and Accountability Act Security Rule (US) · `T1`
 
-**Regulation:** HIPAA Security Rule<sup class="ref">[<a href="#ref-37">37</a>]</sup>, 45 CFR Part 160 and Part 164
+**Regulation:** HIPAA Security Rule<sup class="ref">[<a href="#ref-39">39</a>]</sup>, 45 CFR Part 160 and Part 164
 Subparts A and C (*Security Standards for the Protection of Electronic
 Protected Health Information*). Supplemented by the **HITECH Act** breach
 notification provisions and the **Omnibus Rule 2013**.
@@ -773,9 +773,9 @@ The cat-22 wrappers UC-22.10.57 (access control) and UC-22.10.58
 
 ### 4.5 SOX ITGC — Sarbanes-Oxley IT General Controls (US) · `T1`
 
-**Regulation:** Sarbanes-Oxley<sup class="ref">[<a href="#ref-33">33</a>]</sup> Act §302 and §404 (management assertion and
+**Regulation:** Sarbanes-Oxley<sup class="ref">[<a href="#ref-35">35</a>]</sup> Act §302 and §404 (management assertion and
 external auditor attestation of internal control over financial reporting),
-operationalised through **PCAOB AS 2201<sup class="ref">[<a href="#ref-29">29</a>]</sup>** and **COBIT** / **COSO 2013**
+operationalised through **PCAOB AS 2201<sup class="ref">[<a href="#ref-31">31</a>]</sup>** and **COBIT** / **COSO 2013**
 frameworks. IT general controls (ITGC) are the IT subset that financial
 controls depend on.
 
@@ -872,9 +872,9 @@ segmentation evidence into a SOC 2 Type 2 deliverable.
 
 ### 4.7 ISO 27001:2022 — Information Security Management System (GLOBAL) · `T1`
 
-**Regulation:** ISO/IEC 27001:2022<sup class="ref">[<a href="#ref-17">17</a>]</sup> (*Information security, cybersecurity
+**Regulation:** ISO/IEC 27001:2022<sup class="ref">[<a href="#ref-18">18</a>]</sup> (*Information security, cybersecurity
 and privacy protection — Information security management systems —
-Requirements*), with Annex A controls aligned to ISO/IEC 27002:2022<sup class="ref">[<a href="#ref-18">18</a>]</sup>
+Requirements*), with Annex A controls aligned to ISO/IEC 27002:2022<sup class="ref">[<a href="#ref-19">19</a>]</sup>
 (reduced from 114 controls in the 2013 edition to **93 controls** in 4
 themes: organisational, people, physical, technological).
 
@@ -916,7 +916,7 @@ this for ISMS audits.
 
 ### 4.8 NIST CSF 2.0 — Cybersecurity Framework (US / GLOBAL) · `T1`
 
-**Regulation:** NIST Cybersecurity Framework<sup class="ref">[<a href="#ref-21">21</a>]</sup> 2.0 (Feb 2024 revision of the
+**Regulation:** NIST Cybersecurity Framework<sup class="ref">[<a href="#ref-23">23</a>]</sup> 2.0 (Feb 2024 revision of the
 original 2014 framework). Organised around six functions: **Govern,
 Identify, Protect, Detect, Respond, Recover**. Adopted by US federal
 sector-specific regulators (TSA, FERC, CISA) and globally as a voluntary
@@ -952,7 +952,7 @@ Baseline catalogues: Low, Moderate, High, Privacy. The **800-53B** baseline
 document defines which controls apply to each impact level.
 
 **Who must comply:** US federal information systems (FISMA), most
-DoD systems (via DFARS), and contractually by FedRAMP<sup class="ref">[<a href="#ref-39">39</a>]</sup>-authorised cloud
+DoD systems (via DFARS), and contractually by FedRAMP<sup class="ref">[<a href="#ref-41">41</a>]</sup>-authorised cloud
 service providers. Widely adopted as a reference control catalogue by
 non-federal organisations worldwide.
 
@@ -1007,7 +1007,7 @@ evidence to the OSCAL component-definition facade.
 
 ### 4.10 NIS2 — Network and Information Security Directive 2 (EU) · `T1`
 
-**Regulation:** Directive (EU) 2022/2555<sup class="ref">[<a href="#ref-7">7</a>]</sup> (*NIS2 Directive*), adopted 14
+**Regulation:** Directive (EU) 2022/2555<sup class="ref">[<a href="#ref-8">8</a>]</sup> (*NIS2 Directive*), adopted 14
 Dec 2022, member-state transposition deadline 17 Oct 2024. Expands the
 original NIS Directive (2016/1148) to cover a much larger population of
 *essential* and *important* entities across 18 sectors.
@@ -1075,7 +1075,7 @@ the cross-firm benchmark of the catalogue's coverage is in
 
 ### 4.11 DORA — Digital Operational Resilience Act (EU) · `T1`
 
-**Regulation:** Regulation (EU) 2022/2554<sup class="ref">[<a href="#ref-10">10</a>]</sup> (*DORA*), adopted 14 Dec 2022,
+**Regulation:** Regulation (EU) 2022/2554<sup class="ref">[<a href="#ref-11">11</a>]</sup> (*DORA*), adopted 14 Dec 2022,
 application 17 Jan 2025. Establishes a uniform digital operational
 resilience framework for the EU financial sector.
 
@@ -1149,7 +1149,7 @@ handling Federal Contract Information (Level 1) or Controlled
 Unclassified Information (Level 2+).
 
 **Key practices and catalogue coverage:** CMMC Level 2 practices are
-derived from NIST 800-171<sup class="ref">[<a href="#ref-22">22</a>]</sup> Rev.2, so the catalogue coverage shares most
+derived from NIST 800-171<sup class="ref">[<a href="#ref-24">24</a>]</sup> Rev.2, so the catalogue coverage shares most
 of its evidence base with NIST 800-53 coverage.
 
 | Family | Topic | Priority | Catalogue coverage |
@@ -1248,7 +1248,7 @@ and the canonical clause list is in
 `id: nca-otcc`.
 
 **OT-specific evidence patterns.** Because OTCC inherits the layered
-defence model from IEC 62443<sup class="ref">[<a href="#ref-16">16</a>]</sup>
+defence model from IEC 62443<sup class="ref">[<a href="#ref-17">17</a>]</sup>
 and the safety-aware patch-and-change discipline from IEC 61508 /
 61511, every UC in §22.51 carries:
 
@@ -1274,7 +1274,7 @@ and the safety-aware patch-and-change discipline from IEC 61508 /
 - `notification.regulator = "NCA"` on every IR-related UC so the
   reporting clock is unambiguous from notable-event to NCA submission.
 
-**Cisco Cyber Vision and ISA / IEC 62443 alignment.** OTCC §2.1
+**Cisco Cyber Vision<sup class="ref">[<a href="#ref-4">4</a>]</sup> and ISA / IEC 62443 alignment.** OTCC §2.1
 (asset inventory) and §2.12 (industrial-protocol monitoring) map
 cleanly onto the deep-packet inspection of Cisco Cyber Vision, the
 flow telemetry of Cisco ISE for IoT, and the segmentation evidence
@@ -1380,7 +1380,7 @@ physical / natural hazards, every UC in §22.52 carries:
   annual report) or `"ASD"` (s30BC critical-cyber-incident, s30CD
   cyber-incident, written follow-up) so the regulator-routing is
   unambiguous from notable-event to formal submission;
-- Essential Eight maturity tagging on every Rule 6(3) cyber-framework
+- Essential Eight<sup class="ref">[<a href="#ref-2">2</a>]</sup> maturity tagging on every Rule 6(3) cyber-framework
   attestation UC so the catalogue can roll up an Essential Eight
   maturity heatmap by SoNS asset.
 
@@ -1601,7 +1601,7 @@ monitored clauses (subcategory §22.55):
 | Supply chain / procurement | Supplier deliverables, supplier remote access, procurement cyber evaluation | CLC-TS-50701-c9-1, c9-5, c9-3, c9-4 | §22.55.15 – 17 |
 | Safety coordination | EN 50126/8/9/50657 coordination, joint risk acceptance | CLC-TS-50701-c10-1, c10-2 | §22.55.18, §22.55.19 |
 | Operator continuous obligations | Daily/weekly/monthly checks, training, sharing, audit cycle | CLC-TS-50701-c11-1, c11-2, c11-3, c11-4 | §22.55.20, §22.55.21, §22.55.22, §22.55.27, §22.55.28 |
-| Threat intelligence | Rail-relevant threat actors and MITRE ATT&CK ICS coverage | CLC-TS-50701-c6-3 (cont.) | §22.55.25 |
+| Threat intelligence | Rail-relevant threat actors and MITRE ATT&CK<sup class="ref">[<a href="#ref-21">21</a>]</sup> ICS coverage | CLC-TS-50701-c6-3 (cont.) | §22.55.25 |
 
 **What the catalogue delivers:** 100 % coverage of the 28 monitored
 clauses. Subcategory §22.55 ships 28 dedicated CLC/TS 50701 UCs, each
@@ -2315,7 +2315,7 @@ the [European Centre for Cybersecurity in Aviation (ECCSA)](https://www.eccsa.eu
 anchored on the *Cybersecurity Law of the People's Republic of China*
 (CSL — adopted 7 November 2016, effective 1 June 2017), tightened
 progressively by the *Data Security Law* (DSL — effective 1 September
-2021) and the *Personal Information Protection Law* (PIPL — effective
+2021) and the *Personal Information Protection Law<sup class="ref">[<a href="#ref-34">34</a>]</sup>* (PIPL — effective
 1 November 2021), operationalised on critical infrastructure by the
 *Regulations on Security Protection of Critical Information
 Infrastructure* (State Council Order No. 745 — effective 1 September
@@ -2968,18 +2968,18 @@ is the machine-readable view.
 | 22.10 | HIPAA Security | US | T1 | 58 | `regulations/hipaa-security.json` |
 | 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 220 | `regulations/pci-dss.json` |
 | 22.12 | SOX / ITGC | US | T1 | 86 | `regulations/sox-itgc.json` |
-| 22.13 | NERC CIP<sup class="ref">[<a href="#ref-24">24</a>]</sup> | US/CA | T2 | see §22.13 | `regulations/nerc-cip.json` |
+| 22.13 | NERC CIP<sup class="ref">[<a href="#ref-26">26</a>]</sup> | US/CA | T2 | see §22.13 | `regulations/nerc-cip.json` |
 | 22.14 | NIST 800-53 Rev.5 | US | T1 | 81 | `regulations/nist-800-53.json` |
-| 22.15 | IEC 62443<sup class="ref">[<a href="#ref-16">16</a>]</sup> | GLOBAL | T2 | see §22.15 | `regulations/iec-62443.json` |
+| 22.15 | IEC 62443 | GLOBAL | T2 | see §22.15 | `regulations/iec-62443.json` |
 | 22.16 | TSA Pipeline Security | US | T2 | see §22.16 | `regulations/tsa-sd.json` |
 | 22.17 | FDA 21 CFR Part 11 | US | T2 | see §22.17 | `regulations/fda-part-11.json` |
 | 22.18 | API 1164 SCADA Security | US | T2 | see §22.18 | `regulations/api-rp-1164.json` |
 | 22.19 | FISMA / FedRAMP | US | T2 | see §22.19 | `regulations/fedramp.json` + `regulations/fisma.json` |
 | 22.20 | CMMC 2.0 | US | T1 | 21 | `regulations/cmmc.json` |
-| 22.21 | EU AI Act<sup class="ref">[<a href="#ref-13">13</a>]</sup> | EU | T2 | see §22.21 | `regulations/eu-ai-act.json` |
-| 22.22 | PSD2<sup class="ref">[<a href="#ref-6">6</a>]</sup> / Payment Services | EU | T2 | see §22.22 | `regulations/psd2.json` |
-| 22.23 | EU Cyber Resilience Act<sup class="ref">[<a href="#ref-14">14</a>]</sup> (CRA) | EU | T2 | see §22.23 | `regulations/eu-cra.json` |
-| 22.24 | eIDAS<sup class="ref">[<a href="#ref-11">11</a>]</sup> 2.0 | EU | T2 | see §22.24 | `regulations/eidas.json` |
+| 22.21 | EU AI Act<sup class="ref">[<a href="#ref-14">14</a>]</sup> | EU | T2 | see §22.21 | `regulations/eu-ai-act.json` |
+| 22.22 | PSD2<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Payment Services | EU | T2 | see §22.22 | `regulations/psd2.json` |
+| 22.23 | EU Cyber Resilience Act<sup class="ref">[<a href="#ref-15">15</a>]</sup> (CRA) | EU | T2 | see §22.23 | `regulations/eu-cra.json` |
+| 22.24 | eIDAS<sup class="ref">[<a href="#ref-12">12</a>]</sup> 2.0 | EU | T2 | see §22.24 | `regulations/eidas.json` |
 | 22.25 | EU AML / CFT | EU | T2 | see §22.25 | `regulations/eu-aml.json` |
 | 22.26 | Norwegian Regulatory Framework | NO | T2 | see §22.26 | `regulations/no-{sikkerhetsloven,kbf-nve,personopplysningsloven,petroleumsforskriften}.json` |
 | 22.27 | UK Regulations (NIS + FCA/PRA) | UK | T2 | see §22.27 | `regulations/uk-nis.json`, `fca-ss1-21.json`, `pra-ss2-21.json`, `fca-smcr.json`, `uk-cyber-essentials.json` |
@@ -3016,7 +3016,7 @@ derivative-aware form. **P** indicates parent; **D** indicates derivative
 | Swiss nFADP | CH | 1 Sep 2023 | **D** mapped from GDPR | FDPIC |
 | SG PDPA | SG | 2 Jul 2014 (2021 amendment) | independent (cross-references GDPR) | PDPC |
 | AU Privacy Act | AU | 21 Dec 1988 (continuous amendment) | independent | OAIC |
-| PIPL<sup class="ref">[<a href="#ref-32">32</a>]</sup> | CN | 1 Nov 2021 | independent | CAC |
+| PIPL | CN | 1 Nov 2021 | independent | CAC |
 | SA PDPL | SA | 14 Sep 2023 | independent | SDAIA |
 | HIPAA Privacy | US | 14 Apr 2003 | independent (sectoral — healthcare) | HHS OCR |
 
@@ -3107,81 +3107,274 @@ See also:
 
 <a id="ref-3"></a>**[3]** California Office of the Attorney General. (2020). *California Consumer Privacy Act / California Privacy Rights Act*. State of California. CA Civ Code § 1798.100 et seq. https://oag.ca.gov/privacy/ccpa
 
-<a id="ref-4"></a>**[4]** Cisco Systems, Inc. (2026). *Cisco Identity Services Engine (ISE) Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/series.html
+<a id="ref-4"></a>**[4]** Cisco Systems, Inc. (2026). *Cisco Cyber Vision Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/cyber-vision/series.html
 
-<a id="ref-5"></a>**[5]** Cybersecurity and Infrastructure Security Agency. (2026). *CISA Known Exploited Vulnerabilities Catalog*. U.S. Department of Homeland Security. Retrieved May 11, 2026, from https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+<a id="ref-5"></a>**[5]** Cisco Systems, Inc. (2026). *Cisco Identity Services Engine (ISE) Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/series.html
 
-<a id="ref-6"></a>**[6]** European Parliament and Council of the European Union. (2015, November). *Directive (EU) 2015/2366 — Payment Services Directive 2 (PSD2)*. Official Journal of the European Union, L 337. ELI: dir/2015/2366. https://eur-lex.europa.eu/eli/dir/2015/2366/oj
+<a id="ref-6"></a>**[6]** Cybersecurity and Infrastructure Security Agency. (2026). *CISA Known Exploited Vulnerabilities Catalog*. U.S. Department of Homeland Security. Retrieved May 11, 2026, from https://www.cisa.gov/known-exploited-vulnerabilities-catalog
 
-<a id="ref-7"></a>**[7]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+<a id="ref-7"></a>**[7]** European Parliament and Council of the European Union. (2015, November). *Directive (EU) 2015/2366 — Payment Services Directive 2 (PSD2)*. Official Journal of the European Union, L 337. ELI: dir/2015/2366. https://eur-lex.europa.eu/eli/dir/2015/2366/oj
 
-<a id="ref-8"></a>**[8]** European Parliament and Council of the European Union. (2014). *Directive 2014/65/EU — Markets in Financial Instruments Directive (MiFID II)*. Official Journal of the European Union, L 173. ELI: dir/2014/65. https://eur-lex.europa.eu/eli/dir/2014/65/oj
+<a id="ref-8"></a>**[8]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-9"></a>**[9]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+<a id="ref-9"></a>**[9]** European Parliament and Council of the European Union. (2014). *Directive 2014/65/EU — Markets in Financial Instruments Directive (MiFID II)*. Official Journal of the European Union, L 173. ELI: dir/2014/65. https://eur-lex.europa.eu/eli/dir/2014/65/oj
 
-<a id="ref-10"></a>**[10]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
+<a id="ref-10"></a>**[10]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
-<a id="ref-11"></a>**[11]** European Parliament and Council of the European Union. (2024). *Regulation (EU) 2024/1183 — eIDAS 2.0 (European Digital Identity)*. Official Journal of the European Union. ELI: reg/2024/1183. https://eur-lex.europa.eu/eli/reg/2024/1183/oj
+<a id="ref-11"></a>**[11]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 
-<a id="ref-12"></a>**[12]** European Parliament and Council of the European Union. (2024). *Regulation (EU) 2024/1624 — Anti-Money Laundering Regulation (AMLR)*. Official Journal of the European Union. https://eur-lex.europa.eu/eli/reg/2024/1624/oj
+<a id="ref-12"></a>**[12]** European Parliament and Council of the European Union. (2024). *Regulation (EU) 2024/1183 — eIDAS 2.0 (European Digital Identity)*. Official Journal of the European Union. ELI: reg/2024/1183. https://eur-lex.europa.eu/eli/reg/2024/1183/oj
 
-<a id="ref-13"></a>**[13]** European Parliament and Council of the European Union. (2024, June). *Regulation (EU) 2024/1689 — EU Artificial Intelligence Act*. Official Journal of the European Union. ELI: reg/2024/1689. https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+<a id="ref-13"></a>**[13]** European Parliament and Council of the European Union. (2024). *Regulation (EU) 2024/1624 — Anti-Money Laundering Regulation (AMLR)*. Official Journal of the European Union. https://eur-lex.europa.eu/eli/reg/2024/1624/oj
 
-<a id="ref-14"></a>**[14]** European Parliament and Council of the European Union. (2024, October). *Regulation (EU) 2024/2847 — Cyber Resilience Act*. Official Journal of the European Union. ELI: reg/2024/2847. https://eur-lex.europa.eu/eli/reg/2024/2847/oj
+<a id="ref-14"></a>**[14]** European Parliament and Council of the European Union. (2024, June). *Regulation (EU) 2024/1689 — EU Artificial Intelligence Act*. Official Journal of the European Union. ELI: reg/2024/1689. https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 
-<a id="ref-15"></a>**[15]** Federative Republic of Brazil. (2018). *Lei Geral de Proteção de Dados Pessoais (LGPD)*. Government of Brazil. Lei nº 13.709/2018. https://www.gov.br/anpd/pt-br
+<a id="ref-15"></a>**[15]** European Parliament and Council of the European Union. (2024, October). *Regulation (EU) 2024/2847 — Cyber Resilience Act*. Official Journal of the European Union. ELI: reg/2024/2847. https://eur-lex.europa.eu/eli/reg/2024/2847/oj
 
-<a id="ref-16"></a>**[16]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
+<a id="ref-16"></a>**[16]** Federative Republic of Brazil. (2018). *Lei Geral de Proteção de Dados Pessoais (LGPD)*. Government of Brazil. Lei nº 13.709/2018. https://www.gov.br/anpd/pt-br
 
-<a id="ref-17"></a>**[17]** International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. ISO/IEC. ISO/IEC 27001:2022. https://www.iso.org/standard/27001
+<a id="ref-17"></a>**[17]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
 
-<a id="ref-18"></a>**[18]** International Organization for Standardization. (2022). *ISO/IEC 27002:2022 — Information security controls*. ISO/IEC. ISO/IEC 27002:2022. https://www.iso.org/standard/75652.html
+<a id="ref-18"></a>**[18]** International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. ISO/IEC. ISO/IEC 27001:2022. https://www.iso.org/standard/27001
 
-<a id="ref-19"></a>**[19]** International Organization for Standardization. (2019). *ISO/IEC 27701:2019 — Privacy information management*. ISO/IEC. ISO/IEC 27701:2019. https://www.iso.org/standard/71670.html
+<a id="ref-19"></a>**[19]** International Organization for Standardization. (2022). *ISO/IEC 27002:2022 — Information security controls*. ISO/IEC. ISO/IEC 27002:2022. https://www.iso.org/standard/75652.html
 
-<a id="ref-20"></a>**[20]** National Cyber Security Centre (UK). (2025). *Cyber Essentials — Montpellier (2025)*. NCSC, IASME Consortium. https://www.ncsc.gov.uk/cyberessentials/overview
+<a id="ref-20"></a>**[20]** International Organization for Standardization. (2019). *ISO/IEC 27701:2019 — Privacy information management*. ISO/IEC. ISO/IEC 27701:2019. https://www.iso.org/standard/71670.html
 
-<a id="ref-21"></a>**[21]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
+<a id="ref-21"></a>**[21]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-22"></a>**[22]** National Institute of Standards and Technology. (2024). *Protecting Controlled Unclassified Information in Nonfederal Systems and Organizations* (Revision 3). U.S. Department of Commerce. NIST SP 800-171 Rev. 3. https://csrc.nist.gov/pubs/sp/800/171/r3/final
+<a id="ref-22"></a>**[22]** National Cyber Security Centre (UK). (2025). *Cyber Essentials — Montpellier (2025)*. NCSC, IASME Consortium. https://www.ncsc.gov.uk/cyberessentials/overview
 
-<a id="ref-23"></a>**[23]** National Institute of Standards and Technology. (2020). *Security and Privacy Controls for Information Systems and Organizations* (Revision 5). U.S. Department of Commerce. NIST SP 800-53 Rev. 5. https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
+<a id="ref-23"></a>**[23]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
 
-<a id="ref-24"></a>**[24]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
+<a id="ref-24"></a>**[24]** National Institute of Standards and Technology. (2024). *Protecting Controlled Unclassified Information in Nonfederal Systems and Organizations* (Revision 3). U.S. Department of Commerce. NIST SP 800-171 Rev. 3. https://csrc.nist.gov/pubs/sp/800/171/r3/final
 
-<a id="ref-25"></a>**[25]** Norwegian Ministry of Justice and Public Security. (2018). *Personopplysningsloven — Norwegian Personal Data Act*. Lovdata. https://lovdata.no/dokument/NL/lov/2018-06-15-38
+<a id="ref-25"></a>**[25]** National Institute of Standards and Technology. (2020). *Security and Privacy Controls for Information Systems and Organizations* (Revision 5). U.S. Department of Commerce. NIST SP 800-53 Rev. 5. https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final
 
-<a id="ref-26"></a>**[26]** Office of the Australian Information Commissioner. (1988). *Privacy Act 1988 (Cth) and Australian Privacy Principles*. Australian Government. https://www.oaic.gov.au/privacy/the-privacy-act
+<a id="ref-26"></a>**[26]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
-<a id="ref-27"></a>**[27]** Payment Card Industry Security Standards Council. (2018). *Payment Card Industry Data Security Standard v3.2.1* (v3.2.1). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
+<a id="ref-27"></a>**[27]** Norwegian Ministry of Justice and Public Security. (2018). *Personopplysningsloven — Norwegian Personal Data Act*. Lovdata. https://lovdata.no/dokument/NL/lov/2018-06-15-38
 
-<a id="ref-28"></a>**[28]** Payment Card Industry Security Standards Council. (2022). *Payment Card Industry Data Security Standard v4.0* (v4.0). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
+<a id="ref-28"></a>**[28]** Office of the Australian Information Commissioner. (1988). *Privacy Act 1988 (Cth) and Australian Privacy Principles*. Australian Government. https://www.oaic.gov.au/privacy/the-privacy-act
 
-<a id="ref-29"></a>**[29]** Public Company Accounting Oversight Board. (2007). *Auditing Standard 2201 — An Audit of Internal Control Over Financial Reporting*. PCAOB. PCAOB AS 2201. https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201
+<a id="ref-29"></a>**[29]** Payment Card Industry Security Standards Council. (2018). *Payment Card Industry Data Security Standard v3.2.1* (v3.2.1). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
 
-<a id="ref-30"></a>**[30]** Royal Norwegian Ministry of Defence. (2018). *Sikkerhetsloven — Norwegian Security Act 2018*. Lovdata. https://lovdata.no/dokument/NL/lov/2018-06-01-24
+<a id="ref-30"></a>**[30]** Payment Card Industry Security Standards Council. (2022). *Payment Card Industry Data Security Standard v4.0* (v4.0). PCI SSC. https://www.pcisecuritystandards.org/document_library/?category=pcidss
 
-<a id="ref-31"></a>**[31]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-31"></a>**[31]** Public Company Accounting Oversight Board. (2007). *Auditing Standard 2201 — An Audit of Internal Control Over Financial Reporting*. PCAOB. PCAOB AS 2201. https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201
 
-<a id="ref-32"></a>**[32]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
+<a id="ref-32"></a>**[32]** Royal Norwegian Ministry of Defence. (2018). *Sikkerhetsloven — Norwegian Security Act 2018*. Lovdata. https://lovdata.no/dokument/NL/lov/2018-06-01-24
 
-<a id="ref-33"></a>**[33]** U.S. Congress. (2002). *Sarbanes-Oxley Act of 2002 — Public Company Accounting Reform and Investor Protection Act*. U.S. Government. Pub. L. 107–204. https://www.sec.gov/about/laws/soa2002.pdf
+<a id="ref-33"></a>**[33]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
 
-<a id="ref-34"></a>**[34]** U.S. Department of Defense. (2024). *Cybersecurity Maturity Model Certification (CMMC) 2.0* (2.0). Office of the Under Secretary of Defense for Acquisition and Sustainment. https://dodcio.defense.gov/CMMC/
+<a id="ref-34"></a>**[34]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
-<a id="ref-35"></a>**[35]** U.S. Department of Education. (1974). *Family Educational Rights and Privacy Act (FERPA)*. U.S. Government. 20 USC § 1232g. https://www2.ed.gov/policy/gen/guid/fpco/ferpa/index.html
+<a id="ref-35"></a>**[35]** U.S. Congress. (2002). *Sarbanes-Oxley Act of 2002 — Public Company Accounting Reform and Investor Protection Act*. U.S. Government. Pub. L. 107–204. https://www.sec.gov/about/laws/soa2002.pdf
 
-<a id="ref-36"></a>**[36]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+<a id="ref-36"></a>**[36]** U.S. Department of Defense. (2024). *Cybersecurity Maturity Model Certification (CMMC) 2.0* (2.0). Office of the Under Secretary of Defense for Acquisition and Sustainment. https://dodcio.defense.gov/CMMC/
 
-<a id="ref-37"></a>**[37]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+<a id="ref-37"></a>**[37]** U.S. Department of Education. (1974). *Family Educational Rights and Privacy Act (FERPA)*. U.S. Government. 20 USC § 1232g. https://www2.ed.gov/policy/gen/guid/fpco/ferpa/index.html
 
-<a id="ref-38"></a>**[38]** U.S. Federal Trade Commission. (2023). *FTC Safeguards Rule (16 CFR Part 314, 2023 amendments)*. Federal Trade Commission. 16 CFR 314. https://www.ftc.gov/legal-library/browse/rules/safeguards-rule
+<a id="ref-38"></a>**[38]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
 
-<a id="ref-39"></a>**[39]** U.S. General Services Administration / FedRAMP PMO. (2023). *FedRAMP Security Controls Baseline, Rev. 5* (Rev. 5). FedRAMP Program Management Office. https://www.fedramp.gov/rev5/baselines/
+<a id="ref-39"></a>**[39]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
-<a id="ref-40"></a>**[40]** U.S. Transportation Security Administration. (2023). *TSA Security Directive Pipeline-2021-02 series*. U.S. Department of Homeland Security. https://www.tsa.gov/news/press/releases/2022/07/21/tsa-revises-and-reissues-cybersecurity-requirements-pipeline-owners
+<a id="ref-40"></a>**[40]** U.S. Federal Trade Commission. (2023). *FTC Safeguards Rule (16 CFR Part 314, 2023 amendments)*. Federal Trade Commission. 16 CFR 314. https://www.ftc.gov/legal-library/browse/rules/safeguards-rule
 
-<a id="ref-41"></a>**[41]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+<a id="ref-41"></a>**[41]** U.S. General Services Administration / FedRAMP PMO. (2023). *FedRAMP Security Controls Baseline, Rev. 5* (Rev. 5). FedRAMP Program Management Office. https://www.fedramp.gov/rev5/baselines/
+
+<a id="ref-42"></a>**[42]** U.S. Transportation Security Administration. (2023). *TSA Security Directive Pipeline-2021-02 series*. U.S. Department of Homeland Security. https://www.tsa.gov/news/press/releases/2022/07/21/tsa-revises-and-reissues-cybersecurity-requirements-pipeline-owners
+
+<a id="ref-43"></a>**[43]** United Kingdom Parliament. (2018). *Data Protection Act 2018 (UK GDPR, retained EU law)*. The Stationery Office. 2018 c. 12. https://www.legislation.gov.uk/ukpga/2018/12/contents
+
+<details>
+<summary>Additional online sources cited in the document body (92)</summary>
+
+<a id="ref-44"></a>**[44]** nca.gov.sa. *National Cybersecurity Authority (NCA)*. Retrieved May 11, 2026, from https://nca.gov.sa/en/regulatory-documents/controls-list/3
+
+<a id="ref-45"></a>**[45]** cisc.gov.au. *Cyber and Infrastructure Security Centre (CISC)*. Retrieved May 11, 2026, from https://www.cisc.gov.au
+
+<a id="ref-46"></a>**[46]** cyber.gov.au. *Australian Signals Directorate (ASD)*. Retrieved May 11, 2026, from https://www.cyber.gov.au
+
+<a id="ref-47"></a>**[47]** cisc.gov.au. *CISC SOCI Act page*. Retrieved May 11, 2026, from https://www.cisc.gov.au/legislation-regulation-and-compliance/soci-act-2018
+
+<a id="ref-48"></a>**[48]** legislation.gov.au. *CIRMP Rules 2023*. Retrieved May 11, 2026, from https://www.legislation.gov.au/F2023L00112/latest/text
+
+<a id="ref-49"></a>**[49]** epa.gov. *Office of Water (Office of Water Resilience)*. Retrieved May 11, 2026, from https://www.epa.gov/waterresilience
+
+<a id="ref-50"></a>**[50]** cisa.gov. *CISA*. Retrieved May 11, 2026, from https://www.cisa.gov/water
+
+<a id="ref-51"></a>**[51]** waterisac.org. *WaterISAC*. Retrieved May 11, 2026, from https://www.waterisac.org
+
+<a id="ref-52"></a>**[52]** cisa.gov. *CISA AA23-335A advisory*. Retrieved May 11, 2026, from https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-335a
+
+<a id="ref-53"></a>**[53]** epa.gov. *EPA AWIA Section 2013*. Retrieved May 11, 2026, from https://www.epa.gov/waterresilience/awia-section-2013
+
+<a id="ref-54"></a>**[54]** cisa.gov. *CISA*. Retrieved May 11, 2026, from https://www.cisa.gov/topics/cyber-threats-and-advisories/information-sharing/cyber-incident-reporting-critical-infrastructure-act-2022-circia
+
+<a id="ref-55"></a>**[55]** federalregister.gov. *2024 NPRM (89 FR 23644)*. Retrieved May 11, 2026, from https://www.federalregister.gov/documents/2024/04/04/2024-06526/cyber-incident-reporting-for-critical-infrastructure-act-circia-reporting-requirements
+
+<a id="ref-56"></a>**[56]** cyber.gouv.fr. *ANSSI*. Retrieved May 11, 2026, from https://cyber.gouv.fr/
+
+<a id="ref-57"></a>**[57]** bsi.bund.de. *BSI*. Retrieved May 11, 2026, from https://www.bsi.bund.de/
+
+<a id="ref-58"></a>**[58]** ncsc.gov.uk. *NCSC*. Retrieved May 11, 2026, from https://www.ncsc.gov.uk/
+
+<a id="ref-59"></a>**[59]** enisa.europa.eu. *ENISA*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/threat-risk-management/
+
+<a id="ref-60"></a>**[60]** era.europa.eu. *European Union Agency for Railways (ERA)*. Retrieved May 11, 2026, from https://www.era.europa.eu/
+
+<a id="ref-61"></a>**[61]** standards.cencenelec.eu. *CLC/TS 50701 at CENELEC*. Retrieved May 11, 2026, from https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987
+
+<a id="ref-62"></a>**[62]** law.cornell.edu. *49 U.S.C. § 114(l)(2)(A)*. Retrieved May 11, 2026, from https://www.law.cornell.edu/uscode/text/49/114
+
+<a id="ref-63"></a>**[63]** tsa.gov. *SD-Pipeline-2021-01*. Retrieved May 11, 2026, from https://www.tsa.gov/sd-and-emergency-amendments
+
+<a id="ref-64"></a>**[64]** federalregister.gov. *Enhancing Surface Cyber Risk Management*. Retrieved May 11, 2026, from https://www.federalregister.gov/documents/2024/11/07/2024-24704/enhancing-surface-cyber-risk-management
+
+<a id="ref-65"></a>**[65]** tsa.gov. *TSA Surface Operations*. Retrieved May 11, 2026, from https://www.tsa.gov/for-industry/surface-transportation-cybersecurity
+
+<a id="ref-66"></a>**[66]** cisa.gov. *CISA*. Retrieved May 11, 2026, from https://www.cisa.gov/
+
+<a id="ref-67"></a>**[67]** phmsa.dot.gov. *PHMSA*. Retrieved May 11, 2026, from https://www.phmsa.dot.gov/
+
+<a id="ref-68"></a>**[68]** railroads.dot.gov. *FRA*. Retrieved May 11, 2026, from https://railroads.dot.gov/
+
+<a id="ref-69"></a>**[69]** faa.gov. *FAA*. Retrieved May 11, 2026, from https://www.faa.gov/
+
+<a id="ref-70"></a>**[70]** cisa.gov. *CISA Incident Reporting page*. Retrieved May 11, 2026, from https://www.cisa.gov/forms/report
+
+<a id="ref-71"></a>**[71]** sso.agc.gov.sg. *Act 9 of 2018*. Retrieved May 11, 2026, from https://sso.agc.gov.sg/Act/CA2018
+
+<a id="ref-72"></a>**[72]** sso.agc.gov.sg. *Cybersecurity (Critical Information Infrastructure) Regulations 2018*. Retrieved May 11, 2026, from https://sso.agc.gov.sg/SL/CA2018-S539-2018
+
+<a id="ref-73"></a>**[73]** csa.gov.sg. *Cyber Security Agency of Singapore (CSA)*. Retrieved May 11, 2026, from https://www.csa.gov.sg/
+
+<a id="ref-74"></a>**[74]** sso.agc.gov.sg. *Cybersecurity (Amendment) Act 2024*. Retrieved May 11, 2026, from https://sso.agc.gov.sg/Acts-Supp/8-2024/
+
+<a id="ref-75"></a>**[75]** csa.gov.sg. *CSA codes of practice page*. Retrieved May 11, 2026, from https://www.csa.gov.sg/legislation/codes-of-practice
+
+<a id="ref-76"></a>**[76]** legifrance.gouv.fr. *Article L1332-6-1 et seq. of the Code de la Défense*. Retrieved May 11, 2026, from https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006071307/LEGISCTA000017725193/
+
+<a id="ref-77"></a>**[77]** legifrance.gouv.fr. *Décret 2015-351*. Retrieved May 11, 2026, from https://www.legifrance.gouv.fr/loda/id/JORFTEXT000030411138/
+
+<a id="ref-78"></a>**[78]** sgdsn.gouv.fr. *Secrétariat général de la défense et de la sécurité nationale (SGDSN)*. Retrieved May 11, 2026, from https://www.sgdsn.gouv.fr/
+
+<a id="ref-79"></a>**[79]** legifrance.gouv.fr. *Loi de résilience opérationnelle numérique de novembre 2024*. Retrieved May 11, 2026, from https://www.legifrance.gouv.fr/
+
+<a id="ref-80"></a>**[80]** cyber.gouv.fr. *PDIS qualification scheme*. Retrieved May 11, 2026, from https://cyber.gouv.fr/produits-services-qualifies
+
+<a id="ref-81"></a>**[81]** cyber.gouv.fr. *Le dispositif français de cybersécurité des OIV (cyber.gouv.fr)*. Retrieved May 11, 2026, from https://cyber.gouv.fr/le-dispositif-francais-de-cybersecurite-des-oiv
+
+<a id="ref-82"></a>**[82]** cert.ssi.gouv.fr. *CERT-FR*. Retrieved May 11, 2026, from https://www.cert.ssi.gouv.fr/
+
+<a id="ref-83"></a>**[83]** imo.org. *International Maritime Organization (IMO)*. Retrieved May 11, 2026, from https://www.imo.org/en/OurWork/Security/Pages/Cyber-security.aspx
+
+<a id="ref-84"></a>**[84]** parismou.org. *Paris MoU*. Retrieved May 11, 2026, from https://www.parismou.org/
+
+<a id="ref-85"></a>**[85]** tokyo-mou.org. *Tokyo MoU*. Retrieved May 11, 2026, from https://www.tokyo-mou.org/
+
+<a id="ref-86"></a>**[86]** wwwcdn.imo.org. *IMO Resolution MSC.428(98)*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428(98
+
+<a id="ref-87"></a>**[87]** wwwcdn.imo.org. *IMO MSC-FAL.1/Circ.3 Rev.2 Guidelines*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf
+
+<a id="ref-88"></a>**[88]** iacs.org.uk. *IACS Unified Requirements register*. Retrieved May 11, 2026, from https://iacs.org.uk/publications/unified-requirements/
+
+<a id="ref-89"></a>**[89]** bimco.org. *BIMCO Cyber Security Onboard Ships Guidelines*. Retrieved May 11, 2026, from https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships
+
+<a id="ref-90"></a>**[90]** parismou.org. *Paris MoU Cyber CIC 2023*. Retrieved May 11, 2026, from https://www.parismou.org/inspections-risk/library-faq/cic
+
+<a id="ref-91"></a>**[91]** uscg.mil. *USCG Maritime Cyber Strategic Outlook*. Retrieved May 11, 2026, from https://www.uscg.mil/maritimecyber/
+
+<a id="ref-92"></a>**[92]** faa.gov. *FAA via Advisory Circular 20-186*. Retrieved May 11, 2026, from https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/1039753
+
+<a id="ref-93"></a>**[93]** easa.europa.eu. *EASA via Acceptable Means of Compliance AMC 20-42*. Retrieved May 11, 2026, from https://www.easa.europa.eu/en/document-library/acceptable-means-of-compliance-and-guidance-materials
+
+<a id="ref-94"></a>**[94]** easa.europa.eu. *EASA Part-IS*. Retrieved May 11, 2026, from https://www.easa.europa.eu/en/the-agency/faqs/information-security
+
+<a id="ref-95"></a>**[95]** eur-lex.europa.eu. *Commission Implementing Regulation (EU) 2022/1645*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_impl/2022/1645/oj
+
+<a id="ref-96"></a>**[96]** eur-lex.europa.eu. *Commission Delegated Regulation (EU) 2023/203*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_del/2023/203/oj
+
+<a id="ref-97"></a>**[97]** rtca.org. *RTCA standards list*. Retrieved May 11, 2026, from https://www.rtca.org/standards/list-of-available-documents/
+
+<a id="ref-98"></a>**[98]** eurocae.net. *EUROCAE standards list*. Retrieved May 11, 2026, from https://www.eurocae.net/about-us/list-of-publications/
+
+<a id="ref-99"></a>**[99]** icao.int. *ICAO Cybersecurity in Civil Aviation page*. Retrieved May 11, 2026, from https://www.icao.int/Security/Pages/Cybersecurity.aspx
+
+<a id="ref-100"></a>**[100]** aviation-ia.sae-itc.com. *ARINC 811 specification*. Retrieved May 11, 2026, from https://aviation-ia.sae-itc.com/standards/arinc811-0-arinc-specification-811-0-commercial-aircraft-information-security-concepts-operation-and-process
+
+<a id="ref-101"></a>**[101]** a-isac.com. *A-ISAC*. Retrieved May 11, 2026, from https://www.a-isac.com/
+
+<a id="ref-102"></a>**[102]** eccsa.eu. *European Centre for Cybersecurity in Aviation (ECCSA)*. Retrieved May 11, 2026, from https://www.eccsa.eu/
+
+<a id="ref-103"></a>**[103]** cac.gov.cn. *CAC Measures for Security Assessment of Outbound Data Transfers*. Retrieved May 11, 2026, from https://www.cac.gov.cn/2022-07/07/c_1658811536396503.htm
+
+<a id="ref-104"></a>**[104]** openstd.samr.gov.cn. *Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019)*. Retrieved May 11, 2026, from https://openstd.samr.gov.cn/bzgk/gb/index
+
+<a id="ref-105"></a>**[105]** cac.gov.cn. *Cyberspace Administration of China (CAC)*. Retrieved May 11, 2026, from https://www.cac.gov.cn/
+
+<a id="ref-106"></a>**[106]** mps.gov.cn. *Ministry of Public Security (MPS)*. Retrieved May 11, 2026, from https://www.mps.gov.cn/
+
+<a id="ref-107"></a>**[107]** miit.gov.cn. *Ministry of Industry and Information Technology (MIIT)*. Retrieved May 11, 2026, from https://www.miit.gov.cn/
+
+<a id="ref-108"></a>**[108]** samr.gov.cn. *State Administration for Market Regulation (SAMR)*. Retrieved May 11, 2026, from https://www.samr.gov.cn/
+
+<a id="ref-109"></a>**[109]** npc.gov.cn. *National People's Congress legislation portal*. Retrieved May 11, 2026, from http://www.npc.gov.cn/
+
+<a id="ref-110"></a>**[110]** cac.gov.cn. *Cybersecurity Review Measures (2022)*. Retrieved May 11, 2026, from https://www.cac.gov.cn/2022-01/04/c_1642894602182845.htm
+
+<a id="ref-111"></a>**[111]** cac.gov.cn. *Standard Contract for the Outbound Cross-Border Transfer of Personal Information (2023)*. Retrieved May 11, 2026, from https://www.cac.gov.cn/2023-02/24/c_1678884830036414.htm
+
+<a id="ref-112"></a>**[112]** tc260.org.cn. *TC260 national cybersecurity standardization technical committee*. Retrieved May 11, 2026, from https://www.tc260.org.cn/
+
+<a id="ref-113"></a>**[113]** cert-in.org.in. *CERT-In Directions of 28 April 2022* (No. 20(3)/2022-CERT-In)*. Retrieved May 11, 2026, from https://www.cert-in.org.in/Directions70B.jsp
+
+<a id="ref-114"></a>**[114]** indiacode.nic.in. *Section 70B(6) of the Information Technology Act 2000*. Retrieved May 11, 2026, from https://www.indiacode.nic.in/handle/123456789/1999
+
+<a id="ref-115"></a>**[115]** meity.gov.in. *Digital Personal Data Protection Act 2023*. Retrieved May 11, 2026, from https://www.meity.gov.in/content/digital-personal-data-protection-act-2023
+
+<a id="ref-116"></a>**[116]** meity.gov.in. *Data Protection Board of India*. Retrieved May 11, 2026, from https://www.meity.gov.in/data-protection-framework
+
+<a id="ref-117"></a>**[117]** cert-in.org.in. *CERT-In*. Retrieved May 11, 2026, from https://www.cert-in.org.in/
+
+<a id="ref-118"></a>**[118]** meity.gov.in. *Ministry of Electronics and Information Technology (MeitY)*. Retrieved May 11, 2026, from https://www.meity.gov.in/
+
+<a id="ref-119"></a>**[119]** meity.gov.in. *SPDI Rules 2011*. Retrieved May 11, 2026, from https://www.meity.gov.in/writereaddata/files/GSR313E_10511(1
+
+<a id="ref-120"></a>**[120]** samay.nic.in. *NIC Network Time Protocol service (samay.nic.in)*. Retrieved May 11, 2026, from https://samay.nic.in/
+
+<a id="ref-121"></a>**[121]** nplindia.org. *National Physical Laboratory time service*. Retrieved May 11, 2026, from https://www.nplindia.org/time-and-frequency/
+
+<a id="ref-122"></a>**[122]** webstore.iec.ch. *IEC 61508 (2010)*. Retrieved May 11, 2026, from https://webstore.iec.ch/publication/5515
+
+<a id="ref-123"></a>**[123]** webstore.iec.ch. *IEC 62443-3-2:2020 — Security risk assessment for system design*. Retrieved May 11, 2026, from https://webstore.iec.ch/publication/30727
+
+<a id="ref-124"></a>**[124]** osha.gov. *OSHA Process Safety Management (PSM) 29 CFR 1910.119*. Retrieved May 11, 2026, from https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.119
+
+<a id="ref-125"></a>**[125]** ecfr.gov. *EPA Risk Management Program (RMP) 40 CFR Part 68*. Retrieved May 11, 2026, from https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-68
+
+<a id="ref-126"></a>**[126]** hse.gov.uk. *HSE COMAH 2015*. Retrieved May 11, 2026, from https://www.hse.gov.uk/comah/
+
+<a id="ref-127"></a>**[127]** eur-lex.europa.eu. *Seveso III Directive 2012/18/EU*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/dir/2012/18/oj
+
+<a id="ref-128"></a>**[128]** indiacode.nic.in. *MSIHC Rules 1989 (India)*. Retrieved May 11, 2026, from https://www.indiacode.nic.in/
+
+<a id="ref-129"></a>**[129]** kosha.or.kr. *KOSHA PSM (Korea)*. Retrieved May 11, 2026, from https://www.kosha.or.kr/
+
+<a id="ref-130"></a>**[130]** webstore.iec.ch. *IEC 61511 Edition 2 (2016)*. Retrieved May 11, 2026, from https://webstore.iec.ch/publication/24241
+
+<a id="ref-131"></a>**[131]** isa.org. *ISA84 standards committee (ISA-TR84.00.09)*. Retrieved May 11, 2026, from https://www.isa.org/standards-and-publications/isa-standards/isa-standards-committees/isa84
+
+<a id="ref-132"></a>**[132]** csb.gov. *CSB process-safety incident library*. Retrieved May 11, 2026, from https://www.csb.gov/
+
+<a id="ref-133"></a>**[133]** tuv.com. *TÜV functional-safety certification scheme overview*. Retrieved May 11, 2026, from https://www.tuv.com/world/en/functional-safety.html
+
+<a id="ref-134"></a>**[134]** wwwcdn.imo.org. *wwwcdn.imo.org: Resolution%20Msc.428*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428
+
+<a id="ref-135"></a>**[135]** meity.gov.in. *meity.gov.in: Gsr313E 10511*. Retrieved May 11, 2026, from https://www.meity.gov.in/writereaddata/files/GSR313E_10511
+
+</details>
 
 ### Related repository documents
 

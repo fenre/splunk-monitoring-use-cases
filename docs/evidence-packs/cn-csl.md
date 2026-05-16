@@ -2,7 +2,7 @@
 
 > **Tier**: Tier 1 &nbsp;·&nbsp; **Jurisdiction**: CN &nbsp;·&nbsp; **Version**: `2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border`
 >
-> **Full name**: People's Republic of China Cybersecurity Law of 2017 (CSL), Data Security Law of 2021 (DSL), Personal Information Protection Law of 2021 (PIPL), Regulations on Security Protection of Critical Information Infrastructure (State Council Order 745, 2021), Cybersecurity Review Measures (2022 revision), Measures for Security Assessment of Cross-Border Data Transfers (CAC, September 2022), and the Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019 + GB/T 22240-2020).
+> **Full name**: People's Republic of China Cybersecurity Law of 2017 (CSL), Data Security Law of 2021 (DSL), Personal Information Protection Law<sup class="ref">[<a href="#ref-2">2</a>]</sup> of 2021 (PIPL), Regulations on Security Protection of Critical Information Infrastructure (State Council Order 745, 2021), Cybersecurity Review Measures (2022 revision), Measures for Security Assessment of Cross-Border Data Transfers (CAC, September 2022), and the Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019 + GB/T 22240-2020).
 > **Authoritative sources**: [Cyberspace Administration of China (CAC)](http://www.cac.gov.cn/) · [SAC / TC260 standards](http://www.tc260.org.cn/) · [Ministry of Public Security MLPS portal](https://www.mps.gov.cn/)
 > **Effective from**: 2017-06-01 (CSL); 2021-09-01 (DSL); 2021-11-01 (PIPL); 2021-09-01 (CII Regulations); 2022-02-15 (CRM revision); 2022-09-01 (CAC Cross-Border Measures binding); 2020-12-01 (GB/T 22239-2019 MLPS 2.0 baseline)
 >
@@ -28,7 +28,7 @@
 
 ## 1. Purpose of this evidence pack
 
-The People's Republic of China operates a layered, interlocking cybersecurity-and-data regime. The Cybersecurity Law of 2017 (CSL) is the foundation: it establishes the Multi-Level Protection Scheme (MLPS), grades network operators by their data-classification and impact tier, and imposes baseline cybersecurity duties. The Data Security Law of 2021 (DSL) adds a data-centric obligation layer focused on the lifecycle and classification of data — important data (重要数据), core data (核心数据), and ordinary data. The Personal Information Protection Law of 2021 (PIPL) is the personal-data limb, modelled on but distinct from GDPR, with a unique extraterritorial reach and explicit consent / impact-assessment / cross-border-transfer rules. Critical Information Infrastructure (CII) Regulations (State Council Order 745, 2021) tighten obligations for CII Operators (CIIOs) designated by sectoral regulators (Industry & IT Ministry, Cyberspace Administration of China, People's Bank, et al). The CAC Cybersecurity Review Measures (2022 revision) regulate procurement and IPO activity that may touch national security. The CAC Measures for Security Assessment of Cross-Border Data Transfers (2022) impose the most onerous data-export approval pipeline in any major jurisdiction. The Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019) operationalises CSL Art.21 via five grades; the most common operating grades are L2 (general business systems) and L3 (CIIO, large data processors, government-relevant systems).
+The People's Republic of China operates a layered, interlocking cybersecurity-and-data regime. The Cybersecurity Law of 2017 (CSL) is the foundation: it establishes the Multi-Level Protection Scheme (MLPS), grades network operators by their data-classification and impact tier, and imposes baseline cybersecurity duties. The Data Security Law of 2021 (DSL) adds a data-centric obligation layer focused on the lifecycle and classification of data — important data (重要数据), core data (核心数据), and ordinary data. The Personal Information Protection Law of 2021 (PIPL) is the personal-data limb, modelled on but distinct from GDPR<sup class="ref">[<a href="#ref-1">1</a>]</sup>, with a unique extraterritorial reach and explicit consent / impact-assessment / cross-border-transfer rules. Critical Information Infrastructure (CII) Regulations (State Council Order 745, 2021) tighten obligations for CII Operators (CIIOs) designated by sectoral regulators (Industry & IT Ministry, Cyberspace Administration of China, People's Bank, et al). The CAC Cybersecurity Review Measures (2022 revision) regulate procurement and IPO activity that may touch national security. The CAC Measures for Security Assessment of Cross-Border Data Transfers (2022) impose the most onerous data-export approval pipeline in any major jurisdiction. The Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019) operationalises CSL Art.21 via five grades; the most common operating grades are L2 (general business systems) and L3 (CIIO, large data processors, government-relevant systems).
 
 The Splunk monitoring catalogue's coverage maps directly into this multi-document regime: the catalogue produces an auditable evidence chain that the Network Operator (or the CIIO, the Significant Data Processor under PIPL Art.58, or the Important-Data Handler under DSL Art.30) can hand to the CAC inspector, the MPS PINSS officer, the Industry & IT Ministry (MIIT) sectoral inspector, or — in core-data and national-security contexts — the National Intelligence Agency liaison.
 
@@ -214,3 +214,44 @@ Quarterly self-test (Data Security Officer + DPO led):
 ## 13. Provenance and regeneration
 
 This evidence pack is regenerated as part of the catalogue build. Manual narrative sections (purpose, scope, common deficiencies, inspector questions) are authored; clause coverage tables are computed from UC sidecar `compliance[]` arrays. Last reviewed: 2026-05-14.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-2"></a>**[2]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
+
+<details>
+<summary>Additional online sources cited in the document body (10)</summary>
+
+<a id="ref-3"></a>**[3]** cac.gov.cn. *Cyberspace Administration of China (CAC)*. Retrieved May 11, 2026, from http://www.cac.gov.cn/
+
+<a id="ref-4"></a>**[4]** tc260.org.cn. *SAC / TC260 standards*. Retrieved May 11, 2026, from http://www.tc260.org.cn/
+
+<a id="ref-5"></a>**[5]** mps.gov.cn. *Ministry of Public Security MLPS portal*. Retrieved May 11, 2026, from https://www.mps.gov.cn/
+
+<a id="ref-6"></a>**[6]** openstd.samr.gov.cn. *openstd.samr.gov.cn: New Gb Info*. Retrieved May 11, 2026, from http://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=BAFB6A65EF26CF02EE5B5D7A57AE12A4
+
+<a id="ref-7"></a>**[7]** openstd.samr.gov.cn. *openstd.samr.gov.cn*. Retrieved May 11, 2026, from http://openstd.samr.gov.cn/
+
+<a id="ref-8"></a>**[8]** cac.gov.cn. *cac.gov.cn: C 1658811536396503*. Retrieved May 11, 2026, from http://www.cac.gov.cn/2022-07/07/c_1658811536396503.htm
+
+<a id="ref-9"></a>**[9]** cac.gov.cn. *cac.gov.cn: C 1678884830036813*. Retrieved May 11, 2026, from http://www.cac.gov.cn/2023-02/24/c_1678884830036813.htm
+
+<a id="ref-10"></a>**[10]** cac.gov.cn. *cac.gov.cn: C 1642023987080927*. Retrieved May 11, 2026, from http://www.cac.gov.cn/2021-12/28/c_1642023987080927.htm
+
+<a id="ref-11"></a>**[11]** gov.cn. *gov.cn: Content 5631671*. Retrieved May 11, 2026, from http://www.gov.cn/zhengce/content/2021-08/17/content_5631671.htm
+
+<a id="ref-12"></a>**[12]** cac.gov.cn. *cac.gov.cn: C 1642894606364259*. Retrieved May 11, 2026, from http://www.cac.gov.cn/2022-01/04/c_1642894606364259.htm
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

@@ -28,7 +28,7 @@
 
 ## 1. Purpose of this evidence pack
 
-The International Maritime Organization (IMO) Resolution MSC.428(98) was adopted by the IMO Maritime Safety Committee in June 2017. It affirms that an approved Safety Management System (SMS) under the International Safety Management (ISM) Code should consider cyber risk management in accordance with the objectives and functional requirements of the ISM Code, with the requirement entering practical force no later than the first annual verification of a company's Document of Compliance (DoC) after 1 January 2021. The Resolution is the headline obligation; its day-to-day operational guidance is set out in **MSC-FAL.1/Circ.3 Rev.2 — Guidelines on Maritime Cyber Risk Management** (2022), which structures cyber risk management around the five NIST CSF functions (Identify, Protect, Detect, Respond, Recover). For new vessels keel-laid on or after 1 July 2024, classification societies enforce **IACS UR E26 (cyber resilience of ships)** and **IACS UR E27 (cyber resilience of on-board systems and equipment)** as unified requirements covered by every IACS member society (DNV, ABS, LR, BV, ClassNK, CCS, KR, RINA, IRS, RS, PRS, CRS). The **BIMCO Guidelines on Cyber Security Onboard Ships** (v5, 2025) is the industry-standard practitioner reference, jointly published with INTERTANKO, ICS, INTERCARGO, OCIMF, IUMI and other industry bodies.
+The International Maritime Organization (IMO) Resolution MSC.428(98) was adopted by the IMO Maritime Safety Committee in June 2017. It affirms that an approved Safety Management System (SMS) under the International Safety Management (ISM) Code should consider cyber risk management in accordance with the objectives and functional requirements of the ISM Code, with the requirement entering practical force no later than the first annual verification of a company's Document of Compliance (DoC) after 1 January 2021. The Resolution is the headline obligation; its day-to-day operational guidance is set out in **MSC-FAL.1/Circ.3 Rev.2 — Guidelines on Maritime Cyber Risk Management** (2022), which structures cyber risk management around the five NIST CSF<sup class="ref">[<a href="#ref-4">4</a>]</sup> functions (Identify, Protect, Detect, Respond, Recover). For new vessels keel-laid on or after 1 July 2024, classification societies enforce **IACS UR E26 (cyber resilience of ships)** and **IACS UR E27 (cyber resilience of on-board systems and equipment)** as unified requirements covered by every IACS member society (DNV, ABS, LR, BV, ClassNK, CCS, KR, RINA, IRS, RS, PRS, CRS). The **BIMCO Guidelines on Cyber Security Onboard Ships** (v5, 2025) is the industry-standard practitioner reference, jointly published with INTERTANKO, ICS, INTERCARGO, OCIMF, IUMI and other industry bodies.
 
 The combined obligation is enforced at three layers: the flag State (via DoC verification under ISM Code §13, sometimes delegated to a Recognised Organisation), the port State (via Port State Control inspection under the Paris, Tokyo, Caribbean, Indian Ocean, Riyadh and Black Sea MoUs, which from 2023 onward run periodic Concentrated Inspection Campaigns on cyber risk management), and the classification society (via E26/E27 surveys and the resulting class notation — e.g. DNV CyberSecure, ABS CyberSafety, LR ShipRight, BV Cyber Resilient, ClassNK Cyber). Non-compliance manifests as either a DoC non-conformity (potentially leading to suspension of the DoC and the Safety Management Certificate), a PSC detention (denial of departure), or loss of class (loss of insurance, charterer rejection).
 
@@ -48,7 +48,7 @@ Specific scope rules:
 - **Port State Control (PSC)** — applies at every port of call worldwide. The Paris MoU 2023 cyber CIC was a precedent; further CICs are scheduled across all 9 PSC MoU regimes.
 - **BIMCO Guidelines on Cyber Security Onboard Ships** — practitioner reference; not directly enforceable but widely cited as the de-facto industry standard for "ordinary practice of seamen" in cyber risk management.
 
-**Territorial scope.** Global. Every flag State has agreed to the IMO regime through ratification of SOLAS Chapter IX and ISM Code adoption. Most flag States (Panama, Liberia, Marshall Islands, Bahamas, Malta, Singapore, etc.) delegate annual verification to Recognised Organisations (typically the vessel's class society). The US Coast Guard (USCG) enforces a parallel domestic regime via the USCG Cyber Strategic Outlook + 33 CFR 101 maritime security regulations, applied through the National Response Center (NRC) reporting workflow and PSC programme. EU flag States additionally cross-reference NIS2 obligations.
+**Territorial scope.** Global. Every flag State has agreed to the IMO regime through ratification of SOLAS Chapter IX and ISM Code adoption. Most flag States (Panama, Liberia, Marshall Islands, Bahamas, Malta, Singapore, etc.) delegate annual verification to Recognised Organisations (typically the vessel's class society). The US Coast Guard (USCG) enforces a parallel domestic regime via the USCG Cyber Strategic Outlook + 33 CFR 101 maritime security regulations, applied through the National Response Center (NRC) reporting workflow and PSC programme. EU flag States additionally cross-reference NIS2<sup class="ref">[<a href="#ref-2">2</a>]</sup> obligations.
 
 ## 3. Catalogue coverage at a glance
 
@@ -96,7 +96,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **Cargo Management System / Tank Monitoring System** — sourcetypes `cms:audit`, `tms:audit`. Cargo handling and tank gauging integrity events.
 - **USB / removable-media governance** — Microsoft Defender Device Control sourcetype `mscs:wd:atp:device-control`. Bridge and engineering workstation USB-port governance.
 - **Shore-to-ship satcom remote access** — CyberArk PSM sourcetypes `cyberark:session`, `cyberark:audit`. PAM-mediated remote access for shipboard OT changes.
-- **OT-discovery sensor feed** — Cisco Cyber Vision, Claroty CTD / xDome, Nozomi Guardian / Vantage, Dragos Platform, Armis Centrix. Sourcetypes `cisco:cybervision:asset`, `claroty:ctd:asset`, `nozomi:guardian:asset`, `dragos:platform:asset`, `armis:centrix:detection`.
+- **OT-discovery sensor feed** — Cisco Cyber Vision<sup class="ref">[<a href="#ref-1">1</a>]</sup>, Claroty CTD / xDome, Nozomi Guardian / Vantage, Dragos Platform, Armis Centrix. Sourcetypes `cisco:cybervision:asset`, `claroty:ctd:asset`, `nozomi:guardian:asset`, `dragos:platform:asset`, `armis:centrix:detection`.
 - **Authority submission receipts** — HEC tokens `hec:imo:flag:submission`, `hec:uscg:nrc:submission`, `hec:psc:submission`, `hec:ro:submission`. Submission audit for flag-State, USCG NRC, port-State and Recognised Organisation notifications.
 - **IACS UR E26 / E27 attestation register** — KV Stores `iacs_ur_e26_attestation_lookup`, `iacs_ur_e27_attestation_lookup`. Ship-level and equipment-level cyber-resilience attestations.
 - **Class notation register** — KV Store `class_notation_lookup`. DNV CyberSecure / ABS CyberSafety / LR ShipRight / BV Cyber Resilient / ClassNK Cyber attestation status.
@@ -123,7 +123,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | Shore-to-ship satcom PAM session records | Minimum 5 years rolling | Internal governance; IACS UR E27 |
 | Master compliance scorecard archived snapshots | Daily snapshot, 7-year rolling retention | Internal governance |
 
-> Retention figures above are minimums or regulator-stated expectations. Where personal-data content appears in evidence packets (e.g. crew identifiers), GDPR Art.5(1)(e) storage-limitation principle drives shorter retention for the personal-data fields while the evidence-of-compliance retention retains the longer period (anonymised). National-security restrictions may extend retention for tonnage-tax-relevant or military-sealift vessels.
+> Retention figures above are minimums or regulator-stated expectations. Where personal-data content appears in evidence packets (e.g. crew identifiers), GDPR<sup class="ref">[<a href="#ref-3">3</a>]</sup> Art.5(1)(e) storage-limitation principle drives shorter retention for the personal-data fields while the evidence-of-compliance retention retains the longer period (anonymised). National-security restrictions may extend retention for tonnage-tax-relevant or military-sealift vessels.
 
 ### 5.3 Evidence integrity expectations
 
@@ -245,3 +245,60 @@ The DPA bears personal liability under the ISM Code; in some flag-State jurisdic
 ## 13. Provenance and regeneration
 
 This evidence pack is regenerated as part of the catalogue build. Manual narrative sections (purpose, scope, common deficiencies, inspector questions) are authored; clause coverage tables are computed from UC sidecar `compliance[]` arrays. Last reviewed: 2026-05-14. Note: this evidence pack is the auditor-facing companion to UC-22.59.1 through UC-22.59.17. The DPA and CSO sign the consolidated attestation; the class society counter-signs at the annual E26/E27 cyber survey.
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** Cisco Systems, Inc. (2026). *Cisco Cyber Vision Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/cyber-vision/series.html
+
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+
+<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-4"></a>**[4]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
+
+<details>
+<summary>Additional online sources cited in the document body (16)</summary>
+
+<a id="ref-5"></a>**[5]** imo.org. *imo.org: Cyber Security.Aspx*. Retrieved May 11, 2026, from https://www.imo.org/en/OurWork/Security/Pages/Cyber-security.aspx
+
+<a id="ref-6"></a>**[6]** wwwcdn.imo.org. *wwwcdn.imo.org: Resolution%20Msc.428(98*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428(98
+
+<a id="ref-7"></a>**[7]** wwwcdn.imo.org. *wwwcdn.imo.org: Msc Fal.1 Circ.3 Rev.2.Pdf*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf
+
+<a id="ref-8"></a>**[8]** imo.org. *imo.org: Ismcode.Aspx*. Retrieved May 11, 2026, from https://www.imo.org/en/OurWork/HumanElement/Pages/ISMCode.aspx
+
+<a id="ref-9"></a>**[9]** iacs.org.uk. *iacs.org.uk: Unified Requirements*. Retrieved May 11, 2026, from https://iacs.org.uk/publications/unified-requirements/
+
+<a id="ref-10"></a>**[10]** bimco.org. *bimco.org: The Guidelines On Cyber Security Onboard Ships*. Retrieved May 11, 2026, from https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships
+
+<a id="ref-11"></a>**[11]** dnv.com. *dnv.com: Index*. Retrieved May 11, 2026, from https://www.dnv.com/maritime/insights/topics/maritime-cyber-security/index.html
+
+<a id="ref-12"></a>**[12]** ww2.eagle.org. *ww2.eagle.org: Rules And Guides*. Retrieved May 11, 2026, from https://ww2.eagle.org/en/rules-and-resources/rules-and-guides.html
+
+<a id="ref-13"></a>**[13]** lr.org. *lr.org: Maritime Cyber Security*. Retrieved May 11, 2026, from https://www.lr.org/en/services/maritime/maritime-cyber-security/
+
+<a id="ref-14"></a>**[14]** marine-offshore.bureauveritas.com. *marine-offshore.bureauveritas.com: Cybersecurity*. Retrieved May 11, 2026, from https://marine-offshore.bureauveritas.com/cybersecurity
+
+<a id="ref-15"></a>**[15]** parismou.org. *parismou.org: Cic*. Retrieved May 11, 2026, from https://www.parismou.org/inspections-risk/library-faq/cic
+
+<a id="ref-16"></a>**[16]** uscg.mil. *uscg.mil: Maritimecyber*. Retrieved May 11, 2026, from https://www.uscg.mil/maritimecyber/
+
+<a id="ref-17"></a>**[17]** uscg.mil. *uscg.mil: Maritime Commons*. Retrieved May 11, 2026, from https://www.uscg.mil/Maritime-Commons/
+
+<a id="ref-18"></a>**[18]** nrc.uscg.mil. *nrc.uscg.mil*. Retrieved May 11, 2026, from https://www.nrc.uscg.mil/
+
+<a id="ref-19"></a>**[19]** iho.int. *iho.int*. Retrieved May 11, 2026, from https://iho.int/
+
+<a id="ref-20"></a>**[20]** wwwcdn.imo.org. *wwwcdn.imo.org: Resolution%20Msc.428*. Retrieved May 11, 2026, from https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/Resolution%20MSC.428
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->

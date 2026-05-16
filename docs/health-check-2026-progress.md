@@ -120,7 +120,7 @@ including the deferred sample-data shape ADR).
 | **P9** Monorepo split (apps/ + packages/) | NOT STARTED | — |
 | **P10** Performance + a11y hardening | PARTIAL (2026-05-13) | F8 closure unblocked P10. First a11y deliverable landed 2026-05-13: `index.html` and `scorecard.html` now ship with a visually-hidden `<h1>` inside the correct landmark (banner / main), and both search-bar wrappers on `index.html` carry `role="search"` + distinguishing `aria-label`, so the `region` warning that the F8 closure re-anchored on `#search-input` is gone. `reports/perf-a11y.json` regenerated: `index.html` 0 violations / 0 warnings (was 0 / 1); `scorecard.html` 0 / 0 (unchanged). New `.visually-hidden` utility added to `src/styles/05-helpers.css` + mirrored in `index.html` inline `<style>` + duplicated in `scorecard.html` `<style>` (separate file, no shared stylesheet — chrome unification is F17). Still open under P10: Lighthouse CI, CSP `'unsafe-inline'` tightening on both `script-src` and `style-src` (F8 PR-C precondition), and the virtual-scroll renderer `<template>`-clone refactor (F8 PR-C proper, deferred to P10 as documented in the F8 inventory). |
 | **P11** OSS release polish | PARTIAL (2026-05-13, reclassified) | The original "no `.devcontainer/`" caveat is wrong at HEAD: [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json) ships **pinned by OCI image-index digest** (Microsoft `mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15…`), with Node 20 + GitHub CLI features, ruff + mypy + markdownlint + YAML extensions, pre-forwarded port 8000, pip-cache volume mount, and an 8-assertion structural test suite ([`tests/build/test_devcontainer.py`](../tests/build/test_devcontainer.py)) that pins the invariants. **Closed gap (2026-05-13):** the `postCreateCommand: make devcontainer-init` reference used to point at a Make target that did not exist (the structural test for that was deliberately skipped with `pytest.mark.skip("deferred to v8.x")`). PR — adds the `devcontainer-init` target to `Makefile` (installs `pip install -e .[audits,dev,test]`, registers pre-commit hooks, warm-builds `dist/`), unskips `test_make_target_exists`, and asserts that `devcontainer-init` is listed in `.PHONY`. The "ROADMAP.md still says v7.1" half of the original caveat was already resolved on 2026-05-12 (loose-end ledger #1). **What's still open:** no automated workflow that pushes `reports/roadmap-export.json` to a public Project board (the `make export-roadmap` target produces the snapshot; the sync side is the residual P11 work). |
-| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-2">2</a>]</sup> gate. |
+| **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect<sup class="ref">[<a href="#ref-6">6</a>]</sup> gate. |
 | **P13** Recommender TA hardening | NOT STARTED | The recommender TA was overhauled in v8.0.0 (CHANGELOG mentions "single Cloud-safe recommender app") but P13's threat model + Sigstore on `.spl` + AppInspect Cloud gate not visible. |
 | **P14** Content stewardship | DONE (2026-05-14; cadence side still open) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. **Still open** — the cadence side: automated rotation reminders that consume the CODEOWNERS rows + the new scorecard drill-downs (e.g. quarterly "owner of cat-N has not approved a content change in 90 days; nudge"). |
 | **P15** Specification compliance moonshot | NOT STARTED | 2027 target per plan; no `clauseText[]` bindings. |
@@ -181,7 +181,7 @@ findings but should not be lost:
    - 105 equipment slugs → **106 equipment**
    - 60 regulations → **82 regulations** (+22 over plan, +13 since
      the 2026-05-13 anchor — Phase 6 added DO-326A / ED-202A, China
-     CSL/DSL/PIPL/CII, India CERT-In 2022 / DPDP 2023, IEC 61511 /
+     CSL/DSL/PIPL<sup class="ref">[<a href="#ref-7">7</a>]</sup>/CII, India CERT-In 2022 / DPDP 2023, IEC 61511 /
      61508 cybersecurity overlay; Phase 5a/b added IMO Resolutions
      MSC.428(98) + MSC-FAL.1/Circ.3, TSA Surface, SG Cyber Act, FR
      LPM)
@@ -241,7 +241,7 @@ findings but should not be lost:
 10. **Cat-22 OT regulation deep-dive arc shipped.** New ledger entry
     2026-05-16 for the 252-UC content arc that landed on local `main`
     between v8.5.0 and v8.6.4 across four commits — `458a50f8b`
-    (Phases 1-5a rollup: ISA/IEC 62443, NERC CIP v8, EU NIS2 OT,
+    (Phases 1-5a rollup: ISA/IEC 62443<sup class="ref">[<a href="#ref-2">2</a>]</sup>, NERC CIP<sup class="ref">[<a href="#ref-4">4</a>]</sup> v8, EU NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> OT,
     UK CAF / NIS Regulations, US CIRCIA, ENISA NIS2 sectoral, IMO
     cyber), `debb1d9b5` (Phase 5b: DO-326A / ED-202A aviation),
     `c25e80ec1` (Phase 6 closure: China CSL / DSL / PIPL / CII +
@@ -347,7 +347,7 @@ findings but should not be lost:
     return + `isinstance(data, dict)` narrowing before returning
     `dict[str, Any]`. The `lint` job goes green; no runtime
     behaviour change.
-    (b) **MITRE ATT&CK ID hygiene across 5 cat-22 UCs** — the
+    (b) **MITRE ATT&CK<sup class="ref">[<a href="#ref-3">3</a>]</sup> ID hygiene across 5 cat-22 UCs** — the
     Phase 4.5d ATT&CK simulation gate (`scripts/simulate_controltest.py`,
     runs in the `frontend` job) flagged five OT-arc UCs that
     referenced invalid identifiers in their `mitreAttack` arrays.
@@ -685,15 +685,26 @@ without verification at HEAD.
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+<a id="ref-2"></a>**[2]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
+
+<a id="ref-3"></a>**[3]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+
+<a id="ref-4"></a>**[4]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
+
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+
+<a id="ref-7"></a>**[7]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
 ### Related repository documents
 
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
+- [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/workflow-audit.md`](workflow-audit.md)
 
