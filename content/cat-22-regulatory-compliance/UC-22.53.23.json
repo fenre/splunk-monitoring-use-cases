@@ -36,18 +36,6 @@
   },
   "dataSources": "Backup platform (Veeam / Commvault / Rubrik / Cohesity / Veritas / Catalogic), SCADA-config-archive (Rockwell FactoryTalk AssetCentre / Siemens Asset Manager), PLC-program-archive, restore-test log.",
   "app": "Splunk Add-on for Veeam Backup & Replication (Splunkbase 5072), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_backup_inventory_lookup\n| eval days_since_backup = if(isnotnull(last_successful_backup_at), round((now() - last_successful_backup_at) / 86400, 0), null())\n| eval days_since_restore_test = if(isnotnull(last_restore_test_at), round((now() - last_restore_test_at) / 86400, 0), null())\n| eval backup_status = case(\n    isnull(last_successful_backup_at), \"never_backed_up\",\n    days_since_backup > 7, \"backup_overdue\",\n    isnull(offline_immutable_copy) OR offline_immutable_copy=\"false\", \"no_offline_immutable\",\n    isnull(last_restore_test_at), \"never_restore_tested\",\n    days_since_restore_test > 365, \"restore_test_overdue\",\n    restore_test_status=\"failed\", \"restore_test_failed\",\n    isnull(rto_target) OR isnull(rpo_target), \"no_rto_rpo\",\n    1=1, \"current\")\n| table pwsid system_id system_class backup_schedule last_successful_backup_at days_since_backup offline_immutable_copy last_restore_test_at days_since_restore_test restore_test_status rto_target rpo_target backup_status",
   "description": "Audits backup completion, offline / immutable copy presence, and restore-test recency.",
   "value": "Ransomware against SCADA is the AWIA Baseline cyber threat. Backups that are not offline / immutable are deletable by ransomware. Backups that are never restore-tested may not work when needed. This UC keeps the backup posture audit-defensible and operationally real.",
@@ -72,6 +60,10 @@
     }
   ],
   "knownFalsePositives": "1. **Newly onboarded system** — 30-day grace.\n\n**Suppression**: `awia_22_53_23_exceptions`; 30-day max.",
+  "mitreAttack": [
+    "T1486",
+    "T1490"
+  ],
   "requiredFields": [
     "pwsid",
     "system_id",
@@ -80,34 +72,45 @@
     "last_restore_test_at",
     "backup_status"
   ],
+  "equipment": [
+    "commvault",
+    "hashicorp",
+    "splunk-es",
+    "veeam"
+  ],
+  "equipmentModels": [
+    "Cohesity",
+    "Commvault",
+    "Rockwell FactoryTalk AssetCentre",
+    "Rubrik",
+    "Siemens Asset Manager",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Veeam Backup & Replication",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "veeam",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Veeam Backup & Replication",
-    "Commvault",
-    "Rubrik",
-    "Cohesity",
-    "Rockwell FactoryTalk AssetCentre",
-    "Siemens Asset Manager",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T1486",
-    "T1490"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=backup`, `index=audit_evidence`.\n- Lookup `awia_backup_inventory_lookup`.\n\n## Step 1 — Configure data collection\n\nBackup platform writes a job-status row per backup target; the backup-inventory lookup records each in-scope system with `system_class` in {scada_config, plc_program, historian_db, wq_db, business_finance, business_billing, business_files}.\n\n## Step 2 — Create the search and alert\n\nDaily 11:00.\n\n```ini\n[UC-22.53.23: AWIA Backup Recovery]\ncron_schedule = 0 11 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.23,reg=AWIA,clause=AWIA-EPA-backup-recovery\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: no offline copy; UC fires.  Negative: full; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Backup Recovery`. Runbook: configure immutable / offline target; schedule annual restore test.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **PLC program backup**: typically less frequent than data backup; ensure schedule includes every program change.\n- **Historian retention**: AWIA does not specify historian retention but EPA inspectors expect 5 years; align with retention storage decisions.\n- **Immutable target**: object-locked S3 / Azure Blob immutability / tape / Linux ZFS snapshot with admin lockout are acceptable; cloud-only backup that lacks legal-hold immutability is not.",
+  "grandmaExplanation": "If ransomware wipes the water plant's computers, we need clean backups to rebuild. The backups must be offline (so ransomware can't reach them) and someone must have actually practised restoring them within the last year. We watch all three things and ring the bell if any is missing.",
   "prerequisiteUseCases": [
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=backup`, `index=audit_evidence`.\n- Lookup `awia_backup_inventory_lookup`.\n\n## Step 1 — Configure data collection\n\nBackup platform writes a job-status row per backup target; the backup-inventory lookup records each in-scope system with `system_class` in {scada_config, plc_program, historian_db, wq_db, business_finance, business_billing, business_files}.\n\n## Step 2 — Create the search and alert\n\nDaily 11:00.\n\n```ini\n[UC-22.53.23: AWIA Backup Recovery]\ncron_schedule = 0 11 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.23,reg=AWIA,clause=AWIA-EPA-backup-recovery\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: no offline copy; UC fires.  Negative: full; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Backup Recovery`. Runbook: configure immutable / offline target; schedule annual restore test.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **PLC program backup**: typically less frequent than data backup; ensure schedule includes every program change.\n- **Historian retention**: AWIA does not specify historian retention but EPA inspectors expect 5 years; align with retention storage decisions.\n- **Immutable target**: object-locked S3 / Azure Blob immutability / tape / Linux ZFS snapshot with admin lockout are acceptable; cloud-only backup that lacks legal-hold immutability is not.",
-  "grandmaExplanation": "If ransomware wipes the water plant's computers, we need clean backups to rebuild. The backups must be offline (so ransomware can't reach them) and someone must have actually practised restoring them within the last year. We watch all three things and ring the bell if any is missing."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -61,25 +61,6 @@
   },
   "dataSources": "KV Store `imo_crar_lookup` (imo_number, asset_id, asset_class, msc_category, vendor, model, firmware_version, configuration_baseline_hash, last_attested_at). KV Store `imo_crar_components_lookup` for granular component breakdown. ServiceNow CMDB vessel + component records. Vendor inventory from Wartsila Online Services, Kongsberg Maritime CloudPort, Furuno CloudCenter, Sperry Marine VisionMaster Cloud, ABB Marine OneView.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup imo_crar_lookup\n| eval msc_categories = \"bridge,propulsion-machinery-power,cargo,communications,passenger-servicing,passenger-public-network,administrative-crew-welfare,access-control\"\n| eval expected_categories = split(msc_categories, \",\")\n| stats values(msc_category) as observed_categories, count as asset_count, max(last_attested_at) as latest_attestation by imo_number, ship_name\n| eval observed_set = mvjoin(observed_categories, \",\")\n| eval expected_set = mvjoin(expected_categories, \",\")\n| eval missing_categories = mvfilter(NOT match(expected_set, '\\b' . observed_categories . '\\b'))\n| eval category_coverage = round((mvcount(observed_categories) / 8) * 100, 1)\n| eval days_since_attestation = round((now() - latest_attestation) / 86400, 1)\n| where category_coverage < 100 OR days_since_attestation > 90\n| sort 0 +category_coverage, -days_since_attestation\n| table imo_number ship_name asset_count category_coverage observed_set days_since_attestation",
   "description": "Reconciles per-vessel Cyber Risk Asset Register against MSC-FAL.1/Circ.3 §3.1's seven categories; flags vessels with missing coverage or stale attestations.",
   "value": "Incomplete asset inventory is the most-cited finding at flag-State / RO cyber-SMS audits. Auditors open a vessel-specific scope first; if the CRAR misses a §3.1 category (most commonly 'administrative-crew-welfare' or 'passenger-public-network' on cargo vessels that quietly added a crew Wi-Fi), the audit escalates to a major-non-conformity.",
@@ -104,6 +85,9 @@
     }
   ],
   "knownFalsePositives": "1. **Newbuild integration window**: a newly-delivered vessel may have a 90-day integration grace before CRAR is fully populated; suppress with vessel age <= 90 days. 2. **Crew Wi-Fi out of scope**: some flag administrations accept crew Wi-Fi as not in scope if there is no path to OT; document the exemption per vessel. 3. **Vendor-cloud silence**: a vendor-cloud feed outage may delay attestation by up to 48h; allow `days_since_attestation < 14`. 4. **Lay-up vessels**: lay-up vessels have a reduced CRAR; use `vessel_status=lay-up`.\n\n**Suppression mechanism**: KV Store `imo_22_59_3_exceptions` with the CISO's documented approval.",
+  "mitreAttack": [
+    "N/A (asset inventory governance)"
+  ],
   "requiredFields": [
     "imo_number",
     "msc_category",
@@ -111,35 +95,51 @@
     "category_coverage",
     "days_since_attestation"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ABB Marine OneView",
+    "Furuno CloudCenter",
+    "Kongsberg Maritime CloudPort",
+    "Schneider Electric EcoStruxure Marine",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
+    "Sperry Marine VisionMaster Cloud",
+    "Splunk ES 7.x",
+    "Wartsila Online Services"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime Cyber SME Panel + DPA + Chief Engineer (representative)",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
-    "Wartsila Online Services",
-    "Kongsberg Maritime CloudPort",
-    "Furuno CloudCenter",
-    "Sperry Marine VisionMaster Cloud",
-    "ABB Marine OneView",
-    "Schneider Electric EcoStruxure Marine"
-  ],
-  "mitreAttack": [
-    "N/A (asset inventory governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.1 and UC-22.59.2 in production.\n- KV Stores `imo_crar_lookup` and `imo_crar_components_lookup` defined and seeded.\n- ServiceNow CMDB integration (or alternative fleet-management system) producing per-vessel asset records.\n\n## Step 1 — CRAR KV Store schema\n\n```ini\n[imo_crar_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.ship_name = string\nfield.asset_id = string\nfield.asset_class = string\nfield.msc_category = string\nfield.vendor = string\nfield.model = string\nfield.firmware_version = string\nfield.configuration_baseline_hash = string\nfield.last_attested_at = time\nfield.attested_by = string\nfield.attestation_signature = string\nfield.vessel_status = string\n```\n\n## Step 2 — §3.1 category enumeration\n\nThe eight MSC-FAL.1/Circ.3 categories used are: `bridge`, `propulsion-machinery-power`, `cargo`, `communications`, `passenger-servicing`, `passenger-public-network`, `administrative-crew-welfare`, `access-control`. The schema enforces that every asset row is tagged with one of these values.\n\n## Step 3 — Vendor cloud feed wiring\n\nWartsila NACOS Platinum: scheduled REST input pulling fleet status. Kongsberg K-Chief 700: REST input via Kongsberg CloudPort. Furuno: REST input via FCC (Furuno Component Cloud). Sperry Marine: VisionMaster cloud API. ABB Marine: ABB Ability Marine API. Schneider Marine: EcoStruxure Marine API.\n\n## Step 4 — Schedule\n\n```ini\n[UC-22.59.3: IMO CRAR Health]\ncron_schedule = 0 7 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.3,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-1\nalert.severity = 4\n```\n\n## Step 5 — Runbooks\n\n**`category_coverage < 80%`** (owner: Fleet Cyber Lead, severity P2): Within 7 days, complete the missing-category onboarding with the vessel's Master / Chief Engineer; within 30 days, present the corrected CRAR for DPA attestation.\n\n## Step 6 — Maritime-specific notes\n\n- **Vessel-type adaptation**: a tanker has a strong cargo-management-system footprint (TMS, IG, vapour recovery), a container ship has a stowage-plan footprint, a passenger ship has a strong passenger-servicing and passenger-public-network footprint — adapt expected category weight per vessel type.\n- **Multi-flag operation**: vessels operating multi-flag (rare; happens in some short-sea trades) keep one CRAR per IMO number.",
+  "grandmaExplanation": "Every ship has computers running navigation, engines, cargo, communications, and crew internet. We keep a full list of every one of these systems for every ship — what it is, who made it, and what version it runs — so we can find weak spots and prove to the regulator that nothing has been missed.",
   "prerequisiteUseCases": [
     "UC-22.59.1",
     "UC-22.59.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.1 and UC-22.59.2 in production.\n- KV Stores `imo_crar_lookup` and `imo_crar_components_lookup` defined and seeded.\n- ServiceNow CMDB integration (or alternative fleet-management system) producing per-vessel asset records.\n\n## Step 1 — CRAR KV Store schema\n\n```ini\n[imo_crar_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.ship_name = string\nfield.asset_id = string\nfield.asset_class = string\nfield.msc_category = string\nfield.vendor = string\nfield.model = string\nfield.firmware_version = string\nfield.configuration_baseline_hash = string\nfield.last_attested_at = time\nfield.attested_by = string\nfield.attestation_signature = string\nfield.vessel_status = string\n```\n\n## Step 2 — §3.1 category enumeration\n\nThe eight MSC-FAL.1/Circ.3 categories used are: `bridge`, `propulsion-machinery-power`, `cargo`, `communications`, `passenger-servicing`, `passenger-public-network`, `administrative-crew-welfare`, `access-control`. The schema enforces that every asset row is tagged with one of these values.\n\n## Step 3 — Vendor cloud feed wiring\n\nWartsila NACOS Platinum: scheduled REST input pulling fleet status. Kongsberg K-Chief 700: REST input via Kongsberg CloudPort. Furuno: REST input via FCC (Furuno Component Cloud). Sperry Marine: VisionMaster cloud API. ABB Marine: ABB Ability Marine API. Schneider Marine: EcoStruxure Marine API.\n\n## Step 4 — Schedule\n\n```ini\n[UC-22.59.3: IMO CRAR Health]\ncron_schedule = 0 7 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.3,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-1\nalert.severity = 4\n```\n\n## Step 5 — Runbooks\n\n**`category_coverage < 80%`** (owner: Fleet Cyber Lead, severity P2): Within 7 days, complete the missing-category onboarding with the vessel's Master / Chief Engineer; within 30 days, present the corrected CRAR for DPA attestation.\n\n## Step 6 — Maritime-specific notes\n\n- **Vessel-type adaptation**: a tanker has a strong cargo-management-system footprint (TMS, IG, vapour recovery), a container ship has a stowage-plan footprint, a passenger ship has a strong passenger-servicing and passenger-public-network footprint — adapt expected category weight per vessel type.\n- **Multi-flag operation**: vessels operating multi-flag (rare; happens in some short-sea trades) keep one CRAR per IMO number.",
-  "grandmaExplanation": "Every ship has computers running navigation, engines, cargo, communications, and crew internet. We keep a full list of every one of these systems for every ship — what it is, who made it, and what version it runs — so we can find weak spots and prove to the regulator that nothing has been missed."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

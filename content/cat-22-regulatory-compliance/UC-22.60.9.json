@@ -61,6 +61,75 @@
   },
   "dataSources": "ECID / IRS / FMS RAIM warning events (sourcetype `gnss:raim`), navigation position-jump events (`gnss:spoof`), ACARS routine position reports (`acars:audit`), per-region GNSS interference baseline KV Store `do355a_gnss_interference_baseline_lookup`, OPSGROUP CZIB feed (`opsgroup:czib:feed`), EASA Conflict Zone Information Bulletin feed (`easa:czib:feed`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "index=aero_gnss sourcetype IN (\"gnss:raim\", \"gnss:spoof\")\n| bucket _time span=10m\n| lookup do355a_gnss_interference_baseline_lookup geo_region OUTPUT baseline_raim_per_hour\n| stats sum(raim_warning) AS raim_warning_count max(position_jump_distance_nm) AS position_jump_distance_nm dc(tail_number) AS fleet_correlated_loss_count values(flight_number) AS flight_numbers latest(geo_region) AS geo_region latest(baseline_raim_per_hour) AS baseline_raim_per_hour by tail_number _time\n| eval raim_excess_over_baseline = case(isnotnull(baseline_raim_per_hour) AND baseline_raim_per_hour > 0, round((raim_warning_count * 6) / baseline_raim_per_hour, 2), 1=1, null)\n| eval risk_score = case(\n    position_jump_distance_nm > 5 AND fleet_correlated_loss_count >= 3, 100,\n    position_jump_distance_nm > 5, 90,\n    raim_warning_count >= 10 AND fleet_correlated_loss_count >= 3, 95,\n    raim_warning_count >= 10, 85,\n    raim_excess_over_baseline >= 5, 75,\n    fleet_correlated_loss_count >= 3 AND raim_warning_count >= 3, 70,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -_time\n| table _time tail_number flight_numbers geo_region raim_warning_count position_jump_distance_nm fleet_correlated_loss_count raim_excess_over_baseline severity risk_score",
+  "description": "Joins RAIM warning events and position-jump events with the per-region baseline and the OPSGROUP / EASA CZIB feed, then computes per-tail and fleet-correlated risk scores. Designed to detect both lone-tail GPS spoofing events (e.g. landing-approach spoofing) and regional-scale jamming campaigns (Eastern Mediterranean 2023+, Baltic 2024+).",
+  "value": "GPS spoofing of civil aircraft is no longer hypothetical - the OPSGROUP-tracked spoofing events in Eastern Mediterranean (Sep 2023+), Black Sea (Mar 2022+), Eastern Europe (Feb 2024+), and Middle East (Oct 2024+) have caused multiple operators to declare emergencies, divert flights, and (in one documented case) accept unintended waypoints. This UC closes the operator detection gap and feeds the EASA Conflict Zone Information Bulletin notification process under Part-IS IS.OR.230.",
+  "implementation": "(1) Configure ECID / Aircraft Condition Monitoring (ACMS, FOQA) to forward RAIM warning events to Splunk. (2) Configure the FMS performance log forwarder to emit position-jump events when distance between consecutive reported positions exceeds an absolute or relative threshold. (3) Populate `do355a_gnss_interference_baseline_lookup` with per-region baseline RAIM rates (study OPSGROUP advisories). (4) Schedule UC-22.60.9 every 10 minutes; route `risk_score >= 90` at severity P1, `risk_score 70-89` at severity P2. (5) Build the `GNSS Spoofing/Jamming Heatmap` dashboard.",
+  "visualization": "(Panel 1) Geographic heatmap of fleet RAIM warnings (last 24h). (Panel 2) Time-series of RAIM warnings per geo_region with baseline overlay. (Panel 3) Fleet-correlated events (size = tail count). (Panel 4) Position-jump events per tail.",
+  "cimModels": [
+    "Network_Traffic",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "ICAO Doc 9849 - GNSS Manual",
+      "url": "https://www.icao.int/Pages/default.aspx"
+    },
+    {
+      "title": "EUROCAE ED-114B - Minimum Operational Performance Specification for GPS Receivers Operating in the Aeronautical Radio Navigation Services",
+      "url": "https://www.eurocae.net/"
+    },
+    {
+      "title": "OPSGROUP GPS Spoofing Tracker",
+      "url": "https://ops.group/blog/"
+    },
+    {
+      "title": "EASA GPS Spoofing Safety Information Bulletin SIB 2022-02",
+      "url": "https://ad.easa.europa.eu/blob/SIB-2022-02-corrigendum-1.pdf"
+    }
+  ],
+  "knownFalsePositives": "1. **Multi-constellation receiver alert noise**: GPS+GLONASS+Galileo receivers may issue more RAIM advisories than legacy GPS-only receivers; baseline per receiver type. 2. **Departure/Approach near known interference site**: military training ranges with NOTAM'd GPS interference may cause expected RAIM warnings; tag NOTAM regions and adjust threshold. 3. **Inertial alignment drift on long-haul flight**: position-jump-like events after long inertial-only cruise; correlate with IRS performance metrics.\n\n**Suppression mechanism**: KV Store `do326a_22_60_9_exceptions` with the Chief Pilot + CISO documented approval.",
+  "mitreAttack": [
+    "T1565",
+    "T1499"
+  ],
+  "requiredFields": [
+    "tail_number",
+    "geo_region",
+    "raim_warning_count",
+    "position_jump_distance_nm",
+    "risk_score"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cybervision",
+    "splunk-es",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision",
+    "Collins Aerospace ACARS Management Unit",
+    "Garmin ADS-B receiver (general aviation cross-reference)",
+    "Honeywell ACMS (Aircraft Condition Monitoring System)",
+    "Splunk ES 7.x",
+    "Splunk Edge Hub"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Aviation Cybersecurity SME Panel + Chief Pilot + Director of Operations + CISO",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 and UC-22.60.2 in production.\n- ECID / FOQA / ACMS pipeline emitting RAIM warning events.\n- KV Store `do355a_gnss_interference_baseline_lookup` populated by OPSGROUP / EASA advisory study.\n\n## Step 1 - Region tagging\n\nProvide a geofencing macro that maps lat/lon to geo_region (e.g. `eastern-mediterranean`, `baltic`, `black-sea`, `iranian-airspace`, `north-korean-border`). Refresh with OPSGROUP advisories.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.9: GNSS Spoofing/Jamming Detection]\ncron_schedule = */10 * * * *\ndispatch.earliest_time = -20m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.9,reg=DO-326A,clause=DO-326A-s3-2\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 90`** (owner: OCC + Chief Pilot + CISO, severity P1): Within 5 minutes, the OCC contacts the affected flight crew via VHF or HF voice and verifies the situation; offers a re-route suggestion that avoids the interference region; within 1 hour, the operator's safety reporting line is updated; within 24 hours, the NCA / EASA / FAA is notified under Part-IS IS.OR.230 (where applicable).\n\n**`risk_score 70-89`** (owner: SOC + Flight Ops, severity P2): Within 30 minutes, fleet planning is alerted to consider routing changes for the next 24-48 hours.\n\n## Step 4 - Aviation-specific notes\n\n- **Departure/arrival sensitivity**: GNSS spoofing during departure or arrival (when on autopilot following an instrument approach) is the highest-risk; weight the score by flight_phase.\n- **EASA SIB alignment**: EASA Safety Information Bulletins on GPS spoofing should be ingested as authoritative threat-feed; alert when SIB region matches fleet activity.\n- **Multi-frequency GNSS**: triple-frequency (L1/L2/L5) receivers can detect spoofing better than legacy receivers; differentiate `receiver_capability`.",
+  "grandmaExplanation": "GPS tells aircraft where they are. Someone with the right radio can fake a GPS signal and trick the aircraft. We watch the GPS warnings from our fleet for groups of warnings in the same area - so when GPS is being spoofed somewhere, we warn our crews quickly and route around it.",
+  "prerequisiteUseCases": [
+    "UC-22.60.1",
+    "UC-22.60.2"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -91,73 +160,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "index=aero_gnss sourcetype IN (\"gnss:raim\", \"gnss:spoof\")\n| bucket _time span=10m\n| lookup do355a_gnss_interference_baseline_lookup geo_region OUTPUT baseline_raim_per_hour\n| stats sum(raim_warning) AS raim_warning_count max(position_jump_distance_nm) AS position_jump_distance_nm dc(tail_number) AS fleet_correlated_loss_count values(flight_number) AS flight_numbers latest(geo_region) AS geo_region latest(baseline_raim_per_hour) AS baseline_raim_per_hour by tail_number _time\n| eval raim_excess_over_baseline = case(isnotnull(baseline_raim_per_hour) AND baseline_raim_per_hour > 0, round((raim_warning_count * 6) / baseline_raim_per_hour, 2), 1=1, null)\n| eval risk_score = case(\n    position_jump_distance_nm > 5 AND fleet_correlated_loss_count >= 3, 100,\n    position_jump_distance_nm > 5, 90,\n    raim_warning_count >= 10 AND fleet_correlated_loss_count >= 3, 95,\n    raim_warning_count >= 10, 85,\n    raim_excess_over_baseline >= 5, 75,\n    fleet_correlated_loss_count >= 3 AND raim_warning_count >= 3, 70,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -_time\n| table _time tail_number flight_numbers geo_region raim_warning_count position_jump_distance_nm fleet_correlated_loss_count raim_excess_over_baseline severity risk_score",
-  "description": "Joins RAIM warning events and position-jump events with the per-region baseline and the OPSGROUP / EASA CZIB feed, then computes per-tail and fleet-correlated risk scores. Designed to detect both lone-tail GPS spoofing events (e.g. landing-approach spoofing) and regional-scale jamming campaigns (Eastern Mediterranean 2023+, Baltic 2024+).",
-  "value": "GPS spoofing of civil aircraft is no longer hypothetical - the OPSGROUP-tracked spoofing events in Eastern Mediterranean (Sep 2023+), Black Sea (Mar 2022+), Eastern Europe (Feb 2024+), and Middle East (Oct 2024+) have caused multiple operators to declare emergencies, divert flights, and (in one documented case) accept unintended waypoints. This UC closes the operator detection gap and feeds the EASA Conflict Zone Information Bulletin notification process under Part-IS IS.OR.230.",
-  "implementation": "(1) Configure ECID / Aircraft Condition Monitoring (ACMS, FOQA) to forward RAIM warning events to Splunk. (2) Configure the FMS performance log forwarder to emit position-jump events when distance between consecutive reported positions exceeds an absolute or relative threshold. (3) Populate `do355a_gnss_interference_baseline_lookup` with per-region baseline RAIM rates (study OPSGROUP advisories). (4) Schedule UC-22.60.9 every 10 minutes; route `risk_score >= 90` at severity P1, `risk_score 70-89` at severity P2. (5) Build the `GNSS Spoofing/Jamming Heatmap` dashboard.",
-  "visualization": "(Panel 1) Geographic heatmap of fleet RAIM warnings (last 24h). (Panel 2) Time-series of RAIM warnings per geo_region with baseline overlay. (Panel 3) Fleet-correlated events (size = tail count). (Panel 4) Position-jump events per tail.",
-  "cimModels": [
-    "Network_Traffic",
-    "Alerts"
-  ],
-  "references": [
-    {
-      "title": "ICAO Doc 9849 - GNSS Manual",
-      "url": "https://www.icao.int/Pages/default.aspx"
-    },
-    {
-      "title": "EUROCAE ED-114B - Minimum Operational Performance Specification for GPS Receivers Operating in the Aeronautical Radio Navigation Services",
-      "url": "https://www.eurocae.net/"
-    },
-    {
-      "title": "OPSGROUP GPS Spoofing Tracker",
-      "url": "https://ops.group/blog/"
-    },
-    {
-      "title": "EASA GPS Spoofing Safety Information Bulletin SIB 2022-02",
-      "url": "https://ad.easa.europa.eu/blob/SIB-2022-02-corrigendum-1.pdf"
-    }
-  ],
-  "knownFalsePositives": "1. **Multi-constellation receiver alert noise**: GPS+GLONASS+Galileo receivers may issue more RAIM advisories than legacy GPS-only receivers; baseline per receiver type. 2. **Departure/Approach near known interference site**: military training ranges with NOTAM'd GPS interference may cause expected RAIM warnings; tag NOTAM regions and adjust threshold. 3. **Inertial alignment drift on long-haul flight**: position-jump-like events after long inertial-only cruise; correlate with IRS performance metrics.\n\n**Suppression mechanism**: KV Store `do326a_22_60_9_exceptions` with the Chief Pilot + CISO documented approval.",
-  "requiredFields": [
-    "tail_number",
-    "geo_region",
-    "raim_warning_count",
-    "position_jump_distance_nm",
-    "risk_score"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Aviation Cybersecurity SME Panel + Chief Pilot + Director of Operations + CISO",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "cisco-cybervision",
-    "splunk-stream"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Honeywell ACMS (Aircraft Condition Monitoring System)",
-    "Collins Aerospace ACARS Management Unit",
-    "Garmin ADS-B receiver (general aviation cross-reference)",
-    "Cisco Cyber Vision",
-    "Splunk Edge Hub"
-  ],
-  "mitreAttack": [
-    "T1565",
-    "T1499"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.60.1",
-    "UC-22.60.2"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 and UC-22.60.2 in production.\n- ECID / FOQA / ACMS pipeline emitting RAIM warning events.\n- KV Store `do355a_gnss_interference_baseline_lookup` populated by OPSGROUP / EASA advisory study.\n\n## Step 1 - Region tagging\n\nProvide a geofencing macro that maps lat/lon to geo_region (e.g. `eastern-mediterranean`, `baltic`, `black-sea`, `iranian-airspace`, `north-korean-border`). Refresh with OPSGROUP advisories.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.9: GNSS Spoofing/Jamming Detection]\ncron_schedule = */10 * * * *\ndispatch.earliest_time = -20m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.9,reg=DO-326A,clause=DO-326A-s3-2\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 90`** (owner: OCC + Chief Pilot + CISO, severity P1): Within 5 minutes, the OCC contacts the affected flight crew via VHF or HF voice and verifies the situation; offers a re-route suggestion that avoids the interference region; within 1 hour, the operator's safety reporting line is updated; within 24 hours, the NCA / EASA / FAA is notified under Part-IS IS.OR.230 (where applicable).\n\n**`risk_score 70-89`** (owner: SOC + Flight Ops, severity P2): Within 30 minutes, fleet planning is alerted to consider routing changes for the next 24-48 hours.\n\n## Step 4 - Aviation-specific notes\n\n- **Departure/arrival sensitivity**: GNSS spoofing during departure or arrival (when on autopilot following an instrument approach) is the highest-risk; weight the score by flight_phase.\n- **EASA SIB alignment**: EASA Safety Information Bulletins on GPS spoofing should be ingested as authoritative threat-feed; alert when SIB region matches fleet activity.\n- **Multi-frequency GNSS**: triple-frequency (L1/L2/L5) receivers can detect spoofing better than legacy receivers; differentiate `receiver_capability`.",
-  "grandmaExplanation": "GPS tells aircraft where they are. Someone with the right radio can fake a GPS signal and trick the aircraft. We watch the GPS warnings from our fleet for groups of warnings in the same area - so when GPS is being spoofed somewhere, we warn our crews quickly and route around it."
+  "wave": "run"
 }

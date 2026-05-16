@@ -35,18 +35,6 @@
   },
   "dataSources": "SCADA historian (setpoint tags), PLC engineering-workstation programming log, SCADA work-permit log, operator-acknowledgement log, online residual analyser feeds.",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=scada sourcetype IN (osisoft:pi:setpoint_change, wonderware:setpoint_change, plc:engr_workstation:program_download) earliest=-1m@m\n| eval chemical = lower(coalesce(chemical, dosing_chemical))\n| where chemical IN (\"chlorine\",\"sodium_hypochlorite\",\"fluoride\",\"hydrofluosilicic_acid\",\"polymer\",\"coagulant\",\"lime\",\"sodium_hydroxide\",\"soda_ash\")\n| eval setpoint_change_delta = abs(dosing_setpoint - prior_setpoint)\n| eval setpoint_change_pct = if(prior_setpoint > 0, round((setpoint_change_delta / prior_setpoint) * 100, 1), null())\n| join type=left pwsid plant_id chemical [search index=scada sourcetype=scada:work_permit earliest=-15m@m | stats latest(authoriser_id) as authoriser_id latest(co_authoriser_id) as co_authoriser_id latest(permit_id) as permit_id by pwsid plant_id chemical]\n| lookup dosing_controller_authority_lookup pwsid plant_id chemical OUTPUT controller_id controller_authorised\n| eval dual_authorisation = if(isnotnull(authoriser_id) AND isnotnull(co_authoriser_id), \"true\", \"false\")\n| eval integrity_status = case(\n    change_by IN (controller_id) AND controller_authorised=\"true\", \"authorised_controller_change\",\n    setpoint_change_pct > 50 AND dual_authorisation=\"false\", \"unauthorised_large_setpoint_change\",\n    dual_authorisation=\"false\", \"unauthorised_setpoint_change\",\n    isnull(permit_id), \"no_work_permit\",\n    1=1, \"authorised\")\n| where integrity_status != \"authorised\"\n| table pwsid plant_id chemical dosing_pump dosing_target dosing_setpoint prior_setpoint setpoint_change_delta setpoint_change_pct change_at change_by authoriser_id co_authoriser_id permit_id dual_authorisation integrity_status",
   "description": "Detects PLC dosing-setpoint changes that lack the AWIA-expected dual-authorisation, are above the change-percentage threshold, or are by an unrecognised actor. Cross-references PLC engineering-workstation downloads (a high-impact attack vector).",
   "value": "AWIA's Baseline cyber threat list calls out chemical-dosing manipulation. EPA / WaterISAC / CISA have published water-sector intrusions where an attacker raised chlorine to dangerous levels via SCADA. This UC catches the change at the SCADA event, not after the public-health incident.",
@@ -75,6 +63,11 @@
     }
   ],
   "knownFalsePositives": "1. **Validated optimisation controller** — algorithmic dosing controller has scheduled authority. Mitigation: `dosing_controller_authority_lookup` whitelists `change_by` with `controller_authorised=true`.\n\n2. **Emergency response setpoint change** — a chlorination emergency may require rapid increase; dual-authorisation must still occur, even if rapid.\n\n3. **Setpoint creep below 1%** — fine-tuning by an operator may produce many small changes; threshold filters small changes.\n\n**Suppression mechanism**: `dosing_setpoint_exception_lookup` keyed (pwsid, plant_id, chemical, expires_at) with max 4h grant; Plant Manager + OT Cybersecurity Lead joint sign-off.",
+  "mitreAttack": [
+    "T0809",
+    "T0858",
+    "T0863"
+  ],
   "requiredFields": [
     "pwsid",
     "plant_id",
@@ -85,33 +78,40 @@
     "dual_authorisation",
     "integrity_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "osisoft-pi",
     "splunk-es"
   ],
   "equipmentModels": [
     "OSIsoft / AVEVA PI System (setpoint historian)",
-    "Wonderware / AVEVA System Platform (HMI work-permit)",
     "Rockwell / Siemens / Schneider PLC engineering-workstation logs",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Wonderware / AVEVA System Platform (HMI work-permit)"
   ],
-  "mitreAttack": [
-    "T0809",
-    "T0858",
-    "T0863"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.8 and UC-22.53.9 deployed.\n- Splunk ES.\n- SCADA historian + PLC engineering-workstation logging onboarded.\n- Indexes `index=scada`, `index=audit_evidence`.\n- Lookups `dosing_controller_authority_lookup`, `dosing_setpoint_exception_lookup`.\n\n## Step 1 — Configure data collection\n\n**SCADA setpoint stream**: capture every setpoint write to dosing pumps with `change_at`, `change_by`, `prior_setpoint`, `dosing_setpoint`, `chemical`. Sourcetype `osisoft:pi:setpoint_change` or vendor analogue.\n\n**Work-permit log**: SCADA work-permit module emits `permit_id`, `authoriser_id`, `co_authoriser_id`, `chemical`, `valid_from`, `valid_to`. Sourcetype `scada:work_permit`.\n\n**PLC programming download**: PLC engineering-workstation logs (Rockwell FactoryTalk Activation, Siemens TIA Portal logging, Schneider EcoStruxure) emit a program-download event including `download_by`, `download_at`, `target_plc`. Sourcetype `plc:engr_workstation:program_download`. CISA's water-sector advisories highlight engineering-workstation compromise as the primary vector for chemical-dosing attacks.\n\n## Step 2 — Create the search and alert\n\nSchedule every minute.\n\n```ini\n[UC-22.53.10: AWIA Chemical Dosing Integrity]\ncron_schedule = */1 * * * *\ndispatch.earliest_time = -1m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.10,reg=AWIA,clause=AWIA-RRA-chemicals\naction.notable.param.rule_title = AWIA Chemical Dosing Integrity alert\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 5m\nalert.suppress.fields = pwsid,plant_id,chemical\n```\n\n## Step 3 — Validate deployment\n\n**(a) Unauthorised change**: issue chlorine setpoint change without work permit; UC fires P1.\n\n**(b) Authorised change**: issue with permit + dual sign; UC clears.\n\n**(c) Controller change**: documented optimisation controller; UC records `authorised_controller_change`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Chemical Dosing Integrity`.\n\n**Runbook for `unauthorised_setpoint_change`** / `unauthorised_large_setpoint_change` (P1, OT Cybersecurity Lead + Treatment Ops Lead + Plant Manager):\n\n- Within 5 minutes: confirm change source; if unauthorised, revert setpoint, isolate the engineering-workstation, manually verify downstream residual, escalate to incident response.\n- Within 1 hour: customer-protection assessment (do not deliver water that may be over-dosed / under-dosed).\n- Within 4 hours: WaterISAC report, EPA Regional WPC notification, CISA notification per UC-22.53.16.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Florida February 2021 incident pattern**: an attacker raised sodium hydroxide via TeamViewer-style remote access to the HMI. This UC catches the HMI-originated setpoint change; UC-22.53.21 (MFA remote access) catches the access vector.\n- **PLC programming download**: a program download to a dosing PLC can alter the dosing algorithm (not just the setpoint). The search includes `plc:engr_workstation:program_download` to catch this.\n- **Cascading downstream**: a chlorine setpoint change at the plant propagates through the distribution system over hours; cross-correlate with UC-22.53.9 (residual analysers at distribution nodes).\n- **Operator dual-authorisation absent at small utility**: small utilities with one operator on shift cannot dual-authorise in real time. Mitigation: 'dual-authorisation' is satisfied by post-hoc supervisor acknowledgement within 1 hour, recorded in `scada:work_permit` with `co_authorisation_method=\"post_hoc\"`.",
+  "grandmaExplanation": "Treatment chemicals like chlorine keep the water safe but too much or too little can hurt people. We watch every setpoint change at the chemical pumps; if anyone changes a dose without the two-person sign-off, we ring the bell immediately.",
   "prerequisiteUseCases": [
     "UC-22.53.8",
     "UC-22.53.9"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.8 and UC-22.53.9 deployed.\n- Splunk ES.\n- SCADA historian + PLC engineering-workstation logging onboarded.\n- Indexes `index=scada`, `index=audit_evidence`.\n- Lookups `dosing_controller_authority_lookup`, `dosing_setpoint_exception_lookup`.\n\n## Step 1 — Configure data collection\n\n**SCADA setpoint stream**: capture every setpoint write to dosing pumps with `change_at`, `change_by`, `prior_setpoint`, `dosing_setpoint`, `chemical`. Sourcetype `osisoft:pi:setpoint_change` or vendor analogue.\n\n**Work-permit log**: SCADA work-permit module emits `permit_id`, `authoriser_id`, `co_authoriser_id`, `chemical`, `valid_from`, `valid_to`. Sourcetype `scada:work_permit`.\n\n**PLC programming download**: PLC engineering-workstation logs (Rockwell FactoryTalk Activation, Siemens TIA Portal logging, Schneider EcoStruxure) emit a program-download event including `download_by`, `download_at`, `target_plc`. Sourcetype `plc:engr_workstation:program_download`. CISA's water-sector advisories highlight engineering-workstation compromise as the primary vector for chemical-dosing attacks.\n\n## Step 2 — Create the search and alert\n\nSchedule every minute.\n\n```ini\n[UC-22.53.10: AWIA Chemical Dosing Integrity]\ncron_schedule = */1 * * * *\ndispatch.earliest_time = -1m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.10,reg=AWIA,clause=AWIA-RRA-chemicals\naction.notable.param.rule_title = AWIA Chemical Dosing Integrity alert\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 5m\nalert.suppress.fields = pwsid,plant_id,chemical\n```\n\n## Step 3 — Validate deployment\n\n**(a) Unauthorised change**: issue chlorine setpoint change without work permit; UC fires P1.\n\n**(b) Authorised change**: issue with permit + dual sign; UC clears.\n\n**(c) Controller change**: documented optimisation controller; UC records `authorised_controller_change`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Chemical Dosing Integrity`.\n\n**Runbook for `unauthorised_setpoint_change`** / `unauthorised_large_setpoint_change` (P1, OT Cybersecurity Lead + Treatment Ops Lead + Plant Manager):\n\n- Within 5 minutes: confirm change source; if unauthorised, revert setpoint, isolate the engineering-workstation, manually verify downstream residual, escalate to incident response.\n- Within 1 hour: customer-protection assessment (do not deliver water that may be over-dosed / under-dosed).\n- Within 4 hours: WaterISAC report, EPA Regional WPC notification, CISA notification per UC-22.53.16.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Florida February 2021 incident pattern**: an attacker raised sodium hydroxide via TeamViewer-style remote access to the HMI. This UC catches the HMI-originated setpoint change; UC-22.53.21 (MFA remote access) catches the access vector.\n- **PLC programming download**: a program download to a dosing PLC can alter the dosing algorithm (not just the setpoint). The search includes `plc:engr_workstation:program_download` to catch this.\n- **Cascading downstream**: a chlorine setpoint change at the plant propagates through the distribution system over hours; cross-correlate with UC-22.53.9 (residual analysers at distribution nodes).\n- **Operator dual-authorisation absent at small utility**: small utilities with one operator on shift cannot dual-authorise in real time. Mitigation: 'dual-authorisation' is satisfied by post-hoc supervisor acknowledgement within 1 hour, recorded in `scada:work_permit` with `co_authorisation_method=\"post_hoc\"`.",
-  "grandmaExplanation": "Treatment chemicals like chlorine keep the water safe but too much or too little can hurt people. We watch every setpoint change at the chemical pumps; if anyone changes a dose without the two-person sign-off, we ring the bell immediately."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

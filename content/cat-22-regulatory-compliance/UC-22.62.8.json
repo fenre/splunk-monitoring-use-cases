@@ -48,33 +48,6 @@
   },
   "dataSources": "ServiceNow SIR tickets with `spdi_class` field. HEC `hec:dpb:reporting:submission` (DPB-India filing acknowledgements). KV Store `dpdp_spdi_taxonomy_lookup` (spdi_class, severity_default, statutory_route). KV Store `dpdp_data_principal_notification_lookup` (incident_id, notification_method, sent_at, ack_count).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 5664), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 5664,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/5664",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=servicenow_sir sourcetype=\"snow:incident\" spdi_class=*\n| eval breach_noticed_at = strptime(opened_at, \"%Y-%m-%d %H:%M:%S\")\n| eval seventy_two_hour_deadline = breach_noticed_at + (72 * 3600)\n| eval now_ts = now()\n| join type=left number [\n    search index=summary source=hec:dpb:reporting:submission earliest=-30d\n    | stats latest(_time) as dpb_submitted_at, latest(dpb_ack_id) as dpb_submission_evidence_ref, latest(submission_status) as dpb_submission_status by incident_id\n    | rename incident_id as number\n  ]\n| join type=left number [\n    | inputlookup dpdp_data_principal_notification_lookup\n    | stats latest(sent_at) as data_principal_notified_at, latest(notification_method) as notification_method, latest(ack_count) as data_principal_ack_count by incident_id\n    | rename incident_id as number\n  ]\n| eval dpb_submission_age_hours = case(\n    isnotnull(dpb_submitted_at), round((dpb_submitted_at - breach_noticed_at) / 3600, 1),\n    1=1, round((now_ts - breach_noticed_at) / 3600, 1))\n| eval data_principal_age_hours = case(\n    isnotnull(data_principal_notified_at), round((data_principal_notified_at - breach_noticed_at) / 3600, 1),\n    1=1, round((now_ts - breach_noticed_at) / 3600, 1))\n| eval dpb_clock_status = case(\n    isnotnull(dpb_submitted_at) AND dpb_submitted_at <= seventy_two_hour_deadline AND dpb_submission_status = \"acknowledged\", \"on_time\",\n    isnotnull(dpb_submitted_at) AND dpb_submitted_at > seventy_two_hour_deadline, \"late\",\n    isnull(dpb_submitted_at) AND now_ts > seventy_two_hour_deadline, \"missed\",\n    1=1, \"in_window\")\n| eval data_principal_clock_status = case(\n    isnotnull(data_principal_notified_at) AND data_principal_notified_at <= seventy_two_hour_deadline, \"on_time\",\n    isnotnull(data_principal_notified_at) AND data_principal_notified_at > seventy_two_hour_deadline, \"late\",\n    isnull(data_principal_notified_at) AND now_ts > seventy_two_hour_deadline, \"missed\",\n    1=1, \"in_window\")\n| eval risk_score = case(\n    dpb_clock_status = \"missed\", 100,\n    dpb_clock_status = \"late\", 95,\n    data_principal_clock_status = \"missed\", 90,\n    data_principal_clock_status = \"late\", 80,\n    dpb_clock_status = \"in_window\" AND (seventy_two_hour_deadline - now_ts) / 3600 < 12, 70,\n    dpb_clock_status = \"in_window\" AND (seventy_two_hour_deadline - now_ts) / 3600 < 24, 50,\n    dpb_clock_status = \"on_time\" AND data_principal_clock_status = \"on_time\", 0,\n    1=1, 30)\n| where risk_score > 0\n| sort 0 -risk_score, +dpb_submission_age_hours\n| table number spdi_class affected_data_subjects breach_noticed_at dpb_submitted_at dpb_submission_age_hours data_principal_notified_at data_principal_age_hours dpb_clock_status data_principal_clock_status risk_score",
   "description": "Reconciles every SPDI / personal-data breach ticket against two parallel 72-hour clocks: (i) submission to the Data Protection Board of India with an acknowledgement and (ii) notification to affected Data Principals. Risk-scores escalate proactively from 50 (24 hours remaining) to 70 (12 hours remaining) to 95 (late) to 100 (missed). The data-principal limb is tracked independently because DPDP §8(6) requires both notifications.",
   "value": "DPDP §8(6) is the breach-notification clause that will replace the historical §43A 'reasonable security practices' baseline as DPDP Rules are notified. The Data Protection Board of India is empowered to impose financial penalties up to INR 250 crore (~USD 30 million) for failure to take 'reasonable security safeguards to prevent personal data breach' (DPDP Schedule + §33). A breach detected late or not notified within 72 hours is the single largest practical exposure for an Indian-jurisdiction Data Fiduciary. Parallel running of the 72-hour DPB-India clock and the CERT-In 6-hour clock (UC-22.62.1) is a common operational requirement.",
@@ -103,6 +76,10 @@
     }
   ],
   "knownFalsePositives": "1. **Final-DPDP-Rules notification window**: until the DPDP Rules are finalised, the 72-hour clock is a draft-consultation figure — treat the alert as advisory until the gazette-notified Rules confirm the timing; once final, switch to enforcement mode. 2. **Sectoral-regulator overlap**: a breach reported to RBI (banking-sector) or IRDAI (insurance) under the sectoral regulator's breach-notification regime may be deemed compliant with DPDP §8(6) — load `sectoral_filing_ref` and `dpb_filing_substituted = true`. 3. **Cross-border data principal**: if the affected data principal is outside the territorial scope of DPDP, the data-principal notification may not be required — load `extra_territorial_attestation_ref`.\n\n**Suppression mechanism**: KV Store `dpdp_22_62_8_exceptions` with the DPO + General Counsel documented approval, an explicit incident_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1530",
+    "T1567"
+  ],
   "requiredFields": [
     "number",
     "spdi_class",
@@ -110,32 +87,55 @@
     "dpb_submission_evidence_ref",
     "risk_score"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "DPO + General Counsel + Board CRO + Indian Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk SOAR 6.x",
-    "ServiceNow SIR (Vancouver / Washington / Xanadu)"
-  ],
-  "mitreAttack": [
-    "T1530",
-    "T1567"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- ServiceNow Security Incident Response (SIR) integrated with Splunk via Splunk Add-on for ServiceNow.\n- Splunk SOAR available for parallel CERT-In + DPB-India filing.\n- DPO + General Counsel sign-off on the data-principal notification template.\n\n## Step 1 - SPDI taxonomy KV Store\n\n```ini\n[dpdp_spdi_taxonomy_lookup]\nenforceTypes = true\nfield.spdi_class = string\nfield.severity_default = string\nfield.statutory_route = string\nfield.example_data_types = string\n```\n\nSeed entries reflecting IT Rules 2011 Rule 3 SPDI categories: passwords; financial information (bank account / credit-card / debit-card details); physical, physiological and mental health condition; sexual orientation; medical records and history; biometric information; any details provided to a body corporate as a service contract; any details received by a body corporate for processing or storage under a lawful contract or otherwise.\n\n## Step 2 - SOAR playbook (parallel CERT-In + DPB-India)\n\n- Trigger: new ServiceNow SIR ticket with `spdi_class` set.\n- Action 1: parallel-run UC-22.62.1's CERT-In 6-hour playbook.\n- Action 2: queue the DPB-India 72-hour playbook with a 71-hour deadline reminder.\n- Action 3: prepare the data-principal-notification draft for DPO approval.\n- Action 4: dispatch on DPO approval and HEC the receipts to `hec:dpb:reporting:submission` and to `dpdp_data_principal_notification_lookup`.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.8: DPDP 72-hour Clock]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.8,reg=CERT-In,clause=IT-Act-Sec-43A\nalert.severity = 5\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **DPB-India operational stand-up**: the Data Protection Board of India is being stood up by MeitY through 2025-2026; until operational, breach notifications may be made to MeitY in interim — keep `statutory_route` reflective of the live channel.\n- **Cross-border parent group**: a breach impacting both Indian + non-Indian data principals may require parallel notifications to multiple regulators (DPB-India + GDPR EDPB + others) — UC-22.62.8 is the Indian limb.",
+  "grandmaExplanation": "Indian law gives 72 hours to report personal-data breaches to both the data-protection board and to the people affected. We watch the clock on every breach involving Indian personal data, send the right notifications, and keep proof that it was done in time.",
   "prerequisiteUseCases": [
     "UC-22.62.1",
     "UC-22.62.7"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- ServiceNow Security Incident Response (SIR) integrated with Splunk via Splunk Add-on for ServiceNow.\n- Splunk SOAR available for parallel CERT-In + DPB-India filing.\n- DPO + General Counsel sign-off on the data-principal notification template.\n\n## Step 1 - SPDI taxonomy KV Store\n\n```ini\n[dpdp_spdi_taxonomy_lookup]\nenforceTypes = true\nfield.spdi_class = string\nfield.severity_default = string\nfield.statutory_route = string\nfield.example_data_types = string\n```\n\nSeed entries reflecting IT Rules 2011 Rule 3 SPDI categories: passwords; financial information (bank account / credit-card / debit-card details); physical, physiological and mental health condition; sexual orientation; medical records and history; biometric information; any details provided to a body corporate as a service contract; any details received by a body corporate for processing or storage under a lawful contract or otherwise.\n\n## Step 2 - SOAR playbook (parallel CERT-In + DPB-India)\n\n- Trigger: new ServiceNow SIR ticket with `spdi_class` set.\n- Action 1: parallel-run UC-22.62.1's CERT-In 6-hour playbook.\n- Action 2: queue the DPB-India 72-hour playbook with a 71-hour deadline reminder.\n- Action 3: prepare the data-principal-notification draft for DPO approval.\n- Action 4: dispatch on DPO approval and HEC the receipts to `hec:dpb:reporting:submission` and to `dpdp_data_principal_notification_lookup`.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.8: DPDP 72-hour Clock]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.8,reg=CERT-In,clause=IT-Act-Sec-43A\nalert.severity = 5\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **DPB-India operational stand-up**: the Data Protection Board of India is being stood up by MeitY through 2025-2026; until operational, breach notifications may be made to MeitY in interim — keep `statutory_route` reflective of the live channel.\n- **Cross-border parent group**: a breach impacting both Indian + non-Indian data principals may require parallel notifications to multiple regulators (DPB-India + GDPR EDPB + others) — UC-22.62.8 is the Indian limb.",
-  "grandmaExplanation": "Indian law gives 72 hours to report personal-data breaches to both the data-protection board and to the people affected. We watch the clock on every breach involving Indian personal data, send the right notifications, and keep proof that it was done in time."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5664,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/5664",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -61,32 +61,6 @@
   },
   "dataSources": "CASB / SASE egress events (`casb:dlp:event`, `sase:egress:event`), Palo Alto Networks firewall egress (`pan:traffic`), proxy/SWG logs (`bluecoat:proxy`, `zscaler:proxy`), DLP classification labels (`mscs:purview:label`, `varonis:classification`). KV Store `cn_cbdt_approval_lookup` (approval_id, basis_type, source_system, destination_country, data_classification, approval_ref, valid_from, valid_until). KV Store `cn_ciio_designation_lookup` (UC-22.61.2 register). KV Store `cn_important_data_catalog_lookup` (UC-22.61.5 catalogue).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 2757,
-      "name": "Splunk Add-on for Palo Alto Networks",
-      "url": "https://splunkbase.splunk.com/app/2757",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=network_egress (sourcetype=pan:traffic OR sourcetype=casb:dlp:event OR sourcetype=sase:egress:event) destination_country!=CN\n| eval payload_bytes = coalesce(bytes_out, payload_size, 0)\n| where payload_bytes > 0\n| eval source_system = coalesce(source_system, src_host, src_ip)\n| lookup cn_ciio_designation_lookup source_system OUTPUT designation_id designation_scope sectoral_department\n| where isnotnull(designation_id)\n| lookup cn_important_data_catalog_lookup source_system OUTPUT important_data_present important_data_tier\n| eval data_classification = coalesce(dlp_classification, important_data_tier, \"unknown\")\n| where data_classification IN (\"personal_information\",\"sensitive_personal_information\",\"important_data\",\"core_data\")\n| lookup cn_cbdt_approval_lookup source_system destination_country data_classification OUTPUT approval_id basis_type approval_ref valid_from valid_until\n| eval now_ts = now()\n| eval egress_basis = case(\n    isnotnull(approval_id) AND valid_from <= now_ts AND valid_until > now_ts, \"approved\",\n    isnotnull(approval_id) AND valid_until <= now_ts, \"expired-approval\",\n    1=1, \"unauthorised\")\n| eval risk_score = case(\n    egress_basis = \"unauthorised\" AND data_classification = \"core_data\", 100,\n    egress_basis = \"unauthorised\" AND data_classification IN (\"important_data\",\"sensitive_personal_information\"), 95,\n    egress_basis = \"unauthorised\" AND data_classification = \"personal_information\" AND payload_bytes > 1000000, 90,\n    egress_basis = \"unauthorised\" AND data_classification = \"personal_information\", 75,\n    egress_basis = \"expired-approval\", 70,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -payload_bytes\n| table _time source_system destination_country data_classification payload_bytes egress_basis approval_ref designation_id sectoral_department risk_score",
   "description": "Detects every outbound network flow from a CIIO-designated source system to a non-PRC destination, classifies the payload using DLP labels + the Important Data Catalogue, and joins to the CAC Cross-Border Approval register. Any flow carrying personal information, sensitive personal information, important data, or core data that lacks a matching active approval is flagged in real time. Expired approvals trigger a separate alert tier so that approval renewal is surfaced before the lapse becomes a violation.",
   "value": "CSL Art. 37 + PIPL Art. 38 cross-border violations are among the highest-penalty CSL provisions — PIPL Art. 66 sets a ceiling of RMB 50 million or 5% of prior-year turnover, plus personal fines on the responsible person of RMB 100,000 - 1,000,000, plus potential business-licence revocation. The CAC has imposed multi-billion-RMB penalties on prominent CIIO violators (e.g., the Didi Global Cybersecurity Review case 2022, RMB 8 billion). For multinational CIIOs, every unauthorised cross-border flow is a regulator-discoverable liability with potential criminal exposure under PRC Criminal Law Art. 286.",
@@ -111,6 +85,10 @@
     }
   ],
   "knownFalsePositives": "1. **FTZ Negative-List exemption**: data not on the Free Trade Zone (Shanghai / Beijing / Hainan / etc.) negative list may be transferred cross-border without security assessment; load FTZ exemptions into `cn_cbdt_approval_lookup` with `basis_type=ftz-negative-list-exempt`. 2. **Emergency situations**: PIPL Art. 38(2) allows transfer in genuine emergencies (medical, safety-of-life); document the emergency in the incident-response record. 3. **Misclassified payload**: a payload that DLP has incorrectly labelled as personal_information when it is anonymised statistics; tune the DLP rule and load `cn_cbdt_classification_overrides` exception.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_4_exceptions` with the CISO + General Counsel documented approval, an explicit destination + classification scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1567",
+    "T1041"
+  ],
   "requiredFields": [
     "source_system",
     "destination_country",
@@ -119,35 +97,62 @@
     "egress_basis",
     "risk_score"
   ],
+  "equipment": [
+    "broadcom_symantec",
+    "forcepoint",
+    "microsoft-purview",
+    "palo-alto-networks",
+    "paloalto",
+    "splunk-es",
+    "zscaler"
+  ],
+  "equipmentModels": [
+    "Microsoft Purview DLP (M365 + Azure)",
+    "Netskope SASE",
+    "Palo Alto Networks PA-Series",
+    "Splunk ES 7.x",
+    "Varonis Data Security Platform",
+    "Zscaler ZIA",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "PRC Cybersecurity SME Panel + CISO + General Counsel + DPO",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "palo-alto-networks",
-    "microsoft-purview"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Palo Alto Networks PA-Series",
-    "Microsoft Purview DLP (M365 + Azure)",
-    "Varonis Data Security Platform",
-    "Zscaler ZIA",
-    "Netskope SASE"
-  ],
-  "mitreAttack": [
-    "T1567",
-    "T1041"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment + global egress visibility).\n- DLP classification on outbound traffic (Microsoft Purview labels propagated to payloads, Varonis classification, or equivalent).\n- PAN / CASB / SASE feeding egress events with destination_country.\n- KV Store `cn_cbdt_approval_lookup` seeded from CAC approval register.\n\n## Step 1 - CBDT approval KV Store\n\n```ini\n[cn_cbdt_approval_lookup]\nenforceTypes = true\nfield.approval_id = string\nfield.basis_type = string\nfield.source_system = string\nfield.destination_country = string\nfield.data_classification = string\nfield.approval_ref = string\nfield.valid_from = time\nfield.valid_until = time\n```\n\n`basis_type` values: `cac-security-assessment`, `cac-standard-contract`, `cac-certification`, `ftz-negative-list-exempt`, `emergency-pipl-38-2`.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.4: CN CSL Cross-Border Egress Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.4,reg=CN-CSL,clause=CSL-Art-37,basis=$egress_basis$\nalert.severity = 5\n```\n\n## Step 3 - Block-on-risk-100 policy\n\nWire PAN / SASE to auto-block on egress matching `risk_score = 100` (core_data unauthorised egress) — fail-closed by default.\n\n## Step 4 - PRC-specific notes\n\n- **Anonymisation safe-harbour**: PIPL Art. 4 excludes anonymised data from the PI definition; ensure your DLP classifier respects irreversible anonymisation.\n- **Sectoral data lists**: the CAC and sectoral departments publish sector-specific Important Data Lists (e.g., automotive 2021, automotive data security regulations; cybersecurity industry 2023). Update `cn_important_data_catalog_lookup` against the relevant sectoral list.\n- **Standard Contract performance**: a filed Standard Contract requires periodic compliance review; the egress detector should also flag overdue Standard Contract reviews (load review_due_date in the approval record).",
+  "grandmaExplanation": "If a Chinese company sends customer data abroad, the government must approve it first. We watch the company's network traffic, and the moment data starts leaving China without permission, we stop it and alert the manager.",
   "prerequisiteUseCases": [
     "UC-22.61.2",
     "UC-22.61.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment + global egress visibility).\n- DLP classification on outbound traffic (Microsoft Purview labels propagated to payloads, Varonis classification, or equivalent).\n- PAN / CASB / SASE feeding egress events with destination_country.\n- KV Store `cn_cbdt_approval_lookup` seeded from CAC approval register.\n\n## Step 1 - CBDT approval KV Store\n\n```ini\n[cn_cbdt_approval_lookup]\nenforceTypes = true\nfield.approval_id = string\nfield.basis_type = string\nfield.source_system = string\nfield.destination_country = string\nfield.data_classification = string\nfield.approval_ref = string\nfield.valid_from = time\nfield.valid_until = time\n```\n\n`basis_type` values: `cac-security-assessment`, `cac-standard-contract`, `cac-certification`, `ftz-negative-list-exempt`, `emergency-pipl-38-2`.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.4: CN CSL Cross-Border Egress Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.4,reg=CN-CSL,clause=CSL-Art-37,basis=$egress_basis$\nalert.severity = 5\n```\n\n## Step 3 - Block-on-risk-100 policy\n\nWire PAN / SASE to auto-block on egress matching `risk_score = 100` (core_data unauthorised egress) — fail-closed by default.\n\n## Step 4 - PRC-specific notes\n\n- **Anonymisation safe-harbour**: PIPL Art. 4 excludes anonymised data from the PI definition; ensure your DLP classifier respects irreversible anonymisation.\n- **Sectoral data lists**: the CAC and sectoral departments publish sector-specific Important Data Lists (e.g., automotive 2021, automotive data security regulations; cybersecurity industry 2023). Update `cn_important_data_catalog_lookup` against the relevant sectoral list.\n- **Standard Contract performance**: a filed Standard Contract requires periodic compliance review; the egress detector should also flag overdue Standard Contract reviews (load review_due_date in the approval record).",
-  "grandmaExplanation": "If a Chinese company sends customer data abroad, the government must approve it first. We watch the company's network traffic, and the moment data starts leaving China without permission, we stop it and alert the manager."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

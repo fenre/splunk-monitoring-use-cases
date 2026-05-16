@@ -35,18 +35,6 @@
   },
   "dataSources": "KV Store `circia_interim_decision_lookup` populated by CISO and General Counsel sign-off. ServiceNow Policy / Standards records. Document store with signed decisions.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup circia_interim_decision_lookup\n| eval now_ts = now()\n| eval decision_status = case(\n    isnull(decision_made_at) OR isnull(decision_signed_by), \"no_active_decision\",\n    decision_made_at < (now_ts - 13 * 30 * 86400), \"decision_stale\",\n    posture_review_due_at < now_ts, \"review_overdue\",\n    1=1, \"active\")\n| where decision_status != \"active\"\n| table decision_id decision_made_at decision_signed_by voluntary_reporting_posture posture_review_due_at decision_status",
   "description": "Tracks the entity's documented voluntary-reporting decision and annual-review cadence for the pre-Final-Rule interim period.",
   "value": "An undocumented voluntary-reporting decision creates regulatory exposure if a covered incident occurs during the interim window and the entity has no record of its decision. This UC ensures a documented, signed, periodically-reviewed posture.",
@@ -66,32 +54,45 @@
     }
   ],
   "knownFalsePositives": "1. **Decision under revision** — a draft revision may exist while the prior decision is still in force. Suppression: keep the prior decision as `active` until the new decision is signed.\n\n2. **Inactive entity** — a divested subsidiary may not need a decision. Suppression: mark the entity inactive in `circia_entity_register_lookup` (UC-22.54.1) and exclude.\n\n**Suppression mechanism**: KV Store `circia_22_54_17_exceptions` with per-entity grants requiring documented CISO approval and a 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (governance decision tracking)"
+  ],
   "requiredFields": [
     "decision_id",
     "voluntary_reporting_posture",
     "decision_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC Policy Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "ServiceNow GRC Policy Management"
-  ],
-  "mitreAttack": [
-    "N/A (governance decision tracking)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_interim_decision_lookup`.\n\n## Step 1 — Define the decision collection\n\n```ini\n[circia_interim_decision_lookup]\nenforceTypes = true\nfield.decision_id = string\nfield.decision_made_at = number\nfield.decision_signed_by = string\nfield.voluntary_reporting_posture = string\nfield.posture_review_due_at = number\nfield.signed_doc_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.17: CIRCIA Voluntary-Reporting Posture]\ncron_schedule = 0 3 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.17,reg=CIRCIA,clause=CIRCIA-CISA-interim-reporting\naction.notable.param.rule_title = CIRCIA voluntary-reporting decision missing or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Decision-missing test**: clear `decision_signed_by`; UC-22.54.17 must alert.\n\n**(b) Active-decision test**: signed, in-window, future-review; UC-22.54.17 must record `active`.\n\n## Step 4 — Operationalize\n\n**Runbook for `no_active_decision` or `decision_stale`** (owner: CISO, severity P3):\n\n1. Within 30 days: CISO + General Counsel co-sign new decision; document.\n\n## Step 5 — Troubleshooting\n\n**Decision transition with Final Rule** — when the CIRCIA Final Rule effective date arrives, UC-22.54.17 retires; handover to UC-22.54.2 and the broader statutory framework.",
+  "grandmaExplanation": "Until the cyber agency makes the rule final, reporting is voluntary. We still must decide — in writing — whether we will file. The CISO and head lawyer sign that decision and review it every year.",
   "prerequisiteUseCases": [
     "UC-22.54.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_interim_decision_lookup`.\n\n## Step 1 — Define the decision collection\n\n```ini\n[circia_interim_decision_lookup]\nenforceTypes = true\nfield.decision_id = string\nfield.decision_made_at = number\nfield.decision_signed_by = string\nfield.voluntary_reporting_posture = string\nfield.posture_review_due_at = number\nfield.signed_doc_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.17: CIRCIA Voluntary-Reporting Posture]\ncron_schedule = 0 3 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.17,reg=CIRCIA,clause=CIRCIA-CISA-interim-reporting\naction.notable.param.rule_title = CIRCIA voluntary-reporting decision missing or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Decision-missing test**: clear `decision_signed_by`; UC-22.54.17 must alert.\n\n**(b) Active-decision test**: signed, in-window, future-review; UC-22.54.17 must record `active`.\n\n## Step 4 — Operationalize\n\n**Runbook for `no_active_decision` or `decision_stale`** (owner: CISO, severity P3):\n\n1. Within 30 days: CISO + General Counsel co-sign new decision; document.\n\n## Step 5 — Troubleshooting\n\n**Decision transition with Final Rule** — when the CIRCIA Final Rule effective date arrives, UC-22.54.17 retires; handover to UC-22.54.2 and the broader statutory framework.",
-  "grandmaExplanation": "Until the cyber agency makes the rule final, reporting is voluntary. We still must decide — in writing — whether we will file. The CISO and head lawyer sign that decision and review it every year."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

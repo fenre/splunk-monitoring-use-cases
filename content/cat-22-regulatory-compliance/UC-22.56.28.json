@@ -35,18 +35,6 @@
   },
   "dataSources": "`audit_evidence` index searches across all UC-22.56.x markers. Executive attestation register (KV Store `tsa_executive_attestation_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "search index=audit_evidence reg=TSA-Surface earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.56\\.\"), \"22.56.\" + replace(_raw, \".*uc=22\\.56\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
   "description": "Roll-up panel showing UC-22.56.x compliance health for an inspector-facing scorecard.",
   "value": "Single dashboard for CC + CISO + Board + inspector. Closes the audit-trail loop on TSA SD subcategory.",
@@ -62,32 +50,44 @@
     }
   ],
   "knownFalsePositives": "1. **UC search lag**: roll-up may show stale due to upstream UC cadence; tune `hours_since_evidence` per UC.\n\n**Suppression mechanism**: KV Store `tsa_22_56_28_exceptions`.",
+  "mitreAttack": [
+    "N/A (governance roll-up)"
+  ],
   "requiredFields": [
     "uc",
     "evidence_rows",
     "health"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + CC + CISO + Board",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "splunk-es"
   ],
   "equipmentModels": [
     "Splunk ES 7.x"
   ],
-  "mitreAttack": [
-    "N/A (governance roll-up)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + CISO + Board",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- All UC-22.56.1 through UC-22.56.27 running and writing to `audit_evidence`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.56.28: TSA SD Master Roll-Up]\ncron_schedule = 33 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.28,reg=TSA-Surface,clause=TSA-SD-multi-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly executive attestation: CC reviews the dashboard with CISO and signs off. Quarterly board pack derives from this UC.\n\n## Step 3 — Troubleshooting\n\n- **UC drift**: a UC silently failing produces a 'stale' marker; investigate that UC, not the roll-up.\n\n**TSA-specific failure modes**:\n- **Inspector deep-dive on individual UC**: ensure each UC's underlying evidence stands alone.",
+  "grandmaExplanation": "All the smaller TSA cyber checks roll up into one big dashboard. The boss can see one screen and know whether anything is wrong.",
   "prerequisiteUseCases": [
     "UC-22.56.1",
     "UC-22.56.27"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- All UC-22.56.1 through UC-22.56.27 running and writing to `audit_evidence`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.56.28: TSA SD Master Roll-Up]\ncron_schedule = 33 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.28,reg=TSA-Surface,clause=TSA-SD-multi-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly executive attestation: CC reviews the dashboard with CISO and signs off. Quarterly board pack derives from this UC.\n\n## Step 3 — Troubleshooting\n\n- **UC drift**: a UC silently failing produces a 'stale' marker; investigate that UC, not the roll-up.\n\n**TSA-specific failure modes**:\n- **Inspector deep-dive on individual UC**: ensure each UC's underlying evidence stands alone.",
-  "grandmaExplanation": "All the smaller TSA cyber checks roll up into one big dashboard. The boss can see one screen and know whether anything is wrong."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

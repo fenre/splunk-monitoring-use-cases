@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `rail_joint_risk_acceptance_lookup`. ServiceNow GRC. DocuSign sign-events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "optional",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_joint_risk_acceptance_lookup\n| where acceptance_status_in_register=\"open\"\n| eval acceptance_status = case(\n    isnull(cyber_lead_signed_at), \"cyber_lead_signature_missing\",\n    isnull(safety_lead_signed_at), \"safety_lead_signature_missing\",\n    isnull(ops_director_signed_at), \"ops_director_signature_missing\",\n    isnotnull(acceptance_expires_at) AND acceptance_expires_at < now(), \"acceptance_expired\",\n    1=1, \"current\")\n| where acceptance_status != \"current\"\n| table acceptance_id risk_id cyber_lead_signed_at safety_lead_signed_at ops_director_signed_at acceptance_expires_at acceptance_status",
   "description": "Tracks joint cyber-safety risk acceptances for completeness and currency.",
   "value": "An accepted risk with only one signature is operationally accepted but governance-incomplete. NB and NSA inspect these.",
@@ -70,34 +51,54 @@
     }
   ],
   "knownFalsePositives": "1. **DocuSign envelope in flight** — 24h grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_19_exceptions` with documented Rail-Cybersecurity-Lead approval and 14-day maximum grant.",
+  "mitreAttack": [
+    "N/A (governance acceptance)"
+  ],
   "requiredFields": [
     "acceptance_id",
     "risk_id",
     "acceptance_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "DocuSign Cloud",
+    "ServiceNow GRC",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Rail Cybersecurity SME Panel + Head of Safety + Operations Director",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "ServiceNow GRC",
-    "DocuSign Cloud"
-  ],
-  "mitreAttack": [
-    "N/A (governance acceptance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_joint_risk_acceptance_lookup`.\n- DocuSign workflow.\n\n## Step 1 — Collection\n\n```ini\n[rail_joint_risk_acceptance_lookup]\nenforceTypes = true\nfield.acceptance_id = string\nfield.risk_id = string\nfield.cyber_lead_signed_at = number\nfield.safety_lead_signed_at = number\nfield.ops_director_signed_at = number\nfield.acceptance_expires_at = number\nfield.acceptance_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.19: CLC/TS 50701 Joint Risk Acceptance]\ncron_schedule = 30 7 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.19,reg=CLC-TS-50701,clause=CLC-TS-50701-c10-2\naction.notable.param.rule_title = Rail joint risk acceptance signature gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_signature_missing`** (owner: Rail Cybersecurity Lead, severity P2): chase missing signatory within 14 days.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Acceptance expiry**: joint acceptances typically expire after 12 months and require renewal.\n- **Risk re-baselining**: a risk's profile may change; re-baseline triggers fresh acceptance.",
+  "grandmaExplanation": "When we accept a known cyber-risk that touches safety, three people must sign — the head of cyber, the head of safety, and the head of operations. We make sure all three signatures are present, otherwise the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.6",
     "UC-22.55.18"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_joint_risk_acceptance_lookup`.\n- DocuSign workflow.\n\n## Step 1 — Collection\n\n```ini\n[rail_joint_risk_acceptance_lookup]\nenforceTypes = true\nfield.acceptance_id = string\nfield.risk_id = string\nfield.cyber_lead_signed_at = number\nfield.safety_lead_signed_at = number\nfield.ops_director_signed_at = number\nfield.acceptance_expires_at = number\nfield.acceptance_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.19: CLC/TS 50701 Joint Risk Acceptance]\ncron_schedule = 30 7 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.19,reg=CLC-TS-50701,clause=CLC-TS-50701-c10-2\naction.notable.param.rule_title = Rail joint risk acceptance signature gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_signature_missing`** (owner: Rail Cybersecurity Lead, severity P2): chase missing signatory within 14 days.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Acceptance expiry**: joint acceptances typically expire after 12 months and require renewal.\n- **Risk re-baselining**: a risk's profile may change; re-baseline triggers fresh acceptance.",
-  "grandmaExplanation": "When we accept a known cyber-risk that touches safety, three people must sign — the head of cyber, the head of safety, and the head of operations. We make sure all three signatures are present, otherwise the team is alerted."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

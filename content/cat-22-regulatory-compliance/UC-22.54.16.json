@@ -36,26 +36,6 @@
   },
   "dataSources": "HEC `hec:circia:submission` for outbound submission attempts. HEC `hec:circia:portal_ack` for CISA Services Portal acknowledgement webhook (or polling fallback). `circia_reporting_status_lookup` from UC-22.54.2 / UC-22.54.3 / UC-22.54.4 with `submission_id` field.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=audit_evidence sourcetype=\"hec:circia:submission\" is_test!=true\n| eval submission_filed_at = _time\n| join type=left submission_id [\n    search index=audit_evidence sourcetype=\"hec:circia:portal_ack\" earliest=-7d@d\n    | rename _time AS portal_acknowledged_at\n    | fields submission_id portal_acknowledged_at portal_receipt_id cisa_case_number\n]\n| eval ack_latency_minutes = if(isnotnull(portal_acknowledged_at), round((portal_acknowledged_at - submission_filed_at) / 60, 1), null())\n| eval portal_health_status = case(\n    isnull(portal_acknowledged_at), \"acknowledgement_missing\",\n    isnotnull(portal_acknowledged_at) AND isnull(cisa_case_number), \"ack_received_no_case_number\",\n    ack_latency_minutes > 60, \"ack_latency_breach\",\n    1=1, \"ack_received\")\n| where portal_health_status != \"ack_received\"\n| table submission_id submission_filed_at portal_acknowledged_at portal_receipt_id cisa_case_number ack_latency_minutes portal_health_status",
   "description": "Joins outbound submission events to CISA Services Portal acknowledgement events. Surfaces submissions without acknowledgements, late acknowledgements, and acknowledgements without case numbers.",
   "value": "A CIRCIA submission without a verified CISA acknowledgement is functionally not delivered. CISA portal outages and API failures occur; the entity must be the one who detects them. This UC instruments the acknowledgement loop so the IR Commander can re-submit promptly.",
@@ -76,6 +56,9 @@
     }
   ],
   "knownFalsePositives": "1. **CISA portal scheduled maintenance** — the portal may have scheduled maintenance windows during which acknowledgements are queued. Suppression: `circia_22_54_16_maintenance_lookup` with documented windows.\n\n2. **Acknowledgement-arrival delay > 5 minutes** — normal CISA workflow may take up to 60 minutes for ack-arrival. Suppression: only `ack_latency_minutes > 60` triggers the breach alert.\n\n3. **Webhook-vs-polling lag** — polling fallback may have a 15-minute interval; webhook is preferred. Suppression: not a real false positive; webhook configuration is the right answer.\n\n**Suppression mechanism**: KV Store `circia_22_54_16_exceptions` with per-submission grants requiring documented IR Commander approval and a 24-hour maximum grant.",
+  "mitreAttack": [
+    "N/A (regulatory-portal-availability monitoring)"
+  ],
   "requiredFields": [
     "submission_id",
     "portal_acknowledged_at",
@@ -83,14 +66,6 @@
     "cisa_case_number",
     "portal_health_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "CIRCIA Compliance SME Panel + IR Director",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "splunk-es",
     "splunk-soar"
@@ -99,13 +74,38 @@
     "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
     "Splunk SOAR 6.x (Splunkbase 4413, circia-portal-submit playbook)"
   ],
-  "mitreAttack": [
-    "N/A (regulatory-portal-availability monitoring)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "CIRCIA Compliance SME Panel + IR Director",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413).\n- CISA Services Portal API account or webhook.\n\n## Step 1 — Portal acknowledgement event source\n\nIf webhook is available, register the Splunk HEC endpoint with CISA Services Portal:\n\n```text\nWebhook URL: https://<splunk-hec>:8088/services/collector\nHeader: X-Splunk-Sourcetype: hec:circia:portal_ack\nHeader: Authorization: Splunk <HEC_TOKEN>\n```\n\nIf polling fallback is required, SOAR `circia-portal-poll` runs every 5 minutes and writes events.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.16: CIRCIA CISA Portal Submission Health]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.16,reg=CIRCIA,clause=CIRCIA-CISA-portal\naction.notable.param.rule_title = CIRCIA submission missing CISA portal acknowledgement\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\n**(a) Portal-outage simulation**: block egress to CISA Portal API; trigger a test submission; UC-22.54.16 must alert within 15 minutes.\n\n**(b) Late-acknowledgement test**: backdate `portal_acknowledged_at` 90 minutes after `submission_filed_at`; UC-22.54.16 must trip `ack_latency_breach`.\n\n## Step 4 — Operationalize\n\n**Runbook for `acknowledgement_missing`** (owner: IR Commander, severity P1):\n\n1. Within 30 minutes: contact CISA via backup channel (email or phone); if portal is down, file via email per CISA guidance; document the gap.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Portal MFA failures**: the portal requires MFA; if MFA fails, submission cannot succeed. Maintain MFA tokens in BCP.\n- **Portal account credential rotation**: stale credentials cause silent failure. Rotate per IR-team policy.\n- **Multi-factor IR-team handover**: the on-call IR Commander must have portal access; verify on every shift.",
+  "grandmaExplanation": "When we send a report to the cyber agency, we need a confirmation slip back — like a receipt at the post office. We check every five minutes that the receipt came back. If it didn't, the team is alerted right away so we can re-send.",
   "prerequisiteUseCases": [
     "UC-22.54.2",
     "UC-22.54.3"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413).\n- CISA Services Portal API account or webhook.\n\n## Step 1 — Portal acknowledgement event source\n\nIf webhook is available, register the Splunk HEC endpoint with CISA Services Portal:\n\n```text\nWebhook URL: https://<splunk-hec>:8088/services/collector\nHeader: X-Splunk-Sourcetype: hec:circia:portal_ack\nHeader: Authorization: Splunk <HEC_TOKEN>\n```\n\nIf polling fallback is required, SOAR `circia-portal-poll` runs every 5 minutes and writes events.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.16: CIRCIA CISA Portal Submission Health]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.16,reg=CIRCIA,clause=CIRCIA-CISA-portal\naction.notable.param.rule_title = CIRCIA submission missing CISA portal acknowledgement\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\n**(a) Portal-outage simulation**: block egress to CISA Portal API; trigger a test submission; UC-22.54.16 must alert within 15 minutes.\n\n**(b) Late-acknowledgement test**: backdate `portal_acknowledged_at` 90 minutes after `submission_filed_at`; UC-22.54.16 must trip `ack_latency_breach`.\n\n## Step 4 — Operationalize\n\n**Runbook for `acknowledgement_missing`** (owner: IR Commander, severity P1):\n\n1. Within 30 minutes: contact CISA via backup channel (email or phone); if portal is down, file via email per CISA guidance; document the gap.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Portal MFA failures**: the portal requires MFA; if MFA fails, submission cannot succeed. Maintain MFA tokens in BCP.\n- **Portal account credential rotation**: stale credentials cause silent failure. Rotate per IR-team policy.\n- **Multi-factor IR-team handover**: the on-call IR Commander must have portal access; verify on every shift.",
-  "grandmaExplanation": "When we send a report to the cyber agency, we need a confirmation slip back — like a receipt at the post office. We check every five minutes that the receipt came back. If it didn't, the team is alerted right away so we can re-send."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

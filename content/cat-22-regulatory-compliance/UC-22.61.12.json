@@ -61,25 +61,6 @@
   },
   "dataSources": "Splunk `index=_internal source=*splunkd.log* component=BucketMover` (bucket freezing events). Splunk `index=_audit action IN (\"index_delete\",\"index_modify\")` (audit-trail tamper signals). KV Store `cn_csl_log_retention_lookup` (system_id, mlps_grade, log_index, expected_retention_days, integrity_scheme, hash_chain_endpoint). REST `/services/data/indexes` snapshot of `frozenTimePeriodInSecs` per index. HEC `hec:integrity:hash:freshness` (daily hash-chain verification job output).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Audit (built-in).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup cn_csl_log_retention_lookup\n| eval now_ts = now()\n| eval expected_retention_days = coalesce(expected_retention_days, 180)\n| eval required_floor_days = max(180, expected_retention_days)\n| join type=left log_index [\n    | rest /services/data/indexes\n    | rename title as log_index\n    | eval configured_retention_days = round(frozenTimePeriodInSecs / 86400, 1)\n    | table log_index configured_retention_days frozenTimePeriodInSecs\n  ]\n| join type=left log_index [\n    search index=_internal earliest=-7d sourcetype=splunkd component=BucketMover (action=freeze OR \"freezing bucket\")\n    | stats max(_time) as last_bucket_frozen_ts by idx\n    | rename idx as log_index\n  ]\n| join type=left log_index [\n    search index=summary source=hec:integrity:hash:freshness earliest=-7d\n    | stats max(_time) as last_hash_chain_verified_ts, latest(hash_chain_status) as hash_chain_status by log_index\n  ]\n| join type=left log_index [\n    search index=_audit earliest=-7d (action=index_delete OR action=index_modify OR operation=delete)\n    | stats count as tamper_events_7d, latest(user) as tamper_user by idx\n    | rename idx as log_index\n  ]\n| eval tamper_events_7d = coalesce(tamper_events_7d, 0)\n| eval days_since_hash_verified = round((now_ts - last_hash_chain_verified_ts) / 86400, 1)\n| eval retention_breach = if(configured_retention_days < required_floor_days, 1, 0)\n| eval integrity_stale = if(days_since_hash_verified > 7 OR isnull(last_hash_chain_verified_ts), 1, 0)\n| eval integrity_invalid = if(hash_chain_status = \"invalid\" OR hash_chain_status = \"failed\", 1, 0)\n| eval tamper_signal = if(tamper_events_7d > 0, 1, 0)\n| eval risk_score = case(\n    integrity_invalid = 1, 100,\n    tamper_signal = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 95,\n    retention_breach = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 90,\n    retention_breach = 1, 70,\n    integrity_stale = 1 AND mlps_grade IN (\"L3\",\"L4\",\"L5\"), 65,\n    integrity_stale = 1, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +configured_retention_days\n| table system_id mlps_grade log_index configured_retention_days required_floor_days integrity_scheme days_since_hash_verified hash_chain_status tamper_events_7d tamper_user risk_score",
   "description": "Reconciles every MLPS-graded log index against three operational limbs of CSL Art. 21(3): (i) the 180-day retention floor (configured `frozenTimePeriodInSecs`), (ii) the integrity-hash freshness (a hash-chain verification job must have run within 7 days and returned `valid`), and (iii) audit-trail tamper signals (any `_audit` index deletion or modification against the protected log indexes). Risk-scores invalid integrity chains at 100 (potential evidence destruction), tamper signals on L3+ at 95, retention breaches on L3+ at 90.",
   "value": "CSL Art. 21(3) is the CSL clause most frequently cited in MPS administrative-warning notices. A common pattern is: an incident occurs, the network operator is unable to produce 6 months of authentication logs, MPS issues an administrative warning under Art. 59 and may escalate to ordered remediation. Detecting retention breaches and integrity-chain invalidations before an incident is the difference between a routine MLPS finding and a public administrative warning.",
@@ -104,6 +85,11 @@
     }
   ],
   "knownFalsePositives": "1. **Newly-created index**: an index created in the last 30 days has no aged data and may report `configured_retention_days = 180` correctly but `oldest_retained_event` < 180 days simply because no bucket has aged that far yet — load `index_created_at` and exclude from the retention-breach alert during the first 180 days of the index's life. 2. **Frozen-to-glacier handoff**: if frozen buckets are migrated to a cold archive (e.g., S3 Glacier / OBS Archive) the in-Splunk `frozenTimePeriodInSecs` may be set lower deliberately — load `archive_handoff_documented = true` and pass `cold_archive_evidence_ref` to suppress. 3. **Test/dev index** that genuinely doesn't carry production data should be marked `system_id = test_only` and excluded.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_12_exceptions` with the CISO documented approval, an explicit system_id + log_index scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1070.001",
+    "T1070.002",
+    "T1565"
+  ],
   "requiredFields": [
     "system_id",
     "log_index",
@@ -111,30 +97,44 @@
     "hash_chain_status",
     "risk_score"
   ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Cloud (PRC region)",
+    "Splunk ES 7.x",
+    "Splunk Enterprise 9.2+"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "PRC Cybersecurity SME Panel + CISO + Splunk Cloud Admin",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk Cloud (PRC region)",
-    "Splunk Enterprise 9.2+"
-  ],
-  "mitreAttack": [
-    "T1070.001",
-    "T1070.002",
-    "T1565"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region).\n- UC-22.61.1 deployed with `cn_mlps_register_lookup` populated.\n- PRC-resident KMS-backed signing key for hash-chain verification (often a Huawei OBS / Alibaba KMS instance with a key registered to the legal entity).\n\n## Step 1 - Retention KV Store\n\n```ini\n[cn_csl_log_retention_lookup]\nenforceTypes = true\nfield.system_id = string\nfield.mlps_grade = string\nfield.log_index = string\nfield.expected_retention_days = number\nfield.integrity_scheme = string\nfield.hash_chain_endpoint = string\nfield.archive_handoff_documented = bool\nfield.cold_archive_evidence_ref = string\nfield.index_created_at = time\n```\n\n## Step 2 - Hash-chain verification job\n\nA daily scheduled report uses `dbinspect` to enumerate bucket IDs + earliest/latest event times for every log_index in the lookup; the report writes a signed manifest to `hec:integrity:hash:freshness` with `hash_chain_status` set to `valid` only if every bucket's hash signature verifies against the PRC-resident KMS key.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.12: CSL Art. 21 Log Retention]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.12,reg=CN-CSL,clause=CSL-Art-21\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cross-border audit-data export**: even routine MLPS-3+ log review by an offshore SOC may trigger CSL Art. 37 + PIPL Art. 38 cross-border-transfer considerations if the logs contain PI — coordinate with UC-22.61.4 (egress detector) and UC-22.61.7 (cross-border transfer register).\n- **Public-Security Bureau evidence-request mode**: in active criminal investigations, MPS may request raw logs under Art. 28; the chain-of-custody report from this UC is the artefact most commonly tendered.",
+  "grandmaExplanation": "Chinese law says important security records must be kept for at least 6 months and protected from being changed or deleted. We check every day that all our security logs are kept long enough and have not been tampered with.",
   "prerequisiteUseCases": [
     "UC-22.61.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region).\n- UC-22.61.1 deployed with `cn_mlps_register_lookup` populated.\n- PRC-resident KMS-backed signing key for hash-chain verification (often a Huawei OBS / Alibaba KMS instance with a key registered to the legal entity).\n\n## Step 1 - Retention KV Store\n\n```ini\n[cn_csl_log_retention_lookup]\nenforceTypes = true\nfield.system_id = string\nfield.mlps_grade = string\nfield.log_index = string\nfield.expected_retention_days = number\nfield.integrity_scheme = string\nfield.hash_chain_endpoint = string\nfield.archive_handoff_documented = bool\nfield.cold_archive_evidence_ref = string\nfield.index_created_at = time\n```\n\n## Step 2 - Hash-chain verification job\n\nA daily scheduled report uses `dbinspect` to enumerate bucket IDs + earliest/latest event times for every log_index in the lookup; the report writes a signed manifest to `hec:integrity:hash:freshness` with `hash_chain_status` set to `valid` only if every bucket's hash signature verifies against the PRC-resident KMS key.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.12: CSL Art. 21 Log Retention]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.12,reg=CN-CSL,clause=CSL-Art-21\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cross-border audit-data export**: even routine MLPS-3+ log review by an offshore SOC may trigger CSL Art. 37 + PIPL Art. 38 cross-border-transfer considerations if the logs contain PI — coordinate with UC-22.61.4 (egress detector) and UC-22.61.7 (cross-border transfer register).\n- **Public-Security Bureau evidence-request mode**: in active criminal investigations, MPS may request raw logs under Art. 28; the chain-of-custody report from this UC is the artefact most commonly tendered.",
-  "grandmaExplanation": "Chinese law says important security records must be kept for at least 6 months and protected from being changed or deleted. We check every day that all our security logs are kept long enough and have not been tampered with."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "crawl"
 }

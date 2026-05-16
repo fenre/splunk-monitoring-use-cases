@@ -35,25 +35,6 @@
   },
   "dataSources": "`index=bcp sourcetype=\"servicenow:bcp:exercise\"` (BCP exercise tracker, typically ServiceNow BCM module). Document-management system URLs for post-exercise reports (`sharepoint:document`, `confluence:page`). Lookups: `ot_bcp_exercise_calendar.csv`, `otcc_exercise_rto_targets.csv`.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup ot_bcp_exercise_calendar.csv\n| eval scheduled_for_epoch = strptime(scheduled_for, \"%Y-%m-%d\")\n| eval overdue_threshold_epoch = scheduled_for_epoch + 86400\n| join exercise_id type=left [search index=bcp sourcetype=\"servicenow:bcp:exercise\" earliest=-13mon | dedup exercise_id | table exercise_id executed_at participants observed_rto_minutes observed_rpo_minutes post_exercise_report_url deviation_reasons]\n| eval executed_at_epoch = strptime(executed_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| lookup otcc_exercise_rto_targets.csv exercise_type OUTPUT target_rto_minutes target_rpo_minutes\n| eval deviation_flag = case(\n    isnotnull(observed_rto_minutes) AND observed_rto_minutes > target_rto_minutes, \"true\",\n    isnotnull(observed_rpo_minutes) AND observed_rpo_minutes > target_rpo_minutes, \"true\",\n    1=1, \"false\")\n| eval overdue_flag = case(\n    isnotnull(executed_at_epoch), \"false\",\n    now() > overdue_threshold_epoch, \"true\",\n    1=1, \"false\")\n| eval missing_report_flag = case(\n    isnotnull(executed_at_epoch) AND (isnull(post_exercise_report_url) OR post_exercise_report_url=\"\"), \"true\",\n    1=1, \"false\")\n| where overdue_flag=\"true\" OR deviation_flag=\"true\" OR missing_report_flag=\"true\"\n| table exercise_id exercise_type scenario_summary scheduled_for executed_at participants observed_rto_minutes observed_rpo_minutes target_rto_minutes target_rpo_minutes deviation_reasons post_exercise_report_url overdue_flag deviation_flag missing_report_flag\n| sort - overdue_flag deviation_flag scheduled_for",
   "description": "Reconciles the OT BCP exercise calendar against the BCP-tracker's execution records, surfaces overdue exercises, flags those that deviated from RTO/RPO targets, and flags missing post-exercise reports.",
   "value": "BCP exercise theatre is the audit pitfall: organisations schedule the exercise, never execute it, then claim coverage in the audit. NCA OTCC inspectors want evidence the exercise actually happened, who attended, and what the observed RTO/RPO was. This UC produces all three continuously.",
@@ -73,33 +54,54 @@
     }
   ],
   "knownFalsePositives": "1. **Exercise rescheduled with proper documentation** — schedule slips happen. Suppression: maintain a per-exercise `reschedule_log.csv` with the new scheduled_for date; the alert clears once the calendar is updated.\n\n2. **Multi-day exercises with split execution timestamps** — some exercises run over a week. Suppression: ServiceNow can carry a `start_at` and `end_at`; the UC uses `executed_at` as the start date.\n\n3. **Vendor-led exercise tracking outside the corporate BCP tracker** — some exercises are run by vendors and tracked in their systems. Suppression: ingest the vendor's exercise reports into `audit_evidence` as a parallel source.\n\n**Suppression mechanism**: KV Store `otcc_22_51_20_exceptions`.",
+  "mitreAttack": [
+    "N/A (compliance-tracking UC, not a detection)"
+  ],
   "requiredFields": [
     "exercise_id",
     "exercise_type",
     "scheduled_for"
   ],
+  "equipment": [
+    "servicenow",
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow BCM (Business Continuity Management 2024+)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, BCM module: bcm_test_result, bcm_finding)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index with BCP markers)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "N/A (compliance-tracking UC, not a detection)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.22"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928) on Heavy Forwarders bridging ServiceNow BCM.\n- BCM module configured to publish exercise events with `exercise_id`, `exercise_type`, `scheduled_for`, `executed_at`, `participants`, `observed_rto_minutes`, `observed_rpo_minutes`, `post_exercise_report_url`, `deviation_reasons`.\n- `index=bcp` (24-month retention), `index=audit_evidence`.\n- Lookups:\n  - `ot_bcp_exercise_calendar.csv` — owned by Head of OT Security. Columns: `exercise_id`, `exercise_type`, `scenario_summary`, `scheduled_for`, `owner_role`. Reviewed annually; each NCA-cycle should include at minimum:\n\n    ```csv\n    exercise_id,exercise_type,scenario_summary,scheduled_for,owner_role\n    OT-BCP-2026-Q1,tabletop,Ransomware affecting HMI estate,2026-03-15,Head of OT Security\n    OT-BCP-2026-Q2,functional,SIS bypass exfiltration,2026-06-15,Process Safety Engineer\n    OT-BCP-2026-Q3,functional,Cyber-physical incident,2026-09-15,OT Cyber Programme Manager\n    OT-BCP-2026-Q4,full,Plant-wide ransomware with downtime,2026-12-15,OT Cyber Director\n    ```\n\n  - `otcc_exercise_rto_targets.csv` — owned by Head of OT Security. Columns: `exercise_type`, `target_rto_minutes`, `target_rpo_minutes`. Example:\n\n    ```csv\n    exercise_type,target_rto_minutes,target_rpo_minutes\n    tabletop,0,0\n    functional,240,60\n    full,720,240\n    ```\n\n  - KV Store `otcc_22_51_20_exceptions`.\n\n## Step 1 — Configure data collection\n\nServiceNow BCM exercise table polling:\n\n```ini\n[snow://bcm_exercises]\nrest_endpoint = sn_bcm_exercise\nrecord_type = json\ninterval = 3600\nindex = bcp\nsourcetype = servicenow:bcp:exercise\n```\n\nValidate:\n\n```spl\nindex=bcp sourcetype=\"servicenow:bcp:exercise\" earliest=-1d\n| fieldsummary\n| search field IN (exercise_id, executed_at, observed_rto_minutes, post_exercise_report_url)\n```\n\nVolume: 4–20 exercises/year per plant. Negligible license impact.\n\n## Step 2 — Create the search and alert\n\nThe search drives from the calendar lookup and joins ServiceNow execution events. Three flags:\n\n- `overdue_flag`: scheduled_for is in the past + 24h grace, but executed_at is missing.\n- `deviation_flag`: observed RTO or RPO exceeds target.\n- `missing_report_flag`: executed but no post-exercise report URL.\n\n**Schedule**:\n\n```ini\n[UC-22.51.20: OT Business Continuity Exercise Programme Evidence]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -13mon\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.20,reg=NCA_OTCC,clause=OTCC-3-1-1-1\naction.email.to = ot-cyber-programme@example.com,head-of-ot-security@example.com\nalert.severity = 3\n```\n\nEmail-only; this is governance, not SOC-actionable.\n\n## Step 3 — Validate deployment\n\n**(a)** Confirm `ot_bcp_exercise_calendar.csv` has at least 4 rows for the current year.\n\n**(b)** Confirm BCM exercise events flow.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT BCP Exercises`.\n\n- **Row 1, single values**: 'Overdue exercises', 'Deviating exercises', 'Reports missing'.\n- **Row 2, calendar**: per-quarter status (planned, executed, deviated, overdue).\n- **Row 3, RTO/RPO chart**: observed vs target per exercise.\n- **Row 4, trend**: 13-month.\n\n**Runbook for `overdue_flag=true`** (owner: Head of OT Security):\n\n1. Within 5 business days: re-schedule the exercise; update the calendar lookup.\n2. If a quarter is missed without rescheduling: open a P2 governance ticket on the OT cybersecurity programme manager. Document for the OT cybersecurity steering committee.\n3. NCA inspectors expect quarterly cadence; a single missed quarter is forgivable if rescheduled; two missed quarters in a year is a programme-level finding.\n\n## Step 5 — Troubleshooting\n\n**Calendar lookup stale**: refresh annually via the OT cybersecurity programme plan. The OT cybersecurity steering committee owns the calendar's content.\n\n**OT-specific failure modes**:\n\n- **Plant-shutdown alignment**: BCP exercises often align with planned maintenance shutdowns. The calendar should align scheduled_for dates accordingly.\n- **Vendor-led tabletops**: if a vendor runs a tabletop using their material, ensure the post-exercise report includes the customer's lessons-learned and is filed in our document-management system, not only the vendor's.\n- **NCA-observed exercises**: NCA sometimes requests to observe an exercise. Document the NCA representative as a participant; this carries audit weight.",
   "grandmaExplanation": "Every three months we practise what to do if the plant gets attacked. We check that the practice actually happened, that everyone showed up, and that we recovered fast enough — then we write down what we learned.",
-  "equipmentModels": [
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, BCM module: bcm_test_result, bcm_finding)",
-    "ServiceNow BCM (Business Continuity Management 2024+)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index with BCP markers)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.22"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

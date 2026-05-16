@@ -35,25 +35,6 @@
   },
   "dataSources": "HRIS records (Workday / SAP SuccessFactors / Oracle HCM) via vendor TA into `index=hr sourcetype=\"hr:worker\"`. Active Directory / Identity Provider for access status (`index=identity sourcetype=\"WinEventLog:Security\"` or `azuread:audit`). Lookup `critical_worker_lookup` (worker_id, asset_id, role, criticality_basis, screening_type, screening_completed_at, screening_clearance_id, next_screening_due_at, access_status, training_completed_at).",
   "app": "Splunk Add-on for Microsoft Azure AD (Splunkbase 3757), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 3757,
-      "name": "Splunk Add-on for Microsoft Azure AD",
-      "url": "https://splunkbase.splunk.com/app/3757",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup critical_worker_lookup\n| eval days_since_screening = if(isnotnull(screening_completed_at), round((now() - screening_completed_at) / 86400, 0), null())\n| eval days_to_next_due = if(isnotnull(next_screening_due_at), round((next_screening_due_at - now()) / 86400, 0), null())\n| eval register_status = case(\n    isnull(screening_completed_at), \"never_screened\",\n    isnull(next_screening_due_at), \"missing_due_date\",\n    days_to_next_due < 0, \"screening_overdue\",\n    days_to_next_due <= 30, \"approaching_due\",\n    access_status=\"active\" AND days_to_next_due < 0, \"active_access_overdue_screening\",\n    isnull(training_completed_at) OR training_completed_at < relative_time(now(), \"-365d@d\"), \"training_overdue\",\n    1=1, \"current\")\n| table worker_id asset_id role criticality_basis screening_type screening_completed_at days_since_screening next_screening_due_at days_to_next_due access_status training_completed_at register_status",
   "description": "Validates the critical-worker register: every critical worker has a recorded role and asset, a screening type and completion date, a next-due date, training currency, and an access status that matches their screening status.",
   "value": "Rule 7 personnel-hazard identification is the most labour-intensive CIRMP rule because the register changes daily as people join, leave, and rotate. This UC keeps the register honest and surfaces the dangerous combinations — active access with overdue screening, role designated critical-worker without any screening, training never refreshed.",
@@ -82,6 +63,10 @@
     }
   ],
   "knownFalsePositives": "1. **Extended leave** — workers on >90 day leave; suppression via `worker_extended_leave_lookup`.\n\n2. **Reciprocal screening** — a worker with a current Government clearance (NV1 / NV2) may satisfy a police-check requirement; the lookup must show the higher-tier clearance.\n\n3. **Recently joined** — a new hire within their 90-day onboarding window. Suppression: tolerate `screening_completed_at IS NULL` for the first 90 days from start date.\n\n4. **Training in different system** — some learning systems aren't connected to HRIS. Manually populate `training_completed_at` from the LMS export.\n\n**Suppression mechanism**: KV Store `soci_22_52_16_exceptions`; max grant 60 days with Head of People Security sign-off.",
+  "mitreAttack": [
+    "T1078",
+    "T1098"
+  ],
   "requiredFields": [
     "worker_id",
     "asset_id",
@@ -89,33 +74,51 @@
     "screening_type",
     "register_status"
   ],
+  "equipment": [
+    "azure",
+    "microsoft-azure-ad",
+    "oracle",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft Entra ID (formerly Azure AD) for access-status events",
+    "Splunk Add-on for Microsoft Azure AD (Splunkbase 3757)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Workday HCM / SAP SuccessFactors / Oracle HCM (HRIS source of critical-worker register)",
+    "oracle_oracle_db"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "microsoft-azure-ad",
-    "servicenow",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Workday HCM / SAP SuccessFactors / Oracle HCM (HRIS source of critical-worker register)",
-    "Microsoft Entra ID (formerly Azure AD) for access-status events",
-    "Splunk Add-on for Microsoft Azure AD (Splunkbase 3757)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T1078",
-    "T1098"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Azure AD add-on, ServiceNow add-on.\n- `index=hr` (3-year retention online), `index=identity` (90 days), `index=audit_evidence` (7 years).\n- Lookup `critical_worker_lookup` — owned by Head of People Security. Columns: `worker_id`, `asset_id`, `role`, `criticality_basis` (e.g. `engineering_workstation_authority`, `sis_change_authority`, `vendor_remote_support`), `screening_type` (e.g. `agsva_nv1`, `agsva_nv2`, `nccr_police_check`, `pre_employment_only`), `screening_completed_at` (epoch), `screening_clearance_id`, `next_screening_due_at` (epoch), `access_status` (active / suspended / revoked), `training_completed_at` (epoch).\n- ES notable framework configured with `access` security domain.\n\n## Step 1 — Configure data collection\n\nThe critical-worker definition is asset-specific. The Head of People Security maintains a published criteria document; the HRIS or GRC system surfaces matching workers. Example HRIS modular input:\n\n```ini\n[snow://sn_hr_core_user]\nendpoint = https://<instance>.service-now.com/api/now/table/sn_hr_core_user\nquery = u_critical_worker=true\ninterval = 86400\nindex = hr\nsourcetype = hr:worker\n```\n\nMaterialise the lookup daily, enriched with screening status from the AGSVA / NCCHC integration. Manual lookup-row creation is acceptable where the integration is incomplete.\n\nAccess status comes from the Identity Provider:\n\n```spl\nindex=identity (sourcetype=azuread:audit OR sourcetype=WinEventLog:Security) earliest=-7d\n| stats latest(account_status) AS access_status by user\n```\n\nJoin into the materialise.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.16: SOCI CIRMP Rule 7 critical-worker register currency]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.16,reg=SOCI,clause=SOCI-CIRMP-r7.1\naction.notable.param.rule_title = SOCI CIRMP Rule 7 critical-worker register gap\naction.notable.param.security_domain = access\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity tiered by status: `active_access_overdue_screening` is the highest risk (an unscreened worker with current access).\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate a screening to 400 days; UC flags `screening_overdue`.\n\n**(b)** Negative control: complete fresh screening; UC clears.\n\n**(c)** Coverage: every critical-worker role per asset has at least one worker.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Critical-Worker Register`.\n\n**Runbook for `active_access_overdue_screening`** (owner: Head of People Security, severity P1):\n\n1. Within 1 business day: suspend access pending re-screening.\n2. Within 30 business days: complete re-screening or remove the worker from the critical-worker register.\n\n**Runbook for `training_overdue`** (owner: Head of People Security, severity P3):\n\n1. Within 30 business days: complete refresher training; update lookup.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty for one asset** — the critical-worker definition for that asset class is missing. Engage Head of People Security.\n\n**Cleared workers showing as overdue** — AGSVA portal sync stale; refresh.\n\n**SOCI-specific failure modes**:\n\n- **AGSVA / NV currency**: NV1 = 15 years, NV2 = 10 years; but the entity may set a tighter internal currency. Use the tighter window.\n- **Insider-threat referrals**: a flagged insider-threat referral should suspend access pending review; pair with UC-22.52.17.\n- **Contractor-to-employee transitions**: a contractor becoming an employee may have screening reset; track transition in the lookup.\n- **Joint-venture workers**: a worker shared across multiple responsible entities may be screened by one and rely on reciprocity in another; track explicitly.",
+  "grandmaExplanation": "Some people — like engineers who can directly touch our most important systems — are 'critical workers' and need extra background checks and yearly training. We keep a register of who they are, when they were last checked, and whether their access still matches their checks. If someone has active access but a stale check, we ring the loud bell.",
   "prerequisiteUseCases": [
     "UC-22.51.16"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Azure AD add-on, ServiceNow add-on.\n- `index=hr` (3-year retention online), `index=identity` (90 days), `index=audit_evidence` (7 years).\n- Lookup `critical_worker_lookup` — owned by Head of People Security. Columns: `worker_id`, `asset_id`, `role`, `criticality_basis` (e.g. `engineering_workstation_authority`, `sis_change_authority`, `vendor_remote_support`), `screening_type` (e.g. `agsva_nv1`, `agsva_nv2`, `nccr_police_check`, `pre_employment_only`), `screening_completed_at` (epoch), `screening_clearance_id`, `next_screening_due_at` (epoch), `access_status` (active / suspended / revoked), `training_completed_at` (epoch).\n- ES notable framework configured with `access` security domain.\n\n## Step 1 — Configure data collection\n\nThe critical-worker definition is asset-specific. The Head of People Security maintains a published criteria document; the HRIS or GRC system surfaces matching workers. Example HRIS modular input:\n\n```ini\n[snow://sn_hr_core_user]\nendpoint = https://<instance>.service-now.com/api/now/table/sn_hr_core_user\nquery = u_critical_worker=true\ninterval = 86400\nindex = hr\nsourcetype = hr:worker\n```\n\nMaterialise the lookup daily, enriched with screening status from the AGSVA / NCCHC integration. Manual lookup-row creation is acceptable where the integration is incomplete.\n\nAccess status comes from the Identity Provider:\n\n```spl\nindex=identity (sourcetype=azuread:audit OR sourcetype=WinEventLog:Security) earliest=-7d\n| stats latest(account_status) AS access_status by user\n```\n\nJoin into the materialise.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.16: SOCI CIRMP Rule 7 critical-worker register currency]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.16,reg=SOCI,clause=SOCI-CIRMP-r7.1\naction.notable.param.rule_title = SOCI CIRMP Rule 7 critical-worker register gap\naction.notable.param.security_domain = access\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity tiered by status: `active_access_overdue_screening` is the highest risk (an unscreened worker with current access).\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate a screening to 400 days; UC flags `screening_overdue`.\n\n**(b)** Negative control: complete fresh screening; UC clears.\n\n**(c)** Coverage: every critical-worker role per asset has at least one worker.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Critical-Worker Register`.\n\n**Runbook for `active_access_overdue_screening`** (owner: Head of People Security, severity P1):\n\n1. Within 1 business day: suspend access pending re-screening.\n2. Within 30 business days: complete re-screening or remove the worker from the critical-worker register.\n\n**Runbook for `training_overdue`** (owner: Head of People Security, severity P3):\n\n1. Within 30 business days: complete refresher training; update lookup.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty for one asset** — the critical-worker definition for that asset class is missing. Engage Head of People Security.\n\n**Cleared workers showing as overdue** — AGSVA portal sync stale; refresh.\n\n**SOCI-specific failure modes**:\n\n- **AGSVA / NV currency**: NV1 = 15 years, NV2 = 10 years; but the entity may set a tighter internal currency. Use the tighter window.\n- **Insider-threat referrals**: a flagged insider-threat referral should suspend access pending review; pair with UC-22.52.17.\n- **Contractor-to-employee transitions**: a contractor becoming an employee may have screening reset; track transition in the lookup.\n- **Joint-venture workers**: a worker shared across multiple responsible entities may be screened by one and rely on reciprocity in another; track explicitly.",
-  "grandmaExplanation": "Some people — like engineers who can directly touch our most important systems — are 'critical workers' and need extra background checks and yearly training. We keep a register of who they are, when they were last checked, and whether their access still matches their checks. If someone has active access but a stale check, we ring the loud bell."
+  "splunkbaseApps": [
+    {
+      "id": 3757,
+      "name": "Splunk Add-on for Microsoft Azure AD",
+      "url": "https://splunkbase.splunk.com/app/3757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

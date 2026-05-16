@@ -36,6 +36,64 @@
   },
   "dataSources": "Tenable.ot vulnerability scans (`tenable:ot`). Cyber Vision / Claroty / Nozomi / Dragos vulnerability feeds. CISA KEV (`ta_cisa_kev:kev`). Vendor security bulletins (HEC `hec:vendor:bulletin`). KV Store `rail_vuln_register_lookup`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for Tenable (Splunkbase 4060), Splunk Add-on for CISA KEV (Splunkbase 6306), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail_vuln_register_lookup\n| where vuln_status_in_register=\"open\"\n| eval now_ts = now()\n| lookup ta_cisa_kev cve OUTPUT kev_listed AS kev_listed\n| eval triage_sla_hours = case(\n    kev_listed=true OR severity=\"critical\", 48,\n    severity=\"high\", 120,\n    severity=\"medium\", 240,\n    1=1, 480)\n| eval triage_age_hours = if(isnotnull(_time), round((now_ts - _time) / 3600, 1), null())\n| eval remediation_sla_days = case(\n    kev_listed=true, 30,\n    severity=\"critical\", 60,\n    severity=\"high\", 120,\n    severity=\"medium\", 180,\n    1=1, 365)\n| eval vuln_status = case(\n    isnotnull(remediation_completed_at), \"remediated\",\n    isnull(triaged_at) AND triage_age_hours > triage_sla_hours, \"triage_overdue\",\n    isnull(triaged_at), \"triage_pending\",\n    isnotnull(triaged_at) AND isnull(remediation_target_at), \"remediation_unplanned\",\n    isnotnull(remediation_target_at) AND remediation_target_at < now_ts, \"remediation_overdue\",\n    1=1, \"in_remediation\")\n| where vuln_status IN (\"triage_overdue\", \"remediation_overdue\", \"remediation_unplanned\")\n| table vuln_id asset_id cve severity kev_listed triage_age_hours triage_sla_hours triaged_at remediation_target_at remediation_completed_at vuln_status",
+  "description": "Tracks rail-OT vulnerabilities through triage and remediation against SLAs that adapt to severity and KEV status.",
+  "value": "Rail-OT vuln management requires risk-balanced SLAs (longer than IT but enforced). This UC ensures the process is honoured.",
+  "implementation": "(1) Deploy Tenable.ot scans. (2) Integrate CISA KEV. (3) SOAR `rail-vuln-triage` triggers on every new vuln; assigns owner. (4) Schedule UC-22.55.10 every 4 hours.",
+  "visualization": "(Panel 1) Vuln posture by zone. (Panel 2) Triage-SLA performance. (Panel 3) KEV-overlap heatmap. (Panel 4) Remediation pipeline.",
+  "cimModels": [
+    "Alerts",
+    "Vulnerabilities"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 8.1",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    }
+  ],
+  "knownFalsePositives": "1. **Vuln in air-gapped zone with no attack surface** — documented compensating control. Suppression: `vuln_status_override=compensating_control`.\n\n2. **Vuln pending vendor patch** — vendor has not released patch; documented in `rail_supplier_deliverables_lookup`. Suppression: tag `vuln_status_override=awaiting_vendor`.\n\n**Suppression mechanism**: KV Store `clc_22_55_10_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
+  "mitreAttack": [
+    "T1190",
+    "T1059"
+  ],
+  "requiredFields": [
+    "vuln_id",
+    "asset_id",
+    "severity",
+    "vuln_status"
+  ],
+  "equipment": [
+    "splunk-es",
+    "splunk-soar",
+    "tenable",
+    "tenable-ot"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-vuln-triage playbook)",
+    "Tenable.ot (cross-platform)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Tenable Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Tenable.ot deployed.\n- CISA KEV TA.\n- KV Store `rail_vuln_register_lookup`.\n\n## Step 1 — Vuln register collection\n\n```ini\n[rail_vuln_register_lookup]\nenforceTypes = true\nfield.vuln_id = string\nfield.asset_id = string\nfield.cve = string\nfield.severity = string\nfield.detected_at = number\nfield.triaged_at = number\nfield.triaged_by = string\nfield.remediation_target_at = number\nfield.remediation_completed_at = number\nfield.remediation_method = string\nfield.vuln_status_in_register = string\n```\n\n## Step 2 — SLA matrix\n\nTriage SLAs (h): KEV / critical = 48; high = 120; medium = 240; low = 480.\nRemediation SLAs (d): KEV = 30; critical = 60; high = 120; medium = 180; low = 365.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.10: CLC/TS 50701 Vulnerability Handling]\ncron_schedule = 0 */4 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.10,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-1\naction.notable.param.rule_title = Rail vulnerability SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `triage_overdue`** (owner: Rail Cybersecurity Lead, severity P2): triage immediately, classify, assign owner.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Patch-and-safety case interaction**: any patch affecting safety-significant function requires EN 50126 update; see UC-22.55.11.\n- **Vendor coordination**: rail vendors typically have monthly / quarterly patch cycles; align SLAs.",
+  "grandmaExplanation": "When we find a weakness in our trains, tracks, or computers, we get a deadline to look at it (sooner for serious problems) and a deadline to fix it. If we miss either deadline, the team is alerted to act.",
+  "prerequisiteUseCases": [
+    "UC-22.55.3",
+    "UC-22.55.4"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -66,62 +124,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
-  "spl": "| inputlookup rail_vuln_register_lookup\n| where vuln_status_in_register=\"open\"\n| eval now_ts = now()\n| lookup ta_cisa_kev cve OUTPUT kev_listed AS kev_listed\n| eval triage_sla_hours = case(\n    kev_listed=true OR severity=\"critical\", 48,\n    severity=\"high\", 120,\n    severity=\"medium\", 240,\n    1=1, 480)\n| eval triage_age_hours = if(isnotnull(_time), round((now_ts - _time) / 3600, 1), null())\n| eval remediation_sla_days = case(\n    kev_listed=true, 30,\n    severity=\"critical\", 60,\n    severity=\"high\", 120,\n    severity=\"medium\", 180,\n    1=1, 365)\n| eval vuln_status = case(\n    isnotnull(remediation_completed_at), \"remediated\",\n    isnull(triaged_at) AND triage_age_hours > triage_sla_hours, \"triage_overdue\",\n    isnull(triaged_at), \"triage_pending\",\n    isnotnull(triaged_at) AND isnull(remediation_target_at), \"remediation_unplanned\",\n    isnotnull(remediation_target_at) AND remediation_target_at < now_ts, \"remediation_overdue\",\n    1=1, \"in_remediation\")\n| where vuln_status IN (\"triage_overdue\", \"remediation_overdue\", \"remediation_unplanned\")\n| table vuln_id asset_id cve severity kev_listed triage_age_hours triage_sla_hours triaged_at remediation_target_at remediation_completed_at vuln_status",
-  "description": "Tracks rail-OT vulnerabilities through triage and remediation against SLAs that adapt to severity and KEV status.",
-  "value": "Rail-OT vuln management requires risk-balanced SLAs (longer than IT but enforced). This UC ensures the process is honoured.",
-  "implementation": "(1) Deploy Tenable.ot scans. (2) Integrate CISA KEV. (3) SOAR `rail-vuln-triage` triggers on every new vuln; assigns owner. (4) Schedule UC-22.55.10 every 4 hours.",
-  "visualization": "(Panel 1) Vuln posture by zone. (Panel 2) Triage-SLA performance. (Panel 3) KEV-overlap heatmap. (Panel 4) Remediation pipeline.",
-  "cimModels": [
-    "Alerts",
-    "Vulnerabilities"
-  ],
-  "references": [
-    {
-      "title": "CLC/TS 50701:2021 clause 8.1",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
-    },
-    {
-      "title": "CISA Known Exploited Vulnerabilities Catalog",
-      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
-    }
-  ],
-  "knownFalsePositives": "1. **Vuln in air-gapped zone with no attack surface** — documented compensating control. Suppression: `vuln_status_override=compensating_control`.\n\n2. **Vuln pending vendor patch** — vendor has not released patch; documented in `rail_supplier_deliverables_lookup`. Suppression: tag `vuln_status_override=awaiting_vendor`.\n\n**Suppression mechanism**: KV Store `clc_22_55_10_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
-  "requiredFields": [
-    "vuln_id",
-    "asset_id",
-    "severity",
-    "vuln_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Tenable Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "tenable-ot"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "Splunk SOAR 6.x (Splunkbase 4413, rail-vuln-triage playbook)",
-    "Tenable.ot (cross-platform)"
-  ],
-  "mitreAttack": [
-    "T1190",
-    "T1059"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.55.3",
-    "UC-22.55.4"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Tenable.ot deployed.\n- CISA KEV TA.\n- KV Store `rail_vuln_register_lookup`.\n\n## Step 1 — Vuln register collection\n\n```ini\n[rail_vuln_register_lookup]\nenforceTypes = true\nfield.vuln_id = string\nfield.asset_id = string\nfield.cve = string\nfield.severity = string\nfield.detected_at = number\nfield.triaged_at = number\nfield.triaged_by = string\nfield.remediation_target_at = number\nfield.remediation_completed_at = number\nfield.remediation_method = string\nfield.vuln_status_in_register = string\n```\n\n## Step 2 — SLA matrix\n\nTriage SLAs (h): KEV / critical = 48; high = 120; medium = 240; low = 480.\nRemediation SLAs (d): KEV = 30; critical = 60; high = 120; medium = 180; low = 365.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.10: CLC/TS 50701 Vulnerability Handling]\ncron_schedule = 0 */4 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.10,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-1\naction.notable.param.rule_title = Rail vulnerability SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `triage_overdue`** (owner: Rail Cybersecurity Lead, severity P2): triage immediately, classify, assign owner.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Patch-and-safety case interaction**: any patch affecting safety-significant function requires EN 50126 update; see UC-22.55.11.\n- **Vendor coordination**: rail vendors typically have monthly / quarterly patch cycles; align SLAs.",
-  "grandmaExplanation": "When we find a weakness in our trains, tracks, or computers, we get a deadline to look at it (sooner for serious problems) and a deadline to fix it. If we miss either deadline, the team is alerted to act."
+  "wave": "walk"
 }

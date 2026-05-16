@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `circia_agreement_lookup` populated by General Counsel intake. ServiceNow Legal-Matter records. Cross-reference to sectoral agency portals (NRC iCMARS, FCC NORS, FDA MedWatch, FAA SMS, FERC ePAC, SEC EDGAR, EPA WaterISAC) for current bridge status.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "optional",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup circia_agreement_lookup\n| eval now_ts = now()\n| eval agreement_status = case(\n    agreement_signed_at = 0 OR isnull(agreement_signed_at), \"never_signed\",\n    agreement_valid_until > now_ts, \"active\",\n    agreement_valid_until < now_ts AND agreement_valid_until > (now_ts - 30 * 86400), \"recently_expired\",\n    agreement_valid_until < now_ts, \"expired\",\n    1=1, \"unknown\")\n| where agreement_status != \"active\"\n| table agreement_id agreement_party agency_party agreement_signed_at agreement_signed_by agreement_scope agreement_valid_until exchange_mechanism agreement_status",
   "description": "Inventory and status check for CIRCIA Agreements that bridge CISA reporting to sectoral reporting obligations. Surfaces expired agreements and unsigned agreements.",
   "value": "Without an instrumented inventory, the General Counsel cannot reliably tell whether a CISA report also discharges a sectoral obligation (e.g., NERC CIP-008-6 or SEC Form 8-K Item 1.05). This UC ensures every agreement is current.",
@@ -74,32 +55,53 @@
     }
   ],
   "knownFalsePositives": "1. **Recently-expired agreement under renewal** — the agreement may have lapsed for days while renewal is in progress. Suppression: `recently_expired` is shown as a 30-day warning, not an alert; only `expired` (>30 days) triggers a P2 notable.\n\n2. **Pre-signing review** — a draft agreement may be in legal review with `agreement_signed_at=null`. Suppression: legitimate drafts are excluded by tagging `agreement_status_override=drafting`.\n\n**Suppression mechanism**: KV Store `circia_22_54_15_exceptions` with per-agreement grants requiring documented General Counsel approval and a 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (governance and inter-agency coordination)"
+  ],
   "requiredFields": [
     "agreement_id",
     "agency_party",
     "agreement_status"
   ],
+  "equipment": [
+    "exchange",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC + Legal Matter Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + General Counsel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "ServiceNow GRC + Legal Matter Management"
-  ],
-  "mitreAttack": [
-    "N/A (governance and inter-agency coordination)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_agreement_lookup`.\n- ServiceNow Legal-Matter intake.\n\n## Step 1 — Define the agreement collection\n\n```ini\n[circia_agreement_lookup]\nenforceTypes = true\nfield.agreement_id = string\nfield.agreement_party = string\nfield.agency_party = string\nfield.agreement_signed_at = number\nfield.agreement_signed_by = string\nfield.agreement_scope = string\nfield.agreement_valid_until = number\nfield.exchange_mechanism = string\nfield.agreement_status_override = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.15: CIRCIA Agreement Inventory]\ncron_schedule = 0 2 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.15,reg=CIRCIA,clause=CIRCIA-NPRM-cisa-agreement\naction.notable.param.rule_title = CIRCIA sectoral-bridge agreement expired or never signed\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Expired-agreement test**: backdate `agreement_valid_until` to 60 days ago; UC-22.54.15 must alert.\n\n**(b) Renewed-agreement test**: set `agreement_valid_until=+12 months`; UC-22.54.15 must record `active`.\n\n## Step 4 — Operationalize\n\n**Runbook for `expired`** (owner: General Counsel, severity P2):\n\n1. Within 1 week: initiate renewal; treat sectoral and CISA reporting independently until renewal is signed.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Sector-specific bridge changes**: e.g., NERC CIP-008-6 vs CIP-008-7 changes the bridge scope; coordinate with NERC regulatory team.\n- **SEC Form 8-K alignment**: even with a CIRCIA Agreement, SEC Form 8-K Item 1.05 has separate materiality criteria (UC-22.54.23).",
+  "grandmaExplanation": "If our cyber agency has a deal with another regulator like nuclear safety or banking, that deal might mean we only have to write one report. We keep a list of all such deals, when they were signed, and when they end. If a deal ends and the cyber agency hasn't renewed it, we have to file with both regulators separately.",
   "prerequisiteUseCases": [
     "UC-22.54.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_agreement_lookup`.\n- ServiceNow Legal-Matter intake.\n\n## Step 1 — Define the agreement collection\n\n```ini\n[circia_agreement_lookup]\nenforceTypes = true\nfield.agreement_id = string\nfield.agreement_party = string\nfield.agency_party = string\nfield.agreement_signed_at = number\nfield.agreement_signed_by = string\nfield.agreement_scope = string\nfield.agreement_valid_until = number\nfield.exchange_mechanism = string\nfield.agreement_status_override = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.15: CIRCIA Agreement Inventory]\ncron_schedule = 0 2 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.15,reg=CIRCIA,clause=CIRCIA-NPRM-cisa-agreement\naction.notable.param.rule_title = CIRCIA sectoral-bridge agreement expired or never signed\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Expired-agreement test**: backdate `agreement_valid_until` to 60 days ago; UC-22.54.15 must alert.\n\n**(b) Renewed-agreement test**: set `agreement_valid_until=+12 months`; UC-22.54.15 must record `active`.\n\n## Step 4 — Operationalize\n\n**Runbook for `expired`** (owner: General Counsel, severity P2):\n\n1. Within 1 week: initiate renewal; treat sectoral and CISA reporting independently until renewal is signed.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Sector-specific bridge changes**: e.g., NERC CIP-008-6 vs CIP-008-7 changes the bridge scope; coordinate with NERC regulatory team.\n- **SEC Form 8-K alignment**: even with a CIRCIA Agreement, SEC Form 8-K Item 1.05 has separate materiality criteria (UC-22.54.23).",
-  "grandmaExplanation": "If our cyber agency has a deal with another regulator like nuclear safety or banking, that deal might mean we only have to write one report. We keep a list of all such deals, when they were signed, and when they end. If a deal ends and the cyber agency hasn't renewed it, we have to file with both regulators separately."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "walk"
 }

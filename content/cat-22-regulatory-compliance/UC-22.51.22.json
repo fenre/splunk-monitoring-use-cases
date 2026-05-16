@@ -35,18 +35,6 @@
   },
   "dataSources": "Commvault (`commvault:backup:job`), Veeam (`veeam:backup:job`), Dell EMC NetWorker (`networker:backup:job`), Veritas NetBackup (`nbu:job`), OT vendor backup tools (Rockwell FactoryTalk AssetCentre, Schneider EcoStruxure System Backup, Siemens TIA Portal Project Backup). Lookups: `ot_backup_cadence.csv`, `ot_backup_storage_policy.csv`, `ot_restore_test_schedule.csv`.",
   "app": "Splunk Add-on for Commvault (Splunkbase 4321), Splunk Add-on for Veeam (Splunkbase 5050), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=backup earliest=-30d@d (sourcetype IN (\"commvault:backup:job\",\"veeam:backup:job\",\"networker:backup:job\",\"nbu:job\",\"rockwell:assetcentre:backup\",\"schneider:system_backup\",\"siemens:tia:project_backup\")) action=\"completed\"\n| eval asset_key=coalesce(asset_key, host, client)\n| eval backup_completed_at_epoch=_time\n| lookup ot_asset_inventory_lookup asset_key OUTPUT asset_class asset_criticality environment\n| where environment=\"prod\" AND isnotnull(asset_class)\n| stats latest(backup_completed_at_epoch) AS backup_completed_at latest(backup_job_id) AS backup_job_id latest(backup_size_bytes) AS backup_size_bytes latest(backup_hash) AS backup_hash latest(storage_class) AS backup_storage_class BY asset_key asset_class\n| lookup ot_backup_cadence.csv asset_class OUTPUT backup_interval_hours\n| eval hours_since_backup = round((now() - backup_completed_at)/3600)\n| eval backup_overdue_flag = if(hours_since_backup > backup_interval_hours, \"true\", \"false\")\n| lookup ot_backup_storage_policy.csv asset_class OUTPUT required_storage_classes\n| eval storage_class_violation_flag = if(NOT match(required_storage_classes, backup_storage_class), \"true\", \"false\")\n| join asset_key type=left [search index=backup earliest=-365d action=\"restore_test\" | stats latest(_time) AS last_restore_test_at latest(restore_test_outcome) AS restore_test_outcome BY asset_key]\n| lookup ot_restore_test_schedule.csv asset_class OUTPUT restore_test_interval_days\n| eval days_since_restore_test = round((now() - last_restore_test_at)/86400)\n| eval restore_test_overdue_flag = if(days_since_restore_test > restore_test_interval_days OR isnull(last_restore_test_at), \"true\", \"false\")\n| join asset_key backup_job_id type=left [search index=backup earliest=-30d action=\"integrity_check\" | dedup asset_key backup_job_id | rename status AS integrity_check_status | table asset_key backup_job_id integrity_check_status]\n| eval integrity_failed_flag = if(integrity_check_status NOT IN (\"pass\",\"ok\",\"verified\") AND isnotnull(integrity_check_status), \"true\", \"false\")\n| where backup_overdue_flag=\"true\" OR storage_class_violation_flag=\"true\" OR restore_test_overdue_flag=\"true\" OR integrity_failed_flag=\"true\"\n| table asset_key asset_class backup_job_id backup_completed_at hours_since_backup backup_interval_hours backup_storage_class required_storage_classes last_restore_test_at days_since_restore_test restore_test_interval_days integrity_check_status backup_overdue_flag storage_class_violation_flag restore_test_overdue_flag integrity_failed_flag\n| sort - integrity_failed_flag backup_overdue_flag storage_class_violation_flag restore_test_overdue_flag",
   "description": "Reconciles each OT asset's backup activity against cadence, storage-class, restore-test, and integrity-check requirements and surfaces every breach.",
   "value": "Ransomware against OT is the headline risk; immutable backups with verified restore-tests are the headline defence. NCA OTCC will treat 'we have backups' as paper unless the restore-test evidence is continuous. This UC produces that evidence and flags every gap immediately.",
@@ -71,35 +59,52 @@
     }
   ],
   "knownFalsePositives": "1. **Air-gapped backup verification delay** — immutable air-gapped backups are not always integrity-checked online. Suppression: monthly manual attestation in `audit_evidence` source `ot:backup:airgap_attestation`.\n\n2. **First-day cadence transient for newly-added assets** — a brand new asset cannot have a backup yet. Suppression: 7-day grace period on assets less than 7 days old.\n\n3. **Vendor-managed-service backup with weekly visibility** — some MSPs only publish weekly status reports. Suppression: tag asset_class as `msp_managed`; cadence rules accept weekly reporting.\n\n**Suppression mechanism**: KV Store `otcc_22_51_22_exceptions`.",
+  "mitreAttack": [
+    "T1490"
+  ],
   "requiredFields": [
     "asset_key",
     "backup_completed_at",
     "backup_storage_class"
   ],
+  "equipment": [
+    "commvault",
+    "dell_emc",
+    "hashicorp",
+    "splunk-es",
+    "veeam"
+  ],
+  "equipmentModels": [
+    "Commvault HyperScale X / Complete Backup (job-result + verification events)",
+    "Splunk Add-on for Commvault (Splunkbase 4321)",
+    "Splunk Add-on for Veeam (Splunkbase 5050)",
+    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Storage / Performance data models)",
+    "Veeam Backup & Replication 12.x (backup-job and SureBackup verification logs)",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "T1490"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.3"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- One or more backup-product TAs for the products in use.\n- For OT vendor backup tools (Rockwell FactoryTalk AssetCentre, Schneider System Backup, Siemens TIA Portal): UF on the management server with file-monitor inputs over the backup log directory; sourcetype configured to match.\n- `index=backup` (24-month retention), `index=audit_evidence`.\n- Lookups:\n  - `ot_backup_cadence.csv` — owned by OT cybersecurity engineering. Columns: `asset_class`, `backup_interval_hours`. Examples:\n\n    ```csv\n    asset_class,backup_interval_hours\n    engineering_workstation_windows,24\n    hmi_windows,24\n    jumphost_windows,24\n    plc_controller,168\n    sis_logic_solver,168\n    firewall_ot_dmz,24\n    historian,1\n    ```\n\n  - `ot_backup_storage_policy.csv` — owned by OT cybersecurity engineering. Columns: `asset_class`, `required_storage_classes` (mvfield). Examples:\n\n    ```csv\n    asset_class,required_storage_classes\n    engineering_workstation_windows,\"s3_object_lock|tape_airgap\"\n    sis_logic_solver,\"tape_airgap|usb_airgap\"\n    plc_controller,\"s3_object_lock|tape_airgap\"\n    historian,\"s3_object_lock\"\n    ```\n\n  - `ot_restore_test_schedule.csv` — owned by OT operations. Columns: `asset_class`, `restore_test_interval_days`. Examples:\n\n    ```csv\n    asset_class,restore_test_interval_days\n    engineering_workstation_windows,90\n    plc_controller,180\n    sis_logic_solver,180\n    historian,30\n    ```\n\n  - KV Store `otcc_22_51_22_exceptions`.\n\n## Step 1 — Configure data collection\n\nCommvault (typical pattern):\n\n```ini\n[commvault://job_status]\nendpoint = https://commvault.example.com/webconsole\nresources = backup_jobs,restore_jobs,integrity_check\nindex = backup\nsourcetype = commvault:backup:job\ninterval = 1800\n```\n\nVeeam:\n\n```ini\n[veeam://job_status]\nendpoint = https://veeam.example.com/api/v1\nresources = jobs,restore_sessions\nindex = backup\nsourcetype = veeam:backup:job\ninterval = 1800\n```\n\nFor air-gapped backup: a Splunk UF on the air-gapped vault appliance (or the vault's management server) generates a weekly attestation event via scripted input writing the hash-manifest of all backed-up files into `index=audit_evidence`.\n\n## Step 2 — Create the search and alert\n\nFour flags as described.\n\n**Schedule**:\n\n```ini\n[UC-22.51.22: OT Backup Integrity and Recovery Testing Evidence]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.22,reg=NCA_OTCC,clause=OTCC-2-9-1-1\naction.email.to = ot-cyber-programme@example.com,ot-operations-director@example.com\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Backup-feed health.\n\n**(b)** Cadence-table coverage of every asset_class.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Backup Integrity`.\n\n- **Row 1, single values**: 'Backups overdue', 'Restore tests overdue', 'Storage policy violations', 'Integrity failures'.\n- **Row 2, heatmap**: weeks-since-last-restore-test per asset_class.\n- **Row 3, sortable table**: every flagged asset.\n- **Row 4, 13-month trend**.\n\n**Runbook for `backup_overdue_flag=true`**: P3 ticket to OT operations to investigate. Common causes: backup agent stopped, backup repository disk full, network path broken to backup target.\n\n**Runbook for `storage_class_violation_flag=true`**: P2 ticket. Move backup to compliant storage. Investigate the misconfiguration that placed it on non-compliant storage.\n\n**Runbook for `integrity_failed_flag=true`**: P1 ticket. Treat as a potential ransomware indicator. Engage IR per UC-22.51.16.\n\n## Step 5 — Troubleshooting\n\n**Restore-test events absent** — the restore-test workflow doesn't always emit a discrete event. Configure the backup product to write `action=restore_test` events explicitly, or use the BCP exercise feed (UC-22.51.20) which carries restore evidence.\n\n**OT-specific failure modes**:\n\n- **PLC backups via vendor tools**: Rockwell, Siemens, Schneider each have unique backup formats. Standardise the sourcetype names and ensure the lookup recognises each variant.\n- **Air-gapped vault attestation cadence**: a vault that is genuinely air-gapped cannot be online-verified. Monthly attestation is the OTCC-acceptable substitute.\n- **Backup encryption key escrow**: OT backups should be encrypted but the decryption keys must be available in disaster scenarios. Maintain key-escrow procedures and document them in `audit_evidence`.\n- **Cross-region replication**: for KSA-resident operators, ensure backup replication remains within KSA boundaries per data residency expectations.",
   "grandmaExplanation": "We check that we are still making fresh copies of every plant computer's settings, keeping them somewhere safe and unreachable, and that we have practiced restoring them recently. If anything is missing or wrong, we ring the bell.",
-  "equipmentModels": [
-    "Commvault HyperScale X / Complete Backup (job-result + verification events)",
-    "Veeam Backup & Replication 12.x (backup-job and SureBackup verification logs)",
-    "Splunk Add-on for Commvault (Splunkbase 4321)",
-    "Splunk Add-on for Veeam (Splunkbase 5050)",
-    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Storage / Performance data models)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

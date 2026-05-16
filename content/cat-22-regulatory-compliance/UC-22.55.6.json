@@ -35,6 +35,57 @@
   },
   "dataSources": "KV Store `rail_risk_treatment_lookup`. ServiceNow GRC treatment tasks (`snow:risk_treatment`). SOAR `rail-risk-treatment-status` playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail_risk_treatment_lookup\n| where treatment_decision=\"implement\"\n| eval now_ts = now()\n| eval days_to_target = if(isnotnull(target_completion_at), round((target_completion_at - now_ts) / 86400, 0), null())\n| eval treatment_status = case(\n    isnotnull(control_implemented_at) AND isnotnull(control_test_passed_at), \"implemented_and_verified\",\n    isnotnull(control_implemented_at) AND isnull(control_test_passed_at), \"implemented_untested\",\n    isnull(control_implemented_at) AND target_completion_at < now_ts, \"implementation_overdue\",\n    isnull(control_implemented_at) AND days_to_target <= 30, \"implementation_approaching_due\",\n    1=1, \"implementation_pending\")\n| where treatment_status IN (\"implementation_overdue\", \"implemented_untested\")\n| table treatment_id zone_id control_id target_completion_at days_to_target control_implemented_at control_implemented_by control_evidence_url control_test_passed_at treatment_status",
+  "description": "Tracks risk-treatment controls from accepted-for-implementation to implemented-and-tested. Surfaces overdue implementations and implementations without testing evidence.",
+  "value": "Acceptance without implementation is a common audit finding. This UC closes the loop by tracking each treatment to a verified-and-evidenced state.",
+  "implementation": "(1) Maintain `rail_risk_treatment_lookup`. (2) ServiceNow GRC tracks treatment tasks; SOAR syncs to lookup on every update. (3) Schedule UC-22.55.6 weekly Monday 04:00.",
+  "visualization": "(Panel 1) Treatment-status table. (Panel 2) Implementation-due calendar. (Panel 3) Overdue queue. (Panel 4) Implementation-effectiveness trend.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 6.3 — Risk treatment",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Treatment paused by safety-case re-review** — implementation may pause pending EN 50126 safety case update. Suppression: `treatment_status_override=safety_review_pending`.\n\n2. **Vendor-delivered component delay** — supplier hardware delivery can delay implementation; document supplier issue in `rail_supplier_deliverables_lookup`.\n\n**Suppression mechanism**: KV Store `clc_22_55_6_exceptions` with documented Risk Manager approval and 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (control-implementation governance)"
+  ],
+  "requiredFields": [
+    "treatment_id",
+    "control_id",
+    "target_completion_at",
+    "treatment_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC Risk Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-risk-treatment-status playbook)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Risk Manager + Head of Engineering",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_risk_treatment_lookup`.\n- ServiceNow GRC Risk Management.\n\n## Step 1 — Treatment collection\n\n```ini\n[rail_risk_treatment_lookup]\nenforceTypes = true\nfield.treatment_id = string\nfield.zone_id = string\nfield.assessment_id = string\nfield.control_id = string\nfield.treatment_decision = string\nfield.target_completion_at = number\nfield.control_implemented_at = number\nfield.control_implemented_by = string\nfield.control_evidence_url = string\nfield.control_test_passed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.6: CLC/TS 50701 Risk Treatment Implementation]\ncron_schedule = 0 4 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.6,reg=CLC-TS-50701,clause=CLC-TS-50701-c6-3\naction.notable.param.rule_title = Rail risk-treatment implementation overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `implementation_overdue`** (owner: Risk Manager + Head of Engineering, severity P2):\n\n1. Within 30 days: confirm completion or replan with documented schedule slip.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Safety-case interlock**: changes to safety-significant controls require EN 50126 safety-case update; coordinate before implementation.\n- **Notified Body inspection of controls**: NB may verify implementation during periodic review.",
+  "grandmaExplanation": "Whenever a cyber-risk report says 'we should add this protection', someone is assigned to add it by a date. We track every promised protection to make sure it's installed and tested. If something is overdue, the team is alerted.",
+  "prerequisiteUseCases": [
+    "UC-22.55.4"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -58,55 +109,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
-  "spl": "| inputlookup rail_risk_treatment_lookup\n| where treatment_decision=\"implement\"\n| eval now_ts = now()\n| eval days_to_target = if(isnotnull(target_completion_at), round((target_completion_at - now_ts) / 86400, 0), null())\n| eval treatment_status = case(\n    isnotnull(control_implemented_at) AND isnotnull(control_test_passed_at), \"implemented_and_verified\",\n    isnotnull(control_implemented_at) AND isnull(control_test_passed_at), \"implemented_untested\",\n    isnull(control_implemented_at) AND target_completion_at < now_ts, \"implementation_overdue\",\n    isnull(control_implemented_at) AND days_to_target <= 30, \"implementation_approaching_due\",\n    1=1, \"implementation_pending\")\n| where treatment_status IN (\"implementation_overdue\", \"implemented_untested\")\n| table treatment_id zone_id control_id target_completion_at days_to_target control_implemented_at control_implemented_by control_evidence_url control_test_passed_at treatment_status",
-  "description": "Tracks risk-treatment controls from accepted-for-implementation to implemented-and-tested. Surfaces overdue implementations and implementations without testing evidence.",
-  "value": "Acceptance without implementation is a common audit finding. This UC closes the loop by tracking each treatment to a verified-and-evidenced state.",
-  "implementation": "(1) Maintain `rail_risk_treatment_lookup`. (2) ServiceNow GRC tracks treatment tasks; SOAR syncs to lookup on every update. (3) Schedule UC-22.55.6 weekly Monday 04:00.",
-  "visualization": "(Panel 1) Treatment-status table. (Panel 2) Implementation-due calendar. (Panel 3) Overdue queue. (Panel 4) Implementation-effectiveness trend.",
-  "cimModels": [
-    "Alerts",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "CLC/TS 50701:2021 clause 6.3 — Risk treatment",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
-    }
-  ],
-  "knownFalsePositives": "1. **Treatment paused by safety-case re-review** — implementation may pause pending EN 50126 safety case update. Suppression: `treatment_status_override=safety_review_pending`.\n\n2. **Vendor-delivered component delay** — supplier hardware delivery can delay implementation; document supplier issue in `rail_supplier_deliverables_lookup`.\n\n**Suppression mechanism**: KV Store `clc_22_55_6_exceptions` with documented Risk Manager approval and 90-day maximum grant.",
-  "requiredFields": [
-    "treatment_id",
-    "control_id",
-    "target_completion_at",
-    "treatment_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Risk Manager + Head of Engineering",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "Splunk SOAR 6.x (Splunkbase 4413, rail-risk-treatment-status playbook)",
-    "ServiceNow GRC Risk Management"
-  ],
-  "mitreAttack": [
-    "N/A (control-implementation governance)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.55.4"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_risk_treatment_lookup`.\n- ServiceNow GRC Risk Management.\n\n## Step 1 — Treatment collection\n\n```ini\n[rail_risk_treatment_lookup]\nenforceTypes = true\nfield.treatment_id = string\nfield.zone_id = string\nfield.assessment_id = string\nfield.control_id = string\nfield.treatment_decision = string\nfield.target_completion_at = number\nfield.control_implemented_at = number\nfield.control_implemented_by = string\nfield.control_evidence_url = string\nfield.control_test_passed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.6: CLC/TS 50701 Risk Treatment Implementation]\ncron_schedule = 0 4 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.6,reg=CLC-TS-50701,clause=CLC-TS-50701-c6-3\naction.notable.param.rule_title = Rail risk-treatment implementation overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `implementation_overdue`** (owner: Risk Manager + Head of Engineering, severity P2):\n\n1. Within 30 days: confirm completion or replan with documented schedule slip.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Safety-case interlock**: changes to safety-significant controls require EN 50126 safety-case update; coordinate before implementation.\n- **Notified Body inspection of controls**: NB may verify implementation during periodic review.",
-  "grandmaExplanation": "Whenever a cyber-risk report says 'we should add this protection', someone is assigned to add it by a date. We track every promised protection to make sure it's installed and tested. If something is overdue, the team is alerted."
+  "wave": "walk"
 }

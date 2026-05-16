@@ -35,25 +35,6 @@
   },
   "dataSources": "Tenable / Rapid7 / Qualys vulnerability scanners, Dragos / Claroty / Nozomi OT vulnerability tracking, CISA KEV feed, ICS-CERT bulletins, vendor security advisories.",
   "app": "Splunk Add-on for Tenable (Splunkbase 1710), Splunk Add-on for Qualys (Splunkbase 2964), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1710,
-      "name": "Splunk Add-on for Tenable",
-      "url": "https://splunkbase.splunk.com/app/1710",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=vulnerability sourcetype IN (tenable:vuln, qualys:vuln, rapid7:vuln, dragos:vuln, claroty:vuln, nozomi:vuln) earliest=-1d@d\n| lookup cisa_kev_lookup cve_id OUTPUT kev_listed kev_due_at\n| lookup awia_compensating_control_lookup asset_id cve_id OUTPUT compensating_control_url\n| eval days_open = if(isnotnull(discovered_at), round((now() - discovered_at) / 86400, 0), null())\n| eval sla_band = case(\n    kev_listed=\"true\", \"kev_7d\",\n    cvss_score >= 9.0 AND exploit_in_wild=\"true\", \"critical_14d\",\n    cvss_score >= 9.0, \"critical_30d\",\n    cvss_score >= 7.0, \"high_60d\",\n    1=1, \"medium_90d\")\n| eval sla_days = case(\n    sla_band=\"kev_7d\", 7,\n    sla_band=\"critical_14d\", 14,\n    sla_band=\"critical_30d\", 30,\n    sla_band=\"high_60d\", 60,\n    1=1, 90)\n| eval sla_breach = if(days_open > sla_days AND isnull(remediated_at) AND isnull(compensating_control_url), \"true\", \"false\")\n| eval vuln_status = case(\n    isnotnull(remediated_at), \"remediated\",\n    isnotnull(compensating_control_url), \"compensated\",\n    kev_listed=\"true\" AND sla_breach=\"true\", \"kev_sla_breach\",\n    sla_breach=\"true\", \"sla_breach\",\n    days_open > (sla_days - 7), \"approaching_sla\",\n    1=1, \"in_remediation\")\n| where vuln_status IN (\"kev_sla_breach\",\"sla_breach\",\"approaching_sla\")\n| table pwsid asset_id cve_id kev_listed cvss_score exploit_in_wild discovered_at remediated_at days_open sla_band sla_breach compensating_control_url safety_validation_complete ot_safety_review_at vuln_status",
   "description": "Joins vulnerability findings to CISA KEV, computes SLA bands and breaches, surfaces compensating-control coverage.",
   "value": "EPA's Top Actions list explicitly calls out vulnerability management. CISA KEV remediation timeline is now a federal expectation. This UC keeps the OT-aware vulnerability posture audit-defensible.",
@@ -77,6 +58,10 @@
     }
   ],
   "knownFalsePositives": "1. **Feature disabled** — evidence captured.\n\n2. **Compensating control accepted** — URL captured.\n\n**Suppression**: `awia_22_53_26_exceptions`; max 60-day grant.",
+  "mitreAttack": [
+    "T1190",
+    "T1078"
+  ],
   "requiredFields": [
     "pwsid",
     "asset_id",
@@ -85,33 +70,49 @@
     "sla_band",
     "vuln_status"
   ],
+  "equipment": [
+    "dragos",
+    "qualys",
+    "splunk-es",
+    "tenable"
+  ],
+  "equipmentModels": [
+    "Dragos / Claroty / Nozomi OT vulnerability tracking",
+    "Qualys VMDR",
+    "Rapid7 InsightVM",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Tenable Vulnerability Management"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "tenable",
-    "dragos",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Tenable Vulnerability Management",
-    "Qualys VMDR",
-    "Rapid7 InsightVM",
-    "Dragos / Claroty / Nozomi OT vulnerability tracking",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T1190",
-    "T1078"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=vulnerability`, `index=audit_evidence`.\n- CISA KEV feed ingest into `cisa_kev_lookup`.\n- Lookup `awia_compensating_control_lookup`.\n\n## Step 1 — Configure data collection\n\nIT vulnerability scanners and OT visibility platforms emit findings; CISA KEV feed is updated daily.\n\n## Step 2 — Create the search and alert\n\nDaily 12:00.\n\n```ini\n[UC-22.53.26: AWIA Vulnerability Management]\ncron_schedule = 0 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.26,reg=AWIA,clause=AWIA-EPA-vuln-mgmt\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: KEV >7d without remediation; UC fires.  Negative: remediated / compensated; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Vulnerability Management`. Runbook: prioritise KEV; OT patch requires safety validation before deployment.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **OT-safety validation**: patching a PLC may require a plant outage; safety-validation captures the plan and the post-patch verification. The UC requires `safety_validation_complete=true` for OT assets before treating the patch as remediated.\n- **Vendor-supplied firmware**: where a vendor has not yet published a patch for a KEV-listed vulnerability, compensating control is the only valid path.\n- **Long-lived ICS-CERT advisories**: some advisories remain open for years without remediation across the sector; document the residual risk acceptance.",
+  "grandmaExplanation": "Cyber attackers use known software bugs to break in. The CISA agency keeps a list of the most actively exploited bugs. Each one has a fix deadline. We watch every utility computer and controller against that list and ring the bell if any one is past its fix deadline.",
   "prerequisiteUseCases": [
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=vulnerability`, `index=audit_evidence`.\n- CISA KEV feed ingest into `cisa_kev_lookup`.\n- Lookup `awia_compensating_control_lookup`.\n\n## Step 1 — Configure data collection\n\nIT vulnerability scanners and OT visibility platforms emit findings; CISA KEV feed is updated daily.\n\n## Step 2 — Create the search and alert\n\nDaily 12:00.\n\n```ini\n[UC-22.53.26: AWIA Vulnerability Management]\ncron_schedule = 0 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.26,reg=AWIA,clause=AWIA-EPA-vuln-mgmt\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: KEV >7d without remediation; UC fires.  Negative: remediated / compensated; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Vulnerability Management`. Runbook: prioritise KEV; OT patch requires safety validation before deployment.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **OT-safety validation**: patching a PLC may require a plant outage; safety-validation captures the plan and the post-patch verification. The UC requires `safety_validation_complete=true` for OT assets before treating the patch as remediated.\n- **Vendor-supplied firmware**: where a vendor has not yet published a patch for a KEV-listed vulnerability, compensating control is the only valid path.\n- **Long-lived ICS-CERT advisories**: some advisories remain open for years without remediation across the sector; document the residual risk acceptance.",
-  "grandmaExplanation": "Cyber attackers use known software bugs to break in. The CISA agency keeps a list of the most actively exploited bugs. Each one has a fix deadline. We watch every utility computer and controller against that list and ring the bell if any one is past its fix deadline."
+  "splunkbaseApps": [
+    {
+      "id": 1710,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/1710",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

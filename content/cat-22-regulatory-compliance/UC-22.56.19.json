@@ -36,6 +36,66 @@
   },
   "dataSources": "Veeam Backup & Replication (`veeam:job`). Commvault (`commvault:job:event`). Rubrik (`rubrik:event`). NetBackup. TSA asset register. RTO register (KV Store `tsa_rto_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Veeam (Splunkbase 3973), Splunk Add-on for Commvault (Splunkbase 4115), Splunk Add-on for Rubrik (Splunkbase 4316).",
+  "spl": "| inputlookup tsa_rto_lookup\n| where tsa_in_scope=true\n| join type=left asset_id [search (sourcetype=veeam:job OR sourcetype=commvault:job:event OR sourcetype=rubrik:event) status=success | stats latest(_time) as last_backup max(eval(if(test_restore=true, _time, null))) as last_test_restore by asset_id]\n| eval hours_since_backup = round((now() - last_backup) / 3600, 1)\n| eval days_since_test = round((now() - last_test_restore) / 86400, 0)\n| eval backup_status = case(\n    isnull(last_backup), \"missing\",\n    hours_since_backup > rpo_hours, \"stale\",\n    isnull(last_test_restore) OR days_since_test > 180, \"untested\",\n    1=1, \"healthy\")\n| where backup_status IN (\"missing\",\"stale\",\"untested\")\n| table facility_id asset_id modality rto_hours rpo_hours hours_since_backup days_since_test backup_status",
+  "description": "Reconciles backup-job telemetry with TSA asset register and per-asset RPO/RTO; surfaces missing/stale/untested backups.",
+  "value": "TSA inspectors will demand backup evidence as part of recovery posture. Untested backups are a frequent enforcement finding.",
+  "implementation": "(1) Populate `tsa_rto_lookup` with asset, RPO, RTO. (2) Schedule UC-22.56.19 daily. (3) Build the `TSA Backup Health` dashboard.",
+  "visualization": "(Panel 1) Backup status by modality. (Panel 2) Stale-trend (30 days). (Panel 3) DR-test currency heat-map. (Panel 4) Top-10 critical untested assets.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §3.5 (backups)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "NIST 800-34 — Contingency Planning",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-34/rev-1/final"
+    }
+  ],
+  "knownFalsePositives": "1. **Snapshot-based backups**: some assets use snapshot-only protection. Pin in lookup with `protection_type=snapshot`.\n2. **Air-gapped backups**: pin with `air_gapped=true`; the job telemetry may not reach Splunk in real time.\n\n**Suppression mechanism**: KV Store `tsa_backup_exception_lookup`.",
+  "mitreAttack": [
+    "T1485",
+    "T1490",
+    "T0809"
+  ],
+  "requiredFields": [
+    "facility_id",
+    "asset_id",
+    "modality",
+    "backup_status"
+  ],
+  "equipment": [
+    "commvault",
+    "hashicorp",
+    "rubrik",
+    "splunk-es",
+    "veeam"
+  ],
+  "equipmentModels": [
+    "Commvault Backup & Recovery v11",
+    "Rubrik CDM 8.x",
+    "Splunk ES 7.x",
+    "Veeam Backup & Replication 12.x",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + Recovery Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + backup vendor add-ons.\n- KV Store `tsa_rto_lookup`.\n\n## Step 1 — RTO register\n\n```ini\n[tsa_rto_lookup]\nfield.facility_id = string\nfield.asset_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.rto_hours = number\nfield.rpo_hours = number\nfield.protection_type = string\nfield.air_gapped = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.19: TSA Backup Health]\ncron_schedule = 11 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.19,reg=TSA-Surface,clause=TSA-SD-multi-backup-RTO\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`backup_status=missing` on critical TSA asset** (owner: Recovery Lead, severity P1): triage 1 hour, deploy 4 hours.\n**`backup_status=untested`**: schedule DR test within 30 days.\n\n## Step 4 — Troubleshooting\n\n- **Vendor metric delay**: some vendors emit job status hours-late; use `last_backup` not job-start.\n- **Air-gapped reporting gap**: install a side-channel attestation feed.\n\n**TSA-specific failure modes**:\n- **Pipeline SCADA partial-restore**: PCS restore may require staged validation; ensure DR test plan covers staged restore.\n- **Airline DCS multi-airport restore**: airline-wide DCS restore touches 100+ airports; budget for the surge.",
+  "grandmaExplanation": "We back up every important computer in our pipelines, trains, and airports — and we test that the backups actually work, regularly. If a backup is missing, stale, or untested, we know about it the next day.",
+  "prerequisiteUseCases": [
+    "UC-22.56.6"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -66,63 +126,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup tsa_rto_lookup\n| where tsa_in_scope=true\n| join type=left asset_id [search (sourcetype=veeam:job OR sourcetype=commvault:job:event OR sourcetype=rubrik:event) status=success | stats latest(_time) as last_backup max(eval(if(test_restore=true, _time, null))) as last_test_restore by asset_id]\n| eval hours_since_backup = round((now() - last_backup) / 3600, 1)\n| eval days_since_test = round((now() - last_test_restore) / 86400, 0)\n| eval backup_status = case(\n    isnull(last_backup), \"missing\",\n    hours_since_backup > rpo_hours, \"stale\",\n    isnull(last_test_restore) OR days_since_test > 180, \"untested\",\n    1=1, \"healthy\")\n| where backup_status IN (\"missing\",\"stale\",\"untested\")\n| table facility_id asset_id modality rto_hours rpo_hours hours_since_backup days_since_test backup_status",
-  "description": "Reconciles backup-job telemetry with TSA asset register and per-asset RPO/RTO; surfaces missing/stale/untested backups.",
-  "value": "TSA inspectors will demand backup evidence as part of recovery posture. Untested backups are a frequent enforcement finding.",
-  "implementation": "(1) Populate `tsa_rto_lookup` with asset, RPO, RTO. (2) Schedule UC-22.56.19 daily. (3) Build the `TSA Backup Health` dashboard.",
-  "visualization": "(Panel 1) Backup status by modality. (Panel 2) Stale-trend (30 days). (Panel 3) DR-test currency heat-map. (Panel 4) Top-10 critical untested assets.",
-  "cimModels": [
-    "Inventory",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "TSA SD Pipeline-2021-02D §3.5 (backups)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
-    },
-    {
-      "title": "NIST 800-34 — Contingency Planning",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-34/rev-1/final"
-    }
-  ],
-  "knownFalsePositives": "1. **Snapshot-based backups**: some assets use snapshot-only protection. Pin in lookup with `protection_type=snapshot`.\n2. **Air-gapped backups**: pin with `air_gapped=true`; the job telemetry may not reach Splunk in real time.\n\n**Suppression mechanism**: KV Store `tsa_backup_exception_lookup`.",
-  "requiredFields": [
-    "facility_id",
-    "asset_id",
-    "modality",
-    "backup_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + CC + Recovery Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "veeam",
-    "commvault",
-    "rubrik",
-    "splunk-es"
-  ],
-  "equipmentModels": [
-    "Veeam Backup & Replication 12.x",
-    "Commvault Backup & Recovery v11",
-    "Rubrik CDM 8.x",
-    "Splunk ES 7.x"
-  ],
-  "mitreAttack": [
-    "T1485",
-    "T1490",
-    "T0809"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.56.6"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + backup vendor add-ons.\n- KV Store `tsa_rto_lookup`.\n\n## Step 1 — RTO register\n\n```ini\n[tsa_rto_lookup]\nfield.facility_id = string\nfield.asset_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.rto_hours = number\nfield.rpo_hours = number\nfield.protection_type = string\nfield.air_gapped = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.19: TSA Backup Health]\ncron_schedule = 11 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.19,reg=TSA-Surface,clause=TSA-SD-multi-backup-RTO\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`backup_status=missing` on critical TSA asset** (owner: Recovery Lead, severity P1): triage 1 hour, deploy 4 hours.\n**`backup_status=untested`**: schedule DR test within 30 days.\n\n## Step 4 — Troubleshooting\n\n- **Vendor metric delay**: some vendors emit job status hours-late; use `last_backup` not job-start.\n- **Air-gapped reporting gap**: install a side-channel attestation feed.\n\n**TSA-specific failure modes**:\n- **Pipeline SCADA partial-restore**: PCS restore may require staged validation; ensure DR test plan covers staged restore.\n- **Airline DCS multi-airport restore**: airline-wide DCS restore touches 100+ airports; budget for the surge.",
-  "grandmaExplanation": "We back up every important computer in our pipelines, trains, and airports — and we test that the backups actually work, regularly. If a backup is missing, stale, or untested, we know about it the next day."
+  "wave": "walk"
 }

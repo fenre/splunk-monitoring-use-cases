@@ -48,33 +48,6 @@
   },
   "dataSources": "OSIsoft PI / AVEVA PI historian on engine-room subnet (`osisoft:pi:archive`, `aveva:pi:audit`). Engine OEM telemetry: Wartsila Online Services (`wartsila:olm:telemetry`), MAN Energy Solutions PrimeServ (`man:primeserv:telemetry`), Caterpillar Marine CAT Asset Intelligence (`cat:asset-intel:telemetry`). DPS telemetry: Kongsberg K-Pos / SDP (`kongsberg:kpos:audit`), Marine Technologies Inc. (MTI) Bridgemate (`mti:bridgemate:audit`). PMS telemetry: ABB Marine PEMS / Onboard DC Grid (`abb:pems:audit`). Splunk Stream OPC-UA / Modbus parsing on the engine-room subnet.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk_TA_stream (Splunkbase 1809), splunk_app_for_industrial_iot, Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Machine Learning Toolkit (Splunkbase 2890).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1809,
-      "name": "Splunk Stream",
-      "url": "https://splunkbase.splunk.com/app/1809",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 2890,
-      "name": "Splunk Machine Learning Toolkit",
-      "url": "https://splunkbase.splunk.com/app/2890",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk Machine Learning Toolkit"
-  ],
   "spl": "(sourcetype=\"osisoft:pi:archive\" OR sourcetype=\"aveva:pi:audit\" OR sourcetype=\"wartsila:olm:telemetry\" OR sourcetype=\"kongsberg:kpos:audit\" OR sourcetype=\"abb:pems:audit\")\n    system_class IN (\"propulsion\",\"pms\",\"dps\")\n| bucket _time span=15m\n| stats avg(observed_value) AS observed_avg, stdev(observed_value) AS observed_stdev by imo_number, system_class, tag_name, _time\n| lookup imo_ot_operating_envelope_lookup imo_number system_class tag_name OUTPUT envelope_min envelope_max envelope_stdev_threshold\n| eval anomaly_class = case(\n    observed_avg < envelope_min, \"below-envelope\",\n    observed_avg > envelope_max, \"above-envelope\",\n    observed_stdev > envelope_stdev_threshold, \"high-variance\",\n    system_class = \"dps\" AND tag_name = \"position-drift\" AND observed_avg > 3, \"dps-drift\",\n    1=1, null)\n| eval anomaly_indicator = if(isnotnull(anomaly_class), \"true\", \"false\")\n| where anomaly_indicator = \"true\"\n| table _time imo_number system_class tag_name observed_avg envelope_min envelope_max anomaly_class anomaly_indicator",
   "description": "Continuously inspects propulsion, PMS, and DPS telemetry tags from PI / OEM historians; computes deviation from per-vessel operating envelope; raises a notable on sustained out-of-envelope deviation.",
   "value": "A 2023 case study at IACS established that 60% of newbuild DP-2 vessels had at least one DPS network-discoverable attack surface. A successful attack on DPS station-keeping during offshore loading could cause a major-environmental-incident (oil spill) or loss of life. This UC catches sustained deviations early — both for safety and cyber.",
@@ -99,6 +72,11 @@
     }
   ],
   "knownFalsePositives": "1. **Heavy-weather operation**: a vessel in Beaufort 9+ may legitimately show high DPS variance; tighten threshold conditioned on a `weather_class` lookup. 2. **Cargo-operations transient**: tanker loading / discharge introduces ballast-shift transients on propulsion fuel-rack signals; allow during loading-window. 3. **Newbuild-commissioning trial**: factory-trial mode is bracketed by the Chief Engineer.\n\n**Suppression mechanism**: KV Store `imo_22_59_8_exceptions` with the Chief Engineer's documented approval.",
+  "mitreAttack": [
+    "T0814",
+    "T0830",
+    "T0858"
+  ],
   "requiredFields": [
     "imo_number",
     "system_class",
@@ -106,38 +84,63 @@
     "anomaly_class",
     "anomaly_indicator"
   ],
+  "equipment": [
+    "modbus",
+    "opcua",
+    "splunk-es",
+    "splunk-mltk",
+    "splunk-stream",
+    "stream"
+  ],
+  "equipmentModels": [
+    "ABB Marine PEMS / Onboard DC Grid",
+    "Caterpillar Marine CAT Asset Intelligence",
+    "Kongsberg K-Pos DP / SDP-21 / SDP-22 / SDP-3X",
+    "MAN Energy Solutions PrimeServ Live / SAFIR",
+    "Marine Technologies Inc. (MTI) Bridgemate",
+    "OSIsoft PI System (AVEVA PI Server)",
+    "Schneider Electric EcoStruxure Marine",
+    "Wartsila Online Services"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime OT SME Panel + Chief Engineer + Engine OEM Liaison",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-mltk",
-    "splunk-stream"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk Machine Learning Toolkit"
   ],
-  "equipmentModels": [
-    "OSIsoft PI System (AVEVA PI Server)",
-    "Wartsila Online Services",
-    "MAN Energy Solutions PrimeServ Live / SAFIR",
-    "Caterpillar Marine CAT Asset Intelligence",
-    "Kongsberg K-Pos DP / SDP-21 / SDP-22 / SDP-3X",
-    "Marine Technologies Inc. (MTI) Bridgemate",
-    "ABB Marine PEMS / Onboard DC Grid",
-    "Schneider Electric EcoStruxure Marine"
-  ],
-  "mitreAttack": [
-    "T0814",
-    "T0830",
-    "T0858"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- PI / AVEVA historian on the engine-room subnet with read-only data export to Splunk.\n- OT operating envelope per vessel — `imo_ot_operating_envelope_lookup` — owned by the Chief Engineer and updated quarterly.\n\n## Step 1 — Operating-envelope KV Store\n\n```ini\n[imo_ot_operating_envelope_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.system_class = string\nfield.tag_name = string\nfield.envelope_min = number\nfield.envelope_max = number\nfield.envelope_stdev_threshold = number\nfield.last_reviewed = time\nfield.reviewer = string\n```\n\n## Step 2 — Metric ingestion\n\nUse Splunk's metrics store on a dedicated index `metrics_maritime_ot` for high-cardinality tag streams. Configure the Splunk Add-on for OSIsoft PI System with reasonable batch sizes (vessel-fleet scale 100+ vessels x 5000+ tags/vessel = significant volume).\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.8: IMO OT Anomaly]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.8,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=dps-drift`** on DP-2 / DP-3 (owner: Chief Engineer + Master, severity P1): Within 15 minutes, the Master assesses safety implications (proximity to platform, vessels, shore); engage Engine OEM technical support if DPS is loss-of-control suspected.\n\n**`anomaly_class=below-envelope`** on propulsion main engine (severity P1): Could indicate fuel-rack tampering or main-engine governor compromise; the Chief Engineer engages MAN / Wartsila / Caterpillar PrimeServ within 30 minutes.\n\n## Step 5 — Maritime-specific notes\n\n- **DP class hierarchy**: DP-1 (single fault tolerance), DP-2 (redundant fault tolerance — typical offshore supply), DP-3 (full redundancy — drillships). Tighten thresholds per class.\n- **Engine OEM cross-reference**: a cyber anomaly may have an OEM PrimeServ correlate; bake the OEM ticket-reference into the alert payload.",
+  "grandmaExplanation": "Ships' engines, electrics, and station-keeping computers must run within safe limits. We watch every key reading — engine speed, power, dynamic positioning drift — and raise the alarm if any reading wanders outside the normal range for too long.",
   "prerequisiteUseCases": [
     "UC-22.59.3",
     "UC-22.59.4"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- PI / AVEVA historian on the engine-room subnet with read-only data export to Splunk.\n- OT operating envelope per vessel — `imo_ot_operating_envelope_lookup` — owned by the Chief Engineer and updated quarterly.\n\n## Step 1 — Operating-envelope KV Store\n\n```ini\n[imo_ot_operating_envelope_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.system_class = string\nfield.tag_name = string\nfield.envelope_min = number\nfield.envelope_max = number\nfield.envelope_stdev_threshold = number\nfield.last_reviewed = time\nfield.reviewer = string\n```\n\n## Step 2 — Metric ingestion\n\nUse Splunk's metrics store on a dedicated index `metrics_maritime_ot` for high-cardinality tag streams. Configure the Splunk Add-on for OSIsoft PI System with reasonable batch sizes (vessel-fleet scale 100+ vessels x 5000+ tags/vessel = significant volume).\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.8: IMO OT Anomaly]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.8,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=dps-drift`** on DP-2 / DP-3 (owner: Chief Engineer + Master, severity P1): Within 15 minutes, the Master assesses safety implications (proximity to platform, vessels, shore); engage Engine OEM technical support if DPS is loss-of-control suspected.\n\n**`anomaly_class=below-envelope`** on propulsion main engine (severity P1): Could indicate fuel-rack tampering or main-engine governor compromise; the Chief Engineer engages MAN / Wartsila / Caterpillar PrimeServ within 30 minutes.\n\n## Step 5 — Maritime-specific notes\n\n- **DP class hierarchy**: DP-1 (single fault tolerance), DP-2 (redundant fault tolerance — typical offshore supply), DP-3 (full redundancy — drillships). Tighten thresholds per class.\n- **Engine OEM cross-reference**: a cyber anomaly may have an OEM PrimeServ correlate; bake the OEM ticket-reference into the alert payload.",
-  "grandmaExplanation": "Ships' engines, electrics, and station-keeping computers must run within safe limits. We watch every key reading — engine speed, power, dynamic positioning drift — and raise the alarm if any reading wanders outside the normal range for too long."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2890,
+      "name": "Splunk Machine Learning Toolkit",
+      "url": "https://splunkbase.splunk.com/app/2890",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

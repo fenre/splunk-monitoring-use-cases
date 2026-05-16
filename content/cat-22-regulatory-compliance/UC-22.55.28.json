@@ -35,18 +35,6 @@
   },
   "dataSources": "KV Store `rail_self_assessment_lookup`. Self-assessment workflow tool (Confluence, JIRA, ServiceNow GRC). NSA submission portal receipt logs (HEC `hec:nsa:rail:submission`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_self_assessment_lookup\n| where fiscal_year=current_year\n| eval now_ts = now()\n| eval days_to_deadline = if(isnotnull(annual_deadline_at), round((annual_deadline_at - now_ts) / 86400, 0), null())\n| eval self_assessment_status = case(\n    isnull(completed_at) AND days_to_deadline < 0, \"annual_overdue\",\n    isnotnull(completed_at) AND isnull(executive_signed_at), \"executive_signature_missing\",\n    findings_open > 0 AND isnull(findings_remediation_plan_signed_at), \"open_findings_unremediated\",\n    isnotnull(executive_signed_at) AND findings_open == 0, \"complete\",\n    1=1, \"in_progress\")\n| where self_assessment_status != \"complete\" AND self_assessment_status != \"in_progress\"\n| table self_assessment_id fiscal_year scope started_at completed_at executive_signed_at nsa_submitted_at findings_open findings_closed self_assessment_status",
   "description": "Tracks annual CLC/TS 50701 self-assessment cycle through executive sign-off and NSA submission readiness.",
   "value": "Annual self-assessment is the operator's primary internal evidence of CSMS maturity and is the artifact NSA inspectors will request.",
@@ -75,29 +63,35 @@
     }
   ],
   "knownFalsePositives": "1. **Multi-jurisdiction operator** — may submit to multiple NSAs at different fiscal-year-ends.\n\n**Suppression mechanism**: KV Store `clc_22_55_28_exceptions` with documented Audit Committee Chair approval and 60-day maximum grant.",
+  "mitreAttack": [
+    "N/A (audit governance)"
+  ],
   "requiredFields": [
     "self_assessment_id",
     "fiscal_year",
     "self_assessment_status"
   ],
+  "equipment": [
+    "jira",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Rail Cybersecurity SME Panel + Audit Committee Chair + CISO",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "ServiceNow GRC"
-  ],
-  "mitreAttack": [
-    "N/A (audit governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_self_assessment_lookup`.\n- All other CLC/TS 50701 UCs (22.55.1 – 22.55.27) deployed and producing evidence.\n\n## Step 1 — Self-assessment collection\n\n```ini\n[rail_self_assessment_lookup]\nenforceTypes = true\nfield.self_assessment_id = string\nfield.fiscal_year = string\nfield.scope = string\nfield.annual_deadline_at = number\nfield.started_at = number\nfield.completed_at = number\nfield.executive_signed_at = number\nfield.nsa_submitted_at = number\nfield.findings_open = number\nfield.findings_closed = number\nfield.findings_remediation_plan_signed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.28: CLC/TS 50701 Self-Assessment Posture]\ncron_schedule = 0 11 1 * *\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.28,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-4\naction.notable.param.rule_title = Rail self-assessment overdue or unsigned\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `annual_overdue`** (owner: CISO, severity P1): launch self-assessment immediately; complete within 60 days; brief Audit Committee.\n\n## Step 4 — Self-assessment scope\n\nThe annual self-assessment covers (from CLC/TS 50701):\n\n- Cl. 5 — CSMS scope and governance.\n- Cl. 6 — Risk assessment and threat scenario library.\n- Cl. 7 — Security architecture and zone/conduit model.\n- Cl. 8 — Patch / maintenance / decommissioning.\n- Cl. 9 — Incident detection and response.\n- Cl. 10 — Supplier and procurement.\n- Cl. 11 — Continuous obligations, training, sharing, audit.\n\n## Step 5 — NSA submission readiness\n\n- ANSSI (France): submission via NSA-secure portal.\n- BSI (Germany): submission via KRITIS-portal.\n- NCSC (UK): submission via NCSC-secure portal.\n- ENISA (EU): submission via NIS2 cooperation network.\n\n## Step 6 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Findings without remediation plan**: trigger automatic blocker.\n- **Executive sign-off missing**: escalate to CEO if CISO unavailable.\n- **NSA on-site inspection**: be ready to demonstrate every UC's evidence trail in <2h.",
+  "grandmaExplanation": "Once a year, we check ourselves against the rail cyber standard — like a school report card. We list what passed, what didn't, what we'll fix. The boss signs it, and we keep the paperwork in case the safety regulator asks to see it. This UC checks that the report card is current and signed.",
   "prerequisiteUseCases": [
     "UC-22.55.1",
     "UC-22.55.2",
@@ -112,6 +106,14 @@
     "UC-22.55.20",
     "UC-22.55.21"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_self_assessment_lookup`.\n- All other CLC/TS 50701 UCs (22.55.1 – 22.55.27) deployed and producing evidence.\n\n## Step 1 — Self-assessment collection\n\n```ini\n[rail_self_assessment_lookup]\nenforceTypes = true\nfield.self_assessment_id = string\nfield.fiscal_year = string\nfield.scope = string\nfield.annual_deadline_at = number\nfield.started_at = number\nfield.completed_at = number\nfield.executive_signed_at = number\nfield.nsa_submitted_at = number\nfield.findings_open = number\nfield.findings_closed = number\nfield.findings_remediation_plan_signed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.28: CLC/TS 50701 Self-Assessment Posture]\ncron_schedule = 0 11 1 * *\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.28,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-4\naction.notable.param.rule_title = Rail self-assessment overdue or unsigned\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `annual_overdue`** (owner: CISO, severity P1): launch self-assessment immediately; complete within 60 days; brief Audit Committee.\n\n## Step 4 — Self-assessment scope\n\nThe annual self-assessment covers (from CLC/TS 50701):\n\n- Cl. 5 — CSMS scope and governance.\n- Cl. 6 — Risk assessment and threat scenario library.\n- Cl. 7 — Security architecture and zone/conduit model.\n- Cl. 8 — Patch / maintenance / decommissioning.\n- Cl. 9 — Incident detection and response.\n- Cl. 10 — Supplier and procurement.\n- Cl. 11 — Continuous obligations, training, sharing, audit.\n\n## Step 5 — NSA submission readiness\n\n- ANSSI (France): submission via NSA-secure portal.\n- BSI (Germany): submission via KRITIS-portal.\n- NCSC (UK): submission via NCSC-secure portal.\n- ENISA (EU): submission via NIS2 cooperation network.\n\n## Step 6 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Findings without remediation plan**: trigger automatic blocker.\n- **Executive sign-off missing**: escalate to CEO if CISO unavailable.\n- **NSA on-site inspection**: be ready to demonstrate every UC's evidence trail in <2h.",
-  "grandmaExplanation": "Once a year, we check ourselves against the rail cyber standard — like a school report card. We list what passed, what didn't, what we'll fix. The boss signs it, and we keep the paperwork in case the safety regulator asks to see it. This UC checks that the report card is current and signed."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

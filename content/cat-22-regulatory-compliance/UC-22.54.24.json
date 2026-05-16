@@ -36,18 +36,6 @@
   },
   "dataSources": "KV Store `circia_tabletop_lookup` (tabletop register). KV Store `circia_tabletop_finding_lookup` (per-finding remediation register). ServiceNow GRC for finding tracking. Calendar integration for upcoming tabletop scheduling.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup circia_tabletop_lookup\n| eval now_ts = now()\n| eval tabletop_age_days = round((now_ts - tabletop_date) / 86400, 0)\n| join type=left tabletop_id [\n    | inputlookup circia_tabletop_finding_lookup\n    | stats count AS findings_count count(eval(finding_status=\"remediated\")) AS findings_remediated_count by tabletop_id\n]\n| eval tabletop_status = case(\n    tabletop_age_days > 365, \"annual_overdue\",\n    attendees_executive_count < 3, \"insufficient_executive_engagement\",\n    findings_count = 0, \"no_findings\",\n    findings_count > 0 AND findings_remediated_count / findings_count < 0.8, \"findings_remediation_lagging\",\n    1=1, \"current\")\n| where tabletop_status != \"current\"\n| table tabletop_id tabletop_date attendees_count attendees_executive_count scenario findings_count findings_remediated_count next_tabletop_due_at tabletop_status",
   "description": "Tracks tabletop cadence (annual), executive engagement (≥3 executives), and finding-remediation rate (≥80% closed). Surfaces overdue tabletops, insufficient engagement, and lagging remediation.",
   "value": "A tabletop without follow-through is just theatre. This UC ensures the tabletop is meaningful: senior leadership are present, findings are real, and findings are closed.",
@@ -63,36 +51,49 @@
     }
   ],
   "knownFalsePositives": "1. **Recent acquisition** — a newly-acquired covered entity may not yet have run a tabletop. Suppression: 90-day onboarding grace.\n\n2. **Multi-entity org structure** — a parent may run one tabletop covering multiple entities; the lookup supports this.\n\n**Suppression mechanism**: KV Store `circia_22_54_24_exceptions` with per-tabletop grants requiring documented CISO approval and a 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (exercise-and-remediation governance)"
+  ],
   "requiredFields": [
     "tabletop_id",
     "tabletop_date",
     "attendees_executive_count",
     "tabletop_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC (finding tracking)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + CISO + IR Director",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "ServiceNow GRC (finding tracking)"
-  ],
-  "mitreAttack": [
-    "N/A (exercise-and-remediation governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_tabletop_lookup`, `circia_tabletop_finding_lookup`.\n\n## Step 1 — Collections\n\n```ini\n[circia_tabletop_lookup]\nenforceTypes = true\nfield.tabletop_id = string\nfield.tabletop_date = number\nfield.scenario = string\nfield.attendees_count = number\nfield.attendees_executive_count = number\nfield.next_tabletop_due_at = number\nfield.aar_doc_url = string\n\n[circia_tabletop_finding_lookup]\nenforceTypes = true\nfield.tabletop_id = string\nfield.finding_id = string\nfield.finding_description = string\nfield.finding_status = string\nfield.finding_owner = string\nfield.finding_due_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.24: CIRCIA Annual Tabletop]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.24,reg=CIRCIA,clause=CIRCIA-CISA-tabletop\naction.notable.param.rule_title = CIRCIA annual tabletop overdue or insufficient\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Annual-overdue test**: set most recent tabletop 14 months ago; UC must alert.\n\n**(b) Executive-engagement test**: 0 executives present; UC must trip `insufficient_executive_engagement`.\n\n**(c) Finding-remediation test**: 10 findings, 5 remediated (50%); UC must trip `findings_remediation_lagging`.\n\n## Step 4 — Operationalize\n\n**Runbook for `annual_overdue`** (owner: CISO, severity P3):\n\n1. Within 60 days: schedule and conduct tabletop; document findings; track remediation.\n\n## Step 5 — Troubleshooting\n\n**Realistic scenarios**: incorporate provider compromise, ransomware, OT impact; align with current threat-landscape.\n\n**Executive participation logistics**: book executives 90 days in advance.\n\n**CIRCIA-specific failure modes**:\n\n- **Single-clock vs dual-clock scenarios**: the tabletop must exercise both 72h and 24h clocks.\n- **Cross-entity coordination**: multi-entity orgs must coordinate; observers from each entity should attend.",
+  "grandmaExplanation": "Once a year we practise what we'd do if there was a real cyber-incident — the CEO and the lawyer and the CISO and the technical team all sit in a room and walk through a pretend attack. We write down what went wrong in the practice and we make sure those problems are fixed before the next year.",
   "prerequisiteUseCases": [
     "UC-22.54.2",
     "UC-22.54.3",
     "UC-22.54.4",
     "UC-22.54.22"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_tabletop_lookup`, `circia_tabletop_finding_lookup`.\n\n## Step 1 — Collections\n\n```ini\n[circia_tabletop_lookup]\nenforceTypes = true\nfield.tabletop_id = string\nfield.tabletop_date = number\nfield.scenario = string\nfield.attendees_count = number\nfield.attendees_executive_count = number\nfield.next_tabletop_due_at = number\nfield.aar_doc_url = string\n\n[circia_tabletop_finding_lookup]\nenforceTypes = true\nfield.tabletop_id = string\nfield.finding_id = string\nfield.finding_description = string\nfield.finding_status = string\nfield.finding_owner = string\nfield.finding_due_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.24: CIRCIA Annual Tabletop]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.24,reg=CIRCIA,clause=CIRCIA-CISA-tabletop\naction.notable.param.rule_title = CIRCIA annual tabletop overdue or insufficient\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Annual-overdue test**: set most recent tabletop 14 months ago; UC must alert.\n\n**(b) Executive-engagement test**: 0 executives present; UC must trip `insufficient_executive_engagement`.\n\n**(c) Finding-remediation test**: 10 findings, 5 remediated (50%); UC must trip `findings_remediation_lagging`.\n\n## Step 4 — Operationalize\n\n**Runbook for `annual_overdue`** (owner: CISO, severity P3):\n\n1. Within 60 days: schedule and conduct tabletop; document findings; track remediation.\n\n## Step 5 — Troubleshooting\n\n**Realistic scenarios**: incorporate provider compromise, ransomware, OT impact; align with current threat-landscape.\n\n**Executive participation logistics**: book executives 90 days in advance.\n\n**CIRCIA-specific failure modes**:\n\n- **Single-clock vs dual-clock scenarios**: the tabletop must exercise both 72h and 24h clocks.\n- **Cross-entity coordination**: multi-entity orgs must coordinate; observers from each entity should attend.",
-  "grandmaExplanation": "Once a year we practise what we'd do if there was a real cyber-incident — the CEO and the lawyer and the CISO and the technical team all sit in a room and walk through a pretend attack. We write down what went wrong in the practice and we make sure those problems are fixed before the next year."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

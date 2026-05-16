@@ -35,18 +35,6 @@
   },
   "dataSources": "Splunk metadata (`| metadata type=hosts`, `| metadata type=sources`). TSA logging asset register (KV Store `tsa_log_source_lookup`). Splunk Distributed Management Console (DMC) for forwarder health.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_log_source_lookup\n| where tsa_in_scope=true\n| join type=left source [| metadata type=sources | stats latest(lastTime) as latest_event_time by source]\n| eval hours_since_event = round((now() - latest_event_time) / 3600, 1)\n| eval source_status = case(\n    isnull(latest_event_time), \"never_seen\",\n    hours_since_event > expected_silence_hours * 2, \"silent\",\n    hours_since_event > expected_silence_hours, \"degraded\",\n    1=1, \"healthy\")\n| where source_status IN (\"never_seen\",\"silent\",\"degraded\")\n| table facility_id source modality expected_silence_hours hours_since_event source_status owner",
   "description": "Surveys TSA-regulated log sources for silence/degradation against per-source expected-silence baselines.",
   "value": "TSA inspectors expect functioning log sources for the preservation window. Silent sources are findings.",
@@ -66,34 +54,46 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance windows**: scheduled maintenance produces silence. Pin via `tsa_22_56_20_exceptions` with `effective_until`.\n2. **Asset decommission lag**: ensure decommission updates the register.\n\n**Suppression mechanism**: KV Store `tsa_22_56_20_exceptions`.",
+  "mitreAttack": [
+    "T1562.008",
+    "T1070"
+  ],
   "requiredFields": [
     "facility_id",
     "source",
     "modality",
     "source_status"
   ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk DMC",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + SOC Manager + Log Engineering",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk DMC"
-  ],
-  "mitreAttack": [
-    "T1562.008",
-    "T1070"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + KV Store `tsa_log_source_lookup`.\n\n## Step 1 — Define log-source register\n\n```ini\n[tsa_log_source_lookup]\nfield.facility_id = string\nfield.source = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.expected_silence_hours = number\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.20: TSA Log Source Health]\ncron_schedule = 51 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.20,reg=TSA-Surface,clause=TSA-SD-multi-log-retention\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`source_status=silent` on critical TSA source**: investigate within 4 hours; restore within 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Burst-mode sources**: certain OT logs are episodic; set `expected_silence_hours` generously.\n- **Decommissioned assets**: update register promptly.\n\n**TSA-specific failure modes**:\n- **Preservation order**: in active investigations, certain sources may be preservation-ordered; tag and exempt from rotation.",
+  "grandmaExplanation": "Every log feed we depend on must keep flowing. If one goes quiet, we catch it within a day so the inspector never asks why there's a gap.",
   "prerequisiteUseCases": [
     "UC-22.56.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + KV Store `tsa_log_source_lookup`.\n\n## Step 1 — Define log-source register\n\n```ini\n[tsa_log_source_lookup]\nfield.facility_id = string\nfield.source = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.expected_silence_hours = number\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.20: TSA Log Source Health]\ncron_schedule = 51 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.20,reg=TSA-Surface,clause=TSA-SD-multi-log-retention\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`source_status=silent` on critical TSA source**: investigate within 4 hours; restore within 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Burst-mode sources**: certain OT logs are episodic; set `expected_silence_hours` generously.\n- **Decommissioned assets**: update register promptly.\n\n**TSA-specific failure modes**:\n- **Preservation order**: in active investigations, certain sources may be preservation-ordered; tag and exempt from rotation.",
-  "grandmaExplanation": "Every log feed we depend on must keep flowing. If one goes quiet, we catch it within a day so the inspector never asks why there's a gap."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

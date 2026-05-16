@@ -36,25 +36,6 @@
   },
   "dataSources": "GRC system SoNS plan records (`index=grc sourcetype=\"snow:sons_plan\"`). Lookup `sons_plan_lookup` (sons_asset_id → plan_version, last_reviewed_at, scenarios_covered, role_owners_assigned, plan_artefact_url). SoNS declaration register (`sons_declaration_lookup`).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup sons_declaration_lookup\n| where active=\"true\"\n| lookup sons_plan_lookup sons_asset_id OUTPUT plan_version last_reviewed_at scenarios_covered role_owners_assigned plan_artefact_url minister_notice_ref\n| eval mandatory_scenarios = split(\"ransomware,supply_chain_compromise,insider_threat,destructive_attack,extended_outage\", \",\")\n| eval scenarios_covered_mv = split(scenarios_covered, \",\")\n| eval missing_scenarios = mvfilter(NOT match(mvappend(\"ransomware\",\"supply_chain_compromise\",\"insider_threat\",\"destructive_attack\",\"extended_outage\"), \"^(\" . mvjoin(scenarios_covered_mv,\"|\") . \")$\"))\n| eval days_since_review = if(isnotnull(last_reviewed_at), round((now() - last_reviewed_at) / 86400, 0), null())\n| eval plan_status = case(\n    isnull(plan_version), \"missing_plan\",\n    isnull(plan_artefact_url), \"missing_artefact\",\n    mvcount(missing_scenarios) > 0, \"incomplete_scenarios\",\n    role_owners_assigned!=\"true\", \"missing_role_owners\",\n    days_since_review > 365, \"overdue\",\n    1=1, \"current\")\n| table sons_asset_id plan_version last_reviewed_at days_since_review scenarios_covered missing_scenarios role_owners_assigned plan_artefact_url minister_notice_ref plan_status",
   "description": "For every declared System of National Significance, verifies the s 30CB statutory IR plan exists, covers all 5 mandatory scenario classes, has named role-owners, has a signed artefact URL, and has been reviewed in the last 365 days.",
   "value": "SoNS declarations carry the highest set of obligations under SOCI. The statutory IR plan is the single most important artefact: ASD and the CISC use it to assess the SoNS's IR maturity in pre-incident reviews and post-incident reviews. Without the plan, every other ECSO obligation is harder to defend.",
@@ -74,6 +55,9 @@
     }
   ],
   "knownFalsePositives": "1. **Newly declared SoNS within grace period** — a new SoNS declaration gives a documented onboarding window; suppression via grace-period entry.\n\n2. **Plan amendment in progress after s 30CC notice** — if the Minister has issued an amendment notice, the plan is mid-amendment. Suppression via `sons_amendment_in_progress_lookup`.\n\n3. **Group-level SoNS plan covering multiple SoNS** — the lookup must reference shared plans; otherwise multiple rows reference the same `plan_artefact_url`.\n\n**Suppression mechanism**: KV Store `soci_22_52_8_exceptions` with SoNS Programme Lead sign-off; max grant 60 days.",
+  "mitreAttack": [
+    "N/A (governance and programme-management workflow — measures statutory IR plan currency, not adversary detection)"
+  ],
   "requiredFields": [
     "sons_asset_id",
     "plan_version",
@@ -81,14 +65,6 @@
     "plan_status",
     "scenarios_covered"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -98,12 +74,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (governance and programme-management workflow — measures statutory IR plan currency, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=grc` (3-year retention online), `index=audit_evidence` (7-year retention online).\n- Lookups:\n  - `sons_declaration_lookup` — owned by Regulatory Affairs. Columns: `sons_asset_id`, `active`, `declaration_gazette_ref`, `declaration_date`.\n  - `sons_plan_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `plan_version`, `last_reviewed_at`, `scenarios_covered` (CSV of canonical scenario labels), `role_owners_assigned` (boolean), `plan_artefact_url`, `minister_notice_ref`.\n- Five canonical mandatory scenario classes (per CISC SoNS guidance): `ransomware`, `supply_chain_compromise`, `insider_threat`, `destructive_attack`, `extended_outage`. Entities may add their own scenarios; the search only enforces the mandatory five.\n\n## Step 1 — Configure data collection\n\nMaintain `sons_plan_lookup` from the GRC system; the materialise script:\n\n```spl\nindex=grc sourcetype=snow:sons_plan earliest=-7d@d\n| dedup sons_asset_id sortby - _time\n| table sons_asset_id plan_version last_reviewed_at scenarios_covered role_owners_assigned plan_artefact_url minister_notice_ref\n| outputlookup sons_plan_lookup\n```\n\nMaintain `sons_declaration_lookup` from the Minister's gazettal notices manually; the volume is low.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.8: SOCI s 30CB SoNS statutory cyber-incident response plan currency]\ncron_schedule = 45 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.8,reg=SOCI,clause=SOCI-s30CB\naction.notable.param.rule_title = SOCI s 30CB SoNS statutory IR plan gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable on every `plan_status != current`; severity escalates by status:\n- `missing_plan`, `missing_artefact` → critical (urgency=Critical).\n- `incomplete_scenarios`, `missing_role_owners`, `overdue` → high (urgency=High).\n\n## Step 3 — Validate deployment\n\n**(a)** Every declared SoNS has a `sons_plan_lookup` row.\n**(b)** Every plan covers the 5 mandatory scenarios.\n**(c)** Positive control: temporarily remove a scenario from `scenarios_covered`; UC flags.\n**(d)** Negative control: restore the scenario; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — SoNS Statutory IR Plan Register`.\n\n**Runbook for `missing_plan` / `missing_artefact`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 5 business days: produce the plan (or recover the artefact from version control / board portal).\n2. Lodge with the CISC under the SoNS portal.\n\n**Runbook for `incomplete_scenarios` / `missing_role_owners`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 30 business days: extend the plan to cover the missing scenarios with named role owners.\n2. Re-publish.\n\n## Step 5 — Troubleshooting\n\nSame patterns as UC-22.52.3.\n\n**SOCI-specific failure modes**:\n\n- **De-declared SoNS**: a SoNS may be de-declared; update `sons_declaration_lookup.active=false` so the UC ignores.\n- **Plan covers multiple SoNS**: lookup may reference a shared `plan_artefact_url`.\n- **Cross-jurisdictional SoNS**: a SoNS in multiple jurisdictions may have plan obligations beyond Australia. The UC tests only the s 30CB Australian requirement.",
+  "grandmaExplanation": "Some of our systems are so important the government has officially named them 'Systems of National Significance'. For each one we must keep a written plan saying exactly what we'll do during a cyber attack — covering the five main attack types, who does what, and refreshed every year. If a plan goes missing, is incomplete, or gets stale, we ring the bell.",
   "prerequisiteUseCases": [
     "UC-22.52.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=grc` (3-year retention online), `index=audit_evidence` (7-year retention online).\n- Lookups:\n  - `sons_declaration_lookup` — owned by Regulatory Affairs. Columns: `sons_asset_id`, `active`, `declaration_gazette_ref`, `declaration_date`.\n  - `sons_plan_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `plan_version`, `last_reviewed_at`, `scenarios_covered` (CSV of canonical scenario labels), `role_owners_assigned` (boolean), `plan_artefact_url`, `minister_notice_ref`.\n- Five canonical mandatory scenario classes (per CISC SoNS guidance): `ransomware`, `supply_chain_compromise`, `insider_threat`, `destructive_attack`, `extended_outage`. Entities may add their own scenarios; the search only enforces the mandatory five.\n\n## Step 1 — Configure data collection\n\nMaintain `sons_plan_lookup` from the GRC system; the materialise script:\n\n```spl\nindex=grc sourcetype=snow:sons_plan earliest=-7d@d\n| dedup sons_asset_id sortby - _time\n| table sons_asset_id plan_version last_reviewed_at scenarios_covered role_owners_assigned plan_artefact_url minister_notice_ref\n| outputlookup sons_plan_lookup\n```\n\nMaintain `sons_declaration_lookup` from the Minister's gazettal notices manually; the volume is low.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.8: SOCI s 30CB SoNS statutory cyber-incident response plan currency]\ncron_schedule = 45 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.8,reg=SOCI,clause=SOCI-s30CB\naction.notable.param.rule_title = SOCI s 30CB SoNS statutory IR plan gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable on every `plan_status != current`; severity escalates by status:\n- `missing_plan`, `missing_artefact` → critical (urgency=Critical).\n- `incomplete_scenarios`, `missing_role_owners`, `overdue` → high (urgency=High).\n\n## Step 3 — Validate deployment\n\n**(a)** Every declared SoNS has a `sons_plan_lookup` row.\n**(b)** Every plan covers the 5 mandatory scenarios.\n**(c)** Positive control: temporarily remove a scenario from `scenarios_covered`; UC flags.\n**(d)** Negative control: restore the scenario; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — SoNS Statutory IR Plan Register`.\n\n**Runbook for `missing_plan` / `missing_artefact`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 5 business days: produce the plan (or recover the artefact from version control / board portal).\n2. Lodge with the CISC under the SoNS portal.\n\n**Runbook for `incomplete_scenarios` / `missing_role_owners`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 30 business days: extend the plan to cover the missing scenarios with named role owners.\n2. Re-publish.\n\n## Step 5 — Troubleshooting\n\nSame patterns as UC-22.52.3.\n\n**SOCI-specific failure modes**:\n\n- **De-declared SoNS**: a SoNS may be de-declared; update `sons_declaration_lookup.active=false` so the UC ignores.\n- **Plan covers multiple SoNS**: lookup may reference a shared `plan_artefact_url`.\n- **Cross-jurisdictional SoNS**: a SoNS in multiple jurisdictions may have plan obligations beyond Australia. The UC tests only the s 30CB Australian requirement.",
-  "grandmaExplanation": "Some of our systems are so important the government has officially named them 'Systems of National Significance'. For each one we must keep a written plan saying exactly what we'll do during a cyber attack — covering the five main attack types, who does what, and refreshed every year. If a plan goes missing, is incomplete, or gets stale, we ring the bell."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

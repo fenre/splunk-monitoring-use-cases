@@ -35,6 +35,64 @@
   },
   "dataSources": "Procurement decision events from ServiceNow / Oracle Procurement / SAP Ariba (`procurement:decision:event`). KV Store `cn_csrm_filings_lookup` (filing_id, ciio_designation_id, procurement_id, product_or_service, vendor, vendor_country_of_origin, contract_value, csrm_required, csrm_filed_at, csrm_decision_received_at, csrm_decision_status, decision_letter_ref). KV Store `cn_csrm_scope_rubric` (product_or_service_category, vendor_country_of_origin, contract_value_threshold, csrm_required_flag).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup cn_csrm_filings_lookup\n| lookup cn_csrm_scope_rubric product_or_service vendor_country_of_origin OUTPUT csrm_required_flag\n| eval csrm_required = coalesce(csrm_required_flag, csrm_required)\n| eval now_ts = now()\n| eval days_to_decision = if(isnotnull(csrm_decision_received_at), round((csrm_decision_received_at - csrm_filed_at) / 86400, 1), if(isnotnull(csrm_filed_at), round((now_ts - csrm_filed_at) / 86400, 1), null()))\n| eval contract_signed = if(isnotnull(contract_signed_at), 1, 0)\n| eval contract_signed_pre_decision = if(csrm_required = \"yes\" AND contract_signed = 1 AND (isnull(csrm_decision_received_at) OR contract_signed_at < csrm_decision_received_at), 1, 0)\n| eval filing_missing = if(csrm_required = \"yes\" AND isnull(csrm_filed_at), 1, 0)\n| eval decision_overdue = if(csrm_required = \"yes\" AND isnotnull(csrm_filed_at) AND days_to_decision > 45 AND isnull(csrm_decision_received_at), 1, 0)\n| eval decision_negative = if(csrm_decision_status IN (\"rejected\",\"conditions-not-met\"), 1, 0)\n| eval risk_score = case(\n    contract_signed_pre_decision = 1, 100,\n    decision_negative = 1 AND contract_signed = 1, 100,\n    filing_missing = 1 AND contract_signed = 1, 100,\n    filing_missing = 1, 90,\n    decision_negative = 1, 70,\n    decision_overdue = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -contract_value\n| table procurement_id ciio_designation_id product_or_service vendor vendor_country_of_origin contract_value csrm_required csrm_filed_at csrm_decision_received_at days_to_decision contract_signed_at contract_signed_pre_decision filing_missing decision_negative risk_score",
+  "description": "Reconciles every CIIO procurement of network products or services against the Cybersecurity Review Measures pre-contract filing obligation. Uses a scope rubric (product category × vendor country of origin × contract value) to determine whether each procurement requires CSRM filing, and verifies that for any required filing: (i) the filing was made before contract signature, (ii) a decision was received before contract signature, (iii) the decision was favourable. Surfaces three breach patterns at risk_score 100: contract signed pre-decision, contract signed despite negative decision, contract signed without any filing.",
+  "value": "The Didi Global cybersecurity review case (RMB 8 billion penalty in 2022) was the headline enforcement under the CSRM regime — Didi was found to have proceeded with a foreign listing before completing CSRM. The CSRM regime has since been extended to cover any CIIO procurement that may affect national security and any large data processor seeking foreign listing. Penalties include order to suspend the procurement, fines up to RMB 1,000,000 + 10× contract value, suspension of business operations, and revocation of business licence. For state-owned CIIOs, board-member accountability extends to State-Owned Assets Supervision and Administration Commission disciplinary measures.",
+  "implementation": "(1) Integrate procurement decision events from the enterprise procurement platform (ServiceNow / Oracle / SAP Ariba) into Splunk. (2) Build the `cn_csrm_scope_rubric` KV Store that codifies when CSRM is required (product category, vendor country of origin, contract value threshold). (3) The procurement team initiates a CSRM filing 45-60 days before target contract date for any in-scope procurement. (4) Schedule UC-22.61.10 daily at 06:00 Beijing time; route `risk_score >= 90` to the CISO + General Counsel + CEO at severity P1.",
+  "visualization": "(Panel 1) Open CIIO procurements by CSRM status. (Panel 2) CSRM decision timeline (filed / received / overdue). (Panel 3) Procurements by vendor country of origin. (Panel 4) Contract-signed-pre-decision breaches (target: zero).",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Regulations on Security Protection of Critical Information Infrastructure - Article 14 (State Council Order 745, 2021)",
+      "url": "https://www.gov.cn/zhengce/content/2021-08/17/content_5631671.htm"
+    },
+    {
+      "title": "Cybersecurity Review Measures (CAC + 13 ministries, 2022)",
+      "url": "https://www.cac.gov.cn/2022-01/04/c_1642894602182845.htm"
+    }
+  ],
+  "knownFalsePositives": "1. **Renewal of in-place product**: a contract-renewal for a product already in the CIIO's approved inventory may not require a fresh CSRM (per the 2022 Measures Art. 9 carve-out). Track renewals separately with `procurement_type=renewal` and the original CSRM filing reference. 2. **De-minimis procurement**: a procurement below the contract-value threshold and from a documented PRC-origin vendor may fall outside scope; ensure the scope rubric is correctly applied. 3. **Group-level CSRM**: a corporate group may obtain a single CSRM covering a portfolio of subsidiary procurements; load the parent filing reference on each subsidiary procurement.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_10_exceptions` with the CISO + General Counsel documented approval, an explicit procurement_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "requiredFields": [
+    "procurement_id",
+    "csrm_required",
+    "csrm_filed_at",
+    "csrm_decision_status",
+    "contract_signed_at",
+    "risk_score"
+  ],
+  "equipment": [
+    "oracle",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Oracle Procurement Cloud",
+    "SAP Ariba",
+    "ServiceNow GRC + Procurement (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "oracle_oracle_db"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + CISO + General Counsel + Chief Procurement Officer",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- Procurement-platform integration emitting `procurement:decision:event` events on contract approval.\n- KV Stores `cn_csrm_filings_lookup` + `cn_csrm_scope_rubric` populated.\n\n## Step 1 - KV Stores\n\n```ini\n[cn_csrm_filings_lookup]\nenforceTypes = true\nfield.filing_id = string\nfield.ciio_designation_id = string\nfield.procurement_id = string\nfield.product_or_service = string\nfield.vendor = string\nfield.vendor_country_of_origin = string\nfield.contract_value = number\nfield.csrm_required = string\nfield.csrm_filed_at = time\nfield.csrm_decision_received_at = time\nfield.csrm_decision_status = string\nfield.decision_letter_ref = string\nfield.contract_signed_at = time\nfield.procurement_type = string\n\n[cn_csrm_scope_rubric]\nenforceTypes = true\nfield.product_or_service = string\nfield.vendor_country_of_origin = string\nfield.contract_value_threshold = number\nfield.csrm_required_flag = string\n```\n\n## Step 2 - Scope rubric seed\n\nThe Cybersecurity Review Measures Art. 2 + Art. 7 establish factors: (i) product type (network management platform, OT-control-system, telecoms equipment, cloud / IaaS, large-language-model service, SaaS handling Important Data); (ii) vendor country of origin (high-risk if subject to foreign-government national-security obligations); (iii) contract value (rough threshold RMB 50 million for ICT, lower for OT). Encode in the rubric.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.10: CIIO CSRM Filing Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.10,reg=CN-CSL,clause=CIIO-Reg-Art-14\nalert.severity = 5\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cybersecurity Review Office (CRO)**: established under CAC, with 12 cross-ministry participating bodies (MIIT, MPS, MOFCOM, etc.). CRO decisions are typically 45-90 days; complex reviews can extend to 9-15 months.\n- **Foreign-listing trigger**: separately, any CIIO or large processor of personal information (>1M subjects) seeking foreign-listing must file for CSRM; this is a parallel limb to procurement filings.\n- **Negative CSRM outcomes**: Didi 2022 (proceed not approved post-IPO), Micron Technology 2023 (procurement of products restricted) — these set precedent that CSRM is a real obstacle, not a formality.",
+  "grandmaExplanation": "When a Chinese 'critical' company buys network equipment or services from a vendor, China can require the government to check that vendor first — especially if the vendor is foreign. We make sure the company never signs the contract before the government's check is complete.",
+  "prerequisiteUseCases": [
+    "UC-22.61.2"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -58,61 +116,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup cn_csrm_filings_lookup\n| lookup cn_csrm_scope_rubric product_or_service vendor_country_of_origin OUTPUT csrm_required_flag\n| eval csrm_required = coalesce(csrm_required_flag, csrm_required)\n| eval now_ts = now()\n| eval days_to_decision = if(isnotnull(csrm_decision_received_at), round((csrm_decision_received_at - csrm_filed_at) / 86400, 1), if(isnotnull(csrm_filed_at), round((now_ts - csrm_filed_at) / 86400, 1), null()))\n| eval contract_signed = if(isnotnull(contract_signed_at), 1, 0)\n| eval contract_signed_pre_decision = if(csrm_required = \"yes\" AND contract_signed = 1 AND (isnull(csrm_decision_received_at) OR contract_signed_at < csrm_decision_received_at), 1, 0)\n| eval filing_missing = if(csrm_required = \"yes\" AND isnull(csrm_filed_at), 1, 0)\n| eval decision_overdue = if(csrm_required = \"yes\" AND isnotnull(csrm_filed_at) AND days_to_decision > 45 AND isnull(csrm_decision_received_at), 1, 0)\n| eval decision_negative = if(csrm_decision_status IN (\"rejected\",\"conditions-not-met\"), 1, 0)\n| eval risk_score = case(\n    contract_signed_pre_decision = 1, 100,\n    decision_negative = 1 AND contract_signed = 1, 100,\n    filing_missing = 1 AND contract_signed = 1, 100,\n    filing_missing = 1, 90,\n    decision_negative = 1, 70,\n    decision_overdue = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -contract_value\n| table procurement_id ciio_designation_id product_or_service vendor vendor_country_of_origin contract_value csrm_required csrm_filed_at csrm_decision_received_at days_to_decision contract_signed_at contract_signed_pre_decision filing_missing decision_negative risk_score",
-  "description": "Reconciles every CIIO procurement of network products or services against the Cybersecurity Review Measures pre-contract filing obligation. Uses a scope rubric (product category × vendor country of origin × contract value) to determine whether each procurement requires CSRM filing, and verifies that for any required filing: (i) the filing was made before contract signature, (ii) a decision was received before contract signature, (iii) the decision was favourable. Surfaces three breach patterns at risk_score 100: contract signed pre-decision, contract signed despite negative decision, contract signed without any filing.",
-  "value": "The Didi Global cybersecurity review case (RMB 8 billion penalty in 2022) was the headline enforcement under the CSRM regime — Didi was found to have proceeded with a foreign listing before completing CSRM. The CSRM regime has since been extended to cover any CIIO procurement that may affect national security and any large data processor seeking foreign listing. Penalties include order to suspend the procurement, fines up to RMB 1,000,000 + 10× contract value, suspension of business operations, and revocation of business licence. For state-owned CIIOs, board-member accountability extends to State-Owned Assets Supervision and Administration Commission disciplinary measures.",
-  "implementation": "(1) Integrate procurement decision events from the enterprise procurement platform (ServiceNow / Oracle / SAP Ariba) into Splunk. (2) Build the `cn_csrm_scope_rubric` KV Store that codifies when CSRM is required (product category, vendor country of origin, contract value threshold). (3) The procurement team initiates a CSRM filing 45-60 days before target contract date for any in-scope procurement. (4) Schedule UC-22.61.10 daily at 06:00 Beijing time; route `risk_score >= 90` to the CISO + General Counsel + CEO at severity P1.",
-  "visualization": "(Panel 1) Open CIIO procurements by CSRM status. (Panel 2) CSRM decision timeline (filed / received / overdue). (Panel 3) Procurements by vendor country of origin. (Panel 4) Contract-signed-pre-decision breaches (target: zero).",
-  "cimModels": [
-    "Change",
-    "Inventory"
-  ],
-  "references": [
-    {
-      "title": "Regulations on Security Protection of Critical Information Infrastructure - Article 14 (State Council Order 745, 2021)",
-      "url": "https://www.gov.cn/zhengce/content/2021-08/17/content_5631671.htm"
-    },
-    {
-      "title": "Cybersecurity Review Measures (CAC + 13 ministries, 2022)",
-      "url": "https://www.cac.gov.cn/2022-01/04/c_1642894602182845.htm"
-    }
-  ],
-  "knownFalsePositives": "1. **Renewal of in-place product**: a contract-renewal for a product already in the CIIO's approved inventory may not require a fresh CSRM (per the 2022 Measures Art. 9 carve-out). Track renewals separately with `procurement_type=renewal` and the original CSRM filing reference. 2. **De-minimis procurement**: a procurement below the contract-value threshold and from a documented PRC-origin vendor may fall outside scope; ensure the scope rubric is correctly applied. 3. **Group-level CSRM**: a corporate group may obtain a single CSRM covering a portfolio of subsidiary procurements; load the parent filing reference on each subsidiary procurement.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_10_exceptions` with the CISO + General Counsel documented approval, an explicit procurement_id scope, an expiry date, and a written justification.",
-  "requiredFields": [
-    "procurement_id",
-    "csrm_required",
-    "csrm_filed_at",
-    "csrm_decision_status",
-    "contract_signed_at",
-    "risk_score"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "PRC Cybersecurity SME Panel + CISO + General Counsel + Chief Procurement Officer",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow GRC + Procurement (Vancouver / Washington / Xanadu)",
-    "Oracle Procurement Cloud",
-    "SAP Ariba"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.61.2"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- Procurement-platform integration emitting `procurement:decision:event` events on contract approval.\n- KV Stores `cn_csrm_filings_lookup` + `cn_csrm_scope_rubric` populated.\n\n## Step 1 - KV Stores\n\n```ini\n[cn_csrm_filings_lookup]\nenforceTypes = true\nfield.filing_id = string\nfield.ciio_designation_id = string\nfield.procurement_id = string\nfield.product_or_service = string\nfield.vendor = string\nfield.vendor_country_of_origin = string\nfield.contract_value = number\nfield.csrm_required = string\nfield.csrm_filed_at = time\nfield.csrm_decision_received_at = time\nfield.csrm_decision_status = string\nfield.decision_letter_ref = string\nfield.contract_signed_at = time\nfield.procurement_type = string\n\n[cn_csrm_scope_rubric]\nenforceTypes = true\nfield.product_or_service = string\nfield.vendor_country_of_origin = string\nfield.contract_value_threshold = number\nfield.csrm_required_flag = string\n```\n\n## Step 2 - Scope rubric seed\n\nThe Cybersecurity Review Measures Art. 2 + Art. 7 establish factors: (i) product type (network management platform, OT-control-system, telecoms equipment, cloud / IaaS, large-language-model service, SaaS handling Important Data); (ii) vendor country of origin (high-risk if subject to foreign-government national-security obligations); (iii) contract value (rough threshold RMB 50 million for ICT, lower for OT). Encode in the rubric.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.10: CIIO CSRM Filing Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.10,reg=CN-CSL,clause=CIIO-Reg-Art-14\nalert.severity = 5\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cybersecurity Review Office (CRO)**: established under CAC, with 12 cross-ministry participating bodies (MIIT, MPS, MOFCOM, etc.). CRO decisions are typically 45-90 days; complex reviews can extend to 9-15 months.\n- **Foreign-listing trigger**: separately, any CIIO or large processor of personal information (>1M subjects) seeking foreign-listing must file for CSRM; this is a parallel limb to procurement filings.\n- **Negative CSRM outcomes**: Didi 2022 (proceed not approved post-IPO), Micron Technology 2023 (procurement of products restricted) — these set precedent that CSRM is a real obstacle, not a formality.",
-  "grandmaExplanation": "When a Chinese 'critical' company buys network equipment or services from a vendor, China can require the government to check that vendor first — especially if the vendor is foreign. We make sure the company never signs the contract before the government's check is complete."
+  "wave": "crawl"
 }

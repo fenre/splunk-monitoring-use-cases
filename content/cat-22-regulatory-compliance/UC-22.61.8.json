@@ -48,6 +48,61 @@
   },
   "dataSources": "KV Store `cn_pi_processor_lookup` (processor_id, processor_name, data_subject_volume, sensitive_pi_volume, adm_in_use, cbdt_in_use, dpo_appointment_status, dpo_name, dpo_appointment_letter_ref, cac_filing_ref, processing_purposes). KV Store `cn_pipia_lookup` (pipia_id, processor_id, activity_type, activity_description, pipia_completion_date, pipia_report_ref, retention_until). DPO workflow events (`dpo:workflow:event`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup cn_pi_processor_lookup\n| eval now_ts = now()\n| eval dpo_required = if(data_subject_volume >= 1000000, 1, 0)\n| eval dpo_missing = if(dpo_required = 1 AND (isnull(dpo_appointment_status) OR dpo_appointment_status != \"appointed\"), 1, 0)\n| eval cac_filing_missing = if(dpo_required = 1 AND isnull(cac_filing_ref), 1, 0)\n| join type=left processor_id [\n    search index=summary source=pipia_register earliest=-1y\n    | eval pipia_age_days = round((now() - pipia_completion_date) / 86400, 1)\n    | stats count as pipia_register_count, min(pipia_age_days) as pipia_freshest_age_days, sum(eval(if(pipia_age_days > 365, 1, 0))) as pipia_overdue_count by processor_id\n  ]\n| eval pipia_required = if(sensitive_pi_volume > 0 OR adm_in_use = \"yes\" OR cbdt_in_use = \"yes\", 1, 0)\n| eval pipia_register_count = coalesce(pipia_register_count, 0)\n| eval pipia_overdue_count = coalesce(pipia_overdue_count, 0)\n| eval pipia_missing = if(pipia_required = 1 AND pipia_register_count = 0, 1, 0)\n| eval pipia_stale_only = if(pipia_required = 1 AND pipia_register_count > 0 AND pipia_overdue_count >= pipia_register_count, 1, 0)\n| eval risk_score = case(\n    dpo_missing = 1, 85,\n    cac_filing_missing = 1, 70,\n    pipia_missing = 1 AND data_subject_volume >= 100000, 80,\n    pipia_missing = 1, 60,\n    pipia_stale_only = 1, 55,\n    pipia_overdue_count > 0, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -data_subject_volume\n| table processor_id processor_name data_subject_volume dpo_required dpo_appointment_status dpo_name cac_filing_ref pipia_required pipia_register_count pipia_freshest_age_days pipia_overdue_count risk_score",
+  "description": "Reconciles every personal-information processor in the organisation against the PIPL Art. 51 / 52 / 55 / 56 governance stack. Verifies (i) processors above the 1M data-subject threshold have appointed and CAC-filed a DPO, (ii) processors involved in sensitive-PI / ADM / cross-border transfer have a current PIPIA, (iii) PIPIAs are within the 12-month freshness window with proper 3-year retention. Surfaces DPO gaps, missing PIPIAs, and stale PIPIAs to the DPO + General Counsel.",
+  "value": "PIPL Art. 66 fines reach RMB 50 million / 5% turnover for serious violations. PIPL Art. 66 also imposes personal liability on the person directly in charge (RMB 100,000 - 1,000,000 fine + 5-year prohibition from data-processor roles). Without a DPO appointment for a >1M processor, the entity is in continuing violation; without a fresh PIPIA before sensitive-PI processing / ADM rollout / cross-border transfer, every individual decision under that processing activity is independently in violation. The CAC has audited prominent processors (Didi 2022, several major SaaS providers 2023-2024); operator-side PIPL governance evidence is what differentiates a remediable finding from a board-level enforcement.",
+  "implementation": "(1) Populate `cn_pi_processor_lookup` from the data-mapping register (Microsoft Purview, OneTrust, BigID). (2) The DPO maintains `cn_pipia_lookup` with one PIPIA per high-risk processing activity, with completion date, report reference, and retention-until (3 years from completion). (3) DPO appointment must be filed with the CAC within 30 days of crossing the 1M threshold; the CAC filing reference is `cac_filing_ref`. (4) Schedule UC-22.61.8 daily at 06:00 Beijing time; route `risk_score >= 80` to the DPO + General Counsel + CISO at severity P1.",
+  "visualization": "(Panel 1) Processors by data-subject volume tier. (Panel 2) DPO appointment coverage (appointed / not-appointed by threshold-status). (Panel 3) PIPIA register count and freshness per processor. (Panel 4) Open governance gaps sorted by risk_score.",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Personal Information Protection Law of the People's Republic of China (2021) - Articles 51, 52, 55, 56",
+      "url": "http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_312088.html"
+    },
+    {
+      "title": "CAC Implementing Rules on Personal-Information-Protection-Officer Filing (2023)",
+      "url": "https://www.cac.gov.cn/"
+    }
+  ],
+  "knownFalsePositives": "1. **Threshold transition**: a processor that just crossed the 1M threshold has a 30-day grace to appoint the DPO; ensure `dpo_required_since` is loaded and the 30-day window is honoured. 2. **Group-level DPO**: a corporate group may appoint one DPO for multiple Chinese entities; load the same `dpo_name` and `cac_filing_ref` on each processor and ensure the CAC has accepted the group filing. 3. **PIPIA bundling**: a single PIPIA may cover multiple related processing activities; ensure the activity_type field on `cn_pipia_lookup` references all activities in scope.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_8_exceptions` with the DPO + General Counsel documented approval, an explicit processor_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "requiredFields": [
+    "processor_id",
+    "data_subject_volume",
+    "dpo_appointment_status",
+    "pipia_register_count",
+    "risk_score"
+  ],
+  "equipment": [
+    "onetrust",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft Purview Data Map",
+    "OneTrust Privacy Management",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "TrustArc Privacy Platform"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + DPO + General Counsel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- DPO workflow tool feeding processor inventory + PIPIA register.\n- KV Store `cn_pi_processor_lookup` + `cn_pipia_lookup` seeded.\n\n## Step 1 - PI processor + PIPIA KV Stores\n\n```ini\n[cn_pi_processor_lookup]\nenforceTypes = true\nfield.processor_id = string\nfield.processor_name = string\nfield.data_subject_volume = number\nfield.sensitive_pi_volume = number\nfield.adm_in_use = string\nfield.cbdt_in_use = string\nfield.dpo_appointment_status = string\nfield.dpo_name = string\nfield.dpo_appointment_letter_ref = string\nfield.cac_filing_ref = string\nfield.processing_purposes = string\nfield.dpo_required_since = time\n\n[cn_pipia_lookup]\nenforceTypes = true\nfield.pipia_id = string\nfield.processor_id = string\nfield.activity_type = string\nfield.activity_description = string\nfield.pipia_completion_date = time\nfield.pipia_report_ref = string\nfield.retention_until = time\n```\n\n## Step 2 - PIPIA summary index seed\n\nDaily roll-up of `cn_pipia_lookup` into `index=summary source=pipia_register` so that the UC join is efficient.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.8: PIPL Governance Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.8,reg=CN-CSL,clause=PIPL-Art-51\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **DPO qualification**: PIPL Art. 52 does not specify formal qualifications, but the CAC implementing rules expect 3+ years of data-protection experience and a clear reporting line to senior management.\n- **PIPIA contents (Art. 56)**: lawfulness + necessity + proportionality assessment; impact on individual rights; security-measure effectiveness; risk rating.\n- **3-year retention**: PIPIAs must be retained for ≥3 years from completion; document the retention chain in `retention_until`.",
+  "grandmaExplanation": "Chinese companies with personal data on over a million people must appoint a senior privacy officer and run privacy impact checks before doing anything risky with that data. We make sure the officer is in place, the checks are current, and the records are kept.",
+  "prerequisiteUseCases": [],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -71,60 +126,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup cn_pi_processor_lookup\n| eval now_ts = now()\n| eval dpo_required = if(data_subject_volume >= 1000000, 1, 0)\n| eval dpo_missing = if(dpo_required = 1 AND (isnull(dpo_appointment_status) OR dpo_appointment_status != \"appointed\"), 1, 0)\n| eval cac_filing_missing = if(dpo_required = 1 AND isnull(cac_filing_ref), 1, 0)\n| join type=left processor_id [\n    search index=summary source=pipia_register earliest=-1y\n    | eval pipia_age_days = round((now() - pipia_completion_date) / 86400, 1)\n    | stats count as pipia_register_count, min(pipia_age_days) as pipia_freshest_age_days, sum(eval(if(pipia_age_days > 365, 1, 0))) as pipia_overdue_count by processor_id\n  ]\n| eval pipia_required = if(sensitive_pi_volume > 0 OR adm_in_use = \"yes\" OR cbdt_in_use = \"yes\", 1, 0)\n| eval pipia_register_count = coalesce(pipia_register_count, 0)\n| eval pipia_overdue_count = coalesce(pipia_overdue_count, 0)\n| eval pipia_missing = if(pipia_required = 1 AND pipia_register_count = 0, 1, 0)\n| eval pipia_stale_only = if(pipia_required = 1 AND pipia_register_count > 0 AND pipia_overdue_count >= pipia_register_count, 1, 0)\n| eval risk_score = case(\n    dpo_missing = 1, 85,\n    cac_filing_missing = 1, 70,\n    pipia_missing = 1 AND data_subject_volume >= 100000, 80,\n    pipia_missing = 1, 60,\n    pipia_stale_only = 1, 55,\n    pipia_overdue_count > 0, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -data_subject_volume\n| table processor_id processor_name data_subject_volume dpo_required dpo_appointment_status dpo_name cac_filing_ref pipia_required pipia_register_count pipia_freshest_age_days pipia_overdue_count risk_score",
-  "description": "Reconciles every personal-information processor in the organisation against the PIPL Art. 51 / 52 / 55 / 56 governance stack. Verifies (i) processors above the 1M data-subject threshold have appointed and CAC-filed a DPO, (ii) processors involved in sensitive-PI / ADM / cross-border transfer have a current PIPIA, (iii) PIPIAs are within the 12-month freshness window with proper 3-year retention. Surfaces DPO gaps, missing PIPIAs, and stale PIPIAs to the DPO + General Counsel.",
-  "value": "PIPL Art. 66 fines reach RMB 50 million / 5% turnover for serious violations. PIPL Art. 66 also imposes personal liability on the person directly in charge (RMB 100,000 - 1,000,000 fine + 5-year prohibition from data-processor roles). Without a DPO appointment for a >1M processor, the entity is in continuing violation; without a fresh PIPIA before sensitive-PI processing / ADM rollout / cross-border transfer, every individual decision under that processing activity is independently in violation. The CAC has audited prominent processors (Didi 2022, several major SaaS providers 2023-2024); operator-side PIPL governance evidence is what differentiates a remediable finding from a board-level enforcement.",
-  "implementation": "(1) Populate `cn_pi_processor_lookup` from the data-mapping register (Microsoft Purview, OneTrust, BigID). (2) The DPO maintains `cn_pipia_lookup` with one PIPIA per high-risk processing activity, with completion date, report reference, and retention-until (3 years from completion). (3) DPO appointment must be filed with the CAC within 30 days of crossing the 1M threshold; the CAC filing reference is `cac_filing_ref`. (4) Schedule UC-22.61.8 daily at 06:00 Beijing time; route `risk_score >= 80` to the DPO + General Counsel + CISO at severity P1.",
-  "visualization": "(Panel 1) Processors by data-subject volume tier. (Panel 2) DPO appointment coverage (appointed / not-appointed by threshold-status). (Panel 3) PIPIA register count and freshness per processor. (Panel 4) Open governance gaps sorted by risk_score.",
-  "cimModels": [
-    "Change",
-    "Inventory"
-  ],
-  "references": [
-    {
-      "title": "Personal Information Protection Law of the People's Republic of China (2021) - Articles 51, 52, 55, 56",
-      "url": "http://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_312088.html"
-    },
-    {
-      "title": "CAC Implementing Rules on Personal-Information-Protection-Officer Filing (2023)",
-      "url": "https://www.cac.gov.cn/"
-    }
-  ],
-  "knownFalsePositives": "1. **Threshold transition**: a processor that just crossed the 1M threshold has a 30-day grace to appoint the DPO; ensure `dpo_required_since` is loaded and the 30-day window is honoured. 2. **Group-level DPO**: a corporate group may appoint one DPO for multiple Chinese entities; load the same `dpo_name` and `cac_filing_ref` on each processor and ensure the CAC has accepted the group filing. 3. **PIPIA bundling**: a single PIPIA may cover multiple related processing activities; ensure the activity_type field on `cn_pipia_lookup` references all activities in scope.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_8_exceptions` with the DPO + General Counsel documented approval, an explicit processor_id scope, an expiry date, and a written justification.",
-  "requiredFields": [
-    "processor_id",
-    "data_subject_volume",
-    "dpo_appointment_status",
-    "pipia_register_count",
-    "risk_score"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "PRC Cybersecurity SME Panel + DPO + General Counsel",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow",
-    "onetrust"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "OneTrust Privacy Management",
-    "TrustArc Privacy Platform",
-    "Microsoft Purview Data Map",
-    "ServiceNow GRC (Vancouver / Washington / Xanadu)"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
-  "prerequisiteUseCases": [],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- DPO workflow tool feeding processor inventory + PIPIA register.\n- KV Store `cn_pi_processor_lookup` + `cn_pipia_lookup` seeded.\n\n## Step 1 - PI processor + PIPIA KV Stores\n\n```ini\n[cn_pi_processor_lookup]\nenforceTypes = true\nfield.processor_id = string\nfield.processor_name = string\nfield.data_subject_volume = number\nfield.sensitive_pi_volume = number\nfield.adm_in_use = string\nfield.cbdt_in_use = string\nfield.dpo_appointment_status = string\nfield.dpo_name = string\nfield.dpo_appointment_letter_ref = string\nfield.cac_filing_ref = string\nfield.processing_purposes = string\nfield.dpo_required_since = time\n\n[cn_pipia_lookup]\nenforceTypes = true\nfield.pipia_id = string\nfield.processor_id = string\nfield.activity_type = string\nfield.activity_description = string\nfield.pipia_completion_date = time\nfield.pipia_report_ref = string\nfield.retention_until = time\n```\n\n## Step 2 - PIPIA summary index seed\n\nDaily roll-up of `cn_pipia_lookup` into `index=summary source=pipia_register` so that the UC join is efficient.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.8: PIPL Governance Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.8,reg=CN-CSL,clause=PIPL-Art-51\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **DPO qualification**: PIPL Art. 52 does not specify formal qualifications, but the CAC implementing rules expect 3+ years of data-protection experience and a clear reporting line to senior management.\n- **PIPIA contents (Art. 56)**: lawfulness + necessity + proportionality assessment; impact on individual rights; security-measure effectiveness; risk rating.\n- **3-year retention**: PIPIAs must be retained for ≥3 years from completion; document the retention chain in `retention_until`.",
-  "grandmaExplanation": "Chinese companies with personal data on over a million people must appoint a senior privacy officer and run privacy impact checks before doing anything risky with that data. We make sure the officer is in place, the checks are current, and the records are kept."
+  "wave": "crawl"
 }

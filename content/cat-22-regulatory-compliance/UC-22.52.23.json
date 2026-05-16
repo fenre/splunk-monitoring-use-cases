@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC compliance-calendar (`index=grc sourcetype=\"snow:annual_report_section\"`). Lookup `cirmp_report_section_lookup` (entity_id, report_year, rule_id, section_title, section_word_count, evidence_link_count, evidence_links_csv, board_signed_off, last_edit_at, owner).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup cirmp_report_section_lookup\n| eval expected_word_minimum = case(\n    rule_id=\"4\", 1500,\n    rule_id=\"5\", 1500,\n    rule_id=\"6\", 3000,\n    rule_id=\"7\", 1500,\n    rule_id=\"8\", 1500,\n    rule_id=\"9\", 1500,\n    1=1, 1000)\n| eval section_status = case(\n    isnull(section_word_count) OR section_word_count=0, \"empty_section\",\n    section_word_count < expected_word_minimum, \"thin_section\",\n    evidence_link_count=0, \"no_evidence_links\",\n    board_signed_off!=\"true\", \"awaiting_board_signoff\",\n    1=1, \"complete\")\n| stats values(section_title) AS section_title sum(section_word_count) AS total_words sum(evidence_link_count) AS total_evidence_links by entity_id report_year rule_id section_status",
   "description": "Audits the structural completeness of the Rule 10 annual report by CIRMP rule: every CIRMP rule 4–9 has a section, the section meets a minimum word-count, includes evidence links, and is signed off by the board.",
   "value": "Rule 10 lodgement (UC-22.52.22) only proves the report exists; this UC proves it has substantive content. Auditors increasingly request to see the report's evidence-link map, and missing or thin sections become regulatory findings. This UC surfaces those gaps months before lodgement so the Company Secretary can drive content-completion.",
@@ -77,20 +58,15 @@
     }
   ],
   "knownFalsePositives": "1. **First-draft phase** — sections may legitimately be empty 6+ months before lodgement. Suppression: `report_lifecycle_lookup` carries `drafting_window_start`; tolerate empty sections until `lodgement_due_at - 90d`.\n\n2. **Re-org of report structure** — a section may have been merged with another; word-count is split. Suppression: `section_merger_lookup`.\n\n3. **Evidence in external system** — some evidence is in a confidentiality classification not directly linkable; tolerate `evidence_link_count<3` with explanation.\n\n**Suppression mechanism**: KV Store `soci_22_52_23_exceptions`; max grant 60 days during drafting; max 14 days within 90 days of due date.",
+  "mitreAttack": [
+    "N/A (compliance-audit workflow — measures Rule 10 section coverage and evidence completeness, not adversary detection)"
+  ],
   "requiredFields": [
     "entity_id",
     "report_year",
     "rule_id",
     "section_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -100,12 +76,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (compliance-audit workflow — measures Rule 10 section coverage and evidence completeness, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.22 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `cirmp_report_section_lookup` columns: `entity_id`, `report_year`, `rule_id` (4-10 + framework + cross-cutting), `section_title`, `section_word_count`, `evidence_link_count`, `evidence_links_csv`, `board_signed_off` (true/false), `last_edit_at`, `owner`.\n\n## Step 1 — Configure data collection\n\nMaterialise from the GRC annual-report module. Section drafts produce updated rows.\n\n## Step 2 — Create the search and alert\n\nSchedule weekly during drafting; daily in the last 30 days:\n\n```ini\n[UC-22.52.23: SOCI Rule 10 section coverage audit]\ncron_schedule = 0 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.23,reg=SOCI,clause=SOCI-CIRMP-r10\naction.notable.param.rule_title = SOCI Rule 10 section coverage gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity tiered by status and proximity to lodgement.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: set `section_word_count=0`; UC flags `empty_section`.\n\n**(b)** Negative control: complete a substantive section; UC clears to `complete`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 10 Section Coverage`.\n\n**Runbook for `empty_section`** (owner: section owner, severity P2):\n\n1. Within 14 business days: complete the section.\n\n**Runbook for `awaiting_board_signoff`** (owner: Company Secretary, severity P2):\n\n1. Within 30 business days: schedule the board meeting.\n\n## Step 5 — Troubleshooting\n\n**Lookup row staleness** — GRC integration delay; ensure the integration runs hourly during drafting.\n\n**Section merger** — ensure `section_merger_lookup` reflects the consolidated structure.\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — word-count counting non-prose text**: the ServiceNow GRC Compliance UI counts every character including tables and embedded artefact URLs; this can mask a thin section. Mitigation: write a ServiceNow Scripted REST API that returns a `prose_word_count` calculated by stripping markdown tables, code blocks, and URLs before counting; the lookup integration consumes this rather than the raw character count.\n- **ServiceNow GRC — evidence-link inventory failure mode**: links stored as `sys_attachment` references rather than fully qualified URLs trigger `evidence_link_count=0` for the Splunk view. Mitigation: in the ServiceNow integration, normalise every `sys_attachment` to a permanent `instance.service-now.com/sys_attachment.do?sys_id=...` URL before writing to the lookup.\n- **Archer GRC — alternative drafting tool**: Archer stores section content in an attachment field that the Archer REST API does not enumerate without explicit attachment-export scope. Mitigation: enable Archer attachment-export scope on the integration credential and re-test the lookup write.\n- **Splunk Enterprise Security 7.x — notable suppression by ESCU regex**: ES 7.x notables matching the title regex `*report*` may be auto-suppressed by an unrelated ESCU rule's `suppression_field=rule_title`. Mitigation: prefix the notable title with `SOCI-` to escape the regex match.\n\n**SOCI-specific failure modes**:\n\n- **Cyber framework section** — the Rule 6(3) framework attestation evidence (UC-22.52.15) must be one of the linked evidence artefacts.\n- **Cross-jurisdictional reporting** — if the entity is also covered by EU NIS2 or US CIRCIA, ensure those evidence artefacts are reused where possible to reduce drafting effort.\n- **Reportable incidents during reporting period** — Section should reconcile to UC-22.52.5 / 22.52.6 evidence.\n- **Drafting tool integration** — the GRC module should produce word counts directly; otherwise pair with a markdown-to-word-count Python script.",
+  "grandmaExplanation": "Beyond just lodging the yearly report, we make sure each of the rule chapters (Rules 4 through 9) is properly filled in: enough words, evidence links, and signed off by the board. If a section is empty or too thin, we ring the bell so the writer can fix it before the deadline.",
   "prerequisiteUseCases": [
     "UC-22.52.22"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.22 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `cirmp_report_section_lookup` columns: `entity_id`, `report_year`, `rule_id` (4-10 + framework + cross-cutting), `section_title`, `section_word_count`, `evidence_link_count`, `evidence_links_csv`, `board_signed_off` (true/false), `last_edit_at`, `owner`.\n\n## Step 1 — Configure data collection\n\nMaterialise from the GRC annual-report module. Section drafts produce updated rows.\n\n## Step 2 — Create the search and alert\n\nSchedule weekly during drafting; daily in the last 30 days:\n\n```ini\n[UC-22.52.23: SOCI Rule 10 section coverage audit]\ncron_schedule = 0 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.23,reg=SOCI,clause=SOCI-CIRMP-r10\naction.notable.param.rule_title = SOCI Rule 10 section coverage gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity tiered by status and proximity to lodgement.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: set `section_word_count=0`; UC flags `empty_section`.\n\n**(b)** Negative control: complete a substantive section; UC clears to `complete`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 10 Section Coverage`.\n\n**Runbook for `empty_section`** (owner: section owner, severity P2):\n\n1. Within 14 business days: complete the section.\n\n**Runbook for `awaiting_board_signoff`** (owner: Company Secretary, severity P2):\n\n1. Within 30 business days: schedule the board meeting.\n\n## Step 5 — Troubleshooting\n\n**Lookup row staleness** — GRC integration delay; ensure the integration runs hourly during drafting.\n\n**Section merger** — ensure `section_merger_lookup` reflects the consolidated structure.\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — word-count counting non-prose text**: the ServiceNow GRC Compliance UI counts every character including tables and embedded artefact URLs; this can mask a thin section. Mitigation: write a ServiceNow Scripted REST API that returns a `prose_word_count` calculated by stripping markdown tables, code blocks, and URLs before counting; the lookup integration consumes this rather than the raw character count.\n- **ServiceNow GRC — evidence-link inventory failure mode**: links stored as `sys_attachment` references rather than fully qualified URLs trigger `evidence_link_count=0` for the Splunk view. Mitigation: in the ServiceNow integration, normalise every `sys_attachment` to a permanent `instance.service-now.com/sys_attachment.do?sys_id=...` URL before writing to the lookup.\n- **Archer GRC — alternative drafting tool**: Archer stores section content in an attachment field that the Archer REST API does not enumerate without explicit attachment-export scope. Mitigation: enable Archer attachment-export scope on the integration credential and re-test the lookup write.\n- **Splunk Enterprise Security 7.x — notable suppression by ESCU regex**: ES 7.x notables matching the title regex `*report*` may be auto-suppressed by an unrelated ESCU rule's `suppression_field=rule_title`. Mitigation: prefix the notable title with `SOCI-` to escape the regex match.\n\n**SOCI-specific failure modes**:\n\n- **Cyber framework section** — the Rule 6(3) framework attestation evidence (UC-22.52.15) must be one of the linked evidence artefacts.\n- **Cross-jurisdictional reporting** — if the entity is also covered by EU NIS2 or US CIRCIA, ensure those evidence artefacts are reused where possible to reduce drafting effort.\n- **Reportable incidents during reporting period** — Section should reconcile to UC-22.52.5 / 22.52.6 evidence.\n- **Drafting tool integration** — the GRC module should produce word counts directly; otherwise pair with a markdown-to-word-count Python script.",
-  "grandmaExplanation": "Beyond just lodging the yearly report, we make sure each of the rule chapters (Rules 4 through 9) is properly filled in: enough words, evidence links, and signed off by the board. If a section is empty or too thin, we ring the bell so the writer can fix it before the deadline."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

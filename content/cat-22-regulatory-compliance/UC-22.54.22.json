@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `circia_board_fiduciary_lookup` (board roster + fiduciary assignment). KV Store `circia_board_briefing_lookup` (quarterly briefing register). LMS (KnowBe4, Workday Learning, Cornerstone OnDemand) for training completion (`lms:training:completion`). ServiceNow GRC for charter management.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "optional",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup circia_board_fiduciary_lookup\n| where board_member_status=\"active\"\n| eval now_ts = now()\n| lookup circia_board_briefing_lookup board_member_id OUTPUT last_briefing_at next_briefing_due_at\n| eval training_age_months = round((now_ts - training_completed_at) / 86400 / 30, 1)\n| eval briefing_age_days = if(isnotnull(last_briefing_at), round((now_ts - last_briefing_at) / 86400, 1), null())\n| eval fiduciary_status = case(\n    isnull(fiduciary_assignment_signed_at), \"assignment_missing\",\n    isnull(training_completed_at), \"training_missing\",\n    training_age_months > 12, \"training_stale\",\n    isnull(last_briefing_at) OR briefing_age_days > 100, \"briefing_overdue\",\n    1=1, \"current\")\n| where fiduciary_status != \"current\"\n| table board_member_id board_member_name fiduciary_assignment_signed_at training_completed_at training_expires_at last_briefing_at next_briefing_due_at fiduciary_status",
   "description": "Cross-references the board roster, fiduciary-assignment record, training completion, and quarterly-briefing register. Surfaces gaps that should be remediated before an incident.",
   "value": "When an incident occurs, board fiduciary readiness is one of the first things assessed by external counsel, the SEC (for public companies), and CISA. An untrained or unbriefed board is a regulatory exposure. This UC ensures the readiness is current and documented.",
@@ -74,32 +55,52 @@
     }
   ],
   "knownFalsePositives": "1. **New director within 30-day grace** — new appointment may not yet have training or briefing. Suppression: `fiduciary_status_override=onboarding` with 30-day grace.\n\n2. **Director on leave** — medical leave may delay briefing. Suppression: `board_member_status=on_leave` excludes from check.\n\n3. **Training-completion lag in LMS** — LMS may have a 24h delay reflecting completion. Suppression: tolerate 48h lag.\n\n**Suppression mechanism**: KV Store `circia_22_54_22_exceptions` with per-member grants requiring documented Corporate Secretary approval and a 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (board-governance readiness)"
+  ],
   "requiredFields": [
     "board_member_id",
     "fiduciary_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "KnowBe4 / Workday Learning / Cornerstone OnDemand LMS",
+    "ServiceNow GRC (committee-charter management)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + Corporate Secretary",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "ServiceNow GRC (committee-charter management)",
-    "KnowBe4 / Workday Learning / Cornerstone OnDemand LMS"
-  ],
-  "mitreAttack": [
-    "N/A (board-governance readiness)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_board_fiduciary_lookup`, `circia_board_briefing_lookup`.\n- LMS HEC integration.\n\n## Step 1 — Board roster + briefing collections\n\n```ini\n[circia_board_fiduciary_lookup]\nenforceTypes = true\nfield.board_member_id = string\nfield.board_member_name = string\nfield.board_member_status = string\nfield.fiduciary_assignment_signed_at = number\nfield.training_completed_at = number\nfield.training_expires_at = number\n\n[circia_board_briefing_lookup]\nenforceTypes = true\nfield.board_member_id = string\nfield.last_briefing_at = number\nfield.next_briefing_due_at = number\nfield.briefing_signed_off_by = string\n```\n\n## Step 2 — LMS integration\n\nKnowBe4 webhook → Splunk HEC. Course IDs for CIRCIA fiduciary training pre-registered.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.22: CIRCIA Board Fiduciary Awareness]\ncron_schedule = 0 4 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.22,reg=CIRCIA,clause=CIRCIA-CISA-board-fiduciary\naction.notable.param.rule_title = CIRCIA board fiduciary readiness gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Briefing-overdue test**: delete the latest briefing row; UC-22.54.22 must alert within 7 days.\n\n**(b) Training-stale test**: set `training_completed_at` to 14 months ago; UC-22.54.22 must trip `training_stale`.\n\n## Step 5 — Operationalize\n\n**Runbook for `briefing_overdue`** (owner: Corporate Secretary, severity P3):\n\n1. Within 30 days: schedule a board / committee CIRCIA briefing; document.\n\n**Runbook for `training_stale`** (owner: Corporate Secretary, severity P3):\n\n1. Within 60 days: enrol board members in CIRCIA refresh course; track to completion.\n\n## Step 6 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Director-level vs committee-level briefings**: full-board briefings count for all directors; committee briefings count for committee members only.\n- **SEC Form 8-K alignment**: see UC-22.54.23.",
+  "grandmaExplanation": "Our board of directors has a special duty about cyber-incidents. Once a year they take training; every three months they get a briefing. We keep a checklist of who has done what, and if anyone is overdue, the company secretary is told to fix it.",
   "prerequisiteUseCases": [
     "UC-22.54.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `circia_board_fiduciary_lookup`, `circia_board_briefing_lookup`.\n- LMS HEC integration.\n\n## Step 1 — Board roster + briefing collections\n\n```ini\n[circia_board_fiduciary_lookup]\nenforceTypes = true\nfield.board_member_id = string\nfield.board_member_name = string\nfield.board_member_status = string\nfield.fiduciary_assignment_signed_at = number\nfield.training_completed_at = number\nfield.training_expires_at = number\n\n[circia_board_briefing_lookup]\nenforceTypes = true\nfield.board_member_id = string\nfield.last_briefing_at = number\nfield.next_briefing_due_at = number\nfield.briefing_signed_off_by = string\n```\n\n## Step 2 — LMS integration\n\nKnowBe4 webhook → Splunk HEC. Course IDs for CIRCIA fiduciary training pre-registered.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.22: CIRCIA Board Fiduciary Awareness]\ncron_schedule = 0 4 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.22,reg=CIRCIA,clause=CIRCIA-CISA-board-fiduciary\naction.notable.param.rule_title = CIRCIA board fiduciary readiness gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Briefing-overdue test**: delete the latest briefing row; UC-22.54.22 must alert within 7 days.\n\n**(b) Training-stale test**: set `training_completed_at` to 14 months ago; UC-22.54.22 must trip `training_stale`.\n\n## Step 5 — Operationalize\n\n**Runbook for `briefing_overdue`** (owner: Corporate Secretary, severity P3):\n\n1. Within 30 days: schedule a board / committee CIRCIA briefing; document.\n\n**Runbook for `training_stale`** (owner: Corporate Secretary, severity P3):\n\n1. Within 60 days: enrol board members in CIRCIA refresh course; track to completion.\n\n## Step 6 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Director-level vs committee-level briefings**: full-board briefings count for all directors; committee briefings count for committee members only.\n- **SEC Form 8-K alignment**: see UC-22.54.23.",
-  "grandmaExplanation": "Our board of directors has a special duty about cyber-incidents. Once a year they take training; every three months they get a briefing. We keep a checklist of who has done what, and if anyone is overdue, the company secretary is told to fix it."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "walk"
 }

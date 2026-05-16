@@ -36,25 +36,6 @@
   },
   "dataSources": "`index=vuln sourcetype=\"tenable:nessus:scan\"`, `tenable:ot:vuln`, `qualys:scan`, vendor-advisory feeds (`rockwell:psirt:advisory`, `schneider:advisory`, `siemens:productcert`, `abb:advisory`, `emerson:advisory`, `yokogawa:advisory`, `honeywell:productsecurity`). CISA KEV feed (`cisa:kev`) for known-exploited validation. Lookups: `ot_asset_inventory_lookup` (KV Store, from UC-22.51.3), `ot_vuln_sla.csv` (cvss→sla_days mapping), `vuln_risk_acceptance.csv`, `vuln_compensating_controls.csv`.",
   "app": "Splunk Add-on for Tenable (Splunkbase 4060), Splunk Add-on for Qualys (Splunkbase 2964), Splunk Add-on for CISA KEV (Splunkbase 6306), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 4060,
-      "name": "Splunk Add-on for Tenable",
-      "url": "https://splunkbase.splunk.com/app/4060",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=vuln (sourcetype=\"tenable:nessus:scan\" OR sourcetype=\"tenable:ot:vuln\" OR sourcetype=\"qualys:scan\" OR sourcetype=\"*:advisory\" OR sourcetype=\"*:psirt:advisory\") earliest=-1d@d latest=now\n| eval asset_key=coalesce(asset_key, host.\"|\".dest, host, dest)\n| lookup ot_asset_inventory_lookup asset_key OUTPUT asset_id_cmdb asset_class asset_criticality environment\n| where environment=\"prod\" AND isnotnull(asset_class)\n| stats earliest(_time) AS first_seen latest(_time) AS last_seen latest(cvss_v3_base) AS cvss_v3_base latest(remediation_status) AS remediation_status latest(vendor_advisory_url) AS vendor_advisory_url values(exploit_available) AS exploit_available BY cve_id asset_key asset_class asset_criticality\n| eval cvss_band=case(\n    cvss_v3_base >= 9.0, \"critical\",\n    cvss_v3_base >= 7.0, \"high\",\n    cvss_v3_base >= 4.0, \"medium\",\n    1=1, \"low\")\n| lookup ot_vuln_sla.csv cvss_band OUTPUT sla_days\n| join cve_id type=left [search index=threat sourcetype=\"cisa:kev\" earliest=-30d | dedup cve_id | eval kev_listed=\"true\" | table cve_id kev_listed]\n| eval effective_sla_days = case(\n    kev_listed=\"true\", min(sla_days, 14),\n    asset_criticality=\"critical\", min(sla_days, 30),\n    1=1, sla_days)\n| eval days_since_first_seen = round((now() - first_seen) / 86400)\n| lookup vuln_risk_acceptance.csv cve_id asset_key OUTPUT risk_acceptance_id ra_expires_at compensating_controls\n| eval risk_acceptance_active = if(isnotnull(risk_acceptance_id) AND strptime(ra_expires_at, \"%Y-%m-%d\") > now(), \"true\", \"false\")\n| eval remediation_status = case(\n    risk_acceptance_active=\"true\", \"risk_accepted_active\",\n    remediation_status IN (\"resolved\",\"fixed\",\"patched\",\"remediated\"), \"remediated\",\n    1=1, \"open\")\n| eval breach_flag = if(remediation_status=\"open\" AND days_since_first_seen > effective_sla_days, \"true\", \"false\")\n| where remediation_status=\"open\" OR breach_flag=\"true\"\n| table cve_id asset_key asset_class asset_criticality cvss_v3_base kev_listed exploit_available first_seen last_seen sla_days effective_sla_days days_since_first_seen remediation_status risk_acceptance_id breach_flag\n| sort - breach_flag cvss_v3_base days_since_first_seen",
   "description": "Surfaces every open OT vulnerability against an asset in the production inventory, computes the effective remediation SLA (tightened for KEV-listed CVEs and critical-criticality assets), and flags any that have breached SLA without an active risk-acceptance record.",
   "value": "OT vulnerability management is the most-failed OTCC control category because OT systems cannot be patched on IT cadence and the vendor patch cadence is months not days. NCA inspectors will not accept 'we can't patch OT' as an answer — they want the discipline: continuous discovery, prioritised SLAs, compensating controls when patches are not feasible, and documented risk acceptance signed by the right authority when neither is possible. This UC produces that discipline as evidence.",
@@ -90,6 +71,10 @@
     }
   ],
   "knownFalsePositives": "1. **Vendor-disputed CVE** — some CVEs against OT products are disputed by the vendor (e.g. Schneider Electric or Rockwell publicly contesting a CVE attribution). The OT cybersecurity programme may have accepted the vendor's position with documented rationale. Suppression: maintain `vuln_vendor_disputed.csv` with cve_id+rationale and exclude from open count; still surface in the audit-evidence trail.\n\n2. **Compensating-control already in place** — a CVE that requires direct network access to exploit, on an asset behind two layers of segmentation and an OT-DMZ jump host, is mitigated even without a patch. Suppression: maintain `vuln_compensating_controls.csv` with cve_id→control reference (with control owner and last_validated date); the runbook recommends documenting the compensating control rather than blanket-excluding.\n\n3. **Re-scan timing drift** — a vulnerability fixed in a deployed patch may still appear in the next scan because the scan ran before the patch propagated. Suppression: defer `breach_flag` until 14 days after the patch's `deployment_completed_at`; the `deployment_completed_at` is populated by UC-22.51.8.\n\n4. **Tenable.ot passive-only scans missing reachability** — a vulnerability detected via passive observation may be theoretically present but the affected service may be disabled. Suppression: validate exploit feasibility with an active scan in a maintenance window; if disabled, mark `remediation_status=remediated_via_service_disable`.\n\n5. **False positives on vendor-installed but unconfigured components** — a Modbus library included in vendor firmware but never enabled is a 'present but not exploitable' case. Suppression: maintain `vendor_dormant_components.csv` listing such cases per asset_class.\n\n**Suppression mechanism**: KV Store `otcc_22_51_7_exceptions` keyed on `(cve_id, asset_key)` with `exception_active`, `expires_at`, `reason`, `approved_by`.",
+  "mitreAttack": [
+    "T1190",
+    "T1212"
+  ],
   "requiredFields": [
     "cve_id",
     "asset_key",
@@ -98,32 +83,48 @@
     "first_seen",
     "remediation_status"
   ],
+  "equipment": [
+    "qualys",
+    "splunk-es",
+    "tenable"
+  ],
+  "equipmentModels": [
+    "Qualys VMDR 10.x (IT-class OT host vulnerability scanning)",
+    "Splunk Add-on for CISA KEV (Splunkbase 6306, known-exploited CVE feed)",
+    "Splunk Add-on for Tenable (Splunkbase 4060, vulnerabilities and plugin metadata)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, vulnerability data model)",
+    "Tenable.ot 3.x (passive OT vulnerability discovery)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "tenable",
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "T1190",
-    "T1212"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.3"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Tenable (Splunkbase 4060) for Tenable Nessus / Tenable.ot.\n- Splunk Add-on for Qualys (Splunkbase 2964) if Qualys is used in parallel.\n- Splunk Add-on for CISA KEV (Splunkbase 6306) or equivalent threat-intel ingestion to feed the KEV listing into `index=threat`.\n- Vendor PSIRT feed ingestion: most vendor PSIRT pages publish JSON / RSS feeds (Rockwell, Siemens, Schneider, ABB). A REST modular input per vendor brings advisories into `index=vuln` with their respective sourcetypes; an asset-class-aware lookup translates vendor advisory IDs to affected CVEs.\n- `index=vuln` (13-month online retention for trend visualisation), `index=threat` (KEV plus IOC feeds, 6-month online), `index=audit_evidence` (already provisioned).\n- Lookups:\n  - `ot_asset_inventory_lookup` (KV Store, from UC-22.51.3) — must include `environment` (`prod` / `staging` / `dev`) and `asset_criticality`.\n  - `ot_vuln_sla.csv` — owned by Head of OT Security. Default rows: `critical|30`, `high|60`, `medium|180`, `low|365`. Reviewed annually.\n  - `vuln_risk_acceptance.csv` — owned by the OT cybersecurity steering committee; refreshed from the GRC tool whenever a risk-acceptance ticket is approved. Columns: `cve_id`, `asset_key`, `risk_acceptance_id`, `ra_signed_at`, `ra_expires_at`, `compensating_controls`, `approved_by`, `signed_by_role_id`.\n  - `vuln_compensating_controls.csv` — owned by OT cybersecurity engineering; `(cve_id|asset_class)` keys with control references and `last_validated_at` for periodic re-attestation.\n  - `vuln_vendor_disputed.csv` — owned by Head of OT Security; rationale and source URL per row.\n\n## Step 1 — Configure data collection\n\nTenable.ot exports vulnerabilities via the Tenable REST API. Modular input stanza:\n\n```ini\n[tenable_ot://vulnerabilities]\nendpoint = https://tenable-ot.example.com\nrecord_type = vulnerability\ninterval = 3600\nindex = vuln\nsourcetype = tenable:ot:vuln\n```\n\nFor vendor-PSIRT (Rockwell PSIRT example, RSS feed):\n\n```ini\n[rest://rockwell_psirt]\nurl = https://www.rockwellautomation.com/en-us/trust-center/security-advisories.rss\nindex = vuln\nsourcetype = rockwell:psirt:advisory\nresponse_type = xml\ninterval = 21600\n```\n\nCISA KEV ingestion via the official JSON catalog:\n\n```ini\n[rest://cisa_kev]\nurl = https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json\nindex = threat\nsourcetype = cisa:kev\nresponse_type = json\ninterval = 21600\n```\n\nValidate field extraction:\n\n```spl\nindex=vuln sourcetype=\"tenable:ot:vuln\" earliest=-1d\n| fieldsummary\n| search field IN (cve_id, asset_key, host, cvss_v3_base, remediation_status, first_seen, vendor_advisory_url)\n```\n\nValidate KEV ingest:\n\n```spl\nindex=threat sourcetype=cisa:kev earliest=-1d\n| stats dc(cve_id) AS kev_cve_count\n```\n\nExpected value matches the size of the public CISA KEV catalog (1100–1500 entries as of 2026).\n\n## Step 2 — Create the search and alert\n\nThe search has three logical stages:\n\n1. **Discovery**: pull all vulnerability events from the last 24 hours, normalise to `(cve_id, asset_key)`, and aggregate to the latest state per pair.\n2. **Prioritisation**: compute `cvss_band` and join against KEV. The effective SLA is the minimum of the CVSS-based SLA, the KEV-aware SLA (14 days for KEV-listed), and the asset-criticality-aware SLA (30 days for critical assets).\n3. **Status**: classify as `risk_accepted_active`, `remediated`, or `open`. Compute `breach_flag` for open items past their effective SLA.\n\nThe aggregation step preserves first_seen and last_seen — critical because the OTCC clause is about SLA-from-discovery, not SLA-from-last-scan.\n\n**Schedule**:\n\n```ini\n[UC-22.51.7: OT Vulnerability Management SLA and Coverage Tracking]\ncron_schedule = 0 4 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.7,reg=NCA_OTCC,clause=OTCC-2-10-1-1\naction.notable.param.rule_title = NCA OTCC OT vulnerability SLA breach\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\naction.email.to = ot-cyber-programme@example.com,head-of-ot-security@example.com\nalert.severity = 4\n```\n\nNotable creation only on `breach_flag=true` or `(kev_listed=true AND remediation_status=open)` — the rest route to audit_evidence and email summary.\n\n## Step 3 — Validate deployment\n\n**(a) Scan coverage**: every in-scope asset should be in a recent scan:\n\n```spl\n(index=vuln earliest=-7d) OR (| inputlookup ot_asset_inventory_lookup)\n| eval source=if(isnotnull(cve_id), \"scanned\", \"inventory\")\n| stats values(source) AS sources by asset_key\n| where NOT mvfind(sources, \"scanned\")>=0\n| stats count\n```\n\nResult should be ≤0.5% of total assets (some passive-only assets are expected). If the gap is larger, a scan zone is being missed.\n\n**(b) SLA-lookup health**:\n\n```spl\n| inputlookup ot_vuln_sla.csv\n```\n\nMust have four rows (one per CVSS band) and at least one annual review row in the past 365 days.\n\n**(c) Risk-acceptance freshness**:\n\n```spl\n| inputlookup vuln_risk_acceptance.csv\n| eval expired=if(strptime(ra_expires_at, \"%Y-%m-%d\") < now(), \"true\", \"false\")\n| stats count by expired\n```\n\nExpired risk-acceptance entries are a P3 governance finding; the OT cybersecurity programme manager must close them.\n\n**(d) Positive control**: per `controlTest.positiveScenario`. Confirm the synthetic CVE triggers `breach_flag=true` and an ES notable.\n\n**(e) Negative control**: per `controlTest.negativeScenario`. Confirm the same CVE with active risk acceptance is classified `risk_accepted_active`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Vulnerability Management`.\n\n- **Row 1, single values**: 'Open SLA breaches', 'Open critical CVEs (KEV-listed)', 'Risk acceptances expiring in 30 days'.\n- **Row 2, sortable table**: every open vulnerability sorted by breach_flag desc, cvss_v3_base desc, days_since_first_seen desc. Drill-through to the vendor advisory and the asset record.\n- **Row 3, 90-day trend**: count of `breach_flag=true` by `cvss_band` — the headline KPI for the OT cybersecurity steering committee.\n- **Row 4, vendor breakdown**: stacked bar of open vulnerabilities by `vendor` (Rockwell, Siemens, Schneider, ABB, Emerson, Yokogawa, Honeywell, etc.) and `cvss_band`. Identifies which vendors have the largest unpatched exposure — informs the procurement and supplier conversations.\n- **Row 5, KEV alignment**: scatter plot of `cvss_v3_base` vs `days_since_first_seen`, coloured by KEV-listed. Visualises the highest-risk corner of the open-vulnerability portfolio.\n\n**Runbook for a `breach_flag=true` alert** (owner: OT cybersecurity programme manager):\n\n1. Within 1 business day: confirm the vulnerability is genuine (not a scan false-positive).\n2. Open a P2 ticket against the asset owner. Define the remediation path: patch (refer to UC-22.51.8), compensating control (document in `vuln_compensating_controls.csv`), or risk acceptance (route through the OT cybersecurity steering committee).\n3. Update `remediation_status` in the source scan tool to `in_progress` with the chosen path and target date.\n4. Refresh dashboard at end of day; the SLA breach should clear once status moves out of `open` or a valid `risk_acceptance_id` is added.\n5. For KEV-listed CVEs with `breach_flag=true` and no compensating control: escalate to the OT cybersecurity steering committee immediately. KEV-listed plus no control plus breach is the highest-priority OTCC finding.\n\n## Step 5 — Troubleshooting\n\n**Scans run but show zero CVEs** — the scan policy is not configured for OT plugins. In Tenable.ot, verify the Baseline Check vs Vulnerability Scan policy distinction; CVEs require the Vulnerability Scan policy. In Nessus, ensure the OT-specific plugin family is enabled.\n\n**Same CVE reports `first_seen=today` every day** — the `first_seen` field is being overwritten by the scanner instead of being persisted across scans. Use the scanner's persistent ID; if absent, retain first_seen via a Splunk summary index keyed on `(cve_id, asset_key)` and updated only on first appearance.\n\n**Compensating controls not honored** — the lookup join is failing because the key shape differs. Some scanners use `host` instead of `asset_key`; confirm the lookup is keyed on the same value.\n\n**Risk-acceptance entries lifecycle drift** — the GRC-to-CSV export may be infrequent. Move to a KV Store collection populated by a scheduled search reading directly from `index=grc sourcetype=servicenow:grc:risk_acceptance`.\n\n**OT-specific failure modes**:\n\n- **Vendor-locked devices that cannot be scanned**: many controller types (Modicon Quantum, Allen-Bradley SLC-500) cannot tolerate an active scan. Maintain a `passive_only_assets.csv` and rely on Tenable.ot passive observation; passive coverage is sufficient OTCC evidence provided the data source is documented.\n- **Firmware revision lag**: vendor advisories often list affected firmware versions; the lookup must compare observed firmware against vulnerable-firmware ranges. The Splunk Add-on for Tenable does this automatically when ingesting CVRF-format advisories; for hand-curated feeds, write a custom lookup.\n- **Stuxnet-class vulnerabilities** (SCADA-specific, e.g. Siemens S7-300 CVE-2019-10936): these may have no patch and require physical compensating controls. Escalate to OT cybersecurity steering committee for permanent risk acceptance with annual re-affirmation.\n- **Embedded OS vulnerabilities under proprietary OS**: most PLCs run vendor-proprietary RTOSes. CVEs against the embedded OS are reported through the vendor's PSIRT, not through MITRE CVE directly. The vendor-PSIRT feeds in Step 1 are required.\n- **Multi-CPU controllers**: a ControlLogix chassis with multiple processor modules may have different firmware per module; the asset_key in the inventory must distinguish modules to avoid masking.",
   "grandmaExplanation": "We watch for weaknesses in every plant computer. When one is found, the clock starts. If a fix has not been applied or a workaround documented within the agreed time — sooner for the worst ones — we ring the bell. We also pay extra attention to weaknesses we know criminals are already using.",
-  "equipmentModels": [
-    "Tenable.ot 3.x (passive OT vulnerability discovery)",
-    "Qualys VMDR 10.x (IT-class OT host vulnerability scanning)",
-    "Splunk Add-on for Tenable (Splunkbase 4060, vulnerabilities and plugin metadata)",
-    "Splunk Add-on for CISA KEV (Splunkbase 6306, known-exploited CVE feed)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263, vulnerability data model)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 4060,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

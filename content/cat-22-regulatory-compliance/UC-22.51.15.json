@@ -35,32 +35,6 @@
   },
   "dataSources": "Microsoft Defender for Office 365 (`ms-defender-365:email`, `ms-defender-365:attachment`), Proofpoint Email Protection (`proofpoint:email`, `proofpoint:url`), Mimecast (`mimecast:email`, `mimecast:attachment`), URL click tracking from the gateway (`*:url:click`). Lookups: `ot_personnel.csv`, `ot_vendor_domain_allowlist.csv`, `ot_vendor_lookalike_patterns.csv`, `phish_simulation_campaigns.csv`.",
   "app": "Splunk Add-on for Microsoft Defender for Office 365 (Splunkbase 6207-related family), Splunk Add-on for Proofpoint (Splunkbase 5024), Splunk Add-on for Mimecast (Splunkbase 5283), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 5024,
-      "name": "Splunk Add-on for Proofpoint",
-      "url": "https://splunkbase.splunk.com/app/5024",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 5283,
-      "name": "Splunk Add-on for Mimecast",
-      "url": "https://splunkbase.splunk.com/app/5283",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=email sourcetype IN (\"ms-defender-365:email\",\"proofpoint:email\",\"mimecast:email\") earliest=-15m@m\n| eval recipient_email=coalesce(recipient_email, to, recipient)\n| lookup ot_personnel.csv email AS recipient_email OUTPUT user_id role business_unit ot_scope_flag\n| where ot_scope_flag=\"true\"\n| eval sender_address=coalesce(sender_address, from)\n| eval sender_domain=lower(replace(sender_address, \"^[^@]+@\", \"\"))\n| eval subject_summary=substr(subject, 0, 120)\n| eval observed_at=_time\n| eval attachment_count = coalesce(attachment_count, 0)\n| eval url_count = coalesce(url_count, 0)\n| lookup ot_vendor_domain_allowlist.csv sender_domain OUTPUT allowlisted_flag\n| eval allowlisted_flag = coalesce(allowlisted_flag, \"false\")\n| lookup ot_vendor_lookalike_patterns.csv sender_domain OUTPUT lookalike_for_vendor\n| eval has_ot_vendor_lookalike = if(isnotnull(lookalike_for_vendor) AND allowlisted_flag=\"false\", \"true\", \"false\")\n| eval sandbox_verdict = coalesce(verdict, sandbox_verdict, action)\n| eval suspicious_url_count = coalesce(suspicious_url_count, 0)\n| join recipient_email observed_at type=left [search index=email sourcetype=\"*:url:click\" earliest=-1h | dedup recipient_email click_time message_id | eval click_observed=\"true\" | table recipient_email message_id click_observed]\n| eval click_observed = coalesce(click_observed, \"false\")\n| join sender_address recipient_email observed_at type=left [search index=email action=\"user_reported_phishing\" earliest=-1h | eval reported_by_user=\"true\" | table sender_address recipient_email reported_by_user]\n| eval reported_by_user = coalesce(reported_by_user, \"false\")\n| eval classification = case(\n    sandbox_verdict=\"malicious\", \"malicious\",\n    has_ot_vendor_lookalike=\"true\", \"suspicious_vendor_lookalike\",\n    suspicious_url_count > 0 AND allowlisted_flag=\"false\", \"suspicious_url\",\n    sandbox_verdict=\"suspicious\", \"suspicious\",\n    reported_by_user=\"true\", \"user_reported\",\n    1=1, \"clean\")\n| where classification!=\"clean\"\n| table observed_at recipient_email role business_unit sender_address sender_domain subject_summary attachment_count url_count suspicious_url_count has_ot_vendor_lookalike sandbox_verdict click_observed reported_by_user classification\n| sort - observed_at",
   "description": "Filters incoming email events down to OT personnel, evaluates sender authenticity against the OT-vendor allowlist and lookalike-domain patterns, correlates with sandbox verdicts and end-user phishing reports, and classifies the message.",
   "value": "OT personnel are a high-value target for spear-phishing (Triton/TRISIS, INDUSTROYER2). Generic IT phishing detection often misses OT-specific patterns: typosquats of OT-vendor domains (siemenz.com, rockwel-automation.net), OT-themed lures (a fake firmware update from Schneider), and OT-personnel-targeted spear-phishing with crafted CVE references. This UC raises the floor on those threats by explicitly modeling OT-personnel scope and OT-vendor lookalike patterns.",
@@ -84,37 +58,67 @@
     }
   ],
   "knownFalsePositives": "1. **Vendor consultants using personal email** — a Rockwell consultant working from a personal Gmail address sends a legitimate procurement message. Suppression: pre-clear known consultants in `ot_vendor_domain_allowlist.csv` for time-bound engagements.\n\n2. **OT cybersecurity awareness programme simulations** — the OT cybersecurity awareness team sends simulated phishing exercises monthly. Suppression: simulations carry `X-PhishSim-Campaign:` header recorded in `phish_simulation_campaigns.csv`; matching campaigns are explicitly excluded from notable creation but still archived for training-effectiveness reporting.\n\n3. **OEM mailing lists with bulk addresses** — OEM PSIRT notifications often originate from `noreply@vendor-bulk.cz`-style domains. Suppression: explicitly allowlist OEM PSIRT bulk-domains in `ot_vendor_domain_allowlist.csv` with `purpose=psirt_bulk` to make the allowlist auditable.\n\n4. **Email gateway sandbox false-positive on benign OT-config files** — some sandboxes flag ladder-logic PDF exports as suspicious because of embedded scripts. Suppression: KV Store `otcc_22_51_15_attachment_whitelist` keyed on attachment hash with the verifying vendor reference.\n\n**Suppression mechanism**: KV Store `otcc_22_51_15_exceptions` keyed on `(sender_address, recipient_email)` with `expires_at`, `reason`, `approved_by`.",
+  "mitreAttack": [
+    "T1566",
+    "T0865"
+  ],
   "requiredFields": [
     "recipient_email",
     "sender_address",
     "observed_at"
   ],
+  "equipment": [
+    "asterisk",
+    "defender",
+    "m365",
+    "microsoft",
+    "proofpoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft Defender for Office 365 (anti-phish, Safe Attachments, Safe Links)",
+    "Mimecast Email Security (URL/Attachment Protect)",
+    "Proofpoint Targeted Attack Protection (URL Defense, Threat Insight)",
+    "Splunk Add-on for Microsoft Office 365 / Defender (Splunkbase 4055 / 6207 family)",
+    "Splunk Add-on for Proofpoint (Splunkbase 5024)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "microsoft",
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "T1566",
-    "T0865"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.3"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- The email gateway in use (one or more):\n  - Microsoft Defender for Office 365 — via the Microsoft Graph Security API modular input.\n  - Proofpoint Email Protection — Splunk Add-on for Proofpoint (Splunkbase 5024).\n  - Mimecast Email Security — Splunk Add-on for Mimecast (Splunkbase 5283).\n- PhishAlert / reported-phishing feed integrated:\n  - Microsoft 'Report Message' add-in writes to AzureGraph; pulled via Defender for Office 365.\n  - Cofense PhishMe Reporter writes to Cofense Triage; pulled via REST modular input into `index=email`.\n  - KnowBe4 PhishER — REST API integration.\n- `index=email` (24-month retention), `index=audit_evidence` (already provisioned).\n- Lookups:\n  - `ot_personnel.csv` — owned by HR-business-partner-to-cyber. Columns: `email`, `user_id`, `role`, `business_unit`, `ot_scope_flag`. Refreshed daily.\n  - `ot_vendor_domain_allowlist.csv` — owned by OT cybersecurity engineering. Columns: `sender_domain`, `vendor`, `purpose`, `allowlist_owner`. Reviewed annually.\n  - `ot_vendor_lookalike_patterns.csv` — owned by OT cybersecurity engineering. Columns: `sender_domain`, `lookalike_for_vendor`, `first_seen`, `reference`. Reviewed quarterly. Examples:\n\n    ```csv\n    sender_domain,lookalike_for_vendor,first_seen,reference\n    siemenz.com,siemens,2024-01-15,internal-IOC-2024-001\n    siemenz-support.com,siemens,2024-03-02,internal-IOC-2024-007\n    rockwel-automation.net,rockwell,2024-02-19,internal-IOC-2024-004\n    schneidre-electric.com,schneider,2024-04-10,public-OSINT\n    ```\n\n  - `phish_simulation_campaigns.csv` — owned by OT cybersecurity awareness team. Columns: `campaign_id`, `sender_pattern`, `start_date`, `end_date`.\n  - KV Store `otcc_22_51_15_exceptions` and `otcc_22_51_15_attachment_whitelist`.\n\n## Step 1 — Configure data collection\n\nDefender for Office 365 via the Microsoft Graph Security API:\n\n```ini\n[microsoft_graph_security://email_alerts]\nclient_id = <aad-app-id>\ntenant = <tenant>\nclient_secret = <key-vault-reference>\nresource = email_threats\nindex = email\nsourcetype = ms-defender-365:email\ninterval = 300\n```\n\nProofpoint via SIEM API:\n\n```ini\n[proofpoint://email_protection]\nuser = <api-user>\npass = <api-password-key-vault>\nendpoint = https://tap-api-v2.proofpoint.com/v2\nindex = email\nsourcetype = proofpoint:email\ninterval = 300\n```\n\nMimecast via API:\n\n```ini\n[mimecast://email_security]\napp_id = <mimecast-app-id>\napp_key = <mimecast-app-key-vault>\naccess_key = <mimecast-access-key-vault>\nsecret_key = <mimecast-secret-key-vault>\nendpoint = https://us-api.mimecast.com\nindex = email\nsourcetype = mimecast:email\ninterval = 300\n```\n\nValidate:\n\n```spl\nindex=email earliest=-1d\n| stats count by sourcetype\n```\n\nVolume guidance: depends heavily on email volume. For an estate with 200 OT-scoped recipients, expect 1k–10k events/day; license <100 MB/day.\n\n## Step 2 — Create the search and alert\n\nThe search filters to OT-personnel recipients first, then enriches with allowlist and lookalike-pattern lookups, then computes the final classification. The classification ordering is intentional: `malicious` sandbox verdict trumps everything, then `vendor lookalike`, then `suspicious URL`, then `general suspicious`, then `user reported`. The `reported_by_user=true` outcome is preserved even on otherwise-clean messages because user reporting is itself an evidence event of the control's effectiveness.\n\n**Schedule**:\n\n```ini\n[UC-22.51.15: OT-Tier Phishing and Email-Borne Threat Detection]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.15,reg=NCA_OTCC,clause=OTCC-2-12-3-1\naction.notable.param.rule_title = NCA OTCC OT-tier phishing detected\naction.notable.param.security_domain = network\naction.notable.param.severity = high\naction.email.to = ot-soc@example.com\nalert.severity = 4\n```\n\nNotable creation on `classification IN (\"malicious\",\"suspicious_vendor_lookalike\")` only; the other classifications route via email + audit_evidence.\n\n## Step 3 — Validate deployment\n\n**(a) Email-feed health**:\n\n```spl\nindex=email earliest=-1d\n| stats count by sourcetype\n```\n\nZero from any onboarded gateway means the modular input is broken.\n\n**(b) OT-personnel filter health**:\n\n```spl\n| inputlookup ot_personnel.csv\n| where ot_scope_flag=\"true\"\n| stats count\n```\n\nReview the count weekly; should match the OT-personnel headcount within HR's reporting.\n\n**(c) Lookalike-pattern review**:\n\n```spl\n| inputlookup ot_vendor_lookalike_patterns.csv\n| eval age_days = round((now() - strptime(first_seen, \"%Y-%m-%d\")) / 86400)\n| stats avg(age_days) AS avg_age max(age_days) AS max_age count\n```\n\nQuarterly review by OT cybersecurity engineering; remove patterns >2 years old that have shown no recent activity.\n\n**(d) Positive control**: per `controlTest.positiveScenario`. Confirm notable within 15 minutes.\n\n**(e) Negative control**: per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Phishing`.\n\n- **Row 1, single values**: 'Malicious to OT personnel 24h', 'Vendor lookalike 24h', 'Clicked-after-delivery 24h', 'User-reported 24h'.\n- **Row 2, sortable table**: every flagged email with drill-through to the gateway's investigation view.\n- **Row 3, top-N recipients**: OT personnel most-targeted in the last 30 days.\n- **Row 4, vendor-lookalike funnel**: visualises delivered → sandboxed → clicked.\n- **Row 5, 13-month trend by classification**.\n\n**Runbook for `classification=\"malicious\"`** (owner: OT SOC):\n\n1. **Within 15 minutes**: verify whether the recipient has clicked or opened the attachment via Defender / Proofpoint trace.\n2. **If clicked or attachment-opened**: treat as a P1 OT cybersecurity incident. Isolate the recipient's endpoint. Engage IR per UC-22.51.16.\n3. **If only delivered, not clicked**: instruct the email gateway to remove the message from all OT-personnel mailboxes (zap, in Defender; recall, in Mimecast). Block the sender domain. Add to `ot_vendor_lookalike_patterns.csv` if a vendor lookalike.\n4. **Document** in the OT-cybersecurity incident ticket.\n\n**Runbook for `classification=\"suspicious_vendor_lookalike\"`**:\n\n1. **Within 1 hour**: trace whether the message was opened.\n2. Block the sender at the gateway and add to the lookalike pattern lookup.\n3. Send a targeted notification to OT personnel reminding them of the canonical vendor domain.\n\n## Step 5 — Troubleshooting\n\n**Defender for Office 365 alerts arrive 15–60 minutes late** — the Graph Security API has known latency on certain alert types. Use the EOP `MessageTrace` API in addition for fresher data.\n\n**`sandbox_verdict` is always null** — the gateway is not configured for sandbox scanning of attachments. Enable Safe Attachments (Defender), TAP (Proofpoint), or Attachment Protect (Mimecast) for OT-scoped recipients.\n\n**`reported_by_user` events appear with hours of latency** — the PhishAlert add-in's queue ingestion is hourly by default. For faster signals, integrate the gateway's direct user-reporting feed (Defender Submissions, Mimecast PhishAlert).\n\n**OT-specific failure modes**:\n\n- **Vendor PSIRT bulk lists**: large OEMs send PSIRT bulletins from bulk senders (e.g. `notify@siemens.com`). These may be flagged by aggressive lookalike rules; whitelist explicitly.\n- **Internal OT-engineering distribution lists**: messages sent to large internal DLs may exceed the per-recipient join cost. Pre-aggregate per `message_id` and broadcast against the DL membership at search time.\n- **Spearphishing through technical-conference replies**: an OT engineer's email thread reply on a topical conference list can have spoofed reply-to addresses. Cross-reference DMARC/DKIM/SPF status in the search; messages with DMARC fail PLUS lookalike domain are the highest-risk combination.\n- **Encrypted attachments (S/MIME, password-protected ZIPs)**: sandbox cannot inspect, but the protected attachment is itself suspicious from an OT vendor. Treat as `suspicious` if S/MIME from a sender not on the allowlist.",
   "grandmaExplanation": "We watch all the emails coming to plant workers. We look out for fake-vendor emails, dangerous attachments, dodgy links, and people quietly reporting trouble. If anything bad lands or someone clicks something they shouldn't have, we ring the bell.",
-  "equipmentModels": [
-    "Microsoft Defender for Office 365 (anti-phish, Safe Attachments, Safe Links)",
-    "Proofpoint Targeted Attack Protection (URL Defense, Threat Insight)",
-    "Mimecast Email Security (URL/Attachment Protect)",
-    "Splunk Add-on for Microsoft Office 365 / Defender (Splunkbase 4055 / 6207 family)",
-    "Splunk Add-on for Proofpoint (Splunkbase 5024)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 5024,
+      "name": "Splunk Add-on for Proofpoint",
+      "url": "https://splunkbase.splunk.com/app/5024",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5283,
+      "name": "Splunk Add-on for Mimecast",
+      "url": "https://splunkbase.splunk.com/app/5283",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -36,25 +36,6 @@
   },
   "dataSources": "ServiceNow CMDB (financial-system class), GRC RRA module, PCI-DSS scope register, continuity-test log.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=cmdb sourcetype=servicenow:cmdb_ci earliest=-1d@d ci_class=\"financial_system\"\n| eval system_class = lower(coalesce(financial_system_subclass, ci_subclass))\n| where system_class IN (\"billing\",\"customer_payment_portal\",\"ivr_payment\",\"kiosk_payment\",\"ecommerce_gateway\",\"vendor_payment\",\"accounts_payable\",\"payroll\",\"emergency_procurement_card\")\n| lookup awia_rra_financial_coverage_lookup financial_system_id OUTPUT in_rra rra_artefact_url continuity_plan_url last_continuity_test_at rto_target rpo_target pci_dss_in_scope j100_score\n| eval last_continuity_test_days = if(isnotnull(last_continuity_test_at), round((now() - last_continuity_test_at) / 86400, 0), null())\n| eval coverage_status = case(\n    isnull(in_rra) OR in_rra=\"false\", \"missing_in_rra\",\n    isnull(rra_artefact_url), \"undocumented\",\n    isnull(continuity_plan_url), \"no_continuity_plan\",\n    isnull(last_continuity_test_at) OR last_continuity_test_days > 365, \"continuity_test_stale\",\n    isnull(rto_target) OR isnull(rpo_target), \"no_rto_rpo\",\n    1=1, \"current\")\n| table pwsid financial_system_id system_class vendor hosted_internal_or_external in_rra rra_artefact_url continuity_plan_url last_continuity_test_at last_continuity_test_days rto_target rpo_target pci_dss_in_scope j100_score coverage_status",
   "description": "Cross-references the financial-systems CMDB inventory against the AWIA RRA financial-infrastructure coverage lookup.",
   "value": "AWIA J100-21 treats financial-system disruption as a material risk where it impairs utility operation. A ransomware on billing can halt customer-service operations and trigger downstream cyber-physical risk (e.g. delayed meter reads, missed leak detection). This UC keeps financial systems audit-defensible.",
@@ -79,6 +60,10 @@
     }
   ],
   "knownFalsePositives": "1. **Bank-managed processing** — utility never touches card data; bank's PCI scope referenced.\n\n2. **Newly commissioned within grace** — 30-day onboarding window.\n\n**Suppression mechanism**: `awia_22_53_11_exceptions`; 30-day max.",
+  "mitreAttack": [
+    "T1486",
+    "T1657"
+  ],
   "requiredFields": [
     "pwsid",
     "financial_system_id",
@@ -87,14 +72,6 @@
     "continuity_plan_url",
     "coverage_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -104,14 +81,37 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "T1486",
-    "T1657"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 and UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=cmdb`, `index=audit_evidence`.\n- Lookup `awia_rra_financial_coverage_lookup`.\n\n## Step 1 — Configure data collection\n\nFinancial-system CI class in CMDB. RRA author re-keys coverage lookup at RRA refresh and at every new financial-system onboarding.\n\n## Step 2 — Create the search and alert\n\nDaily.\n\n```ini\n[UC-22.53.11: AWIA Financial Infrastructure coverage]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.11,reg=AWIA,clause=AWIA-RRA-financial\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Positive**: new portal without coverage; UC surfaces.\n\n**(b) Negative**: full coverage; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Financial Infrastructure Coverage`.\n\n**Runbook**: CFO + IT Manager close gaps; annual continuity test ensures RTO / RPO met.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Ransomware on billing**: a billing outage triggers state PUC reporting in many states; align AWIA evidence with state continuity reporting.\n- **Emergency-procurement card**: a single point of failure if utility has only one purchase card for emergency procurement; AWIA expects redundancy.\n- **Customer data exfil**: where the billing system holds customer PII, align with state breach notification law (e.g. California IPA, Texas BC ch.521).",
+  "grandmaExplanation": "If the billing system or payment portal goes down because of a cyber attack, the utility can't take payments and can't pay vendors — which eventually stops the water work. The risk check has to list these systems too. We watch the inventory and ring the bell if any payment system isn't in the plan.",
   "prerequisiteUseCases": [
     "UC-22.53.1",
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 and UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=cmdb`, `index=audit_evidence`.\n- Lookup `awia_rra_financial_coverage_lookup`.\n\n## Step 1 — Configure data collection\n\nFinancial-system CI class in CMDB. RRA author re-keys coverage lookup at RRA refresh and at every new financial-system onboarding.\n\n## Step 2 — Create the search and alert\n\nDaily.\n\n```ini\n[UC-22.53.11: AWIA Financial Infrastructure coverage]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.11,reg=AWIA,clause=AWIA-RRA-financial\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Positive**: new portal without coverage; UC surfaces.\n\n**(b) Negative**: full coverage; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Financial Infrastructure Coverage`.\n\n**Runbook**: CFO + IT Manager close gaps; annual continuity test ensures RTO / RPO met.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Ransomware on billing**: a billing outage triggers state PUC reporting in many states; align AWIA evidence with state continuity reporting.\n- **Emergency-procurement card**: a single point of failure if utility has only one purchase card for emergency procurement; AWIA expects redundancy.\n- **Customer data exfil**: where the billing system holds customer PII, align with state breach notification law (e.g. California IPA, Texas BC ch.521).",
-  "grandmaExplanation": "If the billing system or payment portal goes down because of a cyber attack, the utility can't take payments and can't pay vendors — which eventually stops the water work. The risk check has to list these systems too. We watch the inventory and ring the bell if any payment system isn't in the plan."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

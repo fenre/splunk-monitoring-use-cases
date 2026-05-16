@@ -74,32 +74,6 @@
   },
   "dataSources": "LSAP load-event audit log from data-loader / PMAT (sourcetype `lsap:load:audit` - typically Honeywell DataLoader, Collins Aerospace Data Loader, Avtech Tyee). Aeronautical database integrity attestations (`aero:db:attestation`). Aircraft Communications Management Unit / ACMS uplink logs (`acms:audit`, `cmu:audit`). KV Store `do355a_lsap_authoritative_keys_lookup` (TC-holder signing-key fingerprints per airframe type, refreshed when CASI is updated).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=aero_lsap sourcetype=\"lsap:load:audit\"\n| lookup do355a_lsap_authoritative_keys_lookup airframe_type lsap_pn_supplier OUTPUT authoritative_key_fingerprint\n| eval signature_status = case(\n    signature_verification_result = \"fail\", \"fail\",\n    signature_key_fingerprint != authoritative_key_fingerprint, \"unknown-key\",\n    signature_verification_result = \"pass\", \"pass\",\n    1=1, \"missing\")\n| eval risk_score = case(\n    signature_status = \"fail\", 100,\n    signature_status = \"unknown-key\", 95,\n    signature_status = \"missing\", 80,\n    1=1, 0)\n| where risk_score > 0\n| stats latest(_time) AS load_timestamp values(loader_tool) AS loader_tool values(loader_tool_version) AS loader_tool_version values(technician_id) AS technician_id values(lsap_version) AS lsap_version count AS attempt_count by load_event_id tail_number airframe_type lsap_name lsap_pn_supplier signature_status risk_score\n| eval severity = case(risk_score >= 95, \"critical\", risk_score >= 80, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -load_timestamp\n| table load_event_id tail_number airframe_type lsap_name lsap_version lsap_pn_supplier loader_tool loader_tool_version technician_id load_timestamp signature_status attempt_count severity risk_score",
   "description": "Continuously audits every Loadable Software Aircraft Part load attempt on the operating fleet against the TC-holder's authoritative signing-key fingerprints (refreshed when the TC-holder issues an updated CASI). Surfaces failed verifications, unknown-key loads, and loads that lack signature metadata. Drives a 30-minute aircraft-from-service decision for any failure.",
   "value": "A tampered LSAP load is the most direct path to a safety-significant cyber-attack on a modern aircraft - it is the threat scenario behind the FAA's 2007 Special Conditions for the Boeing 787 and the Airbus A350 ANSP Issue Paper. A confirmed tampered load may require the operator to ground the aircraft until the LSAP is reverted, the TC-holder to investigate the supply chain, and the regulator to issue an Emergency Airworthiness Directive. This UC also satisfies the operator's continuing-airworthiness security obligation under EASA Part-IS and the FAA Aircraft Network Security Program.",
@@ -124,6 +98,11 @@
     }
   ],
   "knownFalsePositives": "1. **Key rotation in flight**: a TC-holder may rotate signing keys; allow a 14-day grace window during which both the old and new authoritative fingerprints are valid (drive via `key_rotation_window_until` in `do355a_lsap_authoritative_keys_lookup`). 2. **Engineering test loads on a grounded aircraft**: maintenance test loads in the hangar may use a different key chain; tag with `load_event_purpose=engineering-test` and exclude. 3. **Database load with embedded signature**: aeronautical databases (Jeppesen NavData, LIDO) ship their own signed bundles; ensure the loader tool emits the inner-signature verification result.\n\n**Suppression mechanism**: KV Store `do326a_22_60_4_exceptions` with the Chief Maintenance Engineer + CISO documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1195",
+    "T1554",
+    "T1027"
+  ],
   "requiredFields": [
     "load_event_id",
     "tail_number",
@@ -131,36 +110,58 @@
     "signature_status",
     "risk_score"
   ],
+  "equipment": [
+    "splunk-es",
+    "splunk-stream",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "Airbus AirN@v",
+    "Avtech Tyee Data Loader",
+    "Boeing Onboard Network System (ONS)",
+    "Collins Aerospace Data Loader",
+    "Honeywell DataLoader",
+    "Jeppesen NavData",
+    "LIDO (Lufthansa Industry Solutions) navigation databases",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Aviation Cybersecurity SME Panel + Chief Maintenance Engineer + CAMO Manager + CISO",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-stream"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Honeywell DataLoader",
-    "Collins Aerospace Data Loader",
-    "Avtech Tyee Data Loader",
-    "Boeing Onboard Network System (ONS)",
-    "Airbus AirN@v",
-    "Jeppesen NavData",
-    "LIDO (Lufthansa Industry Solutions) navigation databases"
-  ],
-  "mitreAttack": [
-    "T1195",
-    "T1554",
-    "T1027"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for fleet context).\n- Data-loader / PMAT configured to forward load-event audit log via syslog or HEC.\n- KV Store `do355a_lsap_authoritative_keys_lookup` populated from TC-holder CASI.\n- Loader-tool configuration baseline locked.\n\n## Step 1 - Authoritative keys KV Store\n\n```ini\n[do355a_lsap_authoritative_keys_lookup]\nenforceTypes = true\nfield.airframe_type = string\nfield.lsap_pn_supplier = string\nfield.authoritative_key_fingerprint = string\nfield.casi_bulletin_ref = string\nfield.key_rotation_window_until = time\n```\n\nRefresh on each CASI publication.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.4: LSAP Load Integrity]\ncron_schedule = */10 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.4,reg=DO-326A,clause=DO-355A-s2-3\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 95`** (owner: Chief Maintenance Engineer + CISO + Director of Flight Operations, severity P1): Within 30 minutes, the OCC determines whether the affected tail flew with the questionable LSAP; if yes, the aircraft is removed from service pending TC-holder advice; the TC-holder is notified within 2 hours.\n\n**`risk_score 80-94`** (owner: CAMO Manager, severity P2): Within 4 hours, the maintenance organisation re-runs the load with the correct CASI key chain; document the closure.\n\n## Step 4 - Aviation-specific notes\n\n- **Cyber-SBOM correlation**: UC-22.60.15 cross-references the LSAP version against the CVE feed; tampered LSAPs may also have vulnerability findings.\n- **Aeronautical database versions**: Jeppesen NavData updates every 28 days (AIRAC cycle); ensure the loader tool emits both outer (file) and inner (database) signature results.\n- **Pilot-controlled loads**: some legacy aircraft permit pilot-initiated loads of approach charts in flight; tag and apply equivalent controls.",
+  "grandmaExplanation": "Software in an aircraft is signed by the manufacturer like a sealed envelope. Every time mechanics load new software, we check the seal is genuine. If the seal is broken or unknown, the aircraft is grounded right away.",
   "prerequisiteUseCases": [
     "UC-22.60.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for fleet context).\n- Data-loader / PMAT configured to forward load-event audit log via syslog or HEC.\n- KV Store `do355a_lsap_authoritative_keys_lookup` populated from TC-holder CASI.\n- Loader-tool configuration baseline locked.\n\n## Step 1 - Authoritative keys KV Store\n\n```ini\n[do355a_lsap_authoritative_keys_lookup]\nenforceTypes = true\nfield.airframe_type = string\nfield.lsap_pn_supplier = string\nfield.authoritative_key_fingerprint = string\nfield.casi_bulletin_ref = string\nfield.key_rotation_window_until = time\n```\n\nRefresh on each CASI publication.\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.60.4: LSAP Load Integrity]\ncron_schedule = */10 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.4,reg=DO-326A,clause=DO-355A-s2-3\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 95`** (owner: Chief Maintenance Engineer + CISO + Director of Flight Operations, severity P1): Within 30 minutes, the OCC determines whether the affected tail flew with the questionable LSAP; if yes, the aircraft is removed from service pending TC-holder advice; the TC-holder is notified within 2 hours.\n\n**`risk_score 80-94`** (owner: CAMO Manager, severity P2): Within 4 hours, the maintenance organisation re-runs the load with the correct CASI key chain; document the closure.\n\n## Step 4 - Aviation-specific notes\n\n- **Cyber-SBOM correlation**: UC-22.60.15 cross-references the LSAP version against the CVE feed; tampered LSAPs may also have vulnerability findings.\n- **Aeronautical database versions**: Jeppesen NavData updates every 28 days (AIRAC cycle); ensure the loader tool emits both outer (file) and inner (database) signature results.\n- **Pilot-controlled loads**: some legacy aircraft permit pilot-initiated loads of approach charts in flight; tag and apply equivalent controls.",
-  "grandmaExplanation": "Software in an aircraft is signed by the manufacturer like a sealed envelope. Every time mechanics load new software, we check the seal is genuine. If the seal is broken or unknown, the aircraft is grounded right away."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "walk"
 }

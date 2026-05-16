@@ -35,32 +35,6 @@
   },
   "dataSources": "KV Store `cn_important_data_catalog_lookup` (dataset_id, dataset_name, business_unit, hosting_region, data_tier, sectoral_list_ref, last_classification_date, classifier_id, owner, project_status). KV Store `cn_sectoral_important_data_list` (sectoral_list_ref, list_version, effective_date, list_categories). ServiceNow CMDB (`snow:cmdb_ci`) for dataset inventory reconciliation.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup cn_important_data_catalog_lookup\n| eval now_ts = now()\n| eval days_since_classification = if(isnotnull(last_classification_date), round((now_ts - last_classification_date) / 86400, 1), null())\n| lookup cn_sectoral_important_data_list sectoral_list_ref OUTPUT list_version effective_date\n| eval list_stale = if(isnotnull(effective_date) AND (now_ts - effective_date) > (365 * 86400), 1, 0)\n| eval classification_missing = if(isnull(last_classification_date) OR isnull(data_tier), 1, 0)\n| eval classification_stale = if(isnotnull(days_since_classification) AND days_since_classification > 365, 1, 0)\n| eval important_or_core = if(data_tier IN (\"Important Data\",\"Core Data\"), 1, 0)\n| eval sectoral_alignment_missing = if(important_or_core = 1 AND isnull(sectoral_list_ref), 1, 0)\n| eval risk_score = case(\n    classification_missing = 1, 80,\n    sectoral_alignment_missing = 1 AND data_tier = \"Core Data\", 95,\n    sectoral_alignment_missing = 1, 75,\n    classification_stale = 1 AND important_or_core = 1, 70,\n    classification_stale = 1, 40,\n    list_stale = 1 AND important_or_core = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_since_classification\n| table dataset_id dataset_name business_unit data_tier sectoral_list_ref last_classification_date days_since_classification classification_missing classification_stale sectoral_alignment_missing list_stale risk_score",
   "description": "Reconciles every dataset across the organisation against the DSL Art. 21 four-tier classification (General / Important / Core / other-sectoral) and against the sectoral protection department's Important Data List. Flags datasets that lack classification, datasets whose classification is stale (>12 months), and datasets classified as Important or Core that lack a sectoral-list cross-reference. Surfaces missing or stale sectoral lists as a sibling alert so that the operator's catalogue stays in lock-step with the regulator-published list.",
   "value": "DSL Art. 52 sets the fine ceiling for failure to perform DSL data-protection duties at RMB 200,000 - 2,000,000 per violation, plus RMB 20,000 - 200,000 on the responsible individual, plus suspension of business and revocation of licence. Misclassifying Important Data as General Data is also material to PIPL Art. 38 cross-border decisions (Important Data triggers mandatory CAC security assessment, while General Data does not); a misclassification therefore cascades into UC-22.61.4 enforcement gaps and into PIPL fines under Art. 66 (RMB 50 million / 5% turnover). For Core Data, the consequences include criminal liability under PRC Criminal Law for unauthorised disclosure.",
@@ -85,6 +59,9 @@
     }
   ],
   "knownFalsePositives": "1. **New dataset in onboarding**: a dataset that was provisioned within the last 30 days may be in its initial classification window; mark with `project_status=onboarding` and exempt during the 30-day window. 2. **Pending reclassification**: a dataset under quarterly re-review may briefly be in `under-review` status; load the review_started_at and treat as in-window for up to 30 days. 3. **Sectoral list silent update**: a sectoral department may issue a minor refresh of the Important Data List without changing the version number; refresh the catalogue every 90 days unconditionally and compare diffs.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_5_exceptions` with the DPO documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
   "requiredFields": [
     "dataset_id",
     "data_tier",
@@ -92,31 +69,54 @@
     "sectoral_list_ref",
     "risk_score"
   ],
+  "equipment": [
+    "microsoft-purview",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Alation Data Catalog",
+    "BigID Data Discovery",
+    "Collibra Data Catalog",
+    "Microsoft Purview (M365 + Azure)",
+    "OneTrust Data Inventory",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "PRC Data Security SME Panel + DPO + Business Unit Data Stewards",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow",
-    "microsoft-purview"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Microsoft Purview (M365 + Azure)",
-    "Collibra Data Catalog",
-    "Alation Data Catalog",
-    "BigID Data Discovery",
-    "OneTrust Data Inventory"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
-  "prerequisiteUseCases": [],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region for in-PRC datasets).\n- A data-catalogue platform with API export (Microsoft Purview, Collibra, Alation, BigID, OneTrust).\n- KV Store `cn_important_data_catalog_lookup` seeded daily from the data-catalogue API.\n- KV Store `cn_sectoral_important_data_list` curated quarterly from sectoral publications.\n\n## Step 1 - Catalogue KV Stores\n\n```ini\n[cn_important_data_catalog_lookup]\nenforceTypes = true\nfield.dataset_id = string\nfield.dataset_name = string\nfield.business_unit = string\nfield.hosting_region = string\nfield.data_tier = string\nfield.sectoral_list_ref = string\nfield.last_classification_date = time\nfield.classifier_id = string\nfield.owner = string\nfield.project_status = string\n\n[cn_sectoral_important_data_list]\nenforceTypes = true\nfield.sectoral_list_ref = string\nfield.sectoral_department = string\nfield.list_version = string\nfield.effective_date = time\nfield.list_categories = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.5: DSL Important Data Catalogue Freshness]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.5,reg=CN-CSL,clause=DSL-Art-21,tier=$data_tier$\nalert.severity = 4\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 80`** (owner: DPO, severity P2): Within 5 business days, complete classification of the dataset and align to the sectoral list.\n\n**`risk_score 40-79`** (owner: Business Unit Data Steward, severity P3): Within 10 business days, refresh classification and confirm sectoral-list alignment.\n\n## Step 4 - Sectoral-specific notes\n\n- **Automotive**: 2021 Provisions on Automotive Data Security Management list six categories of Important Data — military / state-organ surveys, geographic data including >10cm-precision images, road-vehicle flows including continuous-tracking, intersection / parking-lot CCTV >100 cameras, etc.\n- **Industrial / MIIT**: 2020 Industrial Data Classification and Grading Guide defines five-grade severity classification specific to industrial sectors.\n- **Telecom / MIIT**: industrial-internet sector list updates 2022-2024; track quarterly.\n- **Finance / CBIRC**: banking sector data-classification guidelines (JR/T 0197-2020).",
-  "grandmaExplanation": "China divides company data into important, very-important, and regular tiers. Each year the government can update which data is in which tier. We make sure every dataset has the right tier label and the labels are fresh."
+  "grandmaExplanation": "China divides company data into important, very-important, and regular tiers. Each year the government can update which data is in which tier. We make sure every dataset has the right tier label and the labels are fresh.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "crawl"
 }

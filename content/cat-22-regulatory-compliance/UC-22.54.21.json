@@ -35,6 +35,82 @@
   },
   "dataSources": "Cisco Cyber Vision OT events (`cisco:cybervision:event`, `cisco:cybervision:flow`). Claroty xDome / CTD detections (`claroty:ctd:event`, `claroty:xdome:alert`). Nozomi Guardian / Vantage detections (`nozomi:guardian:event`, `nozomi:vantage:alert`). Dragos Platform detections (`dragos:platform:event`). PLC / RTU / DCS audit logs. Safety-PLC bypass events (`safety:bypass`). CISA KEV catalog (`ta_cisa_kev:kev`). Change-window calendar (KV Store `ot_change_window_lookup`). OT-site registry cross-reference to UC-22.54.1.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Add-on for CISA KEV (Splunkbase 6306), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "(index=ot_security sourcetype IN (\"cisco:cybervision:event\", \"claroty:ctd:event\", \"claroty:xdome:alert\", \"nozomi:guardian:event\", \"nozomi:vantage:alert\", \"dragos:platform:event\"))\n    OR (index=ot_plc sourcetype=\"safety:bypass\")\n| where severity IN (\"high\", \"critical\") OR alert_category IN (\"unauthorized_write\", \"plc_program_change\", \"safety_bypass\", \"protocol_anomaly\")\n| eval ot_site_id = coalesce(site_id, ot_zone, plc_site)\n| lookup circia_entity_register_lookup entity_id AS ot_site_owner OUTPUT entity_status circia_relevant\n| where circia_relevant=true AND entity_status=\"active\"\n| lookup ot_change_window_lookup ot_site_id OUTPUT window_open_at window_close_at window_change_id\n| eval in_change_window = if(_time >= window_open_at AND _time <= window_close_at, 1, 0)\n| lookup ta_cisa_kev cve OUTPUT kev_listed AS kev_match\n| eval control_loop_disruption = if(alert_category IN (\"unauthorized_write\", \"plc_program_change\"), 1, 0)\n| eval plc_protocol_anomaly = if(alert_category=\"protocol_anomaly\", 1, 0)\n| eval safety_protection_bypass = if(alert_category=\"safety_bypass\", 1, 0)\n| eval four_prong_recommendation = case(\n    safety_protection_bypass=1, \"impact-safety\",\n    control_loop_disruption=1, \"impact-operational\",\n    plc_protocol_anomaly=1 AND kev_match=1, \"impact-cia-with-kev\",\n    1=1, \"impact-cia\")\n| eval ot_classification_status = case(\n    in_change_window=1, \"maintenance_authorised\",\n    1=1, \"unauthorised_action\")\n| where ot_classification_status != \"maintenance_authorised\"\n| table _time ot_site_id ot_subsystem control_loop_disruption plc_protocol_anomaly safety_protection_bypass kev_match four_prong_recommendation ot_classification_status",
+  "description": "Cross-references OT detection events from Cisco Cyber Vision, Claroty, Nozomi, and Dragos against change-window authorisation and CISA KEV. Surfaces unauthorised actions that should trigger CIRCIA classification under the four-prong test.",
+  "value": "OT environments are explicit CIRCIA scope, but most IT-centric IR workflows ignore plant-side telemetry. This UC instruments the OT detection → classification handoff, ensuring industrial incidents reach the four-prong test in UC-22.54.9 and the CIRCIA flow in UC-22.54.2.",
+  "implementation": "(1) Ensure Cyber Vision / Claroty / Nozomi / Dragos add-ons are configured. (2) Maintain `ot_change_window_lookup` from the OT engineering change-management system. (3) SOAR `circia-ot-route-to-classification` creates SIR tickets for unauthorised actions. (4) Schedule UC-22.54.21 every 5 minutes; route to OT Security Lead for triage.",
+  "visualization": "(Panel 1) OT detection event-rate by site. (Panel 2) Four-prong-recommendation distribution. (Panel 3) Change-window authorisation rate. (Panel 4) KEV-overlap heatmap.",
+  "cimModels": [
+    "Alerts",
+    "Network Traffic",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CISA Cyber Incident Reporting — OT/ICS Scope",
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/ot-ics-best-practices"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    },
+    {
+      "title": "MITRE ATT&CK for ICS",
+      "url": "https://attack.mitre.org/matrices/ics/"
+    }
+  ],
+  "knownFalsePositives": "1. **Engineering troubleshooting outside change window** — a quick engineering session may not have a formal change ticket. Suppression: extend change-window grace to 1 hour with engineering-supervisor approval.\n\n2. **Test bench traffic** — test PLCs may be in scope; suppression: maintain `ot_test_bench_lookup` excluding test sites.\n\n3. **Network reconfiguration** — legitimate VLAN reconfiguration may trigger protocol anomalies. Suppression: cross-reference network-change tickets.\n\n**Suppression mechanism**: KV Store `circia_22_54_21_exceptions` with per-event grants requiring documented OT-Security-Lead approval and a 4-hour maximum grant.",
+  "mitreAttack": [
+    "T0807",
+    "T0809",
+    "T0817",
+    "T0830",
+    "T0831",
+    "T0832",
+    "T0836",
+    "T0843",
+    "T0879",
+    "T0880",
+    "T0881"
+  ],
+  "requiredFields": [
+    "ot_site_id",
+    "alert_category",
+    "four_prong_recommendation",
+    "ot_classification_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cyber-vision",
+    "claroty-xdome",
+    "dragos-platform",
+    "nozomi-guardian"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision Sensor + Center (Splunkbase 6071)",
+    "Claroty xDome + CTD (Splunkbase 5018)",
+    "Dragos Platform (Splunkbase 5048)",
+    "Nozomi Networks Guardian + Vantage (Splunkbase 4894)",
+    "Tenable.ot (rail / industrial vulnerability scanning, cross-platform)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CIRCIA Compliance SME Panel + OT Security Lead + Plant Engineering Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Cisco Cyber Vision + Splunk add-on.\n- Claroty xDome / CTD + Splunk add-on.\n- Nozomi Guardian / Vantage + Splunk add-on.\n- Dragos Platform + Splunk add-on.\n- KV Store `ot_change_window_lookup` populated from OT change-management system.\n- CISA KEV TA installed and refreshed daily.\n\n## Step 1 — Change-window lookup\n\n```ini\n[ot_change_window_lookup]\nenforceTypes = true\nfield.ot_site_id = string\nfield.window_open_at = number\nfield.window_close_at = number\nfield.window_change_id = string\nfield.window_approver = string\n```\n\nThe OT change-management system pushes change-window rows via SOAR `ot-change-window-sync` playbook on every approval.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.21: CIRCIA OT/ICS/SCADA Incident Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -1h@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.21,reg=CIRCIA,clause=CIRCIA-CISA-ot-incident\naction.notable.param.rule_title = CIRCIA OT/ICS substantial-incident candidate\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\n**(a) Unauthorised-Modbus-write test**: in Cyber Vision sandbox, simulate Modbus write at non-window time; UC-22.54.21 must alert within 5 minutes.\n\n**(b) Maintenance-mode test**: simulate the same write within an approved change window; UC-22.54.21 must record `maintenance_authorised`.\n\n**(c) Safety-bypass test**: simulate safety-PLC bypass event; four-prong recommendation must be `impact-safety`.\n\n## Step 4 — Operationalize\n\n**Runbook for `unauthorised_action`** (owner: OT Security Lead, severity P1):\n\n1. Within 15 minutes: contact site engineer for explanation; if no explanation, create SIR ticket and pass to UC-22.54.19 classification.\n\n## Step 5 — Troubleshooting\n\n**Detection-tool noise floor** — Cyber Vision / Claroty / Nozomi / Dragos may emit many alerts; tune false-positive rate with TA-specific filters; aim for <5 alerts/site/day in steady state.\n\n**Change-window data quality** — if engineering doesn't log changes to the change-management system, every action looks unauthorised. Engage plant engineering management.\n\n**CIRCIA-specific failure modes**:\n\n- **Safety-PLC bypass detection**: safety bypass is `impact-safety`, the most severe four-prong category; ensure safety-PLC events flow.\n- **Air-gap / data-diode constraints**: some OT environments use data diodes; ensure Splunk-side ingestion is preserved.\n- **Site-level vs entity-level**: the OT site must map to a covered entity via `ot_site_owner` field; maintain this mapping.\n- **MITRE ATT&CK for ICS**: the linked techniques cover the OT-adversary lifecycle; align detection content with these techniques.",
+  "grandmaExplanation": "When something strange happens at our factories or power plants — someone changes a control valve, a safety system is bypassed, equipment behaves oddly — we cross-check whether it was scheduled work. If it wasn't, we treat it as a possible attack and the team gets a loud bell to investigate.",
+  "prerequisiteUseCases": [
+    "UC-22.54.1",
+    "UC-22.54.9",
+    "UC-22.54.19"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -86,80 +162,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
-  "spl": "(index=ot_security sourcetype IN (\"cisco:cybervision:event\", \"claroty:ctd:event\", \"claroty:xdome:alert\", \"nozomi:guardian:event\", \"nozomi:vantage:alert\", \"dragos:platform:event\"))\n    OR (index=ot_plc sourcetype=\"safety:bypass\")\n| where severity IN (\"high\", \"critical\") OR alert_category IN (\"unauthorized_write\", \"plc_program_change\", \"safety_bypass\", \"protocol_anomaly\")\n| eval ot_site_id = coalesce(site_id, ot_zone, plc_site)\n| lookup circia_entity_register_lookup entity_id AS ot_site_owner OUTPUT entity_status circia_relevant\n| where circia_relevant=true AND entity_status=\"active\"\n| lookup ot_change_window_lookup ot_site_id OUTPUT window_open_at window_close_at window_change_id\n| eval in_change_window = if(_time >= window_open_at AND _time <= window_close_at, 1, 0)\n| lookup ta_cisa_kev cve OUTPUT kev_listed AS kev_match\n| eval control_loop_disruption = if(alert_category IN (\"unauthorized_write\", \"plc_program_change\"), 1, 0)\n| eval plc_protocol_anomaly = if(alert_category=\"protocol_anomaly\", 1, 0)\n| eval safety_protection_bypass = if(alert_category=\"safety_bypass\", 1, 0)\n| eval four_prong_recommendation = case(\n    safety_protection_bypass=1, \"impact-safety\",\n    control_loop_disruption=1, \"impact-operational\",\n    plc_protocol_anomaly=1 AND kev_match=1, \"impact-cia-with-kev\",\n    1=1, \"impact-cia\")\n| eval ot_classification_status = case(\n    in_change_window=1, \"maintenance_authorised\",\n    1=1, \"unauthorised_action\")\n| where ot_classification_status != \"maintenance_authorised\"\n| table _time ot_site_id ot_subsystem control_loop_disruption plc_protocol_anomaly safety_protection_bypass kev_match four_prong_recommendation ot_classification_status",
-  "description": "Cross-references OT detection events from Cisco Cyber Vision, Claroty, Nozomi, and Dragos against change-window authorisation and CISA KEV. Surfaces unauthorised actions that should trigger CIRCIA classification under the four-prong test.",
-  "value": "OT environments are explicit CIRCIA scope, but most IT-centric IR workflows ignore plant-side telemetry. This UC instruments the OT detection → classification handoff, ensuring industrial incidents reach the four-prong test in UC-22.54.9 and the CIRCIA flow in UC-22.54.2.",
-  "implementation": "(1) Ensure Cyber Vision / Claroty / Nozomi / Dragos add-ons are configured. (2) Maintain `ot_change_window_lookup` from the OT engineering change-management system. (3) SOAR `circia-ot-route-to-classification` creates SIR tickets for unauthorised actions. (4) Schedule UC-22.54.21 every 5 minutes; route to OT Security Lead for triage.",
-  "visualization": "(Panel 1) OT detection event-rate by site. (Panel 2) Four-prong-recommendation distribution. (Panel 3) Change-window authorisation rate. (Panel 4) KEV-overlap heatmap.",
-  "cimModels": [
-    "Alerts",
-    "Network Traffic",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "CISA Cyber Incident Reporting — OT/ICS Scope",
-      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/ot-ics-best-practices"
-    },
-    {
-      "title": "CISA Known Exploited Vulnerabilities Catalog",
-      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
-    },
-    {
-      "title": "MITRE ATT&CK for ICS",
-      "url": "https://attack.mitre.org/matrices/ics/"
-    }
-  ],
-  "knownFalsePositives": "1. **Engineering troubleshooting outside change window** — a quick engineering session may not have a formal change ticket. Suppression: extend change-window grace to 1 hour with engineering-supervisor approval.\n\n2. **Test bench traffic** — test PLCs may be in scope; suppression: maintain `ot_test_bench_lookup` excluding test sites.\n\n3. **Network reconfiguration** — legitimate VLAN reconfiguration may trigger protocol anomalies. Suppression: cross-reference network-change tickets.\n\n**Suppression mechanism**: KV Store `circia_22_54_21_exceptions` with per-event grants requiring documented OT-Security-Lead approval and a 4-hour maximum grant.",
-  "requiredFields": [
-    "ot_site_id",
-    "alert_category",
-    "four_prong_recommendation",
-    "ot_classification_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "CIRCIA Compliance SME Panel + OT Security Lead + Plant Engineering Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "cisco-cyber-vision",
-    "claroty-xdome",
-    "nozomi-guardian",
-    "dragos-platform"
-  ],
-  "equipmentModels": [
-    "Cisco Cyber Vision Sensor + Center (Splunkbase 6071)",
-    "Claroty xDome + CTD (Splunkbase 5018)",
-    "Nozomi Networks Guardian + Vantage (Splunkbase 4894)",
-    "Dragos Platform (Splunkbase 5048)",
-    "Tenable.ot (rail / industrial vulnerability scanning, cross-platform)"
-  ],
-  "mitreAttack": [
-    "T0807",
-    "T0809",
-    "T0817",
-    "T0830",
-    "T0831",
-    "T0832",
-    "T0836",
-    "T0843",
-    "T0879",
-    "T0880",
-    "T0881"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.54.1",
-    "UC-22.54.9",
-    "UC-22.54.19"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Cisco Cyber Vision + Splunk add-on.\n- Claroty xDome / CTD + Splunk add-on.\n- Nozomi Guardian / Vantage + Splunk add-on.\n- Dragos Platform + Splunk add-on.\n- KV Store `ot_change_window_lookup` populated from OT change-management system.\n- CISA KEV TA installed and refreshed daily.\n\n## Step 1 — Change-window lookup\n\n```ini\n[ot_change_window_lookup]\nenforceTypes = true\nfield.ot_site_id = string\nfield.window_open_at = number\nfield.window_close_at = number\nfield.window_change_id = string\nfield.window_approver = string\n```\n\nThe OT change-management system pushes change-window rows via SOAR `ot-change-window-sync` playbook on every approval.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.21: CIRCIA OT/ICS/SCADA Incident Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -1h@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.21,reg=CIRCIA,clause=CIRCIA-CISA-ot-incident\naction.notable.param.rule_title = CIRCIA OT/ICS substantial-incident candidate\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 3 — Validate deployment\n\n**(a) Unauthorised-Modbus-write test**: in Cyber Vision sandbox, simulate Modbus write at non-window time; UC-22.54.21 must alert within 5 minutes.\n\n**(b) Maintenance-mode test**: simulate the same write within an approved change window; UC-22.54.21 must record `maintenance_authorised`.\n\n**(c) Safety-bypass test**: simulate safety-PLC bypass event; four-prong recommendation must be `impact-safety`.\n\n## Step 4 — Operationalize\n\n**Runbook for `unauthorised_action`** (owner: OT Security Lead, severity P1):\n\n1. Within 15 minutes: contact site engineer for explanation; if no explanation, create SIR ticket and pass to UC-22.54.19 classification.\n\n## Step 5 — Troubleshooting\n\n**Detection-tool noise floor** — Cyber Vision / Claroty / Nozomi / Dragos may emit many alerts; tune false-positive rate with TA-specific filters; aim for <5 alerts/site/day in steady state.\n\n**Change-window data quality** — if engineering doesn't log changes to the change-management system, every action looks unauthorised. Engage plant engineering management.\n\n**CIRCIA-specific failure modes**:\n\n- **Safety-PLC bypass detection**: safety bypass is `impact-safety`, the most severe four-prong category; ensure safety-PLC events flow.\n- **Air-gap / data-diode constraints**: some OT environments use data diodes; ensure Splunk-side ingestion is preserved.\n- **Site-level vs entity-level**: the OT site must map to a covered entity via `ot_site_owner` field; maintain this mapping.\n- **MITRE ATT&CK for ICS**: the linked techniques cover the OT-adversary lifecycle; align detection content with these techniques.",
-  "grandmaExplanation": "When something strange happens at our factories or power plants — someone changes a control valve, a safety system is bypassed, equipment behaves oddly — we cross-check whether it was scheduled work. If it wasn't, we treat it as a possible attack and the team gets a loud bell to investigate."
+  "wave": "run"
 }

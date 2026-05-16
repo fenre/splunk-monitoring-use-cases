@@ -48,25 +48,6 @@
   },
   "dataSources": "AIS receiver telemetry (`ais:nmea2000`, `ais:nmea0183`, `ais:vdes`). GMDSS audit logs (`gmdss:audit`). GNSS / GPS receiver health (`gnss:nmea`, `gnss:diagnostics`). VDR (Voyage Data Recorder) replay records (`vdr:audit`). Splunk Stream NMEA-2000 / NMEA-0183 / VDES parsing (`stream:nmea2000`, `stream:nmea0183`, `stream:vdes`). External reference: AIS terrestrial / satellite feeds (Orbcomm, exactEarth, MarineTraffic), where licensed.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk_TA_stream (Splunkbase 1809), splunk_app_for_industrial_iot, Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1809,
-      "name": "Splunk Stream",
-      "url": "https://splunkbase.splunk.com/app/1809",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(sourcetype=\"ais:nmea2000\" OR sourcetype=\"ais:nmea0183\" OR sourcetype=\"gnss:nmea\" OR sourcetype=\"stream:nmea2000\" OR sourcetype=\"stream:nmea0183\")\n| eval lat_num = tonumber(position_lat)\n| eval lon_num = tonumber(position_lon)\n| sort 0 imo_number receiver_type _time\n| streamstats current=f last(lat_num) AS prev_lat last(lon_num) AS prev_lon last(_time) AS prev_time by imo_number receiver_type\n| eval delta_seconds = _time - prev_time\n| eval dlat = lat_num - prev_lat\n| eval dlon = lon_num - prev_lon\n| eval dist_nm = round(60 * sqrt((dlat*dlat) + (dlon * cos(lat_num * 3.14159 / 180)) * (dlon * cos(lat_num * 3.14159 / 180))), 2)\n| eval speed_implied_kn = if(delta_seconds > 0, round((dist_nm / delta_seconds) * 3600, 2), 0)\n| eval anomaly_class = case(\n    speed_implied_kn > 60 AND delta_seconds < 600, \"impossible-track\",\n    isnotnull(snr) AND snr < 25 AND receiver_type IN (\"gnss\",\"gps\"), \"low-snr-suspected-jamming\",\n    mmsi != \"\" AND mmsi != self_mmsi AND distance_to_self < 0.5, \"close-quarters-mmsi-conflict\",\n    1=1, null)\n| eval anomaly_indicator = if(isnotnull(anomaly_class), \"true\", \"false\")\n| where anomaly_indicator = \"true\"\n| table _time imo_number receiver_type mmsi position_lat position_lon sog cog snr speed_implied_kn anomaly_class anomaly_indicator",
   "description": "Continuously inspects AIS / GMDSS / VDES / GNSS receiver telemetry for jamming (low SNR), spoofing (impossible-track velocity), and MMSI conflicts; raises a notable on detection within 15 minutes.",
   "value": "GPS spoofing in the Black Sea (June 2017) caused 20+ vessels to report identical false positions at an inland airport. AIS spoofing in the Strait of Hormuz has been observed since 2019 to mask vessel movements. Loss of GMDSS integrity can break SAR readiness. These attacks have catastrophic safety potential — and this UC detects them within minutes.",
@@ -91,43 +72,64 @@
     }
   ],
   "knownFalsePositives": "1. **Arctic / high-latitude operation**: ionospheric scintillation can legitimately drop GNSS SNR; allow `vessel_status=arctic` with a lower threshold. 2. **Coastal multi-path**: dense urban-coast environments cause GNSS multi-path; tighten threshold based on `vessel_position_class=coastal`. 3. **Pilot transfer manoeuvre**: rapid course-change during pilot transfer can produce short anomaly bursts; ignore single-event impossible-track with delta_seconds > 300 and dist_nm < 5. 4. **Known jamming exercise**: pre-declared GPS jamming exercise zones (NOTAMs); allow within the exercise area.\n\n**Suppression mechanism**: KV Store `imo_22_59_6_exceptions` with the Master's documented approval and the NOTAM / exercise reference.",
+  "mitreAttack": [
+    "T1565.001",
+    "T0832",
+    "T0848"
+  ],
   "requiredFields": [
     "imo_number",
     "receiver_type",
     "anomaly_class",
     "anomaly_indicator"
   ],
+  "equipment": [
+    "m365",
+    "splunk-es",
+    "splunk-stream",
+    "stream"
+  ],
+  "equipmentModels": [
+    "Furuno FA-170 / FA-150 (AIS Class A)",
+    "Furuno SC-130 (GNSS Compass)",
+    "Inmarsat-C / Inmarsat-FleetBroadband / Iridium Certus",
+    "Iridium GMDSS terminals",
+    "JRC JHS-183 (AIS Class A)",
+    "Kongsberg K-Bridge",
+    "Saab R5 Solid (AIS)",
+    "Wartsila NACOS Platinum (IBS with AIS / GNSS / GMDSS integration)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime Cyber SME Panel + Master representative + Bridge OEM Liaison",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-stream"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Furuno FA-170 / FA-150 (AIS Class A)",
-    "JRC JHS-183 (AIS Class A)",
-    "Saab R5 Solid (AIS)",
-    "Wartsila NACOS Platinum (IBS with AIS / GNSS / GMDSS integration)",
-    "Kongsberg K-Bridge",
-    "Iridium GMDSS terminals",
-    "Inmarsat-C / Inmarsat-FleetBroadband / Iridium Certus",
-    "Furuno SC-130 (GNSS Compass)"
-  ],
-  "mitreAttack": [
-    "T1565.001",
-    "T0832",
-    "T0848"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- A maritime data concentrator on the bridge-network exporting NMEA-2000 / NMEA-0183 to a Splunk Stream sensor.\n- Optional: external terrestrial / satellite AIS feed for cross-validation (Orbcomm, exactEarth, MarineTraffic).\n\n## Step 1 — NMEA parsing\n\nUse Splunk Stream's built-in NMEA-2000 parser plus a custom NMEA-0183 sentence-handler for AIS Class A messages (Msg 1, 2, 3, 5, 18, 19).\n\n## Step 2 — GNSS health-channel ingestion\n\nReceivers like Furuno SC-130 expose a diagnostic NMEA sentence with SNR, satellite count, and HDOP; ingest as `gnss:diagnostics`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.6: IMO Comms Integrity]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.6,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=impossible-track`** (owner: Master + Fleet Cyber Lead, severity P1): Within 15 minutes, the OOW cross-checks position against radar fix + visual / celestial; revert to manual fix and inform shore-ops within 30 minutes; engage flag-State + USCG NRC if vessel is in US waters and anomaly persists.\n\n**`anomaly_class=low-snr-suspected-jamming`** (severity P2): Within 30 minutes, the OOW switches to alternative GNSS constellation (GPS->Galileo, GPS->GLONASS where receiver supports); raise to P1 if jamming persists in shipping lane.\n\n## Step 5 — Maritime-specific notes\n\n- **Multi-constellation receiver advantage**: vessels with multi-GNSS (GPS+Galileo+GLONASS+BeiDou) can survive single-constellation jamming; the constellation in use is captured in `gnss:diagnostics`.\n- **AIS Class B / Class A distinction**: pleasure-craft Class B transmissions are normal and not in scope; filter on Class A.\n- **VDES roll-out**: VHF Data Exchange System replaces some AIS use cases starting 2024; ensure the parser covers VDES message types.",
+  "grandmaExplanation": "Ships use GPS, AIS, and emergency radios to know where they are and to tell others. Hackers can fake these signals. We watch every one of these systems on every ship and ring the alarm if a ship's GPS shows it teleporting or its radio gets jammed.",
   "prerequisiteUseCases": [
     "UC-22.59.3",
     "UC-22.59.4"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- A maritime data concentrator on the bridge-network exporting NMEA-2000 / NMEA-0183 to a Splunk Stream sensor.\n- Optional: external terrestrial / satellite AIS feed for cross-validation (Orbcomm, exactEarth, MarineTraffic).\n\n## Step 1 — NMEA parsing\n\nUse Splunk Stream's built-in NMEA-2000 parser plus a custom NMEA-0183 sentence-handler for AIS Class A messages (Msg 1, 2, 3, 5, 18, 19).\n\n## Step 2 — GNSS health-channel ingestion\n\nReceivers like Furuno SC-130 expose a diagnostic NMEA sentence with SNR, satellite count, and HDOP; ingest as `gnss:diagnostics`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.6: IMO Comms Integrity]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.6,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=impossible-track`** (owner: Master + Fleet Cyber Lead, severity P1): Within 15 minutes, the OOW cross-checks position against radar fix + visual / celestial; revert to manual fix and inform shore-ops within 30 minutes; engage flag-State + USCG NRC if vessel is in US waters and anomaly persists.\n\n**`anomaly_class=low-snr-suspected-jamming`** (severity P2): Within 30 minutes, the OOW switches to alternative GNSS constellation (GPS->Galileo, GPS->GLONASS where receiver supports); raise to P1 if jamming persists in shipping lane.\n\n## Step 5 — Maritime-specific notes\n\n- **Multi-constellation receiver advantage**: vessels with multi-GNSS (GPS+Galileo+GLONASS+BeiDou) can survive single-constellation jamming; the constellation in use is captured in `gnss:diagnostics`.\n- **AIS Class B / Class A distinction**: pleasure-craft Class B transmissions are normal and not in scope; filter on Class A.\n- **VDES roll-out**: VHF Data Exchange System replaces some AIS use cases starting 2024; ensure the parser covers VDES message types.",
-  "grandmaExplanation": "Ships use GPS, AIS, and emergency radios to know where they are and to tell others. Hackers can fake these signals. We watch every one of these systems on every ship and ring the alarm if a ship's GPS shows it teleporting or its radio gets jammed."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

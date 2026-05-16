@@ -36,18 +36,6 @@
   },
   "dataSources": "KV Store `tsa_cip_version_lookup` (cip_id, modality, version, change_date, material_change, tsa_submission_date, approver). SharePoint CIP document repository audit (`o365:management`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_cip_version_lookup\n| where material_change=true\n| eval days_since_change = round((now() - change_date) / 86400, 0)\n| eval submission_status = case(\n    isnotnull(tsa_submission_date) AND (tsa_submission_date - change_date) / 86400 <= 30, \"on_time\",\n    isnotnull(tsa_submission_date) AND (tsa_submission_date - change_date) / 86400 > 30, \"late\",\n    isnull(tsa_submission_date) AND days_since_change <= 30, \"in_window\",\n    isnull(tsa_submission_date) AND days_since_change > 30, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"late\")\n| table cip_id modality version change_date days_since_change tsa_submission_date submission_status approver",
   "description": "Audits the CIP version ledger for material amendments with overdue TSA submission.",
   "value": "TSA inspectors will look at the CIP ledger to confirm material amendments were submitted as required.",
@@ -63,34 +51,46 @@
     }
   ],
   "knownFalsePositives": "1. **Editorial change**: editorial-only amendments do not require submission; flag with `material_change=false`.\n\n**Suppression mechanism**: KV Store `tsa_22_56_18_exceptions`.",
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
   "requiredFields": [
     "cip_id",
     "modality",
     "version",
     "submission_status"
   ],
+  "equipment": [
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft SharePoint Online",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + CC + GRC Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "sharepoint"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Microsoft SharePoint Online"
-  ],
-  "mitreAttack": [
-    "N/A (governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `tsa_cip_version_lookup`.\n- SharePoint CIP document library.\n\n## Step 1 — CIP version register\n\n```ini\n[tsa_cip_version_lookup]\nfield.cip_id = string\nfield.modality = string\nfield.version = string\nfield.change_date = number\nfield.material_change = string\nfield.change_summary = string\nfield.tsa_submission_date = number\nfield.tsa_acknowledgement_id = string\nfield.approver = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.18: TSA CIP Version Ledger]\ncron_schedule = 43 8 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.18,reg=TSA-Surface,clause=TSA-SD-multi-CIP-version\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`submission_status=overdue`** (owner: CC, severity P2):\n1. Within 7 days: file with TSA.\n2. Within 14 days: confirm TSA acknowledgement.\n\n## Step 4 — Troubleshooting\n\n- **Modality cross-cut**: a single change may affect pipeline + rail CIPs; ensure both are versioned.\n\n**TSA-specific failure modes**:\n- **Pre-Final-Rule CIP structure**: the Final Rule may impose a different CIP structure; archive prior versions when transitioning.",
+  "grandmaExplanation": "We have a master cyber-security plan that gets sent to the TSA. Every time we change something important in it, we have to tell the TSA within 30 days — and we keep a clear history of every version.",
   "prerequisiteUseCases": [
     "UC-22.56.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `tsa_cip_version_lookup`.\n- SharePoint CIP document library.\n\n## Step 1 — CIP version register\n\n```ini\n[tsa_cip_version_lookup]\nfield.cip_id = string\nfield.modality = string\nfield.version = string\nfield.change_date = number\nfield.material_change = string\nfield.change_summary = string\nfield.tsa_submission_date = number\nfield.tsa_acknowledgement_id = string\nfield.approver = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.18: TSA CIP Version Ledger]\ncron_schedule = 43 8 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.18,reg=TSA-Surface,clause=TSA-SD-multi-CIP-version\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`submission_status=overdue`** (owner: CC, severity P2):\n1. Within 7 days: file with TSA.\n2. Within 14 days: confirm TSA acknowledgement.\n\n## Step 4 — Troubleshooting\n\n- **Modality cross-cut**: a single change may affect pipeline + rail CIPs; ensure both are versioned.\n\n**TSA-specific failure modes**:\n- **Pre-Final-Rule CIP structure**: the Final Rule may impose a different CIP structure; archive prior versions when transitioning.",
-  "grandmaExplanation": "We have a master cyber-security plan that gets sent to the TSA. Every time we change something important in it, we have to tell the TSA within 30 days — and we keep a clear history of every version."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

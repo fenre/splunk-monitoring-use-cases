@@ -36,25 +36,6 @@
   },
   "dataSources": "ServiceNow SIR / Major Incident (`snow:incident`, `snow:sir`) with `lpm_in_scope=true`. CERT-FR submission API (`cert-fr:submission`). OIV register `lpm_oiv_designation_lookup`. SAIV inventory `lpm_saiv_lookup`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "search (sourcetype=snow:incident OR sourcetype=snow:sir) lpm_in_scope=true\n| eval detection_at = coalesce(detected_at, opened_at, _time)\n| eval classified_lpm_at = coalesce(lpm_classified_at, detection_at)\n| join type=left incident_id [search sourcetype=cert-fr:submission earliest=-14d | dedup incident_id | rename submission_id as cert_fr_reference submission_time as cert_fr_submitted_at]\n| eval hours_to_submission = case(\n    isnotnull(cert_fr_submitted_at), round((cert_fr_submitted_at - classified_lpm_at) / 3600, 2),\n    1=1, round((now() - classified_lpm_at) / 3600, 2))\n| eval submission_status = case(\n    isnotnull(cert_fr_submitted_at) AND hours_to_submission <= 72, \"on_time\",\n    isnotnull(cert_fr_submitted_at) AND hours_to_submission > 72, \"late\",\n    isnull(cert_fr_submitted_at) AND hours_to_submission < 72, \"in_progress\",\n    isnull(cert_fr_submitted_at) AND hours_to_submission >= 72, \"breached\")\n| where submission_status IN (\"breached\",\"late\",\"in_progress\")\n| stats values(oiv_id) as oiv_id values(saiv_id) as saiv_id values(priority) as priority values(short_description) as description max(detection_at) as detection_at max(classified_lpm_at) as classified_lpm_at max(cert_fr_submitted_at) as cert_fr_submitted_at values(cert_fr_reference) as cert_fr_reference max(hours_to_submission) as hours_to_submission values(submission_status) as submission_status by incident_id\n| table incident_id oiv_id saiv_id priority description detection_at classified_lpm_at cert_fr_submitted_at cert_fr_reference hours_to_submission submission_status",
   "description": "Joins ServiceNow LPM-tagged incidents with CERT-FR submission records; computes hours-to-CERT-FR-submission with 72h SLA; surfaces in-progress incidents and breaches.",
   "value": "Failure to declare to CERT-FR within delay can result in personal sanctions on the Délégué OIV under the Code de la défense.",
@@ -79,38 +60,59 @@
     }
   ],
   "knownFalsePositives": "1. **Pre-classification triage**: a SOC may not yet have classified an event as LPM-in-scope at first detection; the clock starts at LPM-classification.\n2. **CERT-FR connectivity outage**: queue gracefully and retry; do not auto-resubmit.\n3. **Continuous-update incidents**: long-running LPM incidents may have several CERT-FR updates; track all in `cert_fr_submissions`.\n\n**Suppression mechanism**: KV Store `lpm_22_58_2_exceptions` with Délégué OIV approval and 30-day max.",
+  "mitreAttack": [
+    "T1486",
+    "T1565",
+    "T0883"
+  ],
   "requiredFields": [
     "incident_id",
     "oiv_id",
     "classified_lpm_at",
     "submission_status"
   ],
+  "equipment": [
+    "cert-fr-portal",
+    "cisco",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "CERT-FR portal (validated integration)",
+    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x with `audit_evidence` summary index",
+    "cisco_webex"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "LPM Compliance SME Panel + Délégué OIV + SOC Manager + RSSI",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "servicenow",
-    "cert-fr-portal"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x with `audit_evidence` summary index",
-    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu)",
-    "CERT-FR portal (validated integration)"
-  ],
-  "mitreAttack": [
-    "T1486",
-    "T1565",
-    "T0883"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow SIR with `lpm_in_scope` checkbox + `oiv_id` reference field.\n- CERT-FR submission integration (TLS, signed JSON payload).\n\n## Step 1 — ServiceNow SIR customisation\n\nAdd custom field `u_lpm_in_scope` (boolean), `u_lpm_classified_at` (date/time), `u_oiv_id` (reference). Auto-populate from CMDB SAIV tags.\n\n## Step 2 — CERT-FR integration\n\nBuild a Python modular input that POSTs LPM-classified incidents to CERT-FR (over mTLS) and ingests the receipt. Sourcetype `cert-fr:submission`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.58.2: LPM CERT-FR Reporting]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -30m@m\ndispatch.latest_time = now\nactions = summary_index, notable, webhook\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.2,reg=FR-LPM,clause=LPM-Art-R1332-41-10\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`submission_status=breached` (>72h, no CERT-FR submission)** (owner: Délégué OIV, severity P0):\n1. Within 1 hour: escalate to RSSI and CISO.\n2. Within 4 hours: submit to CERT-FR with all available evidence + cause-of-delay note.\n3. Within 24 hours: document corrective action to RSSI + Direction Générale.\n4. Within 7 days: prepare post-incident report for ANSSI inspection if required.\n\n## Step 5 — Troubleshooting\n\n- **LPM-classification trigger**: ensure the classification trigger is conservative (when in doubt, classify in-scope).\n- **CERT-FR receipt lag**: receipt may arrive minutes after submission; tolerate small delays.\n- **Multi-OIV operator**: classify per OIV.\n\n**FR-specific failure modes**:\n- **Personal sanctions on Délégué OIV**: emphasise process discipline.\n- **Linguistic precision**: CERT-FR submissions are in French; ensure incident records translated.\n- **NIS2 transposition overlap**: 2024 NIS2 transposition introduces parallel reporting; ensure single declaration where possible.",
+  "grandmaExplanation": "Si un système vital français est touché par une cyberattaque, l'opérateur doit prévenir l'ANSSI sous 72 heures via le CERT-FR. Nous comptons le délai et signalons quand le compte à rebours est en danger.",
   "prerequisiteUseCases": [
     "UC-22.58.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow SIR with `lpm_in_scope` checkbox + `oiv_id` reference field.\n- CERT-FR submission integration (TLS, signed JSON payload).\n\n## Step 1 — ServiceNow SIR customisation\n\nAdd custom field `u_lpm_in_scope` (boolean), `u_lpm_classified_at` (date/time), `u_oiv_id` (reference). Auto-populate from CMDB SAIV tags.\n\n## Step 2 — CERT-FR integration\n\nBuild a Python modular input that POSTs LPM-classified incidents to CERT-FR (over mTLS) and ingests the receipt. Sourcetype `cert-fr:submission`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.58.2: LPM CERT-FR Reporting]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -30m@m\ndispatch.latest_time = now\nactions = summary_index, notable, webhook\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.2,reg=FR-LPM,clause=LPM-Art-R1332-41-10\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`submission_status=breached` (>72h, no CERT-FR submission)** (owner: Délégué OIV, severity P0):\n1. Within 1 hour: escalate to RSSI and CISO.\n2. Within 4 hours: submit to CERT-FR with all available evidence + cause-of-delay note.\n3. Within 24 hours: document corrective action to RSSI + Direction Générale.\n4. Within 7 days: prepare post-incident report for ANSSI inspection if required.\n\n## Step 5 — Troubleshooting\n\n- **LPM-classification trigger**: ensure the classification trigger is conservative (when in doubt, classify in-scope).\n- **CERT-FR receipt lag**: receipt may arrive minutes after submission; tolerate small delays.\n- **Multi-OIV operator**: classify per OIV.\n\n**FR-specific failure modes**:\n- **Personal sanctions on Délégué OIV**: emphasise process discipline.\n- **Linguistic precision**: CERT-FR submissions are in French; ensure incident records translated.\n- **NIS2 transposition overlap**: 2024 NIS2 transposition introduces parallel reporting; ensure single declaration where possible.",
-  "grandmaExplanation": "Si un système vital français est touché par une cyberattaque, l'opérateur doit prévenir l'ANSSI sous 72 heures via le CERT-FR. Nous comptons le délai et signalons quand le compte à rebours est en danger."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -48,25 +48,6 @@
   },
   "dataSources": "KV Store `iec_62443_zone_lookup` (zone_id, sis_id, sl_target_FR1_FR7). KV Store `iec_62443_component_sl_capability_lookup` (component_id, zone_id, vendor, part_number, sl_capability_FR1_FR7, certification_ref, certification_expiry). KV Store `iec_62443_sl_achieved_measurement_lookup` (zone_id, measurement_id, sl_achieved_FR1_FR7, measurement_date, assessor_ref, findings_count). KV Store `iec_62443_sl_exception_register_lookup` (exception_id, zone_id, fr_index, sl_target, sl_achieved, compensating_control_ref, business_acceptance_ref, expiry_at).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 6849).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 6849,
-      "name": "Splunk OT Security Add-on",
-      "url": "https://splunkbase.splunk.com/app/6849",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup iec_62443_zone_lookup\n| eval frs = mvappend(\"FR1\",\"FR2\",\"FR3\",\"FR4\",\"FR5\",\"FR6\",\"FR7\")\n| mvexpand frs\n| eval fr = frs\n| eval sl_target = case(\n    fr = \"FR1\", sl_target_FR1,\n    fr = \"FR2\", sl_target_FR2,\n    fr = \"FR3\", sl_target_FR3,\n    fr = \"FR4\", sl_target_FR4,\n    fr = \"FR5\", sl_target_FR5,\n    fr = \"FR6\", sl_target_FR6,\n    fr = \"FR7\", sl_target_FR7)\n| join type=left zone_id [\n    | inputlookup iec_62443_component_sl_capability_lookup\n    | stats min(sl_capability_FR1) as sl_c_FR1, min(sl_capability_FR2) as sl_c_FR2, min(sl_capability_FR3) as sl_c_FR3, min(sl_capability_FR4) as sl_c_FR4, min(sl_capability_FR5) as sl_c_FR5, min(sl_capability_FR6) as sl_c_FR6, min(sl_capability_FR7) as sl_c_FR7 by zone_id\n  ]\n| eval sl_capability = case(\n    fr = \"FR1\", sl_c_FR1,\n    fr = \"FR2\", sl_c_FR2,\n    fr = \"FR3\", sl_c_FR3,\n    fr = \"FR4\", sl_c_FR4,\n    fr = \"FR5\", sl_c_FR5,\n    fr = \"FR6\", sl_c_FR6,\n    fr = \"FR7\", sl_c_FR7)\n| join type=left zone_id [\n    | inputlookup iec_62443_sl_achieved_measurement_lookup\n    | stats latest(sl_achieved_FR1) as sl_a_FR1, latest(sl_achieved_FR2) as sl_a_FR2, latest(sl_achieved_FR3) as sl_a_FR3, latest(sl_achieved_FR4) as sl_a_FR4, latest(sl_achieved_FR5) as sl_a_FR5, latest(sl_achieved_FR6) as sl_a_FR6, latest(sl_achieved_FR7) as sl_a_FR7, max(measurement_date) as last_sl_a_measurement_at by zone_id\n  ]\n| eval sl_achieved = case(\n    fr = \"FR1\", sl_a_FR1,\n    fr = \"FR2\", sl_a_FR2,\n    fr = \"FR3\", sl_a_FR3,\n    fr = \"FR4\", sl_a_FR4,\n    fr = \"FR5\", sl_a_FR5,\n    fr = \"FR6\", sl_a_FR6,\n    fr = \"FR7\", sl_a_FR7)\n| join type=left zone_id, fr [\n    | inputlookup iec_62443_sl_exception_register_lookup\n    | rename fr_index AS fr\n    | stats latest(compensating_control_ref) as compensating_control_ref, latest(business_acceptance_ref) as business_acceptance_ref, latest(expiry_at) as exception_expiry_at by zone_id, fr\n  ]\n| eval now_ts = now()\n| eval exception_valid = if(isnotnull(business_acceptance_ref) AND (isnull(exception_expiry_at) OR exception_expiry_at > now_ts), 1, 0)\n| eval days_since_sl_a = round((now_ts - last_sl_a_measurement_at) / 86400, 1)\n| eval sl_a_stale = if(days_since_sl_a > 730 OR isnull(last_sl_a_measurement_at), 1, 0)\n| eval sl_c_gap = if(sl_capability < sl_target, 1, 0)\n| eval sl_a_gap = if(sl_achieved < sl_target, 1, 0)\n| eval unresolved_sl_gap = if((sl_c_gap = 1 OR sl_a_gap = 1) AND exception_valid = 0, 1, 0)\n| eval risk_score = case(\n    unresolved_sl_gap = 1 AND sl_target >= 3, 95,\n    unresolved_sl_gap = 1 AND sl_target = 2, 80,\n    unresolved_sl_gap = 1, 60,\n    sl_a_stale = 1 AND sl_target >= 3, 70,\n    sl_a_stale = 1, 40,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +sl_achieved\n| table zone_id sis_id fr sl_target sl_capability sl_achieved exception_valid compensating_control_ref days_since_sl_a risk_score",
   "description": "Pivots every SIS zone across the seven Foundational Requirements (FR1-FR7) and reconciles SL-T-vs-SL-C-vs-SL-A. The minimum SL-C across all in-zone components defines the zone-SL-C; the latest formal SL-A measurement (typically a TÜV / exida / ISA Secure SL assessment) defines the zone-SL-A. Gaps without a current exception (compensating-control + business-acceptance) are risk-scored 60-95 by SL-target severity. The SL-A staleness limb prevents an organisation from claiming SL-3 forever based on a single commissioning-day measurement.",
   "value": "IEC 62443-3-2 SL-evidence is rapidly becoming a near-universal procurement / insurance / regulator requirement for new SIS deployments. The cost of a zone-SL-gap discovered post-commissioning (replacing certified components retroactively, or rearchitecting zones) is one-to-two orders of magnitude higher than the cost of catching the gap at design time (the SL-T allocation phase). This UC operates the SL-evidence chain — a key piece of the larger CRA process tracked by UC-22.63.2.",
@@ -95,6 +76,13 @@
     }
   ],
   "knownFalsePositives": "1. **Vendor SL-C in re-certification**: a component vendor with an SL-C certificate in renewal may temporarily report an expired-soon certificate — load `certification_renewal_letter_ref` and treat as in-window for up to 90 days. 2. **SL-A measurement in-progress**: an SL-A measurement is underway and the latest report is still in draft — load `sl_a_measurement_in_progress_ref` to suppress for up to 60 days. 3. **Documented compensating control**: an exception with a current `compensating_control_ref` (e.g., a unidirectional gateway compensating for a missing FR5 capability) and a `business_acceptance_ref` not yet expired is treated as resolved.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_7_exceptions` with the OT Security Lead + Functional Safety Manager documented approval, an explicit zone_id + fr scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T0814",
+    "T0855",
+    "T0820",
+    "T0857",
+    "T0837"
+  ],
   "requiredFields": [
     "zone_id",
     "sis_id",
@@ -104,33 +92,45 @@
     "sl_achieved",
     "risk_score"
   ],
+  "equipment": [
+    "splunk-es",
+    "splunk-ot"
+  ],
+  "equipmentModels": [
+    "ISA Secure / TÜV / exida certified components (Siemens / Honeywell / HIMA / Emerson / Yokogawa / Schneider / ABB)",
+    "Splunk ES 7.x",
+    "Splunk OT Security Add-on"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Security Lead + Functional Safety Manager + IEC 62443 Certified Lead Assessor",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-ot"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk OT Security Add-on",
-    "ISA Secure / TÜV / exida certified components (Siemens / Honeywell / HIMA / Emerson / Yokogawa / Schneider / ABB)"
-  ],
-  "mitreAttack": [
-    "T0814",
-    "T0855",
-    "T0820",
-    "T0857",
-    "T0837"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.63.2 (CRA register) deployed.\n- A current zone-and-conduit register from the CRA output.\n- Vendor SL-C certificates for every in-zone component.\n- An accredited IEC 62443-3-2 / IEC 62443-3-3 assessor on retainer for biennial SL-A measurements.\n\n## Step 1 - Zone register\n\n```ini\n[iec_62443_zone_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.sis_id = string\nfield.sl_target_FR1 = number\nfield.sl_target_FR2 = number\nfield.sl_target_FR3 = number\nfield.sl_target_FR4 = number\nfield.sl_target_FR5 = number\nfield.sl_target_FR6 = number\nfield.sl_target_FR7 = number\n```\n\n## Step 2 - Component SL-C\n\n```ini\n[iec_62443_component_sl_capability_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.zone_id = string\nfield.vendor = string\nfield.part_number = string\nfield.sl_capability_FR1 = number\nfield.sl_capability_FR2 = number\nfield.sl_capability_FR3 = number\nfield.sl_capability_FR4 = number\nfield.sl_capability_FR5 = number\nfield.sl_capability_FR6 = number\nfield.sl_capability_FR7 = number\nfield.certification_ref = string\nfield.certification_expiry = time\nfield.certification_renewal_letter_ref = string\n```\n\n## Step 3 - SL-A measurement\n\n```ini\n[iec_62443_sl_achieved_measurement_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.measurement_id = string\nfield.sl_achieved_FR1 = number\nfield.sl_achieved_FR2 = number\nfield.sl_achieved_FR3 = number\nfield.sl_achieved_FR4 = number\nfield.sl_achieved_FR5 = number\nfield.sl_achieved_FR6 = number\nfield.sl_achieved_FR7 = number\nfield.measurement_date = time\nfield.assessor_ref = string\nfield.findings_count = number\nfield.sl_a_measurement_in_progress_ref = string\n```\n\n## Step 4 - Exception register\n\n```ini\n[iec_62443_sl_exception_register_lookup]\nenforceTypes = true\nfield.exception_id = string\nfield.zone_id = string\nfield.fr_index = string\nfield.sl_target = number\nfield.sl_achieved = number\nfield.compensating_control_ref = string\nfield.business_acceptance_ref = string\nfield.expiry_at = time\n```\n\n## Step 5 - Schedule\n\n```ini\n[UC-22.63.7: IEC 62443-3-2 SL Conformance]\ncron_schedule = 0 7 * * 2\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.7,reg=IEC-61511,clause=IEC-62443-3-2\nalert.severity = 4\n```\n\n## Step 6 - Functional-safety-specific notes\n\n- **SL-T-allocation discipline**: the CRA team should resist the temptation to set every FR SL-T at 3 — over-allocation creates costly cap-ex without genuine risk-reduction. Anchor SL-T to the residual-risk-after-design from the LOPA.\n- **Compensating control quality**: an exception with a compensating-control should require an explicit residual-risk re-calculation showing the compensating-control achieves equivalent risk-reduction to the missing SL.",
+  "grandmaExplanation": "International standards rate every part of a safety system on seven cyber-security capabilities, and how strong the protection needs to be. We check every week that every required protection is in place, and if not, that a documented compensating control is approved and active.",
   "prerequisiteUseCases": [
     "UC-22.63.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.63.2 (CRA register) deployed.\n- A current zone-and-conduit register from the CRA output.\n- Vendor SL-C certificates for every in-zone component.\n- An accredited IEC 62443-3-2 / IEC 62443-3-3 assessor on retainer for biennial SL-A measurements.\n\n## Step 1 - Zone register\n\n```ini\n[iec_62443_zone_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.sis_id = string\nfield.sl_target_FR1 = number\nfield.sl_target_FR2 = number\nfield.sl_target_FR3 = number\nfield.sl_target_FR4 = number\nfield.sl_target_FR5 = number\nfield.sl_target_FR6 = number\nfield.sl_target_FR7 = number\n```\n\n## Step 2 - Component SL-C\n\n```ini\n[iec_62443_component_sl_capability_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.zone_id = string\nfield.vendor = string\nfield.part_number = string\nfield.sl_capability_FR1 = number\nfield.sl_capability_FR2 = number\nfield.sl_capability_FR3 = number\nfield.sl_capability_FR4 = number\nfield.sl_capability_FR5 = number\nfield.sl_capability_FR6 = number\nfield.sl_capability_FR7 = number\nfield.certification_ref = string\nfield.certification_expiry = time\nfield.certification_renewal_letter_ref = string\n```\n\n## Step 3 - SL-A measurement\n\n```ini\n[iec_62443_sl_achieved_measurement_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.measurement_id = string\nfield.sl_achieved_FR1 = number\nfield.sl_achieved_FR2 = number\nfield.sl_achieved_FR3 = number\nfield.sl_achieved_FR4 = number\nfield.sl_achieved_FR5 = number\nfield.sl_achieved_FR6 = number\nfield.sl_achieved_FR7 = number\nfield.measurement_date = time\nfield.assessor_ref = string\nfield.findings_count = number\nfield.sl_a_measurement_in_progress_ref = string\n```\n\n## Step 4 - Exception register\n\n```ini\n[iec_62443_sl_exception_register_lookup]\nenforceTypes = true\nfield.exception_id = string\nfield.zone_id = string\nfield.fr_index = string\nfield.sl_target = number\nfield.sl_achieved = number\nfield.compensating_control_ref = string\nfield.business_acceptance_ref = string\nfield.expiry_at = time\n```\n\n## Step 5 - Schedule\n\n```ini\n[UC-22.63.7: IEC 62443-3-2 SL Conformance]\ncron_schedule = 0 7 * * 2\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.7,reg=IEC-61511,clause=IEC-62443-3-2\nalert.severity = 4\n```\n\n## Step 6 - Functional-safety-specific notes\n\n- **SL-T-allocation discipline**: the CRA team should resist the temptation to set every FR SL-T at 3 — over-allocation creates costly cap-ex without genuine risk-reduction. Anchor SL-T to the residual-risk-after-design from the LOPA.\n- **Compensating control quality**: an exception with a compensating-control should require an explicit residual-risk re-calculation showing the compensating-control achieves equivalent risk-reduction to the missing SL.",
-  "grandmaExplanation": "International standards rate every part of a safety system on seven cyber-security capabilities, and how strong the protection needs to be. We check every week that every required protection is in place, and if not, that a documented compensating control is approved and active."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6849,
+      "name": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/6849",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

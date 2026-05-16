@@ -35,25 +35,6 @@
   },
   "dataSources": "EPA AWIA Reporting Portal submissions (`index=compliance sourcetype=\"epa:awia\"`), utility GRC (`snow:grc_awia`). Lookup `awia_pws_registry_lookup` (pwsid, system_name, state, population_served, tier, rra_completed_at, rra_certification_submitted_at, certification_letter_url, next_rra_due_at, manager, manager_email).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk DB Connect (Splunkbase 2686), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| eval tier = case(\n    population_served >= 100000, \"tier1_100k_plus\",\n    population_served >= 50000, \"tier2_50k_99k\",\n    population_served > 3300, \"tier3_3301_49999\",\n    1=1, \"out_of_scope\")\n| eval days_since_rra = if(isnotnull(rra_completed_at), round((now() - rra_completed_at) / 86400, 0), null())\n| eval days_to_due = if(isnotnull(next_rra_due_at), round((next_rra_due_at - now()) / 86400, 0), null())\n| eval rra_status = case(\n    isnull(rra_completed_at), \"never_completed\",\n    isnull(rra_certification_submitted_at), \"certification_missing\",\n    days_to_due < 0, \"overdue\",\n    days_to_due <= 90, \"approaching_due\",\n    1=1, \"current\")\n| table pwsid system_name population_served tier rra_completed_at days_since_rra rra_certification_submitted_at next_rra_due_at days_to_due rra_status certification_letter_url",
   "description": "Verifies every CWS subject to AWIA s1433 has a current RRA, a submitted EPA certification, and a tracked 5-year update cycle. Flags `overdue`, `approaching_due`, and `certification_missing` status.",
   "value": "AWIA RRA non-compliance is the most-cited finding in EPA AWIA audit work since 2020. The 5-year update cycle is binary: either the new RRA is complete and certified by the due date or it isn't. This UC keeps the cadence visible to the Compliance Officer.",
@@ -77,6 +58,9 @@
     }
   ],
   "knownFalsePositives": "1. **New system commissioning** — a CWS commissioned within the last year may not yet have an RRA; suppression via `commissioning_date` tolerance up to 6 months.\n\n2. **Mid-cycle utility merger** — a merger may consolidate two PWSIDs; legacy RRA inheritance via documented merger record.\n\n3. **EPA extension** — EPA may grant a short extension in writing; recorded in `awia_extension_lookup`.\n\n4. **System ownership change** — the new owner inherits the RRA cycle; updates lookup.\n\n**Suppression mechanism**: KV Store `awia_22_53_1_exceptions`; max grant 90 days with Compliance Officer sign-off.",
+  "mitreAttack": [
+    "N/A (compliance-cadence workflow — measures AWIA s1433 RRA evidence currency, not adversary detection)"
+  ],
   "requiredFields": [
     "pwsid",
     "population_served",
@@ -84,15 +68,8 @@
     "rra_completed_at",
     "rra_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
+    "db_connect",
     "servicenow",
     "splunk-es"
   ],
@@ -101,12 +78,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (compliance-cadence workflow — measures AWIA s1433 RRA evidence currency, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.44.1 (US-Federal water sector compliance baseline) deployed.\n- ES, ServiceNow add-on.\n- `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_pws_registry_lookup` columns: `pwsid` (PWS identifier), `system_name`, `state`, `population_served`, `tier`, `rra_completed_at` (epoch), `rra_certification_submitted_at`, `certification_letter_url`, `next_rra_due_at` (= rra_completed_at + 5y), `manager`, `manager_email`.\n- For Tier 1 (>=100,000 served) — first deadline 31 March 2020; for Tier 2 (>=50,000 served) — 31 December 2020; for Tier 3 (>3,300 served) — 30 June 2021.\n\n## Step 1 — Configure data collection\n\nThe registry is maintained by the utility's Compliance Officer; for very large utilities use SDWIS integration.\n\n```spl\nindex=compliance sourcetype=epa:awia event_type=certification earliest=-1d@d\n| dedup pwsid sortby - _time\n| eval next_rra_due_at = rra_completed_at + (5*365*86400)\n| outputlookup awia_pws_registry_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.53.1: AWIA s1433 RRA currency]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.1,reg=AWIA,clause=AWIA-s1433a\naction.notable.param.rule_title = AWIA s1433 RRA overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity by `rra_status`: `overdue` / `never_completed` → critical; `certification_missing` → high; `approaching_due` → medium digest.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate `rra_completed_at` to 5 years 2 months; UC flags `overdue`.\n\n**(b)** Negative control: refresh RRA + certification; UC clears.\n\n**(c)** Coverage: every PWS the utility operates has at least one row.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — RRA Currency`.\n\n**Runbook for `approaching_due`** (owner: Compliance Officer, severity P2):\n\n1. Within 90 days: contract or staff the RRA refresh; engage AWWA J100 methodology (UC-22.53.20).\n\n**Runbook for `overdue`** (owner: Compliance Officer + General Manager, severity P1):\n\n1. Within 30 days: complete RRA and submit certification.\n2. Self-disclose to EPA Region; document the gap.\n3. Within 60 days: produce a corrective-action plan.\n\n## Step 5 — Troubleshooting\n\n**SDWIS lag**: SDWIS may not reflect the latest certification; rely on the utility's own GRC.\n\n**Multi-state systems**: each PWSID has its own deadline; ensure separate rows.\n\n**AWIA-specific failure modes**:\n\n- **Population-tier crossover**: a system that grew above a tier threshold mid-cycle must complete the RRA per the new tier's content expectations on the next refresh.\n- **Joint RRA (interconnected systems)**: some utilities operate interconnected systems with a shared RRA; ensure each PWSID still has its own certification record.\n- **Tribal water systems**: subject to AWIA but reporting routes through EPA Region 10 / 9; ensure portal use matches.\n- **PFAS / emerging-contaminant overlay**: RRA refresh under PFAS NPDWR requires assessment of PFAS-related risk; cross-reference.",
+  "grandmaExplanation": "If we run a community water system with more than 3,300 customers, the law makes us write a 'risk and resilience' check-up of our systems and submit a certificate to the EPA. We must redo it every 5 years. We watch the clock; if the certificate is overdue or coming due, the bell rings.",
   "prerequisiteUseCases": [
     "UC-22.44.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.44.1 (US-Federal water sector compliance baseline) deployed.\n- ES, ServiceNow add-on.\n- `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_pws_registry_lookup` columns: `pwsid` (PWS identifier), `system_name`, `state`, `population_served`, `tier`, `rra_completed_at` (epoch), `rra_certification_submitted_at`, `certification_letter_url`, `next_rra_due_at` (= rra_completed_at + 5y), `manager`, `manager_email`.\n- For Tier 1 (>=100,000 served) — first deadline 31 March 2020; for Tier 2 (>=50,000 served) — 31 December 2020; for Tier 3 (>3,300 served) — 30 June 2021.\n\n## Step 1 — Configure data collection\n\nThe registry is maintained by the utility's Compliance Officer; for very large utilities use SDWIS integration.\n\n```spl\nindex=compliance sourcetype=epa:awia event_type=certification earliest=-1d@d\n| dedup pwsid sortby - _time\n| eval next_rra_due_at = rra_completed_at + (5*365*86400)\n| outputlookup awia_pws_registry_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.53.1: AWIA s1433 RRA currency]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.1,reg=AWIA,clause=AWIA-s1433a\naction.notable.param.rule_title = AWIA s1433 RRA overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity by `rra_status`: `overdue` / `never_completed` → critical; `certification_missing` → high; `approaching_due` → medium digest.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate `rra_completed_at` to 5 years 2 months; UC flags `overdue`.\n\n**(b)** Negative control: refresh RRA + certification; UC clears.\n\n**(c)** Coverage: every PWS the utility operates has at least one row.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — RRA Currency`.\n\n**Runbook for `approaching_due`** (owner: Compliance Officer, severity P2):\n\n1. Within 90 days: contract or staff the RRA refresh; engage AWWA J100 methodology (UC-22.53.20).\n\n**Runbook for `overdue`** (owner: Compliance Officer + General Manager, severity P1):\n\n1. Within 30 days: complete RRA and submit certification.\n2. Self-disclose to EPA Region; document the gap.\n3. Within 60 days: produce a corrective-action plan.\n\n## Step 5 — Troubleshooting\n\n**SDWIS lag**: SDWIS may not reflect the latest certification; rely on the utility's own GRC.\n\n**Multi-state systems**: each PWSID has its own deadline; ensure separate rows.\n\n**AWIA-specific failure modes**:\n\n- **Population-tier crossover**: a system that grew above a tier threshold mid-cycle must complete the RRA per the new tier's content expectations on the next refresh.\n- **Joint RRA (interconnected systems)**: some utilities operate interconnected systems with a shared RRA; ensure each PWSID still has its own certification record.\n- **Tribal water systems**: subject to AWIA but reporting routes through EPA Region 10 / 9; ensure portal use matches.\n- **PFAS / emerging-contaminant overlay**: RRA refresh under PFAS NPDWR requires assessment of PFAS-related risk; cross-reference.",
-  "grandmaExplanation": "If we run a community water system with more than 3,300 customers, the law makes us write a 'risk and resilience' check-up of our systems and submit a certificate to the EPA. We must redo it every 5 years. We watch the clock; if the certificate is overdue or coming due, the bell rings."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

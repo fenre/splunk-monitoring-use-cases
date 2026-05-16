@@ -35,25 +35,6 @@
   },
   "dataSources": "Daily-refreshed sanctions lists: Australia Consolidated List (DFAT), DFAT Autonomous Sanctions List, US OFAC SDN List (where applicable), UK OFSI, EU consolidated list. Lookup `sanctions_consolidated_lookup` is materialised nightly from these sources. Supplier register from UC-22.52.18 (`supply_chain_lookup`). Beneficial-owner data from the GRC or company-registry integration (`index=grc sourcetype=\"snow:beneficial_owner\"`).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for HTTP (`stream:http`), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup supply_chain_lookup\n| eval supplier_name_normalised = lower(supplier_name)\n| lookup sanctions_consolidated_lookup supplier_name_normalised AS entity_name_normalised OUTPUT list_name list_entry_id entry_date country_of_record match_aliases match_dob match_address\n| append [\n    | inputlookup beneficial_owners_lookup\n    | eval entity_name_normalised = lower(beneficial_owner_name)\n    | lookup sanctions_consolidated_lookup entity_name_normalised OUTPUT list_name list_entry_id entry_date country_of_record match_aliases\n    | eval supplier_id = beneficial_owner_supplier_id, supplier_name = beneficial_owner_name, match_type = \"beneficial_owner\"\n]\n| where isnotnull(list_entry_id)\n| eval match_type = coalesce(match_type, \"exact_supplier_name\")\n| eval match_score = case(\n    match_type=\"exact_supplier_name\", 100,\n    match_type=\"beneficial_owner\", 90,\n    1=1, 70)\n| stats earliest(_time) AS first_seen latest(_time) AS last_seen BY supplier_id supplier_name match_type list_name list_entry_id entry_date match_score\n| lookup sanctions_disposition_lookup supplier_id list_entry_id OUTPUT disposition_status disposition_at\n| eval disposition_status = coalesce(disposition_status, \"awaiting_legal_opinion\")",
   "description": "Detects when a supplier name or beneficial-owner name matches an entry on the Australia consolidated sanctions list, DFAT autonomous sanctions list, or any other relevant FOCI list. Routes every match to legal counsel for disposition.",
   "value": "Rule 8(2) Foreign Ownership, Control and Influence (FOCI) and sanctions screening is the regulatory area with the highest political-risk exposure. Missing a sanctions match can expose the entity to criminal sanctions liability and the regulatory finding. This UC keeps screening always-on against fresh lists.",
@@ -81,6 +62,9 @@
     }
   ],
   "knownFalsePositives": "1. **Common-name collision** — high-frequency surnames produce false matches. Suppression: require a second indicator (DOB, country of record, address fragment) for `match_score>=70`.\n\n2. **Alias matching** — alias-based matches (`match_aliases`) may catch unrelated entities; require manual disposition.\n\n3. **Delisted entries** — entries removed from the list may persist in older snapshots. Use `entry_date`+`delisted_date` to filter.\n\n4. **Government suppliers** — Government suppliers may appear on cross-jurisdictional lists for political reasons; legal opinion required.\n\n**Suppression mechanism**: KV Store `soci_22_52_19_exceptions`; max grant 30 days with General Counsel sign-off. No suppression without a written legal opinion.",
+  "mitreAttack": [
+    "N/A (sanctions-screening control — measures sanctions / FOCI match detection, not adversary technique)"
+  ],
   "requiredFields": [
     "supplier_id",
     "supplier_name",
@@ -89,30 +73,46 @@
     "match_type",
     "first_seen"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Sanctions-list-refresh job (cron at 23:00 daily; pulls DFAT, OFAC, OFSI, EU)",
+    "ServiceNow VR / GRC TPR (sn_grc_beneficial_owner tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "servicenow",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "ServiceNow VR / GRC TPR (sn_grc_beneficial_owner tables)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Sanctions-list-refresh job (cron at 23:00 daily; pulls DFAT, OFAC, OFSI, EU)"
-  ],
-  "mitreAttack": [
-    "N/A (sanctions-screening control — measures sanctions / FOCI match detection, not adversary technique)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.18 deployed (provides `supply_chain_lookup`).\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Sanctions-list-refresh job (cron at 23:00 daily) populates `sanctions_consolidated_lookup` with columns: `entity_name_normalised`, `list_name`, `list_entry_id`, `entry_date`, `country_of_record`, `match_aliases` (CSV), `match_dob`, `match_address`, `delisted_date`.\n- Lookup `beneficial_owners_lookup` populated daily from the GRC UBO module: `beneficial_owner_supplier_id`, `beneficial_owner_name`, `beneficial_owner_dob`, `beneficial_owner_country`.\n- KV Store `sanctions_disposition_lookup` (supplier_id, list_entry_id, disposition_status, disposition_at, disposition_legal_memo_url, disposition_owner).\n\n## Step 1 — Configure data collection\n\nDaily list refresh (cron):\n\n```bash\n#!/bin/bash\nfor source in dfat ofac ofsi eu; do\n    /opt/splunk/etc/apps/soci/bin/refresh_sanctions.py --source $source --out /opt/splunk/etc/apps/soci/lookups/sanctions_${source}.csv\ndone\n/opt/splunk/etc/apps/soci/bin/consolidate_sanctions.py --in /opt/splunk/etc/apps/soci/lookups/sanctions_*.csv --out /opt/splunk/etc/apps/soci/lookups/sanctions_consolidated_lookup.csv\n```\n\n## Step 2 — Create the search and alert\n\nSchedule hourly:\n\n```ini\n[UC-22.52.19: SOCI CIRMP Rule 8(2) sanctions & FOCI screening]\ncron_schedule = 15 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.19,reg=SOCI,clause=SOCI-CIRMP-r8.2\naction.notable.param.rule_title = SOCI Rule 8(2) sanctions / FOCI match\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\naction.email.to = general-counsel@responsible-entity.local\nalert.severity = 5\n```\n\nEvery row routes to legal counsel; the General Counsel is the only role authorised to disposition a match.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: add a test name to `sanctions_consolidated_lookup`; ensure it matches an existing supplier. UC must surface within 1 hour.\n\n**(b)** Negative control: revert; UC clears.\n\n**(c)** List freshness: every morning, verify the refresh job ran and the lookup count matches expected upstream count.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Sanctions & FOCI Screening`.\n\n- Live matches awaiting disposition.\n- Aging of disposition turnaround.\n- Per-list match volume.\n- Disposition outcome breakdown.\n- List-freshness gauge.\n\n**Runbook for any notable** (owner: General Counsel, severity P1):\n\n1. Within 1 business day: open the disposition workflow.\n2. Within 5 business days: complete legal opinion.\n3. If `confirmed_match`: initiate immediate exit-management per the contract's termination clause and notify CISC.\n4. Document disposition in `sanctions_disposition_lookup`.\n\n## Step 5 — Troubleshooting\n\n**Refresh job failed** — escalate to platform team; lookup goes stale. Compensating control: dual subscription to a vendor-managed feed (Refinitiv World-Check, Dow Jones Risk).\n\n**Common-name collisions** — strengthen match criteria with secondary indicator.\n\n**Alias matching** — ensure `match_aliases` carries both Latinised and native-script variants.\n\n**SOCI-specific failure modes**:\n\n- **Late-bound beneficial-owner data**: company registries (ASIC) update beneficial-owner registers slowly; complement with vendor data and supplier-provided attestations.\n- **Cross-jurisdictional lists**: a supplier outside Australia but on a US OFAC list may still trigger SOCI obligations; consult legal.\n- **Confidential listings**: some sanctions are confidential to specific Government agencies; ensure your subscription covers all relevant feeds.\n- **Reputational risk**: a supplier on a credible NGO 'red list' (not a Government list) is not a SOCI obligation but is a reputational risk worth surfacing separately.",
+  "grandmaExplanation": "We check every supplier and supplier's owner against the lists of sanctioned people and companies kept by the Australian Government — every day, automatically. If we find a match, we tell the lawyer immediately and stop working with the supplier if they confirm the match.",
   "prerequisiteUseCases": [
     "UC-22.52.18"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.18 deployed (provides `supply_chain_lookup`).\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Sanctions-list-refresh job (cron at 23:00 daily) populates `sanctions_consolidated_lookup` with columns: `entity_name_normalised`, `list_name`, `list_entry_id`, `entry_date`, `country_of_record`, `match_aliases` (CSV), `match_dob`, `match_address`, `delisted_date`.\n- Lookup `beneficial_owners_lookup` populated daily from the GRC UBO module: `beneficial_owner_supplier_id`, `beneficial_owner_name`, `beneficial_owner_dob`, `beneficial_owner_country`.\n- KV Store `sanctions_disposition_lookup` (supplier_id, list_entry_id, disposition_status, disposition_at, disposition_legal_memo_url, disposition_owner).\n\n## Step 1 — Configure data collection\n\nDaily list refresh (cron):\n\n```bash\n#!/bin/bash\nfor source in dfat ofac ofsi eu; do\n    /opt/splunk/etc/apps/soci/bin/refresh_sanctions.py --source $source --out /opt/splunk/etc/apps/soci/lookups/sanctions_${source}.csv\ndone\n/opt/splunk/etc/apps/soci/bin/consolidate_sanctions.py --in /opt/splunk/etc/apps/soci/lookups/sanctions_*.csv --out /opt/splunk/etc/apps/soci/lookups/sanctions_consolidated_lookup.csv\n```\n\n## Step 2 — Create the search and alert\n\nSchedule hourly:\n\n```ini\n[UC-22.52.19: SOCI CIRMP Rule 8(2) sanctions & FOCI screening]\ncron_schedule = 15 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.19,reg=SOCI,clause=SOCI-CIRMP-r8.2\naction.notable.param.rule_title = SOCI Rule 8(2) sanctions / FOCI match\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\naction.email.to = general-counsel@responsible-entity.local\nalert.severity = 5\n```\n\nEvery row routes to legal counsel; the General Counsel is the only role authorised to disposition a match.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: add a test name to `sanctions_consolidated_lookup`; ensure it matches an existing supplier. UC must surface within 1 hour.\n\n**(b)** Negative control: revert; UC clears.\n\n**(c)** List freshness: every morning, verify the refresh job ran and the lookup count matches expected upstream count.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Sanctions & FOCI Screening`.\n\n- Live matches awaiting disposition.\n- Aging of disposition turnaround.\n- Per-list match volume.\n- Disposition outcome breakdown.\n- List-freshness gauge.\n\n**Runbook for any notable** (owner: General Counsel, severity P1):\n\n1. Within 1 business day: open the disposition workflow.\n2. Within 5 business days: complete legal opinion.\n3. If `confirmed_match`: initiate immediate exit-management per the contract's termination clause and notify CISC.\n4. Document disposition in `sanctions_disposition_lookup`.\n\n## Step 5 — Troubleshooting\n\n**Refresh job failed** — escalate to platform team; lookup goes stale. Compensating control: dual subscription to a vendor-managed feed (Refinitiv World-Check, Dow Jones Risk).\n\n**Common-name collisions** — strengthen match criteria with secondary indicator.\n\n**Alias matching** — ensure `match_aliases` carries both Latinised and native-script variants.\n\n**SOCI-specific failure modes**:\n\n- **Late-bound beneficial-owner data**: company registries (ASIC) update beneficial-owner registers slowly; complement with vendor data and supplier-provided attestations.\n- **Cross-jurisdictional lists**: a supplier outside Australia but on a US OFAC list may still trigger SOCI obligations; consult legal.\n- **Confidential listings**: some sanctions are confidential to specific Government agencies; ensure your subscription covers all relevant feeds.\n- **Reputational risk**: a supplier on a credible NGO 'red list' (not a Government list) is not a SOCI obligation but is a reputational risk worth surfacing separately.",
-  "grandmaExplanation": "We check every supplier and supplier's owner against the lists of sanctioned people and companies kept by the Australian Government — every day, automatically. If we find a match, we tell the lawyer immediately and stop working with the supplier if they confirm the match."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -36,26 +36,6 @@
   },
   "dataSources": "CIRCIA preservation register (UC-22.54.5) `circia_preservation_lookup` with `artefact_id`, `sha256`, `timestamp_authority_signed`, `signed_chain_of_custody`. RFC 3161 TSA validation events (HEC `hec:tsa:validation`). NTP synchronisation metrics for source systems. Integrity-verification results.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "| inputlookup circia_preservation_lookup\n| where preservation_status=\"active\"\n| eval missing_hash = if(isnull(sha256) OR sha256=\"\", 1, 0)\n| eval missing_tsa = if(isnull(timestamp_authority_signed) OR timestamp_authority_signed=\"\", 1, 0)\n| eval missing_coc = if(isnull(signed_chain_of_custody) OR signed_chain_of_custody=\"\", 1, 0)\n| eval audit_quality_status = case(\n    missing_hash=1 AND missing_tsa=1 AND missing_coc=1, \"missing_all_three\",\n    missing_hash=1 AND missing_tsa=1, \"missing_timestamp_authority_and_hash\",\n    missing_hash=1 AND missing_coc=1, \"missing_hash_and_coc\",\n    missing_tsa=1 AND missing_coc=1, \"missing_tsa_and_coc\",\n    missing_hash=1, \"missing_hash\",\n    missing_tsa=1, \"missing_timestamp_authority\",\n    missing_coc=1, \"missing_chain_of_custody\",\n    1=1, \"compliant\")\n| where audit_quality_status != \"compliant\"\n| table incident_id artefact_id artefact_type audit_quality_status sha256 timestamp_authority_signed signed_chain_of_custody",
   "description": "Audits every active preservation-register artefact for the three CIRCIA recordkeeping-quality elements: SHA-256 hash, RFC 3161 timestamp authority signature, signed chain of custody. Surfaces artefacts missing any element so the CISO can remediate.",
   "value": "A CIRCIA report whose underlying records cannot be cryptographically anchored to a trusted time and proven untampered is largely indefensible in CISA RFI or DOJ subpoena. This UC instruments the recordkeeping-quality checks daily, so gaps are remediated within the 2-year retention window, not at audit time.",
@@ -80,35 +60,56 @@
     }
   ],
   "knownFalsePositives": "1. **TSA outage** — the TSA may be temporarily unreachable when an artefact is ingested. Suppression: SOAR retries the stamp every 15 minutes for 24 hours; if all retries fail, an internal HSM-based RFC 3161 falls back.\n\n2. **Hash mismatch on re-verification** — a legitimate re-verification may have failed due to disk error, not tampering. Suppression: the CISO requires explicit `recheck_pass` evidence; not a real false positive.\n\n3. **Newly-ingested artefact** — SOAR may have a 15-min delay between ingest and TSA stamping. Suppression: exclude artefacts whose `ingested_at` is within the last 60 minutes from the alert.\n\n**Suppression mechanism**: KV Store `circia_22_54_14_exceptions` with per-artefact grants requiring documented CISO approval and a 7-day maximum grant.",
+  "mitreAttack": [
+    "N/A (forensic-record-quality control)"
+  ],
   "requiredFields": [
     "incident_id",
     "artefact_id",
     "audit_quality_status"
   ],
+  "equipment": [
+    "cert_pki",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "DigiCert / GlobalSign / operator-managed RFC 3161 TSA",
+    "Internal HSM (e.g., Thales Luna 7, AWS CloudHSM) for fallback timestamping",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-preservation-stamp playbook)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + Internal Audit Director",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "Splunk SOAR 6.x (Splunkbase 4413, circia-preservation-stamp playbook)",
-    "DigiCert / GlobalSign / operator-managed RFC 3161 TSA",
-    "Internal HSM (e.g., Thales Luna 7, AWS CloudHSM) for fallback timestamping"
-  ],
-  "mitreAttack": [
-    "N/A (forensic-record-quality control)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- RFC 3161 TSA (commercial or operator-managed).\n- SOAR (Splunkbase 4413) with `circia-preservation-stamp` playbook.\n- KV Store `circia_preservation_lookup` (from UC-22.54.5).\n\n## Step 1 — TSA configuration\n\nFor DigiCert:\n\n```bash\ncurl -X POST https://timestamp.digicert.com \\\n  -H \"Content-Type: application/timestamp-query\" \\\n  --data-binary @hash_request.tsq \\\n  -o token.tsr\n```\n\nThe `.tsr` token contains the TSA's signed assertion of (hash, time). Store the token alongside the artefact.\n\n## Step 2 — SOAR playbook\n\n`circia-preservation-stamp` triggers on every new artefact in preservation register:\n\n1. Compute sha256 of the artefact body.\n2. POST `.tsq` to TSA.\n3. Receive `.tsr` token; verify signature with TSA public key.\n4. Update `circia_preservation_lookup` row with `sha256`, `timestamp_authority_signed=<base64 token>`, `tsa_signed_at`.\n5. Sign chain-of-custody entry with operator's internal-PKI cert; store in `signed_chain_of_custody`.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.14: CIRCIA Recordkeeping-Quality Audit]\ncron_schedule = 0 2 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.14,reg=CIRCIA,clause=CIRCIA-NPRM-recordkeeping-quality\naction.notable.param.rule_title = CIRCIA recordkeeping-quality artefact gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Missing-TSA test**: ingest an artefact without TSA stamp; UC-22.54.14 must alert within 24 hours.\n\n**(b) TSA outage simulation**: block egress to DigiCert TSA; verify SOAR falls back to internal HSM-based RFC 3161.\n\n**(c) Hash-mismatch test**: corrupt the artefact body, re-verify; the corruption must be detected.\n\n## Step 5 — Operationalize\n\n**Runbook for `missing_*`** (owner: CISO, severity P2):\n\n1. Within 1 business day: re-run `circia-preservation-stamp` for the artefact; if it fails, investigate TSA / HSM availability.\n\n## Step 6 — Troubleshooting\n\n**TSA token validation failures** — the verification step may fail if the TSA root cert is expired. Maintain the TSA trust chain.\n\n**Chain-of-custody signing failures** — if internal PKI is misconfigured, the COC step fails; verify cert validity and CRL.\n\n**CIRCIA-specific failure modes**:\n\n- **Cross-jurisdictional TSA**: a non-US TSA (e.g., EU) is acceptable; CISA does not mandate a specific TSA, only a trustworthy one.\n- **HSM cert rotation**: cert rotation can break COC signing during the rotation window; coordinate with PKI team.\n- **NTP drift**: source-system clock drift can produce timestamps that disagree with the TSA assertion. Maintain NTP discipline.",
+  "grandmaExplanation": "Every important piece of evidence we keep about an incident gets a special digital seal that proves when it was made and that nobody changed it later. We check every day that all evidence has its seal; if anything is missing, the seal team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.54.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- RFC 3161 TSA (commercial or operator-managed).\n- SOAR (Splunkbase 4413) with `circia-preservation-stamp` playbook.\n- KV Store `circia_preservation_lookup` (from UC-22.54.5).\n\n## Step 1 — TSA configuration\n\nFor DigiCert:\n\n```bash\ncurl -X POST https://timestamp.digicert.com \\\n  -H \"Content-Type: application/timestamp-query\" \\\n  --data-binary @hash_request.tsq \\\n  -o token.tsr\n```\n\nThe `.tsr` token contains the TSA's signed assertion of (hash, time). Store the token alongside the artefact.\n\n## Step 2 — SOAR playbook\n\n`circia-preservation-stamp` triggers on every new artefact in preservation register:\n\n1. Compute sha256 of the artefact body.\n2. POST `.tsq` to TSA.\n3. Receive `.tsr` token; verify signature with TSA public key.\n4. Update `circia_preservation_lookup` row with `sha256`, `timestamp_authority_signed=<base64 token>`, `tsa_signed_at`.\n5. Sign chain-of-custody entry with operator's internal-PKI cert; store in `signed_chain_of_custody`.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.54.14: CIRCIA Recordkeeping-Quality Audit]\ncron_schedule = 0 2 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.14,reg=CIRCIA,clause=CIRCIA-NPRM-recordkeeping-quality\naction.notable.param.rule_title = CIRCIA recordkeeping-quality artefact gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Missing-TSA test**: ingest an artefact without TSA stamp; UC-22.54.14 must alert within 24 hours.\n\n**(b) TSA outage simulation**: block egress to DigiCert TSA; verify SOAR falls back to internal HSM-based RFC 3161.\n\n**(c) Hash-mismatch test**: corrupt the artefact body, re-verify; the corruption must be detected.\n\n## Step 5 — Operationalize\n\n**Runbook for `missing_*`** (owner: CISO, severity P2):\n\n1. Within 1 business day: re-run `circia-preservation-stamp` for the artefact; if it fails, investigate TSA / HSM availability.\n\n## Step 6 — Troubleshooting\n\n**TSA token validation failures** — the verification step may fail if the TSA root cert is expired. Maintain the TSA trust chain.\n\n**Chain-of-custody signing failures** — if internal PKI is misconfigured, the COC step fails; verify cert validity and CRL.\n\n**CIRCIA-specific failure modes**:\n\n- **Cross-jurisdictional TSA**: a non-US TSA (e.g., EU) is acceptable; CISA does not mandate a specific TSA, only a trustworthy one.\n- **HSM cert rotation**: cert rotation can break COC signing during the rotation window; coordinate with PKI team.\n- **NTP drift**: source-system clock drift can produce timestamps that disagree with the TSA assertion. Maintain NTP discipline.",
-  "grandmaExplanation": "Every important piece of evidence we keep about an incident gets a special digital seal that proves when it was made and that nobody changed it later. We check every day that all evidence has its seal; if anything is missing, the seal team is alerted."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

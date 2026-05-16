@@ -12,6 +12,44 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Post-corpus-expansion `generate-equipment-tags` follow-on — clears the third masked freshness gate.**
+  Direct follow-on to the regen cascade in commit `e2f467cf6` below.
+  Running that cascade exposed a *third* masked failure on the
+  `audits-content` job — `Equipment-tags regeneration check`
+  (`generate-equipment-tags --check`) — which was hiding behind the
+  earlier `Phase 3.2 cross-cutting compliance generator regeneration
+  check` failure on `b9f17b407` (GitHub Actions' `set -e` shell flag
+  stops execution at the first failure, so steps lower in the
+  job-script never ran). The OT-arc added 266 cat-22 UCs in
+  subcategories 22.51-22.63 whose `app` / `dataSources` narrative
+  triggers the `equipment[]` / `equipmentModels[]` backfill — 266
+  sidecars updated, all in `cat-22-regulatory-compliance/`. Side
+  effect: 120 `equipment-orphan` findings in
+  `reports/compliance-coverage.json` cleared (the findings counter
+  drops 120 → 0). Net diff: **268 file changes** (266 cat-22 UC
+  sidecars + `docs/compliance-coverage.md` + `reports/compliance-coverage.json`).
+  Sidecar diffs are field-reorder normalisation (the generator
+  re-emits each dict with `equipment`/`equipmentModels`/`status` at
+  the top, `splunkbaseApps`/`premiumApps` near the bottom); content
+  is preserved byte-for-byte across the move.
+
+  **Known follow-on, NOT addressed in this commit:** with the cascade
+  + this fix combined, the next CI run will surface an 8-orphan
+  failure on `Phase 4.2 evidence-pack generator regeneration check`
+  for the OT-arc evidence packs the maintainer added markdown for
+  (`cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
+  `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
+  `tsa-surface.md`) — these slugs are missing from `PACK_TARGETS` in
+  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py).
+  Documented in drift ledger #16 in
+  `docs/health-check-2026-progress.md` so the surfacing is expected
+  rather than a surprise; resolution needs a maintainer decision on
+  whether to widen the generator's scope (risks overwriting
+  hand-customised TOC sections like *"Questions a flag-State / PSC /
+  class-society inspector should ask"* in `imo-msc-428-98.md`) or
+  re-classify the orphan files as hand-authored docs and teach the
+  orphan check an allow-list.
+
 - **Post-corpus-expansion generator cascade — clears the two `validate.yml` failures left on `b9f17b407`.**
   After the maintainer's `2032c631a` (SPL reference corpus expansion +
   glob-aware sourcetype matching) and the Phase 4 backfill in `b9f17b407`

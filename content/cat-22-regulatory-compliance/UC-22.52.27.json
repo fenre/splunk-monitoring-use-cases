@@ -36,25 +36,6 @@
   },
   "dataSources": "Manual lookup `gap_direction_lookup` maintained by the CEO's office / Head of Critical-Infrastructure Compliance. Lookup `gap_action_evidence_lookup` (direction_id, action_id, action_owner, action_completion_at, evidence_artefact_url).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup gap_direction_lookup\n| eval days_to_deadline = if(isnotnull(deadline_at), round((deadline_at - now()) / 86400, 1), null())\n| join type=outer direction_id [\n    | inputlookup gap_action_evidence_lookup\n    | stats count AS actions_completed values(evidence_artefact_url) AS evidence_artefact_urls latest(action_completion_at) AS last_action_at by direction_id\n]\n| eval direction_status = case(\n    lifecycle_status=\"rescinded\", \"rescinded\",\n    isnull(deadline_at), \"missing_deadline\",\n    isnull(actions_completed) OR actions_completed=0, case(deadline_at < now(), \"deadline_breached\", days_to_deadline <= 1, \"approaching_deadline\", 1=1, \"in_progress\"),\n    actions_completed > 0 AND last_action_at <= deadline_at, \"current\",\n    actions_completed > 0 AND last_action_at > deadline_at, \"completed_late\",\n    1=1, \"unknown\")\n| table direction_id direction_class issued_at deadline_at days_to_deadline actions_completed evidence_artefact_urls direction_status",
   "description": "Tracks every Government direction issued under Part 3A of the SOCI Act and evidences the entity's receipt, action, and completion. Surfaces approaching and breached deadlines.",
   "value": "Part 3A directions are infrequent but legally compelled and confidential; missing a deadline is a serious compliance failure with national-security implications. This UC keeps every direction visible to senior executives in a single workflow.",
@@ -74,20 +55,15 @@
     }
   ],
   "knownFalsePositives": "1. **Direction varied** — a Government direction may be varied (new deadline, narrowed scope) after issuance. Mitigation: maintain `gap_direction_variation_lookup` to capture variations.\n\n2. **Implicit completion** — some actions are completed but evidence-artefact URL is in a classified channel. Mitigation: capture a reference even if the document is sealed.\n\n3. **Verbal preliminary directions** — a verbal indication that a direction is pending. Mitigation: surface as `pending_formal_direction` until written direction is received.\n\n**Suppression mechanism**: KV Store `soci_22_52_27_exceptions`; max grant 24 hours with CEO sign-off only.",
+  "mitreAttack": [
+    "N/A (regulator-direction compliance workflow — measures Part 3A direction execution evidence, not adversary detection)"
+  ],
   "requiredFields": [
     "direction_id",
     "direction_class",
     "deadline_at",
     "direction_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -97,12 +73,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (regulator-direction compliance workflow — measures Part 3A direction execution evidence, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.1 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `gap_direction_lookup` columns: `direction_id`, `direction_class` (`information_gathering` | `action_direction` | `intervention_direction`), `issued_at`, `deadline_at`, `recipient_role`, `legal_authority_section`, `direction_artefact_url`, `lifecycle_status` (`active`/`varied`/`rescinded`).\n- Lookup `gap_action_evidence_lookup` columns: `direction_id`, `action_id`, `action_owner`, `action_completion_at`, `evidence_artefact_url`.\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\nGovernment directions are typically classified and delivered through secure channels. The CEO's office:\n\n1. Records receipt in the GRC module with classification handling.\n2. Maintains the lookup at the appropriate classification level (use a redacted view in Splunk for unclassified evidence).\n3. Updates evidence and completion artefacts.\n\n## Step 2 — Create the search and alert\n\nSchedule hourly:\n\n```ini\n[UC-22.52.27: SOCI Government Assistance Powers compliance]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -24h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.27,reg=SOCI,clause=SOCI-s35A-35G\naction.notable.param.rule_title = SOCI Part 3A Government direction status\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\naction.email.to = ceo@responsible-entity.local, ciso@responsible-entity.local\nalert.severity = 5\n```\n\nNotable severity by `direction_status`: `deadline_breached` → critical (urgency=Critical); `approaching_deadline` → high; everything else informational.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: register test direction; let pass deadline; UC flags.\n\n**(b)** Negative control: complete actions on time; UC records `current`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Government Assistance Powers (Part 3A)`.\n\n**Runbook for `approaching_deadline`** (owner: CEO + CISO, severity P1):\n\n1. Immediate: confirm action progress; escalate if needed.\n\n**Runbook for `deadline_breached`** (owner: CEO, severity P1):\n\n1. Within 1 business hour: notify CISC of the breach and the plan.\n2. Complete action urgently.\n3. Within 5 business days: produce a remediation plan to prevent recurrence.\n\n## Step 5 — Troubleshooting\n\n**Classification handling**: a redacted view in Splunk may show the direction_id and class only; the full text remains in a classified system.\n\n**Variation handling**: ensure variation events update `deadline_at`.\n\n**SOCI-specific failure modes**:\n\n- **Intervention Direction**: an intervention direction may require Splunk-driven IR coordination; pre-agreed playbook with the Department.\n- **Cross-jurisdictional coordination**: a direction issued during a national cyber incident may coordinate multiple entities; ensure your registration captures cross-references.\n- **Confidentiality breach risk**: ensure the GRC integration into Splunk does not leak classified content beyond authorised viewers.\n- **Legal-privileged interaction**: legal advice on the direction may be privileged; ensure not stored in shared audit-evidence index without proper segregation.",
+  "grandmaExplanation": "Sometimes the Government can legally compel us to do specific cyber things — hand over information, run a check, or take an action — within a strict deadline. We register every such direction the moment we get it, track the deadline like a stopwatch, and ring the loudest bell if we're going to miss it.",
   "prerequisiteUseCases": [
     "UC-22.52.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.1 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `gap_direction_lookup` columns: `direction_id`, `direction_class` (`information_gathering` | `action_direction` | `intervention_direction`), `issued_at`, `deadline_at`, `recipient_role`, `legal_authority_section`, `direction_artefact_url`, `lifecycle_status` (`active`/`varied`/`rescinded`).\n- Lookup `gap_action_evidence_lookup` columns: `direction_id`, `action_id`, `action_owner`, `action_completion_at`, `evidence_artefact_url`.\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\nGovernment directions are typically classified and delivered through secure channels. The CEO's office:\n\n1. Records receipt in the GRC module with classification handling.\n2. Maintains the lookup at the appropriate classification level (use a redacted view in Splunk for unclassified evidence).\n3. Updates evidence and completion artefacts.\n\n## Step 2 — Create the search and alert\n\nSchedule hourly:\n\n```ini\n[UC-22.52.27: SOCI Government Assistance Powers compliance]\ncron_schedule = 0 * * * *\ndispatch.earliest_time = -24h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.27,reg=SOCI,clause=SOCI-s35A-35G\naction.notable.param.rule_title = SOCI Part 3A Government direction status\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\naction.email.to = ceo@responsible-entity.local, ciso@responsible-entity.local\nalert.severity = 5\n```\n\nNotable severity by `direction_status`: `deadline_breached` → critical (urgency=Critical); `approaching_deadline` → high; everything else informational.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: register test direction; let pass deadline; UC flags.\n\n**(b)** Negative control: complete actions on time; UC records `current`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Government Assistance Powers (Part 3A)`.\n\n**Runbook for `approaching_deadline`** (owner: CEO + CISO, severity P1):\n\n1. Immediate: confirm action progress; escalate if needed.\n\n**Runbook for `deadline_breached`** (owner: CEO, severity P1):\n\n1. Within 1 business hour: notify CISC of the breach and the plan.\n2. Complete action urgently.\n3. Within 5 business days: produce a remediation plan to prevent recurrence.\n\n## Step 5 — Troubleshooting\n\n**Classification handling**: a redacted view in Splunk may show the direction_id and class only; the full text remains in a classified system.\n\n**Variation handling**: ensure variation events update `deadline_at`.\n\n**SOCI-specific failure modes**:\n\n- **Intervention Direction**: an intervention direction may require Splunk-driven IR coordination; pre-agreed playbook with the Department.\n- **Cross-jurisdictional coordination**: a direction issued during a national cyber incident may coordinate multiple entities; ensure your registration captures cross-references.\n- **Confidentiality breach risk**: ensure the GRC integration into Splunk does not leak classified content beyond authorised viewers.\n- **Legal-privileged interaction**: legal advice on the direction may be privileged; ensure not stored in shared audit-evidence index without proper segregation.",
-  "grandmaExplanation": "Sometimes the Government can legally compel us to do specific cyber things — hand over information, run a check, or take an action — within a strict deadline. We register every such direction the moment we get it, track the deadline like a stopwatch, and ring the loudest bell if we're going to miss it."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

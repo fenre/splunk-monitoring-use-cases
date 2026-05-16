@@ -35,30 +35,6 @@
   },
   "dataSources": "Splunk Add-on for Unix and Linux NTP events (`sourcetype=ntp` or chrony tracking export). Splunk Add-on for Microsoft Windows `w32tm` outputs. KV Store `cert_in_ntp_authoritative_lookup` (host_or_ip, role) listing samay1.nic.in, samay2.nic.in, time.nplindia.org, plus traceable enterprise tier-2 servers. KV Store `cert_in_ntp_register_lookup` (host, expected_role, isolated_lab).",
   "app": "Splunk Add-on for Unix and Linux (Splunkbase 833), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [],
   "spl": "(index=os sourcetype=\"chronyd\" OR sourcetype=\"ntp\") OR (index=windows sourcetype=\"WMI:LocalTimeSync\")\n| eval ntp_source = coalesce(ntp_source, reference_id, ntpserver, ntp_server)\n| eval offset_ms = coalesce(offset_ms, system_offset, last_offset)\n| eval stratum = coalesce(stratum, root_stratum)\n| eval offset_ms = abs(tonumber(offset_ms))\n| stats latest(_time) as last_sync_at, latest(ntp_source) as ntp_source, latest(offset_ms) as offset_ms, latest(stratum) as stratum by host\n| eval sync_age_minutes = round((now() - last_sync_at) / 60, 1)\n| lookup cert_in_ntp_authoritative_lookup host_or_ip AS ntp_source OUTPUT role AS ntp_role\n| eval traceable_to_nic_or_npl = if(ntp_role IN (\"primary\",\"traceable\"), 1, 0)\n| lookup cert_in_ntp_register_lookup host OUTPUT expected_role, isolated_lab\n| where coalesce(isolated_lab, \"false\") != \"true\"\n| eval stale_sync = if(sync_age_minutes > 60, 1, 0)\n| eval excessive_drift = if(offset_ms > 1000, 1, 0)\n| eval non_traceable_source = if(traceable_to_nic_or_npl = 0, 1, 0)\n| eval risk_score = case(\n    non_traceable_source = 1, 85,\n    excessive_drift = 1 AND offset_ms > 5000, 90,\n    excessive_drift = 1, 70,\n    stale_sync = 1 AND sync_age_minutes > 360, 80,\n    stale_sync = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +sync_age_minutes\n| table host last_sync_at sync_age_minutes ntp_source ntp_role offset_ms stratum traceable_to_nic_or_npl risk_score",
   "description": "Reconciles every Indian-jurisdiction host against three operational limbs of CERT-In Direction (iii): (i) the NTP source is one of the four authoritative servers (samay1.nic.in, samay2.nic.in, time.nplindia.org, or a documented traceable tier-2), (ii) the offset from the authoritative source is within ±5 seconds, and (iii) a successful NTP sync has occurred in the last 60 minutes. Risk-scores non-traceable sources at 85 (a Direction-(iii) breach by source) and large drifts (>5 s) at 90 (a Direction-(iii) breach by drift).",
   "value": "CERT-In Direction (iii) underpins the forensic-correlation value of every other CERT-In artefact: if Indian ICT systems are not on a common NIC/NPL-traceable timebase, the 6-hour incident reports (UC-22.62.1) and the 180-day log retention (UC-22.62.4) cannot be reconciled across systems. CERT-In has cited Direction (iii) breaches in administrative notices issued to body-corporates. The traceability limb is the most frequently failed — generic public NTP pools (pool.ntp.org) and cloud-vendor defaults (e.g., AWS time.amazonaws.com) are not, on their face, traceable to NIC/NPL and require an explicit traceability attestation.",
@@ -83,6 +59,10 @@
     }
   ],
   "knownFalsePositives": "1. **Lab / isolated networks**: detonation ranges and red-team labs intentionally offset clocks for fuzzing or rollback testing — load `isolated_lab = true` in `cert_in_ntp_register_lookup`. 2. **Boot transient**: a host that booted in the last 10 minutes may briefly show stratum 16 / unsynced — suppress if `boot_time` is within the last 600 seconds. 3. **Multi-jurisdiction hosts**: a host serving non-Indian regions may legitimately use a non-Indian primary — load `multi_jurisdiction_attestation_ref` and a `secondary_indian_ntp_ref` to suppress.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_2_exceptions` with the CISO and IT-Operations documented approval, an explicit host scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1070.006",
+    "T1565"
+  ],
   "requiredFields": [
     "host",
     "last_sync_at",
@@ -90,28 +70,48 @@
     "offset_ms",
     "risk_score"
   ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for Microsoft Windows",
+    "Splunk Add-on for Unix and Linux",
+    "Windows Server (w32time) 2016+",
+    "chrony >= 3.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Indian Cybersecurity SME Panel + IT-Operations Lead + CISO",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es"
-  ],
-  "equipmentModels": [
-    "Splunk Add-on for Unix and Linux",
-    "Splunk Add-on for Microsoft Windows",
-    "chrony >= 3.x",
-    "Windows Server (w32time) 2016+"
-  ],
-  "mitreAttack": [
-    "T1070.006",
-    "T1565"
-  ],
-  "prerequisiteUseCases": [],
+  "premiumApps": [],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Add-on for Unix and Linux deployed on every Linux host with NTP / chrony events enabled.\n- Splunk Add-on for Microsoft Windows deployed on every Windows host with `WMI:LocalTimeSync` enabled.\n- Outbound NTP (UDP 123) permitted to samay1.nic.in / samay2.nic.in / time.nplindia.org.\n\n## Step 1 - Authoritative-server lookup\n\n```ini\n[cert_in_ntp_authoritative_lookup]\nenforceTypes = true\nfield.host_or_ip = string\nfield.role = string\n```\n\nSeed entries:\n\n```\nhost_or_ip,role\nsamay1.nic.in,primary\nsamay2.nic.in,primary\ntime.nplindia.org,primary\nntp-india-tier2.example.com,traceable\n```\n\n## Step 2 - NTP register\n\n```ini\n[cert_in_ntp_register_lookup]\nenforceTypes = true\nfield.host = string\nfield.expected_role = string\nfield.isolated_lab = bool\nfield.multi_jurisdiction_attestation_ref = string\nfield.secondary_indian_ntp_ref = string\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.2: CERT-In NTP Synchronisation]\ncron_schedule = 7 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.2,reg=CERT-In,clause=CERT-In-Dir-3\nalert.severity = 3\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **Traceability attestation**: for cloud-vendor NTP (e.g., AWS Time Sync) to count as traceable, the CSP must publish an attestation that its NTP infrastructure ultimately syncs to NIC/NPL — most CSPs do not provide this directly, so an enterprise tier-2 sync-server pointing to NIC/NPL is the common pattern.\n- **Air-gapped OT**: for genuinely air-gapped OT networks, a tier-2 GPS-disciplined or NIC-synchronised time master within the OT zone is the accepted compensating control.",
-  "grandmaExplanation": "All Indian computers must keep their clocks set to the government's official time servers. We check every hour that every server's clock is right and reaches the official Indian time source, so that incident reports line up across systems."
+  "grandmaExplanation": "All Indian computers must keep their clocks set to the government's official time servers. We check every hour that every server's clock is right and reaches the official Indian time source, so that incident reports line up across systems.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "crawl"
 }

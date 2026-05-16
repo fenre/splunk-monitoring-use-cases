@@ -36,6 +36,71 @@
   },
   "dataSources": "Microsoft Azure AD / Entra ID privileged-account events (`azuread:audit`, `azuread:signin`). CyberArk PAM session and audit records (`cyberark:session`, `cyberark:audit`). SailPoint IdentityIQ / Saviynt access-review and certification events (`sailpoint:cert`, `saviynt:cert`). Active Directory privileged-group membership snapshots (`mscs:ad:groupmember`). SCADA / OT engineering-workstation logon events (`WinEventLog:Security`, `linux:audit`). Pipeline OT-account register (KV Store `tsa_pipeline_account_lookup`) with owning_group, account_purpose, MFA-required-flag, review-cycle-days.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for Microsoft Azure (Splunkbase 3757), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup tsa_pipeline_account_lookup\n| eval now_ts = now()\n| eval days_since_review = round((now_ts - last_access_review) / 86400, 0)\n| eval days_since_rotation = round((now_ts - last_password_rotation) / 86400, 0)\n| eval mfa_status = case(\n    privilege_level=\"privileged\" AND has_mfa != true, \"missing\",\n    privilege_level=\"privileged\" AND has_mfa = true, \"present\",\n    1=1, \"non_privileged\")\n| eval review_status = case(\n    privilege_level=\"privileged\" AND days_since_review > 90, \"overdue\",\n    privilege_level=\"privileged\" AND days_since_review > 75, \"due_soon\",\n    1=1, \"current\")\n| eval ownership_status = case(\n    account_type=\"service\" AND (isnull(account_owner) OR account_owner=\"\"), \"unowned_service_account\",\n    1=1, \"owned\")\n| eval access_status = case(\n    mfa_status=\"missing\", \"action_required_mfa\",\n    review_status=\"overdue\", \"action_required_review\",\n    ownership_status=\"unowned_service_account\", \"action_required_ownership\",\n    1=1, \"current\")\n| where access_status != \"current\"\n| table account_name account_type source_system privilege_level owning_group account_owner has_mfa last_password_rotation last_access_review days_since_review days_since_rotation mfa_status review_status ownership_status access_status",
+  "description": "Surveys the pipeline account register for: (a) privileged accounts without MFA, (b) privileged accounts not access-reviewed in 90+ days, (c) service accounts without documented ownership, and (d) accounts with stale password rotation.",
+  "value": "Compromised privileged accounts are the most common entry point into pipeline OT. TSA-SD CIP control family 2 prescribes strong access control; this UC enforces the policy continuously rather than relying on annual audit.",
+  "implementation": "(1) Populate `tsa_pipeline_account_lookup` from Azure AD + CyberArk + AD privileged-group sync. (2) Schedule UC-22.56.4 hourly; route `action_required_mfa` and `action_required_review` to severity=critical. (3) Build the `TSA-SD Pipeline Access Health` dashboard.",
+  "visualization": "(Panel 1) MFA coverage on privileged accounts. (Panel 2) Access-review currency. (Panel 3) Service-account ownership coverage. (Panel 4) Unowned / orphan accounts. (Panel 5) 90-day trend of action_required counts.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §3.2 (Access Control)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "NIST 800-82 Rev 3 — Identification + Authentication",
+      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    }
+  ],
+  "knownFalsePositives": "1. **Onboarding accounts** — newly-created privileged accounts may legitimately not yet have MFA configured during the first 24 hours; tag with `onboarding_grace=true` and exclude.\n\n2. **Service-account migration** — service accounts in flight to managed identities. Suppression: pin in `tsa_22_56_4_exceptions` with documented IAM Lead approval.\n\n3. **Air-gapped OT accounts** — accounts on truly air-gapped OT systems may use compensating controls (physical hardware tokens, smart cards) rather than RFC-MFA. Suppression: tag with `compensating_control_documented=true` and the compensating-control evidence link.\n\n4. **Vendor temporary accounts** — short-lived vendor accounts may not need rotation. Suppression: tag with `expires_at` and exclude if vendor account is within its documented lifetime.\n\n**Suppression mechanism**: KV Store `tsa_22_56_4_exceptions` with documented IAM Lead approval and 60-day maximum grant.",
+  "mitreAttack": [
+    "T1078",
+    "T1078.002",
+    "T1098"
+  ],
+  "requiredFields": [
+    "account_name",
+    "privilege_level",
+    "has_mfa",
+    "last_access_review",
+    "access_status"
+  ],
+  "equipment": [
+    "azure",
+    "cyberark",
+    "m365",
+    "microsoft-azure",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Active Directory 2019/2022",
+    "CyberArk PAM 13.x / 14.x",
+    "Microsoft Azure AD / Entra ID",
+    "SailPoint IdentityIQ 8.x or Saviynt EIC 24.x",
+    "Splunk Enterprise Security 7.x"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + Identity & Access Lead + OT Security Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Indexed Azure AD audit + sign-in events.\n- Indexed CyberArk PAM session + audit events.\n- Indexed AD privileged-group snapshots (scheduled).\n- KV Store `tsa_pipeline_account_lookup`.\n- ES notable framework.\n\n## Step 1 — Define the account register\n\n```ini\n[tsa_pipeline_account_lookup]\nenforceTypes = true\nfield.account_name = string\nfield.account_type = string\nfield.source_system = string\nfield.privilege_level = string\nfield.owning_group = string\nfield.account_owner = string\nfield.has_mfa = bool\nfield.last_password_rotation = number\nfield.last_login = number\nfield.last_access_review = number\nfield.account_purpose = string\nfield.review_cycle_days = number\n```\n\n## Step 2 — Feed the register\n\nA scheduled Splunk search (every 6 hours) pulls Azure AD + CyberArk + AD evidence and rewrites the `tsa_pipeline_account_lookup` rows with the latest authoritative values.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.4: TSA-SD Pipeline CIP Access Control + MFA]\ncron_schedule = 17 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.4,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.2\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = account_name\nalert.suppress.period = 12h\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD Pipeline Access Health`**: MFA coverage, access-review currency, service-account ownership, orphan accounts, 90-day trend.\n\n**Runbook for `action_required_mfa`** (owner: Identity & Access Lead, severity P1):\n1. Within 1 business hour: identify the privileged account and contact the owner.\n2. Within 1 business day: enable MFA or move the account to a managed-identity / compensating-control pathway.\n3. Within 7 days: certify resolution to the CC.\n\n**Runbook for `action_required_review`** (owner: Identity & Access Lead, severity P2):\n1. Within 7 days: run a forced access-review certification via SailPoint / Saviynt.\n2. Within 30 days: certify or revoke based on outcome.\n\n## Step 5 — Troubleshooting\n\n- **AD snapshot staleness** — schedule the AD-group snapshot every 6 hours; alert if more than 24 hours old.\n- **CyberArk feed gaps** — check the Splunk Add-on for CyberArk health; misconfigured input is a common cause.\n- **Service-account ambiguity** — `account_type=service` requires documented purpose; orphans must be remediated within 30 days.\n\n**TSA-specific failure modes**:\n- **CSAS architecture lock-in**: any change to the privileged-account model requires CSAS update before deployment.\n- **PHMSA-shared accounts**: some pipeline accounts are dual-purpose (cyber + safety operations); the privilege model must be coherent across both regimes.\n- **Pre-Final-Rule MFA interpretation**: MFA is preferred but not absolutely required under the current SDs; the Final Rule may tighten. Operate to the higher standard.",
+  "grandmaExplanation": "Every keyholder who can change pipeline computers must use two-factor login, be reviewed every 90 days, and have a clearly-named owner. We watch the keyring so no key gets forgotten.",
+  "prerequisiteUseCases": [
+    "UC-22.56.3"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -66,68 +131,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup tsa_pipeline_account_lookup\n| eval now_ts = now()\n| eval days_since_review = round((now_ts - last_access_review) / 86400, 0)\n| eval days_since_rotation = round((now_ts - last_password_rotation) / 86400, 0)\n| eval mfa_status = case(\n    privilege_level=\"privileged\" AND has_mfa != true, \"missing\",\n    privilege_level=\"privileged\" AND has_mfa = true, \"present\",\n    1=1, \"non_privileged\")\n| eval review_status = case(\n    privilege_level=\"privileged\" AND days_since_review > 90, \"overdue\",\n    privilege_level=\"privileged\" AND days_since_review > 75, \"due_soon\",\n    1=1, \"current\")\n| eval ownership_status = case(\n    account_type=\"service\" AND (isnull(account_owner) OR account_owner=\"\"), \"unowned_service_account\",\n    1=1, \"owned\")\n| eval access_status = case(\n    mfa_status=\"missing\", \"action_required_mfa\",\n    review_status=\"overdue\", \"action_required_review\",\n    ownership_status=\"unowned_service_account\", \"action_required_ownership\",\n    1=1, \"current\")\n| where access_status != \"current\"\n| table account_name account_type source_system privilege_level owning_group account_owner has_mfa last_password_rotation last_access_review days_since_review days_since_rotation mfa_status review_status ownership_status access_status",
-  "description": "Surveys the pipeline account register for: (a) privileged accounts without MFA, (b) privileged accounts not access-reviewed in 90+ days, (c) service accounts without documented ownership, and (d) accounts with stale password rotation.",
-  "value": "Compromised privileged accounts are the most common entry point into pipeline OT. TSA-SD CIP control family 2 prescribes strong access control; this UC enforces the policy continuously rather than relying on annual audit.",
-  "implementation": "(1) Populate `tsa_pipeline_account_lookup` from Azure AD + CyberArk + AD privileged-group sync. (2) Schedule UC-22.56.4 hourly; route `action_required_mfa` and `action_required_review` to severity=critical. (3) Build the `TSA-SD Pipeline Access Health` dashboard.",
-  "visualization": "(Panel 1) MFA coverage on privileged accounts. (Panel 2) Access-review currency. (Panel 3) Service-account ownership coverage. (Panel 4) Unowned / orphan accounts. (Panel 5) 90-day trend of action_required counts.",
-  "cimModels": [
-    "Authentication",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "TSA SD Pipeline-2021-02D §3.2 (Access Control)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
-    },
-    {
-      "title": "NIST 800-82 Rev 3 — Identification + Authentication",
-      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
-    },
-    {
-      "title": "Splunk Add-on for CyberArk",
-      "url": "https://splunkbase.splunk.com/app/2891"
-    }
-  ],
-  "knownFalsePositives": "1. **Onboarding accounts** — newly-created privileged accounts may legitimately not yet have MFA configured during the first 24 hours; tag with `onboarding_grace=true` and exclude.\n\n2. **Service-account migration** — service accounts in flight to managed identities. Suppression: pin in `tsa_22_56_4_exceptions` with documented IAM Lead approval.\n\n3. **Air-gapped OT accounts** — accounts on truly air-gapped OT systems may use compensating controls (physical hardware tokens, smart cards) rather than RFC-MFA. Suppression: tag with `compensating_control_documented=true` and the compensating-control evidence link.\n\n4. **Vendor temporary accounts** — short-lived vendor accounts may not need rotation. Suppression: tag with `expires_at` and exclude if vendor account is within its documented lifetime.\n\n**Suppression mechanism**: KV Store `tsa_22_56_4_exceptions` with documented IAM Lead approval and 60-day maximum grant.",
-  "requiredFields": [
-    "account_name",
-    "privilege_level",
-    "has_mfa",
-    "last_access_review",
-    "access_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + Identity & Access Lead + OT Security Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "cyberark",
-    "microsoft-azure"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x",
-    "CyberArk PAM 13.x / 14.x",
-    "Microsoft Azure AD / Entra ID",
-    "SailPoint IdentityIQ 8.x or Saviynt EIC 24.x",
-    "Active Directory 2019/2022"
-  ],
-  "mitreAttack": [
-    "T1078",
-    "T1078.002",
-    "T1098"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.56.3"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Indexed Azure AD audit + sign-in events.\n- Indexed CyberArk PAM session + audit events.\n- Indexed AD privileged-group snapshots (scheduled).\n- KV Store `tsa_pipeline_account_lookup`.\n- ES notable framework.\n\n## Step 1 — Define the account register\n\n```ini\n[tsa_pipeline_account_lookup]\nenforceTypes = true\nfield.account_name = string\nfield.account_type = string\nfield.source_system = string\nfield.privilege_level = string\nfield.owning_group = string\nfield.account_owner = string\nfield.has_mfa = bool\nfield.last_password_rotation = number\nfield.last_login = number\nfield.last_access_review = number\nfield.account_purpose = string\nfield.review_cycle_days = number\n```\n\n## Step 2 — Feed the register\n\nA scheduled Splunk search (every 6 hours) pulls Azure AD + CyberArk + AD evidence and rewrites the `tsa_pipeline_account_lookup` rows with the latest authoritative values.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.4: TSA-SD Pipeline CIP Access Control + MFA]\ncron_schedule = 17 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.4,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.2\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = account_name\nalert.suppress.period = 12h\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD Pipeline Access Health`**: MFA coverage, access-review currency, service-account ownership, orphan accounts, 90-day trend.\n\n**Runbook for `action_required_mfa`** (owner: Identity & Access Lead, severity P1):\n1. Within 1 business hour: identify the privileged account and contact the owner.\n2. Within 1 business day: enable MFA or move the account to a managed-identity / compensating-control pathway.\n3. Within 7 days: certify resolution to the CC.\n\n**Runbook for `action_required_review`** (owner: Identity & Access Lead, severity P2):\n1. Within 7 days: run a forced access-review certification via SailPoint / Saviynt.\n2. Within 30 days: certify or revoke based on outcome.\n\n## Step 5 — Troubleshooting\n\n- **AD snapshot staleness** — schedule the AD-group snapshot every 6 hours; alert if more than 24 hours old.\n- **CyberArk feed gaps** — check the Splunk Add-on for CyberArk health; misconfigured input is a common cause.\n- **Service-account ambiguity** — `account_type=service` requires documented purpose; orphans must be remediated within 30 days.\n\n**TSA-specific failure modes**:\n- **CSAS architecture lock-in**: any change to the privileged-account model requires CSAS update before deployment.\n- **PHMSA-shared accounts**: some pipeline accounts are dual-purpose (cyber + safety operations); the privilege model must be coherent across both regimes.\n- **Pre-Final-Rule MFA interpretation**: MFA is preferred but not absolutely required under the current SDs; the Final Rule may tighten. Operate to the higher standard.",
-  "grandmaExplanation": "Every keyholder who can change pipeline computers must use two-factor login, be reviewed every 90 days, and have a clearly-named owner. We watch the keyring so no key gets forgotten."
+  "wave": "walk"
 }

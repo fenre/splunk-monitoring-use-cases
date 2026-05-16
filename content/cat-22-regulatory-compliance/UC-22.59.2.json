@@ -48,32 +48,6 @@
   },
   "dataSources": "KV Store `imo_dpa_cyso_roster_lookup` (role, person_name, vessel_or_fleet_scope, on_call_start, on_call_end, primary_phone, secondary_phone, sat_phone, satcom_email, last_heartbeat). PagerDuty / Opsgenie schedule events (sourcetype `pagerduty:schedule` / `opsgenie:schedule`). ServiceNow on-call records (`snow:cmn_rota_member`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 1875), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1875,
-      "name": "Splunk Add-on for PagerDuty",
-      "url": "https://splunkbase.splunk.com/app/1875",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup imo_dpa_cyso_roster_lookup\n| eval now_ts = now()\n| eval heartbeat_age_minutes = round((now_ts - last_heartbeat) / 60, 1)\n| eval in_window = if(now_ts >= on_call_start AND now_ts <= on_call_end, \"true\", \"false\")\n| stats values(person_name) as people, values(in_window) as in_window_vals, max(last_heartbeat) as latest_heartbeat by role, vessel_or_fleet_scope\n| eval heartbeat_age_minutes = round((now() - latest_heartbeat) / 60, 1)\n| eval covered = if(mvfind(in_window_vals, \"true\") >= 0, \"true\", \"false\")\n| eval gap_indicator = case(covered = \"false\", \"true\", heartbeat_age_minutes > 60, \"true\", 1=1, \"false\")\n| where gap_indicator = \"true\"\n| table role vessel_or_fleet_scope people latest_heartbeat heartbeat_age_minutes covered gap_indicator",
   "description": "Surveils the DPA + CySO + Alternate on-call rota for continuous coverage and live heartbeat; raises a notable when the rota has a gap or any role's last heartbeat exceeds 60 minutes.",
   "value": "If a cyber incident occurs and no DPA / CySO is reachable, the Master's escalation path is broken, the flag-State reporting clock starts late, and the company is exposed to a major-non-conformity finding at the next DoC verification. This UC closes the gap before it becomes an audit observation.",
@@ -98,37 +72,63 @@
     }
   ],
   "knownFalsePositives": "1. **Hand-over micro-gap**: a 5-minute hand-over window between outgoing and incoming on-call is normal; ignore gaps under 10 minutes. 2. **Sat-phone heartbeat delay**: vessels in poor satcom coverage may legitimately have a delayed heartbeat; pin tolerance to 90 minutes for vessels in `vessel_status=offshore` or `last_known_position` in known coverage holes. 3. **Public-holiday short-staffing**: pre-approved short-staff windows during major holidays are accepted via a holiday register.\n\n**Suppression mechanism**: KV Store `imo_22_59_2_exceptions` with the CISO's documented approval and a written justification.",
+  "mitreAttack": [
+    "N/A (governance / availability)"
+  ],
   "requiredFields": [
     "role",
     "vessel_or_fleet_scope",
     "latest_heartbeat",
     "gap_indicator"
   ],
+  "equipment": [
+    "pagerduty",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Atlassian Opsgenie",
+    "PagerDuty Operations Cloud",
+    "ServiceNow ITSM (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime Cyber SME Panel + DPA + Company Security Officer",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "pagerduty",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "PagerDuty Operations Cloud",
-    "Atlassian Opsgenie",
-    "ServiceNow ITSM (Vancouver / Washington / Xanadu)"
-  ],
-  "mitreAttack": [
-    "N/A (governance / availability)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- An on-call platform integrated via Splunk Add-on for PagerDuty / Opsgenie / ServiceNow.\n- A heartbeat-ping mechanism from each on-call device (push notification ack, sat-phone keep-alive).\n\n## Step 1 — Roster KV Store\n\n```ini\n[imo_dpa_cyso_roster_lookup]\nenforceTypes = true\nfield.role = string\nfield.person_name = string\nfield.vessel_or_fleet_scope = string\nfield.on_call_start = time\nfield.on_call_end = time\nfield.primary_phone = string\nfield.secondary_phone = string\nfield.sat_phone = string\nfield.satcom_email = string\nfield.last_heartbeat = time\nfield.heartbeat_source = string\n```\n\n## Step 2 — Heartbeat wiring\n\nEach on-call device must publish a heartbeat through the on-call app (PagerDuty mobile app push-acknowledgement, Opsgenie heartbeat ping) or a custom HEC event. The Splunk Add-on writes the latest heartbeat to the KV Store via `outputlookup`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.2: IMO DPA + CySO Roster Health]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.2,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-4\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`gap_indicator=true`** (owner: CISO + Head of Fleet Ops, severity P1): Within 30 minutes, restore coverage; within 24 hours, write a corrective-action note to the SMS audit log; at the next monthly governance meeting, present root cause.\n\n## Step 5 — Troubleshooting\n\n- **Sat-phone latency**: a vessel in deep-ocean satcom edge may take 60+ minutes for a heartbeat; tune per-vessel tolerance based on `last_known_position` and the company's satcom coverage map.\n- **Vessel without sat-phone**: rare but possible for inland-only operations; use VHF radio and a fall-back contact rather than the cyber roster.",
+  "grandmaExplanation": "When something goes wrong on a ship at any hour, there must always be someone ashore who can answer the phone and help. We watch the on-call schedule, ping each named person every 30 minutes, and ring the alarm if anyone goes missing or no-one is covering a shift.",
   "prerequisiteUseCases": [
     "UC-22.59.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- An on-call platform integrated via Splunk Add-on for PagerDuty / Opsgenie / ServiceNow.\n- A heartbeat-ping mechanism from each on-call device (push notification ack, sat-phone keep-alive).\n\n## Step 1 — Roster KV Store\n\n```ini\n[imo_dpa_cyso_roster_lookup]\nenforceTypes = true\nfield.role = string\nfield.person_name = string\nfield.vessel_or_fleet_scope = string\nfield.on_call_start = time\nfield.on_call_end = time\nfield.primary_phone = string\nfield.secondary_phone = string\nfield.sat_phone = string\nfield.satcom_email = string\nfield.last_heartbeat = time\nfield.heartbeat_source = string\n```\n\n## Step 2 — Heartbeat wiring\n\nEach on-call device must publish a heartbeat through the on-call app (PagerDuty mobile app push-acknowledgement, Opsgenie heartbeat ping) or a custom HEC event. The Splunk Add-on writes the latest heartbeat to the KV Store via `outputlookup`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.2: IMO DPA + CySO Roster Health]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.2,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-4\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`gap_indicator=true`** (owner: CISO + Head of Fleet Ops, severity P1): Within 30 minutes, restore coverage; within 24 hours, write a corrective-action note to the SMS audit log; at the next monthly governance meeting, present root cause.\n\n## Step 5 — Troubleshooting\n\n- **Sat-phone latency**: a vessel in deep-ocean satcom edge may take 60+ minutes for a heartbeat; tune per-vessel tolerance based on `last_known_position` and the company's satcom coverage map.\n- **Vessel without sat-phone**: rare but possible for inland-only operations; use VHF radio and a fall-back contact rather than the cyber roster.",
-  "grandmaExplanation": "When something goes wrong on a ship at any hour, there must always be someone ashore who can answer the phone and help. We watch the on-call schedule, ping each named person every 30 minutes, and ring the alarm if anyone goes missing or no-one is covering a shift."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1875,
+      "name": "Splunk Add-on for PagerDuty",
+      "url": "https://splunkbase.splunk.com/app/1875",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
 }

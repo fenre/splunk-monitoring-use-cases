@@ -35,25 +35,6 @@
   },
   "dataSources": "ServiceNow CMDB, OT visibility (Dragos / Claroty / Nozomi / Armis), network scanner (Tenable / Lansweeper), external attack-surface management.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(index=ot_asset OR index=cmdb OR index=net_scan OR index=easm) earliest=-1d@d\n| stats first(asset_class) as asset_class first(hostname) as hostname first(ip) as ip last(_time) as last_seen first(owner) as owner first(lifecycle_status) as lifecycle_status first(internet_exposed) as internet_exposed first(remote_access_endpoint) as remote_access_endpoint by pwsid asset_id\n| eval inventory_record_complete = if(isnotnull(owner) AND isnotnull(lifecycle_status) AND isnotnull(asset_class), \"true\", \"false\")\n| eval inventory_status = case(\n    isnull(asset_id), \"unmanaged\",\n    isnull(owner) OR isnull(lifecycle_status), \"incomplete\",\n    (now() - last_seen) > (30 * 86400), \"unseen_30d\",\n    1=1, \"current\")\n| where inventory_status != \"current\"\n| table pwsid asset_id asset_class hostname ip last_seen owner lifecycle_status internet_exposed remote_access_endpoint inventory_record_complete inventory_status",
   "description": "Joins OT / IT / scanner / EASM data to surface unmanaged, incomplete, or unseen assets.",
   "value": "An incomplete inventory means an incomplete RRA, incomplete vulnerability management, and incomplete patching. AWIA Top Actions cite inventory as the gateway control.",
@@ -73,6 +54,10 @@
     }
   ],
   "knownFalsePositives": "1. **Air-gapped lab** — excluded.\n\n2. **Mobile asset** — expected unseen-30d during travel.\n\n**Suppression**: `awia_22_53_27_exceptions`; 30-day max.",
+  "mitreAttack": [
+    "T1592",
+    "T1133"
+  ],
   "requiredFields": [
     "pwsid",
     "asset_id",
@@ -81,33 +66,49 @@
     "lifecycle_status",
     "inventory_status"
   ],
+  "equipment": [
+    "dragos",
+    "servicenow",
+    "splunk-es",
+    "tenable"
+  ],
+  "equipmentModels": [
+    "Dragos / Claroty / Nozomi / Armis OT visibility",
+    "External attack-surface management",
+    "ServiceNow CMDB",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Tenable / Lansweeper IT scanner"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "servicenow",
-    "dragos",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "ServiceNow CMDB",
-    "Dragos / Claroty / Nozomi / Armis OT visibility",
-    "Tenable / Lansweeper IT scanner",
-    "External attack-surface management",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T1592",
-    "T1133"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on, OT broker.\n- Indexes `index=ot_asset`, `index=cmdb`, `index=net_scan`, `index=easm`, `index=audit_evidence`.\n\n## Step 1 — Configure data collection\n\nReconcile CMDB authority with OT visibility passive discovery; surface deltas.\n\n## Step 2 — Create the search and alert\n\nDaily 13:00.\n\n```ini\n[UC-22.53.27: AWIA OT/IT Inventory]\ncron_schedule = 0 13 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.27,reg=AWIA,clause=AWIA-EPA-asset-inventory\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: drop CMDB record; UC fires.  Negative: complete; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — OT/IT Inventory`. Runbook: register, classify, owner-assign within 5 business days.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Remote lift-station discovery**: passive OT visibility may miss a remote PLC behind cellular; supplement with cellular-gateway inventory.\n- **EASM signal**: a Shodan / Censys-flagged internet-exposed water-utility HMI must be cross-referenced into the inventory and the segmentation UC (UC-22.53.22).",
+  "grandmaExplanation": "You can't protect what you don't know about. We continuously discover every computer, controller, and network device in the water plants and the offices, and ring the bell if anything appears that isn't on the official list.",
   "prerequisiteUseCases": [
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, ServiceNow add-on, OT broker.\n- Indexes `index=ot_asset`, `index=cmdb`, `index=net_scan`, `index=easm`, `index=audit_evidence`.\n\n## Step 1 — Configure data collection\n\nReconcile CMDB authority with OT visibility passive discovery; surface deltas.\n\n## Step 2 — Create the search and alert\n\nDaily 13:00.\n\n```ini\n[UC-22.53.27: AWIA OT/IT Inventory]\ncron_schedule = 0 13 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.27,reg=AWIA,clause=AWIA-EPA-asset-inventory\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: drop CMDB record; UC fires.  Negative: complete; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — OT/IT Inventory`. Runbook: register, classify, owner-assign within 5 business days.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Remote lift-station discovery**: passive OT visibility may miss a remote PLC behind cellular; supplement with cellular-gateway inventory.\n- **EASM signal**: a Shodan / Censys-flagged internet-exposed water-utility HMI must be cross-referenced into the inventory and the segmentation UC (UC-22.53.22).",
-  "grandmaExplanation": "You can't protect what you don't know about. We continuously discover every computer, controller, and network device in the water plants and the offices, and ring the bell if anything appears that isn't on the official list."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

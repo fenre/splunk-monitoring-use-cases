@@ -34,18 +34,6 @@
   },
   "dataSources": "`audit_evidence` summary index (consolidated from all 16 sibling UCs UC-22.59.1 through UC-22.59.16). DoC verification register (`imo_doc_verification_lookup`). PSC inspection records via HEC (`hec:psc:inspection`). Flag-State audit records via HEC (`hec:imo:flag:audit`). Class-society survey records (`hec:class:survey`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=audit_evidence reg=\"IMO-MSC-428-98\" earliest=-7d@d latest=now\n| stats count AS evidence_rows,\n        dc(uc) AS distinct_ucs,\n        min(_time) AS first_event,\n        max(_time) AS last_event\n  BY imo_number, uc\n| eval freshness_seconds = round(now() - last_event, 0)\n| eval freshness_status = case(\n    freshness_seconds > 86400, \"stale\",\n    1=1, \"fresh\")\n| append [\n    | inputlookup imo_doc_verification_lookup\n    | eval freshness_status = \"context\"\n    | table imo_number ship_name doc_verification_due_at freshness_status]\n| where freshness_status != \"fresh\"\n| sort 0 -freshness_seconds\n| table imo_number ship_name uc evidence_rows distinct_ucs first_event last_event freshness_status",
   "description": "Validates that the `audit_evidence` summary index carries weekly rows for every sibling UC in this subcategory and that retrieval-latency SLA (5 minutes for live-incident evidence, 1 hour for historical-audit spans) is honoured during DoC verification, PSC inspection, flag-State audit, and class-society cyber-survey events.",
   "value": "An auditor or PSC inspector who cannot retrieve evidence within the SLA records the gap as a major non-conformity even if the underlying control is in place. This UC defends the company against avoidable findings by proving the evidence chain is intact.",
@@ -69,6 +57,9 @@
     }
   ],
   "knownFalsePositives": "1. **Newly onboarded vessel**: a vessel added <30 days ago will not yet carry historic audit-evidence rows; honour the onboarding grace window. 2. **Subcategory-level audit gap**: every UC must write to `audit_evidence` with the canonical marker; if a sibling UC is broken, this UC will (correctly) flag the gap.\n\n**Suppression mechanism**: KV Store `imo_22_59_17_exceptions` with the Company Security Officer documented approval.",
+  "mitreAttack": [
+    "N/A (audit-evidence retrieval ledger)"
+  ],
   "requiredFields": [
     "imo_number",
     "uc",
@@ -76,29 +67,38 @@
     "freshness_seconds",
     "freshness_status"
   ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Maritime Cyber SME Panel + Company Security Officer + DPA + Internal Auditor",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "splunk-es"
   ],
   "equipmentModels": [
     "Splunk ES 7.x"
   ],
-  "mitreAttack": [
-    "N/A (audit-evidence retrieval ledger)"
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "Maritime Cyber SME Panel + Company Security Officer + DPA + Internal Auditor",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- All 16 sibling UCs UC-22.59.1 through UC-22.59.16 in production and writing to `audit_evidence`.\n- Retention on `audit_evidence` set to ≥ 5 years (typical for IMO + class evidence chain).\n- KV Store `imo_doc_verification_lookup`, `iacs_ur_e26_attestation_lookup`, `iacs_ur_e27_attestation_lookup` populated.\n\n## Step 1 — Canonical evidence marker\n\nEvery sibling UC writes a tag `reg=IMO-MSC-428-98,clause=<clause-id>,uc=<uc-id>` in the `marker` field; the search depends on this contract.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.17: IMO Audit-Evidence Retrieval Ledger]\ncron_schedule = 0 8 * * 1\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.17,reg=IMO-MSC-428-98,clause=IMO-MSC-428-98-p3\nalert.severity = 3\n```\n\n## Step 3 — Audit-pack export\n\nProvide a Splunk SOAR playbook that, given (imo_number, time-range, sibling-uc-list), exports a single PDF / CSV bundle suitable for handing to the DoC auditor, PSC inspector, or flag-State auditor. This is the operational deliverable of UC-22.59.17.\n\n## Step 4 — Maritime-specific notes\n\n- **PSC inspectors run cyber CICs** (Concentrated Inspection Campaigns). The Paris MoU 2023 CIC routinely demanded cyber-evidence on a vessel-by-vessel basis; this UC is the company's single retrieval point.\n- **Class society cyber survey**: each class society performs a periodic E26 / E27 survey on the vessel; this UC is the company's evidence chain for that survey.",
+  "grandmaExplanation": "When a coast-guard inspector or auditor visits the ship and asks 'show me proof that you watch your cyber-systems,' we keep all the proof in one place and can hand it over right away. We also check every week that the proof is being collected and is current for every ship.",
   "prerequisiteUseCases": [
     "UC-22.59.1",
     "UC-22.59.13",
     "UC-22.59.15",
     "UC-22.59.16"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- All 16 sibling UCs UC-22.59.1 through UC-22.59.16 in production and writing to `audit_evidence`.\n- Retention on `audit_evidence` set to ≥ 5 years (typical for IMO + class evidence chain).\n- KV Store `imo_doc_verification_lookup`, `iacs_ur_e26_attestation_lookup`, `iacs_ur_e27_attestation_lookup` populated.\n\n## Step 1 — Canonical evidence marker\n\nEvery sibling UC writes a tag `reg=IMO-MSC-428-98,clause=<clause-id>,uc=<uc-id>` in the `marker` field; the search depends on this contract.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.17: IMO Audit-Evidence Retrieval Ledger]\ncron_schedule = 0 8 * * 1\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.17,reg=IMO-MSC-428-98,clause=IMO-MSC-428-98-p3\nalert.severity = 3\n```\n\n## Step 3 — Audit-pack export\n\nProvide a Splunk SOAR playbook that, given (imo_number, time-range, sibling-uc-list), exports a single PDF / CSV bundle suitable for handing to the DoC auditor, PSC inspector, or flag-State auditor. This is the operational deliverable of UC-22.59.17.\n\n## Step 4 — Maritime-specific notes\n\n- **PSC inspectors run cyber CICs** (Concentrated Inspection Campaigns). The Paris MoU 2023 CIC routinely demanded cyber-evidence on a vessel-by-vessel basis; this UC is the company's single retrieval point.\n- **Class society cyber survey**: each class society performs a periodic E26 / E27 survey on the vessel; this UC is the company's evidence chain for that survey.",
-  "grandmaExplanation": "When a coast-guard inspector or auditor visits the ship and asks 'show me proof that you watch your cyber-systems,' we keep all the proof in one place and can hand it over right away. We also check every week that the proof is being collected and is current for every ship."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

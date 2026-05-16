@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `rail_supplier_deliverables_lookup`. ServiceNow Vendor Risk Management module. Supplier portal HEC submissions.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "optional",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_supplier_deliverables_lookup\n| where deliverable_status_in_register=\"open\"\n| eval now_ts = now()\n| eval days_overdue = if(due_at < now_ts AND isnull(received_at), round((now_ts - due_at) / 86400, 0), null())\n| eval deliverable_status = case(\n    isnotnull(accepted_at), \"accepted\",\n    isnotnull(received_at) AND isnull(accepted_at), \"received_pending_acceptance\",\n    isnull(received_at) AND due_at < now_ts, \"deliverable_overdue\",\n    isnull(received_at), \"awaiting_supplier\",\n    1=1, \"in_progress\")\n| where deliverable_status IN (\"deliverable_overdue\", \"received_pending_acceptance\")\n| table deliverable_id supplier_id deliverable_type due_at received_at accepted_at accepted_by days_overdue deliverable_status",
   "description": "Tracks supplier deliverables (SBOM, patch schedule, vuln bulletins) against contract SLAs.",
   "value": "Supply-chain risk is amplified in rail by long product lifecycles. This UC ensures contract enforcement is operationalised.",
@@ -74,33 +55,53 @@
     }
   ],
   "knownFalsePositives": "1. **Supplier negotiating extension** — documented contract amendment. Suppression: `deliverable_status_override=amendment_in_review` with 30-day grant.\n\n**Suppression mechanism**: KV Store `clc_22_55_15_exceptions` with documented Supply-Chain-Lead approval and 60-day maximum grant.",
+  "mitreAttack": [
+    "T1195"
+  ],
   "requiredFields": [
     "deliverable_id",
     "supplier_id",
     "deliverable_type",
     "deliverable_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow Vendor Risk Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Rail Cybersecurity SME Panel + Procurement Cybersecurity Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "ServiceNow Vendor Risk Management"
-  ],
-  "mitreAttack": [
-    "T1195"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_supplier_deliverables_lookup`.\n\n## Step 1 — Deliverable collection\n\n```ini\n[rail_supplier_deliverables_lookup]\nenforceTypes = true\nfield.deliverable_id = string\nfield.supplier_id = string\nfield.deliverable_type = string\nfield.due_at = number\nfield.received_at = number\nfield.accepted_at = number\nfield.accepted_by = string\nfield.deliverable_status_in_register = string\n```\n\nDeliverable types include: SBOM, vulnerability bulletin, patch release schedule, security event sharing, ISA-Secure certification proof, security-incident notification SLA proof.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.15: CLC/TS 50701 Supplier Deliverables]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.15,reg=CLC-TS-50701,clause=CLC-TS-50701-c9-1\naction.notable.param.rule_title = Rail supplier deliverable overdue or pending\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `deliverable_overdue`** (owner: Procurement Cybersecurity Lead, severity P2): contact supplier; document remediation; escalate if no response.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Long-cycle rail vendors**: rail vendors often slow to deliver SBOMs; require contractual commitment.\n- **Vendor-of-vendor visibility**: sub-suppliers may have separate obligations; tracked via flow-down clauses.",
+  "grandmaExplanation": "Every cyber-supplier (signal-box maker, train-brain maker, radio maker) promised certain things in their contracts — a list of components in their products, a fast warning if they find a bug. We keep a list of every promise; if a supplier misses a deadline, we contact them.",
   "prerequisiteUseCases": [
     "UC-22.55.9"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_supplier_deliverables_lookup`.\n\n## Step 1 — Deliverable collection\n\n```ini\n[rail_supplier_deliverables_lookup]\nenforceTypes = true\nfield.deliverable_id = string\nfield.supplier_id = string\nfield.deliverable_type = string\nfield.due_at = number\nfield.received_at = number\nfield.accepted_at = number\nfield.accepted_by = string\nfield.deliverable_status_in_register = string\n```\n\nDeliverable types include: SBOM, vulnerability bulletin, patch release schedule, security event sharing, ISA-Secure certification proof, security-incident notification SLA proof.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.15: CLC/TS 50701 Supplier Deliverables]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.15,reg=CLC-TS-50701,clause=CLC-TS-50701-c9-1\naction.notable.param.rule_title = Rail supplier deliverable overdue or pending\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `deliverable_overdue`** (owner: Procurement Cybersecurity Lead, severity P2): contact supplier; document remediation; escalate if no response.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Long-cycle rail vendors**: rail vendors often slow to deliver SBOMs; require contractual commitment.\n- **Vendor-of-vendor visibility**: sub-suppliers may have separate obligations; tracked via flow-down clauses.",
-  "grandmaExplanation": "Every cyber-supplier (signal-box maker, train-brain maker, radio maker) promised certain things in their contracts — a list of components in their products, a fast warning if they find a bug. We keep a list of every promise; if a supplier misses a deadline, we contact them."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

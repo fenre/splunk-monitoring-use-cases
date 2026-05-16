@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC module (`index=grc sourcetype=\"snow:lawful_disclosure\"`). Lookup `lawful_disclosure_register_lookup` (disclosure_id, classification, sender_id, recipient_id, recipient_organisation, recipient_email_domain, lawful_basis (CSV), basis_artefact_url, approved_at, approved_by, sunset_at, register_status).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup lawful_disclosure_register_lookup\n| eval days_since_approved = if(isnotnull(approved_at), round((now() - approved_at) / 86400, 0), null())\n| eval days_to_sunset = if(isnotnull(sunset_at), round((sunset_at - now()) / 86400, 0), null())\n| eval register_status = case(\n    isnull(lawful_basis) OR lawful_basis=\"\", \"basis_missing\",\n    isnull(basis_artefact_url) OR basis_artefact_url=\"\", \"artefact_missing\",\n    isnull(approved_by) OR isnull(approved_at), \"unapproved\",\n    isnotnull(sunset_at) AND sunset_at < now(), \"expired\",\n    isnotnull(sunset_at) AND days_to_sunset <= 30, \"approaching_sunset\",\n    1=1, \"current\")\n| table disclosure_id classification sender_id recipient_id recipient_organisation lawful_basis approved_at approved_by sunset_at days_to_sunset basis_artefact_url register_status",
   "description": "Maintains the register of lawful disclosures of Protected Information per Part 6A: every authorised disclosure carries a documented lawful basis, an artefact, an approver, and a sunset date.",
   "value": "Defending against on-disclosure offences (Part 6A) requires demonstrating both (a) the entity prevented unauthorised disclosures and (b) authorised disclosures were lawful. This UC produces and maintains (b); UC-22.52.24 detects (a). Together they form the Part 6A compliance core.",
@@ -77,6 +58,9 @@
     }
   ],
   "knownFalsePositives": "1. **Long-lived disclosures** — authorised disclosures to a regulator may not have a sunset. Suppression: tolerate `sunset_at=null` with documented `lawful_basis` and a 12-month review reminder.\n\n2. **Court orders with confidentiality**: the artefact may be sealed; surface a confidentiality reference instead of the artefact URL.\n\n3. **Cross-jurisdictional disclosure**: a disclosure to a foreign Government may also be authorised under separate treaty arrangement. Suppression: separate `treaty_disclosure_lookup`.\n\n**Suppression mechanism**: KV Store `soci_22_52_25_exceptions`; max grant 30 days with General Counsel sign-off.",
+  "mitreAttack": [
+    "N/A (compliance-register workflow — measures Part 6A lawful disclosure register currency, not adversary detection)"
+  ],
   "requiredFields": [
     "disclosure_id",
     "classification",
@@ -85,14 +69,6 @@
     "approved_at",
     "register_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -102,12 +78,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (compliance-register workflow — measures Part 6A lawful disclosure register currency, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.24 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `lawful_disclosure_register_lookup` columns: `disclosure_id`, `classification`, `sender_id`, `recipient_id`, `recipient_organisation`, `recipient_email_domain`, `lawful_basis` (e.g. `s42_authorised_recipient_Secretary`, `s43_authorised_recipient_ASD`, `s44_authorised_recipient_court`, `s45_authorised_recipient_regulator`), `basis_artefact_url`, `approved_at`, `approved_by`, `sunset_at`, `notes`.\n- Authorised approvers list owned by General Counsel.\n\n## Step 1 — Configure data collection\n\nMaterialise the lookup daily from the GRC; new entries created by the General Counsel team upon each authorised disclosure.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.25: SOCI Part 6A lawful disclosure register]\ncron_schedule = 30 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.25,reg=SOCI,clause=SOCI-Part-6A-register\naction.notable.param.rule_title = SOCI Part 6A lawful disclosure register hygiene\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity by `register_status`: `expired`, `unapproved`, `basis_missing` → high; `artefact_missing` → medium; `approaching_sunset` → informational.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: author a test entry without lawful_basis; UC flags `basis_missing`.\n\n**(b)** Negative control: complete a fully-approved entry; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Lawful Disclosure Register`.\n\n- Register entries by lawful_basis.\n- Recipient organisation map.\n- Sunset aging.\n- Approver concentration.\n- Cross-link to UC-22.52.24 (every authorised-disclosure detection is reconciled to a register entry).\n\n**Runbook for `expired`** (owner: Information Security Manager, severity P2):\n\n1. Within 14 business days: renew or remove the entry; downstream feed UC-22.52.24 must be refreshed.\n\n**Runbook for `basis_missing`** (owner: Information Security Manager + General Counsel, severity P2):\n\n1. Within 14 business days: capture lawful basis or revoke disclosure.\n\n## Step 5 — Troubleshooting\n\n**Downstream lookup drift**: ensure `protected_info_authorised_disclosure_lookup` is regenerated when the register changes.\n\n**Confidential artefacts**: sealed orders are confidentially recorded; ensure the reference is sufficient.\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — lawful_basis as free text**: ServiceNow GRC by default stores lawful_basis as free text, which breaks the controlled-vocabulary contract this UC depends on. Mitigation: use a Choice (drop-down) field in ServiceNow keyed on a controlled vocabulary of `s42_authorised_recipient_Secretary`, `s43_authorised_recipient_ASD`, `s44_authorised_recipient_court`, `s45_authorised_recipient_regulator`, plus an `other_basis_with_reference` option that requires an attached basis_artefact_url.\n- **Splunk Add-on for ServiceNow — sn_grc.lawful_disclosure table not in default scope**: the default ServiceNow add-on scope does not include `sn_grc_lawful_disclosure*` tables. Mitigation: extend `inputs.conf` to add a dedicated stanza for the GRC table and re-run discovery in the add-on UI.\n- **OneTrust — alternative compliance tooling**: where OneTrust replaces ServiceNow GRC, the disclosure register lives in `RegisterEntries.json` exports rather than a stream-write integration. Mitigation: schedule a 30-minute scripted-input that re-exports the OneTrust register and writes the lookup; manage the staleness budget in `register_status` accordingly.\n- **Splunk ES 7.x — notable severity floor**: ES 7.x bumps `severity=informational` notables to `low` if the notable index has `severity_field=severity`. Mitigation: write `urgency` rather than `severity` on the notable to bypass the floor.\n\n**SOCI-specific failure modes**:\n\n- **Section 42-45 alignment**: ensure the lawful basis maps to a specific subsection of Part 6A.\n- **Cross-reference to TI**: some Protected Information may also be classified under the Telecommunications (Interception and Access) Act 1979; ensure dual-classification compatibility.\n- **MSSP receipt**: an MSSP receiving Protected as part of triage; pair with explicit consent clause in MSSP contract.",
+  "grandmaExplanation": "Sometimes we MUST share Protected information with the Government or a Court — the law allows it. We keep a written register of every allowed sharing: who, with whom, why, when. The yes-list is fed into the system that watches for wrongful sharing, so the alarms only ring on the real bad cases.",
   "prerequisiteUseCases": [
     "UC-22.52.24"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.24 deployed.\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `lawful_disclosure_register_lookup` columns: `disclosure_id`, `classification`, `sender_id`, `recipient_id`, `recipient_organisation`, `recipient_email_domain`, `lawful_basis` (e.g. `s42_authorised_recipient_Secretary`, `s43_authorised_recipient_ASD`, `s44_authorised_recipient_court`, `s45_authorised_recipient_regulator`), `basis_artefact_url`, `approved_at`, `approved_by`, `sunset_at`, `notes`.\n- Authorised approvers list owned by General Counsel.\n\n## Step 1 — Configure data collection\n\nMaterialise the lookup daily from the GRC; new entries created by the General Counsel team upon each authorised disclosure.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.25: SOCI Part 6A lawful disclosure register]\ncron_schedule = 30 12 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.25,reg=SOCI,clause=SOCI-Part-6A-register\naction.notable.param.rule_title = SOCI Part 6A lawful disclosure register hygiene\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity by `register_status`: `expired`, `unapproved`, `basis_missing` → high; `artefact_missing` → medium; `approaching_sunset` → informational.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: author a test entry without lawful_basis; UC flags `basis_missing`.\n\n**(b)** Negative control: complete a fully-approved entry; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Lawful Disclosure Register`.\n\n- Register entries by lawful_basis.\n- Recipient organisation map.\n- Sunset aging.\n- Approver concentration.\n- Cross-link to UC-22.52.24 (every authorised-disclosure detection is reconciled to a register entry).\n\n**Runbook for `expired`** (owner: Information Security Manager, severity P2):\n\n1. Within 14 business days: renew or remove the entry; downstream feed UC-22.52.24 must be refreshed.\n\n**Runbook for `basis_missing`** (owner: Information Security Manager + General Counsel, severity P2):\n\n1. Within 14 business days: capture lawful basis or revoke disclosure.\n\n## Step 5 — Troubleshooting\n\n**Downstream lookup drift**: ensure `protected_info_authorised_disclosure_lookup` is regenerated when the register changes.\n\n**Confidential artefacts**: sealed orders are confidentially recorded; ensure the reference is sufficient.\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — lawful_basis as free text**: ServiceNow GRC by default stores lawful_basis as free text, which breaks the controlled-vocabulary contract this UC depends on. Mitigation: use a Choice (drop-down) field in ServiceNow keyed on a controlled vocabulary of `s42_authorised_recipient_Secretary`, `s43_authorised_recipient_ASD`, `s44_authorised_recipient_court`, `s45_authorised_recipient_regulator`, plus an `other_basis_with_reference` option that requires an attached basis_artefact_url.\n- **Splunk Add-on for ServiceNow — sn_grc.lawful_disclosure table not in default scope**: the default ServiceNow add-on scope does not include `sn_grc_lawful_disclosure*` tables. Mitigation: extend `inputs.conf` to add a dedicated stanza for the GRC table and re-run discovery in the add-on UI.\n- **OneTrust — alternative compliance tooling**: where OneTrust replaces ServiceNow GRC, the disclosure register lives in `RegisterEntries.json` exports rather than a stream-write integration. Mitigation: schedule a 30-minute scripted-input that re-exports the OneTrust register and writes the lookup; manage the staleness budget in `register_status` accordingly.\n- **Splunk ES 7.x — notable severity floor**: ES 7.x bumps `severity=informational` notables to `low` if the notable index has `severity_field=severity`. Mitigation: write `urgency` rather than `severity` on the notable to bypass the floor.\n\n**SOCI-specific failure modes**:\n\n- **Section 42-45 alignment**: ensure the lawful basis maps to a specific subsection of Part 6A.\n- **Cross-reference to TI**: some Protected Information may also be classified under the Telecommunications (Interception and Access) Act 1979; ensure dual-classification compatibility.\n- **MSSP receipt**: an MSSP receiving Protected as part of triage; pair with explicit consent clause in MSSP contract.",
-  "grandmaExplanation": "Sometimes we MUST share Protected information with the Government or a Court — the law allows it. We keep a written register of every allowed sharing: who, with whom, why, when. The yes-list is fed into the system that watches for wrongful sharing, so the alarms only ring on the real bad cases."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

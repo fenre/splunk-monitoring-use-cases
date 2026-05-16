@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `cert_in_poc_register_lookup` (legal_entity_id, poc_name, poc_designation, poc_email, poc_phone_24x7, last_change_at, last_filed_with_cert_in_at, cert_in_portal_ack_ref). KV Store `cert_in_poc_contactability_test_lookup` (legal_entity_id, test_date, test_status, test_evidence_ref). HR roster events (HRIS export to `hec:hris:poc:change`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup cert_in_poc_register_lookup\n| eval now_ts = now()\n| eval days_since_change = round((now_ts - last_change_at) / 86400, 1)\n| eval days_since_filed = round((now_ts - last_filed_with_cert_in_at) / 86400, 1)\n| eval filing_drift_days = round((last_filed_with_cert_in_at - last_change_at) / 86400, 1)\n| eval filing_late = if(last_change_at > last_filed_with_cert_in_at AND days_since_change > 7, 1, 0)\n| eval filing_pending = if(last_change_at > last_filed_with_cert_in_at AND days_since_change <= 7, 1, 0)\n| eval poc_filed_ever = if(isnotnull(last_filed_with_cert_in_at), 1, 0)\n| eval poc_email_present = if(isnotnull(poc_email) AND poc_email != \"\", 1, 0)\n| eval poc_phone_present = if(isnotnull(poc_phone_24x7) AND poc_phone_24x7 != \"\", 1, 0)\n| join type=left legal_entity_id [\n    | inputlookup cert_in_poc_contactability_test_lookup\n    | stats max(test_date) as last_contactability_test_at, latest(test_status) as last_contactability_test_status, latest(test_evidence_ref) as test_evidence_ref by legal_entity_id\n  ]\n| eval days_since_contactability_test = round((now_ts - last_contactability_test_at) / 86400, 1)\n| eval contactability_test_stale = if(days_since_contactability_test > 92 OR isnull(last_contactability_test_at), 1, 0)\n| eval contactability_test_failed = if(last_contactability_test_status = \"failed\", 1, 0)\n| eval risk_score = case(\n    poc_filed_ever = 0, 100,\n    filing_late = 1, 85,\n    poc_email_present = 0 OR poc_phone_present = 0, 80,\n    contactability_test_failed = 1, 80,\n    contactability_test_stale = 1, 60,\n    filing_pending = 1, 30,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_since_filed\n| table legal_entity_id poc_name poc_designation poc_email poc_phone_24x7 last_change_at last_filed_with_cert_in_at days_since_change days_since_filed filing_drift_days last_contactability_test_at last_contactability_test_status risk_score",
   "description": "Reconciles every Indian legal entity's CERT-In POC entry against the three Direction (vi) limbs: (i) a POC is on file with CERT-In with a non-null email + 24×7 phone, (ii) any change to the POC has been filed within 7 days (the regulator-expected change-notification window), and (iii) a quarterly contactability test (call + email reply) has been performed and passed within the last 92 days.",
   "value": "A stale or unverified CERT-In POC is the single biggest operational risk in a real cyber incident: the 6-hour clock (UC-22.62.1) cannot start ticking against the right person if the POC entry is wrong. CERT-In has stated in clarifications that POC information not being up to date is itself a Direction-(vi) breach. The quarterly contactability test is a defensive control — the POC may pass a paper-audit but fail a real call at 03:00.",
@@ -74,6 +55,9 @@
     }
   ],
   "knownFalsePositives": "1. **Transitional period after re-organisation**: a corporate reorganisation may produce a brief filing-drift window — load `reorg_transition_until` to suppress for up to 30 days. 2. **POC on leave with documented alternate**: the alternate is not the filed POC, but if the alternate's 24×7 contactability is independently proven, suppress with `alternate_attestation_ref`. 3. **Multi-subsidiary filing**: a parent may file a single POC on behalf of multiple subsidiaries — load `parent_poc_filing_ref` on the subsidiary rows.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_3_exceptions` with the CISO and Legal documented approval, an explicit legal_entity_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance overlay)"
+  ],
   "requiredFields": [
     "legal_entity_id",
     "poc_name",
@@ -81,27 +65,43 @@
     "poc_phone_24x7",
     "risk_score"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "HRIS (Workday / SuccessFactors / Oracle HCM)",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Indian Cybersecurity SME Panel + CISO + HR Director",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
-    "HRIS (Workday / SuccessFactors / Oracle HCM)"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance overlay)"
-  ],
-  "prerequisiteUseCases": [],
   "detailedImplementation": "## Prerequisites\n\n- HRIS event-feed configured to `hec:hris:poc:change`.\n- Quarterly contactability-test calendar maintained.\n- CERT-In portal credentials available to a Filing Officer in the CISO office.\n\n## Step 1 - POC register KV Store\n\n```ini\n[cert_in_poc_register_lookup]\nenforceTypes = true\nfield.legal_entity_id = string\nfield.poc_name = string\nfield.poc_designation = string\nfield.poc_email = string\nfield.poc_phone_24x7 = string\nfield.last_change_at = time\nfield.last_filed_with_cert_in_at = time\nfield.cert_in_portal_ack_ref = string\nfield.reorg_transition_until = time\nfield.alternate_attestation_ref = string\nfield.parent_poc_filing_ref = string\n```\n\n## Step 2 - Contactability-test KV Store\n\n```ini\n[cert_in_poc_contactability_test_lookup]\nenforceTypes = true\nfield.legal_entity_id = string\nfield.test_date = time\nfield.test_status = string\nfield.test_evidence_ref = string\n```\n\nQuarterly test method: independent third-party (or SOC supervisor) makes a recorded call to the 24×7 number and sends an email; both responses are captured with timestamps and stored as `test_evidence_ref`.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.3: CERT-In POC Register]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.3,reg=CERT-In,clause=CERT-In-Dir-4\nalert.severity = 3\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **Joint-Director-General requests**: CERT-In's CERT-In-IRT routinely escalates to the JDG; a delayed POC response at this level may produce a Section 70B(7) prosecution referral.\n- **Foreign-national POCs**: CERT-In has not expressly disallowed foreign-national POCs, but practical experience suggests an Indian-citizen POC reduces friction.",
-  "grandmaExplanation": "Every company in India must tell the national cyber team who to call in an emergency. We check every day that the right person is on file, that any change has been reported within a week, and that the person actually answers the phone day and night."
+  "grandmaExplanation": "Every company in India must tell the national cyber team who to call in an emergency. We check every day that the right person is on file, that any change has been reported within a week, and that the person actually answers the phone day and night.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
 }

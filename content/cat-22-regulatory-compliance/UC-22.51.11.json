@@ -35,25 +35,6 @@
   },
   "dataSources": "`index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration\"` (PnP events 410/411/412), `index=endpoint sourcetype=\"MS-Defender:DeviceControl\"` (Defender device-control events), Symantec Endpoint Protection device-control events (`symantec:sep:device`), McAfee Device Control (`mcafee:dcm:event`), Splunk Add-on for Microsoft Sysmon EventCode 7 (`xmlwineventlog:microsoft-windows-sysmon/operational`). Lookups: `ot_asset_inventory_lookup`, `usb_device_whitelist.csv`, `approved_transfer_kiosks.csv`.",
   "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207), Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(index=wineventlog (sourcetype=\"WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration\" EventCode IN (410,411,412)) earliest=-2h@h)\n  OR (index=endpoint sourcetype=\"MS-Defender:DeviceControl\" event_action=mount earliest=-2h@h)\n  OR (index=endpoint sourcetype IN (\"symantec:sep:device\",\"mcafee:dcm:event\") earliest=-2h@h action IN (\"mount\",\"blocked\"))\n| eval asset_key=coalesce(dest_nt_host, dest, asset_key, host)\n| eval src_user=coalesce(user, src_user, account_name)\n| lookup ot_asset_inventory_lookup asset_key OUTPUT asset_class asset_criticality environment\n| where environment=\"prod\" AND isnotnull(asset_class)\n| eval device_class=case(\n    match(device_id, \"USB\\\\\\\\\"), \"usb_mass_storage\",\n    match(device_id, \"MTP\"), \"mtp_device\",\n    match(device_id, \"WPD\"), \"wpd_device\",\n    1=1, \"other\")\n| eval device_serial=coalesce(device_serial, device_instance_id, instance_id)\n| eval event_time=_time\n| lookup usb_device_whitelist.csv device_serial OUTPUT allowed_flag whitelist_owner whitelist_expires_at\n| eval allowed_flag=coalesce(allowed_flag, \"false\")\n| join asset_key src_user type=left [search index=ot_kiosk earliest=-7d action=\"scanned\" malware_scan_result=\"clean\" | dedup device_serial asset_key | rename src_user AS kiosk_user | eval transferred_via_kiosk_flag=\"true\" | table device_serial transferred_via_kiosk_flag scanned_at]\n| eval transferred_via_kiosk_flag=coalesce(transferred_via_kiosk_flag, \"false\")\n| join asset_key src_user event_time type=left [search index=itsm sourcetype=\"servicenow:change_request\" state IN (\"approved\",\"implement\") earliest=-30d | dedup change_ticket_id | rename window_start AS ticket_window_start window_end AS ticket_window_end | table asset_key src_user change_ticket_id ticket_window_start ticket_window_end]\n| eval no_change_ticket_flag = case(\n    isnull(change_ticket_id), \"true\",\n    event_time < strptime(ticket_window_start, \"%Y-%m-%dT%H:%M:%S%z\"), \"true\",\n    event_time > strptime(ticket_window_end, \"%Y-%m-%dT%H:%M:%S%z\"), \"true\",\n    1=1, \"false\")\n| where allowed_flag=\"false\" OR transferred_via_kiosk_flag=\"false\" OR no_change_ticket_flag=\"true\"\n| stats earliest(event_time) AS event_time max(file_count) AS file_count max(total_bytes) AS total_bytes max(write_count) AS write_count max(read_count) AS read_count latest(allowed_flag) AS allowed_flag latest(transferred_via_kiosk_flag) AS transferred_via_kiosk_flag latest(no_change_ticket_flag) AS no_change_ticket_flag BY asset_key src_user device_class device_serial\n| table event_time asset_key src_user device_class device_serial file_count total_bytes write_count read_count allowed_flag transferred_via_kiosk_flag no_change_ticket_flag\n| sort - event_time",
   "description": "Detects every removable-media mount event on OT-production hosts, validates the device against the USB whitelist, validates the data path through the approved transfer kiosk, and validates a change ticket exists. Surfaces any combination that breaches policy.",
   "value": "Removable media is the single most common malware-entry vector on OT systems (Stuxnet, Industroyer, Triton all involved physical or USB transfer at some stage). NCA OTCC requires both technical control (USB whitelisting) AND operational discipline (transfer-kiosk pathways with malware cleansing). This UC produces evidence both that the technical control is operating and that the operational discipline is followed, with detail down to the device-serial-and-user-and-asset triple.",
@@ -77,38 +58,60 @@
     }
   ],
   "knownFalsePositives": "1. **Vendor-supplied keyboard/mouse identifying as USB mass storage** — some peripherals expose a small storage partition for driver delivery. Suppression: maintain `usb_vendor_peripherals.csv` keyed on `(vendor_id, product_id)` and exclude them from the alert.\n\n2. **Smartphone tethering as USB device** — a phone connected for charging registers as USB. Suppression: smartphones (`device_class=\"mtp_device\"`) are tracked separately; on critical assets, even smartphone charging is flagged because it bypasses controls. On lower-criticality assets, route `mtp_device` to email-only.\n\n3. **Vendor field-engineer authorised USB during commissioning** — the commissioning phase often involves vendor-supplied media not yet whitelisted. Suppression: time-bound whitelist entries in `usb_device_whitelist.csv` with `whitelist_expires_at` set to the commissioning end date.\n\n4. **Transfer-kiosk feed lag** — the kiosk's clean-scan event may be ingested after the mount event due to network latency. Suppression: extend the kiosk-scan join window from -7d to -10d to absorb the lag.\n\n**Suppression mechanism**: KV Store `otcc_22_51_11_exceptions` keyed on `(asset_key, device_serial)` with `expires_at`, `reason`, `approved_by`.",
+  "mitreAttack": [
+    "T1091",
+    "T0847"
+  ],
   "requiredFields": [
     "asset_key",
     "src_user",
     "device_serial",
     "event_time"
   ],
+  "equipment": [
+    "broadcom_symantec",
+    "defender",
+    "microsoft",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Microsoft Defender for Endpoint Device Control (USB control policy events)",
+    "Microsoft Windows 11/Server 2022 (USB device-install audit policy, Event IDs 6416 + 4663)",
+    "Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207)",
+    "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+    "Symantec / Broadcom DLP (removable-media policy and quarantine events)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "microsoft",
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "T1091",
-    "T0847"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.3"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Microsoft Windows (Splunkbase 742) on engineering workstations, HMIs, jump hosts. Group Policy must enable PnP/Configuration logging (EventCode 410 connect, 411 disconnect, 412 device-class allow/block).\n- Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207) for `MS-Defender:DeviceControl` events when Defender Device Control is in use.\n- For non-Microsoft endpoint AV: Splunk Add-on for Symantec Endpoint Protection (2772), McAfee ePO (2310), or equivalents.\n- Splunk Universal Forwarder (or scripted file monitor) on each approved transfer kiosk PC, writing scan-result rows into `index=ot_kiosk` with `device_serial`, `malware_scan_result`, `file_count`, `total_bytes`, `scanned_at`.\n- `index=wineventlog`, `index=endpoint`, `index=ot_kiosk` (24-month retention), `index=audit_evidence`.\n- Lookups:\n  - `ot_asset_inventory_lookup`.\n  - `usb_device_whitelist.csv` — owned by OT cybersecurity engineering. Columns: `device_serial`, `device_class`, `allowed_flag`, `whitelist_owner`, `whitelist_expires_at`, `vendor_authorisation_ref`.\n  - `approved_transfer_kiosks.csv` — mapping kiosk_host→plant/site.\n  - `usb_vendor_peripherals.csv` — vendor-supplied peripherals that auto-mount storage; excluded.\n  - KV Store `otcc_22_51_11_exceptions`.\n\n## Step 1 — Configure data collection\n\nEnable Windows Kernel-PnP/Configuration log via Group Policy:\n\n```\nComputer Configuration→Administrative Templates→System→Device Installation→\n  \"Display a custom message when installation is prevented by a policy setting\": Enabled\n  \"Log device install\": Enabled (Microsoft-Windows-Kernel-PnP/Configuration channel)\n```\n\nIn `inputs.conf` on each host (deployed via Universal Forwarder):\n\n```ini\n[WinEventLog://Microsoft-Windows-Kernel-PnP/Configuration]\ndisabled = false\nstart_from = oldest\nindex = wineventlog\nrenderXml = true\n```\n\nDefender Device Control via the Splunk Add-on for Microsoft Defender for Endpoint:\n\n```spl\nindex=endpoint sourcetype=\"MS-Defender:DeviceControl\" earliest=-1d\n| stats count by event_action device_class\n```\n\nKiosk events: each kiosk PC runs a scanning workflow that writes a JSON event per scan to a local file; UF forwards to Splunk:\n\n```ini\n[monitor://D:\\OT\\Kiosk\\scan_log\\*.json]\ndisabled = 0\nindex = ot_kiosk\nsourcetype = ot:kiosk:scan\n```\n\nThe scan tool (per OT cybersecurity engineering specification) must produce: `device_serial`, `device_friendly_name`, `file_count`, `total_bytes`, `malware_scan_result` (`clean` | `quarantined` | `error`), `scanned_at`, `scanner_user`.\n\nVolume guidance: a 500-asset OT estate generates ~200–2,000 PnP events/day; license impact <10 MB/day.\n\n## Step 2 — Create the search and alert\n\nThe search composes three streams (`wineventlog`, `endpoint`, vendor device-control) via `OR` and computes three flags:\n\n- `allowed_flag` from the whitelist join. Defaults to `false` if no whitelist entry exists.\n- `transferred_via_kiosk_flag` from the kiosk-event join on `(device_serial, asset_key, src_user)`. Defaults to `false` if no clean-scan event in the prior 7 days.\n- `no_change_ticket_flag` from the change-ticket join on `(asset_key, src_user)` against the event time. True if no approved/implement-state ticket covers the event.\n\nAny flag triggers the row. Row aggregation collapses to one per `(asset_key, src_user, device_class, device_serial)` to avoid double-counting mount-unmount-remount sequences.\n\n**Schedule**:\n\n```ini\n[UC-22.51.11: Removable Media Controls on OT Endpoints]\ncron_schedule = 10 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.11,reg=NCA_OTCC,clause=OTCC-2-5-1-1\naction.notable.param.rule_title = NCA OTCC unauthorised removable media on OT\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\naction.email.to = ot-cyber-programme@example.com\nalert.severity = 4\n```\n\nNotable on `allowed_flag=false`. Email-only on the other two flags individually.\n\n## Step 3 — Validate deployment\n\n**(a) Stream health**:\n\n```spl\n(index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Kernel-PnP/Configuration\" earliest=-1d)\n  OR (index=endpoint sourcetype=\"MS-Defender:DeviceControl\" earliest=-1d)\n  OR (index=ot_kiosk earliest=-1d)\n| stats count by index sourcetype\n```\n\nAll three should be non-zero. If any returns zero, investigate the corresponding agent or kiosk pipeline.\n\n**(b) Whitelist health**:\n\n```spl\n| inputlookup usb_device_whitelist.csv\n| eval expired=if(strptime(whitelist_expires_at, \"%Y-%m-%d\") < now() AND isnotnull(whitelist_expires_at), \"yes\", \"no\")\n| stats count by expired allowed_flag\n```\n\nExpired entries should be removed at the next refresh.\n\n**(c) Positive control**: per `controlTest.positiveScenario`. Confirm alert within one hour.\n\n**(d) Negative control**: per `controlTest.negativeScenario`. Confirm no alert.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Removable Media`.\n\n- **Row 1, single values**: 'Unauthorised mounts in 24h', 'Unscanned-kiosk mounts', 'Unticketed mounts'.\n- **Row 2, sortable table**: every flagged event.\n- **Row 3, top-N**: assets and users with the most flags.\n- **Row 4, heatmap**: hour-of-day vs day-of-week for unauthorised mounts — surfaces off-hour patterns.\n- **Row 5, device_class stack**: USB vs MTP vs WPD vs other.\n\n**Runbook for `allowed_flag=false`** (owner: OT SOC, escalating to OT cybersecurity programme manager):\n\n1. **Within 30 minutes**: pull the source-user context. Contact the user to confirm the activity (e.g. vendor field engineer, internal engineer, contractor).\n2. **If known authorised activity but device not whitelisted**: add to `usb_device_whitelist.csv` with vendor_authorisation_ref and time-bound `whitelist_expires_at`.\n3. **If unknown activity**: isolate the asset per OT IR procedure. Capture the device and forensic-image its content. Open a P2 OT cybersecurity incident; cross-reference UC-22.51.16.\n4. **Always**: write outcome to the change ticket or open a retrospective ticket if none.\n\n## Step 5 — Troubleshooting\n\n**`device_serial` is blank on Windows PnP events** — the `Microsoft-Windows-Kernel-PnP/Configuration` channel logs a generic device_instance_id rather than the manufacturer-set serial. The Splunk Add-on parses the instance_id as `device_serial`; if it is still blank, the device firmware did not provide a serial (some cheap USB sticks). Treat blank-serial devices as `allowed_flag=false` by default.\n\n**Kiosk-scan event for a device but no mount event on the OT host** — the device was cleansed at a kiosk but never used. This is fine — the kiosk record provides chain of custody.\n\n**Defender Device Control events absent on Windows 10 hosts** — Device Control requires Windows 10 Enterprise or Education with Defender for Endpoint Plan 2; verify license. On Windows Server 2019, Device Control is available but requires a separate policy.\n\n**OT-specific failure modes**:\n\n- **Vendor field-engineer laptops as 'media'**: vendor laptops connected via Ethernet for direct PLC engineering are not removable media but their network presence should be monitored elsewhere (UC-22.51.24 vendor remote access). However, if the vendor laptop is USB-tethered for data transfer, this UC catches it correctly.\n- **Engineering laptops with persistent USB-WiFi adapters**: a permanently-attached USB-WiFi adapter generates a continuous mount event. Whitelist the adapter's serial in `usb_device_whitelist.csv`.\n- **Encrypted USB drives that fail to mount but still log**: a BitLocker-protected drive may log a mount attempt that fails. Suppress events with `mount_status=failed` from the alert path (still archive in `audit_evidence` for forensic value).\n- **PLC programming kits with USB-Serial converters**: USB-Serial converters used to programme legacy PLCs are essential equipment. Whitelist by `(vendor_id, product_id)` rather than per serial, since the converters are often interchangeable.",
   "grandmaExplanation": "We watch every USB stick or phone plugged into plant computers. We check the stick is on the approved list, was first scanned at the safe-transfer cabinet, and was plugged in during a planned maintenance window. If any of those is missing we ring the bell.",
-  "equipmentModels": [
-    "Microsoft Windows 11/Server 2022 (USB device-install audit policy, Event IDs 6416 + 4663)",
-    "Microsoft Defender for Endpoint Device Control (USB control policy events)",
-    "Symantec / Broadcom DLP (removable-media policy and quarantine events)",
-    "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-    "Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -35,18 +35,6 @@
   },
   "dataSources": "CycloneDX / SPDX SBOMs ingested via HEC (`hec:sbom:cyclonedx`, `hec:sbom:spdx`). CISA KEV catalog (`ta_cisa_kev:kev`). Vendor SSA feeds. TSA vendor register (KV Store `tsa_vendor_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(sourcetype=\"sbom:cyclonedx\" OR sourcetype=\"sbom:spdx\")\n| eval cpe = mvfilter(match(cpe, \"^cpe:\"))\n| mvexpand cpe\n| eval cve_id = lower(cve_id)\n| lookup ta_cisa_kev kev_cpe AS cpe OUTPUT kev_listed kev_cve\n| lookup tsa_vendor_lookup vendor AS vendor OUTPUT tsa_in_scope deployment_modality\n| where tsa_in_scope=true AND kev_listed=\"true\"\n| lookup tsa_sbom_exception_lookup vendor AS vendor cpe AS cpe OUTPUT exception_until\n| where isnull(exception_until) OR exception_until < now()\n| stats values(kev_cve) as kev_cves values(deployment_modality) as deployment_modality dc(cpe) as cpe_count by vendor product\n| table vendor product deployment_modality cpe_count kev_cves",
   "description": "Joins vendor SBOMs with CISA KEV; surfaces KEV-listed components present in vendor-supplied artifacts deployed on TSA-regulated assets.",
   "value": "Vendor-supply-chain risk is the single highest TSA SD evolution direction. This UC builds the SBOM evidence early.",
@@ -71,33 +59,45 @@
     }
   ],
   "knownFalsePositives": "1. **CPE collision**: same CPE may refer to different deployment contexts; tag with `cpe_context` in vendor register.\n2. **Vendor SBOM hygiene**: some vendors ship low-quality SBOMs; tag with `sbom_quality_score`.\n\n**Suppression mechanism**: KV Store `tsa_sbom_exception_lookup`.",
+  "mitreAttack": [
+    "T1195"
+  ],
   "requiredFields": [
     "vendor",
     "product",
     "deployment_modality",
     "kev_cves"
   ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "CycloneDX 1.5 / SPDX 2.3",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + CC + Supply-Chain Risk Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "CycloneDX 1.5 / SPDX 2.3"
-  ],
-  "mitreAttack": [
-    "T1195"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.",
+  "grandmaExplanation": "Every important piece of software we use comes with an 'ingredient list'. We compare that list against the world's known cyber-weakness list — if anything matches, we fix it before an attacker uses it.",
   "prerequisiteUseCases": [
     "UC-22.56.6"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.",
-  "grandmaExplanation": "Every important piece of software we use comes with an 'ingredient list'. We compare that list against the world's known cyber-weakness list — if anything matches, we fix it before an attacker uses it."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -48,32 +48,6 @@
   },
   "dataSources": "KV Store `imo_doc_verification_lookup` (imo_number, ship_name, flag_state, recognised_organisation, doc_issue_date, last_annual_verification, next_due_date, cyber_sms_attestation_status, cyber_sms_evidence_artefact, dpa_signed_at, dpa_signature_hash). ServiceNow CMDB fleet inventory (`snow:cmdb_ci`). Flag-State / RO portals (HEC `hec:imo:flag:submission`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup imo_doc_verification_lookup\n| eval now_ts = now()\n| eval days_to_next_verification = round((next_due_date - now_ts) / 86400, 1)\n| eval days_since_attestation = case(isnotnull(dpa_signed_at), round((now_ts - dpa_signed_at) / 86400, 1), 1=1, null)\n| eval cyber_sms_attestation_status = case(\n    isnull(dpa_signed_at), \"missing\",\n    days_since_attestation > 365, \"expired\",\n    days_since_attestation > 335, \"renewal-due\",\n    1=1, \"current\")\n| eval risk_score = case(\n    cyber_sms_attestation_status = \"missing\" AND days_to_next_verification <= 30, 100,\n    cyber_sms_attestation_status = \"missing\" AND days_to_next_verification <= 90, 90,\n    cyber_sms_attestation_status = \"expired\" AND days_to_next_verification <= 30, 95,\n    cyber_sms_attestation_status = \"expired\", 80,\n    cyber_sms_attestation_status = \"renewal-due\" AND days_to_next_verification <= 30, 70,\n    cyber_sms_attestation_status = \"renewal-due\", 40,\n    cyber_sms_attestation_status = \"current\" AND days_to_next_verification < 0, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_to_next_verification\n| table imo_number ship_name flag_state recognised_organisation doc_issue_date last_annual_verification next_due_date days_to_next_verification cyber_sms_attestation_status days_since_attestation risk_score",
   "description": "Reconciles fleet-wide Document of Compliance (DoC) verification cadence against the company's cyber-SMS attestation register; computes a per-vessel risk score that rises as the next annual verification approaches without a current cyber-attestation; surfaces 'missing', 'expired', and 'renewal-due' states to the DPA before the flag-State / recognised-organisation auditor arrives onboard.",
   "value": "A cyber-major-non-conformity at DoC verification can result in the DoC being conditioned or withdrawn and the ship being detained under port-State control (Paris MoU, Tokyo MoU, USCG). Detention is commercially catastrophic — a single VLCC detention runs USD 50,000+ per day in loss-of-hire, plus port charges, charter-party penalties, and reputational damage. This UC closes the gap before the auditor sees it.",
@@ -98,6 +72,9 @@
     }
   ],
   "knownFalsePositives": "1. **Newly-acquired vessel mid-cycle**: a vessel that joined the fleet less than 90 days ago may have an interim DoC; suppress until interim transitions to permanent. 2. **Flag change in last 90 days**: re-attestation typically follows; allow a 30-day grace window. 3. **Cold-stack / lay-up**: vessels in commercial lay-up have an exemption process; `vessel_status=lay-up` should suppress. 4. **DPA holiday / hand-over**: brief gaps during DPA hand-over are not material; allow 14 days for hand-over completion.\n\n**Suppression mechanism**: KV Store `imo_22_59_1_exceptions` with the DPA's documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
   "requiredFields": [
     "imo_number",
     "flag_state",
@@ -105,31 +82,54 @@
     "cyber_sms_attestation_status",
     "risk_score"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ABS Eagle (RO portal)",
+    "Bureau Veritas VeriSTAR Hull (RO portal)",
+    "DNV ShipManager Hull (RO portal)",
+    "Lloyd's Register Class Direct (RO portal)",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "Veson Nautical IMOS (fleet management)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime Cyber SME Panel + DPA + Company Security Officer",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
-    "Veson Nautical IMOS (fleet management)",
-    "DNV ShipManager Hull (RO portal)",
-    "ABS Eagle (RO portal)",
-    "Lloyd's Register Class Direct (RO portal)",
-    "Bureau Veritas VeriSTAR Hull (RO portal)"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
-  "prerequisiteUseCases": [],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- KV Store `imo_doc_verification_lookup` (created via `collections.conf` and seeded from the fleet-management system).\n- ServiceNow CMDB with vessel-level inventory (`cmdb_ci_vessel` or equivalent).\n- Optional: HEC token for flag-State / RO portal callback integration (`hec:imo:flag:submission`).\n\n## Step 1 — DoC Verification KV Store\n\n```ini\n[imo_doc_verification_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.ship_name = string\nfield.flag_state = string\nfield.recognised_organisation = string\nfield.doc_issue_date = time\nfield.last_annual_verification = time\nfield.next_due_date = time\nfield.cyber_sms_attestation_status = string\nfield.cyber_sms_evidence_artefact = string\nfield.dpa_signed_at = time\nfield.dpa_signature_hash = string\nfield.vessel_status = string\n```\n\nSeed from the fleet-management system on a daily schedule (modular input or `outputlookup`).\n\n## Step 2 — DPA Cyber-SMS Attestation\n\nProvide the DPA with a quarterly attestation workflow that, on signature, writes a row into the KV Store with the timestamp, the signature hash, and a reference to the cyber-SMS evidence package (typically the company's most recent annual cyber-risk review).\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.1: IMO DoC Cyber-SMS Verification]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.1,reg=IMO-MSC-428-98,clause=IMO-MSC-428-98-p2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`risk_score >= 80`** (owner: DPA, severity P1): Within 24 hours, schedule a DPA + CISO call with the vessel's Master / CSO to assess remediation; within 7 days, deliver a written remediation plan with an attestation date that pre-empts the DoC verification.\n\n**`risk_score 40-79`** (owner: DPA, severity P2): Within 5 business days, drive an attestation refresh.\n\n## Step 5 — Troubleshooting\n\n- **Flag-State change**: when a vessel re-flags, the cyber-SMS attestation typically must be re-signed against the new flag administration's interpretation; allow a 30-day grace.\n- **RO change**: similar to flag-State change.\n- **Newbuild integration**: newbuild vessels delivered after 1 July 2024 carry IACS UR E26 class notation; integrate UC-22.59.14 cross-reference.\n\n**Maritime-specific failure modes**:\n- **Sub-IMO-tonnage vessel**: vessels below GT < 500 are typically outside SOLAS/ISM scope; ensure the vessel filter excludes these.\n- **Inland-waterway operation**: rivers and lakes may operate under regional regimes (CCNR for Rhine, Mississippi River Basin for US inland barges) rather than IMO; segregate fleets.\n- **Domestic-only operation**: some flag administrations apply IMO-equivalent regimes to domestic-only ships; consult flag-State guidance.",
-  "grandmaExplanation": "Every ship has an annual safety check by its flag country. Since 2021, that check also covers cyber risk. We watch which ships are coming up for their check and make sure each one has its cyber paperwork ready, so the ship isn't held in port or pulled out of service."
+  "grandmaExplanation": "Every ship has an annual safety check by its flag country. Since 2021, that check also covers cyber risk. We watch which ships are coming up for their check and make sure each one has its cyber paperwork ready, so the ship isn't held in port or pulled out of service.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "crawl"
 }

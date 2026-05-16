@@ -36,25 +36,6 @@
   },
   "dataSources": "SoNS exercise notices, exercise execution events, evaluation submissions. Lookup `sons_exercise_lookup` (sons_asset_id, exercise_notice_id, notice_received_at, exercise_due_at, exercise_completed_at, evaluation_due_at, evaluation_submitted_at, evaluation_artefact_url).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup sons_exercise_lookup\n| eval today = now()\n| eval exercise_status = case(\n    isnotnull(evaluation_submitted_at) AND evaluation_submitted_at <= evaluation_due_at, \"compliant\",\n    isnotnull(evaluation_submitted_at) AND evaluation_submitted_at > evaluation_due_at, \"evaluation_overdue_but_submitted\",\n    isnotnull(exercise_completed_at) AND today > evaluation_due_at, \"evaluation_overdue\",\n    isnotnull(exercise_completed_at) AND today <= evaluation_due_at, \"evaluation_pending\",\n    today > exercise_due_at, \"exercise_overdue\",\n    1=1, \"exercise_scheduled\")\n| eval days_to_exercise_due = round((exercise_due_at - today) / 86400, 0)\n| eval days_to_evaluation_due = round((evaluation_due_at - today) / 86400, 0)\n| table sons_asset_id exercise_notice_id notice_received_at exercise_due_at exercise_completed_at evaluation_due_at evaluation_submitted_at evaluation_artefact_url exercise_status days_to_exercise_due days_to_evaluation_due",
   "description": "Tracks every Secretary-issued s 30CG cyber-exercise notice from receipt through to evaluation-report submission. Flags exercises whose due date has passed without completion, evaluations whose due date has passed without submission, and exercises that completed but where the evaluation is still pending.",
   "value": "s 30CG notices are powerful: missing one is a strict-liability offence and damages the relationship with the Secretary and ASD. The cadence is irregular (the Secretary issues notices as needed) so manual tracking is unreliable. This UC keeps the obligation register always-on.",
@@ -74,6 +55,9 @@
     }
   ],
   "knownFalsePositives": "1. **Notice withdrawn / postponed by Secretary** — update `sons_exercise_lookup` row to mark withdrawn.\n\n2. **Voluntary internal exercises** — do not register in this lookup; they belong in UC-22.52.21's BC-exercise lookup.\n\n3. **Notice received in paper, not via portal** — the SoNS Programme Lead must manually register.\n\n**Suppression mechanism**: KV Store `soci_22_52_9_exceptions` with SoNS Programme Lead sign-off; max grant 30 days.",
+  "mitreAttack": [
+    "N/A (governance and statutory-exercise workflow — measures compliance with Secretary notices, not adversary detection)"
+  ],
   "requiredFields": [
     "sons_asset_id",
     "exercise_notice_id",
@@ -81,14 +65,6 @@
     "evaluation_due_at",
     "exercise_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -98,12 +74,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (governance and statutory-exercise workflow — measures compliance with Secretary notices, not adversary detection)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=audit_evidence`.\n- Lookup `sons_exercise_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `exercise_notice_id`, `notice_received_at` (epoch), `exercise_due_at` (epoch), `exercise_completed_at` (epoch), `evaluation_due_at` (epoch), `evaluation_submitted_at` (epoch), `evaluation_artefact_url`.\n\n## Step 1 — Configure data collection\n\nThe lookup is the contract; the SoNS Programme Lead is responsible for keeping it accurate. Best practice: integrate the lookup with the GRC system so notice-receipt and evaluation-submission are tracked in the same place. A nightly summary materialises the lookup from the GRC:\n\n```spl\nindex=grc sourcetype=snow:sons_exercise earliest=-7d@d\n| dedup exercise_notice_id sortby - _time\n| table sons_asset_id exercise_notice_id notice_received_at exercise_due_at exercise_completed_at evaluation_due_at evaluation_submitted_at evaluation_artefact_url\n| outputlookup sons_exercise_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.9: SOCI s 30CG SoNS cyber exercise compliance]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.9,reg=SOCI,clause=SOCI-s30CG\naction.notable.param.rule_title = SOCI s 30CG SoNS exercise compliance gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable on `exercise_status IN (exercise_overdue, evaluation_overdue)`; archive every row.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: insert an exercise with past `exercise_due_at` and no completion; UC flags `exercise_overdue`.\n\n**(b)** Negative control: complete the exercise and submit evaluation before due; UC records `compliant`.\n\n**(c)** Annual ASD post-exercise debrief: validate that the evaluation reports filed match ASD's expectations.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — SoNS Cyber Exercise Tracker`.\n\n**Runbook for `exercise_overdue`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 1 business day: contact the ASD exercise coordinator; explain the delay and agree a revised date.\n2. Self-disclose in next Rule 10 annual report.\n\n**Runbook for `evaluation_overdue`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 5 business days: submit the evaluation report.\n2. Self-disclose.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty** — the SoNS Programme Lead has not registered notices. Confirm process.\n\n**Wrong dates** — epoch conversion bug.\n\n**SOCI-specific failure modes**:\n\n- **Joint exercises across multiple SoNS**: a single exercise notice may cover multiple SoNS; lookup must support mvfield of `sons_asset_id`.\n- **Re-scheduled exercises**: if the Secretary agrees a re-scheduled date, update both `exercise_due_at` and `evaluation_due_at`; preserve original dates in `audit_evidence` audit-trail.\n- **Exercise findings flow back to CIRMP**: a finding from a s 30CG exercise may flag a material risk that has to be added to the CIRMP under UC-22.52.12. Ensure the exercise debrief includes a CIRMP-update trigger.",
+  "grandmaExplanation": "When the government formally asks us to run a cyber-attack practice on one of our most important systems, we must do the practice on time and send a report. We track every official practice from the moment the notice arrives until the report is filed, and we ring the bell if any step slips.",
   "prerequisiteUseCases": [
     "UC-22.52.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=audit_evidence`.\n- Lookup `sons_exercise_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `exercise_notice_id`, `notice_received_at` (epoch), `exercise_due_at` (epoch), `exercise_completed_at` (epoch), `evaluation_due_at` (epoch), `evaluation_submitted_at` (epoch), `evaluation_artefact_url`.\n\n## Step 1 — Configure data collection\n\nThe lookup is the contract; the SoNS Programme Lead is responsible for keeping it accurate. Best practice: integrate the lookup with the GRC system so notice-receipt and evaluation-submission are tracked in the same place. A nightly summary materialises the lookup from the GRC:\n\n```spl\nindex=grc sourcetype=snow:sons_exercise earliest=-7d@d\n| dedup exercise_notice_id sortby - _time\n| table sons_asset_id exercise_notice_id notice_received_at exercise_due_at exercise_completed_at evaluation_due_at evaluation_submitted_at evaluation_artefact_url\n| outputlookup sons_exercise_lookup\n```\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.9: SOCI s 30CG SoNS cyber exercise compliance]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.9,reg=SOCI,clause=SOCI-s30CG\naction.notable.param.rule_title = SOCI s 30CG SoNS exercise compliance gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable on `exercise_status IN (exercise_overdue, evaluation_overdue)`; archive every row.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: insert an exercise with past `exercise_due_at` and no completion; UC flags `exercise_overdue`.\n\n**(b)** Negative control: complete the exercise and submit evaluation before due; UC records `compliant`.\n\n**(c)** Annual ASD post-exercise debrief: validate that the evaluation reports filed match ASD's expectations.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — SoNS Cyber Exercise Tracker`.\n\n**Runbook for `exercise_overdue`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 1 business day: contact the ASD exercise coordinator; explain the delay and agree a revised date.\n2. Self-disclose in next Rule 10 annual report.\n\n**Runbook for `evaluation_overdue`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 5 business days: submit the evaluation report.\n2. Self-disclose.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty** — the SoNS Programme Lead has not registered notices. Confirm process.\n\n**Wrong dates** — epoch conversion bug.\n\n**SOCI-specific failure modes**:\n\n- **Joint exercises across multiple SoNS**: a single exercise notice may cover multiple SoNS; lookup must support mvfield of `sons_asset_id`.\n- **Re-scheduled exercises**: if the Secretary agrees a re-scheduled date, update both `exercise_due_at` and `evaluation_due_at`; preserve original dates in `audit_evidence` audit-trail.\n- **Exercise findings flow back to CIRMP**: a finding from a s 30CG exercise may flag a material risk that has to be added to the CIRMP under UC-22.52.12. Ensure the exercise debrief includes a CIRMP-update trigger.",
-  "grandmaExplanation": "When the government formally asks us to run a cyber-attack practice on one of our most important systems, we must do the practice on time and send a report. We track every official practice from the moment the notice arrives until the report is filed, and we ring the bell if any step slips."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

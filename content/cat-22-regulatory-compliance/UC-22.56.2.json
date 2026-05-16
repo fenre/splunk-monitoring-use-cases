@@ -35,18 +35,6 @@
   },
   "dataSources": "KV Store `tsa_cc_roster_lookup` (cc_name, cc_role, cc_phone, cc_email, cc_us_citizen, cc_ssi_eligibility, cc_ssi_expiry, cc_assignment_effective_from, alternate_name, alternate_phone, alternate_email, alternate_us_citizen, alternate_ssi_eligibility, alternate_ssi_expiry, last_tsa_notification, designation_doc_url). Workday HRIS feed for US-citizen + employment-status cross-check (`workday:worker:audit`). PagerDuty + ServiceNow on-call coverage telemetry (`pagerduty:on_call`, `snow:incident_oncall`). SharePoint TSA-correspondence audit (`o365:management` filtered to `tsa-cyber@<corp>`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_cc_roster_lookup\n| eval now_ts = now()\n| eval days_since_change = round((now_ts - cc_assignment_effective_from) / 86400, 0)\n| eval days_since_tsa_notification = round((now_ts - last_tsa_notification) / 86400, 0)\n| eval cc_ssi_days_to_expiry = round((cc_ssi_expiry - now_ts) / 86400, 0)\n| eval eligibility_status = case(\n    cc_us_citizen != true OR alternate_us_citizen != true, \"failed\",\n    cc_ssi_eligibility != \"current\" OR alternate_ssi_eligibility != \"current\", \"failed\",\n    cc_ssi_days_to_expiry < 90, \"expiring_ssi\",\n    isnull(cc_name) OR isnull(alternate_name), \"incomplete_roster\",\n    1=1, \"passed\")\n| eval notification_status = case(\n    days_since_change <= 7 AND days_since_tsa_notification <= 7, \"on_time\",\n    days_since_change > 7 AND days_since_tsa_notification > days_since_change, \"missed_7d_notice\",\n    1=1, \"current\")\n| eval roster_status = if(eligibility_status=\"passed\" AND notification_status IN (\"on_time\",\"current\"), \"current\", \"action_required\")\n| table cc_name cc_role cc_phone cc_email cc_us_citizen cc_ssi_eligibility cc_ssi_days_to_expiry alternate_name alternate_phone alternate_email alternate_us_citizen alternate_ssi_eligibility last_tsa_notification days_since_change days_since_tsa_notification eligibility_status notification_status roster_status designation_doc_url",
   "description": "Cross-references the CC roster with HR citizenship/SSI evidence and TSA notification correspondence to surface (a) ineligible designees, (b) SSI clearance expiring within 90 days, (c) incomplete rosters (CC or Alternate missing), and (d) roster changes that were not notified to TSA within the 7-day SLA.",
   "value": "If a covered cyber incident occurs and the CC is unreachable, US-citizen requirements fail, or SSI has expired, the operator cannot accept SSI-marked threat-intel from TSA, cannot represent the operator in the post-incident TSA call, and is exposed to enforcement. This UC ensures the designate-and-notify chain is always current.",
@@ -71,34 +59,49 @@
     }
   ],
   "knownFalsePositives": "1. **SSI re-investigation cycle** — TSA SSI eligibility is periodically re-investigated; during the renewal window the field may show `under_review`. Suppression: a 60-day grace window during SSI renewal.\n\n2. **Promotion to executive role** — a CC may be promoted out of the role; the redesignation must happen before the promotion is effective. Suppression: pin the planned redesignation in `tsa_22_56_2_planned_changes`.\n\n3. **Mid-merger uncertainty** — during an M&A close, the acquiring entity's CC may not yet be empowered for the acquired pipeline. Suppression: a 30-day post-close grace window with documented interim coverage.\n\n**Suppression mechanism**: KV Store `tsa_22_56_2_exceptions` with documented CCO approval and 60-day maximum grant.",
+  "mitreAttack": [
+    "N/A (governance designation)"
+  ],
   "requiredFields": [
     "cc_name",
     "cc_us_citizen",
     "cc_ssi_eligibility",
     "alternate_name"
   ],
+  "equipment": [
+    "pagerduty",
+    "servicenow",
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "PagerDuty + ServiceNow on-call telemetry",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary + notable framework)",
+    "Workday HRIS"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + Chief Compliance Officer + HR Director",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary + notable framework)",
-    "Workday HRIS",
-    "PagerDuty + ServiceNow on-call telemetry"
-  ],
-  "mitreAttack": [
-    "N/A (governance designation)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store collection `tsa_cc_roster_lookup`.\n- Workday HRIS feed via HEC.\n- ES notable framework.\n\n## Step 1 — Define the roster collection\n\n```ini\n[tsa_cc_roster_lookup]\nenforceTypes = true\nfield.cc_name = string\nfield.cc_role = string\nfield.cc_phone = string\nfield.cc_email = string\nfield.cc_us_citizen = bool\nfield.cc_ssi_eligibility = string\nfield.cc_ssi_expiry = number\nfield.cc_assignment_effective_from = number\nfield.alternate_name = string\nfield.alternate_phone = string\nfield.alternate_email = string\nfield.alternate_us_citizen = bool\nfield.alternate_ssi_eligibility = string\nfield.alternate_ssi_expiry = number\nfield.last_tsa_notification = number\nfield.designation_doc_url = string\n```\n\n## Step 2 — Wire the Workday feed\n\nA daily Python job pulls Workday Worker data for the CC + Alternate and HECs employment-status / citizenship + SSI-clearance to Splunk. The KV Store row is updated only when the source-of-truth changes.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.2: TSA-SD Pipeline CC + Alternate Roster Health]\ncron_schedule = 13 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.2,reg=TSA-Surface,clause=TSA-SD-P-2021-01-s3\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD CC Roster Health`**: roster status, SSI expiry timeline, 24×7 reachability heat-map, TSA notification trail, Alternate-active days.\n\n**Runbook for `eligibility_status=failed`** (owner: CCO, severity P1):\n1. Within 1 business hour: identify a qualified replacement.\n2. Within 4 business hours: file the replacement designation with TSA.\n3. Within 24 hours: HR-process the new designate and update the roster.\n\n## Step 5 — Troubleshooting\n\n- **SSI renewal lag**: TSA SSI re-investigations can take 6–12 weeks; plan ahead.\n- **Citizenship-status changes**: rare but must be tracked (e.g. a CC takes dual citizenship).\n- **Designation memorandum lag**: TSA wants the signed memo on file; ensure the SharePoint evidence-vault link is current.",
+  "grandmaExplanation": "Our pipeline has a designated cyber contact for the US government — a named person plus a backup, who must be reachable around the clock and have the right security clearance. We watch the roster so the contact is always valid and the regulator is always told within 7 days when it changes.",
   "prerequisiteUseCases": [
     "UC-22.54.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store collection `tsa_cc_roster_lookup`.\n- Workday HRIS feed via HEC.\n- ES notable framework.\n\n## Step 1 — Define the roster collection\n\n```ini\n[tsa_cc_roster_lookup]\nenforceTypes = true\nfield.cc_name = string\nfield.cc_role = string\nfield.cc_phone = string\nfield.cc_email = string\nfield.cc_us_citizen = bool\nfield.cc_ssi_eligibility = string\nfield.cc_ssi_expiry = number\nfield.cc_assignment_effective_from = number\nfield.alternate_name = string\nfield.alternate_phone = string\nfield.alternate_email = string\nfield.alternate_us_citizen = bool\nfield.alternate_ssi_eligibility = string\nfield.alternate_ssi_expiry = number\nfield.last_tsa_notification = number\nfield.designation_doc_url = string\n```\n\n## Step 2 — Wire the Workday feed\n\nA daily Python job pulls Workday Worker data for the CC + Alternate and HECs employment-status / citizenship + SSI-clearance to Splunk. The KV Store row is updated only when the source-of-truth changes.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.2: TSA-SD Pipeline CC + Alternate Roster Health]\ncron_schedule = 13 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.2,reg=TSA-Surface,clause=TSA-SD-P-2021-01-s3\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD CC Roster Health`**: roster status, SSI expiry timeline, 24×7 reachability heat-map, TSA notification trail, Alternate-active days.\n\n**Runbook for `eligibility_status=failed`** (owner: CCO, severity P1):\n1. Within 1 business hour: identify a qualified replacement.\n2. Within 4 business hours: file the replacement designation with TSA.\n3. Within 24 hours: HR-process the new designate and update the roster.\n\n## Step 5 — Troubleshooting\n\n- **SSI renewal lag**: TSA SSI re-investigations can take 6–12 weeks; plan ahead.\n- **Citizenship-status changes**: rare but must be tracked (e.g. a CC takes dual citizenship).\n- **Designation memorandum lag**: TSA wants the signed memo on file; ensure the SharePoint evidence-vault link is current.",
-  "grandmaExplanation": "Our pipeline has a designated cyber contact for the US government — a named person plus a backup, who must be reachable around the clock and have the right security clearance. We watch the roster so the contact is always valid and the regulator is always told within 7 days when it changes."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

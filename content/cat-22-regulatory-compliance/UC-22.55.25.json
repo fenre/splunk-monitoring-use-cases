@@ -35,25 +35,6 @@
   },
   "dataSources": "Threat-intel feed (commercial: Mandiant, Recorded Future, Flashpoint, Dragos WorldView; CISA advisories; ICS-CERT; railway-specific intel groups such as ENISA Rail-CERT). KV Store `rail_actor_lookup`, `rail_ttp_lookup`. MITRE ATT&CK ICS Matrix.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CISA KEV (Splunkbase 6306), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 6306,
-      "name": "Splunk Add-on for CISA KEV",
-      "url": "https://splunkbase.splunk.com/app/6306",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_actor_lookup\n| where actor_status=\"active\"\n| eval now_ts = now()\n| eval days_since_review = if(isnotnull(intel_last_refreshed_at), round((now_ts - intel_last_refreshed_at) / 86400, 0), null())\n| eval intel_status = case(\n    isnull(intel_last_refreshed_at) OR days_since_review > 90, \"actor_stale\",\n    isnull(mitre_id_list), \"mitre_unmapped\",\n    isnull(detection_coverage_status), \"coverage_unassessed\",\n    1=1, \"current\")\n| where intel_status != \"current\"\n| table actor_id actor_name ttp_id mitre_id_list last_observed_at detection_coverage_status intel_status",
   "description": "Tracks rail-relevant threat actors, TTPs, MITRE ATT&CK mapping, and detection-coverage status.",
   "value": "Sophisticated actors specifically target rail OT (e.g., REvil ransomware vs Bombardier, ICS-CERT advisories on rail). Without actor tracking, defensive prioritization is uninformed.",
@@ -77,32 +58,51 @@
     }
   ],
   "knownFalsePositives": "1. **Out-of-band actor** — newly-published actor may not yet have full TTP set. Suppression: tracked under intel-onboarding, 30-day grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_25_exceptions` with documented Threat-Intel Lead approval and 30-day maximum grant.",
+  "mitreAttack": [
+    "N/A (compliance-tracking UC, not a detection)"
+  ],
   "requiredFields": [
     "actor_id",
     "intel_status"
   ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Mandiant / Recorded Future / Dragos WorldView",
+    "Splunk Add-on for CISA KEV (Splunkbase 6306)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Rail Cybersecurity SME Panel + Threat-Intel Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Splunk Add-on for CISA KEV (Splunkbase 6306)",
-    "Mandiant / Recorded Future / Dragos WorldView"
-  ],
-  "mitreAttack": [
-    "N/A (compliance-tracking UC, not a detection)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for CISA KEV.\n- Threat-intel subscription.\n\n## Step 1 — Actor collection\n\n```ini\n[rail_actor_lookup]\nenforceTypes = true\nfield.actor_id = string\nfield.actor_name = string\nfield.ttp_id = string\nfield.mitre_id_list = string\nfield.last_observed_at = number\nfield.intel_last_refreshed_at = number\nfield.detection_coverage_status = string\nfield.actor_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.25: CLC/TS 50701 Rail Threat Actors]\ncron_schedule = 0 9 1 * *\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.25,reg=CLC-TS-50701,clause=CLC-TS-50701-c6-3\naction.notable.param.rule_title = Rail-threat-actor intel stale\naction.notable.param.security_domain = threat\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `coverage_unassessed`** (owner: SOC Manager, severity P3): map detection content; assess coverage; document gaps.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Rail-relevance scoring**: filter intel for transport/rail relevance.\n- **MITRE ATT&CK Enterprise vs ICS**: rail actors use both matrices.",
+  "grandmaExplanation": "We track the hacker groups that have targeted railways anywhere in the world. For each one, we record their tactics and check that our defenses catch them. If a group's information goes stale, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.12"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for CISA KEV.\n- Threat-intel subscription.\n\n## Step 1 — Actor collection\n\n```ini\n[rail_actor_lookup]\nenforceTypes = true\nfield.actor_id = string\nfield.actor_name = string\nfield.ttp_id = string\nfield.mitre_id_list = string\nfield.last_observed_at = number\nfield.intel_last_refreshed_at = number\nfield.detection_coverage_status = string\nfield.actor_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.25: CLC/TS 50701 Rail Threat Actors]\ncron_schedule = 0 9 1 * *\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.25,reg=CLC-TS-50701,clause=CLC-TS-50701-c6-3\naction.notable.param.rule_title = Rail-threat-actor intel stale\naction.notable.param.security_domain = threat\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `coverage_unassessed`** (owner: SOC Manager, severity P3): map detection content; assess coverage; document gaps.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Rail-relevance scoring**: filter intel for transport/rail relevance.\n- **MITRE ATT&CK Enterprise vs ICS**: rail actors use both matrices.",
-  "grandmaExplanation": "We track the hacker groups that have targeted railways anywhere in the world. For each one, we record their tactics and check that our defenses catch them. If a group's information goes stale, the team is alerted."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6306,
+      "name": "Splunk Add-on for CISA KEV",
+      "url": "https://splunkbase.splunk.com/app/6306",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

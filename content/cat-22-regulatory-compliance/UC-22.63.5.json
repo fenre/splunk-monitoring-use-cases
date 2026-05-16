@@ -48,25 +48,6 @@
   },
   "dataSources": "KV Store `iec_61511_sis_moc_register_lookup` (moc_id, sis_id, change_class, change_description, change_initiator, change_class_reviewer_ref, sil_impact_assessed_at, sil_impact_finding, cra_re_executed_at, cra_re_assessor_ref, pssr_completed_at, pssr_findings_status, change_implemented_at). MoC platform events via HEC `hec:moc:event`. Document-management system events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup iec_61511_sis_moc_register_lookup\n| eval now_ts = now()\n| eval change_class_reviewed = if(isnotnull(change_class_reviewer_ref), 1, 0)\n| eval sil_impact_assessed_done = if(isnotnull(sil_impact_assessed_at), 1, 0)\n| eval cyber_relevant_change = if(change_class IN (\"hardware\",\"software\",\"firmware\",\"network\",\"application-program\",\"interconnection\",\"engineering-workstation-rebuild\"), 1, 0)\n| eval cra_required = if(cyber_relevant_change = 1 OR sil_impact_finding IN (\"increase\",\"degrade\"), 1, 0)\n| eval cra_re_done = if(isnotnull(cra_re_executed_at), 1, 0)\n| eval pssr_required = if(change_class != \"replacement-in-kind\", 1, 0)\n| eval pssr_done = if(isnotnull(pssr_completed_at) AND pssr_findings_status IN (\"closed\",\"closed-with-comments\"), 1, 0)\n| eval pssr_open_findings = if(pssr_findings_status IN (\"open\",\"in-progress\"), 1, 0)\n| eval changes_implemented_without_proper_workflow = if(isnotnull(change_implemented_at) AND (change_class_reviewed = 0 OR sil_impact_assessed_done = 0 OR (cra_required = 1 AND cra_re_done = 0) OR (pssr_required = 1 AND pssr_done = 0)), 1, 0)\n| eval days_in_moc_workflow = if(isnotnull(change_implemented_at), null(), round((now_ts - moc_opened_at) / 86400, 1))\n| eval moc_stalled = if(isnotnull(days_in_moc_workflow) AND days_in_moc_workflow > 365, 1, 0)\n| eval risk_score = case(\n    changes_implemented_without_proper_workflow = 1, 100,\n    change_class = \"replacement-in-kind\" AND cyber_relevant_change = 1, 95,\n    pssr_required = 1 AND isnotnull(change_implemented_at) AND pssr_done = 0, 95,\n    cra_required = 1 AND isnotnull(change_implemented_at) AND cra_re_done = 0, 95,\n    sil_impact_assessed_done = 0 AND isnotnull(change_implemented_at), 90,\n    pssr_open_findings = 1, 60,\n    moc_stalled = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +pssr_completed_at\n| table moc_id sis_id change_class sil_impact_finding cra_re_executed_at pssr_completed_at pssr_findings_status changes_implemented_without_proper_workflow risk_score",
   "description": "Enumerates every SIS MoC and reconciles against the IEC 61511 Clause 17.2 discipline limbs: (i) the change is properly classified (replacement-in-kind vs change-requiring-MoC) by an independent reviewer, (ii) a SIL-impact assessment is documented, (iii) if cyber-relevant, a CRA per Clause 8.2.4 has been re-executed, (iv) a Pre-Startup Safety Review (PSSR) has been completed and its findings closed before restart, (v) the lifecycle deliverables (SIS-SRS, design documents) have been updated. Critical-100-scoring conditions: a change implemented without one or more of the mandatory workflow steps closed.",
   "value": "MoC failures are the most consistent root-cause finding in process-safety-related industrial incidents (BP Texas City 2005; Buncefield 2005; Williams Olefins 2013; West Fertilizer 2013; many others). The MoC discipline is also enforced by OSHA PSM (29 CFR 1910.119(l)), EPA Risk Management Program (40 CFR 68.75), COMAH Regulations 2015 (UK), and India's MSIHC Rules 1989. A SIS-affecting MoC implemented without proper workflow is contributory negligence for any subsequent incident — and is a near-universal regulator citation. This UC's audit trail demonstrates the operating organisation's MoC-discipline posture both pre-incident (for auditors / insurers) and post-incident (for regulators / litigation).",
@@ -91,6 +72,11 @@
     }
   ],
   "knownFalsePositives": "1. **Replacement-in-kind**: identical-part-number replacements with the same firmware revision are exempt from MoC per Clause 17.2.2.b — load `replacement_in_kind_evidence_ref` (vendor part-number, firmware revision, certification level) to suppress. 2. **In-progress MoC**: a properly-staged MoC may be in-progress and not yet reach 'implemented' status — `days_in_moc_workflow` and `change_implemented_at` correctly separate these. 3. **Emergency change**: an emergency change implemented under emergency-MoC procedures may temporarily lack PSSR — load `emergency_moc_ref` and require post-emergency PSSR-closure within 30 days; suppress only during the 30-day window.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_5_exceptions` with the Functional Safety Manager + Plant Manager documented approval, an explicit moc_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T0820",
+    "T0857",
+    "T0858"
+  ],
   "requiredFields": [
     "moc_id",
     "sis_id",
@@ -100,32 +86,46 @@
     "pssr_completed_at",
     "risk_score"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow HSE / GRC (Vancouver / Washington / Xanadu)",
+    "Sphera Stature / Enablon HSE / SAP-MoC",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Functional Safety Manager + Process Safety Manager + Plant Manager + Internal Audit",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow HSE / GRC (Vancouver / Washington / Xanadu)",
-    "Sphera Stature / Enablon HSE / SAP-MoC"
-  ],
-  "mitreAttack": [
-    "T0820",
-    "T0857",
-    "T0858"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- An MoC platform (Sphera Stature / Enablon / SAP-MoC / ServiceNow HSE MoC) wired to Splunk.\n- A documented MoC procedure aligned to OSHA PSM 1910.119(l) (US) / COMAH (UK) / Seveso III (EU) / MSIHC Rules (India).\n- A PSSR procedure with documented finding-closure workflow.\n\n## Step 1 - MoC register KV Store\n\n```ini\n[iec_61511_sis_moc_register_lookup]\nenforceTypes = true\nfield.moc_id = string\nfield.sis_id = string\nfield.change_class = string\nfield.change_description = string\nfield.change_initiator = string\nfield.moc_opened_at = time\nfield.change_class_reviewer_ref = string\nfield.sil_impact_assessed_at = time\nfield.sil_impact_finding = string\nfield.cra_re_executed_at = time\nfield.cra_re_assessor_ref = string\nfield.pssr_completed_at = time\nfield.pssr_findings_status = string\nfield.change_implemented_at = time\nfield.replacement_in_kind_evidence_ref = string\nfield.emergency_moc_ref = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.63.5: SIS Management of Change]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.5,reg=IEC-61511,clause=IEC-61511-Cl-17-2\nalert.severity = 5\n```\n\n## Step 3 - Functional-safety-specific notes\n\n- **Cyber-relevance decision tree**: any change to hardware, firmware, application program, network configuration, or engineering-workstation toolchain is cyber-relevant by default — the MoC-platform decision tree should err toward triggering a CRA refresh.\n- **PSSR independence**: the PSSR team should not include the change implementer — this independence is itself an audit point.",
+  "grandmaExplanation": "Any change to a safety system — even a small one — could create new risks. Every change must be reviewed by safety experts, the cyber-risk re-checked, and a final safety review done before the system goes back into service. We check daily that no shortcut is taken.",
   "prerequisiteUseCases": [
     "UC-22.63.1",
     "UC-22.63.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- An MoC platform (Sphera Stature / Enablon / SAP-MoC / ServiceNow HSE MoC) wired to Splunk.\n- A documented MoC procedure aligned to OSHA PSM 1910.119(l) (US) / COMAH (UK) / Seveso III (EU) / MSIHC Rules (India).\n- A PSSR procedure with documented finding-closure workflow.\n\n## Step 1 - MoC register KV Store\n\n```ini\n[iec_61511_sis_moc_register_lookup]\nenforceTypes = true\nfield.moc_id = string\nfield.sis_id = string\nfield.change_class = string\nfield.change_description = string\nfield.change_initiator = string\nfield.moc_opened_at = time\nfield.change_class_reviewer_ref = string\nfield.sil_impact_assessed_at = time\nfield.sil_impact_finding = string\nfield.cra_re_executed_at = time\nfield.cra_re_assessor_ref = string\nfield.pssr_completed_at = time\nfield.pssr_findings_status = string\nfield.change_implemented_at = time\nfield.replacement_in_kind_evidence_ref = string\nfield.emergency_moc_ref = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.63.5: SIS Management of Change]\ncron_schedule = 0 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.5,reg=IEC-61511,clause=IEC-61511-Cl-17-2\nalert.severity = 5\n```\n\n## Step 3 - Functional-safety-specific notes\n\n- **Cyber-relevance decision tree**: any change to hardware, firmware, application program, network configuration, or engineering-workstation toolchain is cyber-relevant by default — the MoC-platform decision tree should err toward triggering a CRA refresh.\n- **PSSR independence**: the PSSR team should not include the change implementer — this independence is itself an audit point.",
-  "grandmaExplanation": "Any change to a safety system — even a small one — could create new risks. Every change must be reviewed by safety experts, the cyber-risk re-checked, and a final safety review done before the system goes back into service. We check daily that no shortcut is taken."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

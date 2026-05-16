@@ -36,25 +36,6 @@
   },
   "dataSources": "ServiceNow SIR (`circia_classification`, `reasonable_belief_at`, `reasonable_belief_determined_by`, `reasonable_belief_evidence_url`). First-indicator detection feed: ES notable creation events (`notable` index), EDR / NDR detection alerts. CIRCIA reasonable-belief evidence archive (S3-backed) holding the IR Commander's memorandum.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" circia_classification=\"reportable_72h_clock\" earliest=-30d@d\n| rename _time AS sir_opened_at\n| eval reasonable_belief_epoch = strptime(reasonable_belief_at, \"%Y-%m-%dT%H:%M:%S.%QZ\")\n| join type=left incident_id [\n    search index=notable earliest=-90d@d\n    | stats min(_time) AS first_indicator_at by orig_incident_id\n    | rename orig_incident_id AS incident_id\n]\n| eval first_indicator_at_epoch = first_indicator_at\n| eval determination_delta_minutes = round((reasonable_belief_epoch - first_indicator_at_epoch) / 60, 1)\n| eval determination_status = case(\n    isnull(reasonable_belief_epoch), \"stamp_missing\",\n    isnull(reasonable_belief_evidence_url), \"evidence_missing\",\n    isnull(reasonable_belief_determined_by), \"signer_missing\",\n    isnull(first_indicator_at_epoch), \"first_indicator_missing\",\n    determination_delta_minutes > 1440 AND determination_delta_minutes <= 4320, \"delayed_24-72h\",\n    determination_delta_minutes > 4320, \"delayed_over_72h\",\n    1=1, \"stamped\")\n| table incident_id sir_opened_at reasonable_belief_at reasonable_belief_determined_by reasonable_belief_evidence_url first_indicator_at determination_delta_minutes determination_status",
   "description": "Joins SIR `reportable_72h_clock` incidents to first-indicator detection events to compute the gap between first indicator and reasonable-belief determination. Surfaces missing stamps, missing evidence URLs, missing first-indicator data, and unusually long determination delays for audit defence review.",
   "value": "The reasonable-belief stamp is the most legally consequential timestamp in the CIRCIA workflow. An adversarial CISA enforcement reading may argue the entity 'reasonably believed' earlier than it stamped. UC-22.54.10 instruments the provenance of the stamp — first indicator, evidence URL, signer — so the General Counsel can defend the timestamp in audit. Long gaps between first indicator and stamp are surfaced for proactive review.",
@@ -75,6 +56,9 @@
     }
   ],
   "knownFalsePositives": "1. **Investigation precedes reasonable belief** — the team may investigate a suspected incident for hours or days before reasonably believing it is a covered cyber incident. Long delays are NOT per se a violation; the gap must be defensible with the evidence URL. Suppression: not a false positive; the dashboard surfaces these for proactive review.\n\n2. **First-indicator backdating** — EDR alerts may carry a `_time` from the original event (long before SOC triage). The first-indicator computation may surface a stale `_time`. Suppression: filter the first-indicator search to events of severity >= medium.\n\n3. **Multi-incident first-indicator confusion** — a SIR may aggregate multiple notables with different first-indicator times. Suppression: use the earliest related notable as the first-indicator for the parent SIR.\n\n4. **Pre-classification triage period** — the team may add IR notes for hours before classifying as `reportable_72h_clock`. Suppression: the 72-hour clock starts at `reasonable_belief_at`, not at SIR open; the delay is intentional.\n\n**Suppression mechanism**: KV Store `circia_22_54_10_exceptions` with per-incident grants requiring documented IR Commander approval and a 7-day maximum grant.",
+  "mitreAttack": [
+    "N/A (statutory-determination provenance workflow)"
+  ],
   "requiredFields": [
     "incident_id",
     "reasonable_belief_at",
@@ -82,29 +66,45 @@
     "first_indicator_at",
     "determination_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR with the reasonable-belief custom columns",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, notable index for first-indicator detection)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + IR Director",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "servicenow",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263, notable index for first-indicator detection)",
-    "ServiceNow SIR with the reasonable-belief custom columns"
-  ],
-  "mitreAttack": [
-    "N/A (statutory-determination provenance workflow)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928).\n- ServiceNow SIR with the reasonable-belief custom columns (defined in UC-22.54.2).\n- ES notable index available with 90-day retention.\n- An S3 bucket for the reasonable-belief evidence memos.\n\n## Step 1 — Extend SIR with evidence-link column\n\nAdd `reasonable_belief_evidence_url` (string) to `sn_si_incident`. The URL points to an S3-encrypted memo signed by the IR Commander explaining the basis for the reasonable-belief determination (e.g. 'EDR triggered MITRE T1486 detection at 0235; forensic triage at 0530 confirmed file encryption on shared file servers; CEO conference call at 0830 confirmed business impact').\n\n## Step 2 — SOAR workflow integration\n\nThe `circia-classification-review` playbook (UC-22.54.9) must enforce: when the IR Commander signs `reportable_72h_clock`, the memo URL and `reasonable_belief_at` are mandatory.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.10: CIRCIA 72-Hour Clock Determination-Point Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.10,reg=CIRCIA,clause=CIRCIA-NPRM-72hr-reporting\naction.notable.param.rule_title = CIRCIA reasonable-belief stamp missing, evidence missing, or unusually delayed\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\nalert.suppress = 1\nalert.suppress.fields = incident_id\nalert.suppress.period = 24h\n```\n\nRoute `determination_status` to severity by mapping:\n\n- `stamp_missing` → critical\n- `evidence_missing` → high\n- `signer_missing` → high\n- `first_indicator_missing` → medium\n- `delayed_over_72h` → medium (proactive)\n- `delayed_24-72h` → low (proactive)\n\n## Step 4 — Validate deployment\n\n**(a) Stamp-missing test**: classify a SIR as `reportable_72h_clock` without `reasonable_belief_at`. UC-22.54.10 must flag `stamp_missing`.\n\n**(b) Long-delay test**: backdate first_indicator_at to 4 days before reasonable_belief_at. UC-22.54.10 must flag `delayed_over_72h`.\n\n**(c) Memo-missing test**: stamp without evidence URL. UC-22.54.10 must flag `evidence_missing`.\n\n## Step 5 — Operationalize\n\n**Runbook for `stamp_missing`** (owner: IR Commander, severity P0):\n\n1. Immediate: review the incident; if it is genuinely `reportable_72h_clock`, stamp it; if it was misclassified, revert to `under_evaluation`.\n\n**Runbook for `delayed_over_72h`** (owner: General Counsel, severity P2):\n\n1. Within 5 business days: document the rationale for the long delay (lengthy triage, complex multi-system incident, third-party confirmation required). The memo becomes a defence artefact.\n\n## Step 6 — Troubleshooting\n\n**SIR `reasonable_belief_at` timezone confusion** — ensure SIR stores in UTC and Splunk parses correctly with `strptime`.\n\n**First-indicator join produces nulls** — verify the `orig_incident_id` field on notables links to SIR.\n\n**Long delays are common** — in a mature programme, delays are typical and defensible; the dashboard's proactive view enables documentation.\n\n**CIRCIA-specific failure modes**:\n\n- **Discovery of historical incident**: if a long-dormant indicator surfaces today (e.g. retrospective forensic finding from 2024), the reasonable-belief stamp is today; document the discovery context.\n- **Cross-vendor coordination delay**: a cloud-provider compromise (UC-22.54.23) may require coordination with the provider before the entity reasonably believes; document the coordination.\n- **External-counsel review**: external counsel review of the classification is permitted but does not delay the stamp — the IR Commander stamps based on reasonable belief; external counsel may later affirm.",
+  "grandmaExplanation": "When we decide an incident is serious enough to report, we write down exactly when we decided, who decided, and why. We also write down when the first warning sign appeared, so anyone reviewing later can see how long it took us to make the call.",
   "prerequisiteUseCases": [
     "UC-22.54.9"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for ServiceNow (Splunkbase 1928).\n- ServiceNow SIR with the reasonable-belief custom columns (defined in UC-22.54.2).\n- ES notable index available with 90-day retention.\n- An S3 bucket for the reasonable-belief evidence memos.\n\n## Step 1 — Extend SIR with evidence-link column\n\nAdd `reasonable_belief_evidence_url` (string) to `sn_si_incident`. The URL points to an S3-encrypted memo signed by the IR Commander explaining the basis for the reasonable-belief determination (e.g. 'EDR triggered MITRE T1486 detection at 0235; forensic triage at 0530 confirmed file encryption on shared file servers; CEO conference call at 0830 confirmed business impact').\n\n## Step 2 — SOAR workflow integration\n\nThe `circia-classification-review` playbook (UC-22.54.9) must enforce: when the IR Commander signs `reportable_72h_clock`, the memo URL and `reasonable_belief_at` are mandatory.\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.54.10: CIRCIA 72-Hour Clock Determination-Point Detection]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.10,reg=CIRCIA,clause=CIRCIA-NPRM-72hr-reporting\naction.notable.param.rule_title = CIRCIA reasonable-belief stamp missing, evidence missing, or unusually delayed\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\nalert.suppress = 1\nalert.suppress.fields = incident_id\nalert.suppress.period = 24h\n```\n\nRoute `determination_status` to severity by mapping:\n\n- `stamp_missing` → critical\n- `evidence_missing` → high\n- `signer_missing` → high\n- `first_indicator_missing` → medium\n- `delayed_over_72h` → medium (proactive)\n- `delayed_24-72h` → low (proactive)\n\n## Step 4 — Validate deployment\n\n**(a) Stamp-missing test**: classify a SIR as `reportable_72h_clock` without `reasonable_belief_at`. UC-22.54.10 must flag `stamp_missing`.\n\n**(b) Long-delay test**: backdate first_indicator_at to 4 days before reasonable_belief_at. UC-22.54.10 must flag `delayed_over_72h`.\n\n**(c) Memo-missing test**: stamp without evidence URL. UC-22.54.10 must flag `evidence_missing`.\n\n## Step 5 — Operationalize\n\n**Runbook for `stamp_missing`** (owner: IR Commander, severity P0):\n\n1. Immediate: review the incident; if it is genuinely `reportable_72h_clock`, stamp it; if it was misclassified, revert to `under_evaluation`.\n\n**Runbook for `delayed_over_72h`** (owner: General Counsel, severity P2):\n\n1. Within 5 business days: document the rationale for the long delay (lengthy triage, complex multi-system incident, third-party confirmation required). The memo becomes a defence artefact.\n\n## Step 6 — Troubleshooting\n\n**SIR `reasonable_belief_at` timezone confusion** — ensure SIR stores in UTC and Splunk parses correctly with `strptime`.\n\n**First-indicator join produces nulls** — verify the `orig_incident_id` field on notables links to SIR.\n\n**Long delays are common** — in a mature programme, delays are typical and defensible; the dashboard's proactive view enables documentation.\n\n**CIRCIA-specific failure modes**:\n\n- **Discovery of historical incident**: if a long-dormant indicator surfaces today (e.g. retrospective forensic finding from 2024), the reasonable-belief stamp is today; document the discovery context.\n- **Cross-vendor coordination delay**: a cloud-provider compromise (UC-22.54.23) may require coordination with the provider before the entity reasonably believes; document the coordination.\n- **External-counsel review**: external counsel review of the classification is permitted but does not delay the stamp — the IR Commander stamps based on reasonable belief; external counsel may later affirm.",
-  "grandmaExplanation": "When we decide an incident is serious enough to report, we write down exactly when we decided, who decided, and why. We also write down when the first warning sign appeared, so anyone reviewing later can see how long it took us to make the call."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

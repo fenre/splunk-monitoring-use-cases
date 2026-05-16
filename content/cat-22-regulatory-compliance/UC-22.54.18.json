@@ -36,26 +36,6 @@
   },
   "dataSources": "KV Store `circia_srma_lookup` (sector → SRMA party mapping). HEC `hec:srma:relay` for SRMA-relay events from CISA. HEC `hec:srma:ack` for SRMA acknowledgement events. Cross-reference to `circia_entity_register_lookup` (UC-22.54.1) for entity sector.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=audit_evidence sourcetype=\"hec:circia:submission\"\n| eval submission_filed_at = _time\n| lookup circia_entity_register_lookup entity_id OUTPUT entity_sector\n| lookup circia_srma_lookup entity_sector OUTPUT srma_party srma_relay_endpoint\n| join type=left submission_id [\n    search index=audit_evidence (sourcetype=\"hec:srma:relay\" OR sourcetype=\"hec:srma:ack\") earliest=-7d@d\n    | stats first(_time) AS srma_relay_at last(_time) AS srma_acknowledged_at values(srma_case_id) AS srma_case_id by submission_id\n]\n| eval coordination_status = case(\n    isnull(srma_party), \"no_srma_mapped\",\n    isnull(srma_relay_at), \"relay_missing\",\n    isnotnull(srma_relay_at) AND isnull(srma_acknowledged_at), \"relay_no_ack\",\n    isnotnull(srma_acknowledged_at), \"acknowledged\",\n    1=1, \"unknown\")\n| where coordination_status != \"acknowledged\"\n| table submission_id submission_filed_at entity_sector srma_party srma_relay_at srma_acknowledged_at srma_case_id coordination_status",
   "description": "Joins CIRCIA submissions to the SRMA mapping and to SRMA-relay/ack events. Surfaces submissions for which the SRMA-coordination chain is incomplete.",
   "value": "A CIRCIA submission that is not coordinated with the SRMA can create dual-reporting confusion and exposes the entity to redundant reporting demands. This UC ensures the coordination trail is documented.",
@@ -72,19 +52,14 @@
     }
   ],
   "knownFalsePositives": "1. **SRMA without portal integration** — some SRMAs (e.g. small sectoral agencies) may not yet have portal integration. Suppression: tag those rows `coordination_status_override=manual_offline`.\n\n2. **SRMA backlog** — acknowledgement may take days. Suppression: only flag `relay_no_ack` after 5 business days.\n\n**Suppression mechanism**: KV Store `circia_22_54_18_exceptions`.",
+  "mitreAttack": [
+    "N/A (inter-agency-coordination workflow)"
+  ],
   "requiredFields": [
     "submission_id",
     "srma_party",
     "coordination_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "CIRCIA Compliance SME Panel + Sector Compliance Lead",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "splunk-es",
     "splunk-soar"
@@ -93,14 +68,39 @@
     "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
     "Splunk SOAR 6.x (Splunkbase 4413, srma-coordination playbook)"
   ],
-  "mitreAttack": [
-    "N/A (inter-agency-coordination workflow)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "CIRCIA Compliance SME Panel + Sector Compliance Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- SRMA endpoint registry; HEC subscriptions.\n- KV Store `circia_srma_lookup`.\n\n## Step 1 — SRMA mapping\n\n```ini\n[circia_srma_lookup]\nenforceTypes = true\nfield.entity_sector = string\nfield.srma_party = string\nfield.srma_relay_endpoint = string\nfield.relay_expected_latency_minutes = number\nfield.ack_expected_latency_days = number\n```\n\nPopulate with: transportation→TSA, energy→DOE, water→EPA, healthcare→HHS, communications→FCC, financial→Treasury, defence→DOD, etc.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.18: CIRCIA Sector-SRMA Coordination Trail]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.18,reg=CIRCIA,clause=CIRCIA-CISA-coordination-with-sector-srma\naction.notable.param.rule_title = CIRCIA submission lacks SRMA coordination evidence\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Relay-missing simulation**: block egress to TSA endpoint; submission must trip `relay_missing`.\n\n**(b) Sector-without-SRMA**: an entity with `entity_sector=null`; UC-22.54.18 must trip `no_srma_mapped`.\n\n## Step 4 — Operationalize\n\n**Runbook for `relay_missing`** (owner: General Counsel, severity P2):\n\n1. Within 4 business hours: file directly with SRMA via backup channel; verify CISA later relays.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Multi-sector entity**: an entity spanning multiple sectors may have multiple SRMAs; the lookup supports multiple rows per entity.\n- **CIRCIA Agreement supersedes SRMA**: see UC-22.54.15.",
+  "grandmaExplanation": "When we send a report to the cyber agency, it also has to reach the sector regulator — like the transportation agency or water agency. We check that the message gets passed along and is acknowledged. If it isn't, the team is alerted to call them directly.",
   "prerequisiteUseCases": [
     "UC-22.54.1",
     "UC-22.54.15",
     "UC-22.54.16"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- SRMA endpoint registry; HEC subscriptions.\n- KV Store `circia_srma_lookup`.\n\n## Step 1 — SRMA mapping\n\n```ini\n[circia_srma_lookup]\nenforceTypes = true\nfield.entity_sector = string\nfield.srma_party = string\nfield.srma_relay_endpoint = string\nfield.relay_expected_latency_minutes = number\nfield.ack_expected_latency_days = number\n```\n\nPopulate with: transportation→TSA, energy→DOE, water→EPA, healthcare→HHS, communications→FCC, financial→Treasury, defence→DOD, etc.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.18: CIRCIA Sector-SRMA Coordination Trail]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.18,reg=CIRCIA,clause=CIRCIA-CISA-coordination-with-sector-srma\naction.notable.param.rule_title = CIRCIA submission lacks SRMA coordination evidence\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Relay-missing simulation**: block egress to TSA endpoint; submission must trip `relay_missing`.\n\n**(b) Sector-without-SRMA**: an entity with `entity_sector=null`; UC-22.54.18 must trip `no_srma_mapped`.\n\n## Step 4 — Operationalize\n\n**Runbook for `relay_missing`** (owner: General Counsel, severity P2):\n\n1. Within 4 business hours: file directly with SRMA via backup channel; verify CISA later relays.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Multi-sector entity**: an entity spanning multiple sectors may have multiple SRMAs; the lookup supports multiple rows per entity.\n- **CIRCIA Agreement supersedes SRMA**: see UC-22.54.15.",
-  "grandmaExplanation": "When we send a report to the cyber agency, it also has to reach the sector regulator — like the transportation agency or water agency. We check that the message gets passed along and is acknowledged. If it isn't, the team is alerted to call them directly."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

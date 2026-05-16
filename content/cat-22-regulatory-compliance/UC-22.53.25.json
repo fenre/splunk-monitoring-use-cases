@@ -35,25 +35,6 @@
   },
   "dataSources": "LMS (Cornerstone / Workday Learning / KnowBe4 / SANS), HR system, AD / IdP for role classification.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_training_roster_lookup\n| eval days_since = if(isnotnull(training_completed_at), round((now() - training_completed_at) / 86400, 0), null())\n| eval required_modules = \"phishing,mfa_hygiene,removable_media,ot_physical_tampering,incident_reporting\"\n| eval covered_modules = if(isnotnull(training_modules_covered), training_modules_covered, \"\")\n| eval modules_missing = mvfilter(NOT match(split(required_modules,\",\"), covered_modules))\n| eval missing_count = mvcount(modules_missing)\n| eval training_status = case(\n    isnull(training_completed_at), \"never_trained\",\n    days_since > 365, \"overdue\",\n    days_since > 335, \"approaching_due\",\n    missing_count > 0, \"missing_modules\",\n    1=1, \"current\")\n| table pwsid person_id role role_class training_id training_completed_at days_since training_modules_covered modules_missing training_status",
   "description": "Tracks per-person annual cybersecurity awareness training across the AWIA-required cohorts (operators, engineers, administrators, contractors, board members) and surfaces overdue, never-trained, and missing-module rows. Required modules cover phishing recognition, MFA hygiene, removable-media risk, OT-specific physical-tampering recognition, and incident-reporting workflow. New hires are tolerated for 60 days; non-system-access physical contractors are out of scope.",
   "value": "Phishing is the dominant initial-access vector in water-sector intrusions. Untrained operators are the gap.",
@@ -73,6 +54,9 @@
     }
   ],
   "knownFalsePositives": "1. **New hire grace** — 60-day window.\n\n**Suppression**: `awia_22_53_25_exceptions`; max 30-day; HR + OT Cybersecurity Lead.",
+  "mitreAttack": [
+    "T1566"
+  ],
   "requiredFields": [
     "pwsid",
     "person_id",
@@ -80,31 +64,47 @@
     "training_completed_at",
     "training_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
     "Cornerstone OnDemand",
-    "Workday Learning",
     "KnowBe4 Security Awareness Training",
     "SANS Security Awareness",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Workday Learning"
   ],
-  "mitreAttack": [
-    "T1566"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.21 deployed.\n- Splunk ES.\n- Indexes `index=lms`, `index=audit_evidence`.\n- Lookup `awia_training_roster_lookup` keyed (person_id).\n\n## Step 1 — Configure data collection\n\nLMS writes completion records into the roster lookup. Role classification (`operator`, `engineer`, `administrator`, `contractor`, `board_member`) drives module-coverage requirements; all five required modules apply to every role with system access.\n\n## Step 2 — Create the search and alert\n\nWeekly Friday 09:00.\n\n```ini\n[UC-22.53.25: AWIA Training]\ncron_schedule = 0 9 * * 5\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.25,reg=AWIA,clause=AWIA-EPA-training\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: 14 months stale; UC fires.  Negative: refresh; UC clears.  Missing module: drop one module; UC fires.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Training`. Runbook: HR enrols overdue persons; system access curtailed at 30-day overdue.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **KnowBe4 — module mapping mismatch**: KnowBe4 names modules `KMSAT 2024 — Identifying Phishing` rather than the controlled vocabulary `phishing` this UC requires. Mitigation: maintain `awia_lms_module_map_lookup` that translates KnowBe4 / SANS / Cornerstone module names into the controlled vocabulary, and rewrite `training_modules_covered` through that lookup before the case statement.\n- **KnowBe4 — phishing-test outcome confusion**: KnowBe4 separates 'training completion' from 'phishing-test pass'; users who clicked the phishing test are still 'trained'. Mitigation: tighten the rule to require `training_completed_at` AND `phishing_test_last_pass_at` within 365 days for full credit.\n- **Workday Learning — contractor records partitioned**: Workday Learning by default partitions employees and contractors; the contractor LMS data is in a separate tenant. Mitigation: federate the contractor tenant via Workday Studio integration into a single roster lookup.\n- **Cornerstone OnDemand — board-member separate cohort**: Cornerstone treats board members as a non-employee cohort served by a separate portal. Mitigation: configure a single sign-on bridge so board-member completion records land in the same roster lookup.\n- **SANS Security Awareness — OT-specific module unavailable in default catalogue**: SANS' default catalogue does not include OT-physical-tampering; the module must be added via a custom-content build or AWWA-developed module. Mitigation: pair SANS with the AWWA Cybersecurity Awareness Training package and reflect both providers in the roster row.\n- **Splunk Add-on for ServiceNow — contractor identity collision**: contractor identities often have the same display name as employees; the add-on default mapping to `user_id` collides. Mitigation: key the roster lookup by `person_id` from the IdP (Okta / Azure AD) rather than the LMS-provided `user_id`.\n- **Splunk ES 7.x — large-cohort notable storm**: AWIA training-overdue events can generate hundreds of notables on each weekly run. Mitigation: alert.suppress on (pwsid, role_class) rather than (person_id) and produce a daily digest rather than per-person notables.\n\n**AWIA-specific failure modes**:\n\n- **Contractor training**: a contractor's training is the contractor's responsibility but the utility's evidence; require attestation at contract signing.\n- **Board-member training**: a board member with system access (rare) is also in scope; if no system access, a governance-level overview suffices and is documented.\n- **OT-specific physical-tampering recognition**: this module is OT-specific and often the missing one; ensure the training program includes it.\n- **WARN drill credit**: participation in a WARN annual drill can credit the incident-reporting module for the cohort that attended; capture the participation roster as evidence and back-fill `training_modules_covered` for the cohort.",
+  "grandmaExplanation": "Everyone with access to the water plant systems — operators, engineers, contractors, even board members — must do an annual cyber-awareness course covering phishing, two-step login, USB risk, recognising tampering, and how to report an incident. We watch the training records and ring the bell if anyone is overdue.",
   "prerequisiteUseCases": [
     "UC-22.53.21"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.21 deployed.\n- Splunk ES.\n- Indexes `index=lms`, `index=audit_evidence`.\n- Lookup `awia_training_roster_lookup` keyed (person_id).\n\n## Step 1 — Configure data collection\n\nLMS writes completion records into the roster lookup. Role classification (`operator`, `engineer`, `administrator`, `contractor`, `board_member`) drives module-coverage requirements; all five required modules apply to every role with system access.\n\n## Step 2 — Create the search and alert\n\nWeekly Friday 09:00.\n\n```ini\n[UC-22.53.25: AWIA Training]\ncron_schedule = 0 9 * * 5\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.25,reg=AWIA,clause=AWIA-EPA-training\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: 14 months stale; UC fires.  Negative: refresh; UC clears.  Missing module: drop one module; UC fires.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Training`. Runbook: HR enrols overdue persons; system access curtailed at 30-day overdue.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **KnowBe4 — module mapping mismatch**: KnowBe4 names modules `KMSAT 2024 — Identifying Phishing` rather than the controlled vocabulary `phishing` this UC requires. Mitigation: maintain `awia_lms_module_map_lookup` that translates KnowBe4 / SANS / Cornerstone module names into the controlled vocabulary, and rewrite `training_modules_covered` through that lookup before the case statement.\n- **KnowBe4 — phishing-test outcome confusion**: KnowBe4 separates 'training completion' from 'phishing-test pass'; users who clicked the phishing test are still 'trained'. Mitigation: tighten the rule to require `training_completed_at` AND `phishing_test_last_pass_at` within 365 days for full credit.\n- **Workday Learning — contractor records partitioned**: Workday Learning by default partitions employees and contractors; the contractor LMS data is in a separate tenant. Mitigation: federate the contractor tenant via Workday Studio integration into a single roster lookup.\n- **Cornerstone OnDemand — board-member separate cohort**: Cornerstone treats board members as a non-employee cohort served by a separate portal. Mitigation: configure a single sign-on bridge so board-member completion records land in the same roster lookup.\n- **SANS Security Awareness — OT-specific module unavailable in default catalogue**: SANS' default catalogue does not include OT-physical-tampering; the module must be added via a custom-content build or AWWA-developed module. Mitigation: pair SANS with the AWWA Cybersecurity Awareness Training package and reflect both providers in the roster row.\n- **Splunk Add-on for ServiceNow — contractor identity collision**: contractor identities often have the same display name as employees; the add-on default mapping to `user_id` collides. Mitigation: key the roster lookup by `person_id` from the IdP (Okta / Azure AD) rather than the LMS-provided `user_id`.\n- **Splunk ES 7.x — large-cohort notable storm**: AWIA training-overdue events can generate hundreds of notables on each weekly run. Mitigation: alert.suppress on (pwsid, role_class) rather than (person_id) and produce a daily digest rather than per-person notables.\n\n**AWIA-specific failure modes**:\n\n- **Contractor training**: a contractor's training is the contractor's responsibility but the utility's evidence; require attestation at contract signing.\n- **Board-member training**: a board member with system access (rare) is also in scope; if no system access, a governance-level overview suffices and is documented.\n- **OT-specific physical-tampering recognition**: this module is OT-specific and often the missing one; ensure the training program includes it.\n- **WARN drill credit**: participation in a WARN annual drill can credit the incident-reporting module for the cohort that attended; capture the participation roster as evidence and back-fill `training_modules_covered` for the cohort.",
-  "grandmaExplanation": "Everyone with access to the water plant systems — operators, engineers, contractors, even board members — must do an annual cyber-awareness course covering phishing, two-step login, USB risk, recognising tampering, and how to report an incident. We watch the training records and ring the bell if anyone is overdue."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

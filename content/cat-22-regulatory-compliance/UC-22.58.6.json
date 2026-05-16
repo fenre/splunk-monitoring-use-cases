@@ -36,6 +36,69 @@
   },
   "dataSources": "Stormshield SNS (`stormshield:traffic`), Fortinet FortiGate (`fortinet:traffic`), Cisco ASA/Firepower (`cisco:asa`, `cisco:ftd`), Nozomi/Claroty/Dragos OT detection. ServiceNow CMDB with `saiv_zone` tag. KV Store `lpm_aie_matrix_lookup` (src_zone, dst_zone, allowed_protocols, allowed_ports, owner).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for Stormshield (Splunkbase 5378), Splunk Add-on for Fortinet FortiGate (Splunkbase 2846), Splunk Add-on for Cisco Network Security (Splunkbase 5485).",
+  "spl": "search (sourcetype=stormshield:traffic OR sourcetype=fortinet:traffic OR sourcetype=cisco:asa OR sourcetype=cisco:ftd) earliest=-4h\n| lookup lpm_aie_zone_assignment_lookup src_ip AS src_ip OUTPUT src_zone src_saiv\n| lookup lpm_aie_zone_assignment_lookup dst_ip AS dst_ip OUTPUT dst_zone dst_saiv\n| where isnotnull(src_zone) AND isnotnull(dst_zone) AND src_zone != dst_zone\n| eval zone_pair = src_zone + \"->\" + dst_zone\n| lookup lpm_aie_matrix_lookup src_zone AS src_zone dst_zone AS dst_zone OUTPUT allowed_protocols allowed_ports baseline_owner\n| eval protocol_authorized = if(like(allowed_protocols, \"%\"+protocol+\"%\") OR allowed_protocols=\"any\", \"true\", \"false\")\n| eval port_authorized = case(\n    allowed_ports=\"any\", \"true\",\n    like(allowed_ports, \"%\"+dst_port+\"%\"), \"true\",\n    1=1, \"false\")\n| eval baseline_state = case(\n    isnull(allowed_protocols), \"unauthorized_zone_pair\",\n    protocol_authorized=\"false\" OR port_authorized=\"false\", \"unauthorized_flow\",\n    1=1, \"authorized\")\n| where baseline_state != \"authorized\"\n| stats count as evt_count values(src_ip) as src_ip_list values(dst_ip) as dst_ip_list values(dst_port) as dst_port values(protocol) as protocol values(baseline_owner) as baseline_owner by zone_pair src_zone dst_zone baseline_state dst_saiv\n| table dst_saiv zone_pair src_zone dst_zone src_ip_list dst_ip_list dst_port protocol baseline_state evt_count baseline_owner",
+  "description": "Joins firewall flows against AIE zone-assignment and AIE matrix; surfaces unauthorized boundary crossings.",
+  "value": "AIE non-conformity is one of the most-cited findings in PASSI audits; continuous surveillance avoids surprise.",
+  "implementation": "(1) Populate `lpm_aie_zone_assignment_lookup` (per-IP) and `lpm_aie_matrix_lookup` (per-zone-pair). (2) Schedule UC-22.58.6 every 4 hours. (3) Build the `LPM AIE Surveillance` dashboard.",
+  "visualization": "(Panel 1) Zone-pair heat-map. (Panel 2) Unauthorized flows by SAIV. (Panel 3) Top-talkers across boundary. (Panel 4) AIE-matrix coverage gaps.",
+  "cimModels": [
+    "Network_Traffic",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "ANSSI — Cartographie du système d'information",
+      "url": "https://cyber.gouv.fr/publications/cartographie-du-systeme-dinformation"
+    },
+    {
+      "title": "Code de la défense Art. R.1332-41-2",
+      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370691/"
+    }
+  ],
+  "knownFalsePositives": "1. **NAT/proxy obfuscation**: traversal devices may flatten zone boundaries; tag with `nat=true`.\n2. **Scheduled maintenance windows**: legitimate cross-zone maintenance must be in `lpm_aie_exception_lookup`.\n3. **OT vendor remote access**: gated cross-zone for OT vendor support must be pre-authorized; use UC-22.58.7-style controls.\n\n**Suppression mechanism**: KV Store `lpm_22_58_6_exceptions` with documented RSSI approval and 30-day max grant.",
+  "mitreAttack": [
+    "T1021",
+    "T1133",
+    "T0886"
+  ],
+  "requiredFields": [
+    "saiv_id",
+    "zone_pair",
+    "baseline_state"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-asa",
+    "fortinet",
+    "nozomi-networks",
+    "servicenow",
+    "splunk-es",
+    "stormshield"
+  ],
+  "equipmentModels": [
+    "Cisco Secure Firewall FTD 7.x (Splunk Add-on for Cisco Network Security)",
+    "Fortinet FortiGate 7.x (Splunk Add-on for FortiGate)",
+    "Nozomi Guardian 23+ for OT visibility",
+    "Splunk ES 7.x",
+    "Stormshield SNS 4.x (Splunk Add-on for Stormshield)",
+    "cisco_asa",
+    "fortinet_fortigate"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "LPM Compliance SME Panel + Network Lead + OT Security Lead + RSSI",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Firewall and OT-detection feeds.\n- KV Stores `lpm_aie_zone_assignment_lookup`, `lpm_aie_matrix_lookup`.\n\n## Step 1 — AIE matrix\n\n```ini\n[lpm_aie_matrix_lookup]\nfield.src_zone = string\nfield.dst_zone = string\nfield.allowed_protocols = string\nfield.allowed_ports = string\nfield.baseline_owner = string\nfield.last_validated = number\n```\n\nMust be approved by the Délégué OIV.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.6: LPM AIE Surveillance]\ncron_schedule = 23 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.6,reg=FR-LPM,clause=LPM-AIE-Art-R1332-41-2\nalert.severity = 5\n```\n\n## Step 3 — Runbook\n\n**`baseline_state=unauthorized_flow`** (owner: Network Lead, severity P1):\n1. Within 1 hour: triage flow; determine if legitimate change or attack.\n2. Within 4 hours: if attack, declare under UC-22.58.2.\n3. Within 24 hours: if legitimate, update AIE matrix with Délégué OIV approval.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **AIE matrix staleness**: review quarterly with Délégué OIV.\n- **Cartographie completeness**: every SAIV IP must be in `lpm_aie_zone_assignment_lookup`.\n- **Encrypted cross-zone**: ensure TLS-inspect is performant; otherwise tag flows by protocol/SNI.",
+  "grandmaExplanation": "Les systèmes vitaux français sont découpés en zones, et seuls certains échanges entre zones sont autorisés. Toutes les quatre heures, nous vérifions que personne n'a tracé un nouveau passage non prévu.",
+  "prerequisiteUseCases": [
+    "UC-22.58.3"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -66,64 +129,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "search (sourcetype=stormshield:traffic OR sourcetype=fortinet:traffic OR sourcetype=cisco:asa OR sourcetype=cisco:ftd) earliest=-4h\n| lookup lpm_aie_zone_assignment_lookup src_ip AS src_ip OUTPUT src_zone src_saiv\n| lookup lpm_aie_zone_assignment_lookup dst_ip AS dst_ip OUTPUT dst_zone dst_saiv\n| where isnotnull(src_zone) AND isnotnull(dst_zone) AND src_zone != dst_zone\n| eval zone_pair = src_zone + \"->\" + dst_zone\n| lookup lpm_aie_matrix_lookup src_zone AS src_zone dst_zone AS dst_zone OUTPUT allowed_protocols allowed_ports baseline_owner\n| eval protocol_authorized = if(like(allowed_protocols, \"%\"+protocol+\"%\") OR allowed_protocols=\"any\", \"true\", \"false\")\n| eval port_authorized = case(\n    allowed_ports=\"any\", \"true\",\n    like(allowed_ports, \"%\"+dst_port+\"%\"), \"true\",\n    1=1, \"false\")\n| eval baseline_state = case(\n    isnull(allowed_protocols), \"unauthorized_zone_pair\",\n    protocol_authorized=\"false\" OR port_authorized=\"false\", \"unauthorized_flow\",\n    1=1, \"authorized\")\n| where baseline_state != \"authorized\"\n| stats count as evt_count values(src_ip) as src_ip_list values(dst_ip) as dst_ip_list values(dst_port) as dst_port values(protocol) as protocol values(baseline_owner) as baseline_owner by zone_pair src_zone dst_zone baseline_state dst_saiv\n| table dst_saiv zone_pair src_zone dst_zone src_ip_list dst_ip_list dst_port protocol baseline_state evt_count baseline_owner",
-  "description": "Joins firewall flows against AIE zone-assignment and AIE matrix; surfaces unauthorized boundary crossings.",
-  "value": "AIE non-conformity is one of the most-cited findings in PASSI audits; continuous surveillance avoids surprise.",
-  "implementation": "(1) Populate `lpm_aie_zone_assignment_lookup` (per-IP) and `lpm_aie_matrix_lookup` (per-zone-pair). (2) Schedule UC-22.58.6 every 4 hours. (3) Build the `LPM AIE Surveillance` dashboard.",
-  "visualization": "(Panel 1) Zone-pair heat-map. (Panel 2) Unauthorized flows by SAIV. (Panel 3) Top-talkers across boundary. (Panel 4) AIE-matrix coverage gaps.",
-  "cimModels": [
-    "Network_Traffic",
-    "Inventory"
-  ],
-  "references": [
-    {
-      "title": "ANSSI — Cartographie du système d'information",
-      "url": "https://cyber.gouv.fr/publications/cartographie-du-systeme-dinformation"
-    },
-    {
-      "title": "Code de la défense Art. R.1332-41-2",
-      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370691/"
-    }
-  ],
-  "knownFalsePositives": "1. **NAT/proxy obfuscation**: traversal devices may flatten zone boundaries; tag with `nat=true`.\n2. **Scheduled maintenance windows**: legitimate cross-zone maintenance must be in `lpm_aie_exception_lookup`.\n3. **OT vendor remote access**: gated cross-zone for OT vendor support must be pre-authorized; use UC-22.58.7-style controls.\n\n**Suppression mechanism**: KV Store `lpm_22_58_6_exceptions` with documented RSSI approval and 30-day max grant.",
-  "requiredFields": [
-    "saiv_id",
-    "zone_pair",
-    "baseline_state"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "LPM Compliance SME Panel + Network Lead + OT Security Lead + RSSI",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "stormshield",
-    "fortinet",
-    "cisco-asa",
-    "splunk-es",
-    "nozomi-networks"
-  ],
-  "equipmentModels": [
-    "Stormshield SNS 4.x (Splunk Add-on for Stormshield)",
-    "Fortinet FortiGate 7.x (Splunk Add-on for FortiGate)",
-    "Cisco Secure Firewall FTD 7.x (Splunk Add-on for Cisco Network Security)",
-    "Nozomi Guardian 23+ for OT visibility",
-    "Splunk ES 7.x"
-  ],
-  "mitreAttack": [
-    "T1021",
-    "T1133",
-    "T0886"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.58.3"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Firewall and OT-detection feeds.\n- KV Stores `lpm_aie_zone_assignment_lookup`, `lpm_aie_matrix_lookup`.\n\n## Step 1 — AIE matrix\n\n```ini\n[lpm_aie_matrix_lookup]\nfield.src_zone = string\nfield.dst_zone = string\nfield.allowed_protocols = string\nfield.allowed_ports = string\nfield.baseline_owner = string\nfield.last_validated = number\n```\n\nMust be approved by the Délégué OIV.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.6: LPM AIE Surveillance]\ncron_schedule = 23 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.6,reg=FR-LPM,clause=LPM-AIE-Art-R1332-41-2\nalert.severity = 5\n```\n\n## Step 3 — Runbook\n\n**`baseline_state=unauthorized_flow`** (owner: Network Lead, severity P1):\n1. Within 1 hour: triage flow; determine if legitimate change or attack.\n2. Within 4 hours: if attack, declare under UC-22.58.2.\n3. Within 24 hours: if legitimate, update AIE matrix with Délégué OIV approval.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **AIE matrix staleness**: review quarterly with Délégué OIV.\n- **Cartographie completeness**: every SAIV IP must be in `lpm_aie_zone_assignment_lookup`.\n- **Encrypted cross-zone**: ensure TLS-inspect is performant; otherwise tag flows by protocol/SNI.",
-  "grandmaExplanation": "Les systèmes vitaux français sont découpés en zones, et seuls certains échanges entre zones sont autorisés. Toutes les quatre heures, nous vérifions que personne n'a tracé un nouveau passage non prévu."
+  "wave": "walk"
 }

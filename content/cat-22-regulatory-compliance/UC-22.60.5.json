@@ -48,32 +48,6 @@
   },
   "dataSources": "KV Store `do355a_sb_ad_lookup` (ad_or_sb_id, ad_or_sb_type, tc_holder, airframe_type, applicability_msn_range, compliance_due_date, security_relevant). KV Store `do326a_fleet_lookup` (operator fleet inventory - tail_number, msn, airframe_type, in_service). KV Store `do355a_compliance_records_lookup` (ad_or_sb_id, tail_number, completed_at, technician_id, evidence_ref). FAA Airworthiness Directives RSS / API ingest (`faa:ad:feed`), EASA AD database ingest (`easa:ad:feed`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup do355a_sb_ad_lookup\n| where security_relevant = \"true\"\n| join type=outer ad_or_sb_id airframe_type [\n    | inputlookup do326a_fleet_lookup\n    | where in_service = \"true\"\n    | rename airframe_type AS fleet_airframe_type\n    | eval airframe_type = fleet_airframe_type\n    | stats values(tail_number) AS affected_tails count AS affected_tails_count by airframe_type ]\n| eval ad_or_sb_id = ad_or_sb_id\n| join type=outer ad_or_sb_id [\n    | inputlookup do355a_compliance_records_lookup\n    | stats values(tail_number) AS completed_tails count AS completed_tails_count by ad_or_sb_id ]\n| fillnull completed_tails_count value=0\n| eval now_ts = now()\n| eval days_to_due = round((compliance_due_date - now_ts) / 86400, 1)\n| eval days_overdue = case(now_ts > compliance_due_date AND completed_tails_count < affected_tails_count, round((now_ts - compliance_due_date) / 86400, 1), 1=1, 0)\n| eval fleet_compliance_status = case(\n    completed_tails_count >= affected_tails_count, \"complete\",\n    days_overdue > 0, \"overdue\",\n    days_to_due <= 14, \"at-risk\",\n    1=1, \"in-progress\")\n| eval risk_score = case(\n    fleet_compliance_status = \"overdue\" AND days_overdue > 14, 100,\n    fleet_compliance_status = \"overdue\", 90,\n    fleet_compliance_status = \"at-risk\" AND completed_tails_count = 0, 80,\n    fleet_compliance_status = \"at-risk\", 60,\n    fleet_compliance_status = \"in-progress\" AND days_to_due <= 30 AND completed_tails_count = 0, 50,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 60, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -days_overdue, +days_to_due\n| table ad_or_sb_id ad_or_sb_type tc_holder airframe_type applicability_msn_range compliance_due_date days_to_due days_overdue fleet_compliance_status affected_tails_count completed_tails_count severity risk_score",
   "description": "Reconciles every security-relevant Airworthiness Directive and Service Bulletin against the operator's fleet inventory and compliance records; computes a fleet-level compliance score per AD/SB and a per-tail compliance status; surfaces overdue and at-risk ADs to the Director of Maintenance and CAMO Manager before they trigger a port-State / ramp-check detention.",
   "value": "An overdue security-relevant Airworthiness Directive can result in the aircraft being detained at a foreign airport by the local CAA / FAA inspector during a ramp check, with the operator facing demurrage costs, passenger-rebooking obligations, and reputational damage. A US carrier facing an overdue FAA AD also faces enforcement action under 14 CFR Part 39 (fine, certificate action). This UC closes the gap before the inspector sees it.",
@@ -102,6 +76,9 @@
     }
   ],
   "knownFalsePositives": "1. **Alternative Method of Compliance (AMOC)**: an operator may have an FAA-approved AMOC that satisfies the AD by a different route; ensure `amoc_reference` is populated in `do355a_compliance_records_lookup`. 2. **Aircraft in long-term storage**: an aircraft in long-term storage is not in operating service; tag with `in_service=false` to exclude from the affected-tails count. 3. **AD applicability scoped by configuration**: some ADs apply only to a specific avionics-line software baseline; the airframe-type filter may be too coarse, refine with `applicability_filter`.\n\n**Suppression mechanism**: KV Store `do326a_22_60_5_exceptions` with the CAMO Manager + CISO documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
   "requiredFields": [
     "ad_or_sb_id",
     "airframe_type",
@@ -109,31 +86,54 @@
     "affected_tails_count",
     "risk_score"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Ramco Aviation Suite",
+    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "Swiss-AS AMOS (operator maintenance system)",
+    "TRAX (operator maintenance system)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Aviation Cybersecurity SME Panel + Director of Maintenance + CAMO Manager + CISO",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow CMDB (Vancouver / Washington / Xanadu)",
-    "Swiss-AS AMOS (operator maintenance system)",
-    "TRAX (operator maintenance system)",
-    "Ramco Aviation Suite"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for fleet inventory consistency).\n- KV Store `do355a_sb_ad_lookup` populated from FAA / EASA AD feeds.\n- KV Store `do355a_compliance_records_lookup` populated from the operator's maintenance organisation system.\n- KV Store `do326a_fleet_lookup` (operator fleet inventory).\n\n## Step 1 - AD/SB ingest\n\nConfigure modular inputs to pull the FAA AD RSS feed (`faa:ad:feed`) and the EASA AD publication API (`easa:ad:feed`). Enrich each entry with `security_relevant=true|false` per the FAA / EASA tag; refresh every 24 hours.\n\n## Step 2 - KV Store schema\n\n```ini\n[do355a_sb_ad_lookup]\nenforceTypes = true\nfield.ad_or_sb_id = string\nfield.ad_or_sb_type = string\nfield.tc_holder = string\nfield.airframe_type = string\nfield.applicability_msn_range = string\nfield.compliance_due_date = time\nfield.security_relevant = string\nfield.ad_text_summary = string\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.5: Security AD/SB Compliance Health]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.5,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90`** (owner: Director of Maintenance + CAMO Manager + CISO, severity P1): Within 24 hours, the maintenance organisation issues work orders against the affected tails; within 5 days, completion records are loaded into the compliance KV Store. If the AD cannot be complied with, the operator removes the aircraft from service pending an AMOC.\n\n**`risk_score 60-89`** (owner: CAMO Manager, severity P2): Within 10 business days, schedule work orders to bring the fleet to compliance ahead of the due date.\n\n## Step 5 - Aviation-specific notes\n\n- **Joint FAA / EASA / TCCA / CAA ADs**: a single AD may be issued under multiple authority numbers; reconcile via `ad_authority` to avoid double-counting.\n- **Emergency Airworthiness Directive (EAD)**: an EAD compliance window may be very short (e.g. 24-72 hours); add a special threshold for `ad_or_sb_type=EAD` and reduce the at-risk window.\n- **AOG impact**: an overdue AD may require an Aircraft-on-Ground decision; coordinate with OCC for affected tails.",
+  "grandmaExplanation": "When the regulator finds a cyber-security issue affecting a type of aircraft, the airline has to fix it on every plane in the fleet by a deadline. We watch every deadline so the airline doesn't miss any and the planes can keep flying.",
   "prerequisiteUseCases": [
     "UC-22.60.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for fleet inventory consistency).\n- KV Store `do355a_sb_ad_lookup` populated from FAA / EASA AD feeds.\n- KV Store `do355a_compliance_records_lookup` populated from the operator's maintenance organisation system.\n- KV Store `do326a_fleet_lookup` (operator fleet inventory).\n\n## Step 1 - AD/SB ingest\n\nConfigure modular inputs to pull the FAA AD RSS feed (`faa:ad:feed`) and the EASA AD publication API (`easa:ad:feed`). Enrich each entry with `security_relevant=true|false` per the FAA / EASA tag; refresh every 24 hours.\n\n## Step 2 - KV Store schema\n\n```ini\n[do355a_sb_ad_lookup]\nenforceTypes = true\nfield.ad_or_sb_id = string\nfield.ad_or_sb_type = string\nfield.tc_holder = string\nfield.airframe_type = string\nfield.applicability_msn_range = string\nfield.compliance_due_date = time\nfield.security_relevant = string\nfield.ad_text_summary = string\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.5: Security AD/SB Compliance Health]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.5,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90`** (owner: Director of Maintenance + CAMO Manager + CISO, severity P1): Within 24 hours, the maintenance organisation issues work orders against the affected tails; within 5 days, completion records are loaded into the compliance KV Store. If the AD cannot be complied with, the operator removes the aircraft from service pending an AMOC.\n\n**`risk_score 60-89`** (owner: CAMO Manager, severity P2): Within 10 business days, schedule work orders to bring the fleet to compliance ahead of the due date.\n\n## Step 5 - Aviation-specific notes\n\n- **Joint FAA / EASA / TCCA / CAA ADs**: a single AD may be issued under multiple authority numbers; reconcile via `ad_authority` to avoid double-counting.\n- **Emergency Airworthiness Directive (EAD)**: an EAD compliance window may be very short (e.g. 24-72 hours); add a special threshold for `ad_or_sb_type=EAD` and reduce the at-risk window.\n- **AOG impact**: an overdue AD may require an Aircraft-on-Ground decision; coordinate with OCC for affected tails.",
-  "grandmaExplanation": "When the regulator finds a cyber-security issue affecting a type of aircraft, the airline has to fix it on every plane in the fleet by a deadline. We watch every deadline so the airline doesn't miss any and the planes can keep flying."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "crawl"
 }

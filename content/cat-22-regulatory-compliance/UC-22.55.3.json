@@ -36,6 +36,68 @@
   },
   "dataSources": "Cisco Cyber Vision asset discovery (`cisco:cybervision:asset`). Claroty xDome / CTD asset inventory (`claroty:asset`). Nozomi Vantage asset inventory (`nozomi:vantage:asset`). Dragos Platform asset register (`dragos:platform:asset`). KV Store `rail_asset_inventory_lookup` (operator-authoritative). ServiceNow CMDB cross-reference. Signal-system EAM (e.g., IBM Maximo, Trapeze, Bentley AssetWise).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "(index=ot_security sourcetype IN (\"cisco:cybervision:asset\", \"claroty:asset\", \"nozomi:vantage:asset\", \"dragos:platform:asset\"))\n| stats max(_time) AS asset_last_seen_at values(asset_class) AS discovered_class values(vendor) AS discovered_vendor values(firmware_version) AS discovered_firmware by mac_address ip_address\n| eval discovered_asset_id = coalesce(mac_address, ip_address)\n| join type=outer discovered_asset_id [\n    | inputlookup rail_asset_inventory_lookup\n    | rename asset_id AS discovered_asset_id\n    | fields discovered_asset_id asset_class asset_subclass asset_zone_id asset_conduit_id asset_location asset_vendor asset_firmware_version asset_safety_level\n]\n| eval registered = if(isnotnull(asset_class), 1, 0)\n| eval discovered = if(isnotnull(asset_last_seen_at), 1, 0)\n| eval firmware_drift = if(registered=1 AND discovered=1 AND asset_firmware_version != discovered_firmware, 1, 0)\n| eval asset_status = case(\n    discovered=1 AND registered=0, \"discovered_not_registered\",\n    registered=1 AND discovered=1 AND firmware_drift=1, \"firmware_drift\",\n    registered=1 AND discovered=0 AND asset_last_seen_at < relative_time(now(), \"-30d\"), \"registered_not_seen_30d\",\n    registered=1 AND discovered=1, \"current\",\n    1=1, \"unknown\")\n| where asset_status != \"current\"\n| table discovered_asset_id asset_class asset_subclass asset_zone_id asset_vendor asset_firmware_version discovered_firmware asset_last_seen_at asset_status",
+  "description": "Joins discovered asset telemetry from rail-OT detection platforms with the operator-authoritative SuC asset register. Surfaces undiscovered registered assets, unregistered discovered assets, and firmware drift.",
+  "value": "An incomplete or stale asset inventory is the most common deficiency cited by both Notified Bodies (for CLC/TS 50701) and Member-State competent authorities (for NIS2 rail-sector reporting). This UC is the foundation for all downstream UCs: vulnerability handling, patch management, SL-T assessment, and risk treatment all depend on knowing exactly what's in scope.",
+  "implementation": "(1) Deploy Cyber Vision sensors at rail OT network choke-points (signal LANs, depot LANs, station LANs). (2) Maintain `rail_asset_inventory_lookup` as the authoritative register; the SOAR `rail-asset-intake` playbook on commissioning writes rows. (3) Schedule UC-22.55.3 daily at 03:00. (4) Quarterly reconciliation between OT-detection telemetry and the register.",
+  "visualization": "(Panel 1) Inventory completeness scorecard by zone. (Panel 2) Discovered-but-not-registered queue. (Panel 3) Firmware-drift trend. (Panel 4) Asset-coverage map per line / depot / station.",
+  "cimModels": [
+    "Alerts",
+    "Network Traffic",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 5.3 — Asset inventory of the SuC",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "ERA Technical Specification for Interoperability (TSI-OPE)",
+      "url": "https://www.era.europa.eu/"
+    }
+  ],
+  "knownFalsePositives": "1. **Test asset transiently active** — a depot test asset may appear active during commissioning testing. Suppression: `rail_test_bench_lookup` excludes test assets.\n\n2. **Firmware-drift due to scheduled upgrade** — firmware upgrade within an approved change window triggers drift. Suppression: cross-reference `rail_change_window_lookup` (UC-22.55.11 patch management).\n\n3. **Sensor coverage gap** — a Cyber Vision sensor may have been temporarily down, causing `registered_not_seen_30d` falsely. Suppression: cross-reference sensor uptime.\n\n**Suppression mechanism**: KV Store `clc_22_55_3_exceptions` with documented Asset Manager approval and 30-day maximum grant.",
+  "mitreAttack": [
+    "T1592",
+    "T0846"
+  ],
+  "requiredFields": [
+    "asset_id",
+    "asset_class",
+    "asset_zone_id",
+    "asset_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cyber-vision",
+    "claroty-xdome",
+    "dragos-platform",
+    "nozomi-guardian",
+    "servicenow"
+  ],
+  "equipmentModels": [
+    "Bentley AssetWise",
+    "Cisco Cyber Vision Sensor + Center (Splunkbase 6071)",
+    "Claroty xDome + CTD (Splunkbase 5018)",
+    "Dragos Platform (Splunkbase 5048)",
+    "IBM Maximo Enterprise Asset Management",
+    "Nozomi Networks Guardian + Vantage (Splunkbase 4894)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Head of Asset Management + Signal Engineering Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT detection platforms deployed (Cyber Vision, Claroty, Nozomi, or Dragos).\n- KV Store `rail_asset_inventory_lookup`.\n- IBM Maximo / Bentley AssetWise integration via SOAR.\n\n## Step 1 — Define the asset-inventory collection\n\n```ini\n[rail_asset_inventory_lookup]\nenforceTypes = true\nfield.asset_id = string\nfield.asset_class = string\nfield.asset_subclass = string\nfield.asset_zone_id = string\nfield.asset_conduit_id = string\nfield.asset_location = string\nfield.asset_vendor = string\nfield.asset_firmware_version = string\nfield.asset_safety_level = string\nfield.commissioned_at = number\n```\n\nAsset-class taxonomy:\n- `signalling.interlocking`\n- `signalling.rbc` (Radio Block Centre)\n- `signalling.etcs.l2.trackside`\n- `signalling.cbtc.zone_controller`\n- `comms.gsmr.bts`\n- `comms.frmcs.gnb` (5G railway radio)\n- `comms.station_radio`\n- `rolling_stock.cab.atp`\n- `rolling_stock.cab.ato`\n- `rolling_stock.cab.atc`\n- `rolling_stock.diagnostic.recorder`\n- `rolling_stock.passenger_info_display`\n- `trackside.point_machine`\n- `trackside.axle_counter`\n- `trackside.track_circuit`\n- `depot.maintenance_workstation`\n- `station.station_management_system`\n- `power.scada_rtu`\n\n## Step 2 — Cyber Vision / Claroty / Nozomi / Dragos sensor placement\n\nDeploy sensors at:\n- Signal control centre / RBC backhaul\n- Depot maintenance LAN\n- Trackside aggregation switches\n- Station LAN at major nodes\n- GSM-R / FRMCS network operations centre\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.55.3: CLC/TS 50701 SuC Asset Inventory]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.3,reg=CLC-TS-50701,clause=CLC-TS-50701-c5-3\naction.notable.param.rule_title = Rail SuC asset inventory gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Discovery-vs-register test**: turn on a new test PLC on rail network without registering it; UC must alert within 24 hours.\n\n**(b) Firmware-drift test**: upgrade a registered asset's firmware without updating the register; UC must trip `firmware_drift`.\n\n## Step 5 — Operationalize\n\n**Runbook for `discovered_not_registered`** (owner: Asset Manager, severity P2):\n\n1. Within 5 business days: investigate; if legitimate, register; if unauthorised, follow UC-22.55.12 incident-detection.\n\n## Step 6 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Rolling stock mobility**: trains move between depots; asset_location updates frequently. Maintain location-tracking via train-management-system integration.\n- **Signal-system grandfather assets**: legacy interlockings without IP networking still must be inventoried (often manually).\n- **Zone-and-conduit alignment**: every asset must map to a zone (UC-22.55.4 risk-assessment).\n- **EN 50126 RAMS interlock**: rolling stock equipment is also tracked in RAMS register; coordinate.",
+  "grandmaExplanation": "We keep a list of every piece of computer equipment on our trains, tracks, and stations: signal boxes, train brains, radios, depot computers. Special tools watch the network and tell us when they see something we forgot to write down. The team is alerted every day to add anything new.",
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -73,65 +135,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "(index=ot_security sourcetype IN (\"cisco:cybervision:asset\", \"claroty:asset\", \"nozomi:vantage:asset\", \"dragos:platform:asset\"))\n| stats max(_time) AS asset_last_seen_at values(asset_class) AS discovered_class values(vendor) AS discovered_vendor values(firmware_version) AS discovered_firmware by mac_address ip_address\n| eval discovered_asset_id = coalesce(mac_address, ip_address)\n| join type=outer discovered_asset_id [\n    | inputlookup rail_asset_inventory_lookup\n    | rename asset_id AS discovered_asset_id\n    | fields discovered_asset_id asset_class asset_subclass asset_zone_id asset_conduit_id asset_location asset_vendor asset_firmware_version asset_safety_level\n]\n| eval registered = if(isnotnull(asset_class), 1, 0)\n| eval discovered = if(isnotnull(asset_last_seen_at), 1, 0)\n| eval firmware_drift = if(registered=1 AND discovered=1 AND asset_firmware_version != discovered_firmware, 1, 0)\n| eval asset_status = case(\n    discovered=1 AND registered=0, \"discovered_not_registered\",\n    registered=1 AND discovered=1 AND firmware_drift=1, \"firmware_drift\",\n    registered=1 AND discovered=0 AND asset_last_seen_at < relative_time(now(), \"-30d\"), \"registered_not_seen_30d\",\n    registered=1 AND discovered=1, \"current\",\n    1=1, \"unknown\")\n| where asset_status != \"current\"\n| table discovered_asset_id asset_class asset_subclass asset_zone_id asset_vendor asset_firmware_version discovered_firmware asset_last_seen_at asset_status",
-  "description": "Joins discovered asset telemetry from rail-OT detection platforms with the operator-authoritative SuC asset register. Surfaces undiscovered registered assets, unregistered discovered assets, and firmware drift.",
-  "value": "An incomplete or stale asset inventory is the most common deficiency cited by both Notified Bodies (for CLC/TS 50701) and Member-State competent authorities (for NIS2 rail-sector reporting). This UC is the foundation for all downstream UCs: vulnerability handling, patch management, SL-T assessment, and risk treatment all depend on knowing exactly what's in scope.",
-  "implementation": "(1) Deploy Cyber Vision sensors at rail OT network choke-points (signal LANs, depot LANs, station LANs). (2) Maintain `rail_asset_inventory_lookup` as the authoritative register; the SOAR `rail-asset-intake` playbook on commissioning writes rows. (3) Schedule UC-22.55.3 daily at 03:00. (4) Quarterly reconciliation between OT-detection telemetry and the register.",
-  "visualization": "(Panel 1) Inventory completeness scorecard by zone. (Panel 2) Discovered-but-not-registered queue. (Panel 3) Firmware-drift trend. (Panel 4) Asset-coverage map per line / depot / station.",
-  "cimModels": [
-    "Alerts",
-    "Network Traffic",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "CLC/TS 50701:2021 clause 5.3 — Asset inventory of the SuC",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
-    },
-    {
-      "title": "ERA Technical Specification for Interoperability (TSI-OPE)",
-      "url": "https://www.era.europa.eu/"
-    }
-  ],
-  "knownFalsePositives": "1. **Test asset transiently active** — a depot test asset may appear active during commissioning testing. Suppression: `rail_test_bench_lookup` excludes test assets.\n\n2. **Firmware-drift due to scheduled upgrade** — firmware upgrade within an approved change window triggers drift. Suppression: cross-reference `rail_change_window_lookup` (UC-22.55.11 patch management).\n\n3. **Sensor coverage gap** — a Cyber Vision sensor may have been temporarily down, causing `registered_not_seen_30d` falsely. Suppression: cross-reference sensor uptime.\n\n**Suppression mechanism**: KV Store `clc_22_55_3_exceptions` with documented Asset Manager approval and 30-day maximum grant.",
-  "requiredFields": [
-    "asset_id",
-    "asset_class",
-    "asset_zone_id",
-    "asset_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Head of Asset Management + Signal Engineering Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "cisco-cyber-vision",
-    "claroty-xdome",
-    "nozomi-guardian",
-    "dragos-platform"
-  ],
-  "equipmentModels": [
-    "Cisco Cyber Vision Sensor + Center (Splunkbase 6071)",
-    "Claroty xDome + CTD (Splunkbase 5018)",
-    "Nozomi Networks Guardian + Vantage (Splunkbase 4894)",
-    "Dragos Platform (Splunkbase 5048)",
-    "IBM Maximo Enterprise Asset Management",
-    "Bentley AssetWise"
-  ],
-  "mitreAttack": [
-    "T1592",
-    "T0846"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.55.1"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT detection platforms deployed (Cyber Vision, Claroty, Nozomi, or Dragos).\n- KV Store `rail_asset_inventory_lookup`.\n- IBM Maximo / Bentley AssetWise integration via SOAR.\n\n## Step 1 — Define the asset-inventory collection\n\n```ini\n[rail_asset_inventory_lookup]\nenforceTypes = true\nfield.asset_id = string\nfield.asset_class = string\nfield.asset_subclass = string\nfield.asset_zone_id = string\nfield.asset_conduit_id = string\nfield.asset_location = string\nfield.asset_vendor = string\nfield.asset_firmware_version = string\nfield.asset_safety_level = string\nfield.commissioned_at = number\n```\n\nAsset-class taxonomy:\n- `signalling.interlocking`\n- `signalling.rbc` (Radio Block Centre)\n- `signalling.etcs.l2.trackside`\n- `signalling.cbtc.zone_controller`\n- `comms.gsmr.bts`\n- `comms.frmcs.gnb` (5G railway radio)\n- `comms.station_radio`\n- `rolling_stock.cab.atp`\n- `rolling_stock.cab.ato`\n- `rolling_stock.cab.atc`\n- `rolling_stock.diagnostic.recorder`\n- `rolling_stock.passenger_info_display`\n- `trackside.point_machine`\n- `trackside.axle_counter`\n- `trackside.track_circuit`\n- `depot.maintenance_workstation`\n- `station.station_management_system`\n- `power.scada_rtu`\n\n## Step 2 — Cyber Vision / Claroty / Nozomi / Dragos sensor placement\n\nDeploy sensors at:\n- Signal control centre / RBC backhaul\n- Depot maintenance LAN\n- Trackside aggregation switches\n- Station LAN at major nodes\n- GSM-R / FRMCS network operations centre\n\n## Step 3 — Create the search and alert\n\n```ini\n[UC-22.55.3: CLC/TS 50701 SuC Asset Inventory]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.3,reg=CLC-TS-50701,clause=CLC-TS-50701-c5-3\naction.notable.param.rule_title = Rail SuC asset inventory gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 4 — Validate deployment\n\n**(a) Discovery-vs-register test**: turn on a new test PLC on rail network without registering it; UC must alert within 24 hours.\n\n**(b) Firmware-drift test**: upgrade a registered asset's firmware without updating the register; UC must trip `firmware_drift`.\n\n## Step 5 — Operationalize\n\n**Runbook for `discovered_not_registered`** (owner: Asset Manager, severity P2):\n\n1. Within 5 business days: investigate; if legitimate, register; if unauthorised, follow UC-22.55.12 incident-detection.\n\n## Step 6 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Rolling stock mobility**: trains move between depots; asset_location updates frequently. Maintain location-tracking via train-management-system integration.\n- **Signal-system grandfather assets**: legacy interlockings without IP networking still must be inventoried (often manually).\n- **Zone-and-conduit alignment**: every asset must map to a zone (UC-22.55.4 risk-assessment).\n- **EN 50126 RAMS interlock**: rolling stock equipment is also tracked in RAMS register; coordinate.",
-  "grandmaExplanation": "We keep a list of every piece of computer equipment on our trains, tracks, and stations: signal boxes, train brains, radios, depot computers. Special tools watch the network and tell us when they see something we forgot to write down. The team is alerted every day to add anything new."
+  "wave": "walk"
 }

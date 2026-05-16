@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC physical-risk module (`index=grc sourcetype=\"snow:physical_hazard\"`). Live environmental feeds: Bureau of Meteorology (BoM) bushfire and severe-weather alerts (`index=env sourcetype=\"bom:alert\"`); Geoscience Australia earthquake feed (`ga:earthquake`); state-emergency-management flood feed (`emv:flood`); Sentinel-2 imagery via Splunk DSP / Edge Hub for slow-onset hazards. Lookup `physical_hazard_lookup`.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk DB Connect (Splunkbase 2686, where the GRC integration is RDBMS-based), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| lookup physical_hazard_lookup asset_id OUTPUT hazard_class hazard_likelihood_score hazard_consequence_score residual_risk_score last_assessed_at next_review_due_at mitigations_in_place monitoring_signal_source\n| eval days_since_assessed = if(isnotnull(last_assessed_at), round((now() - last_assessed_at) / 86400, 0), null())\n| eval days_to_review_due = if(isnotnull(next_review_due_at), round((next_review_due_at - now()) / 86400, 0), null())\n| eval register_status = case(\n    isnull(hazard_class), \"missing_hazard_class\",\n    isnull(last_assessed_at), \"never_assessed\",\n    days_since_assessed > 365, \"assessment_overdue\",\n    days_since_assessed > 335, \"approaching_due\",\n    residual_risk_score >= 4 AND mitigations_in_place=\"none\", \"high_residual_no_mitigation\",\n    isnull(monitoring_signal_source) AND hazard_class IN (\"bushfire\",\"flood\",\"cyclone\",\"earthquake\"), \"missing_monitoring\",\n    1=1, \"current\")\n| table asset_id hazard_class hazard_likelihood_score hazard_consequence_score residual_risk_score last_assessed_at days_since_assessed next_review_due_at days_to_review_due mitigations_in_place monitoring_signal_source register_status",
   "description": "Verifies the physical and natural-hazard register: every in-scope asset has at least one hazard class assessed, with currency, residual-risk score, mitigations documented, and (for natural hazards) a live monitoring-feed integration.",
   "value": "Rule 9 physical and natural-hazard management is often delegated to a separate physical-security or BCDR team using a non-cyber GRC module; that means cyber and physical evidence drift apart. This UC keeps both in the same audit-evidence stream so the CISC sees a consolidated view, and forces the integration of live natural-hazard feeds so the register is not a paper artefact.",
@@ -86,37 +67,58 @@
     }
   ],
   "knownFalsePositives": "1. **Geographically irrelevant hazard** — an inland asset showing 'cyclone' as a hazard. Mitigation: have a documented exclusion in `physical_hazard_lookup` with rationale.\n\n2. **Long-lived assessments** — some long-lived physical assessments (e.g. earthquake engineering load) have natural cycles >365 days. Suppression: documented engineering control of >12-month currency.\n\n3. **Co-located assets** — multiple assets at the same site share hazards. Suppression: parent-site assessment with documented inheritance.\n\n4. **BCDR vs SOCI scope** — a BCDR exercise covering a hazard may not produce a Rule 9 assessment; ensure both are produced.\n\n**Suppression mechanism**: KV Store `soci_22_52_20_exceptions`; max grant 90 days with Head of Physical Security sign-off.",
+  "mitreAttack": [
+    "N/A (natural-hazard and physical-resilience workflow — measures register currency and natural-hazard monitoring coverage, not adversary detection)"
+  ],
   "requiredFields": [
     "asset_id",
     "hazard_class",
     "last_assessed_at",
     "register_status"
   ],
+  "equipment": [
+    "db_connect",
+    "edge_hub",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Bureau of Meteorology warning feed (XML / API)",
+    "Geoscience Australia earthquake feed",
+    "ServiceNow GRC physical-risk module (Vancouver / Washington)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "servicenow",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "ServiceNow GRC physical-risk module (Vancouver / Washington)",
-    "Bureau of Meteorology warning feed (XML / API)",
-    "Geoscience Australia earthquake feed",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "N/A (natural-hazard and physical-resilience workflow — measures register currency and natural-hazard monitoring coverage, not adversary detection)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.13 deployed (provides asset register integration).\n- ES, ServiceNow add-on.\n- `index=grc`, `index=env`, `index=audit_evidence`.\n- Lookup `physical_hazard_lookup` — owned by Head of Physical Security; columns: `asset_id`, `hazard_class` (e.g. `bushfire`, `flood`, `cyclone`, `earthquake`, `intruder`, `vehicle_impact`, `vandalism`, `civil_unrest`, `pandemic`, `power_loss`, `heat_wave`, `coastal_erosion`), `hazard_likelihood_score` (1-5), `hazard_consequence_score` (1-5), `residual_risk_score` (likelihood × consequence), `last_assessed_at`, `next_review_due_at`, `mitigations_in_place` (CSV of controls), `monitoring_signal_source` (BoM feed name, EMV feed name, etc.), `assessment_artefact_url`.\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\nFor live natural-hazard feeds, create modular inputs per relevant feed. Example BoM bushfire:\n\n```ini\n[stream://bom_bushfire]\nuri = https://api.weather.bom.gov.au/v1/locations/bushfire\ninterval = 600\nindex = env\nsourcetype = bom:bushfire\n```\n\nMap an alert area to assets via `asset_lat_lon_lookup` (asset_id, latitude, longitude, radius_km).\n\nAt the alert time, raise a `live_hazard` notable (separate UC) and also annotate the asset's hazard-register row.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.20: SOCI CIRMP Rule 9 physical and natural-hazard register]\ncron_schedule = 30 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.20,reg=SOCI,clause=SOCI-CIRMP-r9.1\naction.notable.param.rule_title = SOCI CIRMP Rule 9 physical / natural-hazard gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate `last_assessed_at`; UC flags overdue.\n\n**(b)** Negative control: complete assessment; UC clears.\n\n**(c)** Coverage: every in-scope asset has at least one row in `physical_hazard_lookup` (asset registers must enumerate exposures).\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 9 Physical & Natural-Hazard Register`.\n\n- Per-asset hazard heatmap.\n- Live BoM / GA / EMV alerts overlaid on the asset map.\n- Aging funnel of hazard assessments.\n- Residual-risk distribution.\n- Monitoring-feed health (was the BoM feed received in the last hour?).\n\n**Runbook for `assessment_overdue`** (owner: Head of Physical Security, severity P2):\n\n1. Within 60 business days: complete the assessment update; populate the lookup.\n\n**Runbook for `high_residual_no_mitigation`** (owner: Head of Physical Security + BCDR Lead, severity P1):\n\n1. Within 30 business days: design a mitigation; if cost-prohibitive, escalate to the Risk Committee for documented acceptance.\n\n**Runbook for `missing_monitoring`** (owner: Head of Physical Security + Splunk Platform, severity P2):\n\n1. Within 30 business days: provision the relevant feed; populate `monitoring_signal_source`.\n\n## Step 5 — Troubleshooting\n\n**BoM feed throttling**: dual subscription with a commercial feed (Weatherzone / DTN).\n\n**Asset-to-alert mapping**: ensure `asset_lat_lon_lookup` is complete.\n\n**Long-lived assessment**: ensure the engineering basis is documented so 12-month overdue is not flagged.\n\n**SOCI-specific failure modes**:\n\n- **Cascading hazards**: a bushfire upstream can cause downstream water-quality issues; the lookup should permit cross-asset dependency annotations.\n- **Climate change drift**: the 365-day cadence may be insufficient for slow-moving climate-change exposures (coastal erosion, rising sea level). Pair with a 36-month strategic review.\n- **Insurance integration**: hazard exposures often drive insurance terms; consider feeding the register into the insurance broker portal.\n- **Government direction**: the Department of Home Affairs may issue a direction to address a specific natural hazard (e.g. cyclone-resilience uplift in Northern Australia). Track via UC-22.52.27.",
+  "grandmaExplanation": "We don't only watch for cyber attacks; we also watch for natural disasters like bushfires, floods, cyclones and earthquakes near our most important sites. We keep a list of which dangers could affect which site, check the Bureau of Meteorology and Geoscience Australia in real time, and ring the bell when a site's assessment is overdue or has high risk with no plan.",
   "prerequisiteUseCases": [
     "UC-22.52.13"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.13 deployed (provides asset register integration).\n- ES, ServiceNow add-on.\n- `index=grc`, `index=env`, `index=audit_evidence`.\n- Lookup `physical_hazard_lookup` — owned by Head of Physical Security; columns: `asset_id`, `hazard_class` (e.g. `bushfire`, `flood`, `cyclone`, `earthquake`, `intruder`, `vehicle_impact`, `vandalism`, `civil_unrest`, `pandemic`, `power_loss`, `heat_wave`, `coastal_erosion`), `hazard_likelihood_score` (1-5), `hazard_consequence_score` (1-5), `residual_risk_score` (likelihood × consequence), `last_assessed_at`, `next_review_due_at`, `mitigations_in_place` (CSV of controls), `monitoring_signal_source` (BoM feed name, EMV feed name, etc.), `assessment_artefact_url`.\n- ES notable framework configured with `audit` security domain.\n\n## Step 1 — Configure data collection\n\nFor live natural-hazard feeds, create modular inputs per relevant feed. Example BoM bushfire:\n\n```ini\n[stream://bom_bushfire]\nuri = https://api.weather.bom.gov.au/v1/locations/bushfire\ninterval = 600\nindex = env\nsourcetype = bom:bushfire\n```\n\nMap an alert area to assets via `asset_lat_lon_lookup` (asset_id, latitude, longitude, radius_km).\n\nAt the alert time, raise a `live_hazard` notable (separate UC) and also annotate the asset's hazard-register row.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.52.20: SOCI CIRMP Rule 9 physical and natural-hazard register]\ncron_schedule = 30 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.20,reg=SOCI,clause=SOCI-CIRMP-r9.1\naction.notable.param.rule_title = SOCI CIRMP Rule 9 physical / natural-hazard gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate `last_assessed_at`; UC flags overdue.\n\n**(b)** Negative control: complete assessment; UC clears.\n\n**(c)** Coverage: every in-scope asset has at least one row in `physical_hazard_lookup` (asset registers must enumerate exposures).\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 9 Physical & Natural-Hazard Register`.\n\n- Per-asset hazard heatmap.\n- Live BoM / GA / EMV alerts overlaid on the asset map.\n- Aging funnel of hazard assessments.\n- Residual-risk distribution.\n- Monitoring-feed health (was the BoM feed received in the last hour?).\n\n**Runbook for `assessment_overdue`** (owner: Head of Physical Security, severity P2):\n\n1. Within 60 business days: complete the assessment update; populate the lookup.\n\n**Runbook for `high_residual_no_mitigation`** (owner: Head of Physical Security + BCDR Lead, severity P1):\n\n1. Within 30 business days: design a mitigation; if cost-prohibitive, escalate to the Risk Committee for documented acceptance.\n\n**Runbook for `missing_monitoring`** (owner: Head of Physical Security + Splunk Platform, severity P2):\n\n1. Within 30 business days: provision the relevant feed; populate `monitoring_signal_source`.\n\n## Step 5 — Troubleshooting\n\n**BoM feed throttling**: dual subscription with a commercial feed (Weatherzone / DTN).\n\n**Asset-to-alert mapping**: ensure `asset_lat_lon_lookup` is complete.\n\n**Long-lived assessment**: ensure the engineering basis is documented so 12-month overdue is not flagged.\n\n**SOCI-specific failure modes**:\n\n- **Cascading hazards**: a bushfire upstream can cause downstream water-quality issues; the lookup should permit cross-asset dependency annotations.\n- **Climate change drift**: the 365-day cadence may be insufficient for slow-moving climate-change exposures (coastal erosion, rising sea level). Pair with a 36-month strategic review.\n- **Insurance integration**: hazard exposures often drive insurance terms; consider feeding the register into the insurance broker portal.\n- **Government direction**: the Department of Home Affairs may issue a direction to address a specific natural hazard (e.g. cyclone-resilience uplift in Northern Australia). Track via UC-22.52.27.",
-  "grandmaExplanation": "We don't only watch for cyber attacks; we also watch for natural disasters like bushfires, floods, cyclones and earthquakes near our most important sites. We keep a list of which dangers could affect which site, check the Bureau of Meteorology and Geoscience Australia in real time, and ring the bell when a site's assessment is overdue or has high risk with no plan."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

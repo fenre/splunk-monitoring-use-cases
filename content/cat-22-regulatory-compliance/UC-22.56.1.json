@@ -35,33 +35,6 @@
   },
   "dataSources": "ServiceNow Security Incident Response (`index=itsm sourcetype=\"snow:sn_si_incident\"`) for the canonical IR ticket. TSA-pipeline facility register (KV Store `tsa_pipeline_facility_lookup`) mapping facility-id → criticality designation → reporting-clock applicability. Splunk SOAR case telemetry (`soar:case`, `soar:playbook`) for the `tsa_cisa_submission` playbook. CISA Cyber Incident Reporting Portal submission receipts via HEC (`hec:cisa:submission` token, payload includes incident_id + cisa_receipt_id + submission_time). Cybersecurity Coordinator + Alternate roster (KV Store `tsa_cc_roster_lookup`). Pipeline SCADA detection events (Claroty / Nozomi / Dragos for the cyber-side; OSIsoft PI for impact correlation). Pipeline operational-impact events from `pipeline:scada:audit`, `pipeline:lds:event`. Microsoft Defender for Endpoint / CrowdStrike Falcon detections (`mscs:wd:atp:detection`, `crowdstrike:falcon:detection`). Email submission receipts from CISA (`o365:management` filtering on inbox `cisa-incident-reports@<corp>`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_pipeline_in_scope=true tsa_reportable_category=*\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval cisa_submission_time = strptime(cisa_submission_time, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval hours_to_submission = case(\n    isnotnull(cisa_submission_time), round((cisa_submission_time - awareness_time) / 3600, 2),\n    1=1, hours_since_awareness)\n| eval submission_status = case(\n    isnotnull(cisa_submission_time) AND hours_to_submission <= 24, \"on_time\",\n    isnotnull(cisa_submission_time) AND hours_to_submission > 24, \"late\",\n    isnull(cisa_submission_time) AND hours_since_awareness <= 23, \"in_window\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 23 AND hours_since_awareness <= 24, \"clock_burning\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 24, \"missed\",\n    1=1, \"unknown\")\n| where submission_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id tsa_pipeline_facility_id tsa_reportable_category awareness_time cisa_submission_time hours_to_submission submission_status submission_receipt cc_acknowledged ir_commander evidence_doc_url",
   "description": "Drives the TSA-SD Pipeline 24-hour CISA-reporting workflow end-to-end: classifies every open IR ticket against the five SD-reportable categories, computes the awareness-to-submission elapsed time in hours, flags any open ticket within 1 hour of the clock or already late, and archives the row to audit_evidence every 5 minutes so a TSA inspector can reconstruct compliance posture for any historical date.",
   "value": "Missing the 24-hour CISA-reporting clock is a TSA-enforcement event with reputational, contractual, and regulatory consequences. Pipeline operators cannot reliably hit a 24-hour clock with manual processes once a real incident is in play — by the time the IR team has scoped, the Cybersecurity Coordinator has briefed senior management, and Legal has drafted text, 24 hours are gone. This UC moves the clock-management into Splunk, drives a SOAR playbook for the actual submission, and produces the audit-grade evidence trail TSA wants.",
@@ -90,37 +63,66 @@
     }
   ],
   "knownFalsePositives": "1. **Triage in progress with category not yet set** — within the first 60 minutes an IR analyst may not yet know the reportable category; the ticket appears with `tsa_reportable_category=null` and is excluded from the search. Suppression: enforce a 60-minute triage SLA via UC-22.56.2 (CC readiness).\n\n2. **CISA portal API timeout during submission** — SOAR submission may fail technically and need retry. The clock keeps burning. Suppression: pin the incident with `tsa_56_1_submission_retry` for up to 90 minutes; if not closed by 23 hours, escalate to manual portal submission.\n\n3. **Cross-modal incident on dual pipeline + rail** — an incident may straddle TSA-pipeline and TSA-rail jurisdictions. Tag both `tsa_reportable_category` fields and ensure UC-22.56.1 and UC-22.56.9 both fire.\n\n4. **Out-of-hours awareness clock dispute** — operator awareness may be unclear (e.g. an alert fires at 0200, the on-call analyst dismisses, the day-shift analyst re-opens at 0800). The Cybersecurity Coordinator's documented determination governs. The `awareness_time` field is the legal record.\n\n**Suppression mechanism**: KV Store `tsa_22_56_1_exceptions` with documented CC approval and 90-minute maximum grant.",
+  "mitreAttack": [
+    "N/A (regulatory reporting clock; triggered by detections under MITRE-tagged correlation searches)"
+  ],
   "requiredFields": [
     "incident_id",
     "awareness_time",
     "tsa_reportable_category",
     "submission_status"
   ],
+  "equipment": [
+    "crowdstrike",
+    "defender",
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu release)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, notable framework + audit_evidence summary)",
+    "Splunk SOAR 6.x (Splunkbase 4413, tsa_cisa_submission playbook)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + Cybersecurity Coordinator + General Counsel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, notable framework + audit_evidence summary)",
-    "Splunk SOAR 6.x (Splunkbase 4413, tsa_cisa_submission playbook)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_si_incident input)",
-    "ServiceNow Security Incident Response (Vancouver / Washington / Xanadu release)"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory reporting clock; triggered by detections under MITRE-tagged correlation searches)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Enterprise Security with notable framework.\n- Splunk SOAR ≥6.0 with the `tsa_cisa_submission` playbook installed.\n- ServiceNow Security Incident Response, with custom fields `tsa_pipeline_in_scope` (bool), `tsa_reportable_category` (string enum), `tsa_awareness_time` (datetime), `cisa_submission_time` (datetime), `submission_receipt` (string), `cc_acknowledged` (bool), `evidence_doc_url` (string).\n- KV Store `tsa_pipeline_facility_lookup` (facility_id, facility_name, asset_owner, criticality, pipeline_type, naics_code).\n- HEC token `cisa:submission` for portal receipts.\n- `index=audit_evidence` with 5-year retention.\n\n## Step 1 — Define the facility register\n\n```ini\n# collections.conf\n[tsa_pipeline_facility_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.facility_name = string\nfield.asset_owner = string\nfield.criticality = string\nfield.pipeline_type = string\nfield.naics_code = string\nfield.notes = string\n```\n\n```ini\n# transforms.conf\n[tsa_pipeline_facility_lookup]\nexternal_type = kvstore\ncollection = tsa_pipeline_facility_lookup\nfields_list = _key, facility_id, facility_name, asset_owner, criticality, pipeline_type, naics_code, notes\n```\n\nPopulate from the pipeline operations team's master facility list. Grant write to `tsa_admin` role only; read to `power` for analyst use.\n\n## Step 2 — Wire ServiceNow custom fields\n\nAdd to `sn_si_incident` table: `tsa_pipeline_in_scope` (Boolean), `tsa_reportable_category` (Choice: unauthorized_access / malicious_software / denial_of_service / physical_attack / ransomware_demand), `tsa_awareness_time` (Date/Time), `cisa_submission_time` (Date/Time), `submission_receipt` (String 80), `cc_acknowledged` (Boolean), `evidence_doc_url` (URL).\n\nThe Splunk Add-on for ServiceNow ingests these new fields automatically via the `sn_si_incident` table input — no extra config needed.\n\n## Step 3 — Build the SOAR playbook `tsa_cisa_submission`\n\nThe playbook executes when a notable from UC-22.56.1 fires with `submission_status=clock_burning` OR when the IR analyst manually invokes it.\n\nSteps:\n1. Pull the IR ticket fields from ServiceNow.\n2. Generate the CISA Form 1 payload (incident_category, entity_legal_name, EIN, summary, observed_indicators, current_impact, response_actions_taken).\n3. Route to the Cybersecurity Coordinator (Slack + email) for sign-off; the playbook pauses on `decision` block.\n4. Submit to the CISA Services Portal API (TLS 1.2+, mutual auth via TSA-issued client cert).\n5. On receipt, HEC the receipt-id back to Splunk (`hec:cisa:submission` token).\n6. Update ServiceNow IR ticket with `cisa_submission_time` and `submission_receipt`.\n7. The next UC-22.56.1 cycle resolves the row to `submission_status=on_time`.\n\n## Step 4 — Schedule and route\n\n```ini\n[UC-22.56.1: TSA-SD Pipeline 24-Hour Cyber-Incident Reporting]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.1,reg=TSA-Surface,clause=TSA-SD-P-2021-01-s2\naction.notable.param.rule_title = TSA-SD Pipeline 24h CISA report — clock burning or missed\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = incident_id\nalert.suppress.period = 1h\n```\n\nNotables on `submission_status=clock_burning` page the Cybersecurity Coordinator immediately via PagerDuty (P1). `submission_status=missed` pages the CC, the IR Commander, the CISO, and the General Counsel simultaneously (P1+).\n\n## Step 5 — Validate deployment\n\n**(a) Live-fire test**: in a non-prod environment, create a synthetic IR ticket with `tsa_reportable_category=unauthorized_access` and `tsa_awareness_time=now()-23h`. Within 5 minutes UC-22.56.1 should escalate to `submission_status=clock_burning`.\n\n**(b) End-to-end SOAR**: have an IR analyst trigger the SOAR playbook with the same synthetic ticket and verify that a CISA-test-portal receipt comes back.\n\n**(c) Submission-performance baseline**: after 90 days of production use, validate that the p95 hours-to-submission is well under the 24-hour ceiling. If p95 > 20 hours, escalate to the CC for process review.\n\n## Step 6 — Operationalize\n\n**Dashboard**: `TSA-SD Pipeline — 24-Hour Reporting Health`.\n\n- **Panel 1, live clock-burn**: open tickets with countdown bar to 24 hours.\n- **Panel 2, submission performance**: last 90 days p50 / p95.\n- **Panel 3, submission status pie**: 12-month on_time / late / missed.\n- **Panel 4, late submissions table**: every late row with reason code.\n- **Panel 5, CC readiness**: 24×7 coverage heat-map.\n\n**Runbook for `submission_status=clock_burning`** (owner: CC, severity P1):\n1. Within 15 min: CC verifies the ticket and the reportable category.\n2. Within 30 min: CC initiates the SOAR playbook.\n3. Within 1 hour: SOAR plays back the CISA receipt.\n4. The next UC cycle resolves the row.\n\n**Runbook for `submission_status=missed`** (owner: CC + IR Commander + General Counsel, severity P1+):\n1. Initiate manual CISA portal submission with a contemporaneous note explaining the delay.\n2. Document the awareness-clock dispute (if any) in the IR ticket.\n3. Open a post-mortem ticket; root-cause within 14 days.\n4. Escalate to TSA via the CC if the delay is material (>24 hours late or material business impact).\n\n## Step 7 — Troubleshooting\n\n**SOAR submission failures** — the CISA portal API may return 5xx transient errors. The playbook should retry with backoff for up to 90 minutes; manual fallback after that.\n\n**Awareness-clock disputes** — disagreement about when the operator first became aware. The CC's documented determination governs. Capture rationale in `cc_acknowledged` workflow.\n\n**Cross-modal incidents** — pipeline + rail incidents on a dual operator must trigger both UC-22.56.1 and UC-22.56.9 in parallel.\n\n**TSA-specific failure modes**:\n- **Pre-Final-Rule status**: the TSA Surface NPRM has not been finalised. Reporting under the current SDs is mandatory; the operational guidance and timelines may shift after the Final Rule.\n- **Class III pipeline ambiguity**: smaller pipelines may not be TSA-regulated; the facility register is the operational definition.\n- **PHMSA parallel reporting**: pipeline cyber events with safety impact also require PHMSA reporting; ensure both clocks are tracked. See UC-22.56.26.",
+  "grandmaExplanation": "If something cyber-bad happens at one of our pipelines, the US government wants to hear about it within 24 hours. We watch the clock the moment we realize there's a problem, push the report through the right channels before the clock runs out, and keep proof of what we sent.",
   "prerequisiteUseCases": [
     "UC-22.54.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Enterprise Security with notable framework.\n- Splunk SOAR ≥6.0 with the `tsa_cisa_submission` playbook installed.\n- ServiceNow Security Incident Response, with custom fields `tsa_pipeline_in_scope` (bool), `tsa_reportable_category` (string enum), `tsa_awareness_time` (datetime), `cisa_submission_time` (datetime), `submission_receipt` (string), `cc_acknowledged` (bool), `evidence_doc_url` (string).\n- KV Store `tsa_pipeline_facility_lookup` (facility_id, facility_name, asset_owner, criticality, pipeline_type, naics_code).\n- HEC token `cisa:submission` for portal receipts.\n- `index=audit_evidence` with 5-year retention.\n\n## Step 1 — Define the facility register\n\n```ini\n# collections.conf\n[tsa_pipeline_facility_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.facility_name = string\nfield.asset_owner = string\nfield.criticality = string\nfield.pipeline_type = string\nfield.naics_code = string\nfield.notes = string\n```\n\n```ini\n# transforms.conf\n[tsa_pipeline_facility_lookup]\nexternal_type = kvstore\ncollection = tsa_pipeline_facility_lookup\nfields_list = _key, facility_id, facility_name, asset_owner, criticality, pipeline_type, naics_code, notes\n```\n\nPopulate from the pipeline operations team's master facility list. Grant write to `tsa_admin` role only; read to `power` for analyst use.\n\n## Step 2 — Wire ServiceNow custom fields\n\nAdd to `sn_si_incident` table: `tsa_pipeline_in_scope` (Boolean), `tsa_reportable_category` (Choice: unauthorized_access / malicious_software / denial_of_service / physical_attack / ransomware_demand), `tsa_awareness_time` (Date/Time), `cisa_submission_time` (Date/Time), `submission_receipt` (String 80), `cc_acknowledged` (Boolean), `evidence_doc_url` (URL).\n\nThe Splunk Add-on for ServiceNow ingests these new fields automatically via the `sn_si_incident` table input — no extra config needed.\n\n## Step 3 — Build the SOAR playbook `tsa_cisa_submission`\n\nThe playbook executes when a notable from UC-22.56.1 fires with `submission_status=clock_burning` OR when the IR analyst manually invokes it.\n\nSteps:\n1. Pull the IR ticket fields from ServiceNow.\n2. Generate the CISA Form 1 payload (incident_category, entity_legal_name, EIN, summary, observed_indicators, current_impact, response_actions_taken).\n3. Route to the Cybersecurity Coordinator (Slack + email) for sign-off; the playbook pauses on `decision` block.\n4. Submit to the CISA Services Portal API (TLS 1.2+, mutual auth via TSA-issued client cert).\n5. On receipt, HEC the receipt-id back to Splunk (`hec:cisa:submission` token).\n6. Update ServiceNow IR ticket with `cisa_submission_time` and `submission_receipt`.\n7. The next UC-22.56.1 cycle resolves the row to `submission_status=on_time`.\n\n## Step 4 — Schedule and route\n\n```ini\n[UC-22.56.1: TSA-SD Pipeline 24-Hour Cyber-Incident Reporting]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.1,reg=TSA-Surface,clause=TSA-SD-P-2021-01-s2\naction.notable.param.rule_title = TSA-SD Pipeline 24h CISA report — clock burning or missed\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = incident_id\nalert.suppress.period = 1h\n```\n\nNotables on `submission_status=clock_burning` page the Cybersecurity Coordinator immediately via PagerDuty (P1). `submission_status=missed` pages the CC, the IR Commander, the CISO, and the General Counsel simultaneously (P1+).\n\n## Step 5 — Validate deployment\n\n**(a) Live-fire test**: in a non-prod environment, create a synthetic IR ticket with `tsa_reportable_category=unauthorized_access` and `tsa_awareness_time=now()-23h`. Within 5 minutes UC-22.56.1 should escalate to `submission_status=clock_burning`.\n\n**(b) End-to-end SOAR**: have an IR analyst trigger the SOAR playbook with the same synthetic ticket and verify that a CISA-test-portal receipt comes back.\n\n**(c) Submission-performance baseline**: after 90 days of production use, validate that the p95 hours-to-submission is well under the 24-hour ceiling. If p95 > 20 hours, escalate to the CC for process review.\n\n## Step 6 — Operationalize\n\n**Dashboard**: `TSA-SD Pipeline — 24-Hour Reporting Health`.\n\n- **Panel 1, live clock-burn**: open tickets with countdown bar to 24 hours.\n- **Panel 2, submission performance**: last 90 days p50 / p95.\n- **Panel 3, submission status pie**: 12-month on_time / late / missed.\n- **Panel 4, late submissions table**: every late row with reason code.\n- **Panel 5, CC readiness**: 24×7 coverage heat-map.\n\n**Runbook for `submission_status=clock_burning`** (owner: CC, severity P1):\n1. Within 15 min: CC verifies the ticket and the reportable category.\n2. Within 30 min: CC initiates the SOAR playbook.\n3. Within 1 hour: SOAR plays back the CISA receipt.\n4. The next UC cycle resolves the row.\n\n**Runbook for `submission_status=missed`** (owner: CC + IR Commander + General Counsel, severity P1+):\n1. Initiate manual CISA portal submission with a contemporaneous note explaining the delay.\n2. Document the awareness-clock dispute (if any) in the IR ticket.\n3. Open a post-mortem ticket; root-cause within 14 days.\n4. Escalate to TSA via the CC if the delay is material (>24 hours late or material business impact).\n\n## Step 7 — Troubleshooting\n\n**SOAR submission failures** — the CISA portal API may return 5xx transient errors. The playbook should retry with backoff for up to 90 minutes; manual fallback after that.\n\n**Awareness-clock disputes** — disagreement about when the operator first became aware. The CC's documented determination governs. Capture rationale in `cc_acknowledged` workflow.\n\n**Cross-modal incidents** — pipeline + rail incidents on a dual operator must trigger both UC-22.56.1 and UC-22.56.9 in parallel.\n\n**TSA-specific failure modes**:\n- **Pre-Final-Rule status**: the TSA Surface NPRM has not been finalised. Reporting under the current SDs is mandatory; the operational guidance and timelines may shift after the Final Rule.\n- **Class III pipeline ambiguity**: smaller pipelines may not be TSA-regulated; the facility register is the operational definition.\n- **PHMSA parallel reporting**: pipeline cyber events with safety impact also require PHMSA reporting; ensure both clocks are tracked. See UC-22.56.26.",
-  "grandmaExplanation": "If something cyber-bad happens at one of our pipelines, the US government wants to hear about it within 24 hours. We watch the clock the moment we realize there's a problem, push the report through the right channels before the clock runs out, and keep proof of what we sent."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

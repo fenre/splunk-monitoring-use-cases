@@ -35,25 +35,6 @@
   },
   "dataSources": "USGS / NOAA / FEMA / EPA CREAT / state-hazard-mitigation-plan data references curated into `awia_natural_hazards_lookup`, coverage lookup re-keyed by the RRA author / Resilience Planner.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| eval pwsid_join = pwsid\n| join type=left pwsid_join [| inputlookup awia_natural_hazards_lookup | eval pwsid_join=\"*\" | mvexpand pwsid_join]\n| join type=left pwsid hazard_id [| inputlookup awia_rra_hazard_coverage_lookup]\n| eval data_vintage_days = if(isnotnull(data_vintage), round((now() - data_vintage) / 86400, 0), null())\n| eval coverage_status = case(\n    isnull(covered_in_rra), \"missing_in_rra\",\n    data_provider_authoritative=\"false\" OR isnull(data_provider_authoritative), \"non_authoritative_source\",\n    isnull(rra_artefact_url), \"undocumented\",\n    isnull(data_vintage) OR data_vintage_days > (5 * 365), \"data_stale\",\n    climate_shift_considered=\"false\" OR isnull(climate_shift_considered), \"climate_shift_omitted\",\n    mitigation_listed=\"false\" OR isnull(mitigation_listed), \"no_mitigation\",\n    1=1, \"current\")\n| table pwsid system_name hazard_id hazard_name hazard_category data_provider data_provider_authoritative data_vintage data_vintage_days data_url rra_artefact_url climate_shift_considered mitigation_listed residual_risk coverage_status",
   "description": "Audits the RRA against AWIA-required natural hazards with data-vintage and provider-authoritativeness checks.",
   "value": "EPA explicitly cites the authoritative providers list. RRAs that rely on stale or hobbyist data are routinely rejected. This UC keeps the source-of-truth pipeline auditable.",
@@ -81,6 +62,9 @@
     }
   ],
   "knownFalsePositives": "1. **Hazard inapplicable** — desert utility with no flood exposure; require inapplicability letter.\n\n2. **Climate-shift inapplicable to a specific hazard** — e.g. seismic is not climate-driven; permit `climate_shift_considered=\"not_applicable\"` with reviewer attestation.\n\n3. **Data updated mid-cycle** — FEMA NRI updates yearly; if `data_vintage` is current EPA permits a partial-cycle refresh without recertifying the RRA.\n\n**Suppression mechanism**: KV Store `awia_22_53_7_exceptions`; max 180-day grant; Resilience Planner sign-off.",
+  "mitreAttack": [
+    "N/A (natural-hazard scope — not adversary technique)"
+  ],
   "requiredFields": [
     "pwsid",
     "hazard_id",
@@ -90,14 +74,6 @@
     "climate_shift_considered",
     "coverage_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -107,12 +83,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (natural-hazard scope — not adversary technique)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 deployed.\n- Splunk Add-on for ServiceNow, Splunk ES.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookups: `awia_pws_registry_lookup`, `awia_natural_hazards_lookup`, `awia_rra_hazard_coverage_lookup`.\n\n## Step 1 — Configure data collection\n\n**Curate `awia_natural_hazards_lookup`** with the AWIA natural-hazard taxonomy: `flood`, `drought`, `wildfire`, `seismic`, `severe_weather` (tornado / hurricane / ice storm), `climate_shift_overlay` (long-term shift in any of the above). For each hazard, list the authoritative providers EPA accepts (FEMA NRI for flood / multi-hazard, USGS for seismic, NOAA NWS for severe weather, state hazard mitigation plan for state-specific, EPA CREAT for climate shift).\n\n**RRA author re-keys `awia_rra_hazard_coverage_lookup`** at every RRA refresh and on any FEMA / USGS / NOAA / CREAT data refresh that materially changes the assessment.\n\n## Step 2 — Create the search and alert\n\nSchedule daily at 07:30.\n\n```ini\n[UC-22.53.7: AWIA Natural Hazards coverage]\ncron_schedule = 30 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.7,reg=AWIA,clause=AWIA-RRA-natural-hazards\naction.notable.param.rule_title = AWIA Natural Hazards coverage gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Positive**: add hazard with no coverage; UC surfaces.\n\n**(b) Negative**: full row; UC clears.\n\n**(c) Data-stale**: backdate `data_vintage` by 6 years; UC surfaces `data_stale`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Natural Hazards Coverage`.\n\n**Runbook**: refresh stale data from the authoritative provider; refresh the RRA section; record the CREAT run for climate shift.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Climate-shift documentation**: EPA's CREAT tool is the canonical climate-shift evidence pathway. RRA authors should run CREAT at every RRA refresh and archive the CREAT report PDF as the `climate_shift_considered=true` evidence.\n- **State-hazard-mitigation-plan vintage**: state HMPs are refreshed every 5 years; align AWIA cycle to consume the most recent state HMP.\n- **Cascading hazards**: a wildfire upstream may drive a flood / debris-flow event months later; the RRA should pair-document cascading hazard scenarios.",
+  "grandmaExplanation": "Floods, droughts, wildfires, earthquakes, and big storms can take a water system down. The risk check has to consider them and the data has to come from the real experts — FEMA, USGS, NOAA — not random websites. We watch that and ring the bell if any hazard is missing or our data has gone stale.",
   "prerequisiteUseCases": [
     "UC-22.53.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 deployed.\n- Splunk Add-on for ServiceNow, Splunk ES.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookups: `awia_pws_registry_lookup`, `awia_natural_hazards_lookup`, `awia_rra_hazard_coverage_lookup`.\n\n## Step 1 — Configure data collection\n\n**Curate `awia_natural_hazards_lookup`** with the AWIA natural-hazard taxonomy: `flood`, `drought`, `wildfire`, `seismic`, `severe_weather` (tornado / hurricane / ice storm), `climate_shift_overlay` (long-term shift in any of the above). For each hazard, list the authoritative providers EPA accepts (FEMA NRI for flood / multi-hazard, USGS for seismic, NOAA NWS for severe weather, state hazard mitigation plan for state-specific, EPA CREAT for climate shift).\n\n**RRA author re-keys `awia_rra_hazard_coverage_lookup`** at every RRA refresh and on any FEMA / USGS / NOAA / CREAT data refresh that materially changes the assessment.\n\n## Step 2 — Create the search and alert\n\nSchedule daily at 07:30.\n\n```ini\n[UC-22.53.7: AWIA Natural Hazards coverage]\ncron_schedule = 30 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.7,reg=AWIA,clause=AWIA-RRA-natural-hazards\naction.notable.param.rule_title = AWIA Natural Hazards coverage gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a) Positive**: add hazard with no coverage; UC surfaces.\n\n**(b) Negative**: full row; UC clears.\n\n**(c) Data-stale**: backdate `data_vintage` by 6 years; UC surfaces `data_stale`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Natural Hazards Coverage`.\n\n**Runbook**: refresh stale data from the authoritative provider; refresh the RRA section; record the CREAT run for climate shift.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Climate-shift documentation**: EPA's CREAT tool is the canonical climate-shift evidence pathway. RRA authors should run CREAT at every RRA refresh and archive the CREAT report PDF as the `climate_shift_considered=true` evidence.\n- **State-hazard-mitigation-plan vintage**: state HMPs are refreshed every 5 years; align AWIA cycle to consume the most recent state HMP.\n- **Cascading hazards**: a wildfire upstream may drive a flood / debris-flow event months later; the RRA should pair-document cascading hazard scenarios.",
-  "grandmaExplanation": "Floods, droughts, wildfires, earthquakes, and big storms can take a water system down. The risk check has to consider them and the data has to come from the real experts — FEMA, USGS, NOAA — not random websites. We watch that and ring the bell if any hazard is missing or our data has gone stale."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

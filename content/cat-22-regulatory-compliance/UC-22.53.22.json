@@ -36,25 +36,6 @@
   },
   "dataSources": "Industrial firewall (Fortinet OT / Palo Alto NGFW with OT signatures / Cisco Catalyst Industrial Ethernet / Hirschmann), Splunk Stream / Zeek wire data, internet-exposure scanner (Shodan API / Censys API / internal external attack surface management), Dragos / Claroty / Nozomi OT visibility.",
   "app": "Splunk Stream (Splunkbase 1809), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1809,
-      "name": "Splunk Stream",
-      "url": "https://splunkbase.splunk.com/app/1809",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(index=netflow OR index=firewall OR index=zeek) earliest=-5m@m\n| eval src_zone = case(\n    cidrmatch(\"10.10.0.0/16\", src_ip), \"corporate_it\",\n    cidrmatch(\"10.20.0.0/16\", src_ip), \"ot_dmz\",\n    cidrmatch(\"10.30.0.0/16\", src_ip), \"ot_scada\",\n    cidrmatch(\"10.40.0.0/16\", src_ip), \"ot_plc_rtu\",\n    cidrmatch(\"172.16.0.0/12\", src_ip), \"plant_floor\",\n    1=1, \"unknown\")\n| eval dst_zone = case(\n    cidrmatch(\"10.10.0.0/16\", dst_ip), \"corporate_it\",\n    cidrmatch(\"10.20.0.0/16\", dst_ip), \"ot_dmz\",\n    cidrmatch(\"10.30.0.0/16\", dst_ip), \"ot_scada\",\n    cidrmatch(\"10.40.0.0/16\", dst_ip), \"ot_plc_rtu\",\n    cidrmatch(\"172.16.0.0/12\", dst_ip), \"plant_floor\",\n    1=1, \"unknown\")\n| where (src_zone IN (\"corporate_it\",\"unknown\") AND dst_zone IN (\"ot_scada\",\"ot_plc_rtu\",\"plant_floor\")) OR\n        (dst_zone IN (\"corporate_it\",\"unknown\") AND src_zone IN (\"ot_scada\",\"ot_plc_rtu\",\"plant_floor\"))\n| lookup awia_segmentation_allow_list_lookup src_ip dst_ip port OUTPUT allow_reason allow_artefact_url\n| eval segmentation_status = if(isnotnull(allow_reason), \"allowed\", \"unauthorised_it_ot_flow\")\n| eval internet_exposure_via = case(\n    src_ip=dst_ip, null(),\n    NOT cidrmatch(\"10.0.0.0/8\", src_ip) AND NOT cidrmatch(\"172.16.0.0/12\", src_ip) AND NOT cidrmatch(\"192.168.0.0/16\", src_ip), \"public_to_ot\",\n    NOT cidrmatch(\"10.0.0.0/8\", dst_ip) AND NOT cidrmatch(\"172.16.0.0/12\", dst_ip) AND NOT cidrmatch(\"192.168.0.0/16\", dst_ip), \"ot_to_public\",\n    1=1, null())\n| eval internet_exposure_detected = if(isnotnull(internet_exposure_via), \"true\", \"false\")\n| where segmentation_status=\"unauthorised_it_ot_flow\" OR internet_exposure_detected=\"true\"\n| table pwsid src_ip src_zone dst_ip dst_zone port protocol app bytes internet_exposure_detected internet_exposure_via segmentation_status",
   "description": "Detects IT/OT cross-zone flows that lack an allow-list entry and any flow involving a non-RFC1918 (public) address adjacent to OT zones.",
   "value": "Direct internet exposure of SCADA, HMI, or engineering workstations is the leading published cause of water-sector intrusions per CISA. This UC continuously catches both internal segmentation violations and external exposure.",
@@ -78,6 +59,12 @@
     }
   ],
   "knownFalsePositives": "1. **Allow-listed cross-zone flow** — reason and artefact captured.\n\n2. **Documented historian replication** — DMZ-mediated.\n\n3. **Vendor support window** — short-lived allow exception with expiry.\n\n**Suppression**: `awia_22_53_22_exceptions`; max 4h; Network Lead + OT Cybersecurity Lead joint sign-off.",
+  "mitreAttack": [
+    "T0809",
+    "T0883",
+    "T1078",
+    "T1133"
+  ],
   "requiredFields": [
     "pwsid",
     "src_ip",
@@ -88,36 +75,56 @@
     "protocol",
     "segmentation_status"
   ],
+  "equipment": [
+    "cisco",
+    "fortinet",
+    "netflow",
+    "palo-alto-ngfw",
+    "paloalto",
+    "splunk-es",
+    "splunk-stream",
+    "stream"
+  ],
+  "equipmentModels": [
+    "Cisco Industrial Ethernet 3000 / 4000 / 5000",
+    "Fortinet FortiGate OT",
+    "Palo Alto Networks PAN-OS with OT signatures",
+    "Splunk Add-on for Palo Alto Networks (Splunkbase 2757)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk Stream wire-data (Splunkbase 1809)",
+    "netflow_netflow",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "palo-alto-ngfw",
-    "splunk-stream",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Palo Alto Networks PAN-OS with OT signatures",
-    "Fortinet FortiGate OT",
-    "Cisco Industrial Ethernet 3000 / 4000 / 5000",
-    "Splunk Stream wire-data (Splunkbase 1809)",
-    "Splunk Add-on for Palo Alto Networks (Splunkbase 2757)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T0809",
-    "T0883",
-    "T1078",
-    "T1133"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, Splunk Stream.\n- Indexes `index=netflow`, `index=firewall`, `index=zeek`, `index=audit_evidence`.\n- Lookup `awia_segmentation_allow_list_lookup`.\n- Document the CIDR-to-zone mapping in the search; refresh on any IP-plan change.\n\n## Step 1 — Configure data collection\n\nOnboard firewall logs at every IT/OT boundary. Onboard Splunk Stream / Zeek to capture protocol detail (Modbus TCP/502, DNP3, IEC-61850, EtherNet/IP, OPC UA). Onboard external-exposure scanner.\n\n## Step 2 — Create the search and alert\n\nEvery 5 minutes.\n\n```ini\n[UC-22.53.22: AWIA IT/OT Segmentation]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -5m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.22,reg=AWIA,clause=AWIA-EPA-network-segmentation\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 30m\nalert.suppress.fields = pwsid,src_ip,dst_ip,port\n```\n\n## Step 3 — Validate deployment\n\n**(a) Internal violation**: simulate IT-to-OT Modbus; UC fires.\n\n**(b) Allow-listed**: same flow with allow row; UC clears.\n\n**(c) External exposure**: simulate inbound from public IP to OT zone; UC fires.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Segmentation`. Runbook: shut down the flow; investigate the source; tighten firewall.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Cellular-direct PLC**: a remote lift station with cellular PLC may bypass the corporate firewall; ensure cellular APN routes through a managed gateway with the same segmentation rules.\n- **Plant management VLAN bleed**: a plant office switch that bridges plant-floor and corporate-IT VLANs is a common silent failure; cross-reference with CMDB to identify dual-purpose switches.\n- **OT vendor reverse-tunnel**: CISA water-sector advisories repeatedly cite vendor reverse-tunnels (e.g. TeamViewer / AnyDesk) as the internet-exposure vector; pair this UC with an outbound-tool denylist.\n- **Data-diode bypass**: if a data diode is in place but a side-channel exists (e.g. shared USB key), document and disable.",
+  "grandmaExplanation": "The water-plant control systems should never be reachable from the office network — and especially not from the internet. We watch all traffic and ring the bell the moment a corporate computer or someone on the internet tries to reach the plant equipment.",
   "prerequisiteUseCases": [
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES, Splunk Stream.\n- Indexes `index=netflow`, `index=firewall`, `index=zeek`, `index=audit_evidence`.\n- Lookup `awia_segmentation_allow_list_lookup`.\n- Document the CIDR-to-zone mapping in the search; refresh on any IP-plan change.\n\n## Step 1 — Configure data collection\n\nOnboard firewall logs at every IT/OT boundary. Onboard Splunk Stream / Zeek to capture protocol detail (Modbus TCP/502, DNP3, IEC-61850, EtherNet/IP, OPC UA). Onboard external-exposure scanner.\n\n## Step 2 — Create the search and alert\n\nEvery 5 minutes.\n\n```ini\n[UC-22.53.22: AWIA IT/OT Segmentation]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -5m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.22,reg=AWIA,clause=AWIA-EPA-network-segmentation\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 30m\nalert.suppress.fields = pwsid,src_ip,dst_ip,port\n```\n\n## Step 3 — Validate deployment\n\n**(a) Internal violation**: simulate IT-to-OT Modbus; UC fires.\n\n**(b) Allow-listed**: same flow with allow row; UC clears.\n\n**(c) External exposure**: simulate inbound from public IP to OT zone; UC fires.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Segmentation`. Runbook: shut down the flow; investigate the source; tighten firewall.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Cellular-direct PLC**: a remote lift station with cellular PLC may bypass the corporate firewall; ensure cellular APN routes through a managed gateway with the same segmentation rules.\n- **Plant management VLAN bleed**: a plant office switch that bridges plant-floor and corporate-IT VLANs is a common silent failure; cross-reference with CMDB to identify dual-purpose switches.\n- **OT vendor reverse-tunnel**: CISA water-sector advisories repeatedly cite vendor reverse-tunnels (e.g. TeamViewer / AnyDesk) as the internet-exposure vector; pair this UC with an outbound-tool denylist.\n- **Data-diode bypass**: if a data diode is in place but a side-channel exists (e.g. shared USB key), document and disable.",
-  "grandmaExplanation": "The water-plant control systems should never be reachable from the office network — and especially not from the internet. We watch all traffic and ring the bell the moment a corporate computer or someone on the internet tries to reach the plant equipment."
+  "splunkbaseApps": [
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -48,32 +48,6 @@
   },
   "dataSources": "Microsoft Defender for Endpoint Device Control (`mscs:wd:atp:device-control`). Windows Security Event Logs (`WinEventLog:Security`, EventID 6416 for new external device). USB-history audit trail (`WinEventLog:Microsoft-Windows-USBSTOR/Operational`). KV Store `imo_authorised_usb_lookup` (device_serial, owner, vessel, expiry).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 6207,
-      "name": "Splunk Add-on for Microsoft Defender for Endpoint",
-      "url": "https://splunkbase.splunk.com/app/6207",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(sourcetype=\"mscs:wd:atp:device-control\" OR sourcetype=\"WinEventLog:Security\" EventCode=6416 OR sourcetype=\"WinEventLog:Microsoft-Windows-USBSTOR/Operational\")\n    workstation_class IN (\"bridge\",\"engineering\",\"cargo-control\",\"radio-room\")\n| lookup imo_authorised_usb_lookup device_serial OUTPUT owner vessel expiry authorisation_status\n| eval now_ts = now()\n| eval expiry_ts = strptime(expiry, \"%Y-%m-%d\")\n| eval allowed_status = case(\n    isnull(authorisation_status), \"unauthorised\",\n    authorisation_status = \"approved\" AND expiry_ts > now_ts, \"allowed\",\n    authorisation_status = \"approved\" AND expiry_ts <= now_ts, \"expired\",\n    authorisation_status = \"revoked\", \"revoked\",\n    1=1, \"unknown\")\n| eval action_indicator = if(allowed_status IN (\"unauthorised\",\"expired\",\"revoked\",\"unknown\"), \"true\", \"false\")\n| where action_indicator = \"true\"\n| stats latest(action) AS action latest(_time) AS last_seen by imo_number host user device_serial allowed_status\n| eval action_indicator = \"true\"",
   "description": "Surveils every USB / removable-media insertion across maritime workstations (bridge, engineering, cargo control, radio room); checks the device against an authorised-USB register; flags unauthorised, expired, or revoked devices within 1 hour.",
   "value": "USB devices are the most common physical vector for shipboard cyber-incidents. The 2018 'Maersk Honam' fire was preceded by a USB-borne malware infection that started in shore-side IT and crossed to vessel-side via a routine update USB. Defender Device Control + a governed USB register cuts that path cleanly.",
@@ -98,6 +72,11 @@
     }
   ],
   "knownFalsePositives": "1. **Crew personal USB**: a crew member's personal USB on a crew-welfare workstation is not necessarily in scope; ensure the crew-welfare workstation segment is excluded. 2. **OEM service-engineer USB**: a Wartsila / MAN / Caterpillar service engineer's diagnostic USB may legitimately need to attach; ensure the engineer-USB devices are pre-registered with a finite TTL. 3. **Class society audit USB**: similarly, allow registered class-society devices. 4. **Crew change**: at crew change, joining engineer's USB may not yet be in the register; allow 7-day grace.\n\n**Suppression mechanism**: KV Store `imo_22_59_10_exceptions` with the Master + Chief Engineer's documented approval.",
+  "mitreAttack": [
+    "T1091",
+    "T1200",
+    "T0848"
+  ],
   "requiredFields": [
     "imo_number",
     "host",
@@ -105,32 +84,54 @@
     "allowed_status",
     "action_indicator"
   ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Maritime Cyber SME Panel + Chief Engineer + Bridge representative",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
-    "splunk-es",
-    "microsoft-defender"
+    "defender",
+    "microsoft-defender",
+    "splunk-es"
   ],
   "equipmentModels": [
     "Microsoft Defender for Endpoint (Defender for Servers Plan 2)",
     "Microsoft Intune Device Control",
     "Windows 10 / 11 IoT Enterprise LTSC (typical maritime workstation OS)"
   ],
-  "mitreAttack": [
-    "T1091",
-    "T1200",
-    "T0848"
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "Maritime Cyber SME Panel + Chief Engineer + Bridge representative",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- Microsoft Defender for Endpoint on every maritime workstation (Defender for Servers Plan 2 covers Windows IoT Enterprise LTSC).\n- A documented authorised-USB process with a hardware-fingerprint-based approval workflow.\n\n## Step 1 — Authorised-USB KV Store\n\n```ini\n[imo_authorised_usb_lookup]\nenforceTypes = true\nfield.device_serial = string\nfield.device_vendor = string\nfield.device_class = string\nfield.owner = string\nfield.vessel = string\nfield.workstation_class = string\nfield.authorisation_status = string\nfield.approved_by = string\nfield.approved_at = time\nfield.expiry = string\n```\n\n## Step 2 — Defender Device Control policy\n\nDeploy a policy that defaults to block at engineering / bridge / cargo-control workstations, with an allow-list keyed on device-serial. Crew-welfare workstations may run a permissive policy with monitoring only.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.10: IMO USB Governance]\ncron_schedule = 25 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.10,reg=IMO-MSC-428-98,clause=IACS-UR-E26-r5\nalert.severity = 4\n```\n\n## Step 4 — Runbooks\n\n**`allowed_status=unauthorised` on workstation_class=bridge during sea passage** (owner: Master + Fleet Cyber Lead, severity P1): Within 1 hour, the Master investigates the user and the device; isolate the workstation if cyber-implant suspected; document for next DoC verification.\n\n**`allowed_status=unauthorised` on workstation_class=engineering** (severity P2): Within 4 hours, the Chief Engineer investigates and either revokes or approves with documentation.\n\n## Step 5 — Maritime-specific notes\n\n- **Crew internet cafe**: separate `workstation_class=crew-welfare` for crew-internet PCs which are subject to a lighter policy.\n- **Engine room with no LAN**: some legacy vessels have engine-room workstations without LAN connectivity; the Defender data only reaches Splunk at next port-call sync, so allow a delayed-ingestion grace.",
+  "grandmaExplanation": "USB sticks are the easiest way for a virus to get onto a ship. We make sure that only approved USB sticks can be plugged into important shipboard computers, and we ring the alarm if anyone tries an unknown one.",
   "prerequisiteUseCases": [
     "UC-22.59.3",
     "UC-22.59.4"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 and UC-22.59.4 in production.\n- Microsoft Defender for Endpoint on every maritime workstation (Defender for Servers Plan 2 covers Windows IoT Enterprise LTSC).\n- A documented authorised-USB process with a hardware-fingerprint-based approval workflow.\n\n## Step 1 — Authorised-USB KV Store\n\n```ini\n[imo_authorised_usb_lookup]\nenforceTypes = true\nfield.device_serial = string\nfield.device_vendor = string\nfield.device_class = string\nfield.owner = string\nfield.vessel = string\nfield.workstation_class = string\nfield.authorisation_status = string\nfield.approved_by = string\nfield.approved_at = time\nfield.expiry = string\n```\n\n## Step 2 — Defender Device Control policy\n\nDeploy a policy that defaults to block at engineering / bridge / cargo-control workstations, with an allow-list keyed on device-serial. Crew-welfare workstations may run a permissive policy with monitoring only.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.10: IMO USB Governance]\ncron_schedule = 25 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.10,reg=IMO-MSC-428-98,clause=IACS-UR-E26-r5\nalert.severity = 4\n```\n\n## Step 4 — Runbooks\n\n**`allowed_status=unauthorised` on workstation_class=bridge during sea passage** (owner: Master + Fleet Cyber Lead, severity P1): Within 1 hour, the Master investigates the user and the device; isolate the workstation if cyber-implant suspected; document for next DoC verification.\n\n**`allowed_status=unauthorised` on workstation_class=engineering** (severity P2): Within 4 hours, the Chief Engineer investigates and either revokes or approves with documentation.\n\n## Step 5 — Maritime-specific notes\n\n- **Crew internet cafe**: separate `workstation_class=crew-welfare` for crew-internet PCs which are subject to a lighter policy.\n- **Engine room with no LAN**: some legacy vessels have engine-room workstations without LAN connectivity; the Defender data only reaches Splunk at next port-call sync, so allow a delayed-ingestion grace.",
-  "grandmaExplanation": "USB sticks are the easiest way for a virus to get onto a ship. We make sure that only approved USB sticks can be plugged into important shipboard computers, and we ring the alarm if anyone tries an unknown one."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 6207,
+      "name": "Splunk Add-on for Microsoft Defender for Endpoint",
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

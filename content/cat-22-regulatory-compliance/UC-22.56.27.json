@@ -35,25 +35,6 @@
   },
   "dataSources": "KV Store `tsa_soc_coverage_lookup` (tier, start, end, analyst_id). PagerDuty schedule API (`pagerduty:schedule`). Splunk SOAR analyst engagement (`soar:analyst_engagement`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 4180).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4180,
-      "name": "Splunk Add-on for PagerDuty",
-      "url": "https://splunkbase.splunk.com/app/4180",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_soc_coverage_lookup\n| eval coverage_hour_start = strftime(start, \"%Y-%m-%dT%H\")\n| eval coverage_hour_end = strftime(end, \"%Y-%m-%dT%H\")\n| stats values(analyst_id) as analysts by tier coverage_hour_start coverage_hour_end\n| eval expected = 1\n| stats sum(expected) as covered_hours dc(coverage_hour_start) as unique_hours by tier\n| eval coverage_gap = if(unique_hours < 24, \"true\", \"false\")\n| where coverage_gap=\"true\"\n| table tier covered_hours unique_hours coverage_gap",
   "description": "Surveys SOC tier coverage to confirm 24×7 across T1, T2, T3.",
   "value": "TSA inspectors expect 24×7 monitoring; gaps in roster are findings.",
@@ -73,19 +54,14 @@
     }
   ],
   "knownFalsePositives": "1. **Cross-tier hand-off**: T1 may yield T2 directly; ensure roster covers union of tiers.\n2. **MSSP coverage**: outsourced T1 must be reflected.\n\n**Suppression mechanism**: KV Store `tsa_22_56_27_exceptions`.",
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
   "requiredFields": [
     "tier",
     "covered_hours",
     "coverage_gap"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + SOC Manager + CC",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "pagerduty",
     "splunk-es"
@@ -94,12 +70,36 @@
     "PagerDuty Service Cloud",
     "Splunk ES 7.x"
   ],
-  "mitreAttack": [
-    "N/A (governance)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "TSA-SD Compliance SME Panel + SOC Manager + CC",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + PagerDuty TA.\n- KV Store `tsa_soc_coverage_lookup`.\n\n## Step 1 — Coverage register\n\n```ini\n[tsa_soc_coverage_lookup]\nfield.tier = string\nfield.start = number\nfield.end = number\nfield.analyst_id = string\nfield.mssp = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.27: TSA SOC Coverage]\ncron_schedule = 25 10 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.27,reg=TSA-Surface,clause=TSA-SD-multi-CSOC-coverage\nalert.severity = 3\n```\n\n## Step 3 — Runbook\n\n**`coverage_gap=true`**: fill gap within 24 hours; report to CC.\n\n## Step 4 — Troubleshooting\n\n- **PagerDuty sync lag**: ensure sync runs at least every 6 hours.\n- **MSSP feed**: MSSPs may not feed schedule; build manual lookup.\n\n**TSA-specific failure modes**:\n- **Sector ISAC analyst integration**: sector-ISAC analyst time may count as virtual coverage; document.\n- **Holiday/staffing surges**: pre-plan coverage during industry events.",
+  "grandmaExplanation": "Our cyber-security operations centre must have eyes on the screen 24 hours a day, 7 days a week. We confirm every day that no time slot was left uncovered.",
   "prerequisiteUseCases": [
     "UC-22.56.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + PagerDuty TA.\n- KV Store `tsa_soc_coverage_lookup`.\n\n## Step 1 — Coverage register\n\n```ini\n[tsa_soc_coverage_lookup]\nfield.tier = string\nfield.start = number\nfield.end = number\nfield.analyst_id = string\nfield.mssp = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.27: TSA SOC Coverage]\ncron_schedule = 25 10 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.27,reg=TSA-Surface,clause=TSA-SD-multi-CSOC-coverage\nalert.severity = 3\n```\n\n## Step 3 — Runbook\n\n**`coverage_gap=true`**: fill gap within 24 hours; report to CC.\n\n## Step 4 — Troubleshooting\n\n- **PagerDuty sync lag**: ensure sync runs at least every 6 hours.\n- **MSSP feed**: MSSPs may not feed schedule; build manual lookup.\n\n**TSA-specific failure modes**:\n- **Sector ISAC analyst integration**: sector-ISAC analyst time may count as virtual coverage; document.\n- **Holiday/staffing surges**: pre-plan coverage during industry events.",
-  "grandmaExplanation": "Our cyber-security operations centre must have eyes on the screen 24 hours a day, 7 days a week. We confirm every day that no time slot was left uncovered."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4180,
+      "name": "Splunk Add-on for PagerDuty",
+      "url": "https://splunkbase.splunk.com/app/4180",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -34,6 +34,67 @@
   },
   "dataSources": "KV Store `iacs_ur_e27_attestation_lookup` (equipment-level register). KV Store `imo_crar_components_lookup` (cyber-vulnerable component register, from UC-22.59.3). Cisco Cyber Vision / Claroty / Nozomi / Dragos firmware-discovery events (`cisco:cybervision:asset`, `claroty:ctd:asset`, `nozomi:guardian:asset`, `dragos:platform:asset`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup imo_crar_components_lookup\n| where e27_in_scope = \"true\"\n| lookup iacs_ur_e27_attestation_lookup imo_number equipment_id OUTPUT attestation_id e27_revision attestation_at attested_firmware\n| eval now_ts = now()\n| eval status = case(\n    isnull(attestation_id), \"breach-no-attestation\",\n    isnotnull(attested_firmware) AND installed_firmware != attested_firmware, \"breach-firmware-mismatch\",\n    e27_revision != \"Rev.3\", \"breach-revision-mismatch\",\n    1=1, \"compliant\")\n| where status NOT IN (\"compliant\")\n| sort 0 imo_number equipment_id\n| table imo_number equipment_id equipment_type vendor model installed_firmware attested_firmware attestation_id e27_revision status",
+  "description": "Tracks every E27-in-scope OT component against the vendor / class-society attestation register; raises an alert when no attestation exists, the installed firmware drifts from the attested version, or the attestation revision is outdated.",
+  "value": "E27 is the equipment-level counterpart of E26. Firmware drift between the attested baseline and the installed equipment is the single most common audit finding; this UC closes the gap.",
+  "implementation": "(1) Build the E27 attestation KV Store. (2) Wire the supply-chain / engineering department to register every OT component delivery against UR E27 scope. (3) Compare the OT-discovery feed against the attested firmware. (4) Schedule UC-22.59.16 daily; route P3 for drift findings.",
+  "visualization": "(Panel 1) Fleet E27 equipment attestation table. (Panel 2) Firmware-drift count per vessel. (Panel 3) Top vendors by attestation gaps. (Panel 4) Attestation-revision mix.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IACS UR E27 — Cyber Resilience of Systems and Equipment, Rev.3 (2024)",
+      "url": "https://iacs.org.uk/publications/unified-requirements/"
+    },
+    {
+      "title": "IEC 61162-460 — Maritime navigation and radiocommunication equipment and systems — Digital interfaces",
+      "url": "https://webstore.iec.ch/publication/61292"
+    }
+  ],
+  "knownFalsePositives": "1. **Firmware-version aliasing**: the OEM ships v3.4.1 but the OT-discovery sensor reports v3.4.1-build42; align the comparison logic to ignore build-suffix differences. 2. **Replacement spare parts**: an emergency engine-control card swap may briefly create an attestation gap; honour a 14-day grace window before raising P3.\n\n**Suppression mechanism**: KV Store `imo_22_59_16_exceptions` with the Company Security Officer documented approval.",
+  "mitreAttack": [
+    "N/A (compliance attestation register)"
+  ],
+  "requiredFields": [
+    "imo_number",
+    "equipment_id",
+    "installed_firmware",
+    "attested_firmware",
+    "status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cyber-vision",
+    "claroty",
+    "dragos",
+    "nozomi",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision 4.x",
+    "Claroty xDome / CTD 2024.x",
+    "Dragos Platform 2.x",
+    "Nozomi Guardian 23.x / Vantage",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Company Security Officer + Marine Engineer",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, UC-22.59.7, and UC-22.59.15 in production.\n- OT-discovery sensor coverage on every vessel.\n\n## Step 1 — E27 attestation KV Store\n\n```ini\n[iacs_ur_e27_attestation_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.equipment_id = string\nfield.attestation_id = string\nfield.e27_revision = string\nfield.attested_firmware = string\nfield.attestation_at = time\nfield.surveyor = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.16: IACS UR E27 Equipment Attestation Register]\ncron_schedule = 0 5 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.16,reg=IMO-MSC-428-98,clause=IACS-UR-E27-r3\nalert.severity = 3\n```\n\n## Step 3 — Maritime-specific notes\n\n- **Type approval vs ship-specific attestation**: some vendors hold a class-society type approval that covers a model family; the register must map type-approval → equipment instance.\n- **End-of-life firmware**: when a vendor declares EOL on an attested firmware, the company must plan an upgrade campaign; this UC flags the trigger event.",
+  "grandmaExplanation": "Each critical piece of equipment on a ship — its engines, navigation, cargo controls — needs a cyber-safety certificate from the maker. We keep a list of every piece and its certificate, and we shout if any equipment is missing one or running software that doesn't match what was approved.",
+  "prerequisiteUseCases": [
+    "UC-22.59.3",
+    "UC-22.59.7",
+    "UC-22.59.15"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -57,65 +118,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup imo_crar_components_lookup\n| where e27_in_scope = \"true\"\n| lookup iacs_ur_e27_attestation_lookup imo_number equipment_id OUTPUT attestation_id e27_revision attestation_at attested_firmware\n| eval now_ts = now()\n| eval status = case(\n    isnull(attestation_id), \"breach-no-attestation\",\n    isnotnull(attested_firmware) AND installed_firmware != attested_firmware, \"breach-firmware-mismatch\",\n    e27_revision != \"Rev.3\", \"breach-revision-mismatch\",\n    1=1, \"compliant\")\n| where status NOT IN (\"compliant\")\n| sort 0 imo_number equipment_id\n| table imo_number equipment_id equipment_type vendor model installed_firmware attested_firmware attestation_id e27_revision status",
-  "description": "Tracks every E27-in-scope OT component against the vendor / class-society attestation register; raises an alert when no attestation exists, the installed firmware drifts from the attested version, or the attestation revision is outdated.",
-  "value": "E27 is the equipment-level counterpart of E26. Firmware drift between the attested baseline and the installed equipment is the single most common audit finding; this UC closes the gap.",
-  "implementation": "(1) Build the E27 attestation KV Store. (2) Wire the supply-chain / engineering department to register every OT component delivery against UR E27 scope. (3) Compare the OT-discovery feed against the attested firmware. (4) Schedule UC-22.59.16 daily; route P3 for drift findings.",
-  "visualization": "(Panel 1) Fleet E27 equipment attestation table. (Panel 2) Firmware-drift count per vessel. (Panel 3) Top vendors by attestation gaps. (Panel 4) Attestation-revision mix.",
-  "cimModels": [
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "IACS UR E27 — Cyber Resilience of Systems and Equipment, Rev.3 (2024)",
-      "url": "https://iacs.org.uk/publications/unified-requirements/"
-    },
-    {
-      "title": "IEC 61162-460 — Maritime navigation and radiocommunication equipment and systems — Digital interfaces",
-      "url": "https://webstore.iec.ch/publication/61292"
-    }
-  ],
-  "knownFalsePositives": "1. **Firmware-version aliasing**: the OEM ships v3.4.1 but the OT-discovery sensor reports v3.4.1-build42; align the comparison logic to ignore build-suffix differences. 2. **Replacement spare parts**: an emergency engine-control card swap may briefly create an attestation gap; honour a 14-day grace window before raising P3.\n\n**Suppression mechanism**: KV Store `imo_22_59_16_exceptions` with the Company Security Officer documented approval.",
-  "requiredFields": [
-    "imo_number",
-    "equipment_id",
-    "installed_firmware",
-    "attested_firmware",
-    "status"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Maritime Cyber SME Panel + Company Security Officer + Marine Engineer",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "cisco-cyber-vision",
-    "claroty",
-    "nozomi",
-    "dragos"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Cisco Cyber Vision 4.x",
-    "Claroty xDome / CTD 2024.x",
-    "Nozomi Guardian 23.x / Vantage",
-    "Dragos Platform 2.x"
-  ],
-  "mitreAttack": [
-    "N/A (compliance attestation register)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.59.3",
-    "UC-22.59.7",
-    "UC-22.59.15"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, UC-22.59.7, and UC-22.59.15 in production.\n- OT-discovery sensor coverage on every vessel.\n\n## Step 1 — E27 attestation KV Store\n\n```ini\n[iacs_ur_e27_attestation_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.equipment_id = string\nfield.attestation_id = string\nfield.e27_revision = string\nfield.attested_firmware = string\nfield.attestation_at = time\nfield.surveyor = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.16: IACS UR E27 Equipment Attestation Register]\ncron_schedule = 0 5 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.16,reg=IMO-MSC-428-98,clause=IACS-UR-E27-r3\nalert.severity = 3\n```\n\n## Step 3 — Maritime-specific notes\n\n- **Type approval vs ship-specific attestation**: some vendors hold a class-society type approval that covers a model family; the register must map type-approval → equipment instance.\n- **End-of-life firmware**: when a vendor declares EOL on an attested firmware, the company must plan an upgrade campaign; this UC flags the trigger event.",
-  "grandmaExplanation": "Each critical piece of equipment on a ship — its engines, navigation, cargo controls — needs a cyber-safety certificate from the maker. We keep a list of every piece and its certificate, and we shout if any equipment is missing one or running software that doesn't match what was approved."
+  "wave": "run"
 }

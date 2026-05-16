@@ -36,33 +36,6 @@
   },
   "dataSources": "Splunk ES notable events (`index=notable sourcetype=\"stash\"`) tagged with `cyber_physical_runbook`, SOAR playbook execution records (`index=phantom sourcetype=\"phantom:playbook\"`), Cisco Cyber Vision events (`cisco:cybervision:flow`), physical-access-control system (PACS) events (`pacs:event`), HMI lockdown audit (`ot:hmi:audit`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4395), Cisco Cyber Vision (Splunkbase 5485), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4395,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4395",
-      "role": "optional",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 5485,
-      "name": "Cisco Cyber Vision",
-      "url": "https://splunkbase.splunk.com/app/5485",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=notable cyber_physical_runbook=\"true\" earliest=-5m@m\n| eval cyber_detection_id = orig_event_id, incident_id = event_id\n| join type=outer incident_id [\n    search index=phantom sourcetype=phantom:playbook earliest=-5m@m playbook IN (\"cyber-physical-converge*\")\n    | rename incident_id AS incident_id\n    | stats earliest(_time) AS playbook_start latest(_time) AS playbook_end by incident_id playbook playbook_status\n]\n| join type=outer incident_id [\n    search (index=ot sourcetype=\"ot:hmi:audit\" event_type=\"local_mode_lockdown\") OR\n           (index=ot sourcetype=\"pacs:event\" event_type IN (\"guard_dispatch\",\"badge_revocation\")) earliest=-10m@m\n    | rename incident_id AS incident_id\n    | stats earliest(_time) AS safeguard_at by incident_id physical_safeguard_id event_type\n]\n| eval time_to_safeguard = if(isnotnull(safeguard_at) AND isnotnull(_time), round(safeguard_at - _time, 0), null())\n| eval safeguard_status = case(\n    isnull(safeguard_at) AND _time > relative_time(now(),\"-15m\"), \"in_progress\",\n    isnull(safeguard_at), \"not_triggered_within_sla\",\n    time_to_safeguard <= 300, \"triggered\",\n    time_to_safeguard <= 900, \"triggered_late\",\n    1=1, \"triggered_very_late\")",
   "description": "Verifies every cyber detection tagged with `cyber_physical_runbook` triggered the documented physical safeguard within SLA (default 5 minutes). Surfaces incidents where the cyber-physical converge runbook did not run.",
   "value": "The all-hazards model in CIRMP is what differentiates SOCI from a pure cyber regulation. The hardest evidence to produce is the cross-control: that a cyber alert genuinely triggered a physical response. This UC keeps that evidence always-on and surfaces gaps before the regulator finds them.",
@@ -87,6 +60,12 @@
     }
   ],
   "knownFalsePositives": "1. **Manual triage decision** — the SOC may legitimately decide a cyber detection does NOT need physical safeguard (e.g. detection downgraded after triage). Suppression: SOC documents the decision in the notable's status workflow within 5 minutes; UC honours `downgraded_no_physical`.\n\n2. **In-flight playbook** — a SOAR playbook running >15 minutes due to dependencies. Suppression: tolerate `in_progress` status up to 30 minutes with on-call ack.\n\n3. **Safeguard already active** — the physical safeguard is already in place from a previous incident; redundant invocation. Suppression: detect prior-state activation in `pacs:event` history.\n\n4. **Maintenance windows** — a documented maintenance window may suppress automated safeguard triggers. Suppression: KV Store `cyber_physical_maintenance_lookup` with named maintenance owner.\n\n**Suppression mechanism**: KV Store `soci_22_52_21_exceptions`; tight max grant 8 hours with Head of SecOps sign-off.",
+  "mitreAttack": [
+    "T0815",
+    "T0859",
+    "T0807",
+    "T0879"
+  ],
   "requiredFields": [
     "incident_id",
     "asset_id",
@@ -94,35 +73,57 @@
     "time_to_safeguard",
     "safeguard_status"
   ],
+  "equipment": [
+    "cisco",
+    "cisco-cybervision",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision 4.x (Splunkbase 5485, OT detection feed)",
+    "OT HMI (Rockwell FactoryTalk View / GE iFIX / Siemens SIMATIC WinCC with audit log)",
+    "Physical access control system (Genetec Security Center / Lenel OnGuard) with event integration",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, correlation framework + notable workflow)",
+    "Splunk SOAR (Splunkbase 4395, playbook execution audit)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "cisco-cybervision"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, correlation framework + notable workflow)",
-    "Splunk SOAR (Splunkbase 4395, playbook execution audit)",
-    "Cisco Cyber Vision 4.x (Splunkbase 5485, OT detection feed)",
-    "OT HMI (Rockwell FactoryTalk View / GE iFIX / Siemens SIMATIC WinCC with audit log)",
-    "Physical access control system (Genetec Security Center / Lenel OnGuard) with event integration"
-  ],
-  "mitreAttack": [
-    "T0815",
-    "T0859",
-    "T0807",
-    "T0879"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.20 deployed.\n- ES, SOAR, Cyber Vision TA.\n- `index=notable`, `index=phantom`, `index=ot`, `index=audit_evidence`.\n- ES correlation searches relevant to OT control planes carry `cyber_physical_runbook=true` annotation, with a paired `physical_safeguard_id`.\n- SOAR playbooks `cyber-physical-converge-<id>` exist and are configured to call PACS and HMI APIs.\n\n## Step 1 — Configure data collection\n\nMark correlation searches:\n\n```ini\n[Cyber Vision — PLC unauthorised write]\naction.notable.param.cyber_physical_runbook = true\naction.notable.param.physical_safeguard_id = HMI-LOCAL-MODE\n```\n\nSOAR playbook (pseudo-flow):\n\n```\nWHEN notable.cyber_physical_runbook=true\nDO\n  1. Lookup safeguard mapping table\n  2. Invoke PACS API to dispatch guard (if applicable)\n  3. Invoke HMI gateway API to engage local-mode lockdown\n  4. Update notable with playbook completion timestamp\n```\n\n## Step 2 — Create the search and alert\n\nSchedule every 5 minutes (matches SLA window):\n\n```ini\n[UC-22.52.21: SOCI cyber + physical convergence]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.21,reg=SOCI,clause=SOCI-cross-cyber-physical\naction.notable.param.rule_title = SOCI cyber-physical safeguard SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity by status: `not_triggered_within_sla` and `triggered_very_late` → critical; `triggered_late` → high.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: in a test environment, generate a test PLC-write detection on a sandboxed asset; observe SOAR playbook fire and PACS / HMI events arrive. UC should record `safeguard_status=\"triggered\"`.\n\n**(b)** Negative control: temporarily disable the SOAR playbook; trigger the same test detection; observe `not_triggered_within_sla`.\n\n**(c)** Coverage: every correlation search whose `MITRE ATT&CK` map includes ICS T08xx techniques carries `cyber_physical_runbook=true`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Cyber + Physical Convergence`.\n\n**Runbook for `not_triggered_within_sla` / `triggered_very_late`** (owner: Head of SecOps, severity P1):\n\n1. Within 30 minutes: investigate why the safeguard didn't fire (SOAR playbook failure, PACS API outage, HMI gateway offline).\n2. Within 24 hours: produce a 5-why root-cause; if it's a frequency-pattern, raise as a Rule 4 cyber-hazard for the next CIRMP review.\n\n## Step 5 — Troubleshooting\n\n**SOAR API failures**: PACS or HMI vendor APIs may rate-limit; tune SOAR retry; alert on consecutive failures.\n\n**Notable enrichment timing**: ES correlation results may arrive after the SOAR completes; widen the search window.\n\n**Coverage of mapped detections**: not all OT detections need physical safeguards; the cyber-physical mapping table is the authoritative source.\n\n**SOCI-specific failure modes**:\n\n- **Safety-Instrumented System (SIS) interaction**: cyber-physical converge runbooks must NEVER override SIS; the SIS owns safety final outcome. Have a documented separation.\n- **Insurance impact**: physical safeguard activation may trigger insurance notification; design the playbook with a documented insurance-notification path.\n- **Site-physical-security 24/7 coverage**: guard dispatch is only effective if guards are on shift; for unmanned sites, the safeguard mix must rely on remote technical controls (cameras, gates).\n- **Drilling with the BoM feed**: combine cyber-physical converge runbook drills with BoM cyclone alert drills to exercise both pathways together (auditors love this).",
+  "grandmaExplanation": "When something bad happens in our cyber world — like an attacker trying to take over a control system — we don't just hope the cyber team handles it. We also automatically activate physical protections: lock the operator's screen so it can only be controlled in person, send a guard to check the room, change badge access. This bell tells us when the cyber-and-physical reaction did not happen wit...",
   "prerequisiteUseCases": [
     "UC-22.52.20"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.52.20 deployed.\n- ES, SOAR, Cyber Vision TA.\n- `index=notable`, `index=phantom`, `index=ot`, `index=audit_evidence`.\n- ES correlation searches relevant to OT control planes carry `cyber_physical_runbook=true` annotation, with a paired `physical_safeguard_id`.\n- SOAR playbooks `cyber-physical-converge-<id>` exist and are configured to call PACS and HMI APIs.\n\n## Step 1 — Configure data collection\n\nMark correlation searches:\n\n```ini\n[Cyber Vision — PLC unauthorised write]\naction.notable.param.cyber_physical_runbook = true\naction.notable.param.physical_safeguard_id = HMI-LOCAL-MODE\n```\n\nSOAR playbook (pseudo-flow):\n\n```\nWHEN notable.cyber_physical_runbook=true\nDO\n  1. Lookup safeguard mapping table\n  2. Invoke PACS API to dispatch guard (if applicable)\n  3. Invoke HMI gateway API to engage local-mode lockdown\n  4. Update notable with playbook completion timestamp\n```\n\n## Step 2 — Create the search and alert\n\nSchedule every 5 minutes (matches SLA window):\n\n```ini\n[UC-22.52.21: SOCI cyber + physical convergence]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -10m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.21,reg=SOCI,clause=SOCI-cross-cyber-physical\naction.notable.param.rule_title = SOCI cyber-physical safeguard SLA breach\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity by status: `not_triggered_within_sla` and `triggered_very_late` → critical; `triggered_late` → high.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: in a test environment, generate a test PLC-write detection on a sandboxed asset; observe SOAR playbook fire and PACS / HMI events arrive. UC should record `safeguard_status=\"triggered\"`.\n\n**(b)** Negative control: temporarily disable the SOAR playbook; trigger the same test detection; observe `not_triggered_within_sla`.\n\n**(c)** Coverage: every correlation search whose `MITRE ATT&CK` map includes ICS T08xx techniques carries `cyber_physical_runbook=true`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Cyber + Physical Convergence`.\n\n**Runbook for `not_triggered_within_sla` / `triggered_very_late`** (owner: Head of SecOps, severity P1):\n\n1. Within 30 minutes: investigate why the safeguard didn't fire (SOAR playbook failure, PACS API outage, HMI gateway offline).\n2. Within 24 hours: produce a 5-why root-cause; if it's a frequency-pattern, raise as a Rule 4 cyber-hazard for the next CIRMP review.\n\n## Step 5 — Troubleshooting\n\n**SOAR API failures**: PACS or HMI vendor APIs may rate-limit; tune SOAR retry; alert on consecutive failures.\n\n**Notable enrichment timing**: ES correlation results may arrive after the SOAR completes; widen the search window.\n\n**Coverage of mapped detections**: not all OT detections need physical safeguards; the cyber-physical mapping table is the authoritative source.\n\n**SOCI-specific failure modes**:\n\n- **Safety-Instrumented System (SIS) interaction**: cyber-physical converge runbooks must NEVER override SIS; the SIS owns safety final outcome. Have a documented separation.\n- **Insurance impact**: physical safeguard activation may trigger insurance notification; design the playbook with a documented insurance-notification path.\n- **Site-physical-security 24/7 coverage**: guard dispatch is only effective if guards are on shift; for unmanned sites, the safeguard mix must rely on remote technical controls (cameras, gates).\n- **Drilling with the BoM feed**: combine cyber-physical converge runbook drills with BoM cyclone alert drills to exercise both pathways together (auditors love this).",
-  "grandmaExplanation": "When something bad happens in our cyber world — like an attacker trying to take over a control system — we don't just hope the cyber team handles it. We also automatically activate physical protections: lock the operator's screen so it can only be controlled in person, send a guard to check the room, change badge access. This bell tells us when the cyber-and-physical reaction did not happen wit..."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4395,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4395",
+      "role": "optional",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5485,
+      "name": "Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/5485",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

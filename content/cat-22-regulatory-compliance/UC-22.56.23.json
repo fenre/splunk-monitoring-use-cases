@@ -35,18 +35,6 @@
   },
   "dataSources": "CISA AIS via TAXII (`stix:taxii`). E-ISAC / ST-ISAC / A-ISAC indicator feeds. Splunk ES threat-intel framework (`threat_activity` index).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for TAXII (community), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| metadata type=sources index=threat_intel\n| eval source_normalized = case(\n    match(source, \"(?i)cisa\"), \"CISA_AIS\",\n    match(source, \"(?i)e-?isac\"), \"E_ISAC\",\n    match(source, \"(?i)st-?isac\"), \"ST_ISAC\",\n    match(source, \"(?i)a-?isac\"), \"A_ISAC\",\n    1=1, \"other\")\n| eval hours_since_event = round((now() - lastTime) / 3600, 1)\n| eval feed_status = case(\n    isnull(lastTime), \"never_seen\",\n    hours_since_event > 4 AND source_normalized!=\"other\", \"stale\",\n    1=1, \"healthy\")\n| where feed_status IN (\"never_seen\",\"stale\")\n| table source_normalized hours_since_event feed_status",
   "description": "Surveys threat-intel feed freshness; flags stale AIS / ISAC subscriptions.",
   "value": "Active threat-intel feeds are an enforcement-evidenceable element of TSA SDs; stale feeds undermine the SOC and the inspector evidence narrative.",
@@ -74,31 +62,44 @@
     }
   ],
   "knownFalsePositives": "1. **Burst-feed cadence**: A-ISAC may publish in bursts; tune `expected_silence_hours`.\n2. **Closed-circuit feeds**: TLP:RED indicators may go to non-Splunk storage; track in side-channel.\n\n**Suppression mechanism**: KV Store `tsa_threat_intel_exception_lookup`.",
+  "mitreAttack": [
+    "N/A (threat-intel hygiene)"
+  ],
   "requiredFields": [
     "source_normalized",
     "hours_since_event",
     "feed_status"
   ],
+  "equipment": [
+    "dell_emc",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x (threat-intel framework)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + CC + Threat-Intel Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x (threat-intel framework)"
-  ],
-  "mitreAttack": [
-    "N/A (threat-intel hygiene)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES with threat-intel framework.\n- TAXII subscriptions to CISA AIS + ISACs.\n\n## Step 1 — Wire feeds\n\nConfigure TAXII clients to write to `threat_intel` index with source label set to `CISA_AIS`, `E_ISAC`, `ST_ISAC`, `A_ISAC`.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.23: TSA Threat-Intel Health]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.23,reg=TSA-Surface,clause=TSA-SD-multi-threat-intel\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`feed_status=stale`** (owner: Threat-Intel Lead, severity P2):\n1. Within 4 hours: re-establish feed.\n2. Within 24 hours: investigate gap window for any missed advisories.\n\n## Step 4 — Troubleshooting\n\n- **TLS / proxy issues**: AIS TAXII may hit egress proxy issues; capture cert errors.\n- **TAXII version drift**: AIS migrated from TAXII 1.x to 2.1; ensure clients are current.\n\n**TSA-specific failure modes**:\n- **Classified-channel separation**: CC must coordinate cleared analyst engagement on classified threats.\n- **DHS DEFEND-style coordination**: TSA may direct cross-sector coordination during incidents.",
+  "grandmaExplanation": "The US government and industry groups share warnings about new cyber attacks. We make sure we receive those warnings without interruption and act on them.",
   "prerequisiteUseCases": [
     "UC-22.56.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES with threat-intel framework.\n- TAXII subscriptions to CISA AIS + ISACs.\n\n## Step 1 — Wire feeds\n\nConfigure TAXII clients to write to `threat_intel` index with source label set to `CISA_AIS`, `E_ISAC`, `ST_ISAC`, `A_ISAC`.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.23: TSA Threat-Intel Health]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.23,reg=TSA-Surface,clause=TSA-SD-multi-threat-intel\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`feed_status=stale`** (owner: Threat-Intel Lead, severity P2):\n1. Within 4 hours: re-establish feed.\n2. Within 24 hours: investigate gap window for any missed advisories.\n\n## Step 4 — Troubleshooting\n\n- **TLS / proxy issues**: AIS TAXII may hit egress proxy issues; capture cert errors.\n- **TAXII version drift**: AIS migrated from TAXII 1.x to 2.1; ensure clients are current.\n\n**TSA-specific failure modes**:\n- **Classified-channel separation**: CC must coordinate cleared analyst engagement on classified threats.\n- **DHS DEFEND-style coordination**: TSA may direct cross-sector coordination during incidents.",
-  "grandmaExplanation": "The US government and industry groups share warnings about new cyber attacks. We make sure we receive those warnings without interruption and act on them."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -36,6 +36,82 @@
   },
   "dataSources": "Cisco Cyber Vision OT flow events (`cisco:cybervision:flow`). Claroty CTD / xDome network flow detections (`claroty:ctd:flow`). Nozomi Guardian flow events (`nozomi:guardian:flow`). Palo Alto Networks firewall traffic logs (`pan:traffic`) for IT/OT boundary firewalls. Cisco ASA / Firepower (`cisco:asa`, `cisco:fmc`) for OT DMZ enforcement. Splunk Stream protocol decode for industrial protocols (`stream:modbus`, `stream:opcua`, `stream:dnp3`, `stream:profinet`). Pipeline zone-and-conduit register (KV Store `tsa_pipeline_zones_lookup`) mapping IP ranges to zones. Approved-flow register (KV Store `tsa_pipeline_approved_flows_lookup`) with change-control identifiers.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "(index=ot OR index=network) (sourcetype=\"cisco:cybervision:flow\" OR sourcetype=\"claroty:ctd:flow\" OR sourcetype=\"nozomi:guardian:flow\" OR sourcetype=\"pan:traffic\" OR sourcetype=\"cisco:asa\")\n| lookup tsa_pipeline_zones_lookup src_ip AS src_ip OUTPUT zone AS src_zone\n| lookup tsa_pipeline_zones_lookup dest_ip AS dest_ip OUTPUT zone AS dst_zone\n| where src_zone IN (\"OT\",\"IT\") AND dst_zone IN (\"OT\",\"IT\") AND src_zone != dst_zone\n| eval zone_pair = src_zone . \"->\" . dst_zone\n| stats sum(bytes) as traffic_bytes count as traffic_sessions values(app) as observed_protocol values(dest_port) as observed_ports by facility_id zone_pair src_zone dst_zone src_ip dest_ip\n| lookup tsa_pipeline_approved_flows_lookup src_ip AS src_ip dest_ip AS dest_ip OUTPUT approved_flow_id change_id flow_purpose\n| eval flow_classification = case(\n    isnotnull(approved_flow_id), \"approved\",\n    zone_pair=\"IT->OT\", \"unauthorised_inbound\",\n    zone_pair=\"OT->IT\", \"unauthorised_outbound\",\n    1=1, \"unknown\")\n| eval drift_status = if(flow_classification=\"approved\", \"approved\", \"unauthorised_flow\")\n| where drift_status=\"unauthorised_flow\"\n| table facility_id zone_pair src_zone dst_zone src_ip dest_ip observed_protocol observed_ports traffic_bytes traffic_sessions flow_classification approved_flow_id change_id drift_status",
+  "description": "Correlates OT and network flow telemetry to detect any IT⇄OT boundary traffic that is not on the approved-flow register. Surfaces drift within 15 minutes with sufficient context (source IP, destination IP, protocol, byte volume, session count) for the OT Security Lead to triage.",
+  "value": "Network segmentation is the single most important TSA-SD control: a covered IT/OT compromise often begins with an unsanctioned lateral channel. Pipeline operators rely on policy + change-control + periodic audit, but real incidents have been preceded by months of undetected unauthorised flows. This UC closes that gap with continuous drift detection.",
+  "implementation": "(1) Define zones in `tsa_pipeline_zones_lookup` (per facility, by IP range, with `zone`, `criticality`, `nominal_protocols`). (2) Populate `tsa_pipeline_approved_flows_lookup` from the change-control board's approved-IT-to-OT-flow register. (3) Schedule UC-22.56.3 every 15 minutes; route `unauthorised_flow` notable severity=critical. (4) Build the `TSA-SD Pipeline Segmentation` dashboard.",
+  "visualization": "(Panel 1) Drift count by facility, last 24 hours. (Panel 2) Top-10 unauthorised src_ip → dest_ip flows. (Panel 3) Approved vs. unauthorised stacked bar. (Panel 4) Approved-flow register currency. (Panel 5) IT/OT byte-volume sankey.",
+  "cimModels": [
+    "Network_Traffic",
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "TSA Security Directive Pipeline-2021-02D",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "NIST 800-82 Rev 3 — Guide to ICS Security",
+      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
+    },
+    {
+      "title": "Purdue Reference Model — Zones and Conduits",
+      "url": "https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards"
+    }
+  ],
+  "knownFalsePositives": "1. **Engineering jump-host activity** — engineering jump-hosts legitimately move between zones during commissioning. Suppression: pin jump-host IPs in `tsa_pipeline_approved_flows_lookup` with a documented `flow_purpose=\"engineering_jumphost\"`.\n\n2. **Vendor remote-access proxy traffic** — vendor remote-access via Cisco ASA AnyConnect / Fortinet / CyberArk PSM creates flows that look bidirectional. Suppression: tag the proxy host and exclude proxy-mediated flows where the underlying session is tracked by UC-22.56.4 (Access Control).\n\n3. **Vulnerability-scanner activity** — scheduled scans into OT from the IT side should be approved flows. Suppression: register the scanner IPs in `tsa_pipeline_approved_flows_lookup`.\n\n4. **Time-server / DNS / NTP** — supporting infrastructure traffic to the OT zone should be approved. Suppression: pin known supporting hosts.\n\n**Suppression mechanism**: KV Store `tsa_22_56_3_exceptions` with documented OT Security Lead approval and 60-day maximum grant. Long-lived flows must migrate into `tsa_pipeline_approved_flows_lookup` via change-control.",
+  "mitreAttack": [
+    "T1021",
+    "T1071",
+    "T1190"
+  ],
+  "requiredFields": [
+    "facility_id",
+    "src_zone",
+    "dst_zone",
+    "src_ip",
+    "dest_ip",
+    "drift_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cybervision",
+    "claroty",
+    "modbus",
+    "nozomi-networks",
+    "opcua",
+    "paloalto",
+    "paloalto-networks",
+    "splunk-es",
+    "splunk-stream",
+    "stream"
+  ],
+  "equipmentModels": [
+    "Cisco ASA / Firepower (legacy OT DMZ enforcement)",
+    "Cisco Cyber Vision 4.x (sensor + center)",
+    "Claroty CTD 4.x / xDome",
+    "Nozomi Networks Guardian 22.x / Vantage",
+    "Palo Alto Networks PAN-OS 11.x (IT/OT boundary firewalls)",
+    "Splunk Enterprise Security 7.x",
+    "Splunk Stream 8.x (industrial-protocol decode)",
+    "cisco_asa",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + OT Security Lead + Network Architect",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Indexed OT flow telemetry from Cisco Cyber Vision, Claroty, or Nozomi.\n- Indexed firewall traffic from Palo Alto Networks (or equivalent) on the IT/OT boundary.\n- KV Stores `tsa_pipeline_zones_lookup` and `tsa_pipeline_approved_flows_lookup`.\n- ES notable framework.\n\n## Step 1 — Define zone-and-conduit register\n\n```ini\n[tsa_pipeline_zones_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.zone = string\nfield.zone_purdue_level = number\nfield.ip_cidr = string\nfield.nominal_protocols = string\nfield.criticality = string\n```\n\nThe zone register is the operational definition of the Purdue Reference Model for the pipeline. Populate from network architecture documentation and validate against actual IPAM allocations.\n\n## Step 2 — Define approved-flow register\n\n```ini\n[tsa_pipeline_approved_flows_lookup]\nenforceTypes = true\nfield.approved_flow_id = string\nfield.facility_id = string\nfield.src_ip = string\nfield.dest_ip = string\nfield.protocol = string\nfield.port = number\nfield.flow_purpose = string\nfield.change_id = string\nfield.approved_by = string\nfield.approved_at = number\nfield.expires_at = number\nfield.review_cycle_days = number\n```\n\nEvery row must reference a change-control ticket. Flows without active change-control approval are unauthorised by definition.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.3: TSA-SD Pipeline CIP Network Segmentation Drift]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.3,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.1\naction.notable.param.rule_title = TSA-SD Pipeline IT/OT segmentation drift — unauthorised flow detected\naction.notable.param.security_domain = network\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = facility_id, src_ip, dest_ip, dest_port\nalert.suppress.period = 1h\n```\n\n## Step 4 — Validate deployment\n\n**(a) Synthetic-flow test**: in a non-prod environment, generate a synthetic IT-to-OT flow on a non-approved port. Within 15 minutes UC-22.56.3 must flag.\n\n**(b) Change-control integration test**: open a change-control ticket for a new flow; populate the row in `tsa_pipeline_approved_flows_lookup` with the change_id. Verify UC-22.56.3 does not alert.\n\n**(c) Approved-flow expiry test**: set an approved-flow row to `expires_at = now() - 1d`. Verify UC-22.56.3 flags the now-expired flow.\n\n## Step 5 — Operationalize\n\n**Dashboard `TSA-SD Pipeline Segmentation`**:\n- **Panel 1**: drift count by facility, last 24 hours.\n- **Panel 2**: Top-10 unauthorised src→dst flows.\n- **Panel 3**: approved vs unauthorised bar.\n- **Panel 4**: approved-flow register currency (rows expired or expiring).\n- **Panel 5**: byte-volume sankey IT→OT and OT→IT.\n\n**Runbook for `drift_status=unauthorised_flow`** (owner: OT Security Lead, severity P1):\n1. Within 15 min: confirm the flow is real, not a parsing artefact.\n2. Within 30 min: block the flow at the IT/OT boundary firewall if unrecognised.\n3. Within 1 hour: open an investigation; correlate with detection events from Cyber Vision / Claroty / Nozomi.\n4. Within 4 hours: if benign (approved-but-not-registered), open a change-control ticket; populate the row in `tsa_pipeline_approved_flows_lookup`.\n5. Within 24 hours: if malicious, escalate to CC for CIRP activation and potential CISA-reporting (UC-22.56.1).\n\n## Step 6 — Troubleshooting\n\n**Zone misalignment** — if `src_zone` and `dst_zone` come back null, the IP address is not in `tsa_pipeline_zones_lookup`. Update IPAM-to-zone mapping.\n\n**Protocol-aware false positives** — some OT protocols (e.g. PROFINET, EtherNet/IP) legitimately have broadcast / multicast that look like 1:N traffic; the search ignores broadcast destinations.\n\n**Vendor remote-access flows** — see knownFalsePositives #2; tag at the PAM tier so vendor sessions are properly attributed.\n\n**TSA-specific failure modes**:\n- **CSAS architecture changes**: when the operator submits a revised CSAS to TSA, the zone register must be refreshed before submission. Run UC-22.56.3 in dry-run for 24 hours against the new register before going live.\n- **Brownfield acquisitions**: a newly-acquired pipeline may have a non-Purdue zone model. Migrate to the standard zone model within 90 days; suppress while the migration is in flight.\n- **Air-gap claims**: facilities claimed as air-gapped but with engineering laptop access via removable media must still be in the zone register with `zone=OT_AIRGAP_PHYSICAL`; movement of the laptop in/out is the conduit, even if there is no IP flow.",
+  "grandmaExplanation": "We watch every connection between our pipeline's computers and the office network, and we flag anything that isn't on our pre-approved list within 15 minutes — so a sneaky path from one side to the other gets caught fast.",
+  "prerequisiteUseCases": [
+    "UC-22.56.2"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -80,74 +156,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "(index=ot OR index=network) (sourcetype=\"cisco:cybervision:flow\" OR sourcetype=\"claroty:ctd:flow\" OR sourcetype=\"nozomi:guardian:flow\" OR sourcetype=\"pan:traffic\" OR sourcetype=\"cisco:asa\")\n| lookup tsa_pipeline_zones_lookup src_ip AS src_ip OUTPUT zone AS src_zone\n| lookup tsa_pipeline_zones_lookup dest_ip AS dest_ip OUTPUT zone AS dst_zone\n| where src_zone IN (\"OT\",\"IT\") AND dst_zone IN (\"OT\",\"IT\") AND src_zone != dst_zone\n| eval zone_pair = src_zone . \"->\" . dst_zone\n| stats sum(bytes) as traffic_bytes count as traffic_sessions values(app) as observed_protocol values(dest_port) as observed_ports by facility_id zone_pair src_zone dst_zone src_ip dest_ip\n| lookup tsa_pipeline_approved_flows_lookup src_ip AS src_ip dest_ip AS dest_ip OUTPUT approved_flow_id change_id flow_purpose\n| eval flow_classification = case(\n    isnotnull(approved_flow_id), \"approved\",\n    zone_pair=\"IT->OT\", \"unauthorised_inbound\",\n    zone_pair=\"OT->IT\", \"unauthorised_outbound\",\n    1=1, \"unknown\")\n| eval drift_status = if(flow_classification=\"approved\", \"approved\", \"unauthorised_flow\")\n| where drift_status=\"unauthorised_flow\"\n| table facility_id zone_pair src_zone dst_zone src_ip dest_ip observed_protocol observed_ports traffic_bytes traffic_sessions flow_classification approved_flow_id change_id drift_status",
-  "description": "Correlates OT and network flow telemetry to detect any IT⇄OT boundary traffic that is not on the approved-flow register. Surfaces drift within 15 minutes with sufficient context (source IP, destination IP, protocol, byte volume, session count) for the OT Security Lead to triage.",
-  "value": "Network segmentation is the single most important TSA-SD control: a covered IT/OT compromise often begins with an unsanctioned lateral channel. Pipeline operators rely on policy + change-control + periodic audit, but real incidents have been preceded by months of undetected unauthorised flows. This UC closes that gap with continuous drift detection.",
-  "implementation": "(1) Define zones in `tsa_pipeline_zones_lookup` (per facility, by IP range, with `zone`, `criticality`, `nominal_protocols`). (2) Populate `tsa_pipeline_approved_flows_lookup` from the change-control board's approved-IT-to-OT-flow register. (3) Schedule UC-22.56.3 every 15 minutes; route `unauthorised_flow` notable severity=critical. (4) Build the `TSA-SD Pipeline Segmentation` dashboard.",
-  "visualization": "(Panel 1) Drift count by facility, last 24 hours. (Panel 2) Top-10 unauthorised src_ip → dest_ip flows. (Panel 3) Approved vs. unauthorised stacked bar. (Panel 4) Approved-flow register currency. (Panel 5) IT/OT byte-volume sankey.",
-  "cimModels": [
-    "Network_Traffic",
-    "Alerts"
-  ],
-  "references": [
-    {
-      "title": "TSA Security Directive Pipeline-2021-02D",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
-    },
-    {
-      "title": "NIST 800-82 Rev 3 — Guide to ICS Security",
-      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
-    },
-    {
-      "title": "Purdue Reference Model — Zones and Conduits",
-      "url": "https://www.isa.org/standards-and-publications/isa-standards/isa-iec-62443-series-of-standards"
-    }
-  ],
-  "knownFalsePositives": "1. **Engineering jump-host activity** — engineering jump-hosts legitimately move between zones during commissioning. Suppression: pin jump-host IPs in `tsa_pipeline_approved_flows_lookup` with a documented `flow_purpose=\"engineering_jumphost\"`.\n\n2. **Vendor remote-access proxy traffic** — vendor remote-access via Cisco ASA AnyConnect / Fortinet / CyberArk PSM creates flows that look bidirectional. Suppression: tag the proxy host and exclude proxy-mediated flows where the underlying session is tracked by UC-22.56.4 (Access Control).\n\n3. **Vulnerability-scanner activity** — scheduled scans into OT from the IT side should be approved flows. Suppression: register the scanner IPs in `tsa_pipeline_approved_flows_lookup`.\n\n4. **Time-server / DNS / NTP** — supporting infrastructure traffic to the OT zone should be approved. Suppression: pin known supporting hosts.\n\n**Suppression mechanism**: KV Store `tsa_22_56_3_exceptions` with documented OT Security Lead approval and 60-day maximum grant. Long-lived flows must migrate into `tsa_pipeline_approved_flows_lookup` via change-control.",
-  "requiredFields": [
-    "facility_id",
-    "src_zone",
-    "dst_zone",
-    "src_ip",
-    "dest_ip",
-    "drift_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + OT Security Lead + Network Architect",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "cisco-cybervision",
-    "claroty",
-    "nozomi-networks",
-    "paloalto-networks",
-    "splunk-es",
-    "splunk-stream"
-  ],
-  "equipmentModels": [
-    "Cisco Cyber Vision 4.x (sensor + center)",
-    "Claroty CTD 4.x / xDome",
-    "Nozomi Networks Guardian 22.x / Vantage",
-    "Palo Alto Networks PAN-OS 11.x (IT/OT boundary firewalls)",
-    "Cisco ASA / Firepower (legacy OT DMZ enforcement)",
-    "Splunk Stream 8.x (industrial-protocol decode)",
-    "Splunk Enterprise Security 7.x"
-  ],
-  "mitreAttack": [
-    "T1021",
-    "T1071",
-    "T1190"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.56.2"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Indexed OT flow telemetry from Cisco Cyber Vision, Claroty, or Nozomi.\n- Indexed firewall traffic from Palo Alto Networks (or equivalent) on the IT/OT boundary.\n- KV Stores `tsa_pipeline_zones_lookup` and `tsa_pipeline_approved_flows_lookup`.\n- ES notable framework.\n\n## Step 1 — Define zone-and-conduit register\n\n```ini\n[tsa_pipeline_zones_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.zone = string\nfield.zone_purdue_level = number\nfield.ip_cidr = string\nfield.nominal_protocols = string\nfield.criticality = string\n```\n\nThe zone register is the operational definition of the Purdue Reference Model for the pipeline. Populate from network architecture documentation and validate against actual IPAM allocations.\n\n## Step 2 — Define approved-flow register\n\n```ini\n[tsa_pipeline_approved_flows_lookup]\nenforceTypes = true\nfield.approved_flow_id = string\nfield.facility_id = string\nfield.src_ip = string\nfield.dest_ip = string\nfield.protocol = string\nfield.port = number\nfield.flow_purpose = string\nfield.change_id = string\nfield.approved_by = string\nfield.approved_at = number\nfield.expires_at = number\nfield.review_cycle_days = number\n```\n\nEvery row must reference a change-control ticket. Flows without active change-control approval are unauthorised by definition.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.3: TSA-SD Pipeline CIP Network Segmentation Drift]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.3,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.1\naction.notable.param.rule_title = TSA-SD Pipeline IT/OT segmentation drift — unauthorised flow detected\naction.notable.param.security_domain = network\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = facility_id, src_ip, dest_ip, dest_port\nalert.suppress.period = 1h\n```\n\n## Step 4 — Validate deployment\n\n**(a) Synthetic-flow test**: in a non-prod environment, generate a synthetic IT-to-OT flow on a non-approved port. Within 15 minutes UC-22.56.3 must flag.\n\n**(b) Change-control integration test**: open a change-control ticket for a new flow; populate the row in `tsa_pipeline_approved_flows_lookup` with the change_id. Verify UC-22.56.3 does not alert.\n\n**(c) Approved-flow expiry test**: set an approved-flow row to `expires_at = now() - 1d`. Verify UC-22.56.3 flags the now-expired flow.\n\n## Step 5 — Operationalize\n\n**Dashboard `TSA-SD Pipeline Segmentation`**:\n- **Panel 1**: drift count by facility, last 24 hours.\n- **Panel 2**: Top-10 unauthorised src→dst flows.\n- **Panel 3**: approved vs unauthorised bar.\n- **Panel 4**: approved-flow register currency (rows expired or expiring).\n- **Panel 5**: byte-volume sankey IT→OT and OT→IT.\n\n**Runbook for `drift_status=unauthorised_flow`** (owner: OT Security Lead, severity P1):\n1. Within 15 min: confirm the flow is real, not a parsing artefact.\n2. Within 30 min: block the flow at the IT/OT boundary firewall if unrecognised.\n3. Within 1 hour: open an investigation; correlate with detection events from Cyber Vision / Claroty / Nozomi.\n4. Within 4 hours: if benign (approved-but-not-registered), open a change-control ticket; populate the row in `tsa_pipeline_approved_flows_lookup`.\n5. Within 24 hours: if malicious, escalate to CC for CIRP activation and potential CISA-reporting (UC-22.56.1).\n\n## Step 6 — Troubleshooting\n\n**Zone misalignment** — if `src_zone` and `dst_zone` come back null, the IP address is not in `tsa_pipeline_zones_lookup`. Update IPAM-to-zone mapping.\n\n**Protocol-aware false positives** — some OT protocols (e.g. PROFINET, EtherNet/IP) legitimately have broadcast / multicast that look like 1:N traffic; the search ignores broadcast destinations.\n\n**Vendor remote-access flows** — see knownFalsePositives #2; tag at the PAM tier so vendor sessions are properly attributed.\n\n**TSA-specific failure modes**:\n- **CSAS architecture changes**: when the operator submits a revised CSAS to TSA, the zone register must be refreshed before submission. Run UC-22.56.3 in dry-run for 24 hours against the new register before going live.\n- **Brownfield acquisitions**: a newly-acquired pipeline may have a non-Purdue zone model. Migrate to the standard zone model within 90 days; suppress while the migration is in flight.\n- **Air-gap claims**: facilities claimed as air-gapped but with engineering laptop access via removable media must still be in the zone register with `zone=OT_AIRGAP_PHYSICAL`; movement of the laptop in/out is the conduit, even if there is no IP flow.",
-  "grandmaExplanation": "We watch every connection between our pipeline's computers and the office network, and we flag anything that isn't on our pre-approved list within 15 minutes — so a sneaky path from one side to the other gets caught fast."
+  "wave": "walk"
 }

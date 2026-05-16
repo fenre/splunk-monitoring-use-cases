@@ -35,26 +35,6 @@
   },
   "dataSources": "Notification events (`index=ir sourcetype=\"ir:asd_notification\" oral_or_written=oral`) and follow-up events (`index=ir sourcetype=\"ir:asd_notification_followup\"`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4395), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4395,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4395",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=ir sourcetype=\"ir:asd_notification\" oral_or_written=oral earliest=-7d@d\n| dedup incident_id sortby _time\n| rename _time AS oral_notification_at\n| join type=left incident_id [\n    search index=ir sourcetype=\"ir:asd_notification_followup\" earliest=-7d@d\n    | dedup incident_id sortby _time\n    | rename _time AS written_followup_at, artefact_url AS followup_artefact_url\n    | fields incident_id written_followup_at followup_artefact_url\n]\n| eval hours_to_followup = if(isnotnull(written_followup_at), round((written_followup_at - oral_notification_at) / 3600, 1), round((now() - oral_notification_at) / 3600, 1))\n| eval followup_status = case(\n    isnotnull(written_followup_at) AND hours_to_followup <= 84, \"on_time\",\n    isnotnull(written_followup_at) AND hours_to_followup > 84, \"breached_but_lodged\",\n    isnull(written_followup_at) AND hours_to_followup > 84, \"slo_breached\",\n    isnull(written_followup_at) AND hours_to_followup > 72, \"pre_breach_warning\",\n    1=1, \"in_progress\")\n| table incident_id oral_notification_at written_followup_at hours_to_followup followup_status followup_artefact_url",
   "description": "Tracks the 84-hour SOCI s 30BF written follow-up obligation. Starts the timer at the oral notification event; emits a pre-breach warning at 72 hours and a breach notable at 84 hours if no written follow-up is recorded.",
   "value": "s 30BF is often overlooked because the harder work of the 12h/72h notification is complete and the IR Commander moves to recovery. The written follow-up is what the CISC keeps for the file and what audit reviews against. This UC keeps the 84-hour timer always-on so the procedural detail does not slip in the post-incident transition.",
@@ -74,38 +54,58 @@
     }
   ],
   "knownFalsePositives": "1. **Initial notification was already in writing** — no follow-up required. Suppression via `oral_or_written=written`.\n\n2. **ASD has accepted oral-only by exception** — rare but documented. Suppression: KV Store `soci_22_52_7_exceptions` with ASD waiver reference.\n\n3. **Follow-up submitted in a non-portal channel** — email or letter. The HEC ingest must extend to capture this; otherwise lookup is missing. Suppression: the IR Commander manually HECs the artefact URL.",
+  "mitreAttack": [
+    "N/A (statutory-reporting workflow — measures written-follow-up cadence, not adversary detection)"
+  ],
   "requiredFields": [
     "incident_id",
     "oral_notification_at",
     "written_followup_at",
     "followup_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow IR / SecOps (Vancouver / Washington)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk SOAR (Splunkbase 4395, s 30BF written-followup sub-playbook)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Splunk SOAR (Splunkbase 4395, s 30BF written-followup sub-playbook)",
-    "ServiceNow IR / SecOps (Vancouver / Washington)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)"
-  ],
-  "mitreAttack": [
-    "N/A (statutory-reporting workflow — measures written-follow-up cadence, not adversary detection)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.52.5 and UC-22.52.6 deployed and operational.\n- `index=ir`, `index=audit_evidence`.\n- SOAR sub-playbook for the written follow-up: drafts the CISC long-form, awaits IR Commander review and submission, captures the artefact URL via HEC.\n- ES notable framework configured.\n\n## Step 1 — Configure data collection\n\nThe oral-notification HEC event must carry `oral_or_written=oral`. The follow-up HEC event must reference the same `incident_id` and carry the `artefact_url`. Example:\n\n```json\n{\n  \"event\": {\n    \"incident_id\": \"IR-2026-00871\",\n    \"written_followup_at\": \"2026-05-16T15:00:00+10:00\",\n    \"artefact_url\": \"https://cisc.gov.au/portal/submission/abc-123\",\n    \"submitter\": \"j.smith@responsible-entity.local\"\n  },\n  \"sourcetype\": \"ir:asd_notification_followup\",\n  \"index\": \"ir\"\n}\n```\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.7: SOCI s 30BF 84-hour written follow-up]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.7,reg=SOCI,clause=SOCI-s30BF\naction.notable.param.rule_title = SOCI s 30BF written follow-up SLA approaching or breached\naction.notable.param.security_domain = incident_response\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Quarterly tabletop: emit oral notification, suppress follow-up; verify pre-breach at T+72h and breach at T+84h.\n\n**(b)** Lookup integrity: every oral notification should have a matching follow-up within 84h.\n\n```spl\nindex=ir sourcetype=ir:asd_notification oral_or_written=oral earliest=-90d\n| join type=left incident_id [search index=ir sourcetype=ir:asd_notification_followup earliest=-90d | rename _time AS followup_at | fields incident_id followup_at]\n| eval missing = if(isnull(followup_at), 1, 0)\n| stats sum(missing) AS missing, count AS total\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — s 30BF Written Follow-up Tracker`. Combine with UC-22.52.5 / 22.52.6 for a single SOC view.\n\n**Runbook for `pre_breach_warning`** (owner: IR Commander, severity P3):\n\n1. Within 4 hours: confirm the IR Commander is drafting the long-form.\n2. If blocked: escalate to CISO.\n\n**Runbook for `slo_breached`** (owner: CISO, severity P2):\n\n1. Within 4 hours: submit the long-form regardless.\n2. Within 24 hours: self-disclose for Rule 10 annual report.\n\n## Step 5 — Troubleshooting\n\n**Follow-up missed because the SOAR sub-playbook didn't fire** — the sub-playbook trigger is the oral-notification HEC event. Verify the trigger is healthy.\n\n**Follow-up submitted but no HEC event** — the sub-playbook must HEC at the moment the IR Commander confirms submission; this requires UI integration with the CISC portal. If portal integration is not feasible, fall back to manual HEC.\n\n**Multiple follow-ups for one incident** — if the CISC asks for additional information after the initial follow-up, subsequent submissions are amendments not new follow-ups. The UC's `dedup sortby _time` takes the first follow-up; amendments are tracked in a separate `audit_evidence` field.\n\n**SOCI-specific failure modes**:\n\n- **84 hours from oral, not from awareness**: s 30BF measures from the oral notification, not from awareness. The UC's timer starts at `oral_notification_at` correctly.\n- **Sister-jurisdiction handoff**: an entity with co-regulators (NZ, UK) may need to handle multiple written-follow-up regimes; the UC focuses only on the s 30BF Australian one.",
+  "grandmaExplanation": "When we made a quick verbal phone call to the government about a cyber attack, we have eighty-four hours to send the full written follow-up. We start a clock at the verbal call, nudge at seventy-two hours, and ring the bell at eighty-four if the written version hasn't gone in.",
   "prerequisiteUseCases": [
     "UC-22.52.5",
     "UC-22.52.6"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.52.5 and UC-22.52.6 deployed and operational.\n- `index=ir`, `index=audit_evidence`.\n- SOAR sub-playbook for the written follow-up: drafts the CISC long-form, awaits IR Commander review and submission, captures the artefact URL via HEC.\n- ES notable framework configured.\n\n## Step 1 — Configure data collection\n\nThe oral-notification HEC event must carry `oral_or_written=oral`. The follow-up HEC event must reference the same `incident_id` and carry the `artefact_url`. Example:\n\n```json\n{\n  \"event\": {\n    \"incident_id\": \"IR-2026-00871\",\n    \"written_followup_at\": \"2026-05-16T15:00:00+10:00\",\n    \"artefact_url\": \"https://cisc.gov.au/portal/submission/abc-123\",\n    \"submitter\": \"j.smith@responsible-entity.local\"\n  },\n  \"sourcetype\": \"ir:asd_notification_followup\",\n  \"index\": \"ir\"\n}\n```\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.7: SOCI s 30BF 84-hour written follow-up]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.7,reg=SOCI,clause=SOCI-s30BF\naction.notable.param.rule_title = SOCI s 30BF written follow-up SLA approaching or breached\naction.notable.param.security_domain = incident_response\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Quarterly tabletop: emit oral notification, suppress follow-up; verify pre-breach at T+72h and breach at T+84h.\n\n**(b)** Lookup integrity: every oral notification should have a matching follow-up within 84h.\n\n```spl\nindex=ir sourcetype=ir:asd_notification oral_or_written=oral earliest=-90d\n| join type=left incident_id [search index=ir sourcetype=ir:asd_notification_followup earliest=-90d | rename _time AS followup_at | fields incident_id followup_at]\n| eval missing = if(isnull(followup_at), 1, 0)\n| stats sum(missing) AS missing, count AS total\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — s 30BF Written Follow-up Tracker`. Combine with UC-22.52.5 / 22.52.6 for a single SOC view.\n\n**Runbook for `pre_breach_warning`** (owner: IR Commander, severity P3):\n\n1. Within 4 hours: confirm the IR Commander is drafting the long-form.\n2. If blocked: escalate to CISO.\n\n**Runbook for `slo_breached`** (owner: CISO, severity P2):\n\n1. Within 4 hours: submit the long-form regardless.\n2. Within 24 hours: self-disclose for Rule 10 annual report.\n\n## Step 5 — Troubleshooting\n\n**Follow-up missed because the SOAR sub-playbook didn't fire** — the sub-playbook trigger is the oral-notification HEC event. Verify the trigger is healthy.\n\n**Follow-up submitted but no HEC event** — the sub-playbook must HEC at the moment the IR Commander confirms submission; this requires UI integration with the CISC portal. If portal integration is not feasible, fall back to manual HEC.\n\n**Multiple follow-ups for one incident** — if the CISC asks for additional information after the initial follow-up, subsequent submissions are amendments not new follow-ups. The UC's `dedup sortby _time` takes the first follow-up; amendments are tracked in a separate `audit_evidence` field.\n\n**SOCI-specific failure modes**:\n\n- **84 hours from oral, not from awareness**: s 30BF measures from the oral notification, not from awareness. The UC's timer starts at `oral_notification_at` correctly.\n- **Sister-jurisdiction handoff**: an entity with co-regulators (NZ, UK) may need to handle multiple written-follow-up regimes; the UC focuses only on the s 30BF Australian one.",
-  "grandmaExplanation": "When we made a quick verbal phone call to the government about a cyber attack, we have eighty-four hours to send the full written follow-up. We start a clock at the verbal call, nudge at seventy-two hours, and ring the bell at eighty-four if the written version hasn't gone in."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4395,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4395",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

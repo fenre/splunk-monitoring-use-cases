@@ -36,34 +36,6 @@
   },
   "dataSources": "`index=ot_cybervision sourcetype=\"cisco:cybervision:component\"` and `sourcetype=\"cisco:cybervision:flow\"` from the Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071); CMDB exports via `index=cmdb sourcetype=\"cmdb:ot_asset\"`; `ot_asset_inventory_lookup` KV Store collection (authoritative register, refreshed every 4 hours from the CMDB); `ot_change_window.csv` lookup of active commissioning/decommissioning windows; optional `tenable:ot` events for cross-validation.",
   "app": "Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263), Splunk_TA_stream (Splunkbase 1809) for cross-validation.",
-  "splunkbaseApps": [
-    {
-      "id": 6071,
-      "name": "Splunk Add-on for Cisco Cyber Vision",
-      "url": "https://splunkbase.splunk.com/app/6071",
-      "role": "data-source",
-      "setupSkill": "cisco-catalyst-ta-setup",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "primary",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk OT Security Add-on"
-  ],
   "spl": "(index=ot_cybervision sourcetype=\"cisco:cybervision:component\" earliest=-24h) OR (| inputlookup ot_asset_inventory_lookup)\n| eval asset_key = case(\n    isnotnull(mac) AND isnotnull(ip), mac.\"|\".ip,\n    isnotnull(mac), mac,\n    isnotnull(ip), \"-|\".ip,\n    1=1, null()\n  )\n| eval source = if(isnotnull(component_id), \"observed\", \"registered\")\n| stats latest(_time) AS last_seen latest(vendor) AS vendor latest(model) AS model latest(firmware) AS firmware values(observed_network_zone) AS observed_network_zone values(criticality_class) AS criticality_class values(owner) AS owner values(asset_id_cmdb) AS asset_id_cmdb values(source) AS sources BY asset_key\n| eval observed_now = if(mvfind(sources, \"observed\")>=0, \"true\", \"false\")\n| eval registered = if(mvfind(sources, \"registered\")>=0, \"true\", \"false\")\n| eval days_unobserved = if(observed_now=\"true\", 0, round((now() - last_seen) / 86400))\n| lookup ot_change_window.csv asset_key OUTPUT decommission_window_active commissioning_window_active\n| eval unregistered_observed = if(observed_now=\"true\" AND registered=\"false\" AND coalesce(commissioning_window_active, \"false\")!=\"true\", \"true\", \"false\")\n| eval registered_but_unobserved = if(observed_now=\"false\" AND registered=\"true\" AND days_unobserved > 30 AND coalesce(decommission_window_active, \"false\")!=\"true\", \"true\", \"false\")\n| eval owner_missing = if(registered=\"true\" AND (isnull(owner) OR owner=\"\"), \"true\", \"false\")\n| where unregistered_observed=\"true\" OR registered_but_unobserved=\"true\" OR owner_missing=\"true\"\n| table asset_key vendor model firmware observed_network_zone criticality_class owner asset_id_cmdb days_unobserved unregistered_observed registered_but_unobserved owner_missing\n| sort - days_unobserved",
   "description": "Reconciles assets passively discovered on OT networks by Cisco Cyber Vision against the authoritative CMDB-backed OT asset register, surfacing three failure modes: assets seen on the wire but absent from the register, registered assets that have stopped appearing, and registered assets without an accountable owner.",
   "value": "An OT asset register that is allowed to diverge from reality is the OTCC clause inspectors test first. Every NCA on-site spot-check starts with 'walk me to a cabinet and tell me what's in it' — if your register cannot answer, the audit ends badly. This UC turns Cisco Cyber Vision's continuous discovery into an automated reconciliation that surfaces the gap before NCA does, and also catches retired assets still consuming firewall rules, PAM accounts, and license seats.",
@@ -91,6 +63,9 @@
     }
   ],
   "knownFalsePositives": "1. **Engineering laptops** — itinerant laptops legitimately move on and off OT engineering subnets for maintenance. They appear unregistered each new time their MAC reaches a new VLAN. Suppression: maintain `ot_loaner_laptops.csv` keyed on MAC; treat as transient.\n\n2. **Cisco Cyber Vision sensor restarts** — a sensor restart resets the 'last observed' timer for every component in its scope, producing a flood of `registered_but_unobserved` after a sensor maintenance event. Suppression: detect sensor restart events (`index=ot_cybervision sourcetype=cisco:cybervision:event event_subtype=sensor_start`) and apply a 24-hour grace period to the components in the affected sensor's scope.\n\n3. **DHCP-driven IP change on a static-MAC PLC** — if `asset_key = mac|ip`, an IP change creates a new key. Suppression: prefer MAC-only keying for asset matching; only fall back to IP when MAC is unknown (e.g. for vendor RTUs that hide their MAC behind a gateway).\n\n4. **Commissioning windows** — brand new assets arriving in a documented commissioning window will be observed before they finish CMDB registration. Suppression: `ot_change_window.csv` lookup gates `unregistered_observed`. Default grace window 7 days from `commissioning_window_start`; extend to 14 for greenfield site builds.\n\n5. **Virtualised engineering workstations** — short-lived VMs on the HMI cluster appear and disappear with each engineer's session. Suppression: treat any asset whose Cyber Vision-reported OS is `Hypervisor` or whose hostname pattern matches `*-vdi-*` as transient and exclude from `registered_but_unobserved` checks.\n\n**Suppression mechanism**: KV Store `otcc_22_51_3_exceptions` keyed on `asset_key` with `exception_active`, `expires_at`, `reason`, `approved_by`. Final filter in the base SPL.",
+  "mitreAttack": [
+    "T1018"
+  ],
   "requiredFields": [
     "asset_key",
     "mac",
@@ -99,17 +74,10 @@
     "criticality_class",
     "owner"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "cisco",
-    "splunk-es"
+    "splunk-es",
+    "tenable"
   ],
   "equipmentModels": [
     "Cisco Cyber Vision 4.x (deep-packet asset discovery for industrial protocols)",
@@ -117,12 +85,45 @@
     "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Inventory and Network_Sessions data models)",
     "Splunk Enterprise Security 7.x (Splunkbase 263, asset_lookup_by_str for OT CMDB enrichment)"
   ],
-  "mitreAttack": [
-    "T1018"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "OT Cybersecurity SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk OT Security Add-on"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071) installed on Heavy Forwarders and Search Heads. Verify with `| rest /services/apps/local | search label=\"Splunk Add-on for Cisco Cyber Vision\" | table label version`.\n- Cisco Cyber Vision Center ≥4.2 and sensors deployed on every OT zone in scope of the OTCC. Sensors must be configured to publish to Splunk via syslog or the native Cisco Cyber Vision Splunk integration. Reference: the `cisco-catalyst-ta-setup` agent skill for automated configuration.\n- `index=ot_cybervision` provisioned, with 13-month online retention to support the trend tab. Cisco Cyber Vision is verbose; expect 100–500 MB/sensor/day depending on activity.\n- `index=cmdb` for CMDB feeds.\n- `index=audit_evidence` (shared with UC-22.51.1 and UC-22.51.2).\n- KV Store collection `ot_asset_inventory_lookup` populated by a separate scheduled search reading the CMDB export and writing to KV Store every 4 hours. The KV Store record schema is documented in `docs/equipment-table.md` and includes the canonical fields: `asset_id_cmdb`, `mac`, `ip`, `vendor`, `model`, `firmware`, `observed_network_zone`, `criticality_class`, `owner`, `cmdb_last_updated`.\n- `ot_change_window.csv` exported from the change-management tool every hour with `asset_key`, `commissioning_window_start`, `commissioning_window_end`, `decommissioning_window_start`, `decommissioning_window_end`, `change_ticket_id`. The two `*_window_active` boolean computed columns are evaluated by a daily search.\n- KV Store `otcc_22_51_3_exceptions` for manual exclusions.\n- Cyber Vision sensor inventory CSV `ot_cybervision_sensors.csv` listing sensor names, their scope_VLANs, and their healthcheck endpoint — used to apply the 24-hour grace period after a sensor restart.\n- Owners: Cisco Cyber Vision operation belongs to the OT cybersecurity engineering team; CMDB ownership belongs to the IT asset management team; this UC sits at the boundary and is owned by the Head of OT Security with a delegate from each side.\n\n## Step 1 — Configure data collection\n\nThe Splunk Add-on for Cisco Cyber Vision pulls component, flow, and event records from the Cyber Vision Center REST API. Component records describe each discovered device; flow records describe inter-device traffic; event records carry alerts and system events. For this UC we need component records (asset list) plus a small subset of event records (sensor start/stop) for the grace-period logic.\n\nA representative input stanza:\n\n```ini\n[cisco_cybervision://components]\nendpoint = https://cyber-vision-center.example.com/api\nrecord_type = component\ninterval = 600\nindex = ot_cybervision\nsourcetype = cisco:cybervision:component\nuse_proxy = false\n```\n\nValidate field extraction:\n\n```spl\nindex=ot_cybervision sourcetype=cisco:cybervision:component earliest=-1d\n| fieldsummary\n| search field IN (component_id, mac, ip, vendor, model, firmware, observed_network_zone)\n| table field count\n```\n\nAll six fields should appear with non-zero counts.\n\nThe CMDB feed (`index=cmdb sourcetype=cmdb:ot_asset`) must include `asset_id_cmdb`, `mac`, `ip`, `criticality_class`, `owner`. Some CMDBs deliver multiple MACs per asset (multi-NIC) in a multivalue field; the lookup-building search must explode them so each MAC has its own row.\n\nThe `ot_asset_inventory_lookup` KV Store collection is built and refreshed by an auxiliary search:\n\n```spl\nindex=cmdb sourcetype=cmdb:ot_asset earliest=-1d\n| mvexpand mac\n| eval asset_key = mac.\"|\".ip\n| table asset_key asset_id_cmdb mac ip vendor model firmware observed_network_zone criticality_class owner cmdb_last_updated\n| outputlookup ot_asset_inventory_lookup append=false key_field=asset_key\n```\n\nScheduled every 4 hours.\n\n## Step 2 — Create the search and alert\n\nThe search uses the `union of observed and registered` pattern: pull observed components from Cyber Vision in the last 24 hours and registered entries from the KV Store, normalise to a common `asset_key`, and stats by key. A row that has only `source=observed` and not `source=registered` is `unregistered_observed`. The inverse with `days_unobserved > 30` is `registered_but_unobserved`.\n\nKey choice: `asset_key = mac|ip` first, with fallback to `mac` then `ip`. The fallback chain matters for vendor RTUs that hide their MAC behind a serial-to-Ethernet gateway. Document the chosen key strategy in the runbook.\n\nGrace logic: `commissioning_window_active` excludes brand new assets from the `unregistered_observed` set for 7 days. `decommission_window_active` excludes retired assets from the `registered_but_unobserved` set during their wind-down period. Both windows are computed daily from `ot_change_window.csv`.\n\n**Schedule**:\n\n```ini\n[UC-22.51.3: OT Asset Inventory Reconciliation: Discovered vs Registered]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.3,reg=NCA_OTCC,clause=OTCC-2-1-1-1\naction.email.to = ot-cyber-programme@example.com,it-asset-management@example.com\nalert.severity = 4\n```\n\nA `severity=4` alert (high) reflects that asset register drift is an OTCC critical-control failure.\n\n## Step 3 — Validate deployment\n\n**(a) Sensor coverage**: list configured sensors and confirm each is reporting:\n\n```spl\nindex=ot_cybervision sourcetype=cisco:cybervision:component earliest=-1h\n| stats count by sensor_name\n```\n\nCompare against `ot_cybervision_sensors.csv`. A sensor with `count=0` in the last hour is either offline or its uplink is degraded; raise a P2 ticket to the OT cyber engineering team.\n\n**(b) CMDB freshness**:\n\n```spl\n| inputlookup ot_asset_inventory_lookup\n| eval age_h = round((now() - cmdb_last_updated) / 3600)\n| stats avg(age_h) as avg_age_h max(age_h) as max_age_h count\n```\n\n`max_age_h > 8` means a refresh failed; investigate the auxiliary search.\n\n**(c) Key-collision check**: confirm `asset_key` is unique enough:\n\n```spl\n| inputlookup ot_asset_inventory_lookup\n| stats count by asset_key\n| where count > 1\n```\n\nKey collisions mean a MAC was registered for two different IPs simultaneously — either a duplicate registration or a stale entry. Both are real CMDB findings; raise as P3 to IT asset management.\n\n**(d) Positive control**: connect `OT-TEST-PLC-001` as described in `controlTest.positiveScenario`. Verify it appears within one Cyber Vision discovery interval (typically 10 minutes) and the UC reports it on the next scheduled run.\n\n**(e) Negative control**: register `OT-TEST-PLC-002` in the CMDB before connecting it. Confirm no alert fires.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Asset Inventory` (tabbed).\n\n- **Tab 1 'Unregistered observed'**: sortable table sorted by `_time desc`. Drill-through opens Cyber Vision's component page in a new tab via a configured `drilldown=\"$row.cybervision_url$\"` token.\n- **Tab 2 'Registered but unobserved'**: same table layout, sorted by `days_unobserved desc`. Drill-through opens the CMDB record.\n- **Tab 3 'Owner missing'**: subset of the registered list where `owner` is empty. Separate panel because it is a CMDB hygiene class of finding.\n- **Tab 4 'Trend'**: 13-month line chart of `count by failure_type` overlaid with `avg(days_unobserved)`. The OT cybersecurity steering committee uses this to demonstrate inventory improvement quarter-over-quarter.\n- **Tab 5 'Top vendors / firmware'**: stacked bar of components by `vendor` and `firmware` for the current window — informs the patch-management team about firmware diversity.\n\n**Runbook** (owner: Head of OT Security with delegates):\n\n1. Open Tab 1 'Unregistered observed'. For each row:\n   - Confirm via Cyber Vision drill-through that the asset really exists.\n   - If yes and inside a commissioning window: extend the grace via `ot_change_window.csv` and notify the project team that CMDB registration is the next step.\n   - If yes and outside any commissioning window: this is an unauthorised asset. Open a P1 ES notable; the OT cybersecurity programme manager investigates within the same business day. Outcome: register and review, or isolate and remove.\n2. Open Tab 2. For each row:\n   - Inside a decommissioning window: confirm the wind-down is in progress; remove the asset from the register at window-end.\n   - Outside any window: investigate why the asset stopped being seen. Possible causes: physical removal without process (P2 governance ticket), Cyber Vision blind spot due to span-port misconfiguration (P2 engineering ticket), or device failure (P3 maintenance ticket).\n3. Open Tab 3. For each row: assign an owner via the IT asset management workflow within 5 business days. Auto-close.\n4. Record evidence-pack input: the daily PDF of Tab 1 and Tab 2 is filed into the OT cybersecurity programme's monthly OTCC evidence pack.\n\n## Step 5 — Troubleshooting\n\n**Cisco Cyber Vision returns zero components** — either the sensor is offline or the API token expired. Check `index=_internal sourcetype=splunkd component=ExecProcessor sourcetype=cisco:cybervision*` for HTTP errors. The Add-on's setup screen rotates tokens; renew if `401 Unauthorized` is logged.\n\n**Every asset shows as `unregistered_observed`** — the KV Store collection is empty. The auxiliary CMDB-to-KV-Store search likely failed last cycle. Re-run it manually:\n\n```spl\n| savedsearch \"OT asset inventory lookup refresh\"\n```\n\n**`days_unobserved` is always 0** — the `last_seen` is updating every cycle even for assets that have left. Cyber Vision's component records hold long-tail entries; check the sensor's component-aging policy. Set the sensor to age components out after 14 days of silence so the `last_seen` reflects reality.\n\n**`asset_key` matches yield false negatives** — MAC address case mismatch. Cyber Vision typically reports lowercase, CMDBs often uppercase. Normalise on both sides: `| eval mac = lower(mac)` before computing `asset_key`.\n\n**OT-specific failure modes**:\n\n- **Vendor RTUs behind a gateway**: the gateway's MAC is what Cyber Vision sees. The RTU itself is invisible at L2. Maintain a `ot_serial_assets.csv` exported by the asset-discovery team listing serial-attached devices and their parent gateway; for OTCC purposes these are valid register entries provided their parent gateway is observable.\n- **Air-gapped historian replication**: some sites replicate historian data across a fully air-gapped diode. The 'invisible' side will look like `registered_but_unobserved` permanently — maintain `ot_airgap_register.csv` and exclude those asset_keys.\n- **Highly transient devices in commissioning labs**: development labs see test PLCs come and go hourly. Either run the UC against a filtered set of operational zones only, or maintain a `ot_dev_zones.csv` and exclude transient assets from the dev zones.\n- **Multi-NIC engineering workstations**: an EWS with two NICs (one on plant-DCS, one on safety-SIS) is two MAC addresses but one CMDB asset. The CMDB feed must expose all MACs; the lookup-building search must `mvexpand` over them.",
   "grandmaExplanation": "We watch every device on the plant floor and check that it is on our official list. If a device is on the wire that we do not know about, we ring the bell. If a device is on the list but we have not seen it for a while, we ring the bell too — either way the list and reality must match.",
   "prerequisiteUseCases": [
     "UC-14.1.12"
-  ]
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "setupSkill": "cisco-catalyst-ta-setup",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "primary",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -36,18 +36,6 @@
   },
   "dataSources": "KV Store `tsa_pipeline_cap_lookup` (facility_id, cap_year, submission_due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, tsa_acknowledgement_id).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_pipeline_cap_lookup\n| eval days_to_due = round((submission_due_date - now()) / 86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= submission_due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > submission_due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table facility_id cap_year submission_due_date submitted_at submission_status assessment_doc_url attestation_signer attestation_date tsa_acknowledgement_id",
   "description": "Tracks CAP submission status for every TSA-regulated facility against the annual deadline, with executive attestation and TSA acknowledgement evidence.",
   "value": "Late or missing CAP submission triggers TSA enforcement. The attestation chain ties leadership accountability to the submission.",
@@ -67,32 +55,44 @@
     }
   ],
   "knownFalsePositives": "1. **Delayed acknowledgement** — TSA may take weeks to send a formal acknowledgement; absence of acknowledgement is not absence of submission. Suppression: `submitted_at` is the legal record.\n\n**Suppression mechanism**: KV Store `tsa_22_56_8_exceptions` with documented CC approval.",
+  "mitreAttack": [
+    "N/A (regulatory submission)"
+  ],
   "requiredFields": [
     "facility_id",
     "cap_year",
     "submission_due_date",
     "submission_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + CC + CISO",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "splunk-es"
   ],
   "equipmentModels": [
     "Splunk ES 7.x"
   ],
-  "mitreAttack": [
-    "N/A (regulatory submission)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "TSA-SD Compliance SME Panel + CC + CISO",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `tsa_pipeline_cap_lookup`.\n\n## Step 1 — Define CAP register\n\n```ini\n[tsa_pipeline_cap_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.cap_year = number\nfield.submission_due_date = number\nfield.submitted_at = number\nfield.assessment_doc_url = string\nfield.attestation_signer = string\nfield.attestation_date = number\nfield.tsa_acknowledgement_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.8: TSA-SD CAP Submission Tracker]\ncron_schedule = 23 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.8,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s5\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`submission_status=overdue`** (owner: CC, severity P1):\n1. Within 24 hours: escalate to CISO; engage General Counsel.\n2. Within 7 days: complete and submit CAP with retroactive justification.\n3. Within 14 days: present to CC + CISO + Board cyber committee.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility CAP**: pipeline operators with consolidated reporting may file one CAP across multiple facilities; ensure the lookup row references all in-scope facilities.\n\n**TSA-specific failure modes**:\n- **NPRM transition**: Final Rule may change CAP structure; operate to current SD while monitoring the rulemaking.",
+  "grandmaExplanation": "Once a year, each pipeline must self-assess its cyber security and send the results — signed by a senior leader — to the TSA. We watch the deadline and make sure it's never late.",
   "prerequisiteUseCases": [
     "UC-22.56.7"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `tsa_pipeline_cap_lookup`.\n\n## Step 1 — Define CAP register\n\n```ini\n[tsa_pipeline_cap_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.cap_year = number\nfield.submission_due_date = number\nfield.submitted_at = number\nfield.assessment_doc_url = string\nfield.attestation_signer = string\nfield.attestation_date = number\nfield.tsa_acknowledgement_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.8: TSA-SD CAP Submission Tracker]\ncron_schedule = 23 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.8,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s5\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`submission_status=overdue`** (owner: CC, severity P1):\n1. Within 24 hours: escalate to CISO; engage General Counsel.\n2. Within 7 days: complete and submit CAP with retroactive justification.\n3. Within 14 days: present to CC + CISO + Board cyber committee.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility CAP**: pipeline operators with consolidated reporting may file one CAP across multiple facilities; ensure the lookup row references all in-scope facilities.\n\n**TSA-specific failure modes**:\n- **NPRM transition**: Final Rule may change CAP structure; operate to current SD while monitoring the rulemaking.",
-  "grandmaExplanation": "Once a year, each pipeline must self-assess its cyber security and send the results — signed by a senior leader — to the TSA. We watch the deadline and make sure it's never late."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

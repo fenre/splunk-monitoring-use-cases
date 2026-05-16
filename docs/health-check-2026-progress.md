@@ -489,14 +489,26 @@ findings but should not be lost:
     reference corpus expansion + glob-aware sourcetype matching +
     Splunk 9 `IN (…)` parser fix) and the Phase 4
     `controlObjective` / `evidenceArtifact` backfill in `b9f17b407`
-    were both green on their own commits but left **two `validate.yml`
-    jobs red on the resulting HEAD** — `audits-content` ↪
-    `Phase 3.2 cross-cutting compliance generator regeneration check`
-    (the expanded vocabulary surfaces 53 cross-cutting UCs / 182
-    mappings the on-disk sidecars were missing) and `frontend` ↪
-    `Phase 4.5f perf + a11y Node drift guard` (`reports/perf-a11y.json`
-    stale relative to the regenerated `dist/` after `complianceEntries`
-    rose 2,693 → 2,790 and `dist/catalog.json` grew ~75 KiB / +0.09 %).
+    were both green on their own commits but left **three `validate.yml`
+    failures masked behind first-failure-skips-rest semantics** —
+    `audits-content` ↪ `Phase 3.2 cross-cutting compliance generator
+    regeneration check` (the expanded vocabulary surfaces 53
+    cross-cutting UCs / 182 mappings the on-disk sidecars were
+    missing), `frontend` ↪ `Phase 4.5f perf + a11y Node drift guard`
+    (`reports/perf-a11y.json` stale relative to the regenerated
+    `dist/` after `complianceEntries` rose 2,693 → 2,790 and
+    `dist/catalog.json` grew ~75 KiB / +0.09 %), and (only visible
+    after the first cascade commit `e2f467cf6` cleared the Phase 3.2
+    failure) `audits-content` ↪ `Equipment-tags regeneration check`
+    (the maintainer's OT-arc added 266 cat-22 UCs in subcategories
+    22.51-22.63 carrying `app` / `dataSources` narrative that the
+    `generate-equipment-tags` registry now wants to backfill into the
+    `equipment[]` / `equipmentModels[]` sidecar fields). The third
+    failure was missed by the first cascade pass because
+    `generate-equipment-tags` was not in the chain I walked — a real
+    omission in the recipe, fixed in the follow-on cascade commit by
+    running the generator (266 UCs updated, 120 `equipment-orphan`
+    findings cleared in `reports/compliance-coverage.json`).
     The cascade runs the canonical dependency chain in one pass so CI
     converges in a single push rather than bouncing between freshness
     audits: **(1)** `splunk_uc generate-phase3-2-cross-cutting` updates
@@ -543,6 +555,36 @@ findings but should not be lost:
     A future refactor could collapse them all into a single
     `make sync-generated` umbrella target so contributors don't need
     to learn the dependency order each time the corpus widens.
+
+    **Known follow-on, NOT addressed in this cascade:** running
+    `splunk_uc generate-evidence-packs --check` locally surfaces 8
+    `orphan: docs/evidence-packs/<slug>.md` errors for the OT-arc
+    regulations the maintainer added evidence-pack markdown for —
+    `cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
+    `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
+    `tsa-surface.md`. The MD files exist on disk and are tracked, but
+    the generator's hardcoded `PACK_TARGETS` list in
+    [`src/splunk_uc/generators/evidence_packs.py`](../src/splunk_uc/generators/evidence_packs.py)
+    (currently 17 slugs) does not include them, so `--check` reports
+    them as orphans and `generate-evidence-packs` (without `--check`)
+    would *delete* them. This was masked on the prior CI runs by the
+    Phase 3.2 cross-cutting and Equipment-tags failures stopping the
+    job early; with this cascade clearing both, the next CI run on
+    `main` will surface it as a fresh red gate. **Not fixed in this
+    cascade** because the safest fix (adding the 8 slugs to
+    `PACK_TARGETS`) would regenerate the MD files from
+    `data/evidence-pack-extras.json` + UC compliance entries and
+    risk overwriting the hand-authored content sections (the orphans
+    carry custom TOC items like *"Questions a flag-State / PSC /
+    class-society inspector should ask"* on `imo-msc-428-98.md` that
+    the generic template does not produce). The decision needs the
+    maintainer: either (a) `evidence-pack-extras` and the generator
+    template both gain the OT-arc regulators and the hand-customised
+    sections move into the generator, or (b) the orphan files are
+    re-classified as hand-authored docs outside the generator's scope
+    (and the orphan check is taught to ignore an explicit allow-list).
+    Tracked here so the post-push CI failure is expected, not a
+    surprise.
 
 ## Recommended next actions, in size order
 

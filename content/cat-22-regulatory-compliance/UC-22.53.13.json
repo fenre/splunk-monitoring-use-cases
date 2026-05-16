@@ -36,18 +36,6 @@
   },
   "dataSources": "SCADA HMI alarm log, water-quality online analyser, perimeter-IDS (Genetec / Milestone / Avigilon / Verkada), video analytics, public tip-line ticket system, WaterISAC / CISA / EPA threat-feed ingestion.",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| tstats summariesonly=f count as signal_count_24h latest(_time) as last_signal_at where index IN (scada, wq, perimeter, video, tipline, threatfeed) earliest=-24h@h by index sourcetype pwsid\n| eval channel_class = case(\n    index=\"scada\", \"scada_alarm\",\n    index=\"wq\", \"wq_online_analyser\",\n    index=\"perimeter\", \"perimeter_ids\",\n    index=\"video\", \"video_analytics\",\n    index=\"tipline\", \"public_tipline\",\n    index=\"threatfeed\", \"threat_intel\")\n| lookup awia_erp_detection_channel_lookup pwsid channel_class OUTPUT expected_signal_band_min expected_signal_band_max escalation_path escalation_smoke_test_at escalation_smoke_test_status\n| eval channel_status = case(\n    isnull(expected_signal_band_min), \"unconfigured_channel\",\n    signal_count_24h < expected_signal_band_min, \"silent_channel\",\n    signal_count_24h > expected_signal_band_max, \"signal_storm\",\n    escalation_smoke_test_status=\"failed\", \"escalation_failed\",\n    isnull(escalation_smoke_test_at) OR (now() - escalation_smoke_test_at) > (90 * 86400), \"smoke_test_stale\",\n    1=1, \"operational\")\n| where channel_status != \"operational\"\n| table pwsid channel_class index sourcetype signal_count_24h last_signal_at expected_signal_band_min expected_signal_band_max escalation_path escalation_smoke_test_at escalation_smoke_test_status channel_status",
   "description": "Compares 24-hour signal counts across the AWIA-ERP detection-channel inventory to the per-channel expected band, surfacing silent or storm channels and stale smoke-tests on the escalation pathway.",
   "value": "ERP detection only works if the channels are alive. EPA AWIA reviewers run table-top exercises that include 'is the channel emitting?' — this UC is the evidence.",
@@ -67,6 +55,9 @@
     }
   ],
   "knownFalsePositives": "1. **Channel expected to be quiet** — tip-line for small system may have legit zero-signal days; expected_signal_band_min=0 is acceptable.\n\n2. **Maintenance window** — documented.\n\n**Suppression**: `awia_22_53_13_exceptions`; 24h max; OT Cybersecurity Lead sign-off.",
+  "mitreAttack": [
+    "T1562"
+  ],
   "requiredFields": [
     "pwsid",
     "channel_class",
@@ -74,26 +65,35 @@
     "expected_signal_band_min",
     "channel_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "splunk-es"
   ],
   "equipmentModels": [
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "T1562"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 deployed.\n- Splunk ES.\n- Indexes for SCADA, WQ, perimeter, video, tipline, threatfeed.\n- Lookup `awia_erp_detection_channel_lookup`.\n\n## Step 1 — Configure data collection\n\nOnboard all detection channels with consistent sourcetypes. Smoke-tests are scheduled quarterly per channel and logged with `escalation_smoke_test_status`.\n\n## Step 2 — Create the search and alert\n\nEvery 15 minutes.\n\n```ini\n[UC-22.53.13: AWIA ERP Detection Operability]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.13,reg=AWIA,clause=AWIA-ERP-detection\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Silent**: stop signals; UC fires.  **(b) Storm**: flood signals; UC fires.  **(c) Stale smoke**: backdate; UC fires.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — ERP Detection Operability`.\n\n**Runbook**: silent-channel investigation 30 minutes; signal-storm triage 1 hour; smoke-test repair within 24 hours.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **WaterISAC feed**: ensure subscription is current and the feed source is reachable; many utilities subscribe but never ingest.\n- **CISA water-sector advisories**: subscribe to CISA's water-sector mailing list and route to `index=threatfeed`.\n- **Tipline diversity**: AWIA expects both an internal tipline and public engagement on suspicious activity; cross-reference UC-22.51.14 (third-party reporting).",
+  "grandmaExplanation": "A water plant has sensors, cameras, perimeter alarms, a tip line, and threat feeds. The emergency plan only works if those are all listening. We watch them: if any goes silent, gets flooded with noise, or the escalation chain isn't tested, we ring the bell.",
   "prerequisiteUseCases": [
     "UC-22.53.3"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 deployed.\n- Splunk ES.\n- Indexes for SCADA, WQ, perimeter, video, tipline, threatfeed.\n- Lookup `awia_erp_detection_channel_lookup`.\n\n## Step 1 — Configure data collection\n\nOnboard all detection channels with consistent sourcetypes. Smoke-tests are scheduled quarterly per channel and logged with `escalation_smoke_test_status`.\n\n## Step 2 — Create the search and alert\n\nEvery 15 minutes.\n\n```ini\n[UC-22.53.13: AWIA ERP Detection Operability]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.13,reg=AWIA,clause=AWIA-ERP-detection\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Silent**: stop signals; UC fires.  **(b) Storm**: flood signals; UC fires.  **(c) Stale smoke**: backdate; UC fires.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — ERP Detection Operability`.\n\n**Runbook**: silent-channel investigation 30 minutes; signal-storm triage 1 hour; smoke-test repair within 24 hours.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **WaterISAC feed**: ensure subscription is current and the feed source is reachable; many utilities subscribe but never ingest.\n- **CISA water-sector advisories**: subscribe to CISA's water-sector mailing list and route to `index=threatfeed`.\n- **Tipline diversity**: AWIA expects both an internal tipline and public engagement on suspicious activity; cross-reference UC-22.51.14 (third-party reporting).",
-  "grandmaExplanation": "A water plant has sensors, cameras, perimeter alarms, a tip line, and threat feeds. The emergency plan only works if those are all listening. We watch them: if any goes silent, gets flooded with noise, or the escalation chain isn't tested, we ring the bell."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

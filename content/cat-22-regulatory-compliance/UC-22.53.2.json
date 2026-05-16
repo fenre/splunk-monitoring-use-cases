@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC RRA module (`index=compliance sourcetype=\"snow:awia_rra_component\"`). Lookup `awia_rra_components_lookup` (pwsid, component, content_completeness_score, evidence_link_count, evidence_links_csv, signed_off_by, signed_off_at).",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_rra_components_lookup\n| eval expected_components = \"malevolent_acts,natural_hazards,electronic_systems,monitoring_practices,chemicals,financial_infrastructure,alt_source_supply\"\n| eval component_status = case(\n    isnull(content_completeness_score), \"missing\",\n    content_completeness_score < 50, \"thin\",\n    evidence_link_count=0, \"no_evidence_links\",\n    isnull(signed_off_by) OR isnull(signed_off_at), \"unsigned\",\n    1=1, \"complete\")\n| stats values(component_status) AS statuses count by pwsid component\n| eval kpi_status = if(component_status=\"complete\", \"green\", \"amber\")",
   "description": "Audits the AWIA s1433(a)(1) 7-component RRA: every PWS must address malevolent acts, natural hazards, electronic systems, monitoring practices, chemicals, financial infrastructure, and alternative source-of-supply analysis.",
   "value": "EPA AWIA auditors examine the RRA's content adequacy. Missing components are findings; thin components trigger requests for clarification. This UC keeps content completeness always-on.",
@@ -77,36 +58,55 @@
     }
   ],
   "knownFalsePositives": "1. **Combined-component RRA** — some utilities combine `chemicals` and `monitoring_practices` into one document. Suppression via `component_merger_lookup`.\n\n2. **Confidential evidence** — some evidence is held offline (security-sensitive); surface a reference even if URL is sealed.\n\n3. **VSAT-driven RRA** — VSAT may auto-generate component documents; ensure VSAT outputs are linked.\n\n**Suppression mechanism**: KV Store `awia_22_53_2_exceptions`; max grant 30 days with Compliance Officer sign-off.",
+  "mitreAttack": [
+    "N/A (compliance-content audit — measures AWIA RRA section coverage, not adversary detection)"
+  ],
   "requiredFields": [
     "pwsid",
     "component",
     "component_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "AWWA J100-10 risk-and-resilience methodology",
+    "EPA Vulnerability Self Assessment Tool (VSAT) Web 2.0",
+    "ServiceNow GRC RRA module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "servicenow",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "ServiceNow GRC RRA module",
-    "EPA Vulnerability Self Assessment Tool (VSAT) Web 2.0",
-    "AWWA J100-10 risk-and-resilience methodology",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "N/A (compliance-content audit — measures AWIA RRA section coverage, not adversary detection)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 deployed.\n- ES, ServiceNow add-on.\n- `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_rra_components_lookup` columns: `pwsid`, `component` (7 fixed values), `content_completeness_score` (0–100, methodology defined in `awia_completeness_scoring.md`), `evidence_link_count`, `evidence_links_csv`, `signed_off_by`, `signed_off_at`.\n\n## Step 1 — Configure data collection\n\nGRC RRA module emits a row per component per PWS. VSAT 2.0 outputs link to component sections.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.53.2: AWIA RRA component completeness]\ncron_schedule = 30 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.2,reg=AWIA,clause=AWIA-s1433a(1)\naction.notable.param.rule_title = AWIA RRA component gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: mark a component as `missing`; UC surfaces.\n\n**(b)** Negative control: complete all components; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — RRA Component Coverage`.\n\n**Runbook for `missing` / `thin`** (owner: Compliance Officer + component owner, severity P2):\n\n1. Within 30 days: complete the component.\n\n## Step 5 — Troubleshooting\n\n**Scoring methodology drift**: ensure `awia_completeness_scoring.md` is the single source.\n\n**AWIA-specific failure modes**:\n\n- **Component-merger** with EPA acceptance: document EPA acceptance per RRA.\n- **PFAS extension**: emerging PFAS NPDWR may add an 8th component implicitly; track.\n- **VSAT version drift**: VSAT 2.0 vs J100 method choice; ensure component naming matches.",
+  "grandmaExplanation": "The law says our risk-and-resilience check must cover 7 specific things: bad-guy threats, natural hazards, our computer systems, how we test the water, our chemicals, our financial dependencies, and back-up water sources. If any of those is missing or too thin, the bell rings.",
   "prerequisiteUseCases": [
     "UC-22.53.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.1 deployed.\n- ES, ServiceNow add-on.\n- `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_rra_components_lookup` columns: `pwsid`, `component` (7 fixed values), `content_completeness_score` (0–100, methodology defined in `awia_completeness_scoring.md`), `evidence_link_count`, `evidence_links_csv`, `signed_off_by`, `signed_off_at`.\n\n## Step 1 — Configure data collection\n\nGRC RRA module emits a row per component per PWS. VSAT 2.0 outputs link to component sections.\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.53.2: AWIA RRA component completeness]\ncron_schedule = 30 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.2,reg=AWIA,clause=AWIA-s1433a(1)\naction.notable.param.rule_title = AWIA RRA component gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: mark a component as `missing`; UC surfaces.\n\n**(b)** Negative control: complete all components; UC clears.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — RRA Component Coverage`.\n\n**Runbook for `missing` / `thin`** (owner: Compliance Officer + component owner, severity P2):\n\n1. Within 30 days: complete the component.\n\n## Step 5 — Troubleshooting\n\n**Scoring methodology drift**: ensure `awia_completeness_scoring.md` is the single source.\n\n**AWIA-specific failure modes**:\n\n- **Component-merger** with EPA acceptance: document EPA acceptance per RRA.\n- **PFAS extension**: emerging PFAS NPDWR may add an 8th component implicitly; track.\n- **VSAT version drift**: VSAT 2.0 vs J100 method choice; ensure component naming matches.",
-  "grandmaExplanation": "The law says our risk-and-resilience check must cover 7 specific things: bad-guy threats, natural hazards, our computer systems, how we test the water, our chemicals, our financial dependencies, and back-up water sources. If any of those is missing or too thin, the bell rings."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

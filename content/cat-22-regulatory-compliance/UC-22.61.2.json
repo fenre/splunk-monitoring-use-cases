@@ -48,6 +48,60 @@
   },
   "dataSources": "KV Store `cn_ciio_designation_lookup` (designation_id, ciio_name, sectoral_department, designation_letter_ref, designation_effective_date, designation_scope, last_inspection_date, last_inspection_report_ref, last_risk_assessment_date, submission_receipt, inspection_status, project_status). HEC `hec:sectoral:reporting:submission` for sectoral-department submission receipts.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup cn_ciio_designation_lookup\n| eval now_ts = now()\n| eval days_since_inspection = round((now_ts - last_inspection_date) / 86400, 1)\n| eval days_since_risk_assessment = round((now_ts - last_risk_assessment_date) / 86400, 1)\n| eval days_to_next_inspection = 365 - days_since_inspection\n| eval days_to_next_risk_assessment = 365 - days_since_risk_assessment\n| eval inspection_overdue = if(days_since_inspection > 365, 1, 0)\n| eval risk_assessment_overdue = if(days_since_risk_assessment > 365, 1, 0)\n| eval inspection_at_risk = if(days_to_next_inspection <= 30 AND inspection_overdue = 0, 1, 0)\n| eval submission_missing = if(inspection_overdue = 1 OR isnull(submission_receipt), 1, 0)\n| eval risk_score = case(\n    submission_missing = 1 AND inspection_overdue = 1, 100,\n    inspection_overdue = 1 OR risk_assessment_overdue = 1, 90,\n    submission_missing = 1, 75,\n    inspection_at_risk = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_to_next_inspection\n| table designation_id ciio_name sectoral_department designation_scope last_inspection_date days_since_inspection days_to_next_inspection last_risk_assessment_date days_to_next_risk_assessment inspection_overdue risk_assessment_overdue submission_missing risk_score",
+  "description": "Reconciles every CIIO designation against the CSL Art. 38 annual inspection + risk-assessment obligation. Tracks the last inspection date, last risk-assessment date, sectoral-department submission status, and surfaces slippage 30 days before the 365-day clock expires. Surfaces missing CIIO designation letters and inspection overruns to the CISO and sectoral compliance lead.",
+  "value": "CIIO is the highest tier of regulated entity under CSL — designated CIIOs face additional obligations on data localisation (Art. 37), supply-chain cybersecurity review (Art. 14 of CIIO Reg.), and annual inspection (Art. 38). Non-compliance can result in fines up to RMB 1,000,000 per violation, personal fines on the responsible executive, suspension of business operations, and revocation of business licence. For state-owned CIIOs or strategically-sensitive operators, lapses can be criminal under PRC Criminal Law Article 286. This UC anchors the operator-side evidence chain for the most consequential regulator-facing review.",
+  "implementation": "(1) Populate `cn_ciio_designation_lookup` from the formal CIIO designation letters received from sectoral protection departments (NEA for electricity, MIIT for telecom, CBIRC for banking, MOT for transport, NHC for healthcare, etc.). (2) The PRC compliance lead updates `last_inspection_date`, `last_risk_assessment_date`, and `submission_receipt` as each annual cycle closes. (3) Schedule UC-22.61.2 daily at 06:00 Beijing time; route `risk_score >= 85` to the CISO + Board Audit Committee at severity P1. (4) Build the `CIIO Designation Register` dashboard with per-sector views.",
+  "visualization": "(Panel 1) Active CIIO designations by sectoral department. (Panel 2) Annual-inspection compliance heat map (CIIO x days-to-365). (Panel 3) Risk-assessment compliance heat map. (Panel 4) Open critical-risk designations.",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Law of the People's Republic of China (2017) - Article 38",
+      "url": "http://www.npc.gov.cn/zgrdw/npc/xinwen/2016-11/07/content_2001605.htm"
+    },
+    {
+      "title": "Regulations on Security Protection of Critical Information Infrastructure (State Council Order 745, 2021)",
+      "url": "https://www.gov.cn/zhengce/content/2021-08/17/content_5631671.htm"
+    }
+  ],
+  "knownFalsePositives": "1. **Designation under review**: a sectoral protection department may issue a draft designation letter prior to final designation; treat draft letters as in-window during a documented 90-day finalisation period. 2. **Sectoral inspection deferred for joint inspection**: a CIIO may be scheduled for joint MPS + sectoral inspection that bundles the annual inspection; ensure the joint-inspection date is recorded. 3. **De-designation in progress**: a CIIO whose status is being formally rescinded by the sectoral department is briefly in transition; mark with `designation_status=under-review` and exclude from alerting.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_2_exceptions` with the CISO + PRC compliance lead documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
+  "requiredFields": [
+    "designation_id",
+    "ciio_name",
+    "last_inspection_date",
+    "submission_receipt",
+    "risk_score"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "PRC sectoral protection department portals (NEA / MIIT / CBIRC / MOT / NHC)",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "PRC Cybersecurity SME Panel + CISO + Sectoral Compliance Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment).\n- KV Store `cn_ciio_designation_lookup` seeded from received CIIO designation letters.\n- HEC `hec:sectoral:reporting:submission` for submission receipts from each sectoral protection department.\n\n## Step 1 - CIIO designation KV Store\n\n```ini\n[cn_ciio_designation_lookup]\nenforceTypes = true\nfield.designation_id = string\nfield.ciio_name = string\nfield.sectoral_department = string\nfield.designation_letter_ref = string\nfield.designation_effective_date = time\nfield.designation_scope = string\nfield.last_inspection_date = time\nfield.last_inspection_report_ref = string\nfield.last_risk_assessment_date = time\nfield.submission_receipt = string\nfield.inspection_status = string\nfield.project_status = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.2: CIIO Annual Inspection + Risk Assessment]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.2,reg=CN-CSL,clause=CSL-Art-38\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 85`** (owner: CISO + Board Audit Committee, severity P1): Within 24 hours, escalate to the responsible executive (CSL Art. 34 designates a person in charge of cybersecurity); within 7 days, deliver a written remediation plan and revised inspection schedule to the sectoral protection department.\n\n**`risk_score 40-84`** (owner: Sectoral Compliance Lead, severity P2): Within 10 business days, complete the upcoming inspection and submit results.\n\n## Step 4 - PRC-specific notes\n\n- **Sectoral protection departments are listed in CIIO Reg. Art. 8**: each sector has a different department, different inspection methodology, and different reporting format. Maintain per-sector templates.\n- **Joint inspections**: in practice, CIIOs are often subject to joint inspections by MPS + sectoral department + CAC. Track joint-inspection records as if they were the annual inspection.\n- **State Cybersecurity Inspections**: in 2024-2025, the State Council periodically organised cross-sector cybersecurity inspections (Operation Net-Cleanup, Operation Hu Lian Wang Bao); treat these as supplementary to (not replacement for) the annual inspection.",
+  "grandmaExplanation": "China names some companies as 'critical' — meaning a cyber-attack would harm the country. Those companies must have their cyber-defences inspected every year by the government. We make sure no annual inspection is forgotten.",
+  "prerequisiteUseCases": [
+    "UC-22.61.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -71,59 +125,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup cn_ciio_designation_lookup\n| eval now_ts = now()\n| eval days_since_inspection = round((now_ts - last_inspection_date) / 86400, 1)\n| eval days_since_risk_assessment = round((now_ts - last_risk_assessment_date) / 86400, 1)\n| eval days_to_next_inspection = 365 - days_since_inspection\n| eval days_to_next_risk_assessment = 365 - days_since_risk_assessment\n| eval inspection_overdue = if(days_since_inspection > 365, 1, 0)\n| eval risk_assessment_overdue = if(days_since_risk_assessment > 365, 1, 0)\n| eval inspection_at_risk = if(days_to_next_inspection <= 30 AND inspection_overdue = 0, 1, 0)\n| eval submission_missing = if(inspection_overdue = 1 OR isnull(submission_receipt), 1, 0)\n| eval risk_score = case(\n    submission_missing = 1 AND inspection_overdue = 1, 100,\n    inspection_overdue = 1 OR risk_assessment_overdue = 1, 90,\n    submission_missing = 1, 75,\n    inspection_at_risk = 1, 50,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_to_next_inspection\n| table designation_id ciio_name sectoral_department designation_scope last_inspection_date days_since_inspection days_to_next_inspection last_risk_assessment_date days_to_next_risk_assessment inspection_overdue risk_assessment_overdue submission_missing risk_score",
-  "description": "Reconciles every CIIO designation against the CSL Art. 38 annual inspection + risk-assessment obligation. Tracks the last inspection date, last risk-assessment date, sectoral-department submission status, and surfaces slippage 30 days before the 365-day clock expires. Surfaces missing CIIO designation letters and inspection overruns to the CISO and sectoral compliance lead.",
-  "value": "CIIO is the highest tier of regulated entity under CSL — designated CIIOs face additional obligations on data localisation (Art. 37), supply-chain cybersecurity review (Art. 14 of CIIO Reg.), and annual inspection (Art. 38). Non-compliance can result in fines up to RMB 1,000,000 per violation, personal fines on the responsible executive, suspension of business operations, and revocation of business licence. For state-owned CIIOs or strategically-sensitive operators, lapses can be criminal under PRC Criminal Law Article 286. This UC anchors the operator-side evidence chain for the most consequential regulator-facing review.",
-  "implementation": "(1) Populate `cn_ciio_designation_lookup` from the formal CIIO designation letters received from sectoral protection departments (NEA for electricity, MIIT for telecom, CBIRC for banking, MOT for transport, NHC for healthcare, etc.). (2) The PRC compliance lead updates `last_inspection_date`, `last_risk_assessment_date`, and `submission_receipt` as each annual cycle closes. (3) Schedule UC-22.61.2 daily at 06:00 Beijing time; route `risk_score >= 85` to the CISO + Board Audit Committee at severity P1. (4) Build the `CIIO Designation Register` dashboard with per-sector views.",
-  "visualization": "(Panel 1) Active CIIO designations by sectoral department. (Panel 2) Annual-inspection compliance heat map (CIIO x days-to-365). (Panel 3) Risk-assessment compliance heat map. (Panel 4) Open critical-risk designations.",
-  "cimModels": [
-    "Change",
-    "Inventory"
-  ],
-  "references": [
-    {
-      "title": "Cybersecurity Law of the People's Republic of China (2017) - Article 38",
-      "url": "http://www.npc.gov.cn/zgrdw/npc/xinwen/2016-11/07/content_2001605.htm"
-    },
-    {
-      "title": "Regulations on Security Protection of Critical Information Infrastructure (State Council Order 745, 2021)",
-      "url": "https://www.gov.cn/zhengce/content/2021-08/17/content_5631671.htm"
-    }
-  ],
-  "knownFalsePositives": "1. **Designation under review**: a sectoral protection department may issue a draft designation letter prior to final designation; treat draft letters as in-window during a documented 90-day finalisation period. 2. **Sectoral inspection deferred for joint inspection**: a CIIO may be scheduled for joint MPS + sectoral inspection that bundles the annual inspection; ensure the joint-inspection date is recorded. 3. **De-designation in progress**: a CIIO whose status is being formally rescinded by the sectoral department is briefly in transition; mark with `designation_status=under-review` and exclude from alerting.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_2_exceptions` with the CISO + PRC compliance lead documented approval, an explicit expiry date, and a written justification.",
-  "requiredFields": [
-    "designation_id",
-    "ciio_name",
-    "last_inspection_date",
-    "submission_receipt",
-    "risk_score"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "PRC Cybersecurity SME Panel + CISO + Sectoral Compliance Lead",
-  "status": "verified",
-  "wave": "crawl",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
-    "PRC sectoral protection department portals (NEA / MIIT / CBIRC / MOT / NHC)"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.61.1"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment).\n- KV Store `cn_ciio_designation_lookup` seeded from received CIIO designation letters.\n- HEC `hec:sectoral:reporting:submission` for submission receipts from each sectoral protection department.\n\n## Step 1 - CIIO designation KV Store\n\n```ini\n[cn_ciio_designation_lookup]\nenforceTypes = true\nfield.designation_id = string\nfield.ciio_name = string\nfield.sectoral_department = string\nfield.designation_letter_ref = string\nfield.designation_effective_date = time\nfield.designation_scope = string\nfield.last_inspection_date = time\nfield.last_inspection_report_ref = string\nfield.last_risk_assessment_date = time\nfield.submission_receipt = string\nfield.inspection_status = string\nfield.project_status = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.2: CIIO Annual Inspection + Risk Assessment]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.2,reg=CN-CSL,clause=CSL-Art-38\nalert.severity = 5\n```\n\n## Step 3 - Runbooks\n\n**`risk_score >= 85`** (owner: CISO + Board Audit Committee, severity P1): Within 24 hours, escalate to the responsible executive (CSL Art. 34 designates a person in charge of cybersecurity); within 7 days, deliver a written remediation plan and revised inspection schedule to the sectoral protection department.\n\n**`risk_score 40-84`** (owner: Sectoral Compliance Lead, severity P2): Within 10 business days, complete the upcoming inspection and submit results.\n\n## Step 4 - PRC-specific notes\n\n- **Sectoral protection departments are listed in CIIO Reg. Art. 8**: each sector has a different department, different inspection methodology, and different reporting format. Maintain per-sector templates.\n- **Joint inspections**: in practice, CIIOs are often subject to joint inspections by MPS + sectoral department + CAC. Track joint-inspection records as if they were the annual inspection.\n- **State Cybersecurity Inspections**: in 2024-2025, the State Council periodically organised cross-sector cybersecurity inspections (Operation Net-Cleanup, Operation Hu Lian Wang Bao); treat these as supplementary to (not replacement for) the annual inspection.",
-  "grandmaExplanation": "China names some companies as 'critical' — meaning a cyber-attack would harm the country. Those companies must have their cyber-defences inspected every year by the government. We make sure no annual inspection is forgotten."
+  "wave": "crawl"
 }

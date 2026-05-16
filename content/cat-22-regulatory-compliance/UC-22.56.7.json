@@ -36,25 +36,6 @@
   },
   "dataSources": "KV Store `tsa_pipeline_cirp_exercise_lookup` (facility_id, last_exercise_date, exercise_type, after_action_doc_url, exercise_lead). ServiceNow corrective-action records (`snow:ir_ca`). SharePoint after-action document audit (`o365:management`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup tsa_pipeline_cirp_exercise_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left facility_id [search index=itsm sourcetype=\"snow:ir_ca\" tsa_pipeline_facility_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by tsa_pipeline_facility_id | rename tsa_pipeline_facility_id as facility_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table facility_id last_exercise_date days_since_exercise exercise_type after_action_doc_url ca_open_count ca_overdue_count exercise_status",
   "description": "Tracks CIRP exercise currency, after-action evidence presence, and corrective-action closure across all TSA-regulated facilities.",
   "value": "TSA inspectors will look for the after-action documents and corrective-action ledger. Missing exercises or open-overdue corrective actions are enforcement findings.",
@@ -79,34 +60,54 @@
     }
   ],
   "knownFalsePositives": "1. **Cross-facility exercise** — an enterprise-level exercise may cover multiple facilities; the row should list all in-scope facilities. Suppression: ensure `tsa_pipeline_cirp_exercise_lookup` rows are facility-keyed.\n\n2. **CA in pending-vendor-fix state** — open corrective actions may legitimately be in pending-vendor state. Suppression: tag CA with `pending_vendor_until` and exclude.\n\n**Suppression mechanism**: KV Store `tsa_22_56_7_exceptions` with documented IR Commander approval.",
+  "mitreAttack": [
+    "N/A (exercise governance)"
+  ],
   "requiredFields": [
     "facility_id",
     "last_exercise_date",
     "after_action_doc_url",
     "exercise_status"
   ],
+  "equipment": [
+    "servicenow",
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + IR Commander + Crisis Management Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow SIR (Vancouver / Washington / Xanadu)"
-  ],
-  "mitreAttack": [
-    "N/A (exercise governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow Security Incident Response with `ir_ca` (corrective-action) table.\n- KV Store `tsa_pipeline_cirp_exercise_lookup`.\n\n## Step 1 — Define exercise register\n\n```ini\n[tsa_pipeline_cirp_exercise_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.tsa_notified_at = number\nfield.scope_notes = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.7: TSA-SD CIRP Annual Exercise Ledger]\ncron_schedule = 17 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.7,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s4\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`** (owner: IR Commander, severity P2):\n1. Within 7 days: schedule the exercise.\n2. Within 60 days: conduct the exercise; produce after-action.\n3. Within 90 days: close all P1/P2 corrective actions.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility exercise**: ensure all in-scope facilities are tagged in the exercise row.\n- **After-action document URL**: must point to a stable evidence-vault location.\n\n**TSA-specific failure modes**:\n- **CISA Cyber Storm participation**: cross-sector exercises may count if facility-specific objectives are documented.\n- **PHMSA exercises**: pipeline operators may run PHMSA-related exercises that don't fully exercise the cyber CIRP; ensure cyber-specific exercises are separately tracked.",
+  "grandmaExplanation": "Every pipeline facility must practice its cyber-emergency response at least once a year. We track the dates, the after-action notes, and any leftover follow-up tasks — so we know we're ready.",
   "prerequisiteUseCases": [
     "UC-22.56.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow Security Incident Response with `ir_ca` (corrective-action) table.\n- KV Store `tsa_pipeline_cirp_exercise_lookup`.\n\n## Step 1 — Define exercise register\n\n```ini\n[tsa_pipeline_cirp_exercise_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.tsa_notified_at = number\nfield.scope_notes = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.7: TSA-SD CIRP Annual Exercise Ledger]\ncron_schedule = 17 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.7,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s4\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`** (owner: IR Commander, severity P2):\n1. Within 7 days: schedule the exercise.\n2. Within 60 days: conduct the exercise; produce after-action.\n3. Within 90 days: close all P1/P2 corrective actions.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility exercise**: ensure all in-scope facilities are tagged in the exercise row.\n- **After-action document URL**: must point to a stable evidence-vault location.\n\n**TSA-specific failure modes**:\n- **CISA Cyber Storm participation**: cross-sector exercises may count if facility-specific objectives are documented.\n- **PHMSA exercises**: pipeline operators may run PHMSA-related exercises that don't fully exercise the cyber CIRP; ensure cyber-specific exercises are separately tracked.",
-  "grandmaExplanation": "Every pipeline facility must practice its cyber-emergency response at least once a year. We track the dates, the after-action notes, and any leftover follow-up tasks — so we know we're ready."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

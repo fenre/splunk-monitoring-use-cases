@@ -35,32 +35,6 @@
   },
   "dataSources": "Onboard firewall logs (`pan:traffic`, `fortinet:fortigate:traffic`). Wi-Fi controller logs (Cisco Meraki MR series — `meraki:wireless:events`, Aruba IAP — `aruba:iap:audit`). Network_Traffic CIM model. OT IDS for east-west visibility (Cisco Cyber Vision, Claroty, Nozomi).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco Meraki (Splunkbase 5582), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 2757,
-      "name": "Palo Alto Networks Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/2757",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 5582,
-      "name": "Splunk Add-on for Cisco Meraki",
-      "url": "https://splunkbase.splunk.com/app/5582",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| tstats summariesonly=t count(eval(Network_Traffic.action=\"allowed\")) AS allowed_count, count(eval(Network_Traffic.action=\"blocked\")) AS blocked_count, count AS packet_count from datamodel=Network_Traffic where Network_Traffic.src_zone IN (\"crew-wifi\",\"passenger-wifi\",\"administrative\") AND Network_Traffic.dst_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\",\"engineering\") by Network_Traffic.imo_number Network_Traffic.src_zone Network_Traffic.dst_zone\n| rename Network_Traffic.* AS *\n| eval traversal_indicator = if(allowed_count > 0, \"true\", \"false\")\n| where packet_count > 0\n| sort 0 -allowed_count, -packet_count\n| table imo_number src_zone dst_zone packet_count allowed_count blocked_count traversal_indicator",
   "description": "Continuously verifies isolation of crew Wi-Fi, passenger Wi-Fi, and administrative-LAN from CBS / OT zones; raises a notable on any allowed traversal within 1 hour.",
   "value": "The administrative-to-OT path is the historical entry vector for shore-side ransomware reaching shipboard OT. The Maersk NotPetya impact (2017) is the canonical example. Continuous verification that the boundary is not breached is the most cost-effective ongoing assurance.",
@@ -84,6 +58,10 @@
     }
   ],
   "knownFalsePositives": "1. **One-way time-sync from administrative-LAN to OT NTP**: this is a baseline-approved flow; ensure NTP-only is excluded. 2. **OEM portable diagnostic tool on engineering Wi-Fi**: tunnels through PAM in production; if seen on a vessel without PAM yet, flag and route to PAM-onboarding queue. 3. **Crew TV / IPTV traffic**: should be confined to crew network, but occasionally leaks; tighten the leak diagnosis.\n\n**Suppression mechanism**: KV Store `imo_22_59_12_exceptions` with the Network Architect's documented approval.",
+  "mitreAttack": [
+    "T1133",
+    "T0843"
+  ],
   "requiredFields": [
     "imo_number",
     "src_zone",
@@ -92,33 +70,61 @@
     "allowed_count",
     "traversal_indicator"
   ],
+  "equipment": [
+    "cisco",
+    "cisco-meraki",
+    "fortinet",
+    "palo-alto",
+    "paloalto",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Aruba Instant AP-505 / AP-555 (maritime Wi-Fi)",
+    "Cisco Meraki MR46 / MR56 (maritime Wi-Fi)",
+    "Fortinet FortiGate-60F (onboard)",
+    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
+    "Ruckus T610 (outdoor maritime AP)",
+    "cisco_meraki",
+    "fortinet_fortigate",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime Cyber SME Panel + Network Architect",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "palo-alto",
-    "cisco-meraki"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
-    "Fortinet FortiGate-60F (onboard)",
-    "Cisco Meraki MR46 / MR56 (maritime Wi-Fi)",
-    "Aruba Instant AP-505 / AP-555 (maritime Wi-Fi)",
-    "Ruckus T610 (outdoor maritime AP)"
-  ],
-  "mitreAttack": [
-    "T1133",
-    "T0843"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- Splunk Network_Traffic CIM-compliant data model on accelerated indexes covering firewall + Wi-Fi controller logs.\n\n## Step 1 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall + Wi-Fi controller sourcetypes to set `src_zone` / `dst_zone`. Maintain a vessel-specific zone-mapping lookup keyed on subnet -> zone.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.12: IMO Crew/Passenger Wi-Fi Isolation]\ncron_schedule = 47 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.12,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`allowed_count > 0` and `dst_zone in [ibs, ecdis, gmdss, ais, propulsion, dps, cargo-control]` during sea passage** (severity P1): Within 1 hour, isolate the source device via Wi-Fi controller; investigate; document.\n\n**Other allowed-traversal events** (severity P2): Within 4 hours, the Network Architect either updates the policy or remediates.\n\n## Step 4 — Maritime-specific notes\n\n- **Cruise-ship passenger Wi-Fi**: large fleet of devices; scale storage and search performance accordingly.\n- **Cargo-vessel crew Wi-Fi only**: small fleet of devices; cheaper to monitor.",
+  "grandmaExplanation": "Crew internet and passenger Wi-Fi must never be able to reach the bridge or engine-room computers. We watch the network constantly and ring the alarm if a crew or passenger device tries to peek at the ship's important systems.",
   "prerequisiteUseCases": [
     "UC-22.59.4"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- Splunk Network_Traffic CIM-compliant data model on accelerated indexes covering firewall + Wi-Fi controller logs.\n\n## Step 1 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall + Wi-Fi controller sourcetypes to set `src_zone` / `dst_zone`. Maintain a vessel-specific zone-mapping lookup keyed on subnet -> zone.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.12: IMO Crew/Passenger Wi-Fi Isolation]\ncron_schedule = 47 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.12,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`allowed_count > 0` and `dst_zone in [ibs, ecdis, gmdss, ais, propulsion, dps, cargo-control]` during sea passage** (severity P1): Within 1 hour, isolate the source device via Wi-Fi controller; investigate; document.\n\n**Other allowed-traversal events** (severity P2): Within 4 hours, the Network Architect either updates the policy or remediates.\n\n## Step 4 — Maritime-specific notes\n\n- **Cruise-ship passenger Wi-Fi**: large fleet of devices; scale storage and search performance accordingly.\n- **Cargo-vessel crew Wi-Fi only**: small fleet of devices; cheaper to monitor.",
-  "grandmaExplanation": "Crew internet and passenger Wi-Fi must never be able to reach the bridge or engine-room computers. We watch the network constantly and ring the alarm if a crew or passenger device tries to peek at the ship's important systems."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Palo Alto Networks Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5582,
+      "name": "Splunk Add-on for Cisco Meraki",
+      "url": "https://splunkbase.splunk.com/app/5582",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "walk"
 }

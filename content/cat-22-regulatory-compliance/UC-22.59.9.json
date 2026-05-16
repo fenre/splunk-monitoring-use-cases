@@ -35,25 +35,6 @@
   },
   "dataSources": "Tank Monitoring System (TMS) — Marflex MTGM (`marflex:mtgm:telemetry`), Saab TankRadar (`saab:tankradar:telemetry`), Emerson Smart Wireless (`emerson:smartwireless:telemetry`), Honeywell Enraf (`honeywell:enraf:telemetry`), Endress+Hauser TankVision (`endresshauser:tankvision:telemetry`). Inert Gas (IG) System telemetry (`marine:ig:telemetry`). Cargo control room HMIs (`scada:cargocontrol:audit`). Container stowage system (`navis:n4:audit` for terminal-side, vessel-side container-bay-plan systems). RoRo lashing / ramp control (`roro:lashing:audit`). PI / AVEVA historian.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk_TA_stream (Splunkbase 1809), splunk_app_for_industrial_iot, Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1809,
-      "name": "Splunk Stream",
-      "url": "https://splunkbase.splunk.com/app/1809",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(sourcetype=\"marflex:mtgm:telemetry\" OR sourcetype=\"saab:tankradar:telemetry\" OR sourcetype=\"emerson:smartwireless:telemetry\" OR sourcetype=\"honeywell:enraf:telemetry\" OR sourcetype=\"marine:ig:telemetry\" OR sourcetype=\"scada:cargocontrol:audit\")\n| eval observed_signature = sha256(observed_value . tag_name)\n| lookup imo_cms_baseline_lookup imo_number cms_platform tag_class tag_name OUTPUT baseline_signature baseline_min baseline_max\n| eval anomaly_class = case(\n    tag_class = \"tank-level\" AND tonumber(observed_value) > baseline_max, \"overfill-suspected\",\n    tag_class = \"tank-level\" AND tonumber(observed_value) < baseline_min, \"underfill-suspected\",\n    tag_class = \"ig-pressure\" AND tonumber(observed_value) < baseline_min, \"low-ig-pressure\",\n    tag_class = \"cargo-pump\" AND tonumber(observed_value) > 1.5 * baseline_max, \"pump-overrun\",\n    1=1, null)\n| eval integrity_indicator = if(isnotnull(anomaly_class), \"true\", \"false\")\n| where integrity_indicator = \"true\"\n| stats latest(observed_value) AS observed_value latest(anomaly_class) AS anomaly_class latest(_time) AS last_seen by imo_number cms_platform tag_class tag_name\n| eval integrity_indicator = \"true\"",
   "description": "Inspects every CMS / TMS / IG / cargo-pump telemetry tag across the fleet; cross-references against per-vessel cargo baseline; raises a notable on suspected overfill, underfill, low-IG-pressure, or pump-overrun.",
   "value": "A successful attack on TMS can cause: tanker overfill -> vapour cloud / explosion (LNG carriers are highest stakes); bulk carrier underfill / load-shift -> capsize risk; container ship cargo-bay misdeclaration -> stowage failures; RoRo lashing release at sea -> cargo loss. CMS-cyber is a low-frequency, catastrophic-impact attack surface — this UC is the early warning.",
@@ -78,6 +59,11 @@
     }
   ],
   "knownFalsePositives": "1. **Cargo loading / discharge transient**: during loading or discharge, tank levels change rapidly and IG pressures fluctuate; tighten threshold during operation. 2. **Sensor maintenance**: a sensor under calibration may produce out-of-envelope readings; exclude tags with `calibration_in_progress=true`. 3. **Tank cleaning**: high-pressure tank washing creates expected anomalies; suppress during a documented tank-clean window.\n\n**Suppression mechanism**: KV Store `imo_22_59_9_exceptions` with the Chief Officer's documented approval.",
+  "mitreAttack": [
+    "T1565.001",
+    "T0832",
+    "T0830"
+  ],
   "requiredFields": [
     "imo_number",
     "cms_platform",
@@ -86,38 +72,52 @@
     "anomaly_class",
     "integrity_indicator"
   ],
+  "equipment": [
+    "splunk-es",
+    "splunk-stream"
+  ],
+  "equipmentModels": [
+    "Emerson Smart Wireless Tank Gauging",
+    "Endress+Hauser TankVision",
+    "Honeywell Enraf (Tank Gauging)",
+    "Inert-Gas (IG) Systems (Smit Gas / Wartsila / Sunrod)",
+    "Marflex MTGM (Tank Monitoring)",
+    "Navis N4 (Terminal Cargo)",
+    "Saab TankRadar (Tank Level Gauging)",
+    "Wartsila Cargo Monitoring"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Maritime OT SME Panel + Chief Officer (cargo) + TMS OEM Liaison",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-stream"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Marflex MTGM (Tank Monitoring)",
-    "Saab TankRadar (Tank Level Gauging)",
-    "Emerson Smart Wireless Tank Gauging",
-    "Honeywell Enraf (Tank Gauging)",
-    "Endress+Hauser TankVision",
-    "Wartsila Cargo Monitoring",
-    "Inert-Gas (IG) Systems (Smit Gas / Wartsila / Sunrod)",
-    "Navis N4 (Terminal Cargo)"
-  ],
-  "mitreAttack": [
-    "T1565.001",
-    "T0832",
-    "T0830"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, 22.59.4, 22.59.8 in production.\n- TMS / IG telemetry feeds via PI on the cargo-control subnet.\n- KV Store `imo_cms_baseline_lookup` populated per vessel, per cargo type.\n\n## Step 1 — Cargo baseline KV Store\n\n```ini\n[imo_cms_baseline_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.cms_platform = string\nfield.tag_class = string\nfield.tag_name = string\nfield.baseline_min = number\nfield.baseline_max = number\nfield.baseline_signature = string\nfield.signed_by = string\nfield.signed_at = time\n```\n\n## Step 2 — Cargo-state awareness\n\nEnrich every CMS event with `cargo_state` (loading / discharge / at-sea / port-stay / drydock); tighten thresholds during loading/discharge.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.9: IMO CMS Integrity]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.9,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=overfill-suspected`** on a tanker (owner: Master + Chief Officer, severity P1): Within 15 minutes, the cargo control room verifies via independent ullage measurement; if confirmed cyber-driven, isolate the affected TMS workstation and revert to manual gauging.\n\n**`anomaly_class=low-ig-pressure`** on a tanker (severity P1): Within 15 minutes, the cargo engineer verifies independent IG system reading; if confirmed, isolate IG control and revert to manual.\n\n## Step 5 — Maritime-specific notes\n\n- **Vessel-type adaptation**: tanker (TMS critical), LNG carrier (IG + cargo critical), bulker (cargo-hold humidity + temperature), container ship (lash-status, IMDG declarations), ro-ro (lashing, ramp position).\n- **OCIMF SIRE 2.0 alignment**: SIRE 2.0 cargo inspection criteria include cyber-awareness; the UC supports SIRE evidence.",
+  "grandmaExplanation": "On a tanker, computers measure how much oil or gas is in each tank. A bad reading could let a tank overflow or be emptied unsafely. We watch every reading on every cargo system and raise the alarm if something looks wrong, before there's a spill or an accident.",
   "prerequisiteUseCases": [
     "UC-22.59.3",
     "UC-22.59.4",
     "UC-22.59.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, 22.59.4, 22.59.8 in production.\n- TMS / IG telemetry feeds via PI on the cargo-control subnet.\n- KV Store `imo_cms_baseline_lookup` populated per vessel, per cargo type.\n\n## Step 1 — Cargo baseline KV Store\n\n```ini\n[imo_cms_baseline_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.cms_platform = string\nfield.tag_class = string\nfield.tag_name = string\nfield.baseline_min = number\nfield.baseline_max = number\nfield.baseline_signature = string\nfield.signed_by = string\nfield.signed_at = time\n```\n\n## Step 2 — Cargo-state awareness\n\nEnrich every CMS event with `cargo_state` (loading / discharge / at-sea / port-stay / drydock); tighten thresholds during loading/discharge.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.9: IMO CMS Integrity]\ncron_schedule = */15 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.9,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`anomaly_class=overfill-suspected`** on a tanker (owner: Master + Chief Officer, severity P1): Within 15 minutes, the cargo control room verifies via independent ullage measurement; if confirmed cyber-driven, isolate the affected TMS workstation and revert to manual gauging.\n\n**`anomaly_class=low-ig-pressure`** on a tanker (severity P1): Within 15 minutes, the cargo engineer verifies independent IG system reading; if confirmed, isolate IG control and revert to manual.\n\n## Step 5 — Maritime-specific notes\n\n- **Vessel-type adaptation**: tanker (TMS critical), LNG carrier (IG + cargo critical), bulker (cargo-hold humidity + temperature), container ship (lash-status, IMDG declarations), ro-ro (lashing, ramp position).\n- **OCIMF SIRE 2.0 alignment**: SIRE 2.0 cargo inspection criteria include cyber-awareness; the UC supports SIRE evidence.",
-  "grandmaExplanation": "On a tanker, computers measure how much oil or gas is in each tank. A bad reading could let a tank overflow or be emptied unsafely. We watch every reading on every cargo system and raise the alarm if something looks wrong, before there's a spill or an accident."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

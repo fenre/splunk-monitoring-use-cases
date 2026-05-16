@@ -61,32 +61,6 @@
   },
   "dataSources": "Microsoft Defender for Endpoint events on PMAT estate (`mscs:wd:atp:detection`, `mscs:wd:atp:device-control`), CrowdStrike Falcon (`crowdstrike:falcon:host`, `crowdstrike:falcon:detection`), Microsoft Endpoint Configuration Manager (SCCM) baseline reports (`sccm:baseline`), Intune Endpoint Manager configuration drift (`intune:config:drift`), maintenance work-order PMAT-tail mapping (KV Store `do355a_pmat_workorder_lookup`), PMAT inventory (KV Store `do355a_pmat_inventory_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source",
-      "requiresSmeReview": false
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup do355a_pmat_inventory_lookup\n| join type=outer pmat_id [\n    search index=endpoint sourcetype=\"sccm:baseline\" pmat_in_scope=\"true\" earliest=-7d@d\n    | stats latest(_time) AS last_baseline_check latest(baseline_drift_count) AS baseline_drift_finding by host AS pmat_id ]\n| join type=outer pmat_id [\n    search index=endpoint sourcetype=\"mscs:wd:atp:device-control\" earliest=-24h@h\n    | where device_class=\"USB\"\n    | stats count AS usb_event_count by host AS pmat_id ]\n| join type=outer pmat_id [\n    search index=endpoint sourcetype IN (\"mscs:wd:atp:detection\", \"crowdstrike:falcon:detection\") earliest=-24h@h\n    | stats count AS malware_event_count by host AS pmat_id ]\n| join type=outer pmat_id [\n    | inputlookup do355a_pmat_workorder_lookup\n    | where workorder_start_at > relative_time(now(), \"-24h\") AND aircraft_uplink_planned=\"true\"\n    | stats values(tail_number) AS planned_tails count AS aircraft_connect_within_24h by pmat_id ]\n| fillnull baseline_drift_finding usb_event_count malware_event_count aircraft_connect_within_24h value=0\n| eval risk_score = case(\n    malware_event_count > 0 AND aircraft_connect_within_24h > 0, 100,\n    malware_event_count > 0, 95,\n    usb_event_count > 0 AND aircraft_connect_within_24h > 0, 90,\n    baseline_drift_finding > 5 AND aircraft_connect_within_24h > 0, 85,\n    baseline_drift_finding > 5, 70,\n    usb_event_count > 0, 60,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score\n| table pmat_id technician_id last_baseline_check baseline_drift_finding usb_event_count malware_event_count aircraft_connect_within_24h planned_tails severity risk_score",
   "description": "Reconciles the PMAT inventory against EDR / SCCM baseline reports, Defender Device Control USB events, malware-detection events, and the work-order PMAT-tail mapping. Surfaces any PMAT with active findings that has a planned aircraft-uplink within the next 24 hours; routes to the CAMO Manager and Director of Maintenance to block the work-order until the PMAT is cleared.",
   "value": "A compromised PMAT is one of the highest-likelihood attack paths to a modern aircraft - the threat condition is named explicitly in DO-326A §3.2 and is the basis of multiple FAA Special Conditions. Operator value: avoid an aircraft uplink with an infected laptop, avoid an emergency AD, avoid an EASA / FAA enforcement action under Part-IS / Part-145.",
@@ -112,6 +86,12 @@
     }
   ],
   "knownFalsePositives": "1. **Approved USB on first use**: a newly-issued USB device may need to be added to the allowlist before its first event; allow a 4-hour grace if `device_allowlisted_pending=true`. 2. **Defender DC false positive**: certain Bluetooth peripherals on Surface Pro PMATs may register as USB devices; tune the device-class filter. 3. **Baseline drift due to authorised change**: an SCCM compliance update may briefly show drift; allow 24 hours for the next compliance scan to settle.\n\n**Suppression mechanism**: KV Store `do326a_22_60_6_exceptions` with the CAMO Manager + CISO documented approval, an explicit expiry date, and a written justification.",
+  "mitreAttack": [
+    "T1091",
+    "T1200",
+    "T1078",
+    "T1059"
+  ],
   "requiredFields": [
     "pmat_id",
     "last_baseline_check",
@@ -119,38 +99,60 @@
     "aircraft_connect_within_24h",
     "risk_score"
   ],
+  "equipment": [
+    "crowdstrike",
+    "crowdstrike-falcon",
+    "defender",
+    "microsoft-defender-endpoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Avtech Tyee Data Loader",
+    "Collins Aerospace Data Loader",
+    "CrowdStrike Falcon Insight EDR",
+    "Honeywell DataLoader (PMAT software)",
+    "Microsoft Defender for Endpoint",
+    "Microsoft Endpoint Configuration Manager (SCCM)",
+    "Microsoft Intune Endpoint Manager",
+    "Splunk ES 7.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Aviation Cybersecurity SME Panel + Director of Maintenance + CAMO Manager + CISO",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "microsoft-defender-endpoint",
-    "crowdstrike-falcon"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Microsoft Defender for Endpoint",
-    "CrowdStrike Falcon Insight EDR",
-    "Microsoft Endpoint Configuration Manager (SCCM)",
-    "Microsoft Intune Endpoint Manager",
-    "Honeywell DataLoader (PMAT software)",
-    "Collins Aerospace Data Loader",
-    "Avtech Tyee Data Loader"
-  ],
-  "mitreAttack": [
-    "T1091",
-    "T1200",
-    "T1078",
-    "T1059"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for organisational context).\n- KV Store `do355a_pmat_inventory_lookup` (PMAT asset register).\n- KV Store `do355a_pmat_workorder_lookup` (work-order to tail mapping).\n- Microsoft Defender Device Control or equivalent USB control on every PMAT.\n- SCCM compliance baseline targeting the PMAT golden image.\n\n## Step 1 - PMAT inventory KV Store\n\n```ini\n[do355a_pmat_inventory_lookup]\nenforceTypes = true\nfield.pmat_id = string\nfield.serial_number = string\nfield.technician_id = string\nfield.golden_image_version = string\nfield.in_service = string\n```\n\n## Step 2 - Allowlist USB devices\n\nConfigure Defender Device Control with allowlist policy targeting `pmat_in_scope=true` devices: organisation-issued data-loader hardware IDs only.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.6: PMAT Security Health]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.6,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90`** (owner: CAMO Manager + CISO + Director of Maintenance, severity P1): Within 30 minutes, the PMAT is removed from the active work-order pool; the planned tails have the work-order re-issued to a known-good PMAT. The compromised PMAT is re-imaged from the golden image and re-baselined.\n\n**`risk_score 70-89`** (owner: CAMO Manager, severity P2): Within 4 hours, the PMAT's findings are remediated; the work-order proceeds only after the PMAT is cleared.\n\n## Step 5 - Aviation-specific notes\n\n- **Mobile PMAT**: PMATs that travel between bases need consistent baseline enforcement; ensure SCCM compliance reaches mobile PMATs daily.\n- **OEM-issued PMAT firmware**: TC-holder may issue PMAT firmware updates via CASI; ensure UC-22.60.4 verifies these as LSAPs.\n- **Contractor PMATs**: line-maintenance contractors may use their own PMATs; flow-down EASA Part-IS IS.OR.235 contracting requirements to those organisations.",
+  "grandmaExplanation": "Mechanics use a laptop to load software into the aircraft. We make sure that laptop is clean and up-to-date before any mechanic plugs it into a plane - so no virus gets in by accident.",
   "prerequisiteUseCases": [
     "UC-22.60.1"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.60.1 in production (for organisational context).\n- KV Store `do355a_pmat_inventory_lookup` (PMAT asset register).\n- KV Store `do355a_pmat_workorder_lookup` (work-order to tail mapping).\n- Microsoft Defender Device Control or equivalent USB control on every PMAT.\n- SCCM compliance baseline targeting the PMAT golden image.\n\n## Step 1 - PMAT inventory KV Store\n\n```ini\n[do355a_pmat_inventory_lookup]\nenforceTypes = true\nfield.pmat_id = string\nfield.serial_number = string\nfield.technician_id = string\nfield.golden_image_version = string\nfield.in_service = string\n```\n\n## Step 2 - Allowlist USB devices\n\nConfigure Defender Device Control with allowlist policy targeting `pmat_in_scope=true` devices: organisation-issued data-loader hardware IDs only.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.60.6: PMAT Security Health]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30m@m\ndispatch.latest_time = now\nactions = summary_index, notable, soar\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.60.6,reg=DO-326A,clause=DO-355A-s2-1\nalert.severity = 5\n```\n\n## Step 4 - Runbooks\n\n**`risk_score >= 90`** (owner: CAMO Manager + CISO + Director of Maintenance, severity P1): Within 30 minutes, the PMAT is removed from the active work-order pool; the planned tails have the work-order re-issued to a known-good PMAT. The compromised PMAT is re-imaged from the golden image and re-baselined.\n\n**`risk_score 70-89`** (owner: CAMO Manager, severity P2): Within 4 hours, the PMAT's findings are remediated; the work-order proceeds only after the PMAT is cleared.\n\n## Step 5 - Aviation-specific notes\n\n- **Mobile PMAT**: PMATs that travel between bases need consistent baseline enforcement; ensure SCCM compliance reaches mobile PMATs daily.\n- **OEM-issued PMAT firmware**: TC-holder may issue PMAT firmware updates via CASI; ensure UC-22.60.4 verifies these as LSAPs.\n- **Contractor PMATs**: line-maintenance contractors may use their own PMATs; flow-down EASA Part-IS IS.OR.235 contracting requirements to those organisations.",
-  "grandmaExplanation": "Mechanics use a laptop to load software into the aircraft. We make sure that laptop is clean and up-to-date before any mechanic plugs it into a plane - so no virus gets in by accident."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": false
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "walk"
 }

@@ -35,32 +35,6 @@
   },
   "dataSources": "VPN concentrators (Cisco AnyConnect / Palo Alto GlobalProtect / Fortinet FortiGate / Pulse Secure), IdP (Okta / Azure AD / Duo / Cisco DUO / Ping / ADFS), jump-host (Teleport / BeyondTrust / CyberArk PSM), SCADA cloud (Wonderware Online / iFix Cloud / GE Predix), management UI HTTPS audit.",
   "app": "Splunk Add-on for Cisco AnyConnect (Splunkbase 5577), Splunk Add-on for Microsoft Azure AD (Splunkbase 4055), Splunk Add-on for Okta (Splunkbase 2806), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 4055,
-      "name": "Splunk Add-on for Microsoft Office 365 / Azure AD",
-      "url": "https://splunkbase.splunk.com/app/4055",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 2806,
-      "name": "Splunk Add-on for Okta",
-      "url": "https://splunkbase.splunk.com/app/2806",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(index=vpn sourcetype IN (cisco:anyconnect, paloalto:gp, fortinet:vpn, pulsesecure:vpn) earliest=-5m@m) OR\n(index=idp sourcetype IN (okta:idm:authentication, ms:azure:signinlogs, duo:authentication) earliest=-5m@m) OR\n(index=jumphost sourcetype IN (teleport:audit, beyondtrust:pra, cyberark:psm) earliest=-5m@m) OR\n(index=scada_cloud sourcetype IN (wonderware:online:auth, ge:predix:auth) earliest=-5m@m) OR\n(index=mgmt sourcetype IN (https:mgmt_ui_audit) earliest=-5m@m)\n| eval access_class = case(\n    index=\"vpn\", \"vpn\",\n    index=\"idp\", \"idp\",\n    index=\"jumphost\", \"jumphost\",\n    index=\"scada_cloud\", \"scada_cloud\",\n    index=\"mgmt\", \"mgmt_ui\")\n| eval mfa_used = case(\n    mfa_factor_type IN (\"fido2\",\"webauthn\",\"u2f\",\"hardware_token\",\"yubikey\"), \"true\",\n    mfa_factor_type IN (\"push\",\"totp\",\"sms\",\"voice\"), \"true_weak\",\n    isnotnull(mfa_factor_type), \"true_unknown_strength\",\n    1=1, \"false\")\n| lookup awia_service_account_mfa_lookup user_id OUTPUT cert_mfa_bound\n| eval status = case(\n    cert_mfa_bound=\"true\", \"mfa_confirmed_cert\",\n    mfa_used IN (\"true\",\"true_weak\",\"true_unknown_strength\"), \"mfa_confirmed\",\n    1=1, \"mfa_missing\")\n| where status=\"mfa_missing\"\n| table pwsid access_class user_id source_ip source_country dst_host mfa_used mfa_factor_type login_at login_status status",
   "description": "Detects remote-access logins without MFA across all five named remote-access paths.",
   "value": "Single-factor remote access is the leading published CISA water-sector intrusion vector. This UC catches the missing MFA at every login.",
@@ -84,6 +58,11 @@
     }
   ],
   "knownFalsePositives": "1. **Break-glass console** — procedure-documented.\n\n2. **Certificate-bound service account** — lookup whitelisted.\n\n**Suppression**: `awia_22_53_21_exceptions`; 4h max; OT Cybersecurity Lead + IAM Lead sign-off.",
+  "mitreAttack": [
+    "T1133",
+    "T1078",
+    "T1110"
+  ],
   "requiredFields": [
     "pwsid",
     "access_class",
@@ -91,37 +70,68 @@
     "mfa_used",
     "status"
   ],
+  "equipment": [
+    "azure",
+    "beyondtrust",
+    "cisco",
+    "cyberark",
+    "fortinet",
+    "m365",
+    "okta",
+    "paloalto",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Cisco AnyConnect Secure Mobility Client",
+    "Cisco Duo",
+    "Fortinet FortiGate VPN",
+    "Microsoft Azure AD / Entra ID",
+    "Okta Workforce Identity",
+    "Palo Alto GlobalProtect",
+    "Pulse Secure",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Teleport / BeyondTrust PRA / CyberArk PSM jump-host",
+    "fortinet_fortigate",
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "okta",
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Cisco AnyConnect Secure Mobility Client",
-    "Palo Alto GlobalProtect",
-    "Fortinet FortiGate VPN",
-    "Pulse Secure",
-    "Okta Workforce Identity",
-    "Microsoft Azure AD / Entra ID",
-    "Cisco Duo",
-    "Teleport / BeyondTrust PRA / CyberArk PSM jump-host",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
-  "mitreAttack": [
-    "T1133",
-    "T1078",
-    "T1110"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=vpn`, `index=idp`, `index=jumphost`, `index=scada_cloud`, `index=mgmt`, `index=audit_evidence`.\n- Lookup `awia_service_account_mfa_lookup`.\n\n## Step 1 — Configure data collection\n\nOnboard every remote-access pathway in the utility:\n\n- **VPN**: AnyConnect, GlobalProtect, FortiGate, Pulse Secure.\n- **IdP**: Okta / Entra ID / Duo session logs.\n- **Jump host**: Teleport / BeyondTrust / CyberArk PSM session audit.\n- **SCADA cloud / managed**: Wonderware Online, iFix Cloud, GE Predix.\n- **Management UI**: HTTPS-audit logs on plant network equipment, firewall management, vSphere, plant HMI web.\n\nField extraction must yield `user_id`, `mfa_used`, `mfa_factor_type`, `source_ip`, `dst_host`, `login_at`, `login_status`.\n\n## Step 2 — Create the search and alert\n\nEvery 5 minutes.\n\n```ini\n[UC-22.53.21: AWIA MFA Remote Access]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -5m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.21,reg=AWIA,clause=AWIA-EPA-mfa-remote-access\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 1h\nalert.suppress.fields = pwsid,access_class,user_id\n```\n\n## Step 3 — Validate deployment\n\n**(a) Mfa-missing**: simulate single-factor VPN login; UC fires.\n\n**(b) Mfa-confirmed**: same with FIDO2; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — MFA Remote Access`. Runbook: disable account at first non-MFA login, require re-onboarding through IAM.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Vendor engineering remote access**: SCADA integrator may use a personal account for emergency support; document a named vendor account with FIDO2 binding.\n- **TeamViewer / unauthorised remote-access tools**: CISA's water-sector advisories repeatedly cite TeamViewer / RDP exposed to the internet. Pair this UC with an outbound-reverse-tunnel detection and a denylist on TeamViewer-style binaries.\n- **Single-factor legacy HMI web**: a legacy plant HMI may not support MFA; place behind a jump-host with MFA at the jump-host layer rather than at the HMI directly.\n- **Phishing-resistant preference**: CISA preferred FIDO2 / WebAuthn for OT remote access; categorise TOTP / SMS / Voice as `true_weak` and tune toward phishing-resistant over time.",
+  "grandmaExplanation": "Every door into the water system from the outside — VPN, vendor login, the SCADA cloud, plant equipment websites — must require a second proof of identity, not just a password. We watch every login and ring the bell instantly if anyone gets in without that second step.",
   "prerequisiteUseCases": [
     "UC-22.53.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.8 deployed.\n- Splunk ES.\n- Indexes `index=vpn`, `index=idp`, `index=jumphost`, `index=scada_cloud`, `index=mgmt`, `index=audit_evidence`.\n- Lookup `awia_service_account_mfa_lookup`.\n\n## Step 1 — Configure data collection\n\nOnboard every remote-access pathway in the utility:\n\n- **VPN**: AnyConnect, GlobalProtect, FortiGate, Pulse Secure.\n- **IdP**: Okta / Entra ID / Duo session logs.\n- **Jump host**: Teleport / BeyondTrust / CyberArk PSM session audit.\n- **SCADA cloud / managed**: Wonderware Online, iFix Cloud, GE Predix.\n- **Management UI**: HTTPS-audit logs on plant network equipment, firewall management, vSphere, plant HMI web.\n\nField extraction must yield `user_id`, `mfa_used`, `mfa_factor_type`, `source_ip`, `dst_host`, `login_at`, `login_status`.\n\n## Step 2 — Create the search and alert\n\nEvery 5 minutes.\n\n```ini\n[UC-22.53.21: AWIA MFA Remote Access]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -5m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.21,reg=AWIA,clause=AWIA-EPA-mfa-remote-access\naction.notable.param.severity = critical\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.period = 1h\nalert.suppress.fields = pwsid,access_class,user_id\n```\n\n## Step 3 — Validate deployment\n\n**(a) Mfa-missing**: simulate single-factor VPN login; UC fires.\n\n**(b) Mfa-confirmed**: same with FIDO2; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — MFA Remote Access`. Runbook: disable account at first non-MFA login, require re-onboarding through IAM.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Vendor engineering remote access**: SCADA integrator may use a personal account for emergency support; document a named vendor account with FIDO2 binding.\n- **TeamViewer / unauthorised remote-access tools**: CISA's water-sector advisories repeatedly cite TeamViewer / RDP exposed to the internet. Pair this UC with an outbound-reverse-tunnel detection and a denylist on TeamViewer-style binaries.\n- **Single-factor legacy HMI web**: a legacy plant HMI may not support MFA; place behind a jump-host with MFA at the jump-host layer rather than at the HMI directly.\n- **Phishing-resistant preference**: CISA preferred FIDO2 / WebAuthn for OT remote access; categorise TOTP / SMS / Voice as `true_weak` and tune toward phishing-resistant over time.",
-  "grandmaExplanation": "Every door into the water system from the outside — VPN, vendor login, the SCADA cloud, plant equipment websites — must require a second proof of identity, not just a password. We watch every login and ring the bell instantly if anyone gets in without that second step."
+  "splunkbaseApps": [
+    {
+      "id": 4055,
+      "name": "Splunk Add-on for Microsoft Office 365 / Azure AD",
+      "url": "https://splunkbase.splunk.com/app/4055",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2806,
+      "name": "Splunk Add-on for Okta",
+      "url": "https://splunkbase.splunk.com/app/2806",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

@@ -36,6 +36,66 @@
   },
   "dataSources": "Thales Luna HSM audit (`thales:hsm:audit`). AWS KMS (`aws:cloudtrail:kms`). Azure Key Vault (`azure:keyvault:audit`). KV Store `csa_kms_lookup` (key_id, key_type, hsm_vendor, rotation_max_days, last_rotation, attestation_doc_url).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Azure (Splunkbase 5747).",
+  "spl": "| inputlookup csa_kms_lookup\n| eval days_since_rotation = round((now() - last_rotation) / 86400, 0)\n| eval rotation_status = case(\n    isnull(last_rotation), \"never_rotated\",\n    days_since_rotation > rotation_max_days, \"overdue\",\n    days_since_rotation > (rotation_max_days * 0.9), \"due_soon\",\n    1=1, \"current\")\n| eval attestation_status = case(\n    isnull(attestation_doc_url), \"missing\",\n    1=1, \"present\")\n| where rotation_status IN (\"never_rotated\",\"overdue\") OR attestation_status=\"missing\"\n| table key_id key_type hsm_vendor last_rotation days_since_rotation rotation_max_days rotation_status attestation_status",
+  "description": "Surveys CII-critical keys for rotation currency and HSM attestation presence.",
+  "value": "Key compromise on CII-critical infrastructure can drive a §14 reportable event; rotation evidence is a hard control.",
+  "implementation": "(1) Populate `csa_kms_lookup`. (2) Ingest KMS/HSM audit feeds. (3) Schedule UC-22.57.14 every 12h. (4) Build the `CSA KMS Attestation` dashboard.",
+  "visualization": "(Panel 1) Rotation status by key. (Panel 2) Attestation gaps. (Panel 3) HSM-vendor mix. (Panel 4) Rotation trend.",
+  "cimModels": [
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CCoP 2.0 §CRY",
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+    },
+    {
+      "title": "FIPS 140-3",
+      "url": "https://csrc.nist.gov/publications/detail/fips/140/3/final"
+    }
+  ],
+  "knownFalsePositives": "1. **HSM partition rotation**: rotation may be against the partition, not the key; tune the schema accordingly.\n2. **Cloud-managed key**: CMK rotation may be vendor-managed; pin `vendor_managed=true`.\n\n**Suppression mechanism**: KV Store `csa_kms_exception_lookup`.",
+  "mitreAttack": [
+    "T1552.004",
+    "T1556"
+  ],
+  "requiredFields": [
+    "key_id",
+    "hsm_vendor",
+    "rotation_status",
+    "attestation_status"
+  ],
+  "equipment": [
+    "aws",
+    "aws-kms",
+    "azure",
+    "azure-key-vault",
+    "hashicorp",
+    "splunk-es",
+    "thales-luna"
+  ],
+  "equipmentModels": [
+    "AWS KMS (FIPS-validated)",
+    "Azure Key Vault (Premium with HSM)",
+    "Splunk ES 7.x",
+    "Thales Luna 7.x HSM",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + PKI Lead + CC",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + cloud TAs + HSM audit feed.\n- KV Store `csa_kms_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.14: CSA KMS Attestation]\ncron_schedule = 19 */12 * * *\ndispatch.earliest_time = -12h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.14,reg=SG-Cyber-Act,clause=CSA-CCoP-CRY\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`rotation_status=overdue`**: rotate within 7 days; capture attestation.\n\n**SG-specific failure modes**:\n- **FIPS-140-3 timing**: most cloud HSMs migrated from 140-2 to 140-3; ensure register reflects current.\n- **PQC readiness**: position for post-quantum cryptography evolution; track NIST PQC selections.",
+  "grandmaExplanation": "The most important cyber keys must be stored in special tamper-proof hardware and rotated regularly. Every twelve hours we check that's still the case.",
+  "prerequisiteUseCases": [
+    "UC-22.57.3"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -59,61 +119,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup csa_kms_lookup\n| eval days_since_rotation = round((now() - last_rotation) / 86400, 0)\n| eval rotation_status = case(\n    isnull(last_rotation), \"never_rotated\",\n    days_since_rotation > rotation_max_days, \"overdue\",\n    days_since_rotation > (rotation_max_days * 0.9), \"due_soon\",\n    1=1, \"current\")\n| eval attestation_status = case(\n    isnull(attestation_doc_url), \"missing\",\n    1=1, \"present\")\n| where rotation_status IN (\"never_rotated\",\"overdue\") OR attestation_status=\"missing\"\n| table key_id key_type hsm_vendor last_rotation days_since_rotation rotation_max_days rotation_status attestation_status",
-  "description": "Surveys CII-critical keys for rotation currency and HSM attestation presence.",
-  "value": "Key compromise on CII-critical infrastructure can drive a §14 reportable event; rotation evidence is a hard control.",
-  "implementation": "(1) Populate `csa_kms_lookup`. (2) Ingest KMS/HSM audit feeds. (3) Schedule UC-22.57.14 every 12h. (4) Build the `CSA KMS Attestation` dashboard.",
-  "visualization": "(Panel 1) Rotation status by key. (Panel 2) Attestation gaps. (Panel 3) HSM-vendor mix. (Panel 4) Rotation trend.",
-  "cimModels": [
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "CCoP 2.0 §CRY",
-      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
-    },
-    {
-      "title": "FIPS 140-3",
-      "url": "https://csrc.nist.gov/publications/detail/fips/140/3/final"
-    }
-  ],
-  "knownFalsePositives": "1. **HSM partition rotation**: rotation may be against the partition, not the key; tune the schema accordingly.\n2. **Cloud-managed key**: CMK rotation may be vendor-managed; pin `vendor_managed=true`.\n\n**Suppression mechanism**: KV Store `csa_kms_exception_lookup`.",
-  "requiredFields": [
-    "key_id",
-    "hsm_vendor",
-    "rotation_status",
-    "attestation_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "CSA Compliance SME Panel + PKI Lead + CC",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "thales-luna",
-    "aws-kms",
-    "azure-key-vault",
-    "splunk-es"
-  ],
-  "equipmentModels": [
-    "Thales Luna 7.x HSM",
-    "AWS KMS (FIPS-validated)",
-    "Azure Key Vault (Premium with HSM)",
-    "Splunk ES 7.x"
-  ],
-  "mitreAttack": [
-    "T1552.004",
-    "T1556"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.57.3"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + cloud TAs + HSM audit feed.\n- KV Store `csa_kms_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.14: CSA KMS Attestation]\ncron_schedule = 19 */12 * * *\ndispatch.earliest_time = -12h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.14,reg=SG-Cyber-Act,clause=CSA-CCoP-CRY\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`rotation_status=overdue`**: rotate within 7 days; capture attestation.\n\n**SG-specific failure modes**:\n- **FIPS-140-3 timing**: most cloud HSMs migrated from 140-2 to 140-3; ensure register reflects current.\n- **PQC readiness**: position for post-quantum cryptography evolution; track NIST PQC selections.",
-  "grandmaExplanation": "The most important cyber keys must be stored in special tamper-proof hardware and rotated regularly. Every twelve hours we check that's still the case."
+  "wave": "walk"
 }

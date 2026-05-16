@@ -36,25 +36,6 @@
   },
   "dataSources": "GRC RRA + ERP modules (ServiceNow / Archer / OneTrust / ETQ), ERP repository in SharePoint Online, residual-risk acceptance register.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_rra_risk_register_lookup\n| where residual_risk IN (\"medium\",\"high\",\"unacceptable\")\n| lookup awia_erp_strategy_lookup risk_id OUTPUT erp_strategy_id erp_artefact_url strategy_owner_role strategy_owner_name resources_listed resource_count action_listed action_count last_reviewed_at\n| lookup awia_residual_risk_acceptance_lookup risk_id OUTPUT acceptance_letter_url accepted_by accepted_at\n| eval coverage_status = case(\n    isnotnull(acceptance_letter_url), \"risk_accepted\",\n    isnull(erp_strategy_id), \"missing_erp_strategy\",\n    isnull(erp_artefact_url), \"undocumented\",\n    isnull(strategy_owner_name) OR isnull(strategy_owner_role), \"missing_owner\",\n    resources_listed=\"false\" OR coalesce(resource_count, 0) < 1, \"no_resources\",\n    action_listed=\"false\" OR coalesce(action_count, 0) < 1, \"no_actions\",\n    isnotnull(last_reviewed_at) AND ((now() - last_reviewed_at)/86400) > 365, \"review_overdue\",\n    1=1, \"current\")\n| table pwsid risk_id risk_name residual_risk erp_strategy_id erp_artefact_url strategy_owner_role strategy_owner_name resource_count action_count last_reviewed_at coverage_status",
   "description": "Joins the RRA risk register against the ERP strategy register, surfacing gaps in ownership, resourcing, action listing, and review cadence.",
   "value": "An ERP strategy without an owner is wallpaper. EPA AWIA reviewers specifically test traceability from a risk to a named person with resources and actions; this UC makes the traceability auditable.",
@@ -74,6 +55,9 @@
     }
   ],
   "knownFalsePositives": "1. **Accepted residual** — risk accepted by Board; suppression by letter URL.\n\n2. **Cross-referenced physical module** — erp_module_lookup carries the separate artefact.\n\n**Suppression**: `awia_22_53_12_exceptions`; max 90-day; Emergency Management Coordinator sign-off.",
+  "mitreAttack": [
+    "N/A (ERP-traceability governance workflow)"
+  ],
   "requiredFields": [
     "pwsid",
     "risk_id",
@@ -83,16 +67,9 @@
     "action_count",
     "coverage_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
+    "sharepoint",
     "splunk-es"
   ],
   "equipmentModels": [
@@ -100,13 +77,37 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (ERP-traceability governance workflow)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 and UC-22.53.6 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookups `awia_rra_risk_register_lookup`, `awia_erp_strategy_lookup`, `awia_residual_risk_acceptance_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes the RRA risk register and ERP strategy register nightly.\n\n## Step 2 — Create the search and alert\n\nDaily 08:30.\n\n```ini\n[UC-22.53.12: AWIA ERP Strategies coverage]\ncron_schedule = 30 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.12,reg=AWIA,clause=AWIA-ERP-strategies-actions\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: orphan risk; UC surfaces.  Negative: full row; UC clears.\n\n## Step 4 — Operationalize\n\nEmergency Management Coordinator closes gaps; M19 templates available; Board approves residual risk acceptance.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Role-vacant**: a named role (e.g. Plant Supervisor) exists in ERP but the post is vacant; record `strategy_owner_name=vacant` with an interim owner.\n- **Outsourced response strategy**: a contractor's strategy must reference the contract id and the contractor's response SLA.\n- **Mutual-aid resource accounting**: WARN resources count as 'available' resources for ERP purposes only if the annual roster sign-off is current (cross-reference UC-22.53.15).",
+  "grandmaExplanation": "For each big risk on the list, the emergency plan needs to say who's in charge, what they need, and what they'll do. We watch for risks that don't have a name attached, or where the to-do list is empty.",
   "prerequisiteUseCases": [
     "UC-22.53.3",
     "UC-22.53.6"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 and UC-22.53.6 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookups `awia_rra_risk_register_lookup`, `awia_erp_strategy_lookup`, `awia_residual_risk_acceptance_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes the RRA risk register and ERP strategy register nightly.\n\n## Step 2 — Create the search and alert\n\nDaily 08:30.\n\n```ini\n[UC-22.53.12: AWIA ERP Strategies coverage]\ncron_schedule = 30 8 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.12,reg=AWIA,clause=AWIA-ERP-strategies-actions\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: orphan risk; UC surfaces.  Negative: full row; UC clears.\n\n## Step 4 — Operationalize\n\nEmergency Management Coordinator closes gaps; M19 templates available; Board approves residual risk acceptance.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **Role-vacant**: a named role (e.g. Plant Supervisor) exists in ERP but the post is vacant; record `strategy_owner_name=vacant` with an interim owner.\n- **Outsourced response strategy**: a contractor's strategy must reference the contract id and the contractor's response SLA.\n- **Mutual-aid resource accounting**: WARN resources count as 'available' resources for ERP purposes only if the annual roster sign-off is current (cross-reference UC-22.53.15).",
-  "grandmaExplanation": "For each big risk on the list, the emergency plan needs to say who's in charge, what they need, and what they'll do. We watch for risks that don't have a name attached, or where the to-do list is empty."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

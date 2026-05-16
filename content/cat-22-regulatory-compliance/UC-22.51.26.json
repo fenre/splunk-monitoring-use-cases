@@ -35,25 +35,6 @@
   },
   "dataSources": "Certificate Transparency / internal CA event feeds (`internal_ca:event`), TLS-scan results from a scheduled scanner (Splunk-Stream TLS-scan, Tenable cert plugin, OpenSSL scan via scripted input), firewall management plane (Palo Alto Networks, Fortinet, Cisco ASA, Check Point), OT vendor management consoles. Lookups: `ot_certificate_inventory.csv`, `ot_approved_ca_list.csv`, `ot_key_rotation_policy.csv`, `ot_approved_crypto_algorithms.csv`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Stream (Splunkbase 1809) for in-stream TLS inspection.",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1809,
-      "name": "Splunk Stream",
-      "url": "https://splunkbase.splunk.com/app/1809",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "(index=tls_scan sourcetype=\"tls:scan\" earliest=-7d) OR (index=ca sourcetype=\"internal_ca:event\" earliest=-13mon action=\"issued\")\n| eval certificate_not_after_epoch = strptime(certificate_not_after, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval days_until_expiry = round((certificate_not_after_epoch - now())/86400)\n| eval certificate_expired_flag = if(days_until_expiry < 0, \"true\", \"false\")\n| eval certificate_expiring_soon_flag = if(days_until_expiry >= 0 AND days_until_expiry <= 30, \"true\", \"false\")\n| lookup ot_approved_crypto_algorithms.csv key_algorithm AS certificate_key_algorithm OUTPUT min_key_size approved_signature_algorithms\n| eval weak_algorithm_flag = if(certificate_key_size < min_key_size OR NOT match(approved_signature_algorithms, certificate_signature_algorithm), \"true\", \"false\")\n| lookup ot_approved_ca_list.csv ca_subject AS certificate_issuer OUTPUT ca_trusted\n| eval untrusted_issuer_flag = if(ca_trusted != \"true\", \"true\", \"false\")\n| join asset_key type=left [search index=ca sourcetype=\"internal_ca:event\" earliest=-13mon action=\"issued\" | stats latest(_time) AS last_key_rotation_at BY asset_key]\n| lookup ot_key_rotation_policy.csv asset_class OUTPUT key_rotation_interval_days\n| eval days_since_rotation = round((now() - last_key_rotation_at)/86400)\n| eval key_rotation_overdue_flag = if(days_since_rotation > key_rotation_interval_days, \"true\", \"false\")\n| where certificate_expired_flag=\"true\" OR certificate_expiring_soon_flag=\"true\" OR weak_algorithm_flag=\"true\" OR untrusted_issuer_flag=\"true\" OR key_rotation_overdue_flag=\"true\"\n| table asset_key asset_class certificate_subject certificate_issuer certificate_not_after days_until_expiry certificate_key_algorithm certificate_key_size certificate_signature_algorithm certificate_expired_flag certificate_expiring_soon_flag weak_algorithm_flag untrusted_issuer_flag key_rotation_overdue_flag\n| sort - certificate_expired_flag weak_algorithm_flag untrusted_issuer_flag certificate_expiring_soon_flag",
   "description": "Reconciles OT certificate inventory against expiry, algorithm strength, issuer trust, and rotation cadence; flags every breach.",
   "value": "Expired or weak OT certificates break TLS, OPC UA Sign+Encrypt, and management-plane authentication. NCA OTCC inspectors will demand cryptographic-controls evidence per asset; this UC produces it.",
@@ -77,37 +58,66 @@
     }
   ],
   "knownFalsePositives": "1. **Self-signed certificates on legacy OT devices** with no certificate-management capability — some legacy devices issue self-signed certs that are accepted only by allow-listing fingerprints. Suppression: `self_signed_allowlisted.csv` with compensating-control attestation.\n\n2. **Internal CA new-deployment grace** — freshly issued certificates may take time to propagate to TLS-scan systems. Suppression: 24-hour grace.\n\n3. **OPC UA self-signed app certificates** that are trust-listed device-to-device — not all OPC UA deployments use a CA. Suppression: tag asset_class as `opcua_endpoint`; verify trust-list management via UC-22.51.6 config drift.\n\n**Suppression mechanism**: KV Store `otcc_22_51_26_exceptions`.",
+  "mitreAttack": [
+    "T1553.004",
+    "T1552.004"
+  ],
   "requiredFields": [
     "asset_key",
     "certificate_subject",
     "certificate_not_after",
     "certificate_key_algorithm"
   ],
+  "equipment": [
+    "cert_pki",
+    "checkpoint",
+    "cisco",
+    "fortinet",
+    "paloalto",
+    "splunk-es",
+    "stream",
+    "tenable"
+  ],
+  "equipmentModels": [
+    "AWS Key Management Service / Azure Key Vault / GCP Cloud KMS (CMK lifecycle events)",
+    "HashiCorp Vault Enterprise (transit and PKI secrets engines)",
+    "Splunk Add-on for AWS / Microsoft Azure / Google Cloud (Splunkbase 1876 / 3110 / 5556)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, Authentication and Network_Traffic data models)",
+    "Splunk Stream Independent Forwarder (TLS metadata for cipher / version inspection)",
+    "cert_pki_ct_logs",
+    "cisco_asa",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "T1553.004",
-    "T1552.004"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.3"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Enterprise Security.\n- TLS-scan capability: Splunk Stream with TLS protocol parser, or a scheduled scanner (Tenable cert plugin, OpenSSL via scripted input on a scan host).\n- Internal CA event feed (Microsoft ADCS, OpenSSL CA, EJBCA, AWS Private CA).\n- `index=tls_scan` (24-month retention), `index=ca`, `index=audit_evidence`.\n- Lookups:\n  - `ot_approved_ca_list.csv` — owned by Head of OT Security. Columns: `ca_subject`, `ca_trusted` (boolean), `ca_purpose`. Includes internal-CA subjects plus any approved external (DigiCert, GlobalSign).\n  - `ot_approved_crypto_algorithms.csv` — owned by Head of OT Security. Columns: `key_algorithm`, `min_key_size`, `approved_signature_algorithms` (mvfield). Examples:\n\n    ```csv\n    key_algorithm,min_key_size,approved_signature_algorithms\n    RSA,2048,\"sha256WithRSAEncryption|sha384WithRSAEncryption|sha512WithRSAEncryption\"\n    EC,256,\"ecdsa-with-SHA256|ecdsa-with-SHA384|ecdsa-with-SHA512\"\n    ```\n\n  - `ot_key_rotation_policy.csv` — columns: `asset_class`, `key_rotation_interval_days`. Examples:\n\n    ```csv\n    asset_class,key_rotation_interval_days\n    firewall_ot_dmz,365\n    plc_controller,730\n    hmi_windows,365\n    opcua_endpoint,365\n    engineering_workstation_windows,365\n    sis_logic_solver,1825\n    ```\n\n  - KV Store `otcc_22_51_26_exceptions`.\n\n## Step 1 — Configure TLS scanning\n\nFor in-stream visibility via Splunk Stream:\n\n```ini\n[streamfwd]\nipAddr = 0.0.0.0\ndeployment_url = https://stream.example.com\nstream_filter = tls\nindex = tls_scan\n```\n\nThe TLS metadata sourcetype `stream:tls` includes `cert_subject`, `cert_issuer`, `cert_not_after`, `cert_key_algorithm`, `cert_key_size`, `cert_signature_algorithm`.\n\nFor active scanning (some OT segments do not have Stream coverage), schedule a scripted-input scanner that lists every asset in `ot_asset_inventory_lookup` with `tls_listener_port` populated and emits scan events.\n\n## Step 2 — Create the search and alert\n\nFlags per SPL.\n\n**Schedule**:\n\n```ini\n[UC-22.51.26: OT Cryptographic Controls and Key Management Evidence]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -7d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.26,reg=NCA_OTCC,clause=OTCC-2-8-1-1\naction.email.to = ot-cyber-engineering@example.com,ot-soc@example.com\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\n**(a)** TLS-scan covers every OT asset with a TLS listener.\n\n**(b)** Approved CA list and crypto algorithm list current.\n\n**(c)** Positive control per `controlTest.positiveScenario`.\n\n**(d)** Negative control per `controlTest.negativeScenario`.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – OT Cryptographic Controls`.\n\n- **Row 1, single values**: 5 flags.\n- **Row 2, heatmap**: expiry by asset_class.\n- **Row 3, sortable table** of flagged assets with drill-through.\n- **Row 4, 13-month trend**.\n\n**Runbook for `certificate_expiring_soon_flag=true`** (≤30 days): P3 to OT cyber-engineering. Renew via internal CA per change-control UC-22.51.9. Re-deploy to the OT asset. Confirm on next scan.\n\n**Runbook for `weak_algorithm_flag=true`** (e.g. MD5 / SHA-1 / RSA-1024 / DSA): P2. Often associated with very legacy devices. If vendor offers no upgrade, document compensating control (network isolation, MFA at PSM) in `audit_evidence`.\n\n## Step 5 — Troubleshooting\n\n**TLS-scan dark spots** — some OT segments are isolated; deploy a scanner inside each L3.5 DMZ.\n\n**OT-specific failure modes**:\n\n- **OPC UA application certificates**: device-to-device trust-listed; not always issued by a central CA. Track separately if your deployment uses GDS (Global Discovery Server) for certificate management.\n- **Vendor-managed certificate stores** (Rockwell, Schneider firmware-embedded): the certificate cannot be re-issued without firmware update. Document compensating controls.\n- **PLC HTTPS interfaces with self-signed certs**: many controllers do not support external CAs; mitigate via management-plane segmentation (UC-22.51.3) and rotate self-signed certs on a defined cadence (UC-22.51.6).\n- **Plant-floor protocols without crypto** (legacy Modbus, DNP3 without secure-auth): isolation under UC-22.51.3 plus PA per UC-22.51.18.",
   "grandmaExplanation": "We check that all the digital keys and certificates used to lock up plant equipment are still good, strong, and from a source we trust. If any are about to expire, weak, or strange, we put it in the to-do list.",
-  "equipmentModels": [
-    "AWS Key Management Service / Azure Key Vault / GCP Cloud KMS (CMK lifecycle events)",
-    "HashiCorp Vault Enterprise (transit and PKI secrets engines)",
-    "Splunk Stream Independent Forwarder (TLS metadata for cipher / version inspection)",
-    "Splunk Add-on for AWS / Microsoft Azure / Google Cloud (Splunkbase 1876 / 3110 / 5556)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263, Authentication and Network_Traffic data models)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.3"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1809,
+      "name": "Splunk Stream",
+      "url": "https://splunkbase.splunk.com/app/1809",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

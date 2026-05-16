@@ -35,6 +35,70 @@
   },
   "dataSources": "ES correlation search registry. KV Store `rail_detection_lookup`. Cyber Vision / Claroty / Nozomi / Dragos signature feeds.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail_detection_lookup\n| where detection_status_in_register=\"active\"\n| eval now_ts = now()\n| eval days_since_test = if(isnotnull(signature_test_passed_at), round((now_ts - signature_test_passed_at) / 86400, 0), null())\n| eval detection_status = case(\n    isnull(detection_signed_at), \"detection_unsigned\",\n    isnull(signature_test_passed_at), \"never_tested\",\n    days_since_test > 90, \"signature_test_overdue\",\n    isnull(mitre_technique) OR mitre_technique=\"\", \"mitre_mapping_missing\",\n    1=1, \"compliant\")\n| where detection_status != \"compliant\"\n| table detection_id rail_subsystem event_type severity asset_id mitre_technique detection_signed_at signature_test_passed_at days_since_test detection_status",
+  "description": "Audits the rail-OT detection-content register for currency, MITRE mapping, and periodic signature testing.",
+  "value": "Detection coverage that isn't tested decays silently. This UC ensures the operator can demonstrate live detection capability across rail subsystems.",
+  "implementation": "(1) Catalogue rail-OT detections in `rail_detection_lookup`. (2) SOAR `rail-detection-test` runs quarterly synthetic events against detection rules. (3) Schedule UC-22.55.12 every 30 minutes.",
+  "visualization": "(Panel 1) Detection-content matrix (subsystem vs event type). (Panel 2) Test-cadence calendar. (Panel 3) MITRE coverage. (Panel 4) Disabled rules.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "CLC/TS 50701:2021 clause 8.3",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "MITRE ATT&CK for ICS",
+      "url": "https://attack.mitre.org/matrices/ics/"
+    }
+  ],
+  "knownFalsePositives": "1. **New rule in test phase** — may have `never_tested` for 14-day grace.\n\n2. **Vendor-supplied rule pending tuning** — vendor rules from Cyber Vision / Claroty may need 30-day tuning grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_12_exceptions` with documented Detection-Engineering-Lead approval and 30-day maximum grant.",
+  "mitreAttack": [
+    "T0807",
+    "T0830",
+    "T0832",
+    "T0836",
+    "T0843",
+    "T0881"
+  ],
+  "requiredFields": [
+    "detection_id",
+    "rail_subsystem",
+    "detection_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cyber-vision",
+    "claroty-xdome",
+    "dragos-platform",
+    "nozomi-guardian",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision (Splunkbase 6071)",
+    "Claroty xDome (Splunkbase 5018)",
+    "Dragos Platform (Splunkbase 5048)",
+    "Nozomi Networks Guardian (Splunkbase 4894)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Detection Engineering Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT-detection platforms.\n- KV Store `rail_detection_lookup`.\n\n## Step 1 — Detection collection\n\n```ini\n[rail_detection_lookup]\nenforceTypes = true\nfield.detection_id = string\nfield.rail_subsystem = string\nfield.event_type = string\nfield.severity = string\nfield.asset_id = string\nfield.mitre_technique = string\nfield.detection_signed_at = number\nfield.signature_test_passed_at = number\nfield.detection_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.12: CLC/TS 50701 Rail Incident Detection]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.12,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail incident-detection content unsigned, untested, or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `signature_test_overdue`** (owner: Detection Engineering Lead, severity P2): run quarterly test; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Signal-system specific signatures**: signal RBC / CBTC have specific behaviour; detections must be sensor-tuned.\n- **GSM-R / FRMCS detection**: rail-radio detection is increasingly important; build content for these protocols.",
+  "grandmaExplanation": "Our cyber-watchtower has alarms set for many specific kinds of trouble — someone trying to break a signal, a strange radio command. Every three months we test that each alarm still rings when something fake happens. If an alarm hasn't been tested for too long, the team is alerted.",
+  "prerequisiteUseCases": [
+    "UC-22.55.3",
+    "UC-22.55.5"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -72,68 +136,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| inputlookup rail_detection_lookup\n| where detection_status_in_register=\"active\"\n| eval now_ts = now()\n| eval days_since_test = if(isnotnull(signature_test_passed_at), round((now_ts - signature_test_passed_at) / 86400, 0), null())\n| eval detection_status = case(\n    isnull(detection_signed_at), \"detection_unsigned\",\n    isnull(signature_test_passed_at), \"never_tested\",\n    days_since_test > 90, \"signature_test_overdue\",\n    isnull(mitre_technique) OR mitre_technique=\"\", \"mitre_mapping_missing\",\n    1=1, \"compliant\")\n| where detection_status != \"compliant\"\n| table detection_id rail_subsystem event_type severity asset_id mitre_technique detection_signed_at signature_test_passed_at days_since_test detection_status",
-  "description": "Audits the rail-OT detection-content register for currency, MITRE mapping, and periodic signature testing.",
-  "value": "Detection coverage that isn't tested decays silently. This UC ensures the operator can demonstrate live detection capability across rail subsystems.",
-  "implementation": "(1) Catalogue rail-OT detections in `rail_detection_lookup`. (2) SOAR `rail-detection-test` runs quarterly synthetic events against detection rules. (3) Schedule UC-22.55.12 every 30 minutes.",
-  "visualization": "(Panel 1) Detection-content matrix (subsystem vs event type). (Panel 2) Test-cadence calendar. (Panel 3) MITRE coverage. (Panel 4) Disabled rules.",
-  "cimModels": [
-    "Alerts",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "CLC/TS 50701:2021 clause 8.3",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
-    },
-    {
-      "title": "MITRE ATT&CK for ICS",
-      "url": "https://attack.mitre.org/matrices/ics/"
-    }
-  ],
-  "knownFalsePositives": "1. **New rule in test phase** — may have `never_tested` for 14-day grace.\n\n2. **Vendor-supplied rule pending tuning** — vendor rules from Cyber Vision / Claroty may need 30-day tuning grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_12_exceptions` with documented Detection-Engineering-Lead approval and 30-day maximum grant.",
-  "requiredFields": [
-    "detection_id",
-    "rail_subsystem",
-    "detection_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Detection Engineering Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "cisco-cyber-vision",
-    "claroty-xdome",
-    "nozomi-guardian",
-    "dragos-platform"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Cisco Cyber Vision (Splunkbase 6071)",
-    "Claroty xDome (Splunkbase 5018)",
-    "Nozomi Networks Guardian (Splunkbase 4894)",
-    "Dragos Platform (Splunkbase 5048)"
-  ],
-  "mitreAttack": [
-    "T0807",
-    "T0830",
-    "T0832",
-    "T0836",
-    "T0843",
-    "T0881"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.55.3",
-    "UC-22.55.5"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT-detection platforms.\n- KV Store `rail_detection_lookup`.\n\n## Step 1 — Detection collection\n\n```ini\n[rail_detection_lookup]\nenforceTypes = true\nfield.detection_id = string\nfield.rail_subsystem = string\nfield.event_type = string\nfield.severity = string\nfield.asset_id = string\nfield.mitre_technique = string\nfield.detection_signed_at = number\nfield.signature_test_passed_at = number\nfield.detection_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.12: CLC/TS 50701 Rail Incident Detection]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.12,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail incident-detection content unsigned, untested, or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `signature_test_overdue`** (owner: Detection Engineering Lead, severity P2): run quarterly test; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Signal-system specific signatures**: signal RBC / CBTC have specific behaviour; detections must be sensor-tuned.\n- **GSM-R / FRMCS detection**: rail-radio detection is increasingly important; build content for these protocols.",
-  "grandmaExplanation": "Our cyber-watchtower has alarms set for many specific kinds of trouble — someone trying to break a signal, a strange radio command. Every three months we test that each alarm still rings when something fake happens. If an alarm hasn't been tested for too long, the team is alerted."
+  "wave": "walk"
 }

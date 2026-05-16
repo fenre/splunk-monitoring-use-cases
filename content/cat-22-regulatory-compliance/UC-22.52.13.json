@@ -35,32 +35,6 @@
   },
   "dataSources": "Microsoft Defender for Endpoint (`index=edr sourcetype=\"mscs:wd:atp:detection\"`), CrowdStrike Falcon (`crowdstrike:detection`), Cisco Cyber Vision events (`index=ot_cybervision sourcetype=\"cisco:cybervision:event\"`), AD Security event logs (`WinEventLog:Security`), CyberArk PAM session anomalies (`cyberark:audit`), Splunk Stream cross-zone flow events (`stream:tcp` with industrial-protocol classification). Lookup `soci_inscope_assets_lookup` and `soci_signal_taxonomy_lookup` (indicator → indicator_class → severity).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207), Splunk Add-on for CrowdStrike (Splunkbase 5121), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 6207,
-      "name": "Splunk Add-on for Microsoft Defender for Endpoint",
-      "url": "https://splunkbase.splunk.com/app/6207",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 6071,
-      "name": "Splunk Add-on for Cisco Cyber Vision",
-      "url": "https://splunkbase.splunk.com/app/6071",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "((index=edr sourcetype=\"mscs:wd:atp:detection\" earliest=-15m@m severity>=High) OR\n (index=edr sourcetype=\"crowdstrike:detection\" earliest=-15m@m severity_name IN (High, Critical)) OR\n (index=ot_cybervision sourcetype=\"cisco:cybervision:event\" earliest=-15m@m event_severity>=high) OR\n (index=identity sourcetype=\"WinEventLog:Security\" earliest=-15m@m EventCode IN (4625, 4719, 4720, 4722, 4724, 4732, 4756)) OR\n (index=identity sourcetype=\"cyberark:audit\" earliest=-15m@m action IN (failed_logon, vault_export, password_disable_audit)))\n| eval host = coalesce(host, dest, ComputerName, hostname, ip)\n| lookup soci_inscope_assets_lookup host_to_asset_id AS host OUTPUT asset_id inscope asset_class\n| where inscope=\"true\"\n| eval suspect_indicator = coalesce(threat_name, detection_name, event_subtype, Name, alert_name)\n| lookup soci_signal_taxonomy_lookup suspect_indicator OUTPUT indicator_class severity\n| eval detection_source = case(\n    sourcetype=\"mscs:wd:atp:detection\", \"edr_mde\",\n    sourcetype=\"crowdstrike:detection\", \"edr_crowdstrike\",\n    sourcetype=\"cisco:cybervision:event\", \"ot_ids\",\n    sourcetype=\"WinEventLog:Security\", \"identity\",\n    sourcetype=\"cyberark:audit\", \"pam\",\n    1=1, sourcetype)\n| stats earliest(_time) AS first_seen latest(_time) AS last_seen count AS raw_event_count values(suspect_indicator) AS indicators BY asset_id detection_source indicator_class severity\n| where isnotnull(indicator_class)",
   "description": "Aggregates high-fidelity signals of unauthorised access, modification, or interference from EDR (Microsoft Defender for Endpoint, CrowdStrike), OT IDS (Cisco Cyber Vision), AD Security Event Logs, and PAM (CyberArk) across all in-scope SoNS hosts. Surfaces every distinct (asset, indicator_class) tuple to the SOC every 15 minutes.",
   "value": "Rule 6(1) is the headline cyber-resilience obligation. CISC inspectors will ask: 'How would you know if a SoNS were compromised right now?' This UC is the answer — a curated, always-on signal stream stitched across EDR / OT IDS / identity / PAM, with every alert linked back to the responsible asset and to an IR ticket.",
@@ -90,39 +64,6 @@
     }
   ],
   "knownFalsePositives": "1. **Authorised vendor maintenance** — documented sessions via UC-22.51.19. Suppression: cross-reference `pam_authorised_session_lookup` and drop matching events.\n\n2. **Pen-test activity** — documented engagements carrying agreed RoE marker. Suppression: `pentest_window_lookup`.\n\n3. **Sanctioned configuration changes** — documented change windows via `ot_change_window.csv`.\n\n4. **EICAR / test artefacts** — routine AV test artefacts. Suppression: drop where `threat_name=\"EICAR_Test_File\"` unless `test=false`.\n\n5. **Detection name noise** — some detection names are too broad (e.g. 'PUA'); maintain `soci_signal_taxonomy_lookup` carefully so noise doesn't dilute the signal.\n\n**Suppression mechanism**: KV Store `soci_22_52_13_exceptions`; tight max grant 24 hours with SOC Manager + CISO sign-off.",
-  "requiredFields": [
-    "asset_id",
-    "detection_source",
-    "indicator_class",
-    "severity",
-    "first_seen"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "microsoft-defender",
-    "crowdstrike",
-    "cisco",
-    "cyberark"
-  ],
-  "equipmentModels": [
-    "Microsoft Defender for Endpoint (MDE / WDATP, advanced hunting + alerts)",
-    "CrowdStrike Falcon (Endpoint Protection alerts)",
-    "Cisco Cyber Vision 4.x (OT IDS event stream)",
-    "CyberArk PAS 12.x (PAM session and audit events)",
-    "Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207)",
-    "Splunk Add-on for CrowdStrike (Splunkbase 5121)",
-    "Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071)",
-    "Splunk Add-on for CyberArk (Splunkbase 2891)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
-  ],
   "mitreAttack": [
     "T1078",
     "T1190",
@@ -133,10 +74,73 @@
     "T0832",
     "T0855"
   ],
+  "requiredFields": [
+    "asset_id",
+    "detection_source",
+    "indicator_class",
+    "severity",
+    "first_seen"
+  ],
+  "equipment": [
+    "cisco",
+    "crowdstrike",
+    "cyberark",
+    "defender",
+    "hashicorp",
+    "microsoft-defender",
+    "splunk-es",
+    "stream"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision 4.x (OT IDS event stream)",
+    "CrowdStrike Falcon (Endpoint Protection alerts)",
+    "CyberArk PAS 12.x (PAM session and audit events)",
+    "Microsoft Defender for Endpoint (MDE / WDATP, advanced hunting + alerts)",
+    "Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071)",
+    "Splunk Add-on for CrowdStrike (Splunkbase 5121)",
+    "Splunk Add-on for CyberArk (Splunkbase 2891)",
+    "Splunk Add-on for Microsoft Defender for Endpoint (Splunkbase 6207)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "hashicorp_vault"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "SOCI Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, MDE TA, CrowdStrike TA, Cisco Cyber Vision TA, CyberArk TA, Splunk_TA_stream, Windows TA.\n- `index=edr` (90-day retention online), `index=ot_cybervision` (90 days), `index=identity` (90 days), `index=audit_evidence` (7 years).\n- Lookups:\n  - `soci_inscope_assets_lookup` extended with `host_to_asset_id` field (or a sibling lookup `soci_host_to_asset_lookup`).\n  - `soci_signal_taxonomy_lookup` — owned by SOC Manager. Columns: `suspect_indicator` (detection name as it appears in EDR / IDS / AD / PAM), `indicator_class` (one of `malware`, `living_off_land`, `credential_theft`, `lateral_movement`, `privilege_escalation`, `data_exfiltration`, `industrial_anomaly`, `account_anomaly`, `vendor_anomaly`, `policy_bypass`), `severity` (low / medium / high / critical).\n  - `pam_authorised_session_lookup` (shared with UC-22.51.19).\n  - `pentest_window_lookup`, `ot_change_window.csv`.\n- ES notable framework configured with `endpoint` and `network` security domains.\n- IR ticketing integration so every notable spawns a ticket with bidirectional sync.\n\n## Step 1 — Configure data collection\n\nEach data source is onboarded via its own TA. Validate each individually:\n\n```spl\nindex=edr sourcetype=mscs:wd:atp:detection earliest=-24h\n| stats count by severity\n```\n\nExpected: a sustained baseline of low / informational; spikes at high / critical are the alert signal.\n\nMaintain `soci_signal_taxonomy_lookup` carefully. It is the single most important tuning artefact — the difference between a high-signal stream and noise. New detection names that appear without classification flag a coverage gap; treat as a backlog item for the SOC Manager.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.13: SOCI CIRMP Rule 6(1) unauthorised access / modification / interference]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.13,reg=SOCI,clause=SOCI-CIRMP-r6.1\naction.notable.param.rule_title = SOCI Rule 6(1) cyber-compromise signal\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity is set by the `severity` field from `soci_signal_taxonomy_lookup`; critical and high spawn ES notables, medium goes to email digest.\n\n## Step 3 — Validate deployment\n\n**(a)** Drop an EICAR-equivalent on a non-production engineering workstation; UC must surface within 15 minutes.\n\n**(b)** Authorised PAM session must NOT surface (UC-22.51.19 mediation suppresses).\n\n**(c)** Coverage matrix: every in-scope asset must have at least one data source attached:\n\n```spl\n| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| eval data_sources = mvappend(\n    if(in(asset_class, \"electricity-generation\", \"electricity-transmission\"), \"ot_ids\", null()),\n    \"edr\")\n| stats values(data_sources) AS coverage by asset_id\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 6(1) Cyber Compromise Detection`.\n\n- **Panel 1**: per-asset signal heatmap (asset × indicator_class × 24h).\n- **Panel 2**: signal stream in last hour (live update).\n- **Panel 3**: mean time from signal to IR ticket.\n- **Panel 4**: detection-source coverage by asset class.\n- **Panel 5**: top indicators by frequency — tuning input.\n\n**Runbook for any notable** (owner: SOC L2, severity per indicator severity):\n\n1. Within 15 minutes: triage. Confirm the signal is genuine.\n2. If genuine: spawn IR ticket; classify via UC-22.52.5 / UC-22.52.6 if cyber incident threshold is reached.\n3. Disposition all signals within 24 hours; signals dispositioned 'false positive' feed the `soci_signal_taxonomy_lookup` tuning backlog.\n\n## Step 5 — Troubleshooting\n\n**Signal storm** — a noisy detection name producing thousands of events. Tune by lowering its severity in `soci_signal_taxonomy_lookup` or excluding entirely with a rationale.\n\n**Coverage gap** — add data source.\n\n**False positives from sanctioned activity** — ensure suppression lookups are current and the join key matches.\n\n**SOCI-specific failure modes**:\n\n- **OT-specific noise patterns**: industrial protocol scans during commissioning generate `industrial_anomaly` signals; widen `ot_change_window.csv` to cover the commissioning window.\n- **MSSP-managed EDR**: where MDE / CrowdStrike alerts are routed via an MSSP, ensure the MSSP's analyst dispositions feed back to Splunk via a structured ticket-update HEC.\n- **Cross-jurisdiction asset coverage**: a multi-state SoNS may have multiple SOCs; the lookup must enable single-pane-of-glass aggregation.",
+  "grandmaExplanation": "We watch for anything that looks like someone breaking into, changing, or messing with the computers behind our most important systems. Our anti-virus, our network-watchers, our login-watchers, and our keysharing-tracker all feed signals into one big watchlist. If anything serious lights up we ring the bell.",
   "prerequisiteUseCases": [
     "UC-22.51.5",
     "UC-22.51.19"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, MDE TA, CrowdStrike TA, Cisco Cyber Vision TA, CyberArk TA, Splunk_TA_stream, Windows TA.\n- `index=edr` (90-day retention online), `index=ot_cybervision` (90 days), `index=identity` (90 days), `index=audit_evidence` (7 years).\n- Lookups:\n  - `soci_inscope_assets_lookup` extended with `host_to_asset_id` field (or a sibling lookup `soci_host_to_asset_lookup`).\n  - `soci_signal_taxonomy_lookup` — owned by SOC Manager. Columns: `suspect_indicator` (detection name as it appears in EDR / IDS / AD / PAM), `indicator_class` (one of `malware`, `living_off_land`, `credential_theft`, `lateral_movement`, `privilege_escalation`, `data_exfiltration`, `industrial_anomaly`, `account_anomaly`, `vendor_anomaly`, `policy_bypass`), `severity` (low / medium / high / critical).\n  - `pam_authorised_session_lookup` (shared with UC-22.51.19).\n  - `pentest_window_lookup`, `ot_change_window.csv`.\n- ES notable framework configured with `endpoint` and `network` security domains.\n- IR ticketing integration so every notable spawns a ticket with bidirectional sync.\n\n## Step 1 — Configure data collection\n\nEach data source is onboarded via its own TA. Validate each individually:\n\n```spl\nindex=edr sourcetype=mscs:wd:atp:detection earliest=-24h\n| stats count by severity\n```\n\nExpected: a sustained baseline of low / informational; spikes at high / critical are the alert signal.\n\nMaintain `soci_signal_taxonomy_lookup` carefully. It is the single most important tuning artefact — the difference between a high-signal stream and noise. New detection names that appear without classification flag a coverage gap; treat as a backlog item for the SOC Manager.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.13: SOCI CIRMP Rule 6(1) unauthorised access / modification / interference]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -15m@m\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.13,reg=SOCI,clause=SOCI-CIRMP-r6.1\naction.notable.param.rule_title = SOCI Rule 6(1) cyber-compromise signal\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\nNotable severity is set by the `severity` field from `soci_signal_taxonomy_lookup`; critical and high spawn ES notables, medium goes to email digest.\n\n## Step 3 — Validate deployment\n\n**(a)** Drop an EICAR-equivalent on a non-production engineering workstation; UC must surface within 15 minutes.\n\n**(b)** Authorised PAM session must NOT surface (UC-22.51.19 mediation suppresses).\n\n**(c)** Coverage matrix: every in-scope asset must have at least one data source attached:\n\n```spl\n| inputlookup soci_inscope_assets_lookup\n| where inscope=\"true\"\n| eval data_sources = mvappend(\n    if(in(asset_class, \"electricity-generation\", \"electricity-transmission\"), \"ot_ids\", null()),\n    \"edr\")\n| stats values(data_sources) AS coverage by asset_id\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 6(1) Cyber Compromise Detection`.\n\n- **Panel 1**: per-asset signal heatmap (asset × indicator_class × 24h).\n- **Panel 2**: signal stream in last hour (live update).\n- **Panel 3**: mean time from signal to IR ticket.\n- **Panel 4**: detection-source coverage by asset class.\n- **Panel 5**: top indicators by frequency — tuning input.\n\n**Runbook for any notable** (owner: SOC L2, severity per indicator severity):\n\n1. Within 15 minutes: triage. Confirm the signal is genuine.\n2. If genuine: spawn IR ticket; classify via UC-22.52.5 / UC-22.52.6 if cyber incident threshold is reached.\n3. Disposition all signals within 24 hours; signals dispositioned 'false positive' feed the `soci_signal_taxonomy_lookup` tuning backlog.\n\n## Step 5 — Troubleshooting\n\n**Signal storm** — a noisy detection name producing thousands of events. Tune by lowering its severity in `soci_signal_taxonomy_lookup` or excluding entirely with a rationale.\n\n**Coverage gap** — add data source.\n\n**False positives from sanctioned activity** — ensure suppression lookups are current and the join key matches.\n\n**SOCI-specific failure modes**:\n\n- **OT-specific noise patterns**: industrial protocol scans during commissioning generate `industrial_anomaly` signals; widen `ot_change_window.csv` to cover the commissioning window.\n- **MSSP-managed EDR**: where MDE / CrowdStrike alerts are routed via an MSSP, ensure the MSSP's analyst dispositions feed back to Splunk via a structured ticket-update HEC.\n- **Cross-jurisdiction asset coverage**: a multi-state SoNS may have multiple SOCs; the lookup must enable single-pane-of-glass aggregation.",
-  "grandmaExplanation": "We watch for anything that looks like someone breaking into, changing, or messing with the computers behind our most important systems. Our anti-virus, our network-watchers, our login-watchers, and our keysharing-tracker all feed signals into one big watchlist. If anything serious lights up we ring the bell."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6207,
+      "name": "Splunk Add-on for Microsoft Defender for Endpoint",
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

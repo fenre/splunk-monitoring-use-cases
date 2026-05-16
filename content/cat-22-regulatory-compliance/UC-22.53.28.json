@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC records-management module, SharePoint Online retention labels, document-management system.",
   "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 4055,
-      "name": "Splunk Add-on for Microsoft Office 365",
-      "url": "https://splunkbase.splunk.com/app/4055",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_records_retention_lookup\n| eval days_to_retention = if(isnotnull(retention_until), round((retention_until - now()) / 86400, 0), null())\n| eval retention_status = case(\n    isnull(retention_until), \"no_retention_set\",\n    isnull(retention_label), \"label_missing\",\n    isnull(store_url), \"store_url_missing\",\n    immutability_set=\"false\" OR isnull(immutability_set), \"not_immutable\",\n    days_to_retention < 0 AND legal_hold=\"false\", \"retention_expired\",\n    1=1, \"current\")\n| table pwsid record_id record_type cycle retention_until days_to_retention retention_label store_url immutability_set legal_hold last_produced_at retention_status",
   "description": "Audits the AWIA records-retention contract for every certified Risk and Resilience Assessment (RRA), Emergency Response Plan (ERP), and EPA AWIA portal certification receipt. Verifies that each retained record carries a retention label set to at least 5 years from certification, a non-deletable store URL (SharePoint Online with retention label or equivalent immutable store), an `immutability_set` boolean, an active `legal_hold` flag where applicable, and a recorded `last_produced_at` for any prior EPA inspection production.",
   "value": "EPA AWIA inspections produce the certification from EPA's portal; the underlying RRA / ERP comes from the utility's retention store. A lost RRA at inspection time is a finding.",
@@ -81,6 +62,9 @@
     }
   ],
   "knownFalsePositives": "1. **Legal hold extends past 5y** — acceptable.\n\n2. **Active cycle** — next cycle in progress; prior cycle still in retention.\n\n**Suppression**: `awia_22_53_28_exceptions`; 90-day max.",
+  "mitreAttack": [
+    "N/A (records-retention governance)"
+  ],
   "requiredFields": [
     "pwsid",
     "record_id",
@@ -88,16 +72,10 @@
     "retention_until",
     "retention_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
+    "m365",
     "microsoft-365",
+    "sharepoint",
     "splunk-es"
   ],
   "equipmentModels": [
@@ -106,12 +84,36 @@
     "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (records-retention governance)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.5 deployed.\n- Splunk ES, M365 add-on.\n- Lookup `awia_records_retention_lookup`.\n\n## Step 1 — Configure data collection\n\nRecords-management module emits retention metadata; SharePoint retention label is the immutability signal.\n\n## Step 2 — Create the search and alert\n\nWeekly Sunday 06:00.\n\n```ini\n[UC-22.53.28: AWIA Records Retention]\ncron_schedule = 0 6 * * 0\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.28,reg=AWIA,clause=AWIA-EPA-records-retention\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: missing label; UC fires.  Negative: label + immutability; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Records Retention`. Runbook: apply Purview retention; verify immutability.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **Microsoft Purview — retention-label silent default**: SharePoint Online sites without an explicit retention-label policy still appear to have a 'Default' label via the parent tenant policy; the Splunk view treats this as `label_missing`. Mitigation: ensure every AWIA library has an *explicit* `awia-rra-erp-5y` retention label rather than inheriting the tenant default; verify with `Get-RetentionCompliancePolicy` and reflect in `retention_label` exactly as labelled (no inheritance string).\n- **Microsoft Purview — immutability vs retention label**: a retention label without `Records Management` enabled does not produce immutability. Mitigation: require `immutability_set=true` and verify with `Get-ComplianceTag` for `IsRecordLabel=$true`.\n- **SharePoint Online — store URL canonicalisation**: links via `sharepoint.com/teams/<team>/Shared Documents/...` may resolve to a different canonical path after a site rename. Mitigation: normalise to the `sites/<sitecollection>/<library>/Forms/AllItems.aspx?id=<encodedpath>` form and re-validate weekly.\n- **OpenText Documentum — alternative retention store**: where Documentum is the AWIA retention store, the immutability flag is `r_immutable_flag`, which differs from this UC's `immutability_set` field. Mitigation: extend the records-management integration to map `r_immutable_flag=true` to `immutability_set=\"true\"`.\n- **Veeva Vault QualityDocs — alternative retention store**: Vault uses `lifecycle_state__v=\"steady\"` plus `record_retention_period__v` as the immutability contract. Mitigation: integrate with the Vault `documents.json` API and write to the lookup.\n- **Splunk Add-on for Microsoft Office 365 — large-tenant scope**: the M365 add-on may not have scope for `Compliance.Read.All` by default; the retention-label metadata is invisible. Mitigation: grant `Compliance.Read.All` and `RecordsManagement.Read.All` Graph permissions to the add-on app registration.\n- **Splunk ES 7.x — weekly schedule alignment**: the records-retention search relies on Sunday-night Microsoft 365 retention-policy sync, which has occasional delays. Mitigation: schedule UC-22.53.28 to Monday morning rather than Sunday to give the Purview sync time to settle.\n\n**AWIA-specific failure modes**:\n\n- **Legal-hold beyond AWIA**: a litigation hold or FOIA request may extend retention past the AWIA 5-year minimum; `legal_hold=true` keeps the row evidenced.\n- **Cloud-to-records-management migration**: any migration must preserve retention labels and immutability; UC-22.53.28 surfaces missing labels post-migration.\n- **Post-incident evidence**: incident-related records may have their own retention regime under CIRCIA; align retention metadata accordingly.\n- **State primacy agency parallel retention**: some state primacy agencies require additional retention beyond AWIA; capture state-specific retention in `state_primacy_retention_url` alongside the AWIA retention.\n- **NARA federal-retention overlay**: federal-system PWSIDs (military base, federal park) may have additional NARA retention schedules; capture as `nara_grs_reference`.\n- **Acquisition / divestiture**: when a CWS is acquired or consolidated, the inherited retention obligations transfer; capture `inheriting_pwsid` and ensure the successor utility's lookup carries the inherited rows.",
+  "grandmaExplanation": "Even after we hand in the certification to EPA, we have to keep the risk check and the emergency plan for 5 years — stored so they can't be edited and we can hand them over if asked. We watch the storage labels and ring the bell if any one is missing or the file isn't locked.",
   "prerequisiteUseCases": [
     "UC-22.53.5"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.5 deployed.\n- Splunk ES, M365 add-on.\n- Lookup `awia_records_retention_lookup`.\n\n## Step 1 — Configure data collection\n\nRecords-management module emits retention metadata; SharePoint retention label is the immutability signal.\n\n## Step 2 — Create the search and alert\n\nWeekly Sunday 06:00.\n\n```ini\n[UC-22.53.28: AWIA Records Retention]\ncron_schedule = 0 6 * * 0\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.28,reg=AWIA,clause=AWIA-EPA-records-retention\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: missing label; UC fires.  Negative: label + immutability; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — Records Retention`. Runbook: apply Purview retention; verify immutability.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **Microsoft Purview — retention-label silent default**: SharePoint Online sites without an explicit retention-label policy still appear to have a 'Default' label via the parent tenant policy; the Splunk view treats this as `label_missing`. Mitigation: ensure every AWIA library has an *explicit* `awia-rra-erp-5y` retention label rather than inheriting the tenant default; verify with `Get-RetentionCompliancePolicy` and reflect in `retention_label` exactly as labelled (no inheritance string).\n- **Microsoft Purview — immutability vs retention label**: a retention label without `Records Management` enabled does not produce immutability. Mitigation: require `immutability_set=true` and verify with `Get-ComplianceTag` for `IsRecordLabel=$true`.\n- **SharePoint Online — store URL canonicalisation**: links via `sharepoint.com/teams/<team>/Shared Documents/...` may resolve to a different canonical path after a site rename. Mitigation: normalise to the `sites/<sitecollection>/<library>/Forms/AllItems.aspx?id=<encodedpath>` form and re-validate weekly.\n- **OpenText Documentum — alternative retention store**: where Documentum is the AWIA retention store, the immutability flag is `r_immutable_flag`, which differs from this UC's `immutability_set` field. Mitigation: extend the records-management integration to map `r_immutable_flag=true` to `immutability_set=\"true\"`.\n- **Veeva Vault QualityDocs — alternative retention store**: Vault uses `lifecycle_state__v=\"steady\"` plus `record_retention_period__v` as the immutability contract. Mitigation: integrate with the Vault `documents.json` API and write to the lookup.\n- **Splunk Add-on for Microsoft Office 365 — large-tenant scope**: the M365 add-on may not have scope for `Compliance.Read.All` by default; the retention-label metadata is invisible. Mitigation: grant `Compliance.Read.All` and `RecordsManagement.Read.All` Graph permissions to the add-on app registration.\n- **Splunk ES 7.x — weekly schedule alignment**: the records-retention search relies on Sunday-night Microsoft 365 retention-policy sync, which has occasional delays. Mitigation: schedule UC-22.53.28 to Monday morning rather than Sunday to give the Purview sync time to settle.\n\n**AWIA-specific failure modes**:\n\n- **Legal-hold beyond AWIA**: a litigation hold or FOIA request may extend retention past the AWIA 5-year minimum; `legal_hold=true` keeps the row evidenced.\n- **Cloud-to-records-management migration**: any migration must preserve retention labels and immutability; UC-22.53.28 surfaces missing labels post-migration.\n- **Post-incident evidence**: incident-related records may have their own retention regime under CIRCIA; align retention metadata accordingly.\n- **State primacy agency parallel retention**: some state primacy agencies require additional retention beyond AWIA; capture state-specific retention in `state_primacy_retention_url` alongside the AWIA retention.\n- **NARA federal-retention overlay**: federal-system PWSIDs (military base, federal park) may have additional NARA retention schedules; capture as `nara_grs_reference`.\n- **Acquisition / divestiture**: when a CWS is acquired or consolidated, the inherited retention obligations transfer; capture `inheriting_pwsid` and ensure the successor utility's lookup carries the inherited rows.",
-  "grandmaExplanation": "Even after we hand in the certification to EPA, we have to keep the risk check and the emergency plan for 5 years — stored so they can't be edited and we can hand them over if asked. We watch the storage labels and ring the bell if any one is missing or the file isn't locked."
+  "splunkbaseApps": [
+    {
+      "id": 4055,
+      "name": "Splunk Add-on for Microsoft Office 365",
+      "url": "https://splunkbase.splunk.com/app/4055",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

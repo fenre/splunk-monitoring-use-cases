@@ -35,6 +35,70 @@
   },
   "dataSources": "Splunk ES correlation-search inventory via `| rest /servicesNS/-/SA-AccessProtection/saved/searches` (or equivalent). Notable index for alert volume and tuning measurements (`index=notable`). Cisco Cyber Vision / Claroty / Nozomi / Dragos detections (`cisco:cybervision:event`, `claroty:ctd:event`, `nozomi:guardian:event`, `dragos:platform:event`). CISA Known Exploited Vulnerabilities feed (`ta_cisa_kev:kev`). Pipeline threat-category register (KV Store `tsa_pipeline_threat_categories_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| rest /servicesNS/-/SA-AccessProtection/saved/searches\n| search action.correlationsearch.enabled=1 action.correlationsearch.annotations=*tsa_pipeline*\n| eval threat_category = mvfilter(match(action.correlationsearch.annotations, \"threat_category\"))\n| stats count as detection_rule_count list(title) as enabled_rules max(updated) as last_tuning_epoch by threat_category\n| eval last_tuning_date = strftime(last_tuning_epoch, \"%Y-%m-%d\")\n| eval last_tuning_days = round((now() - last_tuning_epoch) / 86400, 0)\n| append [search `notable` action.correlationsearch.annotations=*tsa_pipeline* earliest=-24h\n  | eval ioc_actionable_lag_minutes = round((_time - alert_first_seen_time) / 60, 2)\n  | stats count as alerts_24h p95(ioc_actionable_lag_minutes) as ioc_actionable_lag_minutes_p95 by threat_category]\n| stats values(*) as * by threat_category\n| eval coverage_status = case(\n    detection_rule_count < 5, \"insufficient\",\n    last_tuning_days > 90, \"stale\",\n    ioc_actionable_lag_minutes_p95 > 30, \"slow\",\n    1=1, \"current\")\n| table threat_category detection_rule_count last_tuning_date last_tuning_days alerts_24h ioc_actionable_lag_minutes_p95 coverage_status",
+  "description": "Measures TSA-SD Pipeline detection-content coverage by threat category, the IOC-to-alert lag, and detection-tuning currency. Surfaces gaps the Detection Engineering Lead and CC need to close.",
+  "value": "TSA inspectors will ask for evidence of continuous monitoring. Without a quantitative coverage measure per documented threat category, an operator cannot demonstrate that the CIP detection control family is operational. This UC produces that evidence.",
+  "implementation": "(1) Populate `tsa_pipeline_threat_categories_lookup` with the documented threat categories (e.g. ransomware, supply-chain, IT/OT lateral, ICS-specific attacks). (2) Annotate every enabled correlation search with `tsa_pipeline_threat_category=<category>`. (3) Schedule UC-22.56.5 hourly; route `coverage_status=insufficient` severity=critical. (4) Build the `TSA-SD Pipeline Detection Coverage` dashboard.",
+  "visualization": "(Panel 1) Detection-content count by threat category. (Panel 2) IOC-actionable-lag p95 trend. (Panel 3) Tuning currency heat-map. (Panel 4) Coverage-status by facility. (Panel 5) 90-day alert-volume trend.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §3.3 (Continuous Monitoring)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "Splunk ES Use Case Library and ESCU",
+      "url": "https://docs.splunk.com/Documentation/ES"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    }
+  ],
+  "knownFalsePositives": "1. **Detection content under tuning** — newly-deployed rules may be in a tuning-window during which they are noisy or suppressed; tag with `tuning_window_end_at` and exclude from `last_tuning_days` calculation.\n\n2. **Sector-specific coverage variance** — pipeline OT may have fewer applicable rules than general IT; the minimum-rule threshold (5) is per-category, not per-vendor. Suppression: pin `category_specific_minimum` in `tsa_pipeline_threat_categories_lookup`.\n\n3. **Volt-Typhoon-style low-volume detection** — some detections are intentionally low-volume; high suppression rate is not always a problem. Suppression: review with Detection Engineering Lead before tuning.\n\n**Suppression mechanism**: KV Store `tsa_22_56_5_exceptions` with documented Detection Engineering Lead approval.",
+  "mitreAttack": [
+    "T1055",
+    "T1027",
+    "T1190",
+    "T0817"
+  ],
+  "requiredFields": [
+    "threat_category",
+    "detection_rule_count",
+    "coverage_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cybervision",
+    "claroty",
+    "dragos",
+    "nozomi-networks",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision 4.x",
+    "Claroty xDome / CTD 4.x",
+    "Dragos Platform 1.9.x",
+    "Nozomi Networks Guardian 22.x",
+    "Splunk Enterprise Security 7.x (correlation-search REST API)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "TSA-SD Compliance SME Panel + Detection Engineering Lead + OT Security Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk ES with correlation-search annotation discipline.\n- Indexed OT detections from Cyber Vision / Claroty / Nozomi / Dragos.\n- KV Store `tsa_pipeline_threat_categories_lookup`.\n- ES notable framework + audit_evidence.\n\n## Step 1 — Define threat-category register\n\n```ini\n[tsa_pipeline_threat_categories_lookup]\nenforceTypes = true\nfield.threat_category = string\nfield.description = string\nfield.minimum_rule_count = number\nfield.target_p95_lag_minutes = number\nfield.priority = string\n```\n\nPopulate with categories: `it_ot_lateral`, `ransomware`, `ics_specific_attack`, `supply_chain`, `phishing_to_ot`, `volt_typhoon_prepositioning`, `data_exfiltration`, `dos_attack`.\n\n## Step 2 — Annotate correlation searches\n\nEvery enabled correlation search relevant to TSA-SD scope must carry an annotation:\n\n```\naction.correlationsearch.annotations = {\"threat_category\": \"it_ot_lateral\", \"tsa_pipeline\": true, \"tsa_pipeline_facility\": \"all\"}\n```\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.5: TSA-SD Pipeline CIP Continuous Monitoring Coverage]\ncron_schedule = 23 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.5,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.3\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: detection-content count, IOC-actionable-lag p95, tuning currency, coverage-status by facility, alert-volume trend.\n\n**Runbook for `coverage_status=insufficient`** (owner: Detection Engineering Lead, severity P1):\n1. Within 7 days: review the threat category; deploy at least 5 enabled rules tagged with the category.\n2. Within 30 days: certify that the coverage gap is closed.\n\n**Runbook for `coverage_status=slow`** (owner: Detection Engineering Lead, severity P2):\n1. Within 14 days: investigate the IOC-actionable-lag root cause (data ingestion delay, search performance, suppression mis-tuning).\n2. Within 30 days: close the lag below 30 minutes p95.\n\n## Step 5 — Troubleshooting\n\n- **Annotation drift** — if correlation-searches are deployed without the `tsa_pipeline_threat_category` annotation, they are invisible to this UC. Enforce annotations in the detection-engineering PR process.\n- **REST API quota** — large ES installs may rate-limit the saved-search REST; consider caching the inventory into a daily summary index.\n- **Mixed scope** — content that applies to TSA + non-TSA scope should be annotated with both; tag the TSA scope explicitly.\n\n**TSA-specific failure modes**:\n- **CSAS detection-coverage attestation**: TSA may ask for the detection-content inventory at CSAS time; ensure the inventory is exportable as a coherent attestation.\n- **Pre-Final-Rule expectations**: the Final Rule may add specific detection requirements (e.g. mandatory Volt Typhoon coverage). Track CISA advisories and update the threat-category register accordingly.",
+  "grandmaExplanation": "We measure how well our pipeline is watched for cyber threats: how many alarms we have for each kind of attack, how fast they fire, and whether they're tuned recently. If a watching gap opens up, we hear about it within the hour.",
+  "prerequisiteUseCases": [
+    "UC-22.56.3"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -72,68 +136,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| rest /servicesNS/-/SA-AccessProtection/saved/searches\n| search action.correlationsearch.enabled=1 action.correlationsearch.annotations=*tsa_pipeline*\n| eval threat_category = mvfilter(match(action.correlationsearch.annotations, \"threat_category\"))\n| stats count as detection_rule_count list(title) as enabled_rules max(updated) as last_tuning_epoch by threat_category\n| eval last_tuning_date = strftime(last_tuning_epoch, \"%Y-%m-%d\")\n| eval last_tuning_days = round((now() - last_tuning_epoch) / 86400, 0)\n| append [search `notable` action.correlationsearch.annotations=*tsa_pipeline* earliest=-24h\n  | eval ioc_actionable_lag_minutes = round((_time - alert_first_seen_time) / 60, 2)\n  | stats count as alerts_24h p95(ioc_actionable_lag_minutes) as ioc_actionable_lag_minutes_p95 by threat_category]\n| stats values(*) as * by threat_category\n| eval coverage_status = case(\n    detection_rule_count < 5, \"insufficient\",\n    last_tuning_days > 90, \"stale\",\n    ioc_actionable_lag_minutes_p95 > 30, \"slow\",\n    1=1, \"current\")\n| table threat_category detection_rule_count last_tuning_date last_tuning_days alerts_24h ioc_actionable_lag_minutes_p95 coverage_status",
-  "description": "Measures TSA-SD Pipeline detection-content coverage by threat category, the IOC-to-alert lag, and detection-tuning currency. Surfaces gaps the Detection Engineering Lead and CC need to close.",
-  "value": "TSA inspectors will ask for evidence of continuous monitoring. Without a quantitative coverage measure per documented threat category, an operator cannot demonstrate that the CIP detection control family is operational. This UC produces that evidence.",
-  "implementation": "(1) Populate `tsa_pipeline_threat_categories_lookup` with the documented threat categories (e.g. ransomware, supply-chain, IT/OT lateral, ICS-specific attacks). (2) Annotate every enabled correlation search with `tsa_pipeline_threat_category=<category>`. (3) Schedule UC-22.56.5 hourly; route `coverage_status=insufficient` severity=critical. (4) Build the `TSA-SD Pipeline Detection Coverage` dashboard.",
-  "visualization": "(Panel 1) Detection-content count by threat category. (Panel 2) IOC-actionable-lag p95 trend. (Panel 3) Tuning currency heat-map. (Panel 4) Coverage-status by facility. (Panel 5) 90-day alert-volume trend.",
-  "cimModels": [
-    "Alerts"
-  ],
-  "references": [
-    {
-      "title": "TSA SD Pipeline-2021-02D §3.3 (Continuous Monitoring)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
-    },
-    {
-      "title": "Splunk ES Use Case Library and ESCU",
-      "url": "https://docs.splunk.com/Documentation/ES"
-    },
-    {
-      "title": "CISA Known Exploited Vulnerabilities Catalog",
-      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
-    }
-  ],
-  "knownFalsePositives": "1. **Detection content under tuning** — newly-deployed rules may be in a tuning-window during which they are noisy or suppressed; tag with `tuning_window_end_at` and exclude from `last_tuning_days` calculation.\n\n2. **Sector-specific coverage variance** — pipeline OT may have fewer applicable rules than general IT; the minimum-rule threshold (5) is per-category, not per-vendor. Suppression: pin `category_specific_minimum` in `tsa_pipeline_threat_categories_lookup`.\n\n3. **Volt-Typhoon-style low-volume detection** — some detections are intentionally low-volume; high suppression rate is not always a problem. Suppression: review with Detection Engineering Lead before tuning.\n\n**Suppression mechanism**: KV Store `tsa_22_56_5_exceptions` with documented Detection Engineering Lead approval.",
-  "requiredFields": [
-    "threat_category",
-    "detection_rule_count",
-    "coverage_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "TSA-SD Compliance SME Panel + Detection Engineering Lead + OT Security Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "cisco-cybervision",
-    "claroty",
-    "nozomi-networks",
-    "dragos"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (correlation-search REST API)",
-    "Cisco Cyber Vision 4.x",
-    "Claroty xDome / CTD 4.x",
-    "Nozomi Networks Guardian 22.x",
-    "Dragos Platform 1.9.x"
-  ],
-  "mitreAttack": [
-    "T1055",
-    "T1027",
-    "T1190",
-    "T0817"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.56.3"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk ES with correlation-search annotation discipline.\n- Indexed OT detections from Cyber Vision / Claroty / Nozomi / Dragos.\n- KV Store `tsa_pipeline_threat_categories_lookup`.\n- ES notable framework + audit_evidence.\n\n## Step 1 — Define threat-category register\n\n```ini\n[tsa_pipeline_threat_categories_lookup]\nenforceTypes = true\nfield.threat_category = string\nfield.description = string\nfield.minimum_rule_count = number\nfield.target_p95_lag_minutes = number\nfield.priority = string\n```\n\nPopulate with categories: `it_ot_lateral`, `ransomware`, `ics_specific_attack`, `supply_chain`, `phishing_to_ot`, `volt_typhoon_prepositioning`, `data_exfiltration`, `dos_attack`.\n\n## Step 2 — Annotate correlation searches\n\nEvery enabled correlation search relevant to TSA-SD scope must carry an annotation:\n\n```\naction.correlationsearch.annotations = {\"threat_category\": \"it_ot_lateral\", \"tsa_pipeline\": true, \"tsa_pipeline_facility\": \"all\"}\n```\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.5: TSA-SD Pipeline CIP Continuous Monitoring Coverage]\ncron_schedule = 23 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.5,reg=TSA-Surface,clause=TSA-SD-P-2021-02C-s3.3\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: detection-content count, IOC-actionable-lag p95, tuning currency, coverage-status by facility, alert-volume trend.\n\n**Runbook for `coverage_status=insufficient`** (owner: Detection Engineering Lead, severity P1):\n1. Within 7 days: review the threat category; deploy at least 5 enabled rules tagged with the category.\n2. Within 30 days: certify that the coverage gap is closed.\n\n**Runbook for `coverage_status=slow`** (owner: Detection Engineering Lead, severity P2):\n1. Within 14 days: investigate the IOC-actionable-lag root cause (data ingestion delay, search performance, suppression mis-tuning).\n2. Within 30 days: close the lag below 30 minutes p95.\n\n## Step 5 — Troubleshooting\n\n- **Annotation drift** — if correlation-searches are deployed without the `tsa_pipeline_threat_category` annotation, they are invisible to this UC. Enforce annotations in the detection-engineering PR process.\n- **REST API quota** — large ES installs may rate-limit the saved-search REST; consider caching the inventory into a daily summary index.\n- **Mixed scope** — content that applies to TSA + non-TSA scope should be annotated with both; tag the TSA scope explicitly.\n\n**TSA-specific failure modes**:\n- **CSAS detection-coverage attestation**: TSA may ask for the detection-content inventory at CSAS time; ensure the inventory is exportable as a coherent attestation.\n- **Pre-Final-Rule expectations**: the Final Rule may add specific detection requirements (e.g. mandatory Volt Typhoon coverage). Track CISA advisories and update the threat-category register accordingly.",
-  "grandmaExplanation": "We measure how well our pipeline is watched for cyber threats: how many alarms we have for each kind of attack, how fast they fire, and whether they're tuned recently. If a watching gap opens up, we hear about it within the hour."
+  "wave": "run"
 }

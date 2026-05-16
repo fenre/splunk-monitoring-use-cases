@@ -35,25 +35,6 @@
   },
   "dataSources": "Cyber-exercise log (ServiceNow / Archer), after-action report repository.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_cyber_exercise_lookup pwsid OUTPUT exercise_id exercise_type run_at scenarios_covered time_to_detect time_to_isolate time_to_manual_fallback notification_targets_practised time_to_recover defects_identified follow_up_actions_open after_action_report_url retest_due_at\n| eval days_since_run = if(isnotnull(run_at), round((now() - run_at) / 86400, 0), null())\n| eval exercise_status = case(\n    isnull(run_at), \"never_exercised\",\n    isnull(after_action_report_url), \"missing_after_action_report\",\n    days_since_run > 365, \"overdue\",\n    days_since_run > 335, \"approaching_due\",\n    coalesce(follow_up_actions_open, 0) > 5, \"defect_backlog\",\n    notification_targets_practised < 3, \"insufficient_notification_coverage\",\n    1=1, \"current\")\n| table pwsid system_name exercise_id exercise_type run_at days_since_run scenarios_covered time_to_detect time_to_isolate time_to_manual_fallback notification_targets_practised time_to_recover defects_identified follow_up_actions_open retest_due_at after_action_report_url exercise_status",
   "description": "Tracks the annual cyber-IR exercise per CWS, with metrics on detect / isolate / manual fallback / recovery and notification-target coverage (CIRCIA, EPA, state primacy, WaterISAC, FBI WCC).",
   "value": "An untested cyber-IR plan is theoretical. AWIA expects annual exercising with metrics that improve year over year. This UC is the proof.",
@@ -78,6 +59,9 @@
     }
   ],
   "knownFalsePositives": "1. **Joint exercise** — multi-utility exercise; one row per pwsid acceptable.\n\n2. **Real-incident in place of exercise** — a real cyber-incident with full after-action counts as exercise.\n\n**Suppression**: `awia_22_53_14_exceptions`; max 60-day; CISO sign-off.",
+  "mitreAttack": [
+    "N/A (exercise / governance)"
+  ],
   "requiredFields": [
     "pwsid",
     "exercise_id",
@@ -85,14 +69,6 @@
     "after_action_report_url",
     "exercise_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -102,13 +78,37 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (exercise / governance)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 and UC-22.53.12 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_cyber_exercise_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes one row per exercise per pwsid; the IR Lead validates fields at after-action upload.\n\n## Step 2 — Create the search and alert\n\nDaily 09:00.\n\n```ini\n[UC-22.53.14: AWIA Cyber IR exercise]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.14,reg=AWIA,clause=AWIA-ERP-cyber-incident-response\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: 11 months stale; UC fires.  Negative: current; UC clears.  Insufficient notification: <3 targets; UC fires.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Cyber IR Exercise`.\n\n**Runbook**: Annual exercise scheduled in calendar; defects tracked to closure with 90-day SLA.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **CIRCIA notification practice**: the proposed CIRCIA 72-hour reporting must be in the notification-targets-practised count. Even before final CIRCIA rule, exercises should include the simulated CISA-72h step.\n- **Manual fallback drill**: AWIA cyber IR specifically calls for manual-operation fallback drilling; ensure exercise covers an operator running treatment without SCADA.\n- **Mutual-aid invocation**: a real cyber incident may trigger WARN mutual-aid; exercise that pathway.",
+  "grandmaExplanation": "If a water system gets hit by ransomware or a hacker, the team has to know exactly what to do. The law says we have to practise that drill at least once a year and write down how it went. We watch the calendar and the drill report; if it's late or missing parts, we ring the bell.",
   "prerequisiteUseCases": [
     "UC-22.53.3",
     "UC-22.53.12"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.53.3 and UC-22.53.12 deployed.\n- Splunk ES, ServiceNow add-on.\n- Indexes `index=compliance`, `index=audit_evidence`.\n- Lookup `awia_cyber_exercise_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes one row per exercise per pwsid; the IR Lead validates fields at after-action upload.\n\n## Step 2 — Create the search and alert\n\nDaily 09:00.\n\n```ini\n[UC-22.53.14: AWIA Cyber IR exercise]\ncron_schedule = 0 9 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.14,reg=AWIA,clause=AWIA-ERP-cyber-incident-response\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\nPositive: 11 months stale; UC fires.  Negative: current; UC clears.  Insufficient notification: <3 targets; UC fires.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `AWIA — Cyber IR Exercise`.\n\n**Runbook**: Annual exercise scheduled in calendar; defects tracked to closure with 90-day SLA.\n\n## Step 5 — Troubleshooting\n\n**AWIA-specific failure modes**:\n\n- **CIRCIA notification practice**: the proposed CIRCIA 72-hour reporting must be in the notification-targets-practised count. Even before final CIRCIA rule, exercises should include the simulated CISA-72h step.\n- **Manual fallback drill**: AWIA cyber IR specifically calls for manual-operation fallback drilling; ensure exercise covers an operator running treatment without SCADA.\n- **Mutual-aid invocation**: a real cyber incident may trigger WARN mutual-aid; exercise that pathway.",
-  "grandmaExplanation": "If a water system gets hit by ransomware or a hacker, the team has to know exactly what to do. The law says we have to practise that drill at least once a year and write down how it went. We watch the calendar and the drill report; if it's late or missing parts, we ring the bell."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

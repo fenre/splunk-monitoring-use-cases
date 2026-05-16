@@ -36,25 +36,6 @@
   },
   "dataSources": "ASD telemetry-feed delivery events (`index=ir sourcetype=\"asd:telemetry:delivery\"`), or in pull-mode the local audit log of the periodic-reporting orchestration. Lookup `sons_telemetry_notice_lookup` (sons_asset_id, notice_id, reporting_interval_minutes, expected_record_count, asd_receiver_endpoint, transport_method).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk HTTP Event Collector (HEC), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup sons_telemetry_notice_lookup\n| where active=\"true\"\n| join type=left sons_asset_id notice_id [\n    search index=ir sourcetype=\"asd:telemetry:delivery\" earliest=-2h@h\n    | stats latest(_time) AS last_report_at sum(record_count) AS observed_record_count by sons_asset_id notice_id\n]\n| eval minutes_since_last_report = if(isnotnull(last_report_at), round((now() - last_report_at) / 60, 0), null())\n| eval completeness_ratio = if(isnotnull(expected_record_count) AND expected_record_count > 0, round(observed_record_count / expected_record_count, 2), null())\n| eval feed_status = case(\n    isnull(last_report_at) OR minutes_since_last_report > (reporting_interval_minutes + 5), \"feed_outage\",\n    isnotnull(completeness_ratio) AND completeness_ratio < 0.8, \"feed_degraded\",\n    isnotnull(completeness_ratio) AND completeness_ratio < 0.95, \"feed_warning\",\n    1=1, \"healthy\")\n| table sons_asset_id notice_id reporting_interval_minutes last_report_at minutes_since_last_report expected_record_count observed_record_count completeness_ratio feed_status transport_method asd_receiver_endpoint",
   "description": "For every active s 30DJ telemetry notice, verifies the feed is reporting at the agreed interval and that the per-interval record count matches the agreed expectation within tolerance. Surfaces outages, degraded feeds, and warning-level under-reporting.",
   "value": "s 30DJ telemetry is the most operationally complex SOCI obligation: the SoNS continuously streams event-log data to ASD on a schedule. Silent feed failures are common (network change, certificate expiry, format drift) and can persist undetected for weeks. This UC keeps the feed health always-on so the SoNS Programme Lead never discovers an outage from an ASD escalation.",
@@ -78,6 +59,9 @@
     }
   ],
   "knownFalsePositives": "1. **Agreed maintenance window** — use `sons_telemetry_maintenance_lookup` to suppress within the window.\n\n2. **Volume baseline mismatch** — the `expected_record_count` reflects an agreed steady-state. Spikes (e.g. an actual incident) may push completeness over 1.0; spikes are not gaps. Suppression: only flag downward deviations.\n\n3. **Transport latency** — cross-boundary network latency may delay the per-interval delivery by 1–2 minutes; the `+5` tolerance handles this. Increase tolerance only with ASD agreement.\n\n4. **Format drift after schema change** — a delivery may parse with 0 records due to a schema change. Suppression: pair this UC with a delivery-format validation UC.\n\n**Suppression mechanism**: KV Store `soci_22_52_11_exceptions`; max grant 24 hours and only with SoNS Programme Lead sign-off.",
+  "mitreAttack": [
+    "N/A (regulator-directed telemetry-stream operational monitoring — measures feed liveness, not adversary detection)"
+  ],
   "requiredFields": [
     "sons_asset_id",
     "notice_id",
@@ -85,30 +69,46 @@
     "observed_record_count",
     "feed_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC for s 30DJ notice register",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)",
+    "Splunk HTTP Event Collector for delivery-event ingest"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "SOCI Compliance SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Splunk HTTP Event Collector for delivery-event ingest",
-    "ServiceNow GRC for s 30DJ notice register",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928)"
-  ],
-  "mitreAttack": [
-    "N/A (regulator-directed telemetry-stream operational monitoring — measures feed liveness, not adversary detection)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=ir` (5-year retention online), `index=audit_evidence` (7-year retention online).\n- Lookup `sons_telemetry_notice_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `notice_id`, `active` (boolean), `reporting_interval_minutes`, `expected_record_count` (typical steady-state count per interval), `transport_method` (e.g. `mtls-syslog`, `aws-s3-presigned`, `cisc-portal-upload`), `asd_receiver_endpoint`.\n- Lookup `sons_telemetry_maintenance_lookup` for agreed maintenance windows.\n- The delivery orchestration emits a HEC event per successful delivery; the event carries `sons_asset_id`, `notice_id`, `record_count`, `delivery_timestamp`.\n- ES notable framework configured.\n\n## Step 1 — Configure data collection\n\nThe delivery orchestration is operator-owned; the Splunk-side contract is the HEC event:\n\n```json\n{\n  \"event\": {\n    \"sons_asset_id\": \"AU-NEM-GEN-001\",\n    \"notice_id\": \"S30DJ-2026-0042\",\n    \"record_count\": 14872,\n    \"delivery_timestamp\": \"2026-05-13T14:00:00+10:00\",\n    \"transport_method\": \"mtls-syslog\",\n    \"asd_receiver_endpoint\": \"asd-telemetry-au-east.acsc.gov.au:6514\"\n  },\n  \"sourcetype\": \"asd:telemetry:delivery\",\n  \"index\": \"ir\"\n}\n```\n\nVolume guidance: a 60-minute reporting interval produces 24 events per day per SoNS — trivial.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.11: SOCI s 30DJ SoNS telemetry feed health]\ncron_schedule = 10 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.11,reg=SOCI,clause=SOCI-s30DJ\naction.notable.param.rule_title = SOCI s 30DJ telemetry feed health\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity by status:\n- `feed_outage` → critical (urgency=Critical).\n- `feed_degraded` → high (urgency=High).\n- `feed_warning` → medium (digest email only).\n\n## Step 3 — Validate deployment\n\n**(a) Synthetic outage test**: disable the feed for 65 minutes; UC must detect on next run.\n\n**(b) Volume-baseline test**: temporarily reduce volume to 50% of expected; UC must report `feed_degraded`.\n\n**(c) Completeness-baseline-recalibration**: every quarter, recompute the typical `expected_record_count` and update the lookup. A drift of more than 20% suggests an underlying operational change.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — s 30DJ Telemetry Feed Health`.\n\n- **Panel 1**: per-SoNS traffic-light (green / amber / red).\n- **Panel 2**: completeness-ratio time-series per SoNS (last 30 days).\n- **Panel 3**: outage history table with duration and root cause.\n- **Panel 4**: MTTR (mean time to recover) trend per quarter.\n- **Panel 5**: schema-drift indicator (record-count anomalies that may suggest format change).\n\n**Runbook for `feed_outage`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 15 minutes: confirm the outage is real (not a Splunk-side issue); check the delivery orchestration logs.\n2. Restore the feed; document root cause.\n3. Notify ASD of the outage and duration; ASD prefers a single courtesy notification once recovered.\n4. Self-disclose in the next Rule 10 annual report if the outage exceeded the ASD-agreed threshold.\n\n**Runbook for `feed_degraded`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 4 hours: identify why volume is down (e.g. an upstream sensor dropped out).\n2. Restore or document permanent reduction; update the lookup's `expected_record_count` if the reduction is permanent.\n\n## Step 5 — Troubleshooting\n\n**HEC event missing** — the delivery orchestration may have completed but failed to HEC; verify HEC token health.\n\n**`expected_record_count` is wildly wrong** — recompute baseline; agree with ASD if delivery characteristics have changed.\n\n**Outage in Splunk masquerading as feed outage** — cross-check with Splunk indexer health; the UC should not fire when Splunk itself is the problem. Add a Splunk-health pre-filter if needed.\n\n**SOCI-specific failure modes**:\n\n- **Telemetry must not include personal data unless authorised**: ASD telemetry under s 30DJ is scoped to event-log data; payload curation is critical. Use Splunk's eventgen tooling to validate payload contents before each go-live.\n- **Sender-receiver certificate rotation**: mTLS-syslog feeds break when either certificate rotates; coordinate rotations with ASD.\n- **Multi-region SoNS**: a SoNS spanning multiple Splunk indexers may produce multiple delivery events per interval; lookup must aggregate across deliveries.\n- **Pull-mode notices**: some notices ask ASD to pull data; in pull mode, the delivery event is logged on completion by the SoNS orchestration.",
+  "grandmaExplanation": "When the government tells us to continuously stream our security logs to them, we make sure that pipe never stops. We watch how often messages flow and how many — if either drops below the agreed level for too long, we ring the bell so the SoNS team can fix the pipe and let the government know.",
   "prerequisiteUseCases": [
     "UC-22.52.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ES, Splunk Add-on for ServiceNow.\n- `index=ir` (5-year retention online), `index=audit_evidence` (7-year retention online).\n- Lookup `sons_telemetry_notice_lookup` — owned by SoNS Programme Lead. Columns: `sons_asset_id`, `notice_id`, `active` (boolean), `reporting_interval_minutes`, `expected_record_count` (typical steady-state count per interval), `transport_method` (e.g. `mtls-syslog`, `aws-s3-presigned`, `cisc-portal-upload`), `asd_receiver_endpoint`.\n- Lookup `sons_telemetry_maintenance_lookup` for agreed maintenance windows.\n- The delivery orchestration emits a HEC event per successful delivery; the event carries `sons_asset_id`, `notice_id`, `record_count`, `delivery_timestamp`.\n- ES notable framework configured.\n\n## Step 1 — Configure data collection\n\nThe delivery orchestration is operator-owned; the Splunk-side contract is the HEC event:\n\n```json\n{\n  \"event\": {\n    \"sons_asset_id\": \"AU-NEM-GEN-001\",\n    \"notice_id\": \"S30DJ-2026-0042\",\n    \"record_count\": 14872,\n    \"delivery_timestamp\": \"2026-05-13T14:00:00+10:00\",\n    \"transport_method\": \"mtls-syslog\",\n    \"asd_receiver_endpoint\": \"asd-telemetry-au-east.acsc.gov.au:6514\"\n  },\n  \"sourcetype\": \"asd:telemetry:delivery\",\n  \"index\": \"ir\"\n}\n```\n\nVolume guidance: a 60-minute reporting interval produces 24 events per day per SoNS — trivial.\n\n## Step 2 — Create the search and alert\n\nSchedule:\n\n```ini\n[UC-22.52.11: SOCI s 30DJ SoNS telemetry feed health]\ncron_schedule = 10 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.11,reg=SOCI,clause=SOCI-s30DJ\naction.notable.param.rule_title = SOCI s 30DJ telemetry feed health\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity by status:\n- `feed_outage` → critical (urgency=Critical).\n- `feed_degraded` → high (urgency=High).\n- `feed_warning` → medium (digest email only).\n\n## Step 3 — Validate deployment\n\n**(a) Synthetic outage test**: disable the feed for 65 minutes; UC must detect on next run.\n\n**(b) Volume-baseline test**: temporarily reduce volume to 50% of expected; UC must report `feed_degraded`.\n\n**(c) Completeness-baseline-recalibration**: every quarter, recompute the typical `expected_record_count` and update the lookup. A drift of more than 20% suggests an underlying operational change.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — s 30DJ Telemetry Feed Health`.\n\n- **Panel 1**: per-SoNS traffic-light (green / amber / red).\n- **Panel 2**: completeness-ratio time-series per SoNS (last 30 days).\n- **Panel 3**: outage history table with duration and root cause.\n- **Panel 4**: MTTR (mean time to recover) trend per quarter.\n- **Panel 5**: schema-drift indicator (record-count anomalies that may suggest format change).\n\n**Runbook for `feed_outage`** (owner: SoNS Programme Lead, severity P1):\n\n1. Within 15 minutes: confirm the outage is real (not a Splunk-side issue); check the delivery orchestration logs.\n2. Restore the feed; document root cause.\n3. Notify ASD of the outage and duration; ASD prefers a single courtesy notification once recovered.\n4. Self-disclose in the next Rule 10 annual report if the outage exceeded the ASD-agreed threshold.\n\n**Runbook for `feed_degraded`** (owner: SoNS Programme Lead, severity P2):\n\n1. Within 4 hours: identify why volume is down (e.g. an upstream sensor dropped out).\n2. Restore or document permanent reduction; update the lookup's `expected_record_count` if the reduction is permanent.\n\n## Step 5 — Troubleshooting\n\n**HEC event missing** — the delivery orchestration may have completed but failed to HEC; verify HEC token health.\n\n**`expected_record_count` is wildly wrong** — recompute baseline; agree with ASD if delivery characteristics have changed.\n\n**Outage in Splunk masquerading as feed outage** — cross-check with Splunk indexer health; the UC should not fire when Splunk itself is the problem. Add a Splunk-health pre-filter if needed.\n\n**SOCI-specific failure modes**:\n\n- **Telemetry must not include personal data unless authorised**: ASD telemetry under s 30DJ is scoped to event-log data; payload curation is critical. Use Splunk's eventgen tooling to validate payload contents before each go-live.\n- **Sender-receiver certificate rotation**: mTLS-syslog feeds break when either certificate rotates; coordinate rotations with ASD.\n- **Multi-region SoNS**: a SoNS spanning multiple Splunk indexers may produce multiple delivery events per interval; lookup must aggregate across deliveries.\n- **Pull-mode notices**: some notices ask ASD to pull data; in pull mode, the delivery event is logged on completion by the SoNS orchestration.",
-  "grandmaExplanation": "When the government tells us to continuously stream our security logs to them, we make sure that pipe never stops. We watch how often messages flow and how many — if either drops below the agreed level for too long, we ring the bell so the SoNS team can fix the pipe and let the government know."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

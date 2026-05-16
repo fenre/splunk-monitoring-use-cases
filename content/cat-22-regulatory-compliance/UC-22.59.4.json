@@ -48,6 +48,82 @@
   },
   "dataSources": "Onboard firewall logs (`pan:traffic`, `fortinet:fortigate:traffic`, `cisco:asa`, `cisco:ftd`). Onboard intrusion-detection (Cisco Cyber Vision `cisco:cybervision:flow`, Claroty CTD `claroty:ctd:event`, Nozomi Guardian `nozomi:guardian:event`). KV Store `imo_ibs_baseline_lookup` (imo_number, src_zone, dst_zone, protocol, action, baseline_hash). Splunk Stream for OT protocol fingerprinting (`stream:modbus`, `stream:ethernetip`, `stream:opcua`, `stream:nmea2000`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk_TA_stream (Splunkbase 1809), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| tstats summariesonly=t count from datamodel=Network_Traffic where (Network_Traffic.src_zone=\"administrative\" OR Network_Traffic.dst_zone=\"administrative\") AND (Network_Traffic.src_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\") OR Network_Traffic.dst_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\")) by Network_Traffic.imo_number Network_Traffic.src_zone Network_Traffic.dst_zone Network_Traffic.transport Network_Traffic.action\n| rename Network_Traffic.* AS *\n| lookup imo_ibs_baseline_lookup imo_number src_zone dst_zone protocol AS transport OUTPUT action AS baseline_action baseline_hash\n| eval baseline_match = case(\n    isnull(baseline_action), \"false\",\n    baseline_action != action, \"false\",\n    1=1, \"true\")\n| eval drift_indicator = if(baseline_match=\"false\", \"true\", \"false\")\n| where drift_indicator = \"true\"\n| stats sum(count) as packet_count by imo_number src_zone dst_zone transport action baseline_match drift_indicator\n| sort 0 -packet_count",
+  "description": "Continuously verifies that traffic between administrative-LAN and OT zones (IBS, INS, GMDSS, AIS, ECDIS, propulsion, cargo-control) matches the per-vessel baseline policy. Drift (unapproved flow) raises a notable within 1 hour.",
+  "value": "Most ransomware that has reached shipboard OT did so by exploiting a weak IT/OT boundary on the satcom-LAN side. MV Maersk Honam, MV Cosco Pacific, and the 2017 NotPetya impact on shore-side fleet ops were all enabled by lateral movement through inadequately segregated networks. This UC catches the boundary drift before the attacker uses it.",
+  "implementation": "(1) Build the per-vessel `imo_ibs_baseline_lookup` from the firewall configuration (PAN, FortiGate, Cisco ASA/FTD) using `outputlookup` on a monthly cadence. (2) Seed Network_Traffic data model with vessel-aware enrichment via FIELDALIAS on `imo_number`. (3) Schedule UC-22.59.4 hourly; route `drift_indicator=true` with packet_count >= 100 to the CISO + Fleet Cyber Lead at severity P1.",
+  "visualization": "(Panel 1) IT/OT drift count per vessel (last 24h). (Panel 2) Per-zone heatmap (src x dst x action). (Panel 3) Open drift sorted by packet_count. (Panel 4) Baseline-coverage trend over 30 days.",
+  "cimModels": [
+    "Network_Traffic",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §2.2 Protect",
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+    },
+    {
+      "title": "IACS UR E26 — Cyber resilience of ships, network architecture",
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+    },
+    {
+      "title": "BIMCO Guidelines — Network architecture",
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved engineering window**: scheduled engineering changes (firewall rule deployment, OEM remote support) that are pre-approved in ServiceNow; suppress with change-ticket reference. 2. **Class society remote audit**: a recognised organisation may legitimately reach OT systems through a controlled jump-host during a remote audit; treat as a baseline-approved flow with finite TTL. 3. **NTP time-sync**: a single one-way NTP query is normal and should be in the baseline.\n\n**Suppression mechanism**: KV Store `imo_22_59_4_exceptions` with the CISO's documented approval and ServiceNow change-ticket reference.",
+  "mitreAttack": [
+    "T1133",
+    "T0843",
+    "T0830"
+  ],
+  "requiredFields": [
+    "imo_number",
+    "src_zone",
+    "dst_zone",
+    "drift_indicator",
+    "packet_count"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cyber-vision",
+    "claroty",
+    "fortinet",
+    "modbus",
+    "nozomi",
+    "opcua",
+    "palo-alto",
+    "paloalto",
+    "splunk-es",
+    "stream"
+  ],
+  "equipmentModels": [
+    "Cisco Catalyst IE3300 (rugged maritime switch)",
+    "Cisco Cyber Vision Sensor IC3000",
+    "Cisco ISA-3000 (ruggedised industrial)",
+    "Claroty Continuous Threat Detection (CTD) appliance",
+    "Fortinet FortiGate-60F / 100F (onboard)",
+    "Nozomi Networks Guardian (appliance)",
+    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
+    "cisco_asa",
+    "fortinet_fortigate",
+    "paloalto_pan_firewall"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-14",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maritime Cyber SME Panel + Network Architect + Fleet Cyber Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 in production providing per-vessel asset inventory.\n- Firewall/NGFW deployment onboard with logs forwarded to Splunk (PAN, FortiGate, Cisco ASA/FTD).\n- OT IDS deployment (Cisco Cyber Vision, Claroty CTD, Nozomi Guardian, or equivalent).\n- Network_Traffic CIM compliant data model on accelerated indexes.\n\n## Step 1 — Baseline KV Store\n\n```ini\n[imo_ibs_baseline_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.src_zone = string\nfield.dst_zone = string\nfield.protocol = string\nfield.action = string\nfield.baseline_hash = string\nfield.baseline_date = time\nfield.approver = string\nfield.exception_ticket = string\n```\n\n## Step 2 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall sourcetypes to set `src_zone` and `dst_zone` based on Cisco / PAN zone names. For OT IDS data, ensure the asset-to-zone mapping is populated from UC-22.59.3 output.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.4: IMO IT/OT Boundary Drift]\ncron_schedule = 5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.4,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`drift_indicator=true AND packet_count >= 100`** (owner: Fleet Cyber Lead, severity P1): Within 1 hour, validate the flow's intent with the vessel's Master / IT officer; if not approved, isolate the source via firewall change-request; complete root-cause within 24h.\n\n## Step 5 — Maritime-specific notes\n\n- **Satcom failover**: a VSAT failover to Iridium during atmospheric attenuation may briefly route administrative traffic differently; allow the Iridium-only window via a sat-coverage lookup.\n- **Port-side container-stack**: cargo-discharge windows can introduce port-network traffic transiting the vessel; the baseline must explicitly enumerate the port-side flow.\n- **Engine OEM remote support**: a vendor-cloud session from Wartsila Online Services, Kongsberg CloudPort, or ABB Marine OneView must be baseline-allowed with a finite TTL.",
+  "grandmaExplanation": "On a ship, the office computers must be kept separate from the bridge, engine room, and cargo systems — otherwise a virus on email can shut down the engines. We watch the dividing wall between these networks and ring the alarm if anything crosses without permission.",
+  "prerequisiteUseCases": [
+    "UC-22.59.3"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -92,72 +168,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "spl": "| tstats summariesonly=t count from datamodel=Network_Traffic where (Network_Traffic.src_zone=\"administrative\" OR Network_Traffic.dst_zone=\"administrative\") AND (Network_Traffic.src_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\") OR Network_Traffic.dst_zone IN (\"ibs\",\"ins\",\"gmdss\",\"ais\",\"ecdis\",\"propulsion\",\"cargo-control\")) by Network_Traffic.imo_number Network_Traffic.src_zone Network_Traffic.dst_zone Network_Traffic.transport Network_Traffic.action\n| rename Network_Traffic.* AS *\n| lookup imo_ibs_baseline_lookup imo_number src_zone dst_zone protocol AS transport OUTPUT action AS baseline_action baseline_hash\n| eval baseline_match = case(\n    isnull(baseline_action), \"false\",\n    baseline_action != action, \"false\",\n    1=1, \"true\")\n| eval drift_indicator = if(baseline_match=\"false\", \"true\", \"false\")\n| where drift_indicator = \"true\"\n| stats sum(count) as packet_count by imo_number src_zone dst_zone transport action baseline_match drift_indicator\n| sort 0 -packet_count",
-  "description": "Continuously verifies that traffic between administrative-LAN and OT zones (IBS, INS, GMDSS, AIS, ECDIS, propulsion, cargo-control) matches the per-vessel baseline policy. Drift (unapproved flow) raises a notable within 1 hour.",
-  "value": "Most ransomware that has reached shipboard OT did so by exploiting a weak IT/OT boundary on the satcom-LAN side. MV Maersk Honam, MV Cosco Pacific, and the 2017 NotPetya impact on shore-side fleet ops were all enabled by lateral movement through inadequately segregated networks. This UC catches the boundary drift before the attacker uses it.",
-  "implementation": "(1) Build the per-vessel `imo_ibs_baseline_lookup` from the firewall configuration (PAN, FortiGate, Cisco ASA/FTD) using `outputlookup` on a monthly cadence. (2) Seed Network_Traffic data model with vessel-aware enrichment via FIELDALIAS on `imo_number`. (3) Schedule UC-22.59.4 hourly; route `drift_indicator=true` with packet_count >= 100 to the CISO + Fleet Cyber Lead at severity P1.",
-  "visualization": "(Panel 1) IT/OT drift count per vessel (last 24h). (Panel 2) Per-zone heatmap (src x dst x action). (Panel 3) Open drift sorted by packet_count. (Panel 4) Baseline-coverage trend over 30 days.",
-  "cimModels": [
-    "Network_Traffic",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §2.2 Protect",
-      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
-    },
-    {
-      "title": "IACS UR E26 — Cyber resilience of ships, network architecture",
-      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
-    },
-    {
-      "title": "BIMCO Guidelines — Network architecture",
-      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
-    }
-  ],
-  "knownFalsePositives": "1. **Approved engineering window**: scheduled engineering changes (firewall rule deployment, OEM remote support) that are pre-approved in ServiceNow; suppress with change-ticket reference. 2. **Class society remote audit**: a recognised organisation may legitimately reach OT systems through a controlled jump-host during a remote audit; treat as a baseline-approved flow with finite TTL. 3. **NTP time-sync**: a single one-way NTP query is normal and should be in the baseline.\n\n**Suppression mechanism**: KV Store `imo_22_59_4_exceptions` with the CISO's documented approval and ServiceNow change-ticket reference.",
-  "requiredFields": [
-    "imo_number",
-    "src_zone",
-    "dst_zone",
-    "drift_indicator",
-    "packet_count"
-  ],
-  "lastReviewed": "2026-05-14",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Maritime Cyber SME Panel + Network Architect + Fleet Cyber Lead",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "palo-alto",
-    "cisco-cyber-vision",
-    "claroty",
-    "nozomi"
-  ],
-  "equipmentModels": [
-    "Palo Alto PA-220R / PA-440 (ruggedised maritime)",
-    "Fortinet FortiGate-60F / 100F (onboard)",
-    "Cisco ISA-3000 (ruggedised industrial)",
-    "Cisco Catalyst IE3300 (rugged maritime switch)",
-    "Cisco Cyber Vision Sensor IC3000",
-    "Claroty Continuous Threat Detection (CTD) appliance",
-    "Nozomi Networks Guardian (appliance)"
-  ],
-  "mitreAttack": [
-    "T1133",
-    "T0843",
-    "T0830"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.59.3"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3 in production providing per-vessel asset inventory.\n- Firewall/NGFW deployment onboard with logs forwarded to Splunk (PAN, FortiGate, Cisco ASA/FTD).\n- OT IDS deployment (Cisco Cyber Vision, Claroty CTD, Nozomi Guardian, or equivalent).\n- Network_Traffic CIM compliant data model on accelerated indexes.\n\n## Step 1 — Baseline KV Store\n\n```ini\n[imo_ibs_baseline_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.src_zone = string\nfield.dst_zone = string\nfield.protocol = string\nfield.action = string\nfield.baseline_hash = string\nfield.baseline_date = time\nfield.approver = string\nfield.exception_ticket = string\n```\n\n## Step 2 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall sourcetypes to set `src_zone` and `dst_zone` based on Cisco / PAN zone names. For OT IDS data, ensure the asset-to-zone mapping is populated from UC-22.59.3 output.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.59.4: IMO IT/OT Boundary Drift]\ncron_schedule = 5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.4,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s2-2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`drift_indicator=true AND packet_count >= 100`** (owner: Fleet Cyber Lead, severity P1): Within 1 hour, validate the flow's intent with the vessel's Master / IT officer; if not approved, isolate the source via firewall change-request; complete root-cause within 24h.\n\n## Step 5 — Maritime-specific notes\n\n- **Satcom failover**: a VSAT failover to Iridium during atmospheric attenuation may briefly route administrative traffic differently; allow the Iridium-only window via a sat-coverage lookup.\n- **Port-side container-stack**: cargo-discharge windows can introduce port-network traffic transiting the vessel; the baseline must explicitly enumerate the port-side flow.\n- **Engine OEM remote support**: a vendor-cloud session from Wartsila Online Services, Kongsberg CloudPort, or ABB Marine OneView must be baseline-allowed with a finite TTL.",
-  "grandmaExplanation": "On a ship, the office computers must be kept separate from the bridge, engine room, and cargo systems — otherwise a virus on email can shut down the engines. We watch the dividing wall between these networks and ring the alarm if anything crosses without permission."
+  "wave": "walk"
 }

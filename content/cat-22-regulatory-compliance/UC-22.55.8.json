@@ -35,6 +35,62 @@
   },
   "dataSources": "KV Store `rail_sr_implementation_lookup`. ServiceNow GRC SR-task records. SOAR `rail-sr-test-sync` playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail_sr_implementation_lookup\n| where sr_in_scope=true\n| eval sr_status = case(\n    isnull(sr_implemented_at), \"not_implemented\",\n    isnull(sr_test_passed_at), \"implemented_untested\",\n    sr_achieved_sl < sr_target_sl, \"sl_gap\",\n    isnull(sr_evidence_url) OR sr_evidence_url=\"\", \"evidence_missing\",\n    1=1, \"compliant\")\n| where sr_status != \"compliant\"\n| table sr_id sr_iec_reference zone_id sr_target_sl sr_achieved_sl sr_implemented_at sr_implemented_by sr_test_passed_at sr_evidence_url sr_status",
+  "description": "Audits every in-scope SR against its target SL with implementation, test, and evidence records.",
+  "value": "Without SR-level instrumentation, the operator cannot show how SL-T translates into deployed controls. NB will check this on every assessment.",
+  "implementation": "(1) Map IEC 62443-3-3 SRs to operator zones in `rail_sr_implementation_lookup`. (2) Engineering implements SRs; QA tests; evidence stored. (3) Schedule UC-22.55.8 weekly Monday 05:00.",
+  "visualization": "(Panel 1) SR coverage matrix (zone vs SR). (Panel 2) Gap queue. (Panel 3) Achievement vs target trend.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "IEC 62443-3-3 — System security requirements",
+      "url": "https://webstore.iec.ch/publication/7033"
+    },
+    {
+      "title": "CLC/TS 50701:2021 clause 7.2",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    }
+  ],
+  "knownFalsePositives": "1. **Compensating control** — SR may have approved compensating control; tag `sr_status_override=compensating_control_approved`.\n\n**Suppression mechanism**: KV Store `clc_22_55_8_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
+  "mitreAttack": [
+    "N/A (system-requirement governance)"
+  ],
+  "requiredFields": [
+    "sr_id",
+    "zone_id",
+    "sr_target_sl",
+    "sr_achieved_sl",
+    "sr_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow GRC",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-sr-test-sync playbook)"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Rail Cybersecurity SME Panel + Signal Engineering Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_sr_implementation_lookup`.\n\n## Step 1 — SR collection\n\n```ini\n[rail_sr_implementation_lookup]\nenforceTypes = true\nfield.sr_id = string\nfield.sr_iec_reference = string\nfield.zone_id = string\nfield.sr_target_sl = number\nfield.sr_achieved_sl = number\nfield.sr_in_scope = bool\nfield.sr_implemented_at = number\nfield.sr_implemented_by = string\nfield.sr_test_passed_at = number\nfield.sr_evidence_url = string\n```\n\nIEC 62443-3-3 SRs include 100+ requirements across 7 FRs. The implementation maps each to operator zones.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.8: CLC/TS 50701 SR Implementation]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.8,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-2\naction.notable.param.rule_title = Rail SR implementation gap or SL shortfall\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `sl_gap`** (owner: Signal Engineering Lead, severity P2): close gap or escalate compensating control for approval.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Component-level CR fallback**: zone SR may be partially satisfied by component CRs (UC-22.55.9); document combined coverage.\n- **Safety-significant SRs**: SRs affecting safety-significant functions need EN 50126 coordination.",
+  "grandmaExplanation": "For each zone of our railway, we make a checklist of cyber-protections to install — like a recipe. The list comes from international rules. We tick off each one as we install it and test that it really works. If anything is missing or weaker than required, the team is alerted.",
+  "prerequisiteUseCases": [
+    "UC-22.55.7"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -58,60 +114,5 @@
       "requiresSmeReview": false
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
-  "spl": "| inputlookup rail_sr_implementation_lookup\n| where sr_in_scope=true\n| eval sr_status = case(\n    isnull(sr_implemented_at), \"not_implemented\",\n    isnull(sr_test_passed_at), \"implemented_untested\",\n    sr_achieved_sl < sr_target_sl, \"sl_gap\",\n    isnull(sr_evidence_url) OR sr_evidence_url=\"\", \"evidence_missing\",\n    1=1, \"compliant\")\n| where sr_status != \"compliant\"\n| table sr_id sr_iec_reference zone_id sr_target_sl sr_achieved_sl sr_implemented_at sr_implemented_by sr_test_passed_at sr_evidence_url sr_status",
-  "description": "Audits every in-scope SR against its target SL with implementation, test, and evidence records.",
-  "value": "Without SR-level instrumentation, the operator cannot show how SL-T translates into deployed controls. NB will check this on every assessment.",
-  "implementation": "(1) Map IEC 62443-3-3 SRs to operator zones in `rail_sr_implementation_lookup`. (2) Engineering implements SRs; QA tests; evidence stored. (3) Schedule UC-22.55.8 weekly Monday 05:00.",
-  "visualization": "(Panel 1) SR coverage matrix (zone vs SR). (Panel 2) Gap queue. (Panel 3) Achievement vs target trend.",
-  "cimModels": [
-    "Alerts",
-    "Change"
-  ],
-  "references": [
-    {
-      "title": "IEC 62443-3-3 — System security requirements",
-      "url": "https://webstore.iec.ch/publication/7033"
-    },
-    {
-      "title": "CLC/TS 50701:2021 clause 7.2",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
-    }
-  ],
-  "knownFalsePositives": "1. **Compensating control** — SR may have approved compensating control; tag `sr_status_override=compensating_control_approved`.\n\n**Suppression mechanism**: KV Store `clc_22_55_8_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
-  "requiredFields": [
-    "sr_id",
-    "zone_id",
-    "sr_target_sl",
-    "sr_achieved_sl",
-    "sr_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Signal Engineering Lead",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar"
-  ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "Splunk SOAR 6.x (Splunkbase 4413, rail-sr-test-sync playbook)",
-    "ServiceNow GRC"
-  ],
-  "mitreAttack": [
-    "N/A (system-requirement governance)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.55.7"
-  ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_sr_implementation_lookup`.\n\n## Step 1 — SR collection\n\n```ini\n[rail_sr_implementation_lookup]\nenforceTypes = true\nfield.sr_id = string\nfield.sr_iec_reference = string\nfield.zone_id = string\nfield.sr_target_sl = number\nfield.sr_achieved_sl = number\nfield.sr_in_scope = bool\nfield.sr_implemented_at = number\nfield.sr_implemented_by = string\nfield.sr_test_passed_at = number\nfield.sr_evidence_url = string\n```\n\nIEC 62443-3-3 SRs include 100+ requirements across 7 FRs. The implementation maps each to operator zones.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.8: CLC/TS 50701 SR Implementation]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.8,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-2\naction.notable.param.rule_title = Rail SR implementation gap or SL shortfall\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `sl_gap`** (owner: Signal Engineering Lead, severity P2): close gap or escalate compensating control for approval.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Component-level CR fallback**: zone SR may be partially satisfied by component CRs (UC-22.55.9); document combined coverage.\n- **Safety-significant SRs**: SRs affecting safety-significant functions need EN 50126 coordination.",
-  "grandmaExplanation": "For each zone of our railway, we make a checklist of cyber-protections to install — like a recipe. The list comes from international rules. We tick off each one as we install it and test that it really works. If anything is missing or weaker than required, the team is alerted."
+  "wave": "run"
 }

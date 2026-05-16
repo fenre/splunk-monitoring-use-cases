@@ -48,32 +48,6 @@
   },
   "dataSources": "SIS logic-solver logs ingested via OPC-UA / Modbus / dedicated SIS export (e.g., Siemens F-CPU / Honeywell Safety Manager / HIMA HIMax / Emerson DeltaV SIS / Yokogawa ProSafe-RS) to Splunk via the Splunk OT Security Add-on or vendor TA. Engineering workstation logs (operator authorisations, work-permit references). Document-management system events for procedure references. KV Store `iec_61511_sis_override_procedure_lookup` (sis_id, sif_id, procedure_ref, max_authorised_duration_min, escalation_authority).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk OT Security Add-on (Splunkbase 6849), Splunk Add-on for OPC UA (Splunkbase 4734).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 6849,
-      "name": "Splunk OT Security Add-on",
-      "url": "https://splunkbase.splunk.com/app/6849",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4734,
-      "name": "Splunk Add-on for OPC UA",
-      "url": "https://splunkbase.splunk.com/app/4734",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=ot_sis sourcetype IN (\"sis:override\",\"sis:bypass\",\"sis:logic_solver\") event_type IN (\"override_start\",\"override_end\",\"bypass_start\",\"bypass_end\")\n| transaction sis_id sif_id maxspan=24h startswith=eval(event_type IN (\"override_start\",\"bypass_start\")) endswith=eval(event_type IN (\"override_end\",\"bypass_end\"))\n| eval duration_actual_min = duration / 60\n| eval still_open = if(eventcount = 1, 1, 0)\n| lookup iec_61511_sis_override_procedure_lookup sis_id, sif_id OUTPUT procedure_ref, max_authorised_duration_min, escalation_authority\n| eval authorisation_present = if(isnotnull(authorised_by) AND authorised_by != \"\", 1, 0)\n| eval justification_present = if(isnotnull(business_justification) AND business_justification != \"\", 1, 0)\n| eval permit_ref_present = if(isnotnull(work_permit_ref) AND work_permit_ref != \"\", 1, 0)\n| eval duration_overrun = if(isnotnull(duration_actual_min) AND duration_actual_min > max_authorised_duration_min, 1, 0)\n| eval procedure_missing = if(isnull(procedure_ref), 1, 0)\n| eval still_open_overrun = if(still_open = 1 AND ((now() - _time) / 60) > max_authorised_duration_min, 1, 0)\n| eval risk_score = case(\n    authorisation_present = 0, 100,\n    still_open_overrun = 1, 100,\n    duration_overrun = 1, 95,\n    justification_present = 0, 85,\n    permit_ref_present = 0, 75,\n    procedure_missing = 1, 70,\n    still_open = 1, 30,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, -duration_actual_min\n| table sis_id sif_id event_type operator_id authorised_by business_justification work_permit_ref duration_actual_min max_authorised_duration_min still_open risk_score",
   "description": "Reconciles every SIS override / bypass event against the IEC 61511-1 Clause 11.7.6 discipline: (i) authorisation by a procedure-authorised operator, (ii) business-justification recorded, (iii) work-permit reference linked, (iv) duration within the procedure-mandated maximum, and (v) override closed at the end of the authorised window. Critical conditions: an override without an authorising operator (risk_score=100), or an override still open past its authorised duration (risk_score=100 — operator-discipline breach with direct safety-function-impairment risk).",
   "value": "IEC 61511 Clause 11.7.6 is the single most commonly cited finding in process-safety regulator audits (OSHA PSM CCNs, COMAH inspector reports, Seveso enforcement notices). 'Operators leave overrides engaged for shifts at a time' is the canonical post-incident finding. The audit-trail produced by this UC defends the operating organisation in a regulator-investigation and provides leading-indicator metrics to the Plant Safety Manager (overrides-engaged-time per shift, escalation-rate to shift supervisor) that correlate strongly with safety performance.",
@@ -98,6 +72,11 @@
     }
   ],
   "knownFalsePositives": "1. **Boot / startup transient**: a logic-solver reboot can briefly register override-start without a corresponding operator action — suppress with `boot_time_within_300s`. 2. **Proof-test bypass (UC-22.63.4)**: a bypass that is part of a documented proof-test procedure — load `proof_test_ref` and exclude from this UC's pipeline; UC-22.63.4 monitors proof-tests. 3. **Operator-on-leave handoff**: a long-running override that crosses shifts may be re-authorised by the incoming shift's supervisor — load `re_authorisation_chain_ref`.\n\n**Suppression mechanism**: KV Store `iec_61511_22_63_3_exceptions` with the Functional Safety Manager + Plant Manager documented approval, an explicit sis_id + sif_id + time-window scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "T0814",
+    "T0855",
+    "T0837"
+  ],
   "requiredFields": [
     "sis_id",
     "sif_id",
@@ -106,35 +85,58 @@
     "duration_actual_min",
     "risk_score"
   ],
+  "equipment": [
+    "modbus",
+    "opcua",
+    "splunk-es",
+    "splunk-ot"
+  ],
+  "equipmentModels": [
+    "Emerson DeltaV SIS",
+    "HIMA HIMax / HIQuad",
+    "Honeywell Safety Manager / SM5",
+    "Schneider Electric Modicon Quantum Safety / Tricon CX",
+    "Siemens SIMATIC F-CPU (S7-1500F / S7-400F)",
+    "Yokogawa ProSafe-RS"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Functional Safety Manager + Shift Supervisor + Plant Operations Manager",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-ot"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Siemens SIMATIC F-CPU (S7-1500F / S7-400F)",
-    "Honeywell Safety Manager / SM5",
-    "HIMA HIMax / HIQuad",
-    "Emerson DeltaV SIS",
-    "Yokogawa ProSafe-RS",
-    "Schneider Electric Modicon Quantum Safety / Tricon CX"
-  ],
-  "mitreAttack": [
-    "T0814",
-    "T0855",
-    "T0837"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- A vendor-specific TA for the deployed SIS logic-solver platform (Siemens / Honeywell / HIMA / Emerson / Yokogawa / Schneider).\n- An operator-authorisation system (typically the SIS engineering workstation or a paper / electronic permit-to-work system).\n\n## Step 1 - Override-procedure KV Store\n\n```ini\n[iec_61511_sis_override_procedure_lookup]\nenforceTypes = true\nfield.sis_id = string\nfield.sif_id = string\nfield.procedure_ref = string\nfield.max_authorised_duration_min = number\nfield.escalation_authority = string\n```\n\nSeed typical entries:\n\n```\nsis_id,sif_id,procedure_ref,max_authorised_duration_min,escalation_authority\nSIS-CRACKER-A,SIF-HHL-1,PROC-001-A,60,Shift-Supervisor\nSIS-CRACKER-A,SIF-HPHL-2,PROC-001-A,30,Plant-Manager\nSIS-COMPRESSOR-B,SIF-VIB-1,PROC-002-B,120,Shift-Supervisor\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.63.3: SIS Override and Bypass Register]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.3,reg=IEC-61511,clause=IEC-61511-Cl-11-7-6\nalert.severity = 5\n```\n\n## Step 3 - Functional-safety-specific notes\n\n- **Force counters**: many SIS platforms (Siemens F-CPU, HIMA) expose 'force counters' as Modbus tags — surface these as `sis:force_counter` for engineering verification.\n- **Plant-Manager escalation**: for SIL-3 SIF overrides, the escalation_authority should typically be the Plant Manager, not the Shift Supervisor — calibrate per the plant's safety-case.",
+  "grandmaExplanation": "Sometimes operators must temporarily turn off part of a safety system to do maintenance. We track every time this happens, make sure the right people approved it, that there is a written reason and time limit, and that it is turned back on within the allowed time.",
   "prerequisiteUseCases": [
     "UC-22.63.1",
     "UC-22.63.2"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- A vendor-specific TA for the deployed SIS logic-solver platform (Siemens / Honeywell / HIMA / Emerson / Yokogawa / Schneider).\n- An operator-authorisation system (typically the SIS engineering workstation or a paper / electronic permit-to-work system).\n\n## Step 1 - Override-procedure KV Store\n\n```ini\n[iec_61511_sis_override_procedure_lookup]\nenforceTypes = true\nfield.sis_id = string\nfield.sif_id = string\nfield.procedure_ref = string\nfield.max_authorised_duration_min = number\nfield.escalation_authority = string\n```\n\nSeed typical entries:\n\n```\nsis_id,sif_id,procedure_ref,max_authorised_duration_min,escalation_authority\nSIS-CRACKER-A,SIF-HHL-1,PROC-001-A,60,Shift-Supervisor\nSIS-CRACKER-A,SIF-HPHL-2,PROC-001-A,30,Plant-Manager\nSIS-COMPRESSOR-B,SIF-VIB-1,PROC-002-B,120,Shift-Supervisor\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.63.3: SIS Override and Bypass Register]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -2h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.63.3,reg=IEC-61511,clause=IEC-61511-Cl-11-7-6\nalert.severity = 5\n```\n\n## Step 3 - Functional-safety-specific notes\n\n- **Force counters**: many SIS platforms (Siemens F-CPU, HIMA) expose 'force counters' as Modbus tags — surface these as `sis:force_counter` for engineering verification.\n- **Plant-Manager escalation**: for SIL-3 SIF overrides, the escalation_authority should typically be the Plant Manager, not the Shift Supervisor — calibrate per the plant's safety-case.",
-  "grandmaExplanation": "Sometimes operators must temporarily turn off part of a safety system to do maintenance. We track every time this happens, make sure the right people approved it, that there is a written reason and time limit, and that it is turned back on within the allowed time."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6849,
+      "name": "Splunk OT Security Add-on",
+      "url": "https://splunkbase.splunk.com/app/6849",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4734,
+      "name": "Splunk Add-on for OPC UA",
+      "url": "https://splunkbase.splunk.com/app/4734",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

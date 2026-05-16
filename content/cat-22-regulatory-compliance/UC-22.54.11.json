@@ -35,26 +35,6 @@
   },
   "dataSources": "Wallet-custodian webhooks (`hec:fireblocks:broadcast`, `hec:bitgo:broadcast`, `hec:anchorage:broadcast`) or equivalent. Treasury Workstation outbound-payment confirmations (`hec:kyriba:debit`, `hec:fis:debit`, `hec:ion:debit`). SWIFT / FedWire / ACH confirmation feeds where applicable. `circia_ransom_payment_lookup` (from UC-22.54.3) updated by SOAR. Cross-reference to `circia_entity_register_lookup` for covered-entity validation.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "| inputlookup circia_ransom_payment_lookup\n| where isnotnull(payment_authorised_at) AND payment_authorised_at > relative_time(now(), \"-30d\")\n| join type=left payment_id [\n    search index=audit_evidence (sourcetype=\"hec:fireblocks:broadcast\" OR sourcetype=\"hec:bitgo:broadcast\" OR sourcetype=\"hec:anchorage:broadcast\" OR sourcetype=\"hec:kyriba:debit\" OR sourcetype=\"hec:fis:debit\" OR sourcetype=\"hec:ion:debit\") earliest=-30d@d\n    | rename _time AS broadcast_at\n    | eval payment_made_source = case(\n        sourcetype=\"hec:fireblocks:broadcast\", \"wallet_custodian_fireblocks\",\n        sourcetype=\"hec:bitgo:broadcast\", \"wallet_custodian_bitgo\",\n        sourcetype=\"hec:anchorage:broadcast\", \"wallet_custodian_anchorage\",\n        sourcetype=\"hec:kyriba:debit\", \"treasury_kyriba\",\n        sourcetype=\"hec:fis:debit\", \"treasury_fis\",\n        sourcetype=\"hec:ion:debit\", \"treasury_ion\",\n        1=1, \"unknown\")\n    | fields payment_id broadcast_at broadcast_tx_hash custodian_record_id treasury_record_id payment_made_source\n]\n| eval clock_lag_minutes = round((payment_made_at - broadcast_at) / 60, 1)\n| eval payment_clock_status = case(\n    isnotnull(broadcast_at) AND isnull(payment_made_at), \"event_received_register_not_updated\",\n    isnull(broadcast_at) AND isnotnull(payment_made_at), \"manual_stamp_unsupported\",\n    isnotnull(broadcast_at) AND isnotnull(payment_made_at) AND abs(clock_lag_minutes) <= 5, \"event_aligned\",\n    isnotnull(broadcast_at) AND isnotnull(payment_made_at) AND abs(clock_lag_minutes) > 5, \"event_drift\",\n    isnull(broadcast_at) AND isnull(payment_made_at), \"awaiting_broadcast\",\n    1=1, \"unknown\")\n| table payment_id payment_authorised_at payment_made_at broadcast_at clock_lag_minutes payment_made_source payment_currency payment_clock_status broadcast_tx_hash custodian_record_id treasury_record_id payer_legal_name",
   "description": "Joins ransom-payment register rows to wallet-custodian and treasury-workstation broadcast events to confirm the `payment_made_at` timestamp is sourced from the authoritative ledger, not from manual stamping. Surfaces register rows without broadcast support, broadcast events without register update, and clock drift between sources.",
   "value": "Without a wallet-custodian or treasury-workstation event tied to the register, the 24-hour clock relies on manual stamping by the CFO designate — which is error-prone and indefensible in CISA audit. This UC instruments the chain of custody: the payment is authorised in Treasury, broadcast on chain (or debited from the bank), the broadcast event is HEC'd, the register row is updated programmatically, and UC-22.54.3 starts the clock. Any break in that chain is surfaced.",
@@ -79,6 +59,9 @@
     }
   ],
   "knownFalsePositives": "1. **Custodian webhook delay** — a broadcast may occur but the webhook arrives minutes later. Suppression: `event_drift` with positive lag (register-after-event) up to 5 minutes is acceptable; investigate longer drift.\n\n2. **Manual stamp for non-instrumented payment** — if the organisation pays from an uninstrumented wallet (e.g. a one-off cold-wallet operation), the register row has no supporting event. Suppression: maintain `circia_22_54_11_manual_allowance_lookup` with explicit approval for known one-off operations; the dashboard surfaces the count for review.\n\n3. **Currency conversion timing** — USD-equivalent value at broadcast vs at confirmation may differ; the clock starts at broadcast, not at conversion. Suppression: not a false positive; the register uses broadcast time.\n\n**Suppression mechanism**: KV Store `circia_22_54_11_exceptions` with per-payment grants requiring documented CFO approval and a 7-day maximum grant.",
+  "mitreAttack": [
+    "T1486"
+  ],
   "requiredFields": [
     "payment_id",
     "payment_made_at",
@@ -86,32 +69,49 @@
     "payment_made_source",
     "payment_clock_status"
   ],
+  "equipment": [
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "Anchorage Digital Bank (webhook to Splunk HEC)",
+    "BitGo Trust + Custody (webhook to Splunk HEC)",
+    "Fireblocks SaaS wallet-custodian (webhook to Splunk HEC)",
+    "Kyriba Enterprise / FIS Quantum / ION Wallstreet Suite (outbound-payment confirmation to Splunk HEC)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, circia-ransom-payment-clock playbook)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "CIRCIA Compliance SME Panel + Treasury Director",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
-    "Splunk SOAR 6.x (Splunkbase 4413, circia-ransom-payment-clock playbook)",
-    "Fireblocks SaaS wallet-custodian (webhook to Splunk HEC)",
-    "BitGo Trust + Custody (webhook to Splunk HEC)",
-    "Anchorage Digital Bank (webhook to Splunk HEC)",
-    "Kyriba Enterprise / FIS Quantum / ION Wallstreet Suite (outbound-payment confirmation to Splunk HEC)"
-  ],
-  "mitreAttack": [
-    "T1486"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `circia-ransom-payment-clock` playbook.\n- Wallet-custodian webhook configuration (Fireblocks, BitGo, Anchorage) or operator cold-wallet event-emitter.\n- Treasury Workstation outbound-payment event-emitter.\n- KV Store `circia_ransom_payment_lookup` (from UC-22.54.3).\n\n## Step 1 — Configure wallet-custodian webhooks\n\nFor Fireblocks:\n\n```bash\ncurl -X POST https://api.fireblocks.io/v1/webhooks \\\n  -H \"X-API-Key: $FIREBLOCKS_KEY\" \\\n  -d '{\n    \"url\": \"https://<splunk-hec>:8088/services/collector\",\n    \"events\": [\"TRANSACTION_BROADCAST\"],\n    \"sourcetype\": \"hec:fireblocks:broadcast\",\n    \"index\": \"audit_evidence\"\n  }'\n```\n\nFor BitGo, configure similar webhook with `state=broadcasted` transition.\n\nFor Anchorage Digital, the bank's transaction-status feed provides broadcast timestamps in the API.\n\n## Step 2 — Configure treasury workstation outbound-payment events\n\nFor Kyriba:\n\n```bash\n# Kyriba Cloud Banking API\ncurl -X POST https://api.kyriba.com/v1/notifications \\\n  -H \"Authorization: Bearer $KYRIBA_TOKEN\" \\\n  -d '{\n    \"event\": \"PAYMENT_DEBITED\",\n    \"destination\": \"https://<splunk-hec>:8088/services/collector\",\n    \"sourcetype\": \"hec:kyriba:debit\"\n  }'\n```\n\nFor FIS Quantum and ION Wallstreet Suite, equivalent webhook configurations apply.\n\n## Step 3 — SOAR playbook `circia-ransom-payment-clock`\n\nOn HEC event arrival:\n\n```python\ndef on_payment_event(event):\n    payment_id = event.get(\"client_reference\") or event.get(\"customer_payment_id\")\n    if not payment_id:\n        return\n    # Verify payment is in the ransom register.\n    row = lookup_get(\"circia_ransom_payment_lookup\", payment_id)\n    if not row:\n        return\n    # Update register.\n    lookup_update(\"circia_ransom_payment_lookup\", payment_id, {\n        \"payment_made_at\": event[\"timestamp\"],\n        \"payment_made_source\": derive_source(event),\n        \"broadcast_tx_hash\": event.get(\"tx_hash\"),\n        \"custodian_record_id\": event.get(\"custodian_record_id\"),\n        \"treasury_record_id\": event.get(\"treasury_record_id\"),\n    })\n    # Trigger UC-22.54.3 SLA timer.\n    page_general_counsel_for_clock_start(payment_id)\n```\n\n## Step 4 — Create the search and alert\n\n```ini\n[UC-22.54.11: CIRCIA 24-Hour Ransom-Payment Clock Operationalisation]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.11,reg=CIRCIA,clause=CIRCIA-NPRM-24hr-ransom\naction.notable.param.rule_title = CIRCIA ransom-payment clock-start chain-of-custody anomaly\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 5 — Validate deployment\n\n**(a) Custodian webhook test**: in Fireblocks sandbox, broadcast a tiny test transaction; verify the HEC event arrives within 30 seconds and the register row updates.\n\n**(b) Manual stamp test**: directly update `payment_made_at` in the register without a corresponding HEC event; UC-22.54.11 must flag `manual_stamp_unsupported`.\n\n**(c) Drift test**: backdate the register `payment_made_at` to 30 minutes before the actual broadcast event; UC-22.54.11 must flag `event_drift`.\n\n## Step 6 — Operationalize\n\n**Runbook for `manual_stamp_unsupported`** (owner: Treasury Director, severity P2):\n\n1. Within 4 business hours: verify the payment was indeed broadcast / debited; if so, locate the supporting event (wallet log, SWIFT confirmation) and HEC it retroactively; document the gap.\n\n**Runbook for `event_drift > 5 min`** (owner: Treasury Director, severity P2):\n\n1. Within 1 business day: investigate the lag (custodian latency, network delay, retry); document for the ledger-of-record reconciliation.\n\n## Step 7 — Troubleshooting\n\n**Webhook failures silently drop events** — enable webhook retry on the custodian side; the wallet-custodian must guarantee at-least-once delivery.\n\n**Multiple events per payment** — some custodians fire BROADCAST then CONFIRMED events; the CIRCIA clock starts at BROADCAST. Ensure SOAR uses the first BROADCAST event.\n\n**Treasury workstation under maintenance** — if the workstation is down during a payment, the operator falls back to direct banking interface; the event must still flow.\n\n**CIRCIA-specific failure modes**:\n\n- **Cold-wallet operation**: if the operator uses a cold-wallet that is not custodian-managed, the operator must provide an equivalent event-emitter. Compliance requires the event chain.\n- **Multi-tranche payment**: each tranche has its own `payment_id` and its own clock; the custodian webhook fires per broadcast.\n- **Reversal / chargeback**: a chargeback or wallet-side reversal does not stop the CIRCIA clock; treat it as a supplemental-report trigger under UC-22.54.4.\n- **Insurance-carrier broadcast**: if the carrier broadcasts on the entity's behalf, the carrier's wallet-custodian must HEC into the entity's Splunk; this requires a carrier-side configuration step. Document in the carrier engagement letter.",
+  "grandmaExplanation": "When we pay a cyber-extortion, we record the exact moment money leaves the bank or the cryptocurrency hits the network — not just when a person clicked 'send'. We use the bank's or wallet's own records, not a human's stopwatch, so the cyber agency can trust the timestamp.",
   "prerequisiteUseCases": [
     "UC-22.54.3"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413) with `circia-ransom-payment-clock` playbook.\n- Wallet-custodian webhook configuration (Fireblocks, BitGo, Anchorage) or operator cold-wallet event-emitter.\n- Treasury Workstation outbound-payment event-emitter.\n- KV Store `circia_ransom_payment_lookup` (from UC-22.54.3).\n\n## Step 1 — Configure wallet-custodian webhooks\n\nFor Fireblocks:\n\n```bash\ncurl -X POST https://api.fireblocks.io/v1/webhooks \\\n  -H \"X-API-Key: $FIREBLOCKS_KEY\" \\\n  -d '{\n    \"url\": \"https://<splunk-hec>:8088/services/collector\",\n    \"events\": [\"TRANSACTION_BROADCAST\"],\n    \"sourcetype\": \"hec:fireblocks:broadcast\",\n    \"index\": \"audit_evidence\"\n  }'\n```\n\nFor BitGo, configure similar webhook with `state=broadcasted` transition.\n\nFor Anchorage Digital, the bank's transaction-status feed provides broadcast timestamps in the API.\n\n## Step 2 — Configure treasury workstation outbound-payment events\n\nFor Kyriba:\n\n```bash\n# Kyriba Cloud Banking API\ncurl -X POST https://api.kyriba.com/v1/notifications \\\n  -H \"Authorization: Bearer $KYRIBA_TOKEN\" \\\n  -d '{\n    \"event\": \"PAYMENT_DEBITED\",\n    \"destination\": \"https://<splunk-hec>:8088/services/collector\",\n    \"sourcetype\": \"hec:kyriba:debit\"\n  }'\n```\n\nFor FIS Quantum and ION Wallstreet Suite, equivalent webhook configurations apply.\n\n## Step 3 — SOAR playbook `circia-ransom-payment-clock`\n\nOn HEC event arrival:\n\n```python\ndef on_payment_event(event):\n    payment_id = event.get(\"client_reference\") or event.get(\"customer_payment_id\")\n    if not payment_id:\n        return\n    # Verify payment is in the ransom register.\n    row = lookup_get(\"circia_ransom_payment_lookup\", payment_id)\n    if not row:\n        return\n    # Update register.\n    lookup_update(\"circia_ransom_payment_lookup\", payment_id, {\n        \"payment_made_at\": event[\"timestamp\"],\n        \"payment_made_source\": derive_source(event),\n        \"broadcast_tx_hash\": event.get(\"tx_hash\"),\n        \"custodian_record_id\": event.get(\"custodian_record_id\"),\n        \"treasury_record_id\": event.get(\"treasury_record_id\"),\n    })\n    # Trigger UC-22.54.3 SLA timer.\n    page_general_counsel_for_clock_start(payment_id)\n```\n\n## Step 4 — Create the search and alert\n\n```ini\n[UC-22.54.11: CIRCIA 24-Hour Ransom-Payment Clock Operationalisation]\ncron_schedule = */5 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.11,reg=CIRCIA,clause=CIRCIA-NPRM-24hr-ransom\naction.notable.param.rule_title = CIRCIA ransom-payment clock-start chain-of-custody anomaly\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 5 — Validate deployment\n\n**(a) Custodian webhook test**: in Fireblocks sandbox, broadcast a tiny test transaction; verify the HEC event arrives within 30 seconds and the register row updates.\n\n**(b) Manual stamp test**: directly update `payment_made_at` in the register without a corresponding HEC event; UC-22.54.11 must flag `manual_stamp_unsupported`.\n\n**(c) Drift test**: backdate the register `payment_made_at` to 30 minutes before the actual broadcast event; UC-22.54.11 must flag `event_drift`.\n\n## Step 6 — Operationalize\n\n**Runbook for `manual_stamp_unsupported`** (owner: Treasury Director, severity P2):\n\n1. Within 4 business hours: verify the payment was indeed broadcast / debited; if so, locate the supporting event (wallet log, SWIFT confirmation) and HEC it retroactively; document the gap.\n\n**Runbook for `event_drift > 5 min`** (owner: Treasury Director, severity P2):\n\n1. Within 1 business day: investigate the lag (custodian latency, network delay, retry); document for the ledger-of-record reconciliation.\n\n## Step 7 — Troubleshooting\n\n**Webhook failures silently drop events** — enable webhook retry on the custodian side; the wallet-custodian must guarantee at-least-once delivery.\n\n**Multiple events per payment** — some custodians fire BROADCAST then CONFIRMED events; the CIRCIA clock starts at BROADCAST. Ensure SOAR uses the first BROADCAST event.\n\n**Treasury workstation under maintenance** — if the workstation is down during a payment, the operator falls back to direct banking interface; the event must still flow.\n\n**CIRCIA-specific failure modes**:\n\n- **Cold-wallet operation**: if the operator uses a cold-wallet that is not custodian-managed, the operator must provide an equivalent event-emitter. Compliance requires the event chain.\n- **Multi-tranche payment**: each tranche has its own `payment_id` and its own clock; the custodian webhook fires per broadcast.\n- **Reversal / chargeback**: a chargeback or wallet-side reversal does not stop the CIRCIA clock; treat it as a supplemental-report trigger under UC-22.54.4.\n- **Insurance-carrier broadcast**: if the carrier broadcasts on the entity's behalf, the carrier's wallet-custodian must HEC into the entity's Splunk; this requires a carrier-side configuration step. Document in the carrier engagement letter.",
-  "grandmaExplanation": "When we pay a cyber-extortion, we record the exact moment money leaves the bank or the cryptocurrency hits the network — not just when a person clicked 'send'. We use the bank's or wallet's own records, not a human's stopwatch, so the cyber agency can trust the timestamp."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

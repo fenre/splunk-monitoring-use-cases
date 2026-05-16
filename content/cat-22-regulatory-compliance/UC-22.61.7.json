@@ -35,32 +35,6 @@
   },
   "dataSources": "KV Store `cn_cbdt_approval_lookup` (approval_id, basis_type, source_system, destination_country, recipient, data_categories, approval_ref, valid_from, valid_until, last_supplementary_assessment_at, recipient_protections, owner). DPO workflow events (`dpo:workflow:event`). CAC submission and filing receipts (HEC `hec:cac:cbdt:submission`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup cn_cbdt_approval_lookup\n| eval now_ts = now()\n| eval days_to_expiry = if(isnotnull(valid_until), round((valid_until - now_ts) / 86400, 1), null())\n| eval days_since_supplementary_assessment = if(isnotnull(last_supplementary_assessment_at), round((now_ts - last_supplementary_assessment_at) / 86400, 1), null())\n| eval expired = if(isnotnull(valid_until) AND valid_until < now_ts, 1, 0)\n| eval expiring_at_risk = if(days_to_expiry > 0 AND days_to_expiry <= 90, 1, 0)\n| eval supp_assessment_overdue = if(isnull(last_supplementary_assessment_at) OR days_since_supplementary_assessment > 365, 1, 0)\n| eval recipient_protection_missing = if(basis_type IN (\"cac-standard-contract\",\"cac-security-assessment\") AND isnull(recipient_protections), 1, 0)\n| eval risk_score = case(\n    expired = 1, 100,\n    recipient_protection_missing = 1, 80,\n    expiring_at_risk = 1 AND days_to_expiry <= 30, 75,\n    expiring_at_risk = 1, 50,\n    supp_assessment_overdue = 1, 60,\n    1=1, 0)\n| where risk_score > 0\n| sort 0 -risk_score, +days_to_expiry\n| table approval_id basis_type source_system destination_country recipient data_categories valid_until days_to_expiry expired expiring_at_risk supp_assessment_overdue recipient_protection_missing risk_score",
   "description": "Reconciles every active cross-border personal-information transfer against the three PIPL Art. 38 bases. For each active basis, validates: (i) the basis is still within its validity window (CAC Security Assessment: 2 years; Standard Contract: not legally bounded but supplementary assessment required if recipient circumstances change; Certification: per the issuing body's terms), (ii) the recipient protection assertion is documented, (iii) the annual supplementary assessment has been performed. Surfaces expired, expiring (within 90 days), and at-risk records to the DPO and General Counsel.",
   "value": "PIPL Art. 66 sets the headline maximum fine at RMB 50 million or 5% of prior-year turnover. The Didi case in 2022 (RMB 8 billion / approx. USD 1.2 billion) is a precedent for cross-border-related enforcement. For multinationals routing PRC data through globally-deployed SaaS or analytics platforms (Salesforce, Workday, ServiceNow, Microsoft 365), every category of cross-border PI flow requires an explicit basis. An expired or missing basis is a regulator-discoverable liability that — for CIIOs and large processors — is treated as serious non-compliance.",
@@ -89,38 +63,64 @@
     }
   ],
   "knownFalsePositives": "1. **2024 CBDT Provisions exemptions**: certain low-volume transfers are now exempted from formal-basis requirements (e.g., own-employee HR data ≤100k subjects, cross-border contractual performance such as flight bookings or shipping waybills). Exemptions must be loaded with `basis_type=2024-provisions-exempt` and documented justification. 2. **Multi-basis transfers**: some transfers may have parallel bases (e.g., a Security Assessment for the bulk dataset + a Standard Contract for ad-hoc supplementary transfers); track each basis independently. 3. **CAC re-evaluation**: a Security Assessment under CAC re-evaluation may briefly be in `valid_until=under-review`; load the re-evaluation reference and treat as in-window during the review.\n\n**Suppression mechanism**: KV Store `cn_csl_22_61_7_exceptions` with the DPO + General Counsel documented approval, an explicit approval_id scope, an expiry date, and a written justification.",
+  "mitreAttack": [
+    "N/A (regulatory governance)"
+  ],
   "requiredFields": [
     "approval_id",
     "basis_type",
     "valid_until",
     "risk_score"
   ],
+  "equipment": [
+    "onetrust",
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "OneTrust Privacy Management",
+    "RSA Archer GRC",
+    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "TrustArc Privacy Platform"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-14",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "PRC Cybersecurity SME Panel + DPO + General Counsel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es",
-    "servicenow",
-    "onetrust"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "ServiceNow GRC (Vancouver / Washington / Xanadu)",
-    "OneTrust Privacy Management",
-    "RSA Archer GRC",
-    "TrustArc Privacy Platform"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory governance)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- DPO maintains a register of all active cross-border PI transfers with their lawful basis under PIPL Art. 38.\n- HEC for CAC submission and filing receipts.\n\n## Step 1 - CBDT approval KV Store\n\nReuses the `cn_cbdt_approval_lookup` from UC-22.61.4 with additional fields:\n\n```ini\n[cn_cbdt_approval_lookup]\nenforceTypes = true\nfield.approval_id = string\nfield.basis_type = string\nfield.source_system = string\nfield.destination_country = string\nfield.recipient = string\nfield.data_categories = string\nfield.approval_ref = string\nfield.valid_from = time\nfield.valid_until = time\nfield.last_supplementary_assessment_at = time\nfield.recipient_protections = string\nfield.owner = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.7: PIPL Cross-Border Basis Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.7,reg=CN-CSL,clause=PIPL-Art-38,basis=$basis_type$\nalert.severity = 4\n```\n\n## Step 3 - Renewal pipeline\n\n- 90 days before expiry: alert DPO at P2 to begin renewal.\n- 60 days before expiry: alert DPO + General Counsel at P2.\n- 30 days before expiry: alert CISO + DPO at P1.\n- 0 days (expired): alert CISO + CEO + Board at P1 + auto-freeze the underlying data flow via UC-22.61.4 enforcement.\n\n## Step 4 - PRC-specific notes\n\n- **Volume thresholds (2024 revisions)**: Mandatory CAC Security Assessment is now required for transfers of (i) any 'important data' (DSL definition), (ii) personal information of ≥1M subjects cumulatively, (iii) sensitive personal information of ≥10k subjects cumulatively. The Standard Contract and Certification routes cover lower-volume transfers.\n- **Free Trade Zone Negative-List**: some FTZ negative lists (Shanghai pilot, Tianjin pilot) carve out exemptions; check the relevant FTZ list and load exemptions explicitly.\n- **Recipient protections**: the recipient's local data-protection regime should be benchmarked against PIPL (e.g., GDPR essentially equivalent; CCPA partially equivalent; CIS / non-adequate countries require additional safeguards).",
+  "grandmaExplanation": "When a Chinese company sends personal information abroad, China gives them three legal paths: pass a government security review, sign a standard contract, or get certified. We make sure every cross-border flow has one of these paths active and renewed before it expires.",
   "prerequisiteUseCases": [
     "UC-22.61.4"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud.\n- DPO maintains a register of all active cross-border PI transfers with their lawful basis under PIPL Art. 38.\n- HEC for CAC submission and filing receipts.\n\n## Step 1 - CBDT approval KV Store\n\nReuses the `cn_cbdt_approval_lookup` from UC-22.61.4 with additional fields:\n\n```ini\n[cn_cbdt_approval_lookup]\nenforceTypes = true\nfield.approval_id = string\nfield.basis_type = string\nfield.source_system = string\nfield.destination_country = string\nfield.recipient = string\nfield.data_categories = string\nfield.approval_ref = string\nfield.valid_from = time\nfield.valid_until = time\nfield.last_supplementary_assessment_at = time\nfield.recipient_protections = string\nfield.owner = string\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.61.7: PIPL Cross-Border Basis Register]\ncron_schedule = 0 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.7,reg=CN-CSL,clause=PIPL-Art-38,basis=$basis_type$\nalert.severity = 4\n```\n\n## Step 3 - Renewal pipeline\n\n- 90 days before expiry: alert DPO at P2 to begin renewal.\n- 60 days before expiry: alert DPO + General Counsel at P2.\n- 30 days before expiry: alert CISO + DPO at P1.\n- 0 days (expired): alert CISO + CEO + Board at P1 + auto-freeze the underlying data flow via UC-22.61.4 enforcement.\n\n## Step 4 - PRC-specific notes\n\n- **Volume thresholds (2024 revisions)**: Mandatory CAC Security Assessment is now required for transfers of (i) any 'important data' (DSL definition), (ii) personal information of ≥1M subjects cumulatively, (iii) sensitive personal information of ≥10k subjects cumulatively. The Standard Contract and Certification routes cover lower-volume transfers.\n- **Free Trade Zone Negative-List**: some FTZ negative lists (Shanghai pilot, Tianjin pilot) carve out exemptions; check the relevant FTZ list and load exemptions explicitly.\n- **Recipient protections**: the recipient's local data-protection regime should be benchmarked against PIPL (e.g., GDPR essentially equivalent; CCPA partially equivalent; CIS / non-adequate countries require additional safeguards).",
-  "grandmaExplanation": "When a Chinese company sends personal information abroad, China gives them three legal paths: pass a government security review, sign a standard contract, or get certified. We make sure every cross-border flow has one of these paths active and renewed before it expires."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

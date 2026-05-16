@@ -35,6 +35,56 @@
   },
   "dataSources": "ServiceNow SIR with `csa_esci_in_scope`, `esci_designation_id`. KV Store `csa_esci_designation_lookup`. SOAR `csa_esci_submission`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" csa_esci_in_scope=true esci_reportable_category=*\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval csa_initial_at = strptime(csa_initial_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_to_initial = case(\n    isnotnull(csa_initial_at), round((csa_initial_at - awareness_time)/3600, 2),\n    1=1, round((now() - awareness_time)/3600, 2))\n| eval initial_status = case(\n    isnotnull(csa_initial_at) AND hours_to_initial <= 2, \"on_time\",\n    isnotnull(csa_initial_at) AND hours_to_initial > 2, \"late\",\n    isnull(csa_initial_at) AND hours_to_initial > 1.5, \"clock_burning\",\n    isnull(csa_initial_at) AND hours_to_initial > 2, \"missed\",\n    1=1, \"in_window\")\n| where initial_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id esci_designation_id awareness_time csa_initial_at hours_to_initial initial_status",
+  "description": "Mirror of UC-22.57.2 for ESCI scope.",
+  "value": "ESCI obligations are new under the 2024 amendment; pre-positioning reporting pipeline reduces compliance lag.",
+  "implementation": "Same as UC-22.57.2 with ESCI scoping.",
+  "visualization": "(Panel 1) ESCI clock-burn. (Panel 2) Submission performance. (Panel 3) Designation register.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity (Amendment) Act 2024 (ESCI provisions)",
+      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
+    }
+  ],
+  "knownFalsePositives": "1. **Threshold dispute**: ESCI threshold subject to Commissioner subsidiary legislation; capture documented determination.\n\n**Suppression mechanism**: KV Store `csa_22_57_10_exceptions`.",
+  "mitreAttack": [
+    "N/A (regulatory reporting)"
+  ],
+  "requiredFields": [
+    "incident_id",
+    "esci_designation_id",
+    "awareness_time",
+    "initial_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR",
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "CSA Compliance SME Panel + CC + ESCI Designated Officer",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.57.2 with ESCI register.\n\n## Step 1 — ESCI register\n\n```ini\n[csa_esci_designation_lookup]\nfield.esci_designation_id = string\nfield.entity_name = string\nfield.designation_date = number\nfield.designated_officer = string\nfield.scope = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.10: CSA ESCI Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.10,reg=SG-Cyber-Act,clause=CSA-ESCI-2024\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\nSame as UC-22.57.2.\n\n**SG-specific failure modes**:\n- **Threshold evolution**: monitor Commissioner subsidiary legislation for ESCI threshold changes.\n- **Confidential-designation**: ESCI status may be confidential; secure handling required.",
+  "grandmaExplanation": "The 2024 update added 'Entities of Special Cybersecurity Interest'. They have to tell the cyber agency within two hours of any major cyber event, just like the original critical systems.",
+  "prerequisiteUseCases": [
+    "UC-22.57.2"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -58,55 +108,5 @@
       "requiresSmeReview": true
     }
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
-  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" csa_esci_in_scope=true esci_reportable_category=*\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval csa_initial_at = strptime(csa_initial_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_to_initial = case(\n    isnotnull(csa_initial_at), round((csa_initial_at - awareness_time)/3600, 2),\n    1=1, round((now() - awareness_time)/3600, 2))\n| eval initial_status = case(\n    isnotnull(csa_initial_at) AND hours_to_initial <= 2, \"on_time\",\n    isnotnull(csa_initial_at) AND hours_to_initial > 2, \"late\",\n    isnull(csa_initial_at) AND hours_to_initial > 1.5, \"clock_burning\",\n    isnull(csa_initial_at) AND hours_to_initial > 2, \"missed\",\n    1=1, \"in_window\")\n| where initial_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id esci_designation_id awareness_time csa_initial_at hours_to_initial initial_status",
-  "description": "Mirror of UC-22.57.2 for ESCI scope.",
-  "value": "ESCI obligations are new under the 2024 amendment; pre-positioning reporting pipeline reduces compliance lag.",
-  "implementation": "Same as UC-22.57.2 with ESCI scoping.",
-  "visualization": "(Panel 1) ESCI clock-burn. (Panel 2) Submission performance. (Panel 3) Designation register.",
-  "cimModels": [
-    "Alerts"
-  ],
-  "references": [
-    {
-      "title": "Cybersecurity (Amendment) Act 2024 (ESCI provisions)",
-      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
-    }
-  ],
-  "knownFalsePositives": "1. **Threshold dispute**: ESCI threshold subject to Commissioner subsidiary legislation; capture documented determination.\n\n**Suppression mechanism**: KV Store `csa_22_57_10_exceptions`.",
-  "requiredFields": [
-    "incident_id",
-    "esci_designation_id",
-    "awareness_time",
-    "initial_status"
-  ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "CSA Compliance SME Panel + CC + ESCI Designated Officer",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "servicenow"
-  ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk SOAR 6.x",
-    "ServiceNow SIR"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory reporting)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.57.2"
-  ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.57.2 with ESCI register.\n\n## Step 1 — ESCI register\n\n```ini\n[csa_esci_designation_lookup]\nfield.esci_designation_id = string\nfield.entity_name = string\nfield.designation_date = number\nfield.designated_officer = string\nfield.scope = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.10: CSA ESCI Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.10,reg=SG-Cyber-Act,clause=CSA-ESCI-2024\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\nSame as UC-22.57.2.\n\n**SG-specific failure modes**:\n- **Threshold evolution**: monitor Commissioner subsidiary legislation for ESCI threshold changes.\n- **Confidential-designation**: ESCI status may be confidential; secure handling required.",
-  "grandmaExplanation": "The 2024 update added 'Entities of Special Cybersecurity Interest'. They have to tell the cyber agency within two hours of any major cyber event, just like the original critical systems."
+  "wave": "walk"
 }

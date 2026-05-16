@@ -35,25 +35,6 @@
   },
   "dataSources": "GRC ERP module, change-management for material-change events, WaterISAC threat-feed consumption log.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_erp_review_lookup pwsid OUTPUT erp_version erp_completed_at last_review_at next_review_due_at material_change_events post_incident_lessons_count threat_intel_updates_consumed\n| eval days_to_review_due = if(isnotnull(next_review_due_at), round((next_review_due_at - now()) / 86400, 0), null())\n| eval days_since_review = if(isnotnull(last_review_at), round((now() - last_review_at) / 86400, 0), null())\n| eval review_status = case(\n    isnull(last_review_at), \"never_reviewed\",\n    days_to_review_due < 0, \"overdue\",\n    days_to_review_due <= 90, \"approaching_due\",\n    coalesce(material_change_events, 0) > 0 AND days_since_review > 180, \"material_change_pending\",\n    coalesce(post_incident_lessons_count, 0) > 0 AND days_since_review > 90, \"post_incident_pending\",\n    1=1, \"current\")\n| table pwsid system_name erp_version erp_completed_at last_review_at days_since_review next_review_due_at days_to_review_due material_change_events post_incident_lessons_count threat_intel_updates_consumed review_status",
   "description": "Tracks the AWIA ERP review cycle and event-triggered revisions: a calendar trigger when 5 years have passed since the last review; a material-change trigger when a significant infrastructure or operations change has occurred since the last review; and a post-incident trigger when a real-world incident has produced lessons-learned that have not yet been folded into the ERP. Surfaces overdue and approaching-due cycles, plus material-change and post-incident backlogs.",
   "value": "ERPs decay quickly. EPA AWIA reviewers explicitly test whether a recent infrastructure change or incident lesson is reflected. This UC ensures both calendar and event triggers fire on time.",
@@ -77,20 +58,15 @@
     }
   ],
   "knownFalsePositives": "1. **Material change is non-utility** — e.g. corporate brand refresh; not an ERP trigger.\n\n**Suppression**: `awia_22_53_16_exceptions`; max 90-day.",
+  "mitreAttack": [
+    "N/A (review cadence governance)"
+  ],
   "requiredFields": [
     "pwsid",
     "last_review_at",
     "next_review_due_at",
     "review_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "AWIA Compliance SME Panel",
-  "status": "verified",
-  "wave": "walk",
   "equipment": [
     "servicenow",
     "splunk-es"
@@ -100,12 +76,36 @@
     "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
-  "mitreAttack": [
-    "N/A (review cadence governance)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "AWIA Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.3 deployed.\n- Splunk ES, ServiceNow add-on.\n- Lookup `awia_erp_review_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes the row on every ERP refresh and on every material-change event captured in the change-management system.\n\n## Step 2 — Create the search and alert\n\nWeekly Tuesday 07:30.\n\n```ini\n[UC-22.53.16: AWIA ERP Review]\ncron_schedule = 30 7 * * 2\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.16,reg=AWIA,clause=AWIA-ERP-review\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: 5y+30d stale; UC fires.  Negative: refreshed; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — ERP Review`. Runbook: 90-day window for review; material-change pending must be cleared within 180 days.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — material-change flagging false positive**: the ServiceNow change-management module marks every Standard Change as `material_change=true` by default. Mitigation: scope the `material_change_events` count to changes with `cmdb_ci_category in (\"water_treatment\",\"distribution\",\"scada\",\"plc\",\"hmi\",\"chemical_dosing\")` and exclude `change_type=\"standard_administrative\"`.\n- **ServiceNow GRC — ERP version field overwrite**: editors typing into the ERP record without first incrementing the `erp_version` field cause `last_review_at` to drift without a corresponding version change. Mitigation: lock the record with a Business Rule that requires `erp_version` to advance before `last_review_at` can be written.\n- **Veeva Vault QualityDocs — alternative document control**: where the ERP is governed in Veeva Vault rather than ServiceNow, the `version_history.json` API export must be re-mapped to the lookup. Mitigation: schedule a 1-hour scripted-input against `vault.veeva.com/api/v22.3/objects/documents` filtered by `document_type=ERP`.\n- **Splunk ES 7.x — weekly schedule drift**: the scheduler's `dispatch.lookups_*` setting can defer the lookup join when the lookup is large. Mitigation: pre-warm with `| inputlookup append=t awia_erp_review_lookup` before the join, and verify Tuesday-morning runs land within the alerting window.\n\n**AWIA-specific failure modes**:\n\n- **5-year-cycle alignment**: ERP cycle aligns to RRA cycle; if utility recertifies RRA early, ERP review may also advance.\n- **Sanitary-survey-driven review**: a state cybersecurity-in-sanitary-survey finding may trigger an ERP refresh; cross-reference UC-22.53.18.\n- **WaterISAC threat-intel surge**: a wave of CISA / WaterISAC advisories (e.g. AA23-335A water-sector PLC compromise) constitutes a `threat_intel_updates_consumed` event; the ERP cyber appendix must be refreshed within 90 days of accepting the advisory.\n- **EPA Regional WPC request**: where the EPA Regional Water Protection Coordinator asks for an ERP update following an incident in a neighbouring system, that request is itself an event trigger captured as `material_change_events`.",
+  "grandmaExplanation": "An emergency plan that sits in a drawer is useless. The law says we review it every 5 years and any time something big changes — like a new plant, a real incident, or a major threat warning. We watch the calendar and the change log; if a review is overdue or a big change hasn't been folded in, we ring the bell.",
   "prerequisiteUseCases": [
     "UC-22.53.3"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.3 deployed.\n- Splunk ES, ServiceNow add-on.\n- Lookup `awia_erp_review_lookup`.\n\n## Step 1 — Configure data collection\n\nGRC writes the row on every ERP refresh and on every material-change event captured in the change-management system.\n\n## Step 2 — Create the search and alert\n\nWeekly Tuesday 07:30.\n\n```ini\n[UC-22.53.16: AWIA ERP Review]\ncron_schedule = 30 7 * * 2\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.16,reg=AWIA,clause=AWIA-ERP-review\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: 5y+30d stale; UC fires.  Negative: refreshed; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — ERP Review`. Runbook: 90-day window for review; material-change pending must be cleared within 180 days.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — material-change flagging false positive**: the ServiceNow change-management module marks every Standard Change as `material_change=true` by default. Mitigation: scope the `material_change_events` count to changes with `cmdb_ci_category in (\"water_treatment\",\"distribution\",\"scada\",\"plc\",\"hmi\",\"chemical_dosing\")` and exclude `change_type=\"standard_administrative\"`.\n- **ServiceNow GRC — ERP version field overwrite**: editors typing into the ERP record without first incrementing the `erp_version` field cause `last_review_at` to drift without a corresponding version change. Mitigation: lock the record with a Business Rule that requires `erp_version` to advance before `last_review_at` can be written.\n- **Veeva Vault QualityDocs — alternative document control**: where the ERP is governed in Veeva Vault rather than ServiceNow, the `version_history.json` API export must be re-mapped to the lookup. Mitigation: schedule a 1-hour scripted-input against `vault.veeva.com/api/v22.3/objects/documents` filtered by `document_type=ERP`.\n- **Splunk ES 7.x — weekly schedule drift**: the scheduler's `dispatch.lookups_*` setting can defer the lookup join when the lookup is large. Mitigation: pre-warm with `| inputlookup append=t awia_erp_review_lookup` before the join, and verify Tuesday-morning runs land within the alerting window.\n\n**AWIA-specific failure modes**:\n\n- **5-year-cycle alignment**: ERP cycle aligns to RRA cycle; if utility recertifies RRA early, ERP review may also advance.\n- **Sanitary-survey-driven review**: a state cybersecurity-in-sanitary-survey finding may trigger an ERP refresh; cross-reference UC-22.53.18.\n- **WaterISAC threat-intel surge**: a wave of CISA / WaterISAC advisories (e.g. AA23-335A water-sector PLC compromise) constitutes a `threat_intel_updates_consumed` event; the ERP cyber appendix must be refreshed within 90 days of accepting the advisory.\n- **EPA Regional WPC request**: where the EPA Regional Water Protection Coordinator asks for an ERP update following an incident in a neighbouring system, that request is itself an event trigger captured as `material_change_events`.",
-  "grandmaExplanation": "An emergency plan that sits in a drawer is useless. The law says we review it every 5 years and any time something big changes — like a new plant, a real incident, or a major threat warning. We watch the calendar and the change log; if a review is overdue or a big change hasn't been folded in, we ring the bell."
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

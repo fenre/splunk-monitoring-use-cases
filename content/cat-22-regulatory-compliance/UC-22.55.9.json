@@ -35,18 +35,6 @@
   },
   "dataSources": "KV Store `rail_cr_compliance_lookup`. Vendor attestation documents stored with signed metadata. Cross-reference to `rail_asset_inventory_lookup` (UC-22.55.3) for asset-to-component linkage.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_cr_compliance_lookup\n| where component_status=\"commissioned\"\n| eval cr_status = case(\n    isnull(vendor_attestation_signed_at), \"vendor_attestation_missing\",\n    isnull(cr_achieved_sl), \"cr_unmeasured\",\n    cr_achieved_sl < cr_target_sl, \"sl_gap\",\n    cr_iec_4_2_compliance=\"non_compliant\", \"non_compliant\",\n    1=1, \"compliant\")\n| where cr_status != \"compliant\"\n| table component_id asset_id cr_target_sl cr_achieved_sl cr_iec_4_2_compliance vendor_attestation_signed_at vendor_attestation_signed_by cr_status",
   "description": "Verifies every commissioned cyber-relevant component has vendor attestation and CR achievement against IEC 62443-4-2.",
   "value": "Component-level CR is where supplier accountability meets operator verification. NB will inspect the attestation chain during assessment.",
@@ -67,34 +55,46 @@
     }
   ],
   "knownFalsePositives": "1. **Vendor in IEC certification process** — vendor may have ISA Secure / TUV certification in progress. Suppression: `cr_status_override=certification_pending`.\n\n**Suppression mechanism**: KV Store `clc_22_55_9_exceptions` with documented Procurement-Cybersecurity-Lead approval and 180-day maximum grant.",
+  "mitreAttack": [
+    "N/A (component-security-requirement governance)"
+  ],
   "requiredFields": [
     "component_id",
     "cr_target_sl",
     "cr_achieved_sl",
     "cr_status"
   ],
-  "lastReviewed": "2026-05-13",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "reviewer": "Rail Cybersecurity SME Panel + Procurement Cybersecurity Lead",
-  "status": "verified",
-  "wave": "run",
   "equipment": [
     "splunk-es"
   ],
   "equipmentModels": [
     "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
   ],
-  "mitreAttack": [
-    "N/A (component-security-requirement governance)"
+  "status": "verified",
+  "lastReviewed": "2026-05-13",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
+  "reviewer": "Rail Cybersecurity SME Panel + Procurement Cybersecurity Lead",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_cr_compliance_lookup`.\n- Procurement intake workflow.\n\n## Step 1 — CR collection\n\n```ini\n[rail_cr_compliance_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.asset_id = string\nfield.component_status = string\nfield.cr_target_sl = number\nfield.cr_achieved_sl = number\nfield.cr_iec_4_2_compliance = string\nfield.vendor_attestation_signed_at = number\nfield.vendor_attestation_signed_by = string\nfield.vendor_attestation_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.9: CLC/TS 50701 CR Compliance]\ncron_schedule = 30 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.9,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-3\naction.notable.param.rule_title = Rail component CR gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `vendor_attestation_missing` or `sl_gap`** (owner: Procurement Cybersecurity Lead, severity P2): request attestation from vendor or escalate to engineering for compensating control.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **ISA Secure / TUV NORD certification**: prefer certified components; un-certified components require fuller documentation.\n- **Vendor lifecycle**: end-of-support components fail CR; coordinate with UC-22.55.25 decommissioning.",
+  "grandmaExplanation": "Every piece of computer equipment we buy for the railway must come with a manufacturer's signed promise saying 'this device has these cyber-protections built in'. We check every one against what we need; if a promise is missing or weaker than required, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.3",
     "UC-22.55.7",
     "UC-22.55.8"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_cr_compliance_lookup`.\n- Procurement intake workflow.\n\n## Step 1 — CR collection\n\n```ini\n[rail_cr_compliance_lookup]\nenforceTypes = true\nfield.component_id = string\nfield.asset_id = string\nfield.component_status = string\nfield.cr_target_sl = number\nfield.cr_achieved_sl = number\nfield.cr_iec_4_2_compliance = string\nfield.vendor_attestation_signed_at = number\nfield.vendor_attestation_signed_by = string\nfield.vendor_attestation_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.9: CLC/TS 50701 CR Compliance]\ncron_schedule = 30 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.9,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-3\naction.notable.param.rule_title = Rail component CR gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `vendor_attestation_missing` or `sl_gap`** (owner: Procurement Cybersecurity Lead, severity P2): request attestation from vendor or escalate to engineering for compensating control.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **ISA Secure / TUV NORD certification**: prefer certified components; un-certified components require fuller documentation.\n- **Vendor lifecycle**: end-of-support components fail CR; coordinate with UC-22.55.25 decommissioning.",
-  "grandmaExplanation": "Every piece of computer equipment we buy for the railway must come with a manufacturer's signed promise saying 'this device has these cyber-protections built in'. We check every one against what we need; if a promise is missing or weaker than required, the team is alerted."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

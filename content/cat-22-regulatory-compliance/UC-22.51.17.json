@@ -35,26 +35,6 @@
   },
   "dataSources": "`index=audit_evidence` UC-22.51.16 incident archives. SIRT system for incident lifecycle states (`servicenow:sirt:incident` or equivalent). NCA Haseen portal submission events (`nca:haseen:submission`) for the formal submission confirmation. Lookups: `ot_asset_inventory_lookup`, `nca_reportability_matrix.csv`.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk SOAR.",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=audit_evidence uc=22.51.16 earliest=-30d@d\n| dedup incident_id\n| eval first_seen=strptime(first_seen, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval decision_deadline = first_seen + 86400\n| eval submission_deadline = first_seen + 259200\n| join incident_id type=left [search index=sirt sourcetype=\"servicenow:sirt:incident\" earliest=-31d | dedup incident_id | table incident_id disposition decision_taken_at submission_filed_at evidence_pack_url nca_submission_id]\n| eval decision_taken_epoch = strptime(decision_taken_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval submission_filed_epoch = strptime(submission_filed_at, \"%Y-%m-%dT%H:%M:%S%z\")\n| lookup ot_asset_inventory_lookup asset_keys OUTPUT asset_criticality\n| lookup nca_reportability_matrix.csv classification severity_label asset_criticality OUTPUT ncareportable_flag\n| eval ncareportable_flag = coalesce(ncareportable_flag, \"false\")\n| eval decision_overdue_flag = case(\n    ncareportable_flag!=\"true\", \"false\",\n    isnotnull(decision_taken_epoch), \"false\",\n    now() > decision_deadline, \"true\",\n    1=1, \"false\")\n| eval submission_overdue_flag = case(\n    ncareportable_flag!=\"true\", \"false\",\n    disposition=\"false_positive\", \"false\",\n    isnotnull(submission_filed_epoch), \"false\",\n    now() > submission_deadline, \"true\",\n    1=1, \"false\")\n| eval missing_evidence_pack_flag = case(\n    ncareportable_flag!=\"true\", \"false\",\n    isnotnull(submission_filed_epoch) AND (isnull(evidence_pack_url) OR evidence_pack_url=\"\"), \"true\",\n    1=1, \"false\")\n| where ncareportable_flag=\"true\"\n| table incident_id classification severity_label first_seen ncareportable_flag decision_deadline submission_deadline disposition decision_taken_at submission_filed_at evidence_pack_url nca_submission_id decision_overdue_flag submission_overdue_flag missing_evidence_pack_flag\n| sort - submission_overdue_flag decision_overdue_flag first_seen",
   "description": "Tracks every UC-22.51.16 OT incident through the NCA reportability decision (24 hour internal SLA) and the 72-hour submission deadline, validates an evidence pack is referenced from the submission, and surfaces any overdue case.",
   "value": "Missing the 72-hour NCA reporting deadline is itself an OTCC violation, and is a regulator-flag that triggers heightened scrutiny on the entire programme. NCA inspections will pull this UC's history to verify every recorded incident was reported in time. This UC keeps the OT cybersecurity programme manager ahead of the deadline visibly and continuously.",
@@ -74,6 +54,9 @@
     }
   ],
   "knownFalsePositives": "1. **Late SIRT update** — the SIRT system may take up to 30 minutes to reflect a decision recorded by the analyst. Suppression: extend the search-window lag tolerance by 30 minutes via `decision_deadline + 1800`.\n\n2. **Weekend / public-holiday submission edge cases** — some incidents detected on a Friday afternoon may need careful handling of the 72-hour clock. NCA does not stop the clock for weekends. Suppression: do not extend deadlines for weekends; ensure on-call coverage. Document on-call rota in `ot_oncall_rota.csv`.\n\n3. **Multi-incident escalation merging** — if UC-22.51.16 merges two separate incidents into one mid-flight, the `first_seen` may shift. Suppression: persist a stable `ot_incident_first_seen` KV Store keyed on `incident_id` from the first time the incident appears.\n\n4. **NCA Haseen portal downtime** — the portal occasionally has scheduled maintenance. Suppression: document outage events in `audit_evidence` with `source=nca:haseen:outage_advisory` and exclude submissions overlapping outages from the overdue alert (still archive the deferral).\n\n**Suppression mechanism**: KV Store `otcc_22_51_17_exceptions` for documented justified deferrals.",
+  "mitreAttack": [
+    "N/A (regulator-reporting workflow — measures reporting cadence and submission integrity rather than adversary technique detection)"
+  ],
   "requiredFields": [
     "incident_id",
     "classification",
@@ -81,29 +64,47 @@
     "first_seen",
     "asset_keys"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "NCA Hassantuk / SIRT submission portal (regulator-side submission endpoint)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, SIRT incident table sync)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, notable lifecycle + suppression workflow)",
+    "Splunk SOAR 6.x (Splunkbase 3411, automated NCA reporting playbook with portal upload)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
-  ],
-  "mitreAttack": [
-    "N/A (regulator-reporting workflow — measures reporting cadence and submission integrity rather than adversary technique detection)"
-  ],
-  "prerequisiteUseCases": [
-    "UC-22.51.16"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.51.16 deployed and writing incident archives to `audit_evidence`.\n- SIRT system (ServiceNow SIRT module, IBM Resilient, Atlassian Jira Service Management) integrated. Each incident_id from UC-22.51.16 is created as a SIRT case automatically by the OTCC_Incident_Triage playbook.\n- NCA Haseen portal API: Saudi Arabia's National Cybersecurity Authority operates the Haseen incident-notification portal. Each licensed entity has an API client_id/secret. Configure an outbound HTTPS API gateway to receive a submission confirmation event whenever the portal confirms the submission. The confirmation event lands in `index=audit_evidence` with `source=nca:haseen:submission`, carrying `nca_submission_id`, `submission_filed_at`, `evidence_pack_url`.\n- `nca_reportability_matrix.csv` — owned by Head of OT Security. Aligns the local classification and severity to NCA's notification thresholds. Example:\n\n  ```csv\n  classification,severity_label,asset_criticality,ncareportable_flag\n  safety,critical,critical,true\n  safety,critical,high,true\n  safety,high,critical,true\n  integrity,critical,critical,true\n  integrity,high,critical,true\n  integrity,high,high,true\n  availability,critical,critical,true\n  availability,high,critical,true\n  confidentiality,critical,critical,true\n  confidentiality,high,critical,true\n  ```\n\n- Lookups: `ot_asset_inventory_lookup`, `ot_oncall_rota.csv`, KV Store `otcc_22_51_17_exceptions`.\n\n## Step 1 — Configure data flow\n\nSIRT incident lifecycle: each disposition decision (`true_positive`, `false_positive`, `non_security`, `not_reportable`, `under_investigation`) writes a row to `index=sirt sourcetype=\"servicenow:sirt:incident\"` with timestamps. The Splunk Add-on for ServiceNow polls the SIRT table every 5 minutes.\n\nNCA Haseen API gateway: a thin Lambda or middleware service exposes an internal endpoint `/submit-incident` that the SIRT system or a SOAR playbook calls when the OT cybersecurity programme manager files the submission. The middleware:\n\n1. Validates the payload against the NCA Haseen schema.\n2. Calls the NCA API with the entity's signed credentials.\n3. Receives the NCA submission_id and writes a confirmation event back to Splunk via HEC into `audit_evidence` with sourcetype `nca:haseen:submission`.\n4. Stores the evidence-pack PDF in a write-only S3 bucket and emits the URL.\n\nValidate end-to-end:\n\n```spl\nindex=audit_evidence sourcetype=nca:haseen:submission earliest=-30d\n| stats count by nca_submission_id\n```\n\nNon-zero indicates the pipeline has carried submissions correctly.\n\n## Step 2 — Create the search and alert\n\nThe search loads every UC-22.51.16 incident from the last 30 days, computes the two deadlines based on `first_seen + 86400` (24 hours) and `first_seen + 259200` (72 hours), joins SIRT to get the disposition and the human-recorded timestamps, and computes three overdue flags.\n\n**Schedule**:\n\n```ini\n[UC-22.51.17: OT Cybersecurity Incident Reporting to NCA: Deadline and Evidence Pack Tracking]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -30d@d\ndispatch.latest_time = now\nactions = summary_index, notable, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.17,reg=NCA_OTCC,clause=OTCC-2-13-2-1\naction.notable.param.rule_title = NCA OTCC reporting overdue\naction.notable.param.security_domain = compliance\naction.notable.param.severity = critical\naction.email.to = ot-cyber-programme@example.com,head-of-ot-security@example.com,ot-legal@example.com\nalert.severity = 5\n```\n\nNotable creation on any overdue flag. Email to legal counsel is critical because NCA delay is a regulatory event with material implications.\n\nIn parallel, a separate scheduled SOAR playbook runs at T-2h before each deadline (T+22h and T+70h) to raise pre-emptive tickets. The playbook reads UC-22.51.17 output and uses incident_id and deadlines to schedule its own actions.\n\n## Step 3 — Validate deployment\n\n**(a) Reportability matrix coverage**:\n\n```spl\n| inputlookup nca_reportability_matrix.csv\n| stats count by classification\n```\n\nFour categories should be present.\n\n**(b) SIRT integration health**:\n\n```spl\nindex=sirt sourcetype=\"servicenow:sirt:incident\" earliest=-1d\n| stats count by disposition\n```\n\nNon-zero on `true_positive`, `false_positive`, etc.\n\n**(c) Submission-pipeline health**:\n\n```spl\nindex=audit_evidence sourcetype=nca:haseen:submission earliest=-90d\n| stats count\n```\n\nNon-zero means the pipeline has carried submissions. Zero may mean either no submissions in 90 days (possibly correct for a low-incident period) or pipeline broken.\n\n**(d) Positive control**: per `controlTest.positiveScenario`. Confirm the alerts fire on the right schedule.\n\n**(e) Negative control**: per `controlTest.negativeScenario`. Confirm no alert.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `NCA OTCC – Incident Reporting`.\n\n- **Row 1, single values**: 'In-flight incidents', 'Decisions overdue', 'Submissions overdue', 'Submissions in last 90 days'.\n- **Row 2, table**: every in-flight incident with countdown to the next deadline; row turns red ≤2 hours.\n- **Row 3, submission funnel**: detected → decided → filed; per-step count.\n- **Row 4, 13-month trend**: count by classification, the steering-committee KPI.\n\n**Runbook for `decision_overdue_flag=true`** (owner: Head of OT Security, escalating to OT cybersecurity director):\n\n1. **Immediate**: review incident in the SIRT system. Make and record the reportability decision.\n2. If `true_positive AND ncareportable`: trigger the SOAR playbook for evidence-pack assembly. Schedule the 72-hour submission with the Haseen portal.\n3. If `false_positive` or `not_reportable`: record the rationale in SIRT. The alert clears on the next run.\n4. If decision genuinely needs more investigation time: escalate to OT cybersecurity director. Document the deferral in `otcc_22_51_17_exceptions` KV Store with a strict 6-hour additional window only.\n\n**Runbook for `submission_overdue_flag=true`** (owner: Head of OT Security with OT legal counsel):\n\n1. **Immediate**: open the Haseen portal. Determine whether the submission is in a draft state, awaiting evidence, or genuinely missed.\n2. If draft awaits evidence: chase the evidence-pack assembly. Reference UC-22.51.18 for required physical-evidence supplements.\n3. If genuinely missed: file the submission with apology and full causation in the same hour. Trigger an internal post-incident review.\n4. Notify OT cybersecurity director and CEO under the organisation's regulatory-escalation rules.\n\n## Step 5 — Troubleshooting\n\n**Reportability matrix rejects edge cases (e.g. critical-availability on a medium-asset)** — the matrix is necessarily simplified. For borderline cases, default to `ncareportable_flag=true` and let the analyst override to `false_positive` if appropriate.\n\n**SIRT disposition not flowing through** — typical cause: the ServiceNow TA's modular input dropped the new column. Check `index=_internal sourcetype=splunkd component=ExecProcessor` for parse errors and update the TA.\n\n**Haseen submission events not arriving** — the middleware may have stale credentials or NCA may have rotated their API. Test the middleware health endpoint; rotate credentials.\n\n**OT-specific failure modes**:\n\n- **Multi-jurisdictional operators**: a Saudi-licensed entity also operating in other GCC states may need parallel reporting to other regulators. Extend `nca_reportability_matrix.csv` with `reporting_authority` and clone the UC for each authority. The 24/72 deadlines may differ between regulators.\n- **Subcontractor-owned OT estate**: if a subcontractor operates the OT estate but the licensee is liable, ensure the contract obligates the subcontractor to report through the licensee's SIRT. Cross-reference UC-22.51.23 (third-party assurance).\n- **Confidential or classified incidents**: some incidents involve classified information; the standard evidence pack must be sanitised. Document the sanitisation procedure in `audit_evidence` with the sanitiser's identity.\n- **Cross-border data residency**: storing OT incident evidence outside KSA may violate data residency expectations. The S3 bucket holding evidence packs must be a KSA-resident region (e.g. AWS me-central-1).",
   "grandmaExplanation": "When the plant has a real cybersecurity incident, the law in Saudi Arabia says we have 24 hours to decide and 72 hours to tell the regulator. This rule watches the clock and rings the bell when we are running late or have not put the evidence together.",
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263, notable lifecycle + suppression workflow)",
-    "Splunk SOAR 6.x (Splunkbase 3411, automated NCA reporting playbook with portal upload)",
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, SIRT incident table sync)",
-    "NCA Hassantuk / SIRT submission portal (regulator-side submission endpoint)"
-  ]
+  "prerequisiteUseCases": [
+    "UC-22.51.16"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
 }

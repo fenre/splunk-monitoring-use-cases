@@ -35,25 +35,6 @@
   },
   "dataSources": "Rail-OT maintenance station audit logs (`rail:maintenance:audit`, depot programming-tool audit logs). KV Store `rail_maintenance_lookup`. CyberArk PAM session records (`cyberark:session`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Common Information Model Add-on (Splunkbase 1621).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 2891,
-      "name": "Splunk Add-on for CyberArk",
-      "url": "https://splunkbase.splunk.com/app/2891",
-      "role": "data-source",
-      "requiresSmeReview": false
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "| inputlookup rail_maintenance_lookup\n| where session_completed=\"true\"\n| eval maintenance_status = case(\n    isnull(technician_authenticated_at) OR technician_authenticated_at < session_start - 86400, \"technician_unauthenticated\",\n    security_posture_validated != \"true\", \"posture_validation_skipped\",\n    session_logging_active != \"true\", \"session_unlogged\",\n    1=1, \"compliant\")\n| where maintenance_status != \"compliant\"\n| table maintenance_session_id vehicle_id depot_id technician_id session_start session_end maintenance_status",
   "description": "Tracks rail-OT maintenance sessions for technician authentication, security-posture validation, and session logging.",
   "value": "Maintenance sessions on rail-OT are a high-risk vector for malicious code introduction; tight controls are required.",
@@ -71,34 +52,54 @@
     }
   ],
   "knownFalsePositives": "1. **Emergency-recovery maintenance** — emergency may need to bypass full posture validation. Suppression: post-event review and remediation, documented exception.\n\n**Suppression mechanism**: KV Store `clc_22_55_23_exceptions` with documented Head of Maintenance approval and 7-day maximum grant.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "requiredFields": [
     "maintenance_session_id",
     "vehicle_id",
     "depot_id",
     "maintenance_status"
   ],
+  "equipment": [
+    "cyberark",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Depot programming-tool stations (Siemens / Alstom / Bombardier / CAF / Stadler)",
+    "Splunk Add-on for CyberArk (Splunkbase 2891)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "Rail Cybersecurity SME Panel + Head of Rolling Stock Maintenance",
-  "status": "verified",
-  "wave": "run",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
-  "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)",
-    "Splunk Add-on for CyberArk (Splunkbase 2891)",
-    "Depot programming-tool stations (Siemens / Alstom / Bombardier / CAF / Stadler)"
-  ],
-  "mitreAttack": [
-    "T1078"
-  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for CyberArk.\n- Rail-OT maintenance-station log forwarding.\n\n## Step 1 — Maintenance collection\n\n```ini\n[rail_maintenance_lookup]\nenforceTypes = true\nfield.maintenance_session_id = string\nfield.vehicle_id = string\nfield.depot_id = string\nfield.technician_id = string\nfield.technician_authenticated_at = number\nfield.session_start = number\nfield.session_end = number\nfield.security_posture_validated = string\nfield.session_logging_active = string\nfield.session_completed = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.23: CLC/TS 50701 Rail Maintenance Cyber]\ncron_schedule = 0 9 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.23,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail maintenance posture deviation\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `posture_validation_skipped`** (owner: Depot Operations Manager, severity P2): pull vehicle out-of-service; re-validate posture; review.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **OBU/CBTC maintenance**: every patch session must validate signatures.\n- **Depot-network segmentation**: maintenance VLAN isolated from operational VLAN.",
+  "grandmaExplanation": "When mechanics work on the trains' computers, they must log in properly, check that their tools are safe, and record everything they do. If they skip a step, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.16"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for CyberArk.\n- Rail-OT maintenance-station log forwarding.\n\n## Step 1 — Maintenance collection\n\n```ini\n[rail_maintenance_lookup]\nenforceTypes = true\nfield.maintenance_session_id = string\nfield.vehicle_id = string\nfield.depot_id = string\nfield.technician_id = string\nfield.technician_authenticated_at = number\nfield.session_start = number\nfield.session_end = number\nfield.security_posture_validated = string\nfield.session_logging_active = string\nfield.session_completed = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.23: CLC/TS 50701 Rail Maintenance Cyber]\ncron_schedule = 0 9 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.23,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail maintenance posture deviation\naction.notable.param.security_domain = endpoint\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `posture_validation_skipped`** (owner: Depot Operations Manager, severity P2): pull vehicle out-of-service; re-validate posture; review.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **OBU/CBTC maintenance**: every patch session must validate signatures.\n- **Depot-network segmentation**: maintenance VLAN isolated from operational VLAN.",
-  "grandmaExplanation": "When mechanics work on the trains' computers, they must log in properly, check that their tools are safe, and record everything they do. If they skip a step, the team is alerted."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2891,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891",
+      "role": "data-source",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
 }

@@ -35,33 +35,6 @@
   },
   "dataSources": "ServiceNow SIR with `tsa_aviation_in_scope`, `tsa_reportable_category`, `affects_aoc` (airport operations centre), `faa_notification_time`. KV Store `tsa_aviation_operator_lookup`. SOAR `tsa_aviation_cisa_submission`. ARINC / SITA / DCS / IROps event feed.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "splunkbaseApps": [
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 4413,
-      "name": "Splunk SOAR",
-      "url": "https://splunkbase.splunk.com/app/4413",
-      "role": "premium",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security",
-    "Splunk SOAR"
-  ],
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_aviation_in_scope=true tsa_reportable_category=*\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval cisa_submission_time = strptime(cisa_submission_time, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval hours_to_submission = case(\n    isnotnull(cisa_submission_time), round((cisa_submission_time - awareness_time) / 3600, 2),\n    1=1, hours_since_awareness)\n| eval submission_status = case(\n    isnotnull(cisa_submission_time) AND hours_to_submission <= 24, \"on_time\",\n    isnotnull(cisa_submission_time) AND hours_to_submission > 24, \"late\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 23 AND hours_since_awareness <= 24, \"clock_burning\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 24, \"missed\",\n    1=1, \"in_window\")\n| eval faa_parallel = case(\n    affects_aoc=true AND isnotnull(faa_notification_time), \"notified\",\n    affects_aoc=true AND isnull(faa_notification_time), \"missing\",\n    1=1, \"na\")\n| where submission_status IN (\"clock_burning\",\"missed\",\"late\") OR faa_parallel=\"missing\"\n| table incident_id aviation_operator_id tsa_reportable_category awareness_time cisa_submission_time hours_to_submission submission_status affects_aoc faa_parallel",
   "description": "Aviation 24-hour reporting mirror with FAA parallel branch on AOC-affecting events.",
   "value": "Aviation operators face the most-scrutinized cyber-reporting regime in surface transport: CISA + FAA + TSA + state aviation authorities; missing the 24-hour clock invites multi-agency enforcement.",
@@ -85,36 +58,63 @@
     }
   ],
   "knownFalsePositives": "1. **GA/Part 91 operators**: not in TSA aviation SD scope; ensure the lookup excludes them.\n2. **Pre-NOTAM events**: an event affecting NOTAM but not yet causing a NOTAM still requires FAA notification; the CC's documented determination governs.\n\n**Suppression mechanism**: KV Store `tsa_22_56_11_exceptions`.",
+  "mitreAttack": [
+    "N/A (regulatory reporting)"
+  ],
   "requiredFields": [
     "incident_id",
     "aviation_operator_id",
     "awareness_time",
     "submission_status"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR",
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "TSA-SD Compliance SME Panel + CC + FAA Liaison + Airport Security Manager",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es",
-    "splunk-soar",
-    "servicenow"
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "equipmentModels": [
-    "Splunk ES 7.x",
-    "Splunk SOAR 6.x",
-    "ServiceNow SIR"
-  ],
-  "mitreAttack": [
-    "N/A (regulatory reporting)"
-  ],
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.9 plus aviation register and FAA integration.\n\n## Step 1 — Aviation operator register\n\n```ini\n[tsa_aviation_operator_lookup]\nfield.aviation_operator_id = string\nfield.operator_name = string\nfield.operator_type = string\nfield.tsa_in_scope = string\nfield.faa_part = string\n```\n\n## Step 2 — SOAR playbook `tsa_aviation_cisa_submission`\n\nMirrors `tsa_cisa_submission` with FAA Air Domain Intelligence Integration Element parallel-routing on `affects_aoc=true`.\n\n## Step 3 — Runbook\n\nSame as UC-22.56.1 with FAA branch.\n\n## Step 4 — Troubleshooting\n\n**AOC-affecting determination**: requires CC + Airport Security Manager judgment; capture rationale in the IR ticket.\n\n**TSA-specific failure modes**:\n- **Multi-airport airlines**: airline operating at 100+ airports must coordinate per-airport notification; centralize via SOAR.\n- **Code-share complexity**: code-share partner events may require cross-airline coordination.",
+  "grandmaExplanation": "Airports and airlines have the strictest cyber-reporting rules. We watch the clock for CISA, and if a flight-safety system is affected, we also tell the FAA right away.",
   "prerequisiteUseCases": [
     "UC-22.56.9"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.9 plus aviation register and FAA integration.\n\n## Step 1 — Aviation operator register\n\n```ini\n[tsa_aviation_operator_lookup]\nfield.aviation_operator_id = string\nfield.operator_name = string\nfield.operator_type = string\nfield.tsa_in_scope = string\nfield.faa_part = string\n```\n\n## Step 2 — SOAR playbook `tsa_aviation_cisa_submission`\n\nMirrors `tsa_cisa_submission` with FAA Air Domain Intelligence Integration Element parallel-routing on `affects_aoc=true`.\n\n## Step 3 — Runbook\n\nSame as UC-22.56.1 with FAA branch.\n\n## Step 4 — Troubleshooting\n\n**AOC-affecting determination**: requires CC + Airport Security Manager judgment; capture rationale in the IR ticket.\n\n**TSA-specific failure modes**:\n- **Multi-airport airlines**: airline operating at 100+ airports must coordinate per-airport notification; centralize via SOAR.\n- **Code-share complexity**: code-share partner events may require cross-airline coordination.",
-  "grandmaExplanation": "Airports and airlines have the strictest cyber-reporting rules. We watch the clock for CISA, and if a flight-safety system is affected, we also tell the FAA right away."
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

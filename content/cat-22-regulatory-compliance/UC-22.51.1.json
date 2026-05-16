@@ -36,32 +36,6 @@
   },
   "dataSources": "`index=grc sourcetype=\"servicenow:grc:policy\"` from the Splunk Add-on for ServiceNow (Splunkbase 1928) or equivalent `archer:policy`, `metricstream:policy` sourcetypes; lookups `senior_executive_role.csv` (mapping role IDs to NCA-recognised cybersecurity senior-executive titles) and `ot_personnel.csv` (HR feed of OT-scoped personnel for communication verification); `index=audit_evidence` for the persisted compliance evidence stream.",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Enterprise Security (Splunkbase 263) optional for the notable framework.",
-  "splunkbaseApps": [
-    {
-      "id": 1928,
-      "name": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928",
-      "role": "data-source",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 1621,
-      "name": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621",
-      "role": "primary",
-      "requiresSmeReview": true
-    },
-    {
-      "id": 263,
-      "name": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "role": "premium",
-      "requiresSmeReview": true
-    }
-  ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
   "spl": "index=grc sourcetype=\"servicenow:grc:policy\" grc_environment=\"prod\" policy_scope=\"OT\" earliest=-7d@d latest=now\n| dedup policy_id sortby -_time\n| eval days_since_review = round((now() - strptime(last_reviewed_at, \"%Y-%m-%dT%H:%M:%S%z\")) / 86400)\n| eval days_since_approval = round((now() - strptime(last_approved_at, \"%Y-%m-%dT%H:%M:%S%z\")) / 86400)\n| lookup senior_executive_role.csv role_id AS last_approved_by_role_id OUTPUT recognised_senior_role_flag\n| eval published = if(isnotnull(last_published_at) AND last_published_at!=\"\", \"true\", \"false\")\n| eval overdue_review = if(days_since_review > 365, \"true\", \"false\")\n| eval improper_approver = if(recognised_senior_role_flag!=\"true\", \"true\", \"false\")\n| eval not_published = if(published=\"false\", \"true\", \"false\")\n| where overdue_review=\"true\" OR improper_approver=\"true\" OR not_published=\"true\"\n| table policy_id policy_title last_approved_at last_approved_by_role_id days_since_approval last_published_at days_since_review overdue_review improper_approver not_published\n| sort - days_since_review",
   "description": "Detects OT cybersecurity policies whose annual-review window has lapsed, whose approving authority is not a recognised NCA OTCC senior cybersecurity executive role, or which have not been published to in-scope OT personnel — the three commonest OTCC-1-2-1-1 audit findings.",
   "value": "An auditor's first OTCC question is 'show me your OT cybersecurity policy, dated and approved by the cybersecurity senior executive, and prove your OT staff have seen it.' Without this UC, evidence collection is a frantic manual scramble through GRC PDFs every audit cycle. With it, evidence is generated daily, archived to a tamper-evident index, and renderable as a single dashboard screenshot at 24-hour notice. Policy lapses are also surfaced internally before NCA finds them, giving the OT cybersecurity programme time to close the gap.",
@@ -95,25 +69,52 @@
     "last_published_at",
     "last_reviewed_at"
   ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_policy_policy modular input)",
+    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Change data model field aliases)",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + optional notable framework)"
+  ],
+  "status": "verified",
   "lastReviewed": "2026-05-13",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
   "reviewer": "OT Cybersecurity SME Panel",
-  "status": "verified",
-  "wave": "walk",
-  "equipment": [
-    "splunk-es"
+  "premiumApps": [
+    "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- **Splunk**: Enterprise ≥9.2 or Splunk Cloud (current). The search head needs enough memory to hold the `senior_executive_role.csv` lookup in memory once per scheduled run (typically <1 MB — negligible).\n- **Technology Add-on**: Splunk Add-on for ServiceNow (Splunkbase 1928) installed on Heavy Forwarders that reach the ServiceNow GRC instance, on Indexers (for parsing), and on Search Heads (for CIM field aliases). Verify with `| rest /services/apps/local | search label=\"Splunk Add-on for ServiceNow\" | table label version`. If the organisation uses Archer or MetricStream instead of ServiceNow GRC, install the equivalent TA and adjust sourcetypes (`archer:policy`, `metricstream:policy`).\n- **Modular input**: Configure a `servicenow_policy` modular input that polls the `sn_policy_policy` table every 30 minutes. Stanza in `inputs.conf`:\n\n```ini\n[snow://policy_table]\nrest_endpoint = sn_policy_policy\nrecord_type = json\nfilter_data = sys_class_name=sn_policy_policy^state!=draft\ninterval = 1800\nindex = grc\nsourcetype = servicenow:grc:policy\n```\n\n- **Indexes**: `grc` (15-month online retention to support 13-month trend visualisation) and `audit_evidence` (84-month / 7-year retention with write-only ACL for non-admin roles). Set `frozenTimePeriodInSecs = 220752000` on `audit_evidence` in `indexes.conf`.\n- **Lookups**:\n  - `senior_executive_role.csv` — owned by HR-business-partner-to-cyber, refreshed at least monthly. Columns: `role_id`, `role_name_en`, `role_name_ar`, `recognised_senior_role_flag`. The flag must read \"true\" only for roles the organisation has documented as the NCA-recognised cybersecurity senior executive (CIO, CISO, Cybersecurity-VP, or equivalent).\n  - `ot_personnel.csv` — owned by HR with daily refresh from the HRIS. Columns: `user_id`, `email`, `business_unit`, `ot_scope_flag`. Used by UC-22.51.25 (training); kept here as a cross-check that `last_published_at` was followed by a measurable communication event.\n  - `otcc_22_51_1_exceptions` KV Store collection — owned by the OT cybersecurity programme manager. Schema: `policy_id`, `exception_active`, `expires_at`, `reason`, `approved_by`. KV Store, not CSV, so updates are atomic.\n- **Role / RBAC**: searches that read `index=grc` need `srchIndexesAllowed=grc`; writes to `audit_evidence` need a dedicated service role `evidence_writer` with no read permission outside of `audit_evidence` to preserve chain of custody.\n- **Regulatory mapping**: This UC evidences clause `OTCC-1-2-1-1`. Every alert payload must include `otcc_clause=\"OTCC-1-2-1-1\"` so downstream consumers (the evidence pack generator, the clause-navigator UI) attribute the artefact to the correct control. The control objective is: 'Proves that OT cybersecurity policies are documented, approved by the cybersecurity senior executive, published to OT personnel, and reviewed at least annually.'\n\n## Step 1 — Configure data collection\n\nServiceNow GRC publishes each policy record as a row in `sn_policy_policy`. The Splunk_TA_snow modular input polls that table on the interval configured above and writes each row to `index=grc` with `sourcetype=servicenow:grc:policy`. The TA's `props.conf` performs JSON KV parsing (`KV_MODE=json`) so every column becomes a Splunk field automatically. The fields this UC depends on are:\n\n- `policy_id` (sys_id from ServiceNow — the immutable record identifier)\n- `policy_title` (display name in the GRC tool)\n- `policy_scope` (free-form; must contain `\"OT\"` for in-scope OT policies — the GRC team must agree on this convention)\n- `last_approved_at`, `last_approved_by_role_id`, `last_published_at`, `last_reviewed_at` (ISO-8601 timestamps with timezone)\n- `state` (`published`, `under_review`, `retired`)\n- `grc_environment` (`prod` or `nonprod`)\n- `translation_status` (`complete`, `in_progress`)\n\nValidate that all those fields appear in recent data:\n\n```spl\nindex=grc sourcetype=servicenow:grc:policy earliest=-1d\n| fieldsummary\n| search field IN (policy_id, policy_title, policy_scope, last_approved_at, last_approved_by_role_id, last_published_at, last_reviewed_at, state, grc_environment, translation_status)\n| table field count\n```\n\nIf any field has `count=0`, the TA version is wrong or the GRC tool was customised to rename the underlying column. The fix is either to upgrade the TA or to add a `FIELDALIAS-` line in `local/props.conf` mapping the local column to the expected name.\n\nExpected event volume is small (~50 policies per organisation, polled every 30 minutes, so ~2400 events/day total). License impact is negligible (<5 MB/day).\n\n## Step 2 — Create the search and alert\n\nThe search has three independent failure conditions joined by `OR`: overdue review (>365 days), improper approver (not on the senior-executive role list), and not-published (no `last_published_at`). Each is computed as a boolean and the row is kept if any one is true. This 'three-way OR' structure is intentional: a single OTCC-1-2-1-1 audit finding can stem from any of those root causes, and the auditor will want to see them distinguished on the dashboard rather than rolled together. Run on a 7-day window so brief out-of-sync moments during GRC polling don't generate false alerts — a policy that ages out of the window for a single poll will be re-detected on the next.\n\n**Schedule configuration** (`savedsearches.conf` in the OT-compliance app):\n\n```ini\n[UC-22.51.1: OT Cybersecurity Policy Approval, Publication, and Annual-Review Evidence]\nsearch = | savedsearch UC-22.51.1\ncron_schedule = 0 2 * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, email\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.51.1,reg=NCA_OTCC,clause=OTCC-1-2-1-1\naction.email.to = ot-cyber-programme@example.com\naction.email.subject = NCA OTCC-1-2-1-1 — daily policy governance evidence (UC-22.51.1)\nalert.track = 1\nalert.severity = 3\n```\n\nThe alert is informational, not a page — NCA OTCC governance findings are programme-cycle issues, not 24/7 incidents. Route alerts to the programme manager's inbox + ticketing system, not to the SOC pager.\n\n## Step 3 — Validate deployment\n\n**(a) Lookup freshness**: confirm that `senior_executive_role.csv` and `ot_personnel.csv` were re-generated within their refresh SLAs:\n\n```spl\n| rest /servicesNS/-/-/data/transforms/lookups/senior_executive_role\n| eval modtime_iso=strftime(updated_epoch, \"%Y-%m-%dT%H:%M:%S%z\")\n| eval age_days = round((now() - updated_epoch) / 86400)\n| table title age_days modtime_iso\n```\n\nIf `age_days > 35`, the lookup is stale; alert the HR-business-partner-to-cyber.\n\n**(b) Field completeness**: confirm every required field has non-null values in the last 24 hours:\n\n```spl\nindex=grc sourcetype=servicenow:grc:policy earliest=-1d\n| eval _ok=if(isnotnull(policy_id) AND isnotnull(last_approved_at) AND isnotnull(state), \"yes\", \"no\")\n| stats count by _ok\n```\n\nThe `_ok=yes` count should equal the total event count. Any `no` rows mean the GRC table has rows with missing required columns — typically retired-but-not-deleted policies; verify they are filtered out by `state!=retired` before the body of the search runs.\n\n**(c) Positive control**: inject a test policy `OT-CYBER-POLICY-TEST-001` into the GRC tool with `last_reviewed_at` set to 18 months ago. Wait one polling cycle (30 minutes). The search must include `OT-CYBER-POLICY-TEST-001` in its output with `overdue_review=true`. Remove the test policy or set `policy_scope!=OT` to clear the test.\n\n**(d) Negative control**: inject a test policy `OT-CYBER-POLICY-TEST-002` with all three conditions clean (recent review, recognised approver, published). The search must NOT include `OT-CYBER-POLICY-TEST-002`. If it does, inspect the `recognised_senior_role_flag` for the approver's role_id — it may not have been added to `senior_executive_role.csv`.\n\n**(e) Evidence chain-of-custody**: verify that yesterday's alert payload was written to `audit_evidence` and is not editable by the OT cybersecurity programme manager (they should have read-only access only):\n\n```spl\nindex=audit_evidence uc=22.51.1 earliest=-2d\n| stats count by clause source_uc\n```\n\nThe count should match yesterday's alert volume. If not, the summary index action failed; check `index=_audit action=schedule | search savedsearch_name=\"UC-22.51.1*\"` for errors.\n\n## Step 4 — Operationalize\n\n**Dashboard name**: `NCA OTCC – Governance Evidence` (a category-22 evidence dashboard, not a SOC dashboard).\n\nPanel layout, top-to-bottom:\n\n- **Row 1, single value (left)**: 'OT policies overdue for annual review' — count of distinct `policy_id` with `overdue_review=true` in the last 24h. Red threshold ≥1, green at 0.\n- **Row 1, single value (right)**: 'Days until next policy review due' — `min(365 - days_since_review)` over non-overdue policies. Amber at ≤30, red at ≤0.\n- **Row 2, sortable table**: every overdue / improperly-approved / unpublished policy. Columns: `policy_id`, `policy_title`, `days_since_review`, `last_approved_by_role_id`, `recognised_senior_role_flag`, `published`, `_drilldown` link to the GRC record. Row-level drilldown opens the GRC tool in a new tab.\n- **Row 3, line timechart**: 13-month trend of `count by policy_id where overdue_review=true` and `p95(days_since_review)` overlaid. Lets the programme manager see whether the OT-policy population is ageing toward expiry collectively.\n- **Row 4, sankey or alluvial**: `last_approved_by_role_id` → `recognised_senior_role_flag` for the last 90 days. Helps the auditor see at a glance whether approvers are consistently the right roles.\n\n**Time picker defaults**: `-7d@d` for the operational view; `-13mon@mon` preset for the audit-evidence view. Enable scheduled PDF export weekly to the OT cybersecurity programme manager.\n\n**Runbook for a fired alert** (owner: OT cybersecurity programme manager):\n\n1. Open the dashboard. Identify which of the three conditions is failing (`overdue_review`, `improper_approver`, `not_published`).\n2. For `overdue_review`: open a P3 GRC ticket assigned to the policy owner; due date is 30 calendar days from the alert. Track in the OT programme RAID log.\n3. For `improper_approver`: contact HR to confirm whether the approving role's recognition status is current. If yes, the approver's role_id may have been mis-keyed in the lookup — fix the lookup and the alert clears on the next run. If no, the policy needs re-approval by a recognised role; open a P2 GRC ticket.\n4. For `not_published`: confirm with the policy owner that publication is in flight. If publication blocked on Arabic translation, ensure the translation_status exception is in effect (see Known False Positives #2). Otherwise escalate to the OT cybersecurity director.\n5. Update the OT cybersecurity programme RAID log with the alert, owner, planned closure date, and reference back to UC-22.51.1.\n\n## Step 5 — Troubleshooting\n\n**No events at all** — the Splunk_TA_snow modular input isn't running. Check `index=_internal source=*splunkd.log component=ExecProcessor sourcetype=servicenow:grc:policy` for errors. Common causes: expired ServiceNow service-account password (rotate per password policy), policy_id filter mismatch after a GRC schema migration, or a network ACL blocking the heavy forwarder from the ServiceNow REST endpoint.\n\n**Search returns rows but `_time` is stale (>1 day old)** — the modular input ran but is fetching cached data. Restart the input on the heavy forwarder: `splunk restart splunkd`. If the staleness persists, the ServiceNow API may be rate-limiting; review `index=_internal sourcetype=splunkd component=HttpRequest status>=429`.\n\n**Lookup-join returns null `recognised_senior_role_flag` for every row** — case-sensitivity. ServiceNow stores role IDs lowercased by default in some configurations and uppercased in others; the lookup must match. Either set `case_sensitive_match = false` in the lookup's `transforms.conf` stanza, or normalise on both sides: `| eval last_approved_by_role_id = lower(last_approved_by_role_id)` before the lookup.\n\n**Excessive false positives on freshly-promoted policies** — the polling interval lets a freshly promoted policy show null `last_published_at` for up to one poll cycle (30 minutes). Either set `dispatch.earliest_time = -8d@d` to widen the window beyond two poll cycles, or filter `state=\"published\" AND publish_age_minutes>60`.\n\n**OTCC-specific failure modes**:\n\n- **English-only policies** — OTCC inspectors often expect bilingual (English + Arabic) publication for policies governing Saudi-resident workforce. A policy with `translation_status=\"complete\"` but no Arabic-titled record may still fail an on-site audit. Add `| where translation_status=\"complete\" AND policy_title_ar!=\"\"` to enforce.\n- **'Senior executive' role recognition is organisation-specific** — NCA expects a named, accountable senior executive responsible for cybersecurity. Organisations sometimes designate a deputy or 'acting' role; verify with the legal department that the recognised role on the lookup is the one filed with NCA in the most recent compliance return.\n- **Acquired-entity policies in shadow GRC tenants** — after acquisition, the acquired entity's policies may live in a separate ServiceNow instance not yet integrated with the parent's Splunk feed. Maintain a `grc_tenants.csv` lookup of every in-scope tenant and confirm during quarterly OT cybersecurity steering committee that every tenant feeds this UC.",
   "grandmaExplanation": "We watch every OT cybersecurity rulebook and check that the right boss signed it, that it was shared with the OT team, and that it was reviewed in the last year. If any of those is missing, we ring the bell so the team can fix it before the regulator notices.",
-  "equipmentModels": [
-    "Splunk Add-on for ServiceNow (Splunkbase 1928, sn_policy_policy modular input)",
-    "Splunk Common Information Model Add-on 5.x (Splunkbase 1621, Change data model field aliases)",
-    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index + optional notable framework)"
-  ],
   "prerequisiteUseCases": [
     "UC-22.47.3"
-  ]
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1621,
+      "name": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "role": "primary",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }
