@@ -2,25 +2,25 @@
 
 > Verified status of every plan finding (F1–F23) and phase (P0–P19) from
 > `/Users/fsudmann/.cursor/plans/repo_health_and_architecture_overhaul_b0cd1852.plan.md`
-> as of local HEAD **v8.6.4** (commit `fd2f09cc5`, authored 2026-05-14).
+> as of HEAD **v8.6.4** (commit `b51023419`, pushed 2026-05-16).
 > The doc was first generated 2026-05-12 against v8.2.0
-> (commit `a36aa4db4`); the 2026-05-16 refresh re-anchors counts and
+> (commit `a36aa4db4`); the 2026-05-16 refresh re-anchored counts and
 > status against the post-OT-deep-dive HEAD plus the open work it
-> introduced.
+> introduced, and the same-afternoon push landed the OT regulation arc
+> (Phases 1-6), the doc-refresh / F10 trailing closure, the F7 `.md`
+> parity regen (216 files), and the **P5 frontend rebuild scaffold
+> first cut** ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md).
 >
 > Every status below is backed by a concrete file:line citation or a
 > command output. Nothing is "assumed done"; if it's marked DONE the
 > plan finding has been verified resolved at HEAD.
 >
-> **Branch divergence at refresh time:** local `main` carries four
-> commits not yet on `origin/main` — `458a50f8b` (Phases 1-5a rollup),
-> `debb1d9b5` (Phase 5b DO-326A), `c25e80ec1` (Phase 6 closure), and
-> `fd2f09cc5` (v8.6.4 primer back-fill). `origin/main` carries one
-> commit not yet local — `00729f198` (per-category scorecard
-> drill-downs, §P14 extension). The latest green `Validate catalog`
-> CI run (`headSha: 00729f198`, 2026-05-14T12:35:53Z) reflects
-> `origin/main`, not local HEAD. The F7 parity status (below) is
-> different for the two trees — see drift ledger items #11 + #12.
+> **Branch divergence at refresh time:** local `main` and `origin/main`
+> are in sync at `b51023419`. The 6 OT-arc + closure commits
+> (`8bed23912` → `b51023419`) rebased cleanly onto the `origin/main`
+> P14 scorecard-drill-down extension (`00729f198`); no force-push was
+> required. Drift ledger items #11 + #12 are both resolved; #13 (the
+> P5 scaffold) is the new uncommitted change in this same refresh.
 
 ## Headline
 
@@ -78,7 +78,7 @@ including the deferred sample-data shape ADR).
 | F13 | M | `dist-before/` 6,449-entry stale snapshot | DONE | `dist-before/` gone ✓ (and `.gitignore:36` keeps it out for good). `dist-content/` and `dist-legacy/` remain *gitignored* on disk for the migration-parity workflow, but loose-end ledger #3 closed 2026-05-13 by adding `make clean-tree` which nukes every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) in one command. No tracked clutter remains. |
 | F14 | M | `api/v1/_evidence-packs-bak/`, `_draft_uc_*`, `_fix_*` clutter | **DONE** (2026-05-13, reclassified) | The original "clutter" pattern flagged in F14 (`api/v1/_evidence-packs-bak/`) was deleted in v8.2.0; the residual `scripts/_*.py` underscore-prefixed files (**17 at HEAD**: 5 `_catalog_*`, 7 `_meraki_*`, plus `_draft_uc_18_1_15`, `_fix_broken_fixture_refs`, `_patch_catalog_guide_fields`, `_regulation_wisdom`, `_wire_batch7`) are formally exempted by the v8.2.0 CHANGELOG migration narrative ("What stays in `scripts/`" §Deliberate and "Deliberately **not** migrated (documented exemption)" §Migration) and pinned as tier-3 by the coverage-budget classifier (`src/splunk_uc/audits/coverage_budget.py` matches any `scripts/_*.py` path → tier-3 exempt). They are content-burndown one-shots, not clutter; reclassification ratified by PR #26 (merge `a4e4bda15`, 2026-05-13). |
 | F15 | M | No repo-wide `pyproject.toml` for build pipeline | DONE | `pyproject.toml` with `[project]`, `[project.scripts]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.coverage]`, `[tool.pytest]` configs. `splunk-uc` console script wired (v8.2.0 P6 Tier 4). |
-| F16 | M | Frontend committed HTML rewritten by Python; no test runner | **NOT DONE** | `index.html` still 645 KB committed-and-rewritten. No `apps/web/` directory. No Vite / TS bundler. Frontend rebuild (P5) not started. |
+| F16 | M | Frontend committed HTML rewritten by Python; no test runner | PARTIAL (scaffold anchor landed 2026-05-16) | Root `index.html` still 702 KB raw / 189 KB gzipped and still rewritten in place by `tools/build/build.py`. **Scaffold anchor added at HEAD via [P5 first cut](#p5-first-cut):** [`apps/web/`](../apps/web/) now exists with Vite 8.0.13 + TypeScript 6.0.3 (strict) + Vitest 4.1.6 + a passing 2-assertion smoke test, all ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md). F16 closes when the first inline-JS surface migrates out of root `index.html` into `apps/web/src/` with vitest coverage; that is now a per-PR migration verb rather than a monolithic rebuild. |
 | F17 | L | 11 root HTML pages duplicate chrome | PARTIAL | **9 root HTML files now** (was 11): `api-docs.html`, `clause-navigator.html`, `compliance-story.html`, `docs.html`, `graph.html`, `guide-reader.html`, `index.html`, `regulatory-primer.html`, `scorecard.html`. Chrome still duplicated across all 9. |
 | F18 | L | Root `openapi.yaml` legacy vs. `api/v1/openapi.yaml` canonical | **DONE** (2026-05-12) | Re-verified at HEAD: `openapi.yaml` line 16 carries `> **Status: legacy (hand-maintained)**` followed by a four-paragraph block pointing readers to the canonical `/api/v1/openapi.yaml`, documenting the eventual move to `archive/openapi-legacy.yaml`, and explaining how the OpenAPI drift audit (`audit-openapi-drift`) keeps the two specs in sync. Both specs continue to coexist (root 565 lines / api/v1 210 lines), which is the documented contract — there is no in-progress deletion to wait on. |
 | F19 | M | 7 other workflows unaudited | **DONE** (2026-05-12) | Closed by PR #8 (commit `85b680f5d`): every workflow under `.github/workflows/*.yml` now consumes `./.github/actions/setup-python`. The previously skipped guard `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly` is unskipped and runs in the `audits-content` job, so any future direct `actions/setup-python@<sha>` pin in a workflow fails CI. The 14-workflow inventory itself moves into P2.5 below — that is the remaining work, not F19. |
@@ -97,7 +97,7 @@ including the deferred sample-data shape ADR).
 | **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | **DONE** (2026-05-13) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓. The plan's "proposed `docs/architecture-2027.md`" placeholder is now explicitly absorbed by [`docs/architecture.md`](architecture.md) §"Forward-looking work" (added 2026-05-13): forward-looking architectural work goes into [`ROADMAP.md`](../ROADMAP.md) (release-aligned plan) and [`docs/adr/`](adr/) (numbered-on-acceptance decision records — ADR-0010, ADR-0011, ADR-0012 all landed 2026-05-13 demonstrating the active cadence). No separate dated-architecture doc is needed; the same rationale that retired the placeholder "ADR-0011 (sample-data shape)" slot ([`ADR-0011 §"Alternatives considered"`](adr/0011-schema-lineage-governance.md) point C) applies here: reserved-but-empty docs distort the lineage. |
 | **P4** Typed Python pipeline | PARTIAL (package floor locked) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` (51 source files, 0 errors). **Second canary closed 2026-05-13:** `mypy --strict src/splunk_uc/generators/` (17 source files, 0 errors after a one-line `set[str]` fix in `recommender_app._gsa_load_ucs`). **Package-wide floor closed 2026-05-13:** survey showed every remaining subpackage (`ingest`, `feasibility`, `migrations`, `tools`) plus the three top-level modules was already strict-clean; the two per-canary overrides were consolidated into a single `[[tool.mypy.overrides]] module = "splunk_uc.*"` block and the CI step now lints the whole package — **94 source files, ~25 kLOC, every module under `src/splunk_uc/` type-clean under `--strict`**. **Remaining gaps:** the build pipeline (`tools/build/*`) and the legacy `build.py` entrypoint still carry per-module loosened overrides; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
-| **P5** Frontend rebuild | NOT STARTED | No `apps/web/`. F8/F16/F17 all unresolved. |
+| **P5** Frontend rebuild | SCAFFOLDED (first cut 2026-05-16) | <a id="p5-first-cut"></a>[`apps/web/`](../apps/web/) now exists with Vite 8.0.13 + TypeScript 6.0.3 (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`) + Vitest 4.1.6 + a passing 2-assertion smoke test ([`src/__tests__/smoke.test.ts`](../apps/web/src/__tests__/smoke.test.ts)). `npm run typecheck` is clean; `npm run build` produces a 12 KB `dist/`. The bundler / language / test-runner decision and its alternatives are ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md). The scaffold is opt-in (no CI wiring, no deploy wiring, no framework). F8 (a11y landmarks) closed under P10; F16 reclassified PARTIAL above; F17 (11 HTML pages duplicate chrome) still unresolved — both now anchor on the scaffold instead of being monolithic "rebuild" verbs. |
 | **P6** Scripts taxonomy | DONE | Just closed in v8.2.0 (commit `a36aa4db4`). 83-verb dispatcher + Tier 4 packaging. |
 | **P7** Server-side search + API gateway | NOT STARTED | — |
 | **P8** Observability + content metrics | PARTIAL | `dist/metrics.json` per AGENTS.md ✓, `data/metrics-history/<VERSION>.json` snapshot pattern ✓ (just added `8.2.0.json`). Slack/email weekly digest unclear (`stewardship.yml` exists). Build telemetry exists (`dist/build-telemetry.json`). |
@@ -280,6 +280,34 @@ findings but should not be lost:
     on both `origin/main` (since 2026-05-12) and local `main`
     (now); the gate is healthy on both trees.
 
+13. **P5 frontend rebuild — scaffold anchor landed (afternoon
+    2026-05-16).** Drift-ledger entry rather than a finding because
+    no in-tree contract was broken — this is purely additive surface.
+    [`apps/web/`](../apps/web/) is now an isolated Node tree with
+    Vite 8.0.13 + TypeScript 6.0.3 (strict) + Vitest 4.1.6 + a
+    passing 2-assertion smoke test ([`src/__tests__/smoke.test.ts`](../apps/web/src/__tests__/smoke.test.ts))
+    and a single-module entrypoint ([`src/main.ts`](../apps/web/src/main.ts))
+    that exists only to give the bundler something to chew on.
+    `npm run typecheck` is clean, `npm run test` is 2/2 green
+    (633 ms), `npm run build` produces a 12 KB `dist/` (`index.html`
+    0.79 KB + `assets/index-*.js` 0.98 KB + sourcemap 1.23 KB) in
+    18 ms on a cold Vite invocation. The choice of bundler /
+    language / test runner / no-framework / no-CI-yet / no-deploy-yet
+    is ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md),
+    which also enumerates 6 alternatives considered (Webpack 5 +
+    Jest; esbuild + tsc; Node stdlib + hand-bundle; full-stack
+    framework like Next/Remix; waiting until F16/F17 do a
+    monolithic rebuild; placing the tree at `frontend/` / `web/` /
+    `ui/` instead of `apps/web/`) and explains why each was
+    rejected. F16 reclassified from NOT DONE to PARTIAL (scaffold
+    anchor landed); P5 reclassified from NOT STARTED to SCAFFOLDED
+    (first cut). The next bite per ADR-0013's §"Migration shape"
+    is moving `non-technical-view.js` from the repo root into
+    `apps/web/src/non-technical-view.ts` (pure data, easiest first
+    migration, validates the toolchain on real content) — and that
+    PR is the one that wires `npm test` + `npm run typecheck`
+    into `.github/workflows/validate.yml`, closing F16 properly.
+
 ## Recommended next actions, in size order
 
 1. ~~**Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,
@@ -415,12 +443,21 @@ findings but should not be lost:
       files from earlier today's two PRs). `--check` reports
       `All 7929 .md files are up-to-date.`. See drift ledger #12
       for the breakdown.
-    - `~no code, 1 PR` — Take a first cut at **P5 frontend
+    - ~~`~no code, 1 PR` — Take a first cut at **P5 frontend
       rebuild scaffolding**: empty `apps/web/` with Vite + TS +
       Vitest config, a single passing smoke test, and an ADR
       ratifying the bundler / framework / migration shape. F16
       and F17 then anchor on that scaffold instead of being
-      monolithic "rebuild" verbs.
+      monolithic "rebuild" verbs.~~ **Done 2026-05-16** — see
+      [P5 first cut](#p5-first-cut) row, drift ledger #13, and
+      [ADR-0013](adr/0013-frontend-rebuild-scaffold.md).
+    - `~150 line PR` — Land the **first real migration** out of
+      root `index.html` per ADR-0013's §"Migration shape":
+      `non-technical-view.js` → `apps/web/src/non-technical-view.ts`.
+      Pure data, lowest-risk first migration, and the PR that
+      finally wires `apps/web/`'s `npm test` + `npm run typecheck`
+      into `.github/workflows/validate.yml` — which is what closes
+      F16 properly.
     - `~250 line PR` — Wire the **automated rotation reminders**
       that consume the per-category CODEOWNERS rows + the new
       scorecard drill-downs landed on `origin/main` 2026-05-14
@@ -432,26 +469,30 @@ findings but should not be lost:
 
 ## Method note
 
-Status here is derived from: actual file contents at local HEAD
-`fd2f09cc5` (v8.6.4, 2026-05-14) and `origin/main` HEAD `00729f198`
-(2026-05-14T12:35:53Z); the post-2026-05-12 + 2026-05-13 closure
+Status here is derived from: actual file contents at HEAD
+`b51023419` (v8.6.4, 2026-05-16 — local and `origin/main` in sync
+after the same-day rebase + push); the post-2026-05-12 + 2026-05-13 closure
 sprints (PR-A `82d59ccbd`, PR-B `c947c5a61`, the §P14 per-category
 CODEOWNERS scaffold `7be03f4c0`, plus the `origin/main`-only
 scorecard drill-down extension `00729f198`); the cat-22 OT regulation
-arc (commits `458a50f8b` / `debb1d9b5` / `c25e80ec1` / `fd2f09cc5`,
-local-only at refresh time); the v8.2.0 + v8.5.0 + v8.6.x CHANGELOG
+arc (commits `8bed23912` / `3792354bf` / `2ed1861b8` / `6e67126a0`,
+rebased onto `origin/main` at push time); the doc-refresh / F10
+trailing closure commit `d435bb764`; the `[generated]` `.md` regen
+commit `b51023419`; the v8.2.0 + v8.5.0 + v8.6.x CHANGELOG
 narratives + the `[Unreleased]` section; the `docs/migration-status.md`
 ledger; `git log --oneline -30`; `git rev-list --left-right --count
 HEAD…origin/main`; live `wc -l` on the workflow / build files; live
 `du -sh` + raw-content header inspection for the `index.html` size
-delta; live `python -m splunk_uc generate-md-from-json --check` for
-the 216-file parity gap; the `gh pr checks 8` rollup on PR #8 (CI
-partition wall-clock evidence); the post-PR-#13/#17
-`gh api repos/.../dependabot/alerts` rollup (0 open at HEAD); the
-`docs/workflow-audit.md` 14-row inventory generated from a direct
-sweep of `.github/workflows/*.yml`; `pytest --collect-only`; and
-direct grep / glob of the repo. No claim above is based on the plan's
-self-reported state at plan-writing time without verification at HEAD.
+delta; live `python -m splunk_uc generate-md-from-json --check`
+(post-regen exit 0); live `cd apps/web && npm test` / `npm run
+typecheck` / `npm run build` for the P5 scaffold smoke; the
+`gh pr checks 8` rollup on PR #8 (CI partition wall-clock evidence);
+the post-PR-#13/#17 `gh api repos/.../dependabot/alerts` rollup
+(0 open at HEAD); the `docs/workflow-audit.md` 14-row inventory
+generated from a direct sweep of `.github/workflows/*.yml`;
+`pytest --collect-only`; and direct grep / glob of the repo. No claim
+above is based on the plan's self-reported state at plan-writing time
+without verification at HEAD.
 
 ---
 

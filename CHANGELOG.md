@@ -12,6 +12,43 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **P5 first cut — `apps/web/` frontend rebuild scaffold (`Vite 8.0.13 + TypeScript 6.0.3 (strict) + Vitest 4.1.6`).**
+  Closes the "no `apps/web/`" half of plan finding F16 by landing a
+  purely-additive Node tree at [`apps/web/`](apps/web/). Contents: a
+  pinned `package.json` (only Vite + Vitest + TypeScript as dev deps),
+  a strict `tsconfig.json` (`noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`, `verbatimModuleSyntax`), a combined
+  `vite.config.ts` (build + test config in one file, importing from
+  `vitest/config` so the `test` key typechecks), a minimal `index.html`
+  Vite entry, a placeholder `src/main.ts` module with one exported
+  `mountScaffoldBanner` helper, a single passing 2-assertion smoke
+  test under `src/__tests__/smoke.test.ts`, a scaffold-scoped
+  `.gitignore` (`node_modules/`, `dist/`, `.vite/`, `.vitest-cache/`)
+  and a `README.md` that explains the migration shape and out-of-scope
+  items. The choice of bundler / language / test runner / no-framework /
+  no-CI-yet / no-deploy-yet is ratified by
+  [ADR-0013](docs/adr/0013-frontend-rebuild-scaffold.md), which
+  enumerates 6 alternatives considered (Webpack 5 + Jest; esbuild +
+  tsc; Node stdlib + hand-bundle; full-stack framework like Next /
+  Remix; waiting until F16/F17 do a monolithic rebuild; placing the
+  tree at `frontend/` / `web/` / `ui/` instead of `apps/web/`) and
+  explains why each was rejected. The scaffold is opt-in:
+  `.github/workflows/` is **not** touched, `apps/web/dist/` is **not**
+  published, and maintainers who only edit catalogue content never
+  run `npm install` here. Verification at HEAD: `cd apps/web && npm
+  ci && npm run typecheck` clean, `npm test` 2/2 green in 633 ms,
+  `npm run build` produces a 12 KB `dist/` (`index.html` 0.79 KB +
+  `assets/index-*.js` 0.98 KB + sourcemap 1.23 KB) in 18 ms on a
+  cold Vite invocation. F16 reclassified from `NOT DONE` to PARTIAL
+  in `docs/health-check-2026-progress.md`; P5 reclassified from
+  `NOT STARTED` to `SCAFFOLDED (first cut)`; new drift-ledger item
+  #13 documents the scaffold; the previous bullet in "Recommended
+  next actions" item #10 is struck-through and replaced with a
+  `~150 line PR` pointer at the first real migration target
+  (`non-technical-view.js` → `apps/web/src/non-technical-view.ts`)
+  which is the PR that finally wires `npm test` + `npm run typecheck`
+  into `validate.yml` and closes F16 properly.
+
 - **[generated] Regenerate 216 `.md` companions to close the post-OT-arc
   F7 parity gap on local `main`.** The morning's
   `docs/health-check-2026-progress.md` refresh ledger item #12 flagged
