@@ -122,9 +122,12 @@ def _load_reference(path: Path) -> dict[str, Any]:
         return {}
     try:
         with path.open(encoding="utf-8") as fh:
-            return json.load(fh)
+            data: Any = json.load(fh)
     except (OSError, json.JSONDecodeError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 def build_vocabulary() -> Vocabulary:
