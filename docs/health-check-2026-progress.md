@@ -577,54 +577,74 @@ findings but should not be lost:
        reports them as orphans and `generate-evidence-packs` (without
        `--check`) would *delete* them.
 
-    2. **Phase 4.3 cat-22 non-technical block regeneration check:**
-       running `splunk_uc migrate-cat22-ntv --check` locally reports
-       "cat-22 non-technical block drift detected". The maintainer
-       added 7 OT-arc `areas[]` entries to the `"22": { … }` block in
+    2. ~~**Phase 4.3 cat-22 non-technical block regeneration check:**~~
+       **RESOLVED** in cascade follow-on commit (see below). The
+       maintainer's OT-arc added 13 `areas[]` entries to the
+       `"22": { … }` block in
        [`non-technical-view.js`](../non-technical-view.js) — `NCA
        OTCC (Saudi OT)`, `SOCI Act + CIRMP Rules (Australia)`,
        `AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US)`,
-       `CIRCIA + 6 USC 681b`, `SG Cyber Act`, `France LPM OIV Regime
-       + ANSSI 20-Rules (France)`, and `IMO MSC.428(98) +
-       MSC-FAL.1/Circ.3 + IACS UR E26/E27 (Maritime / Shipping,
-       Global)` — but the corresponding `_AREAS` list in
+       `CIRCIA + 6 USC 681b (US CISA Cyber Incident Reporting)`,
+       `CLC/TS 50701 (CENELEC Railway Cybersecurity)`, `TSA Surface
+       Cybersecurity Security Directives (US Pipeline + Freight Rail
+       + Passenger Rail)`, `SG Cyber Act 2018 + CSA CII Regulations
+       (Singapore)`, `France LPM OIV Regime + ANSSI 20-Rules
+       (France)`, `IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS UR
+       E26/E27 (Maritime / Shipping, Global)`, `RTCA DO-326A /
+       EUROCAE ED-202A + DO-355A + DO-356A + FAA AC 20-186 + EASA
+       AMC 20-42 + EASA Part-IS (Aviation / Airworthiness Security,
+       Global)`, `China CSL / DSL / PIPL / CII Regulations / MLPS 2.0
+       (Cybersecurity, Data, Privacy, CII — PRC)`, `CERT-In Directions
+       2022 + DPDP Act 2023 (Cybersecurity Incident Reporting + Data
+       Protection, India)`, `IEC 61508 / 61511 + ISA-TR84.00.09 +
+       IEC 62443 (Functional Safety + Cybersecurity overlay, Global
+       Process Industries)`. These were extracted from the JS file
+       via a one-shot Node `node:vm` loader, emitted as Python source
+       through a one-shot Python rendering helper, and spliced into
+       the `_AREAS` list in
        [`src/splunk_uc/migrations/regenerate_cat22_ntv.py`](../src/splunk_uc/migrations/regenerate_cat22_ntv.py)
-       (currently 49 entries) does not carry them. Running
-       `migrate-cat22-ntv` *deletes* the maintainer's 7 areas — 65
-       lines of hand-authored bilingual narrative including the
-       French-language `ucs[].why` strings on the LPM entry and the
-       Arabic-language reviewer notes on the NCA OTCC entry — so the
-       regen is destructive and **must not be auto-run**.
+       between the `CMMC defence` entry and the `EU AI Act` entry
+       (`_AREAS` count 49 → 62). The generator's `render_block()` now
+       emits byte-identical output to the on-disk JS block — i.e. the
+       generator's deterministic-rendering contract is preserved
+       *and* the maintainer's multilingual hand-authored content
+       (French `ucs[].why` strings on the LPM entry, the `24×7` U+00D7
+       Unicode multiplication sign on the IMO entry, the `règles
+       d'hygiène` and `Délégué OIV` accent-letters, the §3.1 section
+       sign) survives intact because the splice was done through a
+       JSON round-trip rather than hand-transcription. The Node /
+       Python one-shot helpers used for the splice were deleted post-
+       commit; the resulting `_AREAS` list is now the canonical
+       source-of-truth and the cat-22 NTV `--check` gate passes.
 
-    Both were masked on the prior CI runs by the Phase 3.2
-    cross-cutting failure (and on `e2f467cf6` by the Equipment-tags
-    failure that masked Phase 4.3 in turn) stopping the job script
-    early under `set -e`. With this cascade clearing those, the next
-    CI run on `main` will surface Phase 4.3 first (line 698 of
-    `validate.yml`), then Phase 4.2 (line 724) on the run after that
-    is fixed.
+    Phase 4.2 evidence-packs was masked on the prior CI runs by the
+    Phase 3.2 cross-cutting failure (and on `e2f467cf6` by the
+    Equipment-tags failure that masked Phase 4.3 in turn) stopping
+    the job script early under `set -e`. With this cascade clearing
+    those and Phase 4.3 now resolved, the next CI run on `main` will
+    surface Phase 4.2 (line 724 of `validate.yml`) as the next red
+    gate.
 
-    **Not fixed in this cascade** because the safest fix for either
-    generator (transcribing the maintainer's hand-authored content
-    into the generator's Python data structures so the generator's
-    output matches the on-disk content byte-for-byte) requires careful
-    fidelity — the hand-customised TOC sections on
-    `imo-msc-428-98.md` (*"Questions a flag-State / PSC /
-    class-society inspector should ask"*) and the multilingual `why`
-    strings on the cat-22 NTV LPM / OTCC areas need exact replication.
-    The decision needs the maintainer: either (a) `evidence-pack-extras`,
-    the evidence-pack generator template, and the cat-22 NTV
-    `_AREAS` list all gain the OT-arc additions with byte-identical
-    output, or (b) the OT-arc additions are re-classified as
-    hand-authored content outside the generators' scope (and the
-    `--check` gates are taught to ignore an explicit allow-list of
-    "manually maintained" slugs / area-names).
-
-    Tracked here so the post-push CI failures are expected, not a
-    surprise. A 3-commit batch (one per generator: cat-22 NTV first
-    because it surfaces first, then evidence-packs, then any third
-    surface that emerges after those two clear) is the cleanest
-    follow-on shape.
+    **Phase 4.2 NOT fixed in this cascade** because the safest fix
+    for `generate-evidence-packs` is more invasive than the cat-22
+    NTV equivalent: the maintainer's evidence packs carry
+    hand-customised TOC sections (e.g. *"Questions a flag-State /
+    PSC / class-society inspector should ask"* on
+    `imo-msc-428-98.md`) that the generic template in
+    `generators/evidence_packs.py` does not produce. Adding the 8
+    slugs to `PACK_TARGETS` would regenerate the MD files from
+    `data/evidence-pack-extras.json` + UC compliance entries and
+    overwrite those hand-customised sections. The decision needs the
+    maintainer: either (a) the evidence-pack generator template
+    gains the OT-arc-specific TOC sections (the hand-customised
+    flag-State/PSC questions on the IMO pack, the
+    CSA-Commissioner-facing scorecard on the SG pack, the Délégué-
+    OIV bilingual scorecard on the LPM pack) by name, or (b) the 8
+    OT-arc evidence packs are re-classified as hand-authored
+    documents outside the generator's scope (and the orphan check is
+    taught to ignore an explicit allow-list of "manually maintained"
+    slugs). Tracked here so the post-push CI failure on Phase 4.2 is
+    expected, not a surprise.
 
 ## Recommended next actions, in size order
 

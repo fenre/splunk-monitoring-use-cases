@@ -12,6 +12,78 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Post-corpus-expansion `migrate-cat22-ntv` follow-on — clears the fourth masked freshness gate (Phase 4.3 cat-22 NTV).**
+  Direct follow-on to the cascade in commit `cd1f0b65b` below. With the
+  `Equipment-tags regeneration check` failure cleared, the next freshness
+  gate in `validate.yml`'s `audits-content` job-script surfaced under
+  `set -e`: `Phase 4.3 cat-22 non-technical block regeneration check`.
+  `migrate-cat22-ntv --check` does a strict byte-for-byte comparison
+  between the on-disk `"22": { … }` block in `non-technical-view.js`
+  and the output of the generator's `render_block()`, so any drift in
+  either direction fails the gate. The OT-arc landed 13 hand-authored
+  `areas[]` entries (NCA OTCC, SOCI, AWIA, CIRCIA, CLC/TS 50701, TSA
+  Surface, SG Cyber Act, France LPM, IMO MSC.428(98), DO-326A, China
+  CSL/DSL/PIPL, CERT-In + DPDP, IEC 61511) directly in
+  `non-technical-view.js` but did not extend the
+  generator's `_AREAS` list in
+  `src/splunk_uc/migrations/regenerate_cat22_ntv.py`. Re-running the
+  generator without first extending `_AREAS` would *delete* the 13
+  hand-authored areas — including French-language `ucs[].why`
+  strings on the LPM entry, the `règles d'hygiène` /
+  `Délégué OIV` accent-letter handling, and the `24×7` U+00D7
+  multiplication sign on the IMO entry — destructive, must not be
+  auto-run.
+
+  This commit fixes the gate by *promoting the maintainer's content
+  into the generator*: a one-shot Node `node:vm` loader (`extract_ot_arc.mjs`,
+  deleted post-commit) was used to extract the 13 OT-arc areas from
+  `non-technical-view.js` as JSON, then a one-shot Python rendering
+  helper (`emit_ot_arc_python.py`, deleted post-commit) converted the
+  JSON into Python source matching the existing `_AREAS` dict-literal
+  style. The resulting 299-line block was spliced into `_AREAS`
+  between the `CMMC defence` entry and the `EU AI Act` entry
+  (`_AREAS` count 49 → 62). The generator's deterministic-rendering
+  contract is preserved (byte-for-byte identical output to the
+  on-disk JS block) *and* the multilingual hand-authored content
+  survives intact because the splice was done through a JSON
+  round-trip rather than hand-transcription. The `_AREAS` list is
+  now the canonical source-of-truth; future cat-22 NTV edits should
+  go through the generator, not directly into `non-technical-view.js`.
+
+  Net change: 1 modification (`src/splunk_uc/migrations/regenerate_cat22_ntv.py`,
+  +299 lines, +46,674 bytes).
+
+  All gates green locally pre-push:
+
+      migrate-cat22-ntv --check             OK (byte-identical)
+      generate-equipment-tags --check       OK (7929 UCs)
+      generate-phase3-1-backfill --check    OK
+      generate-phase3-2-cross-cutting --check OK
+      generate-phase3-3-derivatives --check OK
+      generate-recommender-app --check      OK
+      generate-md-from-json --check         OK
+      audit-perf-a11y --check               PERF+A11Y GATE: GREEN
+      audit-non-technical-sync              No errors; 4 pre-existing
+                                            (c)-warnings unchanged
+      generate_doc_references.py --check    OK
+
+  **Phase 4.2 evidence-pack NOT fixed in this commit** — the same
+  root-cause pattern (8 orphan files: `cert-in.md`, `cn-csl.md`,
+  `do-326a.md`, `fr-lpm.md`, `iec-61511.md`, `imo-msc-428-98.md`,
+  `sg-cyber-act.md`, `tsa-surface.md` missing from `PACK_TARGETS`)
+  applies, but the safest fix is more invasive than the cat-22 NTV
+  equivalent because the maintainer's evidence packs carry
+  hand-customised TOC sections (e.g. *"Questions a flag-State /
+  PSC / class-society inspector should ask"* on
+  `imo-msc-428-98.md`) that the generic template in
+  `generators/evidence_packs.py` does not produce. Adding the 8
+  slugs to `PACK_TARGETS` would regenerate the MD files and
+  overwrite those hand-customised sections. The next CI run on
+  `main` will therefore surface Phase 4.2 as the next (and now
+  hopefully last) red gate on `audits-content`. Drift ledger #16 in
+  `docs/health-check-2026-progress.md` carries the full narrative
+  and the maintainer decision pending.
+
 - **Post-corpus-expansion `generate-equipment-tags` follow-on — clears the third masked freshness gate.**
   Direct follow-on to the regen cascade in commit `e2f467cf6` below.
   Running that cascade exposed a *third* masked failure on the

@@ -541,6 +541,305 @@ _AREAS: list[dict[str, Any]] = [
         ],
     },
     {
+        "name": "NCA OTCC (Saudi OT)",
+        "description": "Saudi Arabia's National Cybersecurity Authority Operational Technology Cybersecurity Controls — 28 monitored clauses across governance, defence, resilience, third-party, and cloud domains for OT environments in critical national infrastructure.",
+        "whatItIs": "Saudi Arabia's mandatory cybersecurity rulebook for operational technology — industrial control systems, SCADA, safety instrumented systems — at organisations designated as critical national infrastructure. NCA inspectors examine policy approval, risk register, OT asset inventory, segmentation, vendor remote access, malware control, logging, incident reporting, business continuity, supply-chain assurance, and cloud usage. KSA data must remain in-Kingdom and OT incidents must be reported to NCA.",
+        "whoItAffects": "Saudi-based and foreign organisations that own, operate, host, or support OT inside the Kingdom — energy producers and distributors, water and wastewater utilities, petrochemical and refining operators, transport (rail, ports, aviation ground systems), critical manufacturing, government OT, and the ICT supply chain that serves them.",
+        "splunkValue": "We deliver continuous evidence of all 28 monitored OTCC clauses — policy approval and annual review, OT risk register currency, asset inventory and classification, privileged and vendor access, network segmentation, configuration baselines, vulnerability and patch SLA with safety validation, malware and removable-media control, wireless control, logging completeness, industrial-protocol monitoring, email-borne threats targeting OT staff, incident detection and NCA reporting, physical access, SIS protection, BCP exercises, RTO/RPO, backup integrity, third-party assurance, training, cryptography, audit-and-review KPI reporting, and cloud hosting assurance.",
+        "primer": _p("413-nca-otcc--saudi-ot-cybersecurity-controls-ksa--t2"),
+        "evidencePack": _ev("nca-otcc"),
+        "ucs": [
+            (
+                "22.51.3",
+                "We continuously evidence the OT asset inventory — every PLC, RTU, HMI, and SIS device classified and accounted for, so NCA inspectors see a living register instead of a stale spreadsheet.",
+            ),
+            (
+                "22.51.5",
+                "We watch OT network zones and conduits — proving segmentation is enforced, not just diagrammed, and that any cross-zone flow has an approved exception.",
+            ),
+            (
+                "22.51.17",
+                "We start the NCA cybersecurity-incident reporting clock the moment OT detection fires — so the regulator notification is on time, every time, with full timeline evidence.",
+            ),
+        ],
+    },
+    {
+        "name": "SOCI Act + CIRMP Rules (Australia)",
+        "description": "Security of Critical Infrastructure Act 2018 (Cth) and the Critical Infrastructure Risk Management Program Rules — 28 monitored clauses covering asset registration, all-hazards CIRMP, cyber incident reporting, Systems of National Significance, government assistance powers, and Protected Information.",
+        "whatItIs": "Australia's all-hazards critical-infrastructure security regime administered by the Cyber and Infrastructure Security Centre (CISC). Responsible entities must keep the Register of Critical Infrastructure Assets current, maintain a board-approved Critical Infrastructure Risk Management Program (CIRMP) covering cyber, personnel, supply-chain, and physical / natural hazards, report critical cyber incidents within 12 hours, and comply with Systems of National Significance and Government Assistance Powers directions. Protected Information secrecy applies to all CIRMP data.",
+        "whoItAffects": "Responsible entities and direct interest holders for assets across 11 critical-infrastructure sectors — energy (electricity, gas, liquid fuels), water and sewerage, telecommunications, broadcasting, postal, financial services and markets, transport (aviation, ports, freight rail, freight road), space, data storage and processing, hospitals, higher education and research, food and grocery, defence industry — including foreign owners with Australian operations.",
+        "splunkValue": "We deliver continuous evidence of asset-register currency, CIRMP cyber framework attestation (Essential Eight or equivalent), critical-worker register and screening, supply-chain hazard register and sanctions / FOCI screening, physical and natural hazard registers, cyber-physical convergence runbooks, Rule 10 board-approved annual report, ECSO 14-day Notice-of-Operations, Government Assistance Powers tracking, and Protected Information access auditing.",
+        "primer": _p("414-soci-act--cirmp-rules-australia--t1"),
+        "evidencePack": _ev("soci"),
+        "ucs": [
+            (
+                "22.52.1",
+                "We watch the Register of Critical Infrastructure Assets — every material change is detected within the 30-day s18 reporting window, so the CISC never finds a stale entry on inspection.",
+            ),
+            (
+                "22.52.5",
+                "We start the s30BC 12-hour critical-cyber-incident clock the moment a cyber attack hits a SoNS asset — Splunk fires the regulator-notification workflow with full timeline evidence.",
+            ),
+            (
+                "22.52.15",
+                "We continuously attest the Rule 6(3) cyber framework — Essential Eight or equivalent maturity — and surface drift to the board before the annual review, not on the day of.",
+            ),
+        ],
+    },
+    {
+        "name": "AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US)",
+        "description": "America's Water Infrastructure Act of 2018 Section 2013 (amending SDWA s1433) plus EPA Top Actions and CISA Pathway — 28 monitored clauses covering Risk and Resilience Assessment, Emergency Response Plan, EPA certification, cyber baseline, and EPA/CISA top cyber actions for water utilities.",
+        "whatItIs": "The US statutory regime for community water-system resilience. Every CWS serving more than 3,300 persons must conduct a Risk and Resilience Assessment of malevolent acts, natural hazards, electronic systems, monitoring practices, chemicals, and financial infrastructure; prepare or revise an Emergency Response Plan within 6 months; certify both to EPA; and revise on a 5-year cycle. The cyber subset is amplified by EPA/CISA Top Cyber Actions, the Pathway to Cybersecurity for Water and Wastewater, and (in states that have adopted EPA's July 2024 Cybersecurity Action Plan) sanitary-survey cyber readiness.",
+        "whoItAffects": "Community water systems (CWS) within the meaning of the Safe Drinking Water Act serving more than 3,300 persons in all 50 US states, DC, Puerto Rico, US Virgin Islands, Guam, American Samoa, and the Northern Mariana Islands — including tribal CWS served by EPA Regions. Wastewater utilities are not statutorily in scope but are covered by EPA's parallel water-sector cybersecurity portfolio and increasingly expected to meet similar standards.",
+        "splunkValue": "We continuously evidence the RRA / ERP certification ledger and 5-year cycle, EPA Baseline Malevolent Acts threat coverage, natural-hazard data vintage from USGS / NOAA / FEMA / EPA CREAT, OT and IT electronic-systems inventory, monitoring-integrity detection on online analysers and SCADA, chemical-dosing dual-authorisation, MFA on remote access, IT/OT segmentation, backup and recovery, default-credential rotation, cyber-awareness training, CISA KEV remediation, asset inventory currency, ERP partner coordination and WARN annual roster, EPA / WaterISAC / CIRCIA incident reporting, sanitary-survey cyber readiness, and RRA / ERP retention.",
+        "primer": _p("415-awia-s2013--epacisa-water-sector-cybersecurity-us--t2"),
+        "evidencePack": _ev("awia"),
+        "ucs": [
+            (
+                "22.53.5",
+                "We watch the EPA AWIA certification ledger — the RRA and the ERP must be certified to EPA on the statutory deadline and re-certified every 5 years; we surface the gap 90 days before any deadline.",
+            ),
+            (
+                "22.53.21",
+                "We detect any remote-access login without multi-factor authentication — the most common CISA-cited initial-access vector for US water utility intrusions.",
+            ),
+            (
+                "22.53.22",
+                "We block direct corporate-IT-to-OT flows and surface internet-exposed SCADA, HMI, and engineering workstations — the exact vector behind the November 2023 Iranian-affiliated CISA advisory on US water utilities.",
+            ),
+        ],
+    },
+    {
+        "name": "CIRCIA + 6 USC 681b (US CISA Cyber Incident Reporting)",
+        "description": "Cyber Incident Reporting for Critical Infrastructure Act of 2022 plus CISA's 2024 Notice of Proposed Rulemaking — 28 monitored clauses covering 72-hour incident reporting, 24-hour ransom-payment reporting, supplemental reports, records preservation, liability protection, CIRCIA Agreements, and SRMA coordination across all 16 US critical-infrastructure sectors.",
+        "whatItIs": "US federal law administered by the Cybersecurity and Infrastructure Security Agency (CISA). Covered entities in 16 critical-infrastructure sectors must report covered cyber incidents within 72 hours and ransom payments within 24 hours, file supplemental reports as new information emerges, preserve raw evidence for 2 years and reports for 10 years, and may authorise third parties to report via written CIRCIA Agreements. Submissions carry liability protection under 6 U.S.C. § 681e.",
+        "whoItAffects": "Covered entities across the 16 critical-infrastructure sectors enumerated in PPD-21 — Chemical, Commercial Facilities, Communications, Critical Manufacturing, Dams, Defense Industrial Base, Emergency Services, Energy, Financial Services, Food and Agriculture, Government Facilities, Healthcare and Public Health, Information Technology, Nuclear, Transportation Systems, Water and Wastewater Systems. Includes non-US parent companies via covered US subsidiaries.",
+        "splunkValue": "We watch the covered-entity register, fire the 72-hour and 24-hour SLA clocks at incident detection, track supplemental-report obligations, validate records-preservation hash integrity and RFC 3161 timestamps, monitor CISA portal submission health, coordinate SRMA pathways, evidence OT/ICS/SCADA covered-incident detection, triangulate SEC Form 8-K materiality, and surface CISO/General Counsel quarterly attestations and Board fiduciary briefs.",
+        "primer": _p("416-circia--6-usc-681b-us-cisa-cyber-incident-reporting--t1"),
+        "evidencePack": _ev("circia"),
+        "ucs": [
+            (
+                "22.54.2",
+                "We start the CIRCIA 72-hour clock the moment we have reasonable belief of a covered cyber incident — not at confirmation — so CISA receives the report on time, every time, with full timeline evidence.",
+            ),
+            (
+                "22.54.3",
+                "We start the CIRCIA 24-hour ransom-payment clock the instant payment is executed and synchronise the payment-instruction telemetry with the reporting clock — the most-cited CIRCIA enforcement risk.",
+            ),
+            (
+                "22.54.18",
+                "We run the annual CIRCIA tabletop exercise end-to-end with counsel, CISO, CFO, and Public Affairs — the 72-hour and 24-hour pathways must work in muscle memory, not just on paper.",
+            ),
+        ],
+    },
+    {
+        "name": "CLC/TS 50701 (CENELEC Railway Cybersecurity)",
+        "description": "CENELEC Technical Specification 50701:2021 — 28 monitored clauses covering CSMS governance, zone-and-conduit risk assessment, IEC 62443 Target Security Levels, System and Component Security Requirements, vulnerability handling, patch management coordinated with EN 50126/8/9 safety case, supplier deliverables, incident response, and annual self-assessment for rail-OT.",
+        "whatItIs": "The European rail sector's primary cybersecurity standard, built on IEC 62443 zone-and-conduit modelling. Every rail operator and infrastructure manager must maintain a documented Cybersecurity Management System (CSMS), assess every zone and conduit, attain the appropriate Target Security Level (SL-T) per IEC 62443-3-3, coordinate cyber controls with the EN 50126/8/9 safety case, govern supplier deliverables (SBOMs, vulnerability bulletins, patch schedules), detect rail-OT incidents, exercise coordinated cyber-safety incident response, and self-assess annually with executive sign-off.",
+        "whoItAffects": "Rail operators, infrastructure managers, rolling-stock manufacturers, signalling suppliers, and rail-component suppliers operating across the EU/EEA, Switzerland, and the UK. Includes passenger rail (heavy rail, metro, light rail, tram, high-speed) and freight rail. The standard is increasingly enforced by national rail-cyber regulators (ANSSI, BSI, NCSC) and is the de-facto baseline for NIS2 transport-sector compliance.",
+        "splunkValue": "We continuously evidence the CSMS charter and governance role-coverage, SuC asset inventory aligned with Cisco Cyber Vision discovery, zone-and-conduit risk-assessment currency, SL-T attainment across all 7 IEC 62443-3-3 Foundational Requirements, IEC 62443-3-3 SR and 62443-4-2 CR implementation, vulnerability-handling SLA against CISA KEV, patch deployment with Head-of-Safety EN 50126/8/9 sign-off, rail-OT incident detection (signalling, RBC, CBTC, GSM-R, FRMCS, rolling-stock), supplier remote-access via CyberArk PAM, NIS2 / ERA / NSA reporting bridges, and the annual self-assessment cycle.",
+        "primer": _p("417-clcts-50701-cenelec-railway-cybersecurity--t2"),
+        "evidencePack": _ev("clc-ts-50701"),
+        "ucs": [
+            (
+                "22.55.11",
+                "We block patch deployment to safety-significant rail-OT (signalling, RBC, CBTC, rolling stock) until the Head of Safety signs the EN 50126/8/9 safety-case review — the most-cited rail-cyber audit finding.",
+            ),
+            (
+                "22.55.13",
+                "We co-command every rail-cyber incident with safety potential through both the IR Commander and the Safety Lead — cyber-only response misses safety-case implications and can compromise rail-safety certification.",
+            ),
+            (
+                "22.55.14",
+                "We start the NIS2 24-hour early-warning and 72-hour incident-notification clocks the moment a rail-cyber incident is confirmed — submission receipts from NSA/NSB/ERA portals close the audit loop.",
+            ),
+        ],
+    },
+    {
+        "name": "TSA Surface Cybersecurity Security Directives (US Pipeline + Freight Rail + Passenger Rail)",
+        "description": "Transportation Security Administration Security Directives SD-Pipeline-2021-02C, SD-1580-2022-01, SD-1582-2022-01, and the SD-1542/44/82-21-02 aviation series — 28 monitored clauses covering 24-hour cyber-incident reporting, Cybersecurity Coordinator and Alternate roster, four CIP control families (network segmentation, access control + MFA, continuous monitoring, risk-based patching), CIRP annual exercise, Cybersecurity Assessment Programme (CAP), and multi-modal coordination across pipeline, freight rail, passenger rail, and aviation.",
+        "whatItIs": "The US Transportation Security Administration's mandatory cybersecurity rulebook for designated owners and operators of critical pipeline, freight rail, passenger rail, and aviation infrastructure. Every TSA-regulated operator must designate a Cybersecurity Coordinator (with Alternate, both eligible for Sensitive Security Information), report cyber incidents to CISA within 24 hours, implement four CIP control families, conduct an annual incident-response exercise, submit a Cybersecurity Assessment Programme to TSA, and coordinate with PHMSA, FRA, FTA, FAA where the cyber incident has safety implications. Aviation directives apply to airports and airlines and add airport/airline-specific operational considerations (DCS, BHS, AOC).",
+        "whoItAffects": "TSA-designated owners and operators of US pipelines (~100 major operators including Colonial, Kinder Morgan, Williams, Energy Transfer, Enterprise Products, Plains All-American), Class I and selected Class II freight railroads (BNSF, Union Pacific, CSX, Norfolk Southern, Canadian Pacific Kansas City, Canadian National), passenger rail (Amtrak, all PTC-equipped commuter and transit rail), and TSA-regulated airports and airlines. Some smaller pipeline and rail operators are NPRM-scoped only and operate under voluntary alignment.",
+        "splunkValue": "We start the TSA 24-hour CISA-reporting clock the instant a cyber incident is confirmed, evidence the four CIP control families with continuous monitoring rather than annual snapshots, run the CIRP exercise end-to-end with after-action evidence, version-control every CIP amendment, mirror PHMSA / FRA / FTA / FAA parallel-notification, and roll the lot into a master compliance dashboard for the Cybersecurity Coordinator and the operator's Direction Générale-equivalent.",
+        "primer": _p("tsa-surface"),
+        "evidencePack": _ev("tsa-surface"),
+        "ucs": [
+            (
+                "22.56.1",
+                "We start the TSA 24-hour CISA-reporting clock the instant a pipeline cyber incident is confirmed — automated CISA Form 1 submission, evidence retention, and clock-burn dashboard so the regulator submission is on time, every time.",
+            ),
+            (
+                "22.56.3",
+                "We continuously evidence the CIP Control Family 1 (network segmentation) — IT/OT boundary policy surveillance with drift detection, the most-cited TSA inspection finding when boundaries quietly degrade.",
+            ),
+            (
+                "22.56.28",
+                "We roll every TSA-SD UC into a single Cybersecurity Coordinator and executive-attestation scorecard — defensible in TSA inspection across all four modes (pipeline, freight rail, passenger rail, aviation).",
+            ),
+        ],
+    },
+    {
+        "name": "SG Cyber Act 2018 + CSA CII Regulations (Singapore)",
+        "description": "Singapore Cybersecurity Act 2018 (amended 2024) and the Cybersecurity Code of Practice (CCoP 2.0) — 15 monitored clauses covering CII designation, 2-hour initial and 14-day detailed incident reporting to CSA NCIRC, CCoP compliance, annual risk assessment, bi-annual independent audit, annual exercise (Exercise Cyber Star), mandatory penetration testing, plus 2024-amendment scope (CIISP, FDI, ESCI, domain-name infrastructure, threat-sharing).",
+        "whatItIs": "Singapore's primary cybersecurity statute administered by the Cyber Security Agency of Singapore (CSA). Designated owners of Critical Information Infrastructure (CII) must register the asset with the Commissioner of Cybersecurity, appoint a Cybersecurity Officer (CO) and Alternate, report cyber incidents affecting the CII within 2 hours (initial) and 14 days (detailed) to CSA's National Cyber Incident Response Centre, comply with the Cybersecurity Code of Practice (CCoP 2.0), conduct an annual risk assessment and a bi-annual independent cybersecurity audit, participate in the national Exercise Cyber Star, and undergo mandatory penetration testing. The 2024 amendment (Cybersecurity (Amendment) Act 2024) extends the regime to Critical Information Infrastructure Service Providers (CIISPs), Foundational Digital Infrastructure (FDI), and Entities of Special Cybersecurity Interest (ESCI), and tightens DNS / TLD obligations.",
+        "whoItAffects": "Owners of Singapore-designated Critical Information Infrastructure across 11 essential-services sectors (banking, energy, water, healthcare, transport, info-comm, security and emergency services, aviation, maritime, government, media). The 2024 amendment expands coverage to CIISPs (third-party providers to CII), FDI providers (public cloud, data centre, exchanges), and ESCI. CSA Commissioner of Cybersecurity has the power to designate.",
+        "splunkValue": "We maintain the CII designation register with scope-change notification to CSA within 2 hours, start the CCoP 2-hour incident-reporting clock the moment a CII-impacting incident is confirmed, roll the CCoP control family up into a Commissioner-facing scorecard, evidence the annual risk assessment and bi-annual audit cadence, track Exercise Cyber Star participation, and reconcile dual-regime PDPA + Cybersecurity Act incident workflows.",
+        "primer": _p("sg-cyber-act"),
+        "evidencePack": _ev("sg-cyber-act"),
+        "ucs": [
+            (
+                "22.57.2",
+                "We start the CSA 2-hour initial-report clock the instant a CII cyber incident is confirmed — automated NCIRC submission, evidence retention, and clock-burn dashboard so the Commissioner sees the report on time, every time.",
+            ),
+            (
+                "22.57.3",
+                "We continuously roll the Cybersecurity Code of Practice (CCoP 2.0) control families into a Commissioner-facing scorecard — defensible for both the bi-annual CSA audit and ad-hoc Commissioner deep-dives.",
+            ),
+            (
+                "22.57.10",
+                "We extend the 2-hour clock to Entities of Special Cybersecurity Interest (ESCI) under the 2024 amendment — the new ESCI population is the highest-scrutiny tier and the Commissioner expects parity with CII.",
+            ),
+        ],
+    },
+    {
+        "name": "France LPM OIV Regime + ANSSI 20-Rules (France)",
+        "description": "Loi de Programmation Militaire (LPM) 2013/2018/2024 + Code de la défense Art. R.1332-41-1 à R.1332-41-22 + Décret 2024-405 (NIS2 transposition) — 8 monitored clauses covering OIV designation, 72-hour CERT-FR incident reporting, PSSI-MCAS (20 règles d'hygiène), mandatory PASSI audit, ANSSI-qualified product procurement, AIE zone segmentation, and LPM/NIS2 dual-regime reconciliation.",
+        "whatItIs": "France's primary cybersecurity statute for Opérateurs d'Importance Vitale (Operators of Vital Importance — approximately 240 OIVs designated by the Prime Minister across 12 secteurs d'activités d'importance vitale). Every OIV must maintain a Système d'Information d'Importance Vitale (SAIV) inventory, notify ANSSI of material modifications, declare cyber incidents to CERT-FR within 72 hours, implement the 20 règles d'hygiène (PSSI-MCAS), undergo periodic PASSI-qualified audit, procure only ANSSI-qualified products (visa de sécurité, CSPN, CC), maintain AIE (Architecture Industrielle d'Échange) zone segmentation, and reconcile LPM obligations with NIS2 transposition under Décret 2024-405. The Délégué OIV personally signs key obligations and bears personal liability under the Code de la défense.",
+        "whoItAffects": "OIVs designated under the LPM regime — approximately 240 organisations across 12 sectors: alimentation, communications électroniques + audiovisuel + information, énergie, espace + recherche, finances, gestion de l'eau, industrie, judiciaire, militaire, santé, transports, ainsi qu'activités civiles de l'État. The 2024 NIS2 transposition under Décret 2024-405 extends to REC (Réseau d'Entités Critiques) and REI (Réseau d'Entités Importantes); some entities hold dual regime obligations.",
+        "splunkValue": "We maintain the OIV SAIV designation register with 72-hour ANSSI notification, start the LPM 72-hour CERT-FR clock the moment a SAIV-affecting incident is classified LPM-in-scope, roll the 20 règles d'hygiène (PSSI-MCAS) into a Direction Générale + Délégué OIV scorecard, evidence the tri-annual PASSI audit cadence, surveil AIE zone-boundary integrity continuously, reconcile LPM/NIS2 dual-regime obligations, and produce ANSSI-visa procurement evidence — all in French.",
+        "primer": _p("fr-lpm"),
+        "evidencePack": _ev("fr-lpm"),
+        "ucs": [
+            (
+                "22.58.2",
+                "Nous démarrons le compte à rebours LPM 72 heures à l'instant où un incident affectant un SAIV est qualifié dans le périmètre LPM — soumission CERT-FR automatique, conservation des preuves et tableau de bord du délai, pour que la déclaration soit faite dans les temps, à chaque fois.",
+            ),
+            (
+                "22.58.3",
+                "Nous roulons les 20 règles d'hygiène (PSSI-MCAS) dans un tableau de bord pour la Direction Générale et le Délégué OIV — défendable lors de tout audit PASSI ou inspection ANSSI extraordinaire.",
+            ),
+            (
+                "22.58.6",
+                "Nous surveillons en continu l'intégrité de l'AIE — toute violation de zone est signalée sous 4 heures avec capture des flux et du contexte technique, l'écart le plus cité par les auditeurs PASSI.",
+            ),
+        ],
+    },
+    {
+        "name": "IMO MSC.428(98) + MSC-FAL.1/Circ.3 + IACS UR E26/E27 (Maritime / Shipping, Global)",
+        "description": "IMO Resolution MSC.428(98) (2017) + MSC-FAL.1/Circ.3 Rev.2 Guidelines on Maritime Cyber Risk Management (2022) + IACS UR E26 cyber resilience of ships (Rev.4 2024) + IACS UR E27 cyber resilience of on-board systems and equipment (Rev.3 2024), reading alongside the BIMCO Guidelines on Cyber Security Onboard Ships (v5, 2025) — 17 monitored clauses covering DoC cyber-SMS verification, the seven cyber-vulnerable system categories, IT/OT segregation, ECDIS/AIS/GMDSS integrity, IBS baseline drift, propulsion and DP anomaly detection, cargo system integrity, USB and satcom governance, crew/passenger Wi-Fi segregation, the 24-hour multi-authority incident clock, annual cyber-drills, class-society attestation, and the audit-evidence retrieval ledger.",
+        "whatItIs": "The International Maritime Organization's cyber risk management regime, layered on top of the International Safety Management (ISM) Code under SOLAS Chapter IX. MSC.428(98) (2017) directs that an approved Safety Management System must consider cyber risk management with practical force from the first annual DoC verification after 1 January 2021. MSC-FAL.1/Circ.3 Rev.2 (2022) is the operational guidance, structured around the five NIST CSF functions (Identify, Protect, Detect, Respond, Recover). For ships contracted on or after 1 July 2024, classification societies enforce IACS UR E26 (cyber resilience of ships) and IACS UR E27 (cyber resilience of on-board systems and equipment) as unified requirements covered by every IACS member society (DNV, ABS, LR, BV, ClassNK, CCS, KR, RINA, IRS, RS, PRS, CRS). The BIMCO Guidelines on Cyber Security Onboard Ships (v5, 2025) is the industry-standard practitioner reference. Enforcement is at three layers: flag State (DoC annual verification), port State (Paris, Tokyo, Caribbean, Indian Ocean, Riyadh, Black Sea, Abuja, Viña del Mar, Mediterranean MoU inspection), and classification society (E26/E27 surveys and the resulting class notation — DNV CyberSecure, ABS CyberSafety, LR ShipRight, BV Cyber Resilient, ClassNK Cyber).",
+        "whoItAffects": "Ships ≥ 500 GT engaged in international voyages and the companies operating them under the ISM Code — approximately 99,000 ships and 50,000 companies worldwide. Specific scope rules: MSC.428(98) and MSC-FAL.1/Circ.3 apply globally to every in-scope vessel. IACS UR E26 applies to vessels contracted on or after 1 July 2024 under an IACS class society; IACS UR E27 applies at the equipment level to every E26-in-scope vessel. The Designated Person Ashore (DPA) bears personal accountability under the ISM Code. Most flag States (Panama, Liberia, Marshall Islands, Bahamas, Malta, Singapore, etc.) delegate annual verification to Recognised Organisations (typically the vessel's class society). The US Coast Guard enforces a parallel domestic regime via 33 CFR 101 and the USCG Cyber Strategic Outlook.",
+        "splunkValue": "We anchor the cyber-SMS verification chain on the DoC register, keep the DPA + CySO + Alternate roster live 24×7, maintain the Cyber Risk Asset Register across all seven §3.1 categories, continuously verify IT/OT segregation, ECDIS / ENC chart-update signatures, AIS / GMDSS / GNSS integrity, IBS configuration baselines, propulsion / DP / PMS anomaly thresholds, cargo system integrity, USB and satcom governance, crew/passenger Wi-Fi segregation, start the 24-hour multi-authority reporting clock (flag State + RO + USCG NRC + port State) the moment a maritime cyber-incident is confirmed, track annual cyber-drill cadence, anchor the IACS UR E26 ship-level and UR E27 equipment-level attestation registers, and roll the whole thing into an audit-evidence retrieval ledger that the flag-State auditor, PSC inspector or class-society surveyor can interrogate in real time.",
+        "primer": _p("imo-msc-428-98"),
+        "evidencePack": _ev("imo-msc-428-98"),
+        "ucs": [
+            (
+                "22.59.3",
+                "We maintain a complete Cyber Risk Asset Register across all seven cyber-vulnerable system categories per vessel — bridge, propulsion, cargo, communications, passenger and crew, administrative, and access-control — flagging stale or missing entries before the next class-survey.",
+            ),
+            (
+                "22.59.13",
+                "We start the IMO 24-hour multi-authority reporting clock the instant a confirmed maritime cyber-incident is classified — flag State + Recognised Organisation + USCG NRC (US-port-visiting) + port State (PSC MoU) submissions are queued in parallel, with submission receipts archived for the audit-evidence chain so no authority deadline is missed.",
+            ),
+            (
+                "22.59.17",
+                "We roll every UC-22.59.x evidence row into a single audit-evidence retrieval ledger — the flag-State auditor, PSC inspector or class-society surveyor receives a 90-day PDF/CSV evidence packet in 5 minutes, defending the company against avoidable PSC detentions and DoC non-conformities.",
+            ),
+        ],
+    },
+    {
+        "name": "RTCA DO-326A / EUROCAE ED-202A + DO-355A + DO-356A + FAA AC 20-186 + EASA AMC 20-42 + EASA Part-IS (Aviation / Airworthiness Security, Global)",
+        "description": "RTCA DO-326A / EUROCAE ED-202A 'Airworthiness Security Process Specification' (2014) + DO-355A / ED-204A in-service continuing-airworthiness security (2020) + DO-356A / ED-203A airworthiness security methods + FAA AC 20-186 + EASA AMC 20-42 + EASA Part-IS (Commission Implementing Regulation (EU) 2022/1645 + Commission Delegated Regulation (EU) 2023/203, binding from 22 February 2026) + ARINC 811 trust-domain framework — 17 monitored clauses covering PSecAA + CSI inventory, ARINC 811 ACD/AISD/PIESD/POD segregation, LSAP digital-signature integrity, cyber-AD/SB compliance, PMAT / EFB governance, ACARS / CPDLC / VDL Mode 2 datalink integrity, GNSS / GPS spoofing + jamming, ADS-B injection, engine OEM remote-monitoring PAM, IFE-to-avionics traversal, EASA Part-IS 72-hour / 1-month incident reporting clock, ISMS audit register, airborne SBOM vulnerability monitoring, cyber training cadence, and aeronautical database integrity.",
+        "whatItIs": "The joint US/EU industry standard for airworthiness security certification of civil aircraft. DO-326A is the process spec (what to do); DO-356A provides the methods (threat scenarios, risk assessment, security architecture); DO-355A extends the obligation to in-service continuing-airworthiness; ARINC 811 anchors the four trust-domain network architecture. FAA AC 20-186 and EASA AMC 20-42 accept DO-326A as the means of compliance for Information Security findings on TC/STC projects. EASA Part-IS (binding 22 February 2026) imposes a parallel ISMS obligation on every approved EU/EEA aviation organisation with 72-hour preliminary and 1-month final incident reporting to the National Competent Authority.",
+        "whoItAffects": "Every applicant for a civil aircraft type certificate, supplemental type certificate, or major modification where Information Security is identified as an issue; every operator of a TC- or STC-issued aircraft; every Continuing Airworthiness Management Organisation (CAMO); and every EU/EEA-approved aviation organisation under EASA Part-IS. FAA, EASA, Transport Canada, Brazilian ANAC, Japan JCAB, UK CAA, Australian CASA, and Singapore CAAS recognise DO-326A under bilateral aviation-safety agreements (BASAs).",
+        "splunkValue": "We anchor the PSecAA milestone tracker for active TC/STC projects, maintain the CSI inventory and Security Risk Register per airframe type, continuously verify ARINC 811 trust-domain segregation between ACD/AISD/PIESD/POD, verify every LSAP load-time digital signature against the authorised-signer allowlist, track cyber-AD / SB compliance fleet-wide, govern PMAT / EFB devices, detect ACARS / CPDLC injection and GNSS / ADS-B spoofing in real time, govern engine OEM remote-monitoring through PAM with WYSIWYS, detect IFE-to-avionics traversal, start the EASA Part-IS 72-hour preliminary + 1-month final reporting clock the instant an in-scope cyber-safety event is confirmed, maintain the ISMS audit register, monitor airborne SBOM CVE exposure, track recurrent cyber training cadence per role, and verify aeronautical database integrity at the LRU upload point — defending the operator against avoidable FAA / EASA / NCA findings, AOC suspension, and AD-driven groundings.",
+        "primer": _p("do-326a"),
+        "evidencePack": _ev("do-326a"),
+        "ucs": [
+            (
+                "22.60.1",
+                "We anchor the PSecAA acceptance + milestone tracker for every TC/STC project — a PSecAA finding-of-non-compliance can delay a type-certificate by 3-12 months, costing the applicant hundreds of millions of dollars per programme.",
+            ),
+            (
+                "22.60.13",
+                "We start the EASA Part-IS 72-hour preliminary + 1-month final incident-reporting clock the instant a confirmed aviation cyber-safety event is classified — NCA + FAA + EASA submissions are queued in parallel, with submission receipts archived to the audit-evidence chain so no Part-IS deadline is missed.",
+            ),
+            (
+                "22.60.17",
+                "We block every aeronautical database load (NAV / FMS / TERRAIN / EGPWS) that fails signer pinning or signature verification — no aircraft moves under power with a tampered or unsigned database, preventing CFIT-class threat conditions at the load boundary.",
+            ),
+        ],
+    },
+    {
+        "name": "China CSL / DSL / PIPL / CII Regulations / MLPS 2.0 (Cybersecurity, Data, Privacy, CII — PRC)",
+        "description": "Consolidated PRC cybersecurity-and-data regime: Cybersecurity Law (CSL, 2017) + Data Security Law (DSL, 2021) + Personal Information Protection Law (PIPL, 2021) + Critical Information Infrastructure Regulations (CIIO, State Council Order 745, 2021) + Cybersecurity Review Measures (CRM, 2022 revision) + CAC Cross-Border Data Transfer Measures (2022) + Multi-Level Protection Scheme 2.0 (MLPS 2.0 — GB/T 22239-2019) — 14 monitored clauses covering MLPS L3+ annual independent assessment, 6-month network log retention with tamper evidence, real-name registration, CSL Art.27 cyber-attack-assistance prohibition, DSL Art.32 foreign-state-data-demand blocking statute, PIPL Art.38 cross-border transfer mechanisms (CAC assessment / standard contract / certification), DSL Art.27 data-classification register, CRM Art.7 procurement filing, PIPL Art.55-58 PIPIA + Significant-Handler obligations, ADM transparency under PIPL Art.24, and the DSL Art.29 8-hour Significant / 24-hour Ordinary incident clock.",
+        "whatItIs": "China's layered cybersecurity-and-data legal regime, anchored on the 2017 Cybersecurity Law and tightened progressively by the DSL (data-centric), PIPL (personal-data with extraterritorial reach), CII Regulations (critical-infrastructure designation), and CAC cross-border-transfer mechanisms. The Multi-Level Protection Scheme (MLPS 2.0 — GB/T 22239-2019) operationalises CSL Art.21 via five grades; L3+ requires annual independent assessment by an MPS-accredited assessor.",
+        "whoItAffects": "Every network operator in PRC; every CIIO designated by sectoral regulators; every Personal Information Handler with extraterritorial reach via PIPL Art.3(2); every Significant Personal Information Handler (>1M individuals); network products / services entering CIIO procurement or PRC-nexus IPO. Approximately every major foreign company with PRC operations or PRC customer base is in scope.",
+        "splunkValue": "We maintain the MLPS L3+ annual independent assessment cadence, prove 6-month network log retention with source-aware Merkle-tree tamper evidence under CSL Art.21(3), detect CSL Art.27 cyber-attack-assistance behaviours, operationalise the DSL Art.32 foreign-state-data-demand blocking-statute workflow, track every cross-border data transfer mechanism (CAC assessment / standard contract / certification) with bi-annual review, maintain the DSL Art.27 data-classification register, file CRM Art.7 procurement reviews, run PIPL Art.55-58 PIPIA for ADM / sensitive-PI / Significant-Handler triggers, evidence PIPL Art.24 ADM transparency, and start the DSL Art.29 8-hour Significant / 24-hour Ordinary incident clock on every confirmed data-security incident.",
+        "primer": _p("cn-csl"),
+        "evidencePack": _ev("cn-csl"),
+        "ucs": [
+            (
+                "22.61.7",
+                "We track every cross-border data transfer mechanism (CAC security assessment / standard contract / certification) under PIPL Art.38 with bi-annual review and volume reconciliation — the most onerous data-export approval pipeline in any major jurisdiction, where a missed renewal halts every outbound personal-information flow.",
+            ),
+            (
+                "22.61.3",
+                "We start the CSL Art.25 tiered (1h / 8h / 24h) + DSL Art.29 8-hour Significant / 24-hour Ordinary data-security incident clock the instant a confirmed event is classified — CAC + sectoral-regulator submissions are queued automatically with the bilingual incident-summary template, defending the operator against the most-cited PRC enforcement finding.",
+            ),
+            (
+                "22.61.11",
+                "We track every MLPS L3+ system's annual independent assessment, the MPS-accredited assessor's credential validity, and the open-finding remediation status — lapsed L3+ annual assessment is the most-cited MPS PINSS inspection finding and a precondition for PRC business continuity.",
+            ),
+        ],
+    },
+    {
+        "name": "CERT-In Directions 2022 + DPDP Act 2023 (Cybersecurity Incident Reporting + Data Protection, India)",
+        "description": "Indian Computer Emergency Response Team (CERT-In) Directions No. 20(3)/2022-CERT-In (28 April 2022, binding 27 June 2022) under IT Act Section 70B(6) + Digital Personal Data Protection Act 2023 + Data Protection Board of India — 11 monitored clauses covering the 6-hour CERT-In cybersecurity incident clock, NTP synchronisation to NIC / NPL traceable sources, designated 24x7 Point-of-Contact with 7-day change notification, 180-day rolling ICT log retention within Indian jurisdiction, VPN/VPS/cloud-provider subscriber KYC + 5-year retention, VASP / crypto-exchange KYC + 5-year transaction-record retention, IT Act Section 43A SPDI reasonable-security-practices, DPDP Significant Data Fiduciary obligations (Indian-resident DPO, periodic DPIA, annual independent audit), and the DPDP 72-hour breach-notification clock to the Data Protection Board of India.",
+        "whatItIs": "The strictest cyber-incident reporting regime in any major jurisdiction (6-hour clock) under IT Act Section 70B(6), paired with the DPDP Act 2023 (personal-data) and the Data Protection Board of India. Together they form the Indian regulatory floor for ICT operations and personal-data handling.",
+        "whoItAffects": "Every body corporate, intermediary, data centre, VPS provider, cloud-service provider, government organisation, and Virtual Asset Service Provider (VASP / crypto-exchange) operating in or providing services to users in India — regardless of nationality of the operating entity. Every Data Fiduciary under DPDP Act 2023; every Significant Data Fiduciary (SDF) designated by the Central Government under DPDP Section 10.",
+        "splunkValue": "We start the CERT-In 6-hour incident-reporting clock the instant any of 20 enumerated incident categories is confirmed, enforce NTP traceability to NIC (samay1.nic.in / samay2.nic.in) or NPL (time.npl.res.in) sources, maintain the designated CERT-In Point-of-Contact register with 7-day change-notification and 24x7 contactability tests, prove 180-day rolling ICT log retention within Indian jurisdiction, capture VPN/VPS/cloud subscriber KYC (seven limbs) and IP-allocation records for 5 years, capture VASP customer KYC + transaction records for 5 years, evidence DPDP Significant Data Fiduciary obligations (Indian-resident DPO + DPIA + annual independent audit), and start the DPDP 72-hour breach-notification clock to the Data Protection Board of India + parallel Data Principal notification.",
+        "primer": _p("cert-in"),
+        "evidencePack": _ev("cert-in"),
+        "ucs": [
+            (
+                "22.62.1",
+                "We start the CERT-In 6-hour cybersecurity incident-reporting clock — the shortest such clock in any major jurisdiction — the instant a confirmed event matches any of 20 enumerated categories, with SOAR-automated CERT-In Portal submission and receipt archived to the audit-evidence chain.",
+            ),
+            (
+                "22.62.4",
+                "We prove 180-day rolling ICT log retention within Indian jurisdiction for every regulated source — a sourcetype that drops below 180 days or that is persisted to a non-Indian region of public cloud is the most common CERT-In Direction (iv) finding.",
+            ),
+            (
+                "22.62.8",
+                "We start the DPDP 72-hour breach-notification clock to the Data Protection Board of India + the parallel Data Principal notification the instant a confirmed SPDI-touching breach is classified, with both clocks tracked independently so neither obligation is missed.",
+            ),
+        ],
+    },
+    {
+        "name": "IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443 (Functional Safety + Cybersecurity overlay, Global Process Industries)",
+        "description": "IEC 61511 (2016, Edition 2) Functional Safety for Safety Instrumented Systems (SIS) in the process industries + IEC 61508 (2010) parent standard + ISA-TR84.00.09 (2017) Cybersecurity Related to the Functional Safety Lifecycle + IEC 62443-3-2 (2020) zone-and-conduit + IEC 62443-3-3 (2013) seven Foundational Requirements — 9 monitored clauses covering the 16-phase SIS safety lifecycle, the SIS Cybersecurity Risk Assessment (CRA) under Clause 8.2.4, SIS-BPCS separation + override / bypass logging under Clause 11.7.6, proof-test discipline under Clause 16.3 (interval + demand-rate + spurious-trip-rate), SIS Management of Change + Pre-Startup Safety Review (PSSR) under Clause 17.2, the ISA-TR84.00.09 §4 integrated cybersecurity programme feed-back loop into CRA + Process Hazard Analysis (PHA), and the IEC 62443-3-2 SL-T / SL-C / SL-A evidence chain.",
+        "whatItIs": "The universally-recognised Good Engineering Practice (RAGAGEP) for Safety Instrumented Systems in the process industries, incorporated by reference into OSHA PSM (US), EPA RMP (US), HSE COMAH (UK), Seveso III (EU), MSIHC Rules (India), KOSHA PSM (Korea), and most major process-safety legal regimes. The 2016 Edition 2 of IEC 61511 introduced Clause 8.2.4 mandating a SIS Cybersecurity Risk Assessment via ISA-TR84.00.09 — the bridge between functional safety and OT cybersecurity.",
+        "whoItAffects": "Every operator of a Safety Instrumented System in the process industries — oil & gas (upstream / midstream / downstream), refining, petrochemicals, specialty chemicals, pharmaceuticals, power generation, water-and-wastewater, mining, pulp-and-paper, food-processing. Every Functional Safety Manager (FSM), Process Safety Manager, Plant Manager, and OT Security Lead at those operations.",
+        "splunkValue": "We anchor the SIS safety lifecycle register (16 phases, deliverables, verification, Functional Safety Assessment), track every SIS Cybersecurity Risk Assessment for freshness and methodology alignment with ISA-TR84.00.09 + IEC 62443-3-2, evidence SIS-BPCS separation and authorise/justify-time-bound every SIS override or bypass, monitor proof-test execution against the design interval with PFD-vs-demand-rate-vs-spurious-trip-rate trending, enforce the MoC discipline (classification + SIL-impact + CRA refresh + PSSR + lifecycle-deliverable update), run the ISA-TR84.00.09 §4 integrated cybersecurity programme (5-min ack / 8-hr CRA-link / 24-hr PHA-decision SLA), and maintain the IEC 62443-3-2 zone-and-conduit SL-T / SL-C / SL-A evidence chain with exception register.",
+        "primer": _p("iec-61511"),
+        "evidencePack": _ev("iec-61511"),
+        "ucs": [
+            (
+                "22.63.1",
+                "We track every SIS through the 16-phase IEC 61511 Clause 5 safety lifecycle with deliverable / verification / Functional Safety Assessment completion — the master evidence chain demanded by every PSM / COMAH / Seveso / MSIHC auditor and every certifying body (TÜV / exida / DEKRA / Bureau Veritas / Lloyd's Register).",
+            ),
+            (
+                "22.63.5",
+                "We enforce the IEC 61511 Clause 17.2 Management-of-Change discipline — misclassification of an SIS-affecting change as 'replacement-in-kind' is the most consistent root-cause finding across major process-safety incidents (Williams Olefins 2013, West Fertilizer 2013). Every change must clear SIL-impact + CRA refresh + PSSR before restart.",
+            ),
+            (
+                "22.63.6",
+                "We operate the ISA-TR84.00.09 §4 integrated cybersecurity programme SLA — every SIS-zone cyber-event acknowledged within 5 minutes, linked to a CRA finding within 8 hours, and a PHA-refresh decision recorded within 24 hours. This is the operational glue between OT cybersecurity detection and the safety-lifecycle.",
+            ),
+        ],
+    },
+    {
         "name": "EU AI Act",
         "description": "High-risk AI system logging, traceability, human oversight, conformity assessment, and post-market monitoring under the EU Artificial Intelligence Act.",
         "whatItIs": "The EU's horizontal regulation on artificial intelligence. It bans unacceptable AI uses, imposes strict obligations on high-risk AI systems (healthcare, employment, credit, law enforcement, biometric, safety-critical), and adds general-purpose AI model transparency duties.",
