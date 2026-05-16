@@ -33,22 +33,40 @@ the release notes block in `index.html` by hand.
   the top, `splunkbaseApps`/`premiumApps` near the bottom); content
   is preserved byte-for-byte across the move.
 
-  **Known follow-on, NOT addressed in this commit:** with the cascade
-  + this fix combined, the next CI run will surface an 8-orphan
-  failure on `Phase 4.2 evidence-pack generator regeneration check`
-  for the OT-arc evidence packs the maintainer added markdown for
-  (`cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
-  `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
-  `tsa-surface.md`) — these slugs are missing from `PACK_TARGETS` in
-  [`src/splunk_uc/generators/evidence_packs.py`](src/splunk_uc/generators/evidence_packs.py).
-  Documented in drift ledger #16 in
-  `docs/health-check-2026-progress.md` so the surfacing is expected
-  rather than a surprise; resolution needs a maintainer decision on
-  whether to widen the generator's scope (risks overwriting
-  hand-customised TOC sections like *"Questions a flag-State / PSC /
-  class-society inspector should ask"* in `imo-msc-428-98.md`) or
-  re-classify the orphan files as hand-authored docs and teach the
-  orphan check an allow-list.
+  **Known follow-ons, NOT addressed in this commit (both share the
+  same root cause: the OT-arc landed hand-authored content but did
+  not extend the corresponding generators).** With the cascade + this
+  fix combined, two further `validate.yml` red gates are now visible:
+
+  1. **`Phase 4.3 cat-22 non-technical block regeneration check`** —
+     `migrate-cat22-ntv --check` reports drift because the maintainer
+     added 7 OT-arc `areas[]` entries (NCA OTCC, SOCI, AWIA, CIRCIA,
+     SG Cyber Act, France LPM, IMO MSC.428(98)) to the `"22": { … }`
+     block in `non-technical-view.js` but the corresponding `_AREAS`
+     list in `src/splunk_uc/migrations/regenerate_cat22_ntv.py` (49
+     entries) does not carry them. Re-running the generator *deletes*
+     the maintainer's 7 areas including the French-language `why`
+     strings on the LPM entry, so the regen is **destructive and must
+     not be auto-run**.
+  2. **`Phase 4.2 evidence-pack generator regeneration check`** — 8
+     orphan files (`cert-in.md`, `cn-csl.md`, `do-326a.md`,
+     `fr-lpm.md`, `iec-61511.md`, `imo-msc-428-98.md`,
+     `sg-cyber-act.md`, `tsa-surface.md`) missing from `PACK_TARGETS`
+     in `src/splunk_uc/generators/evidence_packs.py`.
+
+  Both documented in drift ledger #16 of
+  `docs/health-check-2026-progress.md` so the post-push CI failures
+  are expected, not a surprise. Resolution needs a maintainer
+  decision on whether to widen each generator's data structure
+  (risks overwriting hand-customised content like the *"Questions a
+  flag-State / PSC / class-society inspector should ask"* TOC item
+  on `imo-msc-428-98.md` or the Arabic-language reviewer notes on
+  the NCA OTCC NTV area) or re-classify the OT-arc additions as
+  hand-authored content with allow-listed exclusions in the `--check`
+  gates. The cleanest follow-on shape is a 3-commit batch: cat-22
+  NTV first (because it surfaces first under `set -e`), then
+  evidence-packs, then any third surface that emerges after those
+  two clear.
 
 - **Post-corpus-expansion generator cascade — clears the two `validate.yml` failures left on `b9f17b407`.**
   After the maintainer's `2032c631a` (SPL reference corpus expansion +

@@ -556,35 +556,75 @@ findings but should not be lost:
     `make sync-generated` umbrella target so contributors don't need
     to learn the dependency order each time the corpus widens.
 
-    **Known follow-on, NOT addressed in this cascade:** running
-    `splunk_uc generate-evidence-packs --check` locally surfaces 8
-    `orphan: docs/evidence-packs/<slug>.md` errors for the OT-arc
-    regulations the maintainer added evidence-pack markdown for —
-    `cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
-    `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
-    `tsa-surface.md`. The MD files exist on disk and are tracked, but
-    the generator's hardcoded `PACK_TARGETS` list in
-    [`src/splunk_uc/generators/evidence_packs.py`](../src/splunk_uc/generators/evidence_packs.py)
-    (currently 17 slugs) does not include them, so `--check` reports
-    them as orphans and `generate-evidence-packs` (without `--check`)
-    would *delete* them. This was masked on the prior CI runs by the
-    Phase 3.2 cross-cutting and Equipment-tags failures stopping the
-    job early; with this cascade clearing both, the next CI run on
-    `main` will surface it as a fresh red gate. **Not fixed in this
-    cascade** because the safest fix (adding the 8 slugs to
-    `PACK_TARGETS`) would regenerate the MD files from
-    `data/evidence-pack-extras.json` + UC compliance entries and
-    risk overwriting the hand-authored content sections (the orphans
-    carry custom TOC items like *"Questions a flag-State / PSC /
-    class-society inspector should ask"* on `imo-msc-428-98.md` that
-    the generic template does not produce). The decision needs the
-    maintainer: either (a) `evidence-pack-extras` and the generator
-    template both gain the OT-arc regulators and the hand-customised
-    sections move into the generator, or (b) the orphan files are
-    re-classified as hand-authored docs outside the generator's scope
-    (and the orphan check is taught to ignore an explicit allow-list).
-    Tracked here so the post-push CI failure is expected, not a
-    surprise.
+    **Known follow-ons, NOT addressed in this cascade — both share
+    the same root cause: the OT-arc landed hand-authored *content*
+    (new evidence packs, new cat-22 non-technical-view areas) but did
+    not extend the corresponding generators to *include* that content
+    in their canonical output, so each generator's `--check` gate
+    treats the maintainer's additions as either orphan files (1) or
+    drift (2).**
+
+    1. **Phase 4.2 evidence-pack orphan gate:** running
+       `splunk_uc generate-evidence-packs --check` locally surfaces 8
+       `orphan: docs/evidence-packs/<slug>.md` errors for the OT-arc
+       regulations the maintainer added evidence-pack markdown for —
+       `cert-in.md`, `cn-csl.md`, `do-326a.md`, `fr-lpm.md`,
+       `iec-61511.md`, `imo-msc-428-98.md`, `sg-cyber-act.md`,
+       `tsa-surface.md`. The MD files exist on disk and are tracked,
+       but the generator's hardcoded `PACK_TARGETS` list in
+       [`src/splunk_uc/generators/evidence_packs.py`](../src/splunk_uc/generators/evidence_packs.py)
+       (currently 17 slugs) does not include them, so `--check`
+       reports them as orphans and `generate-evidence-packs` (without
+       `--check`) would *delete* them.
+
+    2. **Phase 4.3 cat-22 non-technical block regeneration check:**
+       running `splunk_uc migrate-cat22-ntv --check` locally reports
+       "cat-22 non-technical block drift detected". The maintainer
+       added 7 OT-arc `areas[]` entries to the `"22": { … }` block in
+       [`non-technical-view.js`](../non-technical-view.js) — `NCA
+       OTCC (Saudi OT)`, `SOCI Act + CIRMP Rules (Australia)`,
+       `AWIA s2013 + EPA/CISA Water Sector Cybersecurity (US)`,
+       `CIRCIA + 6 USC 681b`, `SG Cyber Act`, `France LPM OIV Regime
+       + ANSSI 20-Rules (France)`, and `IMO MSC.428(98) +
+       MSC-FAL.1/Circ.3 + IACS UR E26/E27 (Maritime / Shipping,
+       Global)` — but the corresponding `_AREAS` list in
+       [`src/splunk_uc/migrations/regenerate_cat22_ntv.py`](../src/splunk_uc/migrations/regenerate_cat22_ntv.py)
+       (currently 49 entries) does not carry them. Running
+       `migrate-cat22-ntv` *deletes* the maintainer's 7 areas — 65
+       lines of hand-authored bilingual narrative including the
+       French-language `ucs[].why` strings on the LPM entry and the
+       Arabic-language reviewer notes on the NCA OTCC entry — so the
+       regen is destructive and **must not be auto-run**.
+
+    Both were masked on the prior CI runs by the Phase 3.2
+    cross-cutting failure (and on `e2f467cf6` by the Equipment-tags
+    failure that masked Phase 4.3 in turn) stopping the job script
+    early under `set -e`. With this cascade clearing those, the next
+    CI run on `main` will surface Phase 4.3 first (line 698 of
+    `validate.yml`), then Phase 4.2 (line 724) on the run after that
+    is fixed.
+
+    **Not fixed in this cascade** because the safest fix for either
+    generator (transcribing the maintainer's hand-authored content
+    into the generator's Python data structures so the generator's
+    output matches the on-disk content byte-for-byte) requires careful
+    fidelity — the hand-customised TOC sections on
+    `imo-msc-428-98.md` (*"Questions a flag-State / PSC /
+    class-society inspector should ask"*) and the multilingual `why`
+    strings on the cat-22 NTV LPM / OTCC areas need exact replication.
+    The decision needs the maintainer: either (a) `evidence-pack-extras`,
+    the evidence-pack generator template, and the cat-22 NTV
+    `_AREAS` list all gain the OT-arc additions with byte-identical
+    output, or (b) the OT-arc additions are re-classified as
+    hand-authored content outside the generators' scope (and the
+    `--check` gates are taught to ignore an explicit allow-list of
+    "manually maintained" slugs / area-names).
+
+    Tracked here so the post-push CI failures are expected, not a
+    surprise. A 3-commit batch (one per generator: cat-22 NTV first
+    because it surfaces first, then evidence-packs, then any third
+    surface that emerges after those two clear) is the cleanest
+    follow-on shape.
 
 ## Recommended next actions, in size order
 
