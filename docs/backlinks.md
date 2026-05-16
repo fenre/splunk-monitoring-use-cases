@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_199 pages indexed; 126 have at least one inbound link; 421 unique source→target edges._
+_214 pages indexed; 127 have at least one inbound link; 426 unique source→target edges._
 
 ---
 
@@ -103,6 +103,7 @@ _No inbound links yet._
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0003-single-catalog-json-plus-per-category-api.md`](adr/0003-single-catalog-json-plus-per-category-api.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
+- [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
 - [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/0003-single-catalog-json-plus-per-category-api.md`
@@ -115,6 +116,7 @@ _No inbound links yet._
 
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
+- [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
 - [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/0005-uc-id-x-y-z-scheme.md`
@@ -161,6 +163,7 @@ _No inbound links yet._
 - [`docs/adr/0008-canonical-constants.md`](adr/0008-canonical-constants.md)
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
+- [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -188,6 +191,11 @@ _No inbound links yet._
 
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/README.md`](adr/README.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+
+## `docs/adr/0013-frontend-rebuild-scaffold.md`
+
+- [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `docs/adr/README.md`
@@ -352,11 +360,39 @@ _No inbound links yet._
 - [`docs/regulatory-primer.md`](regulatory-primer.md)
 - [`docs/sme-review-guide.md`](sme-review-guide.md)
 
+## `docs/evidence-packs/awia.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/cert-in.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/circia.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/clc-ts-50701.md`
+
+_No inbound links yet._
+
 ## `docs/evidence-packs/cmmc.md`
 
 _No inbound links yet._
 
+## `docs/evidence-packs/cn-csl.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/do-326a.md`
+
+_No inbound links yet._
+
 ## `docs/evidence-packs/dora.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/fr-lpm.md`
 
 _No inbound links yet._
 
@@ -368,7 +404,19 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/evidence-packs/iec-61511.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/imo-msc-428-98.md`
+
+_No inbound links yet._
+
 ## `docs/evidence-packs/iso-27001.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/nca-otcc.md`
 
 _No inbound links yet._
 
@@ -391,11 +439,23 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/evidence-packs/sg-cyber-act.md`
+
+_No inbound links yet._
+
 ## `docs/evidence-packs/soc-2.md`
 
 _No inbound links yet._
 
+## `docs/evidence-packs/soci.md`
+
+_No inbound links yet._
+
 ## `docs/evidence-packs/sox-itgc.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/tsa-surface.md`
 
 _No inbound links yet._
 
@@ -1018,6 +1078,10 @@ _No inbound links yet._
 - [`docs/clause-navigator-guide.md`](clause-navigator-guide.md)
 
 ## `docs/source-catalog.md`
+
+_No inbound links yet._
+
+## `docs/spl-reference-validation.md`
 
 _No inbound links yet._
 
