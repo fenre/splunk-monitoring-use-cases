@@ -118,7 +118,7 @@ vocabulary is narrower).
 |------|---------|
 | `src/splunk_uc/audits/_spl_parse.py` | Shared SPL parser primitives. |
 | `src/splunk_uc/audits/_spl_baseline.py` | Splunk-core baseline (commands, eval/stats functions, CIM datasets, builtin tokens). |
-| `src/splunk_uc/audits/_spl_well_known.py` | Curated Splunkbase<sup class="ref">[<a href="#ref-3">3</a>]</sup> TA sourcetypes + ESCU macro vocabulary. |
+| `src/splunk_uc/audits/_spl_well_known.py` | Curated Splunkbase<sup class="ref">[<a href="#ref-4">4</a>]</sup> TA sourcetypes + ESCU macro vocabulary. |
 | `src/splunk_uc/audits/spl_references.py` | The audit verb (`audit-spl-references`). |
 | `tools/research/build_spl_reference.py` | Local-only reference corpus builder. |
 | `data/spl-reference.local.json` | Generated artefact (gitignored). |
@@ -183,9 +183,9 @@ just lists zero entries and the audit falls back to the static layers.
 | Source | Path | License | Redistributable? |
 |--------|------|---------|------------------|
 | Searchbase ([Splunkbase 7188](https://splunkbase.splunk.com/app/7188)) | `external/searchbase/` | Splunk General Terms | **No.** Vocabulary fingerprints only. |
-| Insights Suite for Splunk — IS4S ([Splunkbase 7186](https://splunkbase.splunk.com/app/7186)) | `external/is4s/` | Splunk General Terms | **No.** Wraps Searchbase, Use Case Explorer (with Splunk Lantern UC mapping), and Value Insights. |
+| Insights Suite for Splunk — IS4S ([Splunkbase 7186](https://splunkbase.splunk.com/app/7186)) | `external/is4s/` | Splunk General Terms | **No.** Wraps Searchbase, Use Case Explorer (with Splunk Lantern<sup class="ref">[<a href="#ref-3">3</a>]</sup> UC mapping), and Value Insights. |
 | Splunk Security Essentials — SSE ([Splunkbase 3435](https://splunkbase.splunk.com/app/3435)) | `external/sse/` | Splunk General Terms | **No.** ~600 curated security searches and a product/sourcetype regex catalogue. |
-| Splunk Common Information Model add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) | `external/cim/` | Splunk General Terms | **No.** 27 CIM 8.x datamodel JSON files plus the canonical CIM tag vocabulary. |
+| Splunk Common Information Model<sup class="ref">[<a href="#ref-2">2</a>]</sup> add-on ([Splunkbase 1621](https://splunkbase.splunk.com/app/1621)) | `external/cim/` | Splunk General Terms | **No.** 27 CIM 8.x datamodel JSON files plus the canonical CIM tag vocabulary. |
 | `splunk/security_content` (ESCU) | `external/security_content/` | Apache-2.0 | Yes. Optional vendoring. |
 
 The audit consumes only macro names, sourcetype strings (literal and
@@ -291,26 +291,34 @@ regex patterns).
 
 <a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
 
-<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunk Lantern — customer success knowledge base*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://lantern.splunk.com/
+
+<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <details>
-<summary>Additional online sources cited in the document body (8)</summary>
+<summary>Additional online sources cited in the document body (11)</summary>
 
-<a id="ref-4"></a>**[4]** github.com. *ESCU repo*. Retrieved May 11, 2026, from https://github.com/splunk/security_content/tree/develop/macros
+<a id="ref-5"></a>**[5]** splunkbase.splunk.com. *Splunkbase 7188*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7188
 
-<a id="ref-5"></a>**[5]** docs.splunk.com. *Splunk SPL command reference*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ListOfSearchCommands
+<a id="ref-6"></a>**[6]** splunkbase.splunk.com. *Splunkbase 7186*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7186
 
-<a id="ref-6"></a>**[6]** docs.splunk.com. *Splunk eval functions*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions
+<a id="ref-7"></a>**[7]** splunkbase.splunk.com. *Splunkbase 3435*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3435
 
-<a id="ref-7"></a>**[7]** docs.splunk.com. *Splunk stats functions*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Statistical-and-charting-functions
+<a id="ref-8"></a>**[8]** splunkbase.splunk.com. *Splunkbase 1621*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1621
 
-<a id="ref-8"></a>**[8]** docs.splunk.com. *Splunk CIM 6.x*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Overview
+<a id="ref-9"></a>**[9]** github.com. *ESCU repo*. Retrieved May 11, 2026, from https://github.com/splunk/security_content/tree/develop/macros
 
-<a id="ref-9"></a>**[9]** github.com. *Splunk Security Content (ESCU)*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
+<a id="ref-10"></a>**[10]** docs.splunk.com. *Splunk SPL command reference*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ListOfSearchCommands
 
-<a id="ref-10"></a>**[10]** splunkbase.splunk.com. *Searchbase App for Splunk (Splunkbase 7188)*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/7188
+<a id="ref-11"></a>**[11]** docs.splunk.com. *Splunk eval functions*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions
 
-<a id="ref-11"></a>**[11]** github.com. *GitHub: splunk/searchbase*. Retrieved May 11, 2026, from https://github.com/splunk/searchbase
+<a id="ref-12"></a>**[12]** docs.splunk.com. *Splunk stats functions*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Statistical-and-charting-functions
+
+<a id="ref-13"></a>**[13]** docs.splunk.com. *Splunk CIM 6.x*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Overview
+
+<a id="ref-14"></a>**[14]** github.com. *Splunk Security Content (ESCU)*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
+
+<a id="ref-15"></a>**[15]** github.com. *GitHub: splunk/searchbase*. Retrieved May 11, 2026, from https://github.com/splunk/searchbase
 
 </details>
 
