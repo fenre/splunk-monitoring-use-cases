@@ -12,6 +12,51 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **`audit-spl-references` — third SPL audit that catches fabricated identifiers (HIGH on `--check`).**
+  Joins `audit-spl-grammar` (structural bugs) and
+  `audit-spl-hallucinations` (unknown commands / invalid CIM datasets)
+  as the third leg of the catalogue's defence against AI-authored
+  SPL hallucinations. Where the existing two audits catch SPL that
+  would fail at parse time, the new audit catches SPL that *parses*
+  fine but cites identifiers that do not exist anywhere in the
+  Splunk-core baseline, the curated TA vocabulary, or the local
+  reference corpus — fake macros, misspelled sourcetypes, eval
+  functions that do not exist, datamodel paths from non-existent
+  models. The vocabulary is layered:
+    - **Splunk-core baseline** ([`src/splunk_uc/audits/_spl_baseline.py`](src/splunk_uc/audits/_spl_baseline.py), 266 lines) — 172 commands, 107 eval functions, 38 stats-only functions, 19 builtin field tokens, 29 CIM models / 129 paths.
+    - **Curated well-known TA vocabulary** ([`src/splunk_uc/audits/_spl_well_known.py`](src/splunk_uc/audits/_spl_well_known.py), 597 lines) — 392 sourcetypes, 62 ESCU/TA macros, 11 well-known indexes. Append-only as new add-ons gain importance in the catalogue.
+    - **Local reference corpus** (`data/spl-reference.local.json`, gitignored) — built on demand by [`tools/research/build_spl_reference.py`](tools/research/build_spl_reference.py) (425 lines) from a Splunkbase archive dropped under `external/` and the optional `splunk/security_content` clone. Adds ~770 Searchbase SPL searches and the ESCU detection library to the effective vocabulary; the audit still runs against the static layers when the local corpus is absent (more MEDIUM findings, no HIGH regressions).
+
+  Shared parser primitives live in
+  [`src/splunk_uc/audits/_spl_parse.py`](src/splunk_uc/audits/_spl_parse.py)
+  (428 lines) and are now used by both `audit-spl-grammar` and the
+  new audit — fixing one fixes both. The audit itself is in
+  [`src/splunk_uc/audits/spl_references.py`](src/splunk_uc/audits/spl_references.py)
+  (597 lines) and is registered through the dispatcher in
+  [`src/splunk_uc/_registry.py`](src/splunk_uc/_registry.py).
+  Severity tiers:
+    - HIGH: `unknown-command`, `unknown-datamodel` — fails `--check`.
+    - MEDIUM: `unknown-macro`, `unknown-sourcetype`, `unknown-datamodel-dataset` — reports, does not fail.
+    - LOW: `unknown-eval-function`, `unknown-stats-function`, `suspicious-index-name` — reports, does not fail.
+
+  Test coverage: [`tests/splunk_uc/test_spl_references.py`](tests/splunk_uc/test_spl_references.py)
+  (366 lines) — 30 unit tests pinning parser + audit contracts, all
+  passing locally. Maintainer-facing documentation:
+  [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md)
+  (253 lines) with architecture diagram, severity table, and the
+  `make audit-spl-references` / `make audit-spl-references-build`
+  workflow. First-run report shipped under
+  [`reports/quality-review/2026-05-16-spl-references.md`](reports/quality-review/2026-05-16-spl-references.md)
+  (215 lines summary) and `.json` (31,120 lines, raw findings).
+
+  Bundling note: this feature landed in commit `4bd2954d5` alongside
+  the unrelated "fix(ci): unblock validate.yml after OT-arc landing"
+  work. The two were accidentally stitched together when staging
+  picked up local WIP files that were not in the intended commit
+  set. See drift-ledger #15 in `docs/health-check-2026-progress.md`
+  for the incident write-up and the rationale for the
+  forward-fix-via-CHANGELOG-and-docs choice over a force-push undo.
+
 - **P5 first migration target — typed companion + CI wiring for `non-technical-view.js`.**
   Closes the *test-runner* half of plan finding F16 (the *bundler*
   half stays open for a future source-of-truth-inversion PR — see

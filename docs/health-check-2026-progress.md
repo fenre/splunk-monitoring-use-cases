@@ -2,7 +2,7 @@
 
 > Verified status of every plan finding (F1–F23) and phase (P0–P19) from
 > `/Users/fsudmann/.cursor/plans/repo_health_and_architecture_overhaul_b0cd1852.plan.md`
-> as of HEAD **v8.6.4** (commit `dd4e7f3af`+, pushed 2026-05-16).
+> as of HEAD **v8.6.4** (commit `4bd2954d5`+, pushed 2026-05-16).
 > The doc was first generated 2026-05-12 against v8.2.0
 > (commit `a36aa4db4`); the 2026-05-16 refresh re-anchored counts and
 > status against the post-OT-deep-dive HEAD plus the open work it
@@ -10,11 +10,17 @@
 > regulation arc (Phases 1-6), the doc-refresh / F10 trailing closure,
 > the F7 `.md` parity regen (216 files), the **P5 frontend rebuild
 > scaffold first cut** ratified by
-> [ADR-0013](adr/0013-frontend-rebuild-scaffold.md), and the
+> [ADR-0013](adr/0013-frontend-rebuild-scaffold.md), the
 > **P5 first real migration target** — typed companion + 81
 > shape-invariant tests for `non-technical-view.js` plus the CI wiring
 > that finally puts `apps/web/`'s `npm test` + `npm run typecheck`
-> on every PR and push (drift ledger #14, F16 test-runner half closed).
+> on every PR and push (drift ledger #14, F16 test-runner half closed),
+> the **CI unblock + new `audit-spl-references` feature accidentally
+> bundled** (drift ledger #15 — forward-fixed via this CHANGELOG +
+> ledger update, no force-push undo), and the OT-arc post-regen
+> chain (`reports/sandbox-validation.json` +
+> `splunk-apps/splunk-uc-recommender/` refreshed to absorb the 217
+> new UCs introduced by Phases 1-6 of the OT regulation arc).
 >
 > Every status below is backed by a concrete file:line citation or a
 > command output. Nothing is "assumed done"; if it's marked DONE the
@@ -284,6 +290,45 @@ findings but should not be lost:
     config files from earlier today's two PRs. F7 is fully closed
     on both `origin/main` (since 2026-05-12) and local `main`
     (now); the gate is healthy on both trees.
+
+15. **Late-afternoon staging-leak incident — `4bd2954d5` accidentally
+    bundled local WIP into a "fix(ci)" commit (2026-05-16,
+    forward-fix only — no force-push to `origin/main`).** While
+    landing the CI-unblock commit that closes the OT-arc-induced
+    audit failures (UC-22.62.8 literal-TBD fix + sandbox-validation
+    regen + recommender-app regen — 13 files / +11,772 / -972), the
+    staging step picked up 16 additional files from the in-progress
+    "SPL reference vocabulary validation" feature that had been
+    sitting unstaged in the working tree throughout the session.
+    Pre-commit verification with `git diff --cached --stat HEAD`
+    correctly reported the 13 intended files; the actual commit
+    captured 29 files (+46,125 / -975). No pre-commit hook exists
+    locally and `core.hooksPath` is unset, so the leak cause is
+    most likely an upstream `git add -A` or `git add -u` invocation
+    earlier in the session whose effects survived the explicit
+    path-based `git add` that followed. The committed work is
+    healthy — the 30-test `tests/splunk_uc/test_spl_references.py`
+    suite passes locally, the SPL reference vocabulary feature
+    docs are complete (`docs/spl-reference-validation.md`,
+    253 lines), and CI on `4bd2954d5` is in flight — but the
+    commit message describes only the CI-unblock half and the
+    feature itself is undocumented in `CHANGELOG.md`. **Forward-fix
+    chosen over force-push undo** because `4bd2954d5` was already
+    pushed to `origin/main` before the leak was diagnosed, and
+    rewriting public history on `main` carries higher risk than
+    accepting one misleading commit message in the log. The
+    follow-up commit (this one, `4bd2954d5+1`) adds: (a) a proper
+    `[Unreleased]` `CHANGELOG.md` bullet for `audit-spl-references`
+    describing the three-layer vocabulary (Splunk-core baseline +
+    curated TA + local reference corpus), the parser-primitives
+    shared with `audit-spl-grammar`, the severity tiers, the test
+    coverage, and the bundling note pointing back at this drift
+    ledger entry, and (b) this drift-ledger entry. Net result:
+    `origin/main` carries the feature *and* the CI fix; the
+    feature is discoverable from `CHANGELOG.md`; the incident is
+    archived here for future post-mortems and as a reminder to
+    add a paranoid pre-commit verification of `git diff --cached
+    --name-only` (not just `--stat`) against the intended set.
 
 14. **P5 first migration target landed — `non-technical-view.js`
     typed companion + 81 shape invariants in CI (2026-05-16).**
