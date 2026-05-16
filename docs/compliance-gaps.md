@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-05-14T11:09:06Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
+_Generated: 2026-05-16T10:55:25Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
