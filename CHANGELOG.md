@@ -12,6 +12,32 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **[generated] Regenerate 216 `.md` companions to close the post-OT-arc
+  F7 parity gap on local `main`.** The morning's
+  `docs/health-check-2026-progress.md` refresh ledger item #12 flagged
+  that local HEAD reported `216/7929 .md files are stale or missing`
+  via `python -m splunk_uc generate-md-from-json --check` — 168 UCs in
+  cat-22 subcategories 22.54-22.63 ship JSON-only (the OT regulation
+  Phases 2b-6 commits never re-ran the markdown generator) and 48
+  existing `.md` files (45 in cat-22, 3 in cat-17) had drifted
+  relative to their JSON. This PR runs the generator without
+  `--check` (`Generated 7929 .md files.`); `--check` now exits 0
+  with `All 7929 .md files are up-to-date.`. The cat-17 stale diffs
+  are pure JSON-side dedup (e.g. UC-17.1.33 dropping a duplicate
+  `monitoringType: "Operations"` entry); the cat-22 new files are
+  the standard generator output (AUTO-GENERATED header, YAML
+  frontmatter, criticality/difficulty/wave row, grandma explanation,
+  description, value, implementation, SPL, visualization, CIM
+  models, MITRE mappings, regulatory mappings). Tagged `[generated]`
+  per the §4 per-PR contract — skips the LoC budget; `audit-doc-counts`
+  + `audit-uc-structure` clean post-regen. F7 is now fully closed on
+  both `origin/main` (since 2026-05-12) and local `main` (since this
+  PR); drift ledger #12 in the canonical progress doc updated to
+  ~~struck-through~~ with the resolution narrative; the matching F7
+  row reclassified from "DONE on `origin/main`, REGRESSED on local
+  `main`" back to plain DONE; the first bullet of "Recommended next
+  actions" item #10 struck-through.
+
 - **Refresh `docs/health-check-2026-progress.md` against local HEAD
   `fd2f09cc5` (v8.6.4).** The canonical in-repo progress report for the
   §1b repo-health overhaul plan was last fully refreshed 2026-05-13

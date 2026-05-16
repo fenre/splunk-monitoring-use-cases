@@ -69,7 +69,7 @@ including the deferred sample-data shape ADR).
 | F4 | H | ADR-0001 says markdown canonical; DESIGN.md says JSON | DONE | `docs/adr/0001-markdown-as-source-of-truth.md` carries `Superseded by: ADR-0007: JSON sidecars as source of truth for UC content`. |
 | F5 | H | ~3,300 modified files in working tree | DONE | Working tree clean at HEAD post v8.2.0 commit. |
 | F6 | H | `audit_uc_structure.py` scans `use-cases/cat-*.md` | DONE | `src/splunk_uc/audits/uc_structure.py:4` walks `content/cat-*/UC-*.json` (JSON SSOT per ADR-0007). The legacy `use-cases/` corpus itself was retired in v8.2.0 (CHANGELOG entry "Legacy `use-cases/` markdown corpus retired"). |
-| F7 | H | Quality gates run `continue-on-error: true` | **DONE on `origin/main`, REGRESSED on local `main`** (2026-05-16 refresh) | The `continue-on-error: true` strip from 2026-05-12 still stands — `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. The two formerly-flagged gates are now wired to fail PRs on drift. **However**: on local HEAD (v8.6.4, post-OT-arc), `python -m splunk_uc generate-md-from-json --check` exits 1 with `216/7929 .md files are stale or missing` — 168 UCs in cat-22 subcategories 22.54-22.63 ship JSON-only (no committed `.md` companion) and 48 existing `.md` files are stale relative to their JSON. The latest green CI on `origin/main` (commit `00729f198`) does not exhibit this because the four un-pushed local commits (`458a50f8b` / `debb1d9b5` / `c25e80ec1` / `fd2f09cc5`) are the ones that introduced the gap. The pre-push fix is one mechanical regen — `python -m splunk_uc generate-md-from-json` without `--check` — tagged `[generated]` per the §4 per-PR contract. Tracked as drift ledger item #12. |
+| F7 | H | Quality gates run `continue-on-error: true` | **DONE** (2026-05-12 strip; 2026-05-16 local-`main` regen closes the post-OT-arc parity gap) | The `continue-on-error: true` strip from 2026-05-12 still stands — `rg "^\s*continue-on-error:\s*true" .github` returns 0 matches across the entire workflows directory. The two formerly-flagged gates are now wired to fail PRs on drift. **2026-05-16 follow-up**: the post-OT-arc parity gap that this row was flagging at the morning refresh (`216/7929 .md files are stale or missing` on local HEAD) was closed in the afternoon by running `python -m splunk_uc generate-md-from-json` without `--check`. The regen wrote 168 new `.md` companions in `cat-22` subcategories 22.54-22.63 (the OT regulation Phases 2b-6 JSON-only authoring) and 48 normalisation-drift updates (45 in cat-22, 3 in cat-17 — e.g. UC-17.1.33 dropping a `monitoringType` duplicate). `--check` now reports `All 7929 .md files are up-to-date.`. Tracked as drift ledger item #12 (resolved). |
 | F8 | H | `index.html` 621 KB / 162 KB gzipped, 33 `innerHTML`, `'unsafe-inline'` CSP | DONE — PR-A + PR-B landed 2026-05-13 (PR-C tracked under P10) | At HEAD `b3f0da75a`: **645,766 bytes raw / 173,030 bytes gzipped** (+11 KB gzipped vs. plan baseline), originally **29 `.innerHTML =` sinks** (the plan's "33" included four overview-roadmap sites since inlined into the build), **0** `eval` / `new Function` / `document.write` calls, and **1 CSP meta tag with `'unsafe-inline'` on both `script-src` *and* `style-src`** (not just `style-src` — the plan baseline understated this). Authored [docs/f8-frontend-hardening-inventory.md](f8-frontend-hardening-inventory.md), a single-page bounded scope: one row per `innerHTML` site (categorised A-E), per-helper escape audit (`esc`, `buildMitreDdList`, `_invBuildBody`), CSP `'unsafe-inline'` accounting (2 inline `<script>`, 104 inline `on*=` handlers; 1 inline `<style>`, 42 inline `style="…"` attrs), and a three-PR migration plan. **PR-A landed 2026-05-13** — the seven static-option Category-A sites now route through one `_resetEquipmentModelSelect(ms)` helper (created via `document.createElement`/`replaceChildren`, not raw HTML); innerHTML sink count: 29 → 22. **PR-B landed 2026-05-13** — three new DOM-construction helpers (`_appendEquipmentModelOption`, `_makeInventoryLink`, `_appendSizingHintSpan`) replace the only `innerHTML +=` per-iteration loop, the Category-D `innerHTML = summary` write, and both `innerHTML += '<br><span …>'` append sites. The two inline `onclick="event.preventDefault();openInventoryModal()"` HTML attributes are gone (rebound via `addEventListener`). Final counter movement: `.innerHTML =` sites = **21**, `.innerHTML +=` code sites = **0** (one comment-only match remains in a helper docstring); index.html = 651,770 bytes, perf-a11y headroom 65,030 / 716,800 (~9% slack). F8 close criteria satisfied; PR-C (virtual-scroll renderer `<template>`-clone refactor) is the explicit known-cost follow-up and CSP `'unsafe-inline'` tightening both fold into the existing **P10** phase (Performance + a11y hardening) which already names F8 as its prerequisite. |
 | F9 | H | No CodeQL / dependency-review / SBOM | DONE (mostly) | `.github/workflows/codeql.yml` + `dependency-review.yml` + `gitleaks.yml` all present as separate workflows. SBOM via `anchore/sbom-action` in `release.yml` — verify in P2.5 audit. |
 | F10 | H | `secrets.env` not in `.cursorignore` | **DONE** (2026-05-12) | `.cursorignore` now carries an explicit "Secrets and local environment overrides" block listing `secrets.env`, `secrets.env.local`, `.env`, `.env.local`, `.env.*.local`. `.gitignore` lines 88-90 already block them from commits; the new entries also hide them from the Cursor agent's index so a stray `Read` cannot surface credentials. |
@@ -251,7 +251,7 @@ findings but should not be lost:
     `src/splunk_uc/generators/scorecard.py`, `reports/*.json`,
     `scorecard.json`, `openapi.yaml`, `tests/build/test_scorecard_drilldowns.py`
     — none of these are touched by the four un-pushed commits).
-12. **F7 — `.md` parity gap on local HEAD.** New ledger entry
+12. ~~**F7 — `.md` parity gap on local HEAD.** New ledger entry
     2026-05-16, sub-finding of F7. Local HEAD reports
     `216/7929 .md files are stale or missing` via
     `python -m splunk_uc generate-md-from-json --check`. Breakdown:
@@ -263,7 +263,22 @@ findings but should not be lost:
     without `--check` regenerates all 7,929 markdown twins in a
     single pass, tagged `[generated]` per the §4 per-PR contract.
     The gate itself is correctly wired (F7's `continue-on-error: true`
-    strip stands); it just hasn't been re-run after the OT arc.
+    strip stands); it just hasn't been re-run after the OT arc.~~
+    **Resolved 2026-05-16** — `python -m splunk_uc generate-md-from-json`
+    written 7,929 `.md` files (168 newly added in `cat-22-regulatory-compliance`
+    UCs 22.54-22.63, 48 normalisation-drift updates split 45 / 3
+    across cat-22 / cat-17). Re-running `--check` exits 0:
+    `All 7929 .md files are up-to-date.`. The cat-17 stale diffs
+    are pure JSON-side dedup (e.g. UC-17.1.33 dropping a duplicate
+    `monitoringType: "Operations"`); the cat-22 new files are the
+    standard generator output (AUTO-GENERATED header, YAML
+    frontmatter, criticality/difficulty/wave row, grandma
+    explanation, description, value, implementation, SPL,
+    visualization, CIM models, MITRE mappings, regulatory
+    mappings). 219 staged paths total: 216 `.md` + the three doc /
+    config files from earlier today's two PRs. F7 is fully closed
+    on both `origin/main` (since 2026-05-12) and local `main`
+    (now); the gate is healthy on both trees.
 
 ## Recommended next actions, in size order
 
@@ -390,12 +405,16 @@ findings but should not be lost:
    lines).
 10. **All nine bites above are crossed-out.** Forward-looking
     work as of 2026-05-16 in size order:
-    - `~1 mechanical PR, 216 files [generated]` — Regenerate the
+    - ~~`~1 mechanical PR, 216 files [generated]` — Regenerate the
       missing/stale `.md` companions via
       `python -m splunk_uc generate-md-from-json` so the F7 gate
       stays green when the four un-pushed OT phase commits land
       on `origin/main`. Tagged `[generated]` per the §4 per-PR
-      contract (skips the LoC budget).
+      contract (skips the LoC budget).~~ **Done 2026-05-16** —
+      219 staged paths (216 `.md` regen + the three doc / config
+      files from earlier today's two PRs). `--check` reports
+      `All 7929 .md files are up-to-date.`. See drift ledger #12
+      for the breakdown.
     - `~no code, 1 PR` — Take a first cut at **P5 frontend
       rebuild scaffolding**: empty `apps/web/` with Vite + TS +
       Vitest config, a single passing smoke test, and an ADR
