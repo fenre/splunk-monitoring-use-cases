@@ -8,7 +8,7 @@ See [`docs/regulation-sources.md`](../../docs/regulation-sources.md) for authori
 
 ## Tier 1
 
-`4` done &middot; `195` still need authoritative obligation text.
+`267` done &middot; `183` still need authoritative obligation text.
 
 | Regulation | Version | Clause | Priority | Topic |
 | --- | --- | --- | --- | --- |
@@ -172,18 +172,6 @@ See [`docs/regulation-sources.md`](../../docs/regulation-sources.md) for authori
 | NIST 800-53 | `Rev. 5` | `PM-1` | 0.7 | Information security program plan |
 | NIST 800-53 | `Rev. 5` | `PT-3` | 0.7 | Personally identifiable information processing purposes |
 | NIST 800-53 | `Rev. 5` | `SR-3` | 0.7 | Supply chain controls and processes |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.20` | 1.0 | Governance |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(a)` | 1.0 | Risk analysis and information-system security policies |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(b)` | 1.0 | Incident handling |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(c)` | 1.0 | Business continuity and crisis management |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(d)` | 1.0 | Supply-chain security |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(e)` | 1.0 | Security in acquisition, development and maintenance |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(h)` | 1.0 | Cryptography and encryption |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(i)` | 1.0 | Human resources and access control |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(j)` | 1.0 | MFA and secure communications |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.23` | 1.0 | Reporting obligations |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(f)` | 0.7 | Policies and procedures effectiveness |
-| NIS2 | `Directive (EU) 2022/2555` | `Art.21(2)(g)` | 0.7 | Cyber-hygiene and training |
 | DORA | `Regulation (EU) 2022/2554` | `Art.10` | 1.0 | Detection |
 | DORA | `Regulation (EU) 2022/2554` | `Art.11` | 1.0 | Response and recovery |
 | DORA | `Regulation (EU) 2022/2554` | `Art.12` | 1.0 | Backup policies and recovery methods |
@@ -210,7 +198,7 @@ See [`docs/regulation-sources.md`](../../docs/regulation-sources.md) for authori
 
 ## Tier 2
 
-`0` done &middot; `144` still need authoritative obligation text.
+`56` done &middot; `148` still need authoritative obligation text.
 
 | Regulation | Version | Clause | Priority | Topic |
 | --- | --- | --- | --- | --- |
@@ -358,11 +346,24 @@ See [`docs/regulation-sources.md`](../../docs/regulation-sources.md) for authori
 | FERPA | `20 USC §1232g` | `§99.33` | 0.7 | Redisclosure and record-keeping |
 | COPPA | `16 CFR 312` | `§312.3` | 1.0 | Verifiable parental consent obligations |
 | COPPA | `16 CFR 312` | `§312.8` | 1.0 | Data security and confidentiality |
+| UN R155 | `2021` | `7.2.2.2` | 1.0 | Risk assessment and mitigation for vehicle cybersecurity |
+| UN R155 | `2021` | `7.2.2.5` | 1.0 | Monitoring, detecting, and responding to cyber attacks |
+| UN R156 | `2021` | `7.1.1` | 1.0 | Software update management system processes |
+| UN R156 | `2021` | `7.1.4` | 0.7 | Recording and reporting of software updates |
+
+## Tier 3
+
+`0` done &middot; `2` still need authoritative obligation text.
+
+| Regulation | Version | Clause | Priority | Topic |
+| --- | --- | --- | --- | --- |
+| FERC CIP | `current` | `Order887` | 1.0 | Internal network security monitoring for bulk electric systems |
+| FERC CIP | `current` | `Order893` | 0.7 | Supply chain risk management for BES systems |
 
 ## Summary
 
-`4` clauses have authoritative text; `339` still need backfill.
+`323` clauses have authoritative text; `333` still need backfill.
 
-* Tier 1: `4` done, `195` pending.
-* Tier 2: `0` done, `144` pending.
-* Tier 3: `0` done, `0` pending.
+* Tier 1: `267` done, `183` pending.
+* Tier 2: `56` done, `148` pending.
+* Tier 3: `0` done, `2` pending.
