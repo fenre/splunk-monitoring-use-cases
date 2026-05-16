@@ -12,6 +12,37 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **P5 first migration target — typed companion + CI wiring for `non-technical-view.js`.**
+  Closes the *test-runner* half of plan finding F16 (the *bundler*
+  half stays open for a future source-of-truth-inversion PR — see
+  drift ledger #14 in `docs/health-check-2026-progress.md` and
+  ADR-0013 §"Migration shape" item 1). Three new files under
+  [`apps/web/src/`](apps/web/src/):
+    - [`non-technical-view.types.ts`](apps/web/src/non-technical-view.types.ts) declares four interfaces (`NonTechnicalCatalog`, `NonTechnicalCategory`, `NonTechnicalArea`, `NonTechnicalUcRef`) that mirror the legacy JS data shape, all with `readonly` modifiers so the catalogue is immutable from TypeScript's perspective. Includes the Phase 4.3 cat-22 elevation fields (`whatItIs`, `whoItAffects`, `splunkValue`, `primer`, `evidencePack`) per `.cursor/rules/non-technical-sync.mdc`.
+    - [`non-technical-view.ts`](apps/web/src/non-technical-view.ts) exposes a `loadCatalogFromLegacyJs()` function that reads the repo-root `non-technical-view.js` from disk and executes it via Node stdlib `node:vm` `runInThisContext()` inside vitest's jsdom environment. The codeguard rule against `eval` / `new Function()` is honoured because the loader uses Node stdlib `vm` (the canonical pattern for this exact use case) and operates only on a checked-in repository file at a fixed path resolved from the module's own location.
+    - [`__tests__/non-technical-view.test.ts`](apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data: categories 1..23 with no gaps and no extras; every area has a non-empty name + description and 1-10 UC references; every UC reference is shaped `X.Y.Z`, has a non-empty `why` string, and the category prefix of the UC id matches its declaring category number; every cat-22 area carrying an `evidencePack` also carries the four other Phase 4.3 elevation fields; every `primer` link points into `docs/regulatory-primer.md` or `regulatory-primer.html` and every `evidencePack` link points into `docs/evidence-packs/`. The deeper "every UC id resolves to a real catalogue entry" cross-check stays in the Python audit `audit-non-technical-references` (audits-content) so the Node side never re-walks the 7,929 sidecars.
+
+  CI wiring also landed in [`.github/workflows/validate.yml`](.github/workflows/validate.yml):
+    - The `frontend` job gained three new steps: `apps/web — install scaffold deps` (runs `npm ci` from `apps/web/`), `apps/web — typecheck (tsc --noEmit, strict)`, and `apps/web — Vitest shape invariants over non-technical-view.js`.
+    - The workflow's `paths:` filter (both pull_request and push triggers) was widened from the previous explicit file-by-file list to include the new `apps/**` directory, so any future `apps/web/` change re-triggers the suite.
+    - The 74-test `tests/build/test_validate_workflow_partition.py` and 14-test `tests/build/test_ci_architecture.py` partition guards still pass — the new steps are additive, the five-job shape is intact.
+
+  Verification at HEAD: `cd apps/web && npm ci && npm run typecheck`
+  clean, `npm test` 82/82 vitest green in 734 ms (1 smoke + 81 new
+  shape assertions), `npm run build` produces a 12 KB `dist/` in
+  18 ms. All repository-side audits still green
+  (`generate-md-from-json --check`, `audit-doc-counts`,
+  `audit-uc-structure`, `audit-changelog-uc-refs`,
+  `audit-roadmap-consistency --check`). F16 reclassified from
+  "PARTIAL (scaffold anchor landed)" to "PARTIAL (test runner wired
+  in CI)" in `docs/health-check-2026-progress.md`; P5 reclassified
+  to "SCAFFOLDED + first migration in CI"; new drift-ledger item
+  #14 documents the migration target; the previous bullet in
+  "Recommended next actions" item #10 is struck-through and
+  replaced with the source-of-truth-inversion bite (estimated
+  `~3,000 line PR (mostly mechanical)` since the actual decision
+  work — types, loader, tests, CI — is already done in this PR).
+
 - **P5 first cut — `apps/web/` frontend rebuild scaffold (`Vite 8.0.13 + TypeScript 6.0.3 (strict) + Vitest 4.1.6`).**
   Closes the "no `apps/web/`" half of plan finding F16 by landing a
   purely-additive Node tree at [`apps/web/`](apps/web/). Contents: a

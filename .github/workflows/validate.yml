@@ -37,6 +37,7 @@ on:
       - "data/**"
       - "tests/**"
       - "api/**"
+      - "apps/**"
       - "splunk-apps/**"
       - "docs/**"
       - "CHANGELOG.md"
@@ -74,6 +75,7 @@ on:
       - "data/**"
       - "tests/**"
       - "api/**"
+      - "apps/**"
       - "splunk-apps/**"
       - "docs/**"
       - "CHANGELOG.md"
@@ -1262,6 +1264,52 @@ jobs:
         # catches scoring regressions and XSS drift without needing
         # a live Splunk search head.
         run: node --test tests/recommender/match.test.mjs
+
+      - name: apps/web — install scaffold deps
+        # P5 first-migration follow-on (2026-05-16). The
+        # apps/web/ tree is the typed companion home for the
+        # frontend rebuild ratified by ADR-0013. ``npm ci`` is
+        # required because the scaffold pins Vite + Vitest +
+        # TypeScript at exact lockfile versions and the test
+        # harness imports vitest's jsdom environment. Cold install
+        # is ~10s; the cache hit on subsequent runs is faster.
+        # No CI-side caching here yet — the install is small
+        # enough that adding actions/cache machinery is premature
+        # (matches the same restraint the root ``npm ci`` uses).
+        working-directory: apps/web
+        run: npm ci
+
+      - name: apps/web — typecheck (tsc --noEmit, strict)
+        # Strict TypeScript typecheck against the apps/web/ tree.
+        # The tsconfig.json there enables noUncheckedIndexedAccess,
+        # exactOptionalPropertyTypes, verbatimModuleSyntax and the
+        # standard --strict bundle. This is the frontend twin of
+        # the ``mypy --strict`` floor that ``audits-content``
+        # enforces on src/splunk_uc/ — same intent (catch type
+        # drift at compile time), different toolchain.
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: apps/web — Vitest shape invariants over non-technical-view.js
+        # First real consumer of the apps/web/ scaffold. The
+        # vitest suite under apps/web/src/__tests__/ loads the
+        # legacy non-technical-view.js via node:vm in a jsdom
+        # environment and asserts:
+        #   * categories 1..23 with no gaps and no extras
+        #   * every area has name + description + 1..10 UCs
+        #   * every UC reference is shaped X.Y.Z and has a
+        #     non-empty `why` string, and the category prefix of
+        #     the UC id matches its declaring category number
+        #   * every cat-22 area carrying an evidencePack also
+        #     carries the four other Phase 4.3 elevation fields
+        #     (whatItIs / whoItAffects / splunkValue / primer)
+        #     per .cursor/rules/non-technical-sync.mdc
+        # The deeper "every UC id resolves to a real catalogue
+        # entry" cross-check stays in the Python audit
+        # ``audit-non-technical-references`` (audits-content) so
+        # the Node side never re-walks the 7,929 sidecars.
+        working-directory: apps/web
+        run: npm test
 
       - name: Phase 4.4 scorecard.html render test
         # Phase 4.4 deliverable. scorecard.html boots client-side
