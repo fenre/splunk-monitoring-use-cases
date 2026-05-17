@@ -139,6 +139,7 @@ CRITICAL_STEP_NAMES = [
     "Phase 4.5e OSCAL round-trip Node drift guard",
     "Phase 4.5f perf + a11y audit gate",
     "Phase 4.5f perf + a11y Node drift guard",
+    "apps/web — non-technical-view.js SOT drift guard",
 ]
 
 # Floor: the partition landed with this many non-setup steps in

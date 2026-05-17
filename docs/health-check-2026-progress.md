@@ -109,7 +109,7 @@ including the deferred sample-data shape ADR).
 | F13 | M | `dist-before/` 6,449-entry stale snapshot | DONE | `dist-before/` gone ✓ (and `.gitignore:36` keeps it out for good). `dist-content/` and `dist-legacy/` remain *gitignored* on disk for the migration-parity workflow, but loose-end ledger #3 closed 2026-05-13 by adding `make clean-tree` which nukes every gitignored build-output dir (`dist/`, `dist1/`, `dist2/`, `dist-content/`, `dist-legacy/`, `dist-before/`, `.build-tmp/`) in one command. No tracked clutter remains. |
 | F14 | M | `api/v1/_evidence-packs-bak/`, `_draft_uc_*`, `_fix_*` clutter | **DONE** (2026-05-13, reclassified) | The original "clutter" pattern flagged in F14 (`api/v1/_evidence-packs-bak/`) was deleted in v8.2.0; the residual `scripts/_*.py` underscore-prefixed files (**17 at HEAD**: 5 `_catalog_*`, 7 `_meraki_*`, plus `_draft_uc_18_1_15`, `_fix_broken_fixture_refs`, `_patch_catalog_guide_fields`, `_regulation_wisdom`, `_wire_batch7`) are formally exempted by the v8.2.0 CHANGELOG migration narrative ("What stays in `scripts/`" §Deliberate and "Deliberately **not** migrated (documented exemption)" §Migration) and pinned as tier-3 by the coverage-budget classifier (`src/splunk_uc/audits/coverage_budget.py` matches any `scripts/_*.py` path → tier-3 exempt). They are content-burndown one-shots, not clutter; reclassification ratified by PR #26 (merge `a4e4bda15`, 2026-05-13). |
 | F15 | M | No repo-wide `pyproject.toml` for build pipeline | DONE | `pyproject.toml` with `[project]`, `[project.scripts]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.coverage]`, `[tool.pytest]` configs. `splunk-uc` console script wired (v8.2.0 P6 Tier 4). |
-| F16 | M | Frontend committed HTML rewritten by Python; no test runner | PARTIAL (test runner wired in CI 2026-05-16) | Root `index.html` still 702 KB raw / 189 KB gzipped and still rewritten in place by `tools/build/build.py` — the *bundler* half of F16 stays open until the first inline-JS surface migrates out of `index.html` into `apps/web/src/`. **Test runner half closed at HEAD:** the `validate.yml` `frontend` job now runs `cd apps/web && npm ci && npm run typecheck && npm test` on every PR and push (paths filter widened to include `apps/**`). The first real consumer of the scaffold landed alongside the wiring: [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts) is a typed loader that reads the legacy [`non-technical-view.js`](../non-technical-view.js) at the repo root via `node:vm` `runInThisContext()` (no `eval`, no `new Function()`, no codeguard violation), and [`apps/web/src/__tests__/non-technical-view.test.ts`](../apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data — categories 1..23 with no gaps, every area has name + description + 1-10 UCs, every UC reference is shaped `X.Y.Z` and has a non-empty `why` and matches its declaring category number, and every cat-22 area carrying an `evidencePack` also carries the four other Phase 4.3 elevation fields (`whatItIs` / `whoItAffects` / `splunkValue` / `primer`) per `.cursor/rules/non-technical-sync.mdc`. The deeper "every UC id resolves to a real catalogue entry" cross-check stays in the Python audit `audit-non-technical-references` (audits-content) so the Node side never re-walks the 7,929 sidecars. F16 finally closes when the *bundler* half lands — moving the data into `apps/web/src/non-technical-view.ts` as canonical and emitting `non-technical-view.js` from it as a build artefact (the next bite per ADR-0013 §"Migration shape"). |
+| F16 | M | Frontend committed HTML rewritten by Python; no test runner | PARTIAL (test runner wired 2026-05-16; bundler-half SOT inversion landed for `non-technical-view.js` 2026-05-17) | Root `index.html` still 702 KB raw / 189 KB gzipped and still rewritten in place by `tools/build/build.py` — the *bundler* half of F16 stays open until the first inline-JS surface migrates out of `index.html` into `apps/web/src/`. **Test runner half closed at HEAD:** the `validate.yml` `frontend` job now runs `cd apps/web && npm ci && npm run typecheck && npm test` on every PR and push (paths filter widened to include `apps/**`). The first real consumer of the scaffold landed alongside the wiring: [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts) is a typed loader that reads the legacy [`non-technical-view.js`](../non-technical-view.js) at the repo root via `node:vm` `runInThisContext()` (no `eval`, no `new Function()`, no codeguard violation), and [`apps/web/src/__tests__/non-technical-view.test.ts`](../apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data — categories 1..23 with no gaps, every area has name + description + 1-10 UCs, every UC reference is shaped `X.Y.Z` and has a non-empty `why` and matches its declaring category number, and every cat-22 area carrying an `evidencePack` also carries the four other Phase 4.3 elevation fields (`whatItIs` / `whoItAffects` / `splunkValue` / `primer`) per `.cursor/rules/non-technical-sync.mdc`. The deeper "every UC id resolves to a real catalogue entry" cross-check stays in the Python audit `audit-non-technical-references` (audits-content) so the Node side never re-walks the 7,929 sidecars. **Bundler half closed 2026-05-17 for the non-technical-view surface (drift ledger #17):** the typed source [`apps/web/src/data/non-technical-view.data.ts`](../apps/web/src/data/non-technical-view.data.ts) is now the canonical SOT, the repo-root `non-technical-view.js` is generated by [`apps/web/scripts/emit-legacy.ts`](../apps/web/scripts/emit-legacy.ts) (`npm run emit:legacy`), and a CI step in the `frontend` job (`apps/web — non-technical-view.js SOT drift guard`) runs the emitter + `git diff --exit-code` to block drift. Three new SOT invariant Vitest tests pin the typed-source ↔ legacy-loaded ↔ on-disk emitted JS parity (test total 82 → 85). The legacy file shape and consumers (`index.html` global-script load, Python audits, the 81-shape suite that loads via `node:vm` for defense-in-depth) are unchanged — the inversion is invisible at the consumer surface. F16 finally closes when the remaining `index.html` inline-JS sinks migrate out into `apps/web/src/` (still open) and F17 (chrome unification across 9 root HTML pages, still open) lands. |
 | F17 | L | 11 root HTML pages duplicate chrome | PARTIAL | **9 root HTML files now** (was 11): `api-docs.html`, `clause-navigator.html`, `compliance-story.html`, `docs.html`, `graph.html`, `guide-reader.html`, `index.html`, `regulatory-primer.html`, `scorecard.html`. Chrome still duplicated across all 9. |
 | F18 | L | Root `openapi.yaml` legacy vs. `api/v1/openapi.yaml` canonical | **DONE** (2026-05-12) | Re-verified at HEAD: `openapi.yaml` line 16 carries `> **Status: legacy (hand-maintained)**` followed by a four-paragraph block pointing readers to the canonical `/api/v1/openapi.yaml`, documenting the eventual move to `archive/openapi-legacy.yaml`, and explaining how the OpenAPI drift audit (`audit-openapi-drift`) keeps the two specs in sync. Both specs continue to coexist (root 565 lines / api/v1 210 lines), which is the documented contract — there is no in-progress deletion to wait on. |
 | F19 | M | 7 other workflows unaudited | **DONE** (2026-05-12) | Closed by PR #8 (commit `85b680f5d`): every workflow under `.github/workflows/*.yml` now consumes `./.github/actions/setup-python`. The previously skipped guard `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly` is unskipped and runs in the `audits-content` job, so any future direct `actions/setup-python@<sha>` pin in a workflow fails CI. The 14-workflow inventory itself moves into P2.5 below — that is the remaining work, not F19. |
@@ -128,7 +128,7 @@ including the deferred sample-data shape ADR).
 | **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
 | **P3** ADR + docs reconciliation | **DONE** (2026-05-13) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓. The plan's "proposed `docs/architecture-2027.md`" placeholder is now explicitly absorbed by [`docs/architecture.md`](architecture.md) §"Forward-looking work" (added 2026-05-13): forward-looking architectural work goes into [`ROADMAP.md`](../ROADMAP.md) (release-aligned plan) and [`docs/adr/`](adr/) (numbered-on-acceptance decision records — ADR-0010, ADR-0011, ADR-0012 all landed 2026-05-13 demonstrating the active cadence). No separate dated-architecture doc is needed; the same rationale that retired the placeholder "ADR-0011 (sample-data shape)" slot ([`ADR-0011 §"Alternatives considered"`](adr/0011-schema-lineage-governance.md) point C) applies here: reserved-but-empty docs distort the lineage. |
 | **P4** Typed Python pipeline | PARTIAL (package floor locked) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` (51 source files, 0 errors). **Second canary closed 2026-05-13:** `mypy --strict src/splunk_uc/generators/` (17 source files, 0 errors after a one-line `set[str]` fix in `recommender_app._gsa_load_ucs`). **Package-wide floor closed 2026-05-13:** survey showed every remaining subpackage (`ingest`, `feasibility`, `migrations`, `tools`) plus the three top-level modules was already strict-clean; the two per-canary overrides were consolidated into a single `[[tool.mypy.overrides]] module = "splunk_uc.*"` block and the CI step now lints the whole package — **94 source files, ~25 kLOC, every module under `src/splunk_uc/` type-clean under `--strict`**. **Remaining gaps:** the build pipeline (`tools/build/*`) and the legacy `build.py` entrypoint still carry per-module loosened overrides; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
-| **P5** Frontend rebuild | SCAFFOLDED + first migration in CI (2026-05-16) | <a id="p5-first-cut"></a>[`apps/web/`](../apps/web/) exists with Vite 8.0.13 + TypeScript 6.0.3 (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`) + Vitest 4.1.6, ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md). The scaffold is no longer opt-in — `validate.yml`'s `frontend` job now runs `cd apps/web && npm ci && npm run typecheck && npm test` on every PR, and the path filter was widened to include `apps/**`. **First real migration target in tree:** [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts) is a typed loader (using `node:vm` `runInThisContext()`) over the legacy [`non-technical-view.js`](../non-technical-view.js); [`apps/web/src/non-technical-view.types.ts`](../apps/web/src/non-technical-view.types.ts) declares the `NonTechnicalCatalog` / `NonTechnicalCategory` / `NonTechnicalArea` / `NonTechnicalUcRef` interfaces; [`apps/web/src/__tests__/non-technical-view.test.ts`](../apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data (734 ms in vitest jsdom). F8 (a11y landmarks) closed under P10; F16 reclassified PARTIAL above (test-runner half now in CI; bundler half waits for source-of-truth inversion); F17 (11 HTML pages duplicate chrome) still unresolved. |
+| **P5** Frontend rebuild | SCAFFOLDED + first migration in CI (2026-05-16) + SOT inversion for `non-technical-view.js` (2026-05-17) | <a id="p5-first-cut"></a>[`apps/web/`](../apps/web/) exists with Vite 8.0.13 + TypeScript 6.0.3 (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`) + Vitest 4.1.6, ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md). The scaffold is no longer opt-in — `validate.yml`'s `frontend` job now runs `cd apps/web && npm ci && npm run typecheck && npm test` on every PR, and the path filter was widened to include `apps/**`. **First real migration target in tree:** [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts) is a typed loader (using `node:vm` `runInThisContext()`) over the legacy [`non-technical-view.js`](../non-technical-view.js); [`apps/web/src/non-technical-view.types.ts`](../apps/web/src/non-technical-view.types.ts) declares the `NonTechnicalCatalog` / `NonTechnicalCategory` / `NonTechnicalArea` / `NonTechnicalUcRef` interfaces; [`apps/web/src/__tests__/non-technical-view.test.ts`](../apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data (734 ms in vitest jsdom). F8 (a11y landmarks) closed under P10; F16 reclassified PARTIAL above (test-runner half now in CI; bundler half waits for source-of-truth inversion); F17 (11 HTML pages duplicate chrome) still unresolved. |
 | **P6** Scripts taxonomy | DONE | Just closed in v8.2.0 (commit `a36aa4db4`). 83-verb dispatcher + Tier 4 packaging. |
 | **P7** Server-side search + API gateway | NOT STARTED | — |
 | **P8** Observability + content metrics | PARTIAL | `dist/metrics.json` per AGENTS.md ✓, `data/metrics-history/<VERSION>.json` snapshot pattern ✓ (just added `8.2.0.json`). Slack/email weekly digest unclear (`stewardship.yml` exists). Build telemetry exists (`dist/build-telemetry.json`). |
@@ -725,6 +725,110 @@ findings but should not be lost:
     its hand-authored sections intact. Tracked as an enhancement
     rather than a CI blocker.
 
+17. **F16 / P5 source-of-truth inversion for `non-technical-view.js`
+    (2026-05-17).** New drift-ledger entry for the bundler-half F16
+    closure on the non-technical view surface. Pre-inversion the
+    repo-root [`non-technical-view.js`](../non-technical-view.js)
+    was the hand-edited authoring surface and
+    [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts)
+    was a typed `node:vm`-based loader over it (drift ledger #14,
+    2026-05-16). That closed the *test runner* half of F16 but the
+    data had no type-checking at authoring time, edits could
+    silently produce shapes the legacy parser accepted but
+    consumers might not, and there was no migration path into the
+    apps/web/ build pipeline.
+
+    **Resolution: typed module is canonical, legacy JS is
+    generated.** Three new files plus tightly-scoped edits to the
+    existing apps/web/ surface and the workflow:
+
+      - [`apps/web/src/data/non-technical-view.data.ts`](../apps/web/src/data/non-technical-view.data.ts)
+        (1,332 lines, 214,047 bytes) — the canonical typed source:
+        `export const NON_TECHNICAL: NonTechnicalCatalog = { … };`.
+        Content body byte-identical to the pre-inversion JS — the
+        data was moved by mechanical header swap, no editorial
+        changes. The pre-existing `NonTechnicalCatalog` /
+        `NonTechnicalCategory` / `NonTechnicalArea` /
+        `NonTechnicalUcRef` interfaces (declared in
+        [`non-technical-view.types.ts`](../apps/web/src/non-technical-view.types.ts)
+        as part of drift ledger #14) now apply at authoring time —
+        `tsc --noEmit` catches typos in field names, wrong types
+        on optional fields, and category-key mismatches.
+      - [`apps/web/scripts/emit-legacy.ts`](../apps/web/scripts/emit-legacy.ts)
+        (~173 lines) — pure `renderLegacy(catalog)` function plus a
+        guarded `main()` (uses
+        `import.meta.url === pathToFileURL(process.argv[1]).href`
+        so importing for tests doesn't side-effect on disk). The
+        renderer walks the four observed area-shape combinations
+        (plain 160 / tier-1 25 / elevation-only 23 /
+        elevation+primer 15) verified in advance via grep over the
+        pre-inversion file, and emits each area as a single long
+        opener line followed by per-line UCs and the `      ]}`
+        closer. Byte-identical round-trip verified on the first
+        emit run (no iteration needed): `npm run emit:legacy` +
+        `git diff --exit-code non-technical-view.js` exits 0.
+      - [`apps/web/src/__tests__/emit-legacy.test.ts`](../apps/web/src/__tests__/emit-legacy.test.ts)
+        — three new SOT invariant tests: typed `NON_TECHNICAL`
+        deep-equals legacy-loaded catalog; `renderLegacy(NON_TECHNICAL)`
+        is byte-identical to the on-disk legacy JS; emitter
+        prologue / footer / single trailing newline pinned. Test
+        total 82 → 85.
+
+    **CI wiring.** New `apps/web — non-technical-view.js SOT drift
+    guard` step added to `validate.yml`'s `frontend` job (after the
+    existing Vitest invocation). The step runs `npm run emit:legacy`
+    then `cd ../.. && git diff --exit-code non-technical-view.js`;
+    PRs that edit the typed source without committing the
+    regenerated JS (or vice versa) fail the build with a useful
+    diff. The step name is added to
+    `tests/build/test_validate_workflow_partition.py::CRITICAL_STEP_NAMES`
+    so future drift on the step *name* is caught by the partition
+    test (75 tests pass locally).
+
+    **Rule update.**
+    [`.cursor/rules/non-technical-sync.mdc`](../.cursor/rules/non-technical-sync.mdc)
+    now declares `apps/web/src/data/non-technical-view.data.ts`
+    the authoring surface, documents the `npm run emit:legacy`
+    workflow, replaces the JavaScript example with the equivalent
+    TypeScript object literal, rewrites §"Validation" to point at
+    the apps/web/ commands, and extends `globs:` to include the new
+    TS module.
+
+    **What stays the same.** The repo-root `non-technical-view.js`
+    remains at the exact same path with the exact same byte
+    content (byte-identical round-trip), so `index.html` and every
+    other consumer that loads it as a global script continues to
+    work without any change. The `loadCatalogFromLegacyJs()`
+    function still exists in `non-technical-view.ts` and the
+    81-shape suite still uses it — preserving defense in depth
+    against emitter regressions. The Python audit
+    `audit-non-technical-references` reads the legacy JS directly
+    and is likewise unaffected.
+
+    **What changes.** F16 *bundler* half is now closed for the
+    non-technical-view surface (the test runner half closed
+    2026-05-16). The next P5 bites per ADR-0013 are: (a) inverting
+    `index.html`'s remaining inline JS, (b) chrome unification
+    across the 9 root HTML pages (F17). The pattern established
+    here (typed SOT + emitter + drift guard + defense-in-depth
+    legacy loader retained) is the template for those follow-ups.
+
+    Files touched (10): `apps/web/package.json`,
+    `apps/web/package-lock.json`, `apps/web/tsconfig.json`,
+    `apps/web/src/data/non-technical-view.data.ts` (new),
+    `apps/web/scripts/emit-legacy.ts` (new),
+    `apps/web/src/__tests__/emit-legacy.test.ts` (new),
+    `apps/web/src/non-technical-view.ts` (re-exports typed
+    `NON_TECHNICAL`, docstring rewrite),
+    `.cursor/rules/non-technical-sync.mdc`,
+    `.github/workflows/validate.yml` (new SOT drift-guard step),
+    `tests/build/test_validate_workflow_partition.py`
+    (CRITICAL_STEP_NAMES extended). Plus this drift-ledger entry +
+    the F16 / P5 row updates above + the cross-out in
+    §"Recommended next actions" #10 + the CHANGELOG `[Unreleased]`
+    bullet. The repo-root `non-technical-view.js` is unchanged
+    byte-for-byte.
+
 ## Recommended next actions, in size order
 
 1. ~~**Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,
@@ -884,7 +988,7 @@ findings but should not be lost:
       (scaffold anchor landed)" to "PARTIAL (test runner wired in
       CI)"; the *bundler* half stays open for the source-of-truth
       inversion PR below.
-    - `~3,000 line PR (mostly mechanical)` — **Invert source-of-truth**
+    - ~~`~3,000 line PR (mostly mechanical)` — **Invert source-of-truth**
       for `non-technical-view.js`. Move the 1,330 lines of data into
       `apps/web/src/non-technical-view.ts` as canonical (with the
       already-declared `NonTechnicalCatalog` types), author a small
@@ -895,7 +999,19 @@ findings but should not be lost:
       `cd apps/web && npm run emit:legacy && git diff --exit-code
       ../non-technical-view.js` to fail on drift. The line cost is
       large but mostly mechanical (the actual decision work is
-      already done in this PR). Closes the *bundler* half of F16.
+      already done in this PR). Closes the *bundler* half of F16.~~
+      **Done 2026-05-17** — see drift ledger #17. Data moved into
+      [`apps/web/src/data/non-technical-view.data.ts`](../apps/web/src/data/non-technical-view.data.ts)
+      (typed `NON_TECHNICAL: NonTechnicalCatalog`, byte-identical to
+      the pre-inversion JS body). Emitter at
+      [`apps/web/scripts/emit-legacy.ts`](../apps/web/scripts/emit-legacy.ts)
+      (`npm run emit:legacy`) round-trips byte-identical on the
+      first run; the legacy JS file shrinks by zero bytes (was
+      always the contract). CI drift guard wired into
+      `validate.yml` `frontend` job; three new SOT invariant tests
+      land in `apps/web/src/__tests__/emit-legacy.test.ts` (test
+      total 82 → 85). F16 *bundler* half is now closed; F17 (root
+      HTML chrome unification) is the next P5 bite per ADR-0013.
     - `~250 line PR` — Wire the **automated rotation reminders**
       that consume the per-category CODEOWNERS rows + the new
       scorecard drill-downs landed on `origin/main` 2026-05-14

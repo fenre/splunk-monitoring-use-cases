@@ -12,6 +12,110 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **F16 / P5 source-of-truth inversion for `non-technical-view.js` — typed TS module is now canonical; legacy JS is a generated artefact under CI drift guard.**
+  Continuation of the P5 frontend rebuild ratified by ADR-0013
+  (2026-05-16). The pre-inversion architecture had
+  `non-technical-view.js` at the repo root as the hand-edited
+  authoring surface, with `apps/web/src/non-technical-view.ts`
+  acting as a typed loader that read it back via `node:vm`. That
+  configuration closed the *test runner* half of F16 but left the
+  *bundler* half open: the data still had no type checking at
+  authoring time, edits could silently produce malformed JSON-like
+  shapes the legacy parser tolerated but consumers might not, and
+  there was no path forward for migrating the data into the
+  apps/web/ build pipeline.
+
+  **What landed.** Three new files plus tightly-scoped edits to
+  the existing apps/web/ surface and the workflow:
+
+      apps/web/src/data/non-technical-view.data.ts   <- 1,332-line typed const NON_TECHNICAL (canonical SOT)
+      apps/web/scripts/emit-legacy.ts                <- 173-line emitter, pure renderLegacy() + guarded main()
+      apps/web/src/__tests__/emit-legacy.test.ts     <- 3 SOT invariant tests
+
+  The data was moved into `non-technical-view.data.ts` by
+  mechanical header swap — every byte of `outcomes[]`, `areas[]`,
+  and `ucs[]` content is byte-identical to the pre-inversion
+  `non-technical-view.js`. The typed `NonTechnicalCatalog`
+  interfaces (already declared in
+  `apps/web/src/non-technical-view.types.ts` as part of the
+  2026-05-16 first-migration PR) now apply at authoring time:
+  `tsc --noEmit` catches typos in field names, wrong types on
+  optional fields, and category-key mismatches that the legacy JS
+  could not surface.
+
+  **Emit script.** `apps/web/scripts/emit-legacy.ts` exposes a
+  pure `renderLegacy(catalog: NonTechnicalCatalog) => string`
+  function plus a `main()` that writes the result to the repo-root
+  `non-technical-view.js`. `main()` is guarded by an
+  `import.meta.url === pathToFileURL(process.argv[1]).href` check
+  so the test file can import `renderLegacy` without overwriting
+  the file under test. The emitter walks the four observed
+  area-shape combinations (plain 160 / tier-1 25 / elevation-only
+  23 / elevation+primer 15) and renders each area as a single
+  long opener line followed by per-line UCs and the `      ]}`
+  closer — exact pre-inversion format. Verified byte-identical on
+  the first emit run (no iteration needed): `npm run emit:legacy`
+  + `git diff --exit-code non-technical-view.js` exits 0.
+
+  **Test surface.** Three new Vitest tests pin the SOT contract:
+
+      it("typed NON_TECHNICAL matches the legacy-loaded catalog value-for-value")
+      it("renderLegacy(NON_TECHNICAL) is byte-identical to the on-disk non-technical-view.js")
+      it("emitter output has the expected prologue and a single trailing newline")
+
+  Total suite count: 82 → 85. The original 81 shape invariants
+  continue to run against the on-disk legacy JS (defense in depth:
+  exercises the generated file, not just the typed source).
+
+  **CI wiring.** `apps/web — non-technical-view.js SOT drift guard`
+  step added to `validate.yml`'s `frontend` job (after the
+  existing Vitest invocation). The step runs `npm run emit:legacy`
+  then `git diff --exit-code non-technical-view.js` from the repo
+  root; PRs that edit the typed source without committing the
+  regenerated JS (or vice versa) fail the build with a useful
+  diff. Critical-step coverage updated in
+  `tests/build/test_validate_workflow_partition.py::CRITICAL_STEP_NAMES`
+  so future drift on the step name is caught by the partition
+  test (75 passes locally).
+
+  **Rule update.** `.cursor/rules/non-technical-sync.mdc` now
+  declares `apps/web/src/data/non-technical-view.data.ts` as the
+  authoring surface, documents the `npm run emit:legacy` workflow,
+  replaces the JavaScript-style example with the equivalent
+  TypeScript object literal, and rewrites the §"Validation"
+  cheat-sheet to point at the apps/web/ commands. `globs:` line
+  extended to include the new TS module.
+
+  **What stays the same.** The repo-root `non-technical-view.js`
+  remains at exactly the same path with exactly the same byte
+  content (byte-identical round-trip), so `index.html` and every
+  other consumer that loads it as a global script continues to
+  work without any change. The `loadCatalogFromLegacyJs()`
+  function still exists in `apps/web/src/non-technical-view.ts`
+  and the 81-shape suite still uses it — preserving defense in
+  depth against emitter regressions. The Python audits
+  (`audit-non-technical-references`) read the legacy JS directly
+  and are likewise unaffected.
+
+  **Closure status.** F16 *bundler* half is now closed (the test
+  runner half closed 2026-05-16). The next P5 bites per ADR-0013
+  are: (a) inverting `index.html`'s remaining inline JS, (b)
+  unifying chrome across the 9 root HTML pages (F17). Tracked in
+  `docs/health-check-2026-progress.md` §"Recommended next actions"
+  with the SOT-inversion bite crossed out.
+
+  Files: `apps/web/package.json` (added `emit:legacy` script,
+  `tsx` devDep), `apps/web/package-lock.json`,
+  `apps/web/tsconfig.json` (extended `include` to cover
+  `scripts/**/*.ts`), `apps/web/src/data/non-technical-view.data.ts`
+  (new), `apps/web/scripts/emit-legacy.ts` (new),
+  `apps/web/src/__tests__/emit-legacy.test.ts` (new),
+  `apps/web/src/non-technical-view.ts` (re-exports typed
+  `NON_TECHNICAL`, updated docstring),
+  `.cursor/rules/non-technical-sync.mdc`, `.github/workflows/validate.yml`,
+  `tests/build/test_validate_workflow_partition.py`,
+  `docs/health-check-2026-progress.md`, this CHANGELOG.
+
 - **Post-corpus-expansion `generate-mapping-ledger` + `audit-sandbox-validation` follow-on — clears the seventh and eighth masked freshness gates (Phase 5.4 + Phase 4.5c).**
   Direct follow-on to the cascade in commit `39be6d175` below. With
   Phase 4.2 evidence-packs cleared, the next two gates in
