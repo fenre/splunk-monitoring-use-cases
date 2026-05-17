@@ -45,31 +45,41 @@ Center Physical Infrastructure) climbs from **67.0 → ≥ 75** (Bronze
 
 ## 3. Approach
 
-A two-verb CLI under `python -m splunk_uc` that orchestrates AI
-authoring through a strict schema + audit firewall:
+The lift loop is split cleanly between **deterministic CLI primitives**
+(implemented in Python under `python -m splunk_uc`) and an
+**agent-driven orchestration loop** (implemented as a Cursor agent
+workflow using the `dispatching-parallel-agents` skill). The
+separation is forced by the toolchain: a Python subprocess cannot
+invoke Cursor's `Task` tool, so all AI dispatch has to happen in the
+orchestration layer that owns the tool. Keeping the boundary explicit
+also keeps the Python side pure-function and trivially testable.
 
 ```
-operator runs:
-   splunk_uc lift-batch --category cat-15 --limit 30 --worst-first
+Cursor agent (orchestrator) — has the Task tool:
+   loops over UCs in the chosen batch (sorted by current depth):
        │
        ▼
-   for each UC in batch (sorted by current depth ascending):
-       splunk_uc lift-uc UC-X.Y.Z --target-tier silver
-           │
-           ▼
-       1. read current sidecar + run gold_profile audit → enumerate gaps
-       2. build deterministic prompt (rubric + UC + gaps + lift surface + firewall)
-       3. dispatch Cursor subagent (generalPurpose, readonly=false) → diff
-       4. validate diff (schema → audit-uc-structure → spl-hallucinations →
-                        spl-grammar → known-fp → monitoring-type → content-quality)
-       5. assert post-lift depth > pre-lift depth
-       6. write diff, regenerate .md companion, emit commit message
+   1. shell: splunk_uc lift-score UC-X.Y.Z
+          → JSON gap report (current depth + per-rubric-field gaps)
+   2. shell: splunk_uc lift-prompt UC-X.Y.Z
+          → deterministic AI prompt (rubric + UC JSON + gaps +
+            lift surface + firewall + expected output shape)
+   3. dispatch Task subagent (generalPurpose, readonly=false)
+          → diff JSON returned in agent message
+   4. write diff to /tmp/lift-UC-X.Y.Z.diff.json
+   5. shell: splunk_uc lift-validate UC-X.Y.Z --diff <path>
+          → apply diff in-memory; run §5 validation contract;
+            on pass write sidecar + regenerate .md companion;
+            on fail print reason and exit non-zero
+   6. shell: git add + git commit (one commit per UC)
        │
        ▼
    write reports/lift-batch-<timestamp>.json summary
 ```
 
-Each commit covers one UC. CI runs unchanged.
+Each commit covers one UC. CI runs unchanged. The Python primitives
+have zero AI dependency — they are unit-testable from `pytest` without
+Cursor in the loop.
 
 ## 4. Lift surface (the firewall)
 
@@ -130,21 +140,49 @@ Any single failure → no write; loop logs and moves on (or exits with
 the failing UC, depending on `--strict`). A passing diff is by
 construction a CI-green diff.
 
-## 6. CLI surface — two new verbs
+## 6. CLI surface — three deterministic primitives + one batch helper
 
-### `lift-uc`
+All four verbs are pure-function from the AI's perspective: zero AI
+calls, zero subagent dispatch, zero network. The agent-driven
+orchestration loop in §3 calls them as building blocks.
+
+### `lift-score`
 
 ```
-python -m splunk_uc lift-uc UC-X.Y.Z
+python -m splunk_uc lift-score UC-X.Y.Z
     [--target-tier silver|gold|gold-v2]   default: silver
-    [--dry-run]                            print diff, don't write
-    [--print-prompt]                       emit the AI prompt and exit (manual mode)
+    [--json]                               default: human-readable
+```
+
+Reads the UC sidecar, runs the gold-profile audit, prints the current
+depth score and a per-rubric-field gap report. With `--json`, the
+output is machine-parseable for the orchestration loop.
+
+### `lift-prompt`
+
+```
+python -m splunk_uc lift-prompt UC-X.Y.Z
+    [--target-tier silver|gold|gold-v2]   default: silver
+```
+
+Reads the UC sidecar + the rubric (from `gold_profile.py` /
+`gold_profile_v2.py`), emits a deterministic AI prompt to stdout:
+rubric excerpt + current UC JSON + enumerated gaps + lift surface +
+firewall + expected output shape (unified JSON diff). The orchestration
+agent feeds this prompt to a `Task` subagent.
+
+### `lift-validate`
+
+```
+python -m splunk_uc lift-validate UC-X.Y.Z
+    --diff <path>                         JSON diff produced by the AI step
+    [--dry-run]                            print would-be sidecar, don't write
     [--strict]                             exit 1 on first validation failure
 ```
 
-Single-UC lift. Implementation lives at
-`src/splunk_uc/tools/lift_uc.py`; verb is registered in
-`src/splunk_uc/_registry.py`.
+Applies the diff in-memory, runs the §5 validation contract, writes
+the sidecar on pass + regenerates the `.md` companion. On fail prints
+the reason. This is the only verb that touches disk.
 
 ### `lift-batch`
 
@@ -154,45 +192,77 @@ python -m splunk_uc lift-batch
     [--limit N]                            default: 30
     [--worst-first | --random]             default: worst-first
     [--target-tier silver|gold|gold-v2]
-    [--parallel N]                         default: 4 (concurrent subagents)
-    [--dry-run]
     [--report PATH]                        default: reports/lift-batch-<TIMESTAMP>.json
 ```
 
-Picks N UCs from the category sorted by current depth, runs `lift-uc`
-on each, aggregates results into a JSON summary
-(`reports/lift-batch-<timestamp>.json` with per-UC pre/post depth
-scores, validation pass/fail reason, commit-ready diff path). One
-commit per UC (operator commits or scripts the commit).
+A thin helper that enumerates the N target UCs in a category sorted
+by current depth and emits a JSON manifest (`{ucs: [...], target_tier:
+...}`). The orchestration agent reads this manifest and runs the
+per-UC loop. `lift-batch` itself does not dispatch subagents — it
+only picks the UCs and produces the work list. Picking the work
+list is itself worth a dedicated, audit-traceable command so the
+batch composition is reproducible across runs.
 
-## 7. AI authoring step — proof-of-concept implementation
+All four verbs live under `src/splunk_uc/tools/lift/` (one module
+per verb, with shared helpers in `_common.py`); each is registered
+in `src/splunk_uc/_registry.py`.
 
-For the PoC, the AI authoring step uses **Cursor subagents** (Task
-tool, `subagent_type=generalPurpose`):
+## 7. AI authoring step — agent-driven orchestration
 
-- `lift-uc` builds the prompt (rubric excerpt + current UC JSON +
-  enumerated gaps + lift surface + firewall + validation contract +
-  expected output shape: unified JSON diff).
-- `lift-uc` dispatches a single subagent with that prompt.
-- The subagent returns the proposed diff as JSON.
-- `lift-uc` applies the diff in-memory, runs the validation contract,
-  writes on pass.
+The AI authoring step lives in the **orchestration agent layer** (a
+Cursor session), not inside any of the four Python verbs. For the
+PoC the orchestration is run by the `@fenre` Cursor session
+(currently me, Claude). The pattern follows the
+`dispatching-parallel-agents` superpowers skill:
+
+- The orchestration agent runs `lift-batch` once to get the work list.
+- For each UC in the work list:
+  - Run `lift-score UC-X.Y.Z` and `lift-prompt UC-X.Y.Z` via the
+    shell tool. These are read-only Python calls.
+  - Dispatch a `Task` subagent (`subagent_type=generalPurpose`,
+    `readonly=false` so the subagent can write the diff file) with
+    the prompt from `lift-prompt` as its body. The subagent's
+    instruction is exactly: "Read this prompt, write the unified
+    JSON diff that satisfies it, save it to /tmp/lift-<UC>.diff.json,
+    return the path. Do nothing else."
+  - When the subagent returns the diff path, run
+    `lift-validate UC-X.Y.Z --diff <path>`. Validation either writes
+    the sidecar or prints why it refused.
+  - On validation pass, run `git add` + `git commit` (one commit
+    per UC).
+- After the batch completes, regenerate the scorecard with
+  `splunk_uc generate-scorecard` so the composite movement is
+  visible in `docs/scorecard.md`.
 
 **Parallelism model:**
 
-- `lift-uc` dispatches **one** subagent per invocation (single-UC scope).
-- `lift-batch` is the parallelism orchestrator: it dispatches up to
-  `--parallel N` (default: 4) `lift-uc` subagents concurrently, each
-  scoped to one UC. The validation contract (§5) is per-UC so there
-  is no cross-UC state to race on. The orchestrator commits diffs
-  sequentially even though dispatch is parallel — git stays clean.
+- Each subagent dispatch is scoped to one UC. The §5 validation
+  contract is per-UC, so there is no cross-UC race.
+- The orchestration agent dispatches multiple subagents
+  concurrently (default: 4 in flight). Diffs are validated and
+  committed sequentially even though dispatch is parallel — git
+  stays linear, one commit per UC.
+- The `dispatching-parallel-agents` skill governs the per-batch
+  dispatch ceiling and the retry policy.
 
-Why subagents for PoC, not an external CLI integration:
+Why this split (deterministic Python primitives + agent
+orchestration), not a single `lift-uc` verb that does everything:
 
-- Zero new dependencies; runs today in any Cursor session.
-- The orchestration session (me) is already the AI; subagent
-  dispatch is a known-working primitive.
-- Natural fit for the `dispatching-parallel-agents` skill.
+- **Toolchain constraint.** Python subprocesses do not have access
+  to Cursor's `Task` tool. The AI dispatch has to live in the agent.
+- **Testability.** The Python verbs are pure-function. `lift-score`,
+  `lift-prompt`, and `lift-validate` each get a unit-test suite that
+  runs without Cursor in the loop.
+- **Auditability.** `lift-batch` produces a reproducible work list.
+  Re-running `lift-score` on a committed UC yields the same gap
+  report. The agent's per-UC subagent dispatches are the only
+  non-deterministic step, and they are bounded by `lift-validate`.
+
+Future enhancement (out of PoC scope): an external-CLI variant
+(`splunk_uc lift-run`) that shells to `cursor-agent` via
+`@cursor/sdk` to do the AI step from a `make` target or cron. Adding
+that later does not change any of the four Python primitives — it
+just adds a fifth verb that wraps the agent loop.
 
 Future enhancement (out of PoC scope): wire `lift-uc` to an external
 AI CLI (e.g., `cursor-agent` via `@cursor/sdk`) so the loop becomes
@@ -216,16 +286,19 @@ Pick **cat-15 Data Center Physical Infrastructure**:
 
 **Done criteria for PoC:**
 
-1. `python -m splunk_uc lift-batch --category cat-15 --limit 30
-   --worst-first` runs clean against current HEAD.
-2. 30 commits land, one per UC, each passing the §5 validation
-   contract.
+1. The four CLI primitives (`lift-score`, `lift-prompt`,
+   `lift-validate`, `lift-batch`) are implemented, registered, and
+   covered by unit tests.
+2. The orchestration loop documented in §7 runs against cat-15 with
+   `--limit 30 --worst-first` and lands 30 commits, one per UC, each
+   passing the §5 validation contract.
 3. `python -m splunk_uc generate-scorecard` shows cat-15 composite
-   ≥ 75.
+   ≥ 75 (Bronze → Silver).
 4. `make sync-generated-check` green.
-5. `PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/ -q`
-   green (635 tests).
+5. `PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/
+   tests/splunk_uc/ -q` green.
 6. Drift-ledger entry recorded in `docs/health-check-2026-progress.md`.
+7. CHANGELOG.md entry under "Added" / "Changed".
 
 ## 9. After the PoC — iteration order
 
