@@ -655,13 +655,21 @@ findings but should not be lost:
        commit; the resulting `_AREAS` list is now the canonical
        source-of-truth and the cat-22 NTV `--check` gate passes.
 
-    **Cascade closure (2026-05-16).** Both gates that the original
-    F16 narrative flagged as pre-existing OT-arc generator gaps —
-    Phase 4.3 cat-22 non-technical block (`migrate-cat22-ntv
+    **Cascade closure (2026-05-16/17).** Four gates that the
+    cascade surfaced are now resolved through separate follow-on
+    commits, in the order the `set -e` job-script unmasked them:
+    Phase 3.2 cross-cutting compliance (e2f467cf6), Phase 4.5f
+    perf+a11y (e2f467cf6 + cd1f0b65b refresh), Equipment-tags regen
+    (3532a352f), Phase 4.3 cat-22 NTV (1740d1321), Phase 2.1
+    compliance-gaps timestamp realignment (1c631b33a), Phase 4.2
+    evidence-packs (39be6d175), and finally Phase 5.4 signed
+    provenance ledger + Phase 4.5c sandbox-validation report (this
+    commit). The two CI-load-bearing gates that the original F16
+    narrative explicitly flagged as pre-existing OT-arc generator
+    gaps — Phase 4.3 cat-22 non-technical block (`migrate-cat22-ntv
     --check`, line 698 of `validate.yml`) and Phase 4.2
     evidence-pack regeneration (`generate-evidence-packs --check`,
-    line 724) — are now resolved through separate cascade follow-on
-    commits. The path chosen for each:
+    line 724) — are part of that closure. The path chosen for each:
 
     - **Phase 4.3** — promotion: maintainer's content moved
       *into* the generator (the 13 OT-arc `_AREAS` entries spliced
@@ -675,6 +683,24 @@ findings but should not be lost:
       orphan-prune. Plus a separate refresh of the 18
       in-`PACK_TARGETS` MD files (legitimate coverage update after
       the OT-arc UCs landed).
+
+    - **Phase 2.1 + Phase 5.4 + Phase 4.5c** — regen: three
+      deterministic generators (`audit-compliance-gaps`,
+      `generate-mapping-ledger`, `audit-sandbox-validation`) emit
+      reports whose deterministic per-entry stamps derive from
+      `git log` over the regulations / UC sidecars. The OT-arc
+      content commits advanced those upstream files' last-commit
+      times, so each report needed a fresh regen-and-commit cycle
+      to realign — no template-change or maintainer decision
+      required, just `python -m splunk_uc <generator>` and commit.
+      All three are pure deterministic anchors against git
+      provenance, so the diffs are tightly scoped (compliance-gaps
+      = 2-line timestamp shift; mapping-ledger = 664 entries with
+      `lastModifiedCommit` SHA refresh from `8bed239` to `e2f467c`
+      out of 2680 total, no `firstSeenCommit` / `signature` /
+      `payloadHash` / `entryHash` drift; sandbox-validation = 18
+      lines adding canonical regulation-name aliases alongside the
+      pre-existing ids).
 
     Both choices are defensible:
 

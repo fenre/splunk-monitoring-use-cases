@@ -12,6 +12,77 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+- **Post-corpus-expansion `generate-mapping-ledger` + `audit-sandbox-validation` follow-on — clears the seventh and eighth masked freshness gates (Phase 5.4 + Phase 4.5c).**
+  Direct follow-on to the cascade in commit `39be6d175` below. With
+  Phase 4.2 evidence-packs cleared, the next two gates in
+  `validate.yml`'s `audits-content` job-script surfaced under
+  `set -e`: `Phase 5.4 signed provenance ledger regenerate
+  (determinism)` (line 822) and `Phase 4.5c sandbox validation
+  gate` (line 845). Both are deterministic generators whose output
+  derives from `git log` over the UC sidecars, so they auto-drift
+  whenever upstream content commits land.
+
+  **Phase 5.4 ledger drift.** `generate-mapping-ledger --check`
+  rebuilds `data/provenance/mapping-ledger.json` in memory and
+  diffs against the committed file. `_structural_diff` strips the
+  top-level `generatedAt` / `catalogueCommit` fields (they're
+  anchored to HEAD and would always drift after any commit) so the
+  gate only fires on per-entry drift. The on-disk ledger carried
+  `lastModifiedCommit: 8bed239` for 664 entries (of 2680 total),
+  but the actual last-modified commit advanced to `e2f467c` (the
+  Phase 3.2 cross-cutting cascade fix) when the OT-arc content
+  landed. Diff is sharply scoped: 1328 `lastModifiedCommit` lines
+  flipped (664 × 2), 2 `generatedAt` + 2 `catalogueCommit` lines
+  (stripped from comparison), 0 `firstSeenCommit` / `signature` /
+  `payloadHash` / `entryHash` drift. Merkle root recomputed
+  cleanly to `ccb056b7704b87a2…` and `audit-mapping-ledger` (the
+  second-half audit at line 834) PASSes on the fresh ledger.
+
+  **Phase 4.5c sandbox-validation drift.**
+  `audit-sandbox-validation --check` re-runs the sandbox audit
+  in-memory and diffs against `reports/sandbox-validation.json`.
+  The OT-arc UCs landed compliance entries that use both the
+  human-readable regulation name (e.g. `"EU CRA:Art.14"`,
+  `"NERC CIP:CIP-005-7 R1"`) and the canonical id form
+  (`"eu-cra:Art.14"`, `"nerc-cip:CIP-005-7 R1"`), so the audit's
+  `full_assurance_clauses[]` rollup now lists both variants. Diff
+  is purely additive: 22 lines (18 insertions, 4 deletions) across
+  the report's `entries[]` block, no test outcomes / counts
+  changed (`Hard failures (CI blocker): 0`).
+
+  All gates green pre-push (full sweep):
+
+      generate-mapping-ledger --check       OK (2680 entries)
+      audit-mapping-ledger                  PASS (merkle root ccb056b7…)
+      audit-sandbox-validation --check      SANDBOX GATE: GREEN
+      audit-compliance-gaps --check         OK
+      generate-evidence-packs --check       OK (no drift in 36 files)
+      migrate-cat22-ntv --check             OK
+      generate-equipment-tags --check       OK
+      generate-phase3-1/2/3 --check         OK
+      generate-recommender-app --check      OK
+      generate-md-from-json --check         OK
+      audit-perf-a11y --check               PERF+A11Y GATE: GREEN
+      audit-oscal-roundtrip --check         OSCAL GATE: GREEN
+      simulate_controltest.py --check       ATT&CK GATE: GREEN
+      4× frontend Node drift guards         PASS (sandbox, ATT&CK, OSCAL, perf+a11y)
+      generate_doc_references.py --check    OK (213 docs)
+
+  Files modified: `data/provenance/mapping-ledger.json`
+  (+666 -666), `reports/mapping-ledger-audit.json` (regen
+  side-effect), `reports/sandbox-validation.json` (+18 -4),
+  `CHANGELOG.md`, `docs/health-check-2026-progress.md` (F16
+  cascade closure narrative extended).
+
+  This commit closes the OT-arc CI-cascade arc:
+  `e2f467cf6 → 3532a352f → cd1f0b65b → 1740d1321 → 1c631b33a →
+  39be6d175 → this commit`. After this push the `audits-content`
+  job should be fully green (it has only the two
+  post-Phase-5.4 steps left, both verified locally), the
+  `frontend` job's four Node drift guards remain green
+  (verified locally against the regenerated reports), and no
+  other job has reported failure across the cascade.
+
 - **Post-corpus-expansion `generate-evidence-packs` follow-on — clears the sixth (and final OT-arc) masked freshness gate (Phase 4.2 evidence-packs).**
   Direct follow-on to the cascade in commit `1c631b33a` below. With
   the cat-22 NTV gate (Phase 4.3) and the compliance-gaps timestamp
