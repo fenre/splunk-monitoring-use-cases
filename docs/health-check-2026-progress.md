@@ -937,6 +937,113 @@ findings but should not be lost:
     docs + per-file coverage ratchet + auto-references footer
     regen) follow.
 
+20. **Lean-mode PR-2: collapse 14 cascade-regen `--check` gates
+    into one umbrella drift gate (2026-05-17).** Drift ledger
+    #16 captured the underlying symptom — a content edit forces
+    a cascade through ~10 generators, and CI was running each
+    `--check` gate as its own step, so a forgotten regeneration
+    surfaced as a sequential failure-chain (fix one, push, watch
+    the next one fail, fix that, push, etc.). PR-2 introduces a
+    single umbrella drift gate that runs every cascade generator
+    with `--check` in one shell, collects per-step failures, and
+    prints every drift surface in one log so a content edit's
+    full regen footprint is visible from a single CI failure.
+
+    **New Make targets.**
+
+    - `make sync-generated` — run every cascade generator in
+      write-mode in dependency-safe order. The local recovery
+      command for any drift gate failure is now `make
+      sync-generated && git add -A && git diff --staged`.
+    - `make sync-generated-check` — run every cascade generator
+      with `--check`. Collects per-step failures, prints
+      `DRIFT in: <step>` lines, exits 1 once all 14 have run.
+      Total wall-clock locally ≈30s.
+
+    **`validate.yml` collapse.** The following 14 individual
+    steps in the `audits-content` job were deleted and replaced
+    by a single `Cascade-generator drift gate (umbrella)` step
+    that calls `make sync-generated-check`:
+
+    1. `Wiki backlinks index freshness`
+       (`scripts/generate_backlinks.py --check`)
+    2. `Auto-generated doc references freshness`
+       (`scripts/generate_doc_references.py --check`)
+    3. `Prerequisite graph audit (wave / pre)`
+       (`audit-prerequisites --check`)
+    4. `Phase 3.1 clause-level backfill generator regeneration check`
+       (`generate-phase3-1-backfill --check`)
+    5. `Phase 3.2 cross-cutting compliance generator regeneration check`
+       (`generate-phase3-2-cross-cutting --check`)
+    6. `Phase 3.3 derivative-regulation propagation regeneration check`
+       (`generate-phase3-3-derivatives --check`)
+    7. `Equipment-tags regeneration check (sidecar equipment[] /
+       equipmentModels[])`
+       (`generate-equipment-tags --check`)
+    8. `Non-technical grandma explanation regeneration check`
+       (`generate-grandma-explanations --check`)
+    9. `Markdown freshness check`
+       (`generate-md-from-json --check`)
+    10. `Phase 4.3 cat-22 non-technical block regeneration check`
+        (`migrate-cat22-ntv --check`)
+    11. `Clause-level gap report regeneration check`
+        (`audit-compliance-gaps --check`)
+    12. `Phase 4.2 evidence-pack generator regeneration check`
+        (`generate-evidence-packs --check`)
+    13. `Phase 5.4 signed provenance ledger regenerate (determinism)`
+        (`generate-mapping-ledger --check`)
+    14. `Phase 4.5c sandbox validation gate`
+        (`audit-sandbox-validation --check`)
+
+    The `audits-content` job dropped from 53 steps to 40. The
+    `generate-doc-references.py --validate-library` step (purely
+    schema-validates the references library; no per-doc rewrite)
+    stays as its own step because it's cheap, library-only, and
+    independent of the per-doc rewrite (which now lives in the
+    umbrella).
+
+    **What stays unchanged.** Every audit that emits a structural
+    pass/fail (compliance-mappings, baseline-clause-grammar,
+    regulation-alignment, mitre-taxonomy, monitoring-type,
+    cim-spl-alignment, known-fp, peer/legal/sme signoff audits,
+    regulatory-change-watch, mapping-ledger audit, catalog-schema)
+    keeps its own dedicated step because failure messages carry
+    per-domain context that's useful to surface separately. The
+    `generate-api-surface --check` step in `audits-build` is
+    intentionally excluded from the umbrella because it consumes
+    the full post-build `dist/` tree. The post-build `audit-prerequisites --check`
+    belt-and-braces step in `audits-build` (which catches a
+    different drift surface — markdown edit without report
+    regeneration after the build step) also stays untouched.
+
+    **Files edited.**
+
+    - `Makefile` — added `sync-generated` and
+      `sync-generated-check` targets plus `.PHONY` registration.
+    - `.github/workflows/validate.yml` — deleted 14 individual
+      `--check` step blocks (including their long-form
+      explanatory comments — the umbrella block-comment now
+      carries the same context), inserted one `Cascade-generator
+      drift gate (umbrella)` step right after `Catalog schema
+      validation`, and rewrote the `audits-content` job
+      docstring at the top of the section to point at the
+      umbrella as the recovery surface.
+
+    **Verification.** `make sync-generated-check` ran clean in
+    31s against the current HEAD. `pytest tests/` (363 tests)
+    passed in 73s. The `audits-content` job step count went
+    from 53 → 40. The YAML parses cleanly under
+    `yaml.safe_load`.
+
+    **Why now.** Same lean-mode rationale as PR-1: the catalogue
+    is one person's responsibility, and a 14-way CI failure
+    fan-out when a content edit ripples through the generator
+    chain produces a worse signal than a single umbrella step
+    that lists every drift surface in one log. The generators
+    themselves remain unchanged — only the CI presentation layer
+    is collapsed. PR-3 (strip community docs + per-file coverage
+    ratchet + references-footer regen) follows.
+
 ## Recommended next actions, in size order
 
 1. ~~**Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,

@@ -117,8 +117,20 @@ job's first failing step — every step is independent.
 
 ### Job 2: `audits-content` (~25 min budget)
 
-UC content audits + generator `--check` guards. Reads sidecars +
-scripts + reports directly; does **not** run `tools/build/build.py`.
+UC content audits + a single umbrella cascade-generator drift gate.
+Reads sidecars + scripts + reports directly; runs `tools/build/build.py`
+once to materialise `dist/catalog.json` for the prereq / compliance-gap
+/ sandbox audits.
+
+> Drift-gate consolidation (2026-05-17, PR-2 / drift ledger #20): the
+> 14 cascade-style "generator regeneration check" steps that used to
+> fan out one CI step each were collapsed into a single
+> `Cascade-generator drift gate (umbrella)` step that calls
+> `make sync-generated-check`. The umbrella runs every cascade
+> generator with `--check` in dependency-safe order, collects per-step
+> failures, and prints `DRIFT in: <step>` lines for each drifting
+> generator so a content edit's full regen footprint is visible from a
+> single CI failure. Local recovery: `make sync-generated && git add -A`.
 
 Major sub-areas:
 
@@ -145,17 +157,24 @@ Major sub-areas:
   audit_known_fp).
 - Compliance graph (audit_compliance_mappings, baseline drift guard,
   regulation alignment, generated-reports-committed).
-- Generator regeneration (Phase 2.2/2.3/3.1/3.2/3.3 + Phase C tier-2
-  + equipment tags + grandma explanations + Phase 4.3 cat-22 NTV +
-  Phase 4.2 evidence packs + clause-level gap report).
-- Quality gates (Gold Standard summary, markdown freshness).
+- **Cascade-generator drift gate (umbrella)** — one step
+  (`make sync-generated-check`) covers every cascade-style regen
+  (`generate-phase3-{1,2,3}-*`, `generate-equipment-tags`,
+  `generate-grandma-explanations`, `migrate-cat22-ntv`,
+  `audit-prerequisites`, `audit-compliance-gaps`,
+  `audit-sandbox-validation`, `generate-evidence-packs`,
+  `generate-mapping-ledger`, `generate-md-from-json`,
+  `generate-backlinks`, `generate-doc-references`).
+- Quality gates (Gold Standard summary).
 - Phase 4.5 / 5.x signoffs (peer review, legal review, SME review,
-  regulatory change-watch, mapping-ledger).
+  regulatory change-watch, mapping-ledger audit).
 
-**When this job fails:** consult the failing audit's `--help` for
-the regeneration command. Most failures are "you edited a JSON
-sidecar but forgot to regenerate the report" — `make build` or the
-specific generator with `--check` removed will fix it.
+**When this job fails:** for the umbrella drift gate, run
+`make sync-generated && git add -A && git diff --staged` locally and
+commit. For any other audit, consult its `--help` for the regeneration
+command. Most failures are "you edited a JSON sidecar but forgot to
+regenerate the report" — `make build` or the specific generator with
+`--check` removed will fix it.
 
 ### Job 3: `audits-build` (~30 min budget)
 
@@ -386,7 +405,8 @@ hard — the tests are the contract.
 |-------------------------------------------------|----------------------------------------------------------------------------------|
 | `audit_action_pins.py` fails on PR              | Run locally with `GITHUB_TOKEN=$(gh auth token)` to bypass rate-limit warnings. |
 | `Build check` fails — generated files out-of-date | Run `make build` and commit the diff.                                            |
-| Generator `--check` fails                       | Re-run the named script without `--check` and commit the regenerated output.    |
+| `Cascade-generator drift gate (umbrella)` fails | Run `make sync-generated && git add -A && git diff --staged` and commit the regenerated tree. |
+| Other named generator `--check` fails           | Re-run the named script without `--check` and commit the regenerated output.    |
 | `Compliance audit — generated reports committed` fails | Regenerate `reports/compliance-coverage.json` + `docs/compliance-coverage.md` and commit. |
 | `URL freeze` fails                              | URL change is breaking — see [external-consumer-matrix.md](external-consumer-matrix.md). |
 | MCP `cov-fail-under=70` fails                   | Add tests; coverage floor is intentionally low to allow uplift.                  |

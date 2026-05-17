@@ -155,6 +155,8 @@ make build                                          # rebuild full site into dis
 make audit                                          # run core audit checks
 make audit-full                                     # run ALL audit checks
 make test                                           # unit tests + build validation
+make sync-generated                                 # write-mode: run every cascade generator in dep-safe order
+make sync-generated-check                           # CI drift gate: same generators with --check (umbrella, ~30s)
 make audit-roadmap                                  # validate ROADMAP.md structure + links
 make export-roadmap                                 # emit Project-board JSON snapshot
 make audit-license-inventory                        # validate dependency licenses against allowlist

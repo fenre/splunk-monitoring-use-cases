@@ -21,6 +21,7 @@
        generate-phase3-1-backfill generate-phase3-2-cross-cutting \
        generate-phase3-3-derivatives \
        generate-backlinks generate-doc-references \
+       sync-generated sync-generated-check \
        check-source-links audit-auto-gen-provenance \
        splunk-uc splunk-uc-help \
        inventory manifest test test-unit help
@@ -263,6 +264,92 @@ generate-phase3-2-cross-cutting: ## Phase 3.2 generator (cross-cutting complianc
 
 generate-phase3-3-derivatives: ## Phase 3.3 generator (derivative-regulation propagation)
 	$(SPLUNK_UC) generate-phase3-3-derivatives
+
+# --- Sync-generated umbrella (PR-2 lean-mode) ---
+#
+# Lean-mode PR-2 collapses 14 cascade-style per-generator `--check`
+# gates in `.github/workflows/validate.yml` into one umbrella drift
+# gate. `make sync-generated` runs every cascade generator in
+# dependency-safe order; `make sync-generated-check` runs the same
+# set with `--check` flags (no writes, exits non-zero on any drift).
+#
+# CI calls `make sync-generated-check`. Local "fix all drift in one
+# shot" recovery is `make sync-generated && git add -A && git diff
+# --staged`.
+#
+# Order matters: sidecar mutators first, derived reports next, doc
+# footers last. Re-shuffling without thinking about read/write
+# dependencies will break the chain. The generators themselves are
+# idempotent — a second run is a no-op.
+#
+# Excluded from the umbrella on purpose:
+#   - `generate-api-surface --check` lives in audits-build because
+#     it depends on a fresh `make build`.
+#   - Pure structural / schema audits (`audit-mitre-taxonomy`,
+#     `audit-known-fp`, `audit-regulatory-change-watch`, etc.) keep
+#     their own CI steps because their failure messages carry
+#     useful per-domain context.
+sync-generated: ## Run every cascade-style generator (write-mode) in dependency-safe order
+	@echo "==> [1/14] sidecar mutator: phase3-1 backfill"
+	@$(SPLUNK_UC) generate-phase3-1-backfill
+	@echo "==> [2/14] sidecar mutator: phase3-2 cross-cutting"
+	@$(SPLUNK_UC) generate-phase3-2-cross-cutting
+	@echo "==> [3/14] sidecar mutator: phase3-3 derivatives"
+	@$(SPLUNK_UC) generate-phase3-3-derivatives
+	@echo "==> [4/14] sidecar mutator: equipment-tags"
+	@$(SPLUNK_UC) generate-equipment-tags
+	@echo "==> [5/14] sidecar mutator: grandma-explanations"
+	@$(SPLUNK_UC) generate-grandma-explanations
+	@echo "==> [6/14] derived report: cat-22 non-technical-view block"
+	@$(SPLUNK_UC) migrate-cat22-ntv
+	@echo "==> [7/14] derived report: prerequisites graph"
+	@$(SPLUNK_UC) audit-prerequisites
+	@echo "==> [8/14] derived report: compliance gaps"
+	@$(SPLUNK_UC) audit-compliance-gaps
+	@echo "==> [9/14] derived report: sandbox validation"
+	@$(SPLUNK_UC) audit-sandbox-validation
+	@echo "==> [10/14] derived report: evidence packs"
+	@$(SPLUNK_UC) generate-evidence-packs
+	@echo "==> [11/14] derived report: mapping ledger"
+	@$(SPLUNK_UC) generate-mapping-ledger
+	@echo "==> [12/14] doc companions: md-from-json"
+	@$(SPLUNK_UC) generate-md-from-json
+	@echo "==> [13/14] doc footer: backlinks index"
+	@$(PYTHON) scripts/generate_backlinks.py
+	@echo "==> [14/14] doc footer: APA references + inline citations"
+	@$(PYTHON) scripts/generate_doc_references.py
+	@echo "==> sync-generated: done"
+
+sync-generated-check: ## CI drift gate — run every cascade generator with --check (exits non-zero on drift)
+	@set -e; \
+	failed=0; \
+	for step in \
+	  "generate-phase3-1-backfill --check" \
+	  "generate-phase3-2-cross-cutting --check" \
+	  "generate-phase3-3-derivatives --check" \
+	  "generate-equipment-tags --check" \
+	  "generate-grandma-explanations --check" \
+	  "migrate-cat22-ntv --check" \
+	  "audit-prerequisites --check" \
+	  "audit-compliance-gaps --check" \
+	  "audit-sandbox-validation --check" \
+	  "generate-evidence-packs --check" \
+	  "generate-mapping-ledger --check" \
+	  "generate-md-from-json --check"; do \
+	  echo "==> $$step"; \
+	  $(SPLUNK_UC) $$step || { failed=1; echo "    DRIFT in: $$step"; }; \
+	done; \
+	echo "==> generate-backlinks --check"; \
+	$(PYTHON) scripts/generate_backlinks.py --check || { failed=1; echo "    DRIFT in: generate-backlinks"; }; \
+	echo "==> generate-doc-references --check"; \
+	$(PYTHON) scripts/generate_doc_references.py --check || { failed=1; echo "    DRIFT in: generate-doc-references"; }; \
+	if [ $$failed -ne 0 ]; then \
+	  echo ""; \
+	  echo "FAIL: one or more sync-generated --check gates detected drift."; \
+	  echo "      Fix: run \`make sync-generated\` locally, then commit the diff."; \
+	  exit 1; \
+	fi; \
+	echo "==> sync-generated-check: clean"
 
 audit-reproducibility: ## Two consecutive --reproducible builds must match (~90s)
 	$(SPLUNK_UC) audit-reproducibility

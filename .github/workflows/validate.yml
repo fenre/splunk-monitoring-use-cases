@@ -246,12 +246,22 @@ jobs:
   # ============================================================================
   # Job 2: audits-content (~25 min budget)
   # ============================================================================
-  # UC content audits + generator ``--check`` guards. Reads sidecars +
-  # scripts + reports directly; does **not** run ``tools/build/build.py``.
-  # When this job fails, consult the failing audit's ``--help`` for the
-  # regeneration command. Most failures are "you edited a JSON sidecar
-  # but forgot to regenerate the report" — ``make build`` or the
-  # specific generator with ``--check`` removed will fix it.
+  # UC content audits + cascade-generator drift gates. Reads sidecars +
+  # scripts + reports directly; does run ``tools/build/build.py`` once
+  # to materialise ``dist/catalog.json`` for the prereq / compliance-gap
+  # / sandbox audits.
+  #
+  # The 14 cascade-style "generator regeneration check" steps that used
+  # to fan out one CI step each were collapsed into a single umbrella
+  # step (``Cascade-generator drift gate (umbrella)`` → ``make
+  # sync-generated-check``) in PR-2 lean-mode (2026-05-17, drift ledger
+  # #20). When the umbrella fails, the log lists every drifting
+  # generator; recovery is ``make sync-generated && git add -A``
+  # locally.
+  #
+  # Most other failures in this job are "you edited a JSON sidecar but
+  # forgot to regenerate the report" — ``make build`` or the named
+  # generator without ``--check`` will fix it.
   audits-content:
     name: audits-content
     runs-on: ubuntu-latest
@@ -468,26 +478,14 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-changelog-uc-refs
 
-      - name: Wiki backlinks index freshness
-        # Verify docs/backlinks.md ("What links here") matches the current
-        # state of the documentation graph. scripts/generate_backlinks.py
-        # is deterministic; --check exits non-zero if regeneration would
-        # change the committed file.
-        run: python3 scripts/generate_backlinks.py --check
-
       - name: Auto-generated doc references library
         # Validate data/source-references.json + data/source-mappings.json +
         # data/inline-citation-phrases.json: every mapping resolves to a
         # known source record, every inline phrase ID resolves, no dangling
-        # refs. Fast and independent of the per-doc rewrite.
+        # refs. Fast and independent of the per-doc rewrite (which now
+        # runs inside the `Cascade-generator drift gate (umbrella)` step
+        # below — see PR-2 lean-mode collapse / drift ledger #20).
         run: python3 scripts/generate_doc_references.py --validate-library
-
-      - name: Auto-generated doc references freshness
-        # Re-render the References footer and inline [N] markers in every
-        # documentation file and assert that the committed copies match.
-        # Fails if any *.md has drifted from scripts/generate_doc_references.py
-        # output. Idempotent — second run rewrites zero files.
-        run: python3 scripts/generate_doc_references.py --check
 
       - name: Auto-generated docs provenance
         # Every entry in data/auto-generated-docs.json must carry an honest
@@ -519,18 +517,51 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
 
-      - name: Prerequisite graph audit (wave / pre)
-        # Hard CI gate on the UC implementation-ordering graph encoded in
-        # catalog.json. ``audit-prerequisites`` walks every UC's
-        # ``pre`` list, asserts all referenced ids exist and match the
-        # UC-X.Y.Z grammar, rejects self-references and duplicates, runs
-        # iterative DFS over the forward graph to detect cycles, and warns
-        # on wave-monotonicity violations (crawl UCs depending on walk/run
-        # UCs). ``--check`` re-runs the audit in memory and diffs against
-        # reports/prerequisites-audit.json so a forgotten regeneration,
-        # hand-edited report, or drift between catalog.json and the
-        # committed report all fail CI.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check
+      - name: Cascade-generator drift gate (umbrella)
+        # PR-2 lean-mode collapse (2026-05-17, drift ledger #20). One
+        # umbrella step replaces 14 cascade-style per-generator --check
+        # gates that used to fan out one CI step each.
+        #
+        # `make sync-generated-check` runs the same 14 generators with
+        # --check flags in dependency-safe order:
+        #   1. phase3-1 / phase3-2 / phase3-3 (sidecar compliance[])
+        #   2. equipment-tags (sidecar equipment[]/equipmentModels[])
+        #   3. grandma-explanations (sidecar grandmaExplanation)
+        #   4. migrate-cat22-ntv (non-technical-view.js cat-22 block)
+        #   5. audit-prerequisites (reports/prerequisites-audit.json)
+        #   6. audit-compliance-gaps (reports/compliance-gaps.json +
+        #      docs/compliance-gaps.md)
+        #   7. audit-sandbox-validation (reports/sandbox-validation.json)
+        #   8. generate-evidence-packs (docs/evidence-packs/* +
+        #      api/v1/evidence-packs/*)
+        #   9. generate-mapping-ledger (data/provenance/mapping-ledger.json)
+        #  10. generate-md-from-json (.md companions for every UC)
+        #  11. generate-backlinks (docs/backlinks.md)
+        #  12. generate-doc-references (APA References footer + inline
+        #      [N] markers in every .md)
+        #
+        # Each generator is idempotent — a forgotten regeneration, a
+        # hand-edited derivative artefact, or a stale manifest entry all
+        # fail this gate. On failure, the local recovery procedure is:
+        #
+        #   make sync-generated && git add -A && git diff --staged
+        #
+        # The umbrella runs the generators in a single shell with `set
+        # -e` overridden so every drift surface appears in one log
+        # (rather than stopping at the first failure). The Makefile
+        # target collects per-step failures, prints DRIFT lines, and
+        # exits 1 once all 14 have run.
+        #
+        # Generators that need `dist/catalog.json` (audit-prerequisites,
+        # audit-compliance-gaps, audit-sandbox-validation) read it
+        # from the previous "Build catalog" step. Generators that only
+        # read sidecars are catalog-independent but live in the same
+        # umbrella for one-stop drift recovery.
+        #
+        # `generate-api-surface --check` is intentionally excluded — it
+        # lives in the audits-build job because it consumes the full
+        # post-build dist/ tree.
+        run: make sync-generated-check
 
       - name: Compliance mapping audit (schema + regulations + golden + baseline)
         # Validates every content/cat-*/UC-*.json sidecar against
@@ -580,99 +611,6 @@ jobs:
             exit 1
           fi
 
-      - name: Phase 3.1 clause-level backfill generator regeneration check
-        # Phase 3.1 deliverable. python3 -m splunk_uc generate-phase3-1-backfill is
-        # the single source of truth for the clause-level backfill that
-        # closed the remaining tier-1 clause gaps on existing cat-22 UCs
-        # for CMMC 2.0, ISO/IEC 27001:2013, NIST CSF 1.1 & 2.0, PCI-DSS
-        # v3.2.1, GDPR 2016/679, NIST SP 800-53 Rev. 5 and HIPAA Security
-        # Rule 2013-final. The generator reads
-        # data/per-regulation/phase3.1.json (the hand-curated manifest
-        # mapping each uncovered tier-1 clause to the existing UC that
-        # semantically covers it) and idempotently appends the compliance
-        # entry to the target UC's JSON sidecar. --check regenerates the
-        # sidecars into memory and diffs against the committed tree, so a
-        # forgotten regeneration, a hand-edited sidecar, or a manifest
-        # pointing at a non-existent UC all fail CI.
-        # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-1-backfill --check
-
-      - name: Phase 3.2 cross-cutting compliance generator regeneration check
-        # Phase 3.2 deliverable. The generator
-        # ``src/splunk_uc/generators/phase3_2_cross_cutting.py`` is the single
-        # source of truth for the multi-regulation clause-level tags applied
-        # to existing UCs *outside* cat-22. It reads
-        # data/per-regulation/phase3.2.json (the hand-curated manifest that
-        # maps 53 cross-cutting UCs to 182 tier-1/tier-2 clauses across 14
-        # categories) and idempotently appends compliance[] entries to the
-        # existing JSON sidecars under content/cat-*/UC-*.json (JSON SSOT) —
-        # it never authors SPL and never creates new sidecars. --check
-        # regenerates the sidecars into memory and diffs against the
-        # committed tree so drift (hand-edited sidecar, stale clause,
-        # forgotten regeneration, manifest entry pointing at a non-existent
-        # UC, or a uc_id starting with "22." which belongs to another
-        # generator) all fail CI.
-        # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-2-cross-cutting --check
-
-      - name: Phase 3.3 derivative-regulation propagation regeneration check
-        # Phase 3.3 deliverable. python3 -m splunk_uc generate-phase3-3-derivatives
-        # walks the derivesFrom graph in data/regulations.json and emits
-        # inherited compliance[] entries on every UC sidecar that already
-        # maps to a parent regulation (GDPR@2016/679 today; the graph is
-        # extensible). UK GDPR inherits identity-mode (clause numbers
-        # preserved 1:1); Swiss nFADP, LGPD, APPI and CCPA/CPRA inherit in
-        # mapped mode via hand-curated clauseMapping tables. Every inherited
-        # entry is tagged with provenance=derived-from-parent and a
-        # derivationSource object that captures parent reg/version/clause,
-        # parent assurance, inheritance mode, and any divergence note.
-        # Assurance degrades one step (full → partial, partial →
-        # contributing; contributing does not propagate further) so
-        # inherited entries can never claim stronger assurance than their
-        # parent. Native (hand-authored) mappings always win — the
-        # generator never overwrites an entry with a matching
-        # (regulation, version, clause). --check regenerates sidecars into
-        # memory and diffs them against the committed tree, so a forgotten
-        # regeneration, a hand-edited derived entry, or a stale parent
-        # mapping that should have been garbage-collected all fail CI.
-        # P6 (scripts taxonomy, Tier 2 batch 3, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-phase3-3-derivatives --check
-
-      - name: Equipment-tags regeneration check (sidecar equipment[] / equipmentModels[])
-        # ``generate-equipment-tags`` is the single source of truth for the
-        # ``equipment[]`` and ``equipmentModels[]`` fields on every
-        # ``content/cat-*/UC-*.json`` sidecar (JSON SSOT). It reads the
-        # EQUIPMENT registry from build.py (via scripts/equipment_lib.py)
-        # and substring-matches each UC's narrative (``app``, ``dataSources``,
-        # ``spl``, ``implementation``, ``description``) to produce a
-        # deterministic, schema-valid equipment tag set. ``build.py`` then
-        # uses those fields as the authoritative source when populating
-        # the compact ``e`` / ``em`` fields in catalog.json.
-        # --check regenerates the tags into memory and diffs against
-        # disk, so a forgotten regeneration, a hand-edited sidecar, or
-        # an equipment-table rename without a regeneration all fail CI.
-        # See docs/equipment-table.md for the authoring model and
-        # precedence rules.
-        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-equipment-tags --check
-
-      - name: Non-technical grandma explanation regeneration check
-        # v7.1 deliverable. python3 -m splunk_uc generate-grandma-explanations is the
-        # single source of truth for the ``grandmaExplanation`` field on
-        # every UC sidecar (content/cat-*/UC-*.json). The script strips
-        # Splunk / SPL / CIM / MITRE / regulatory jargon from the existing
-        # title, value and description fields to produce a short, "explain
-        # it to my grandma" sentence that the non-technical UI renders in
-        # the UC detail panel, the UC cards, the search results, the
-        # recently-added list, and the sidebar subcategory view.
-        # --check regenerates every value in memory and diffs it against
-        # disk, so a forgotten regeneration after an authored edit, or a
-        # drift between a hand-edited sidecar and the generator rules, all
-        # fail CI before the catalog ships. See docs/grandma-explanations.md
-        # for the authoring model.
-        # P6 (scripts taxonomy, Tier 2 batch 1, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check
-
       - name: Gold Standard quality audit
         # Validates UC content depth against the Gold Standard quality
         # profile. Runs in --summary mode (no --check), which prints the
@@ -684,64 +622,6 @@ jobs:
         # F7 (2026-05-12): dropped the redundant continue-on-error: true
         # flag — --summary cannot fail, so the flag never had effect.
         run: PYTHONPATH=src python3 -m splunk_uc audit-gold-profile --summary
-
-      - name: Markdown freshness check
-        # JSON is the single source of truth. This checks that .md
-        # companion files are up-to-date with their JSON source.
-        # P6 (scripts taxonomy, Tier 2 batch 1, 2026-05-09): routed through the dispatcher.
-        # F7 (2026-05-12): the v7.5 → v8.2 transition that allowed this
-        # to drift is complete (7677/7677 companions tracked), so the
-        # continue-on-error: true flag has been dropped — drift now
-        # blocks the PR.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --check
-
-      - name: Phase 4.3 cat-22 non-technical block regeneration check
-        # Phase 4.3 deliverable. python3 -m splunk_uc migrate-cat22-ntv is the
-        # single source of truth for the ``"22": { ... }`` block in
-        # non-technical-view.js — the plain-language view shown to
-        # non-technical stakeholders (privacy officers, legal, risk,
-        # executives). The generator owns every cat-22 area and
-        # rewrites the block from an authoritative Python dictionary
-        # that carries plain-language ``whatItIs`` / ``whoItAffects`` /
-        # ``splunkValue`` copy plus repo-relative ``primer`` and
-        # ``evidencePack`` links into docs/regulatory-primer.md and
-        # docs/evidence-packs/*.md. --check regenerates the block in
-        # memory and diffs it against the committed file, so a
-        # forgotten regeneration, a hand-edited cat-22 area, or a
-        # stale primer/evidence link all fail CI before the dashboard
-        # can drift away from the authored source.
-        run: PYTHONPATH=src python3 -m splunk_uc migrate-cat22-ntv --check
-
-      - name: Clause-level gap report regeneration check (reports/compliance-gaps.json + docs/compliance-gaps.md)
-        # Phase 2.1 deliverable. python3 -m splunk_uc audit-compliance-gaps emits a
-        # per-regulation, clause-by-clause gap report against
-        # data/regulations.json commonClauses[]. CI runs --check so the
-        # committed report can never drift from the UC sidecars / regulations
-        # index it was generated from.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-compliance-gaps --check
-
-      - name: Phase 4.2 evidence-pack generator regeneration check
-        # Phase 4.2 deliverable. ``generate-evidence-packs`` is the single
-        # source of truth for docs/evidence-packs/*.md and the JSON twins
-        # under api/v1/evidence-packs/*.json. The generator reads
-        # data/regulations.json (clause inventory, derivation graph),
-        # data/evidence-pack-extras.json (auditor-facing metadata:
-        # retention, roles, authoritative guidance, common deficiencies,
-        # testing approach, reporting cadence, penalty structure), the
-        # UC sidecars under content/cat-*/UC-*.json (JSON SSOT —
-        # compliance entries and evidence fields), and
-        # reports/compliance-gaps.json (the pre-computed per-clause
-        # coverage rollup). It emits 12 auditor
-        # packs (the 11 tier-1 regulations + UK GDPR derivative), a
-        # README, and a machine-readable index with deterministic
-        # serialisation. --check regenerates the tree into memory and
-        # diffs it against the committed tree, so a forgotten
-        # regeneration, a hand-edited markdown/JSON pack, a schema
-        # violation on evidence-pack-extras, or a drift in the
-        # underlying gap-report all fail CI.
-        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs --check
 
       # ------------------------------------------------------------------
       # Phase 4.5 / 5.x — signoff + sandbox-validation gates
@@ -808,19 +688,6 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-regulatory-change-watch --check
 
-      - name: Phase 5.4 signed provenance ledger regenerate (determinism)
-        # ``generate-mapping-ledger --check`` rebuilds the ledger from every UC
-        # sidecar's compliance[] array in memory, compares byte-for-byte with the
-        # on-disk data/provenance/mapping-ledger.json, and fails on drift. The
-        # generator is deterministic because: (1) sidecars are iterated in sorted
-        # order, (2) regulation names are canonicalised via a fixed lookup table,
-        # (3) generatedAt is anchored to catalogueCommit's commit date (NOT
-        # wall-clock), and (4) git history is probed in a single bulk pass. Any
-        # content-level change to the compliance graph must be accompanied by a
-        # ledger regeneration in the same PR, or this gate fails.
-        # P6 (scripts taxonomy, Tier 2 batch 1, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-mapping-ledger --check
-
       - name: Phase 5.4 signed provenance ledger audit
         # ``audit-mapping-ledger`` validates the ledger against
         # schemas/mapping-ledger.schema.json, recomputes the canonicalHash
@@ -832,17 +699,6 @@ jobs:
         # after stamping and Sigstore attestation.
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger
-
-      - name: Phase 4.5c sandbox validation gate
-        # ``audit-sandbox-validation`` walks every UC sidecar
-        # that declares a controlTest.fixtureRef, asserts the fixture
-        # exists on disk and has both a positive and negative case
-        # populated, and writes reports/sandbox-validation.json. The
-        # --check step re-runs the audit in memory and diffs against
-        # the committed report so the CI fails on drift. The Node
-        # drift-guard half runs in the ``frontend`` job.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-sandbox-validation --check
 
       # ----- audits-content artefact uploads -----
 

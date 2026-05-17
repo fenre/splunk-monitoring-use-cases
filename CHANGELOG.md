@@ -12,6 +12,79 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Changed — lean-mode PR-2: collapse 14 cascade-regen `--check` gates into one umbrella drift gate
+
+The same content edit can ripple through up to ~10 generators (sidecar
+mutators, derived reports, doc footers). CI used to run each `--check`
+gate as its own step, so a forgotten regeneration surfaced as a
+sequential failure-chain — fix one, push, watch the next one fail, fix
+that, push. PR-2 collapses every cascade-regen `--check` step in
+`audits-content` into a single umbrella drift gate. A forgotten regen
+now fails one CI step whose log lists *every* drifting generator at
+once.
+
+**New Make targets.**
+
+- `make sync-generated` — runs every cascade generator in write-mode
+  in dependency-safe order (sidecar mutators first → derived reports →
+  doc footers). The local recovery procedure for any drift gate
+  failure is now:
+
+      make sync-generated && git add -A && git diff --staged
+
+- `make sync-generated-check` — runs every cascade generator with
+  `--check`. Collects per-step failures, prints `DRIFT in: <step>`
+  lines, exits 1 once all 14 have run. Total wall-clock locally ≈30s.
+
+**`.github/workflows/validate.yml` collapse.** Fourteen individual
+`--check` step blocks in the `audits-content` job were deleted (along
+with their long-form per-step rationale comments — the umbrella
+block-comment carries the same context) and replaced by one
+`Cascade-generator drift gate (umbrella)` step right after
+`Catalog schema validation`. The 14 collapsed steps:
+
+| Old step name                                                           | Generator                                       |
+| ----------------------------------------------------------------------- | ----------------------------------------------- |
+| Wiki backlinks index freshness                                          | `scripts/generate_backlinks.py --check`         |
+| Auto-generated doc references freshness                                 | `scripts/generate_doc_references.py --check`    |
+| Prerequisite graph audit (wave / pre)                                   | `audit-prerequisites --check`                   |
+| Phase 3.1 clause-level backfill generator regeneration check            | `generate-phase3-1-backfill --check`            |
+| Phase 3.2 cross-cutting compliance generator regeneration check         | `generate-phase3-2-cross-cutting --check`       |
+| Phase 3.3 derivative-regulation propagation regeneration check          | `generate-phase3-3-derivatives --check`         |
+| Equipment-tags regeneration check                                       | `generate-equipment-tags --check`               |
+| Non-technical grandma explanation regeneration check                    | `generate-grandma-explanations --check`         |
+| Markdown freshness check                                                | `generate-md-from-json --check`                 |
+| Phase 4.3 cat-22 non-technical block regeneration check                 | `migrate-cat22-ntv --check`                     |
+| Clause-level gap report regeneration check                              | `audit-compliance-gaps --check`                 |
+| Phase 4.2 evidence-pack generator regeneration check                    | `generate-evidence-packs --check`               |
+| Phase 5.4 signed provenance ledger regenerate (determinism)             | `generate-mapping-ledger --check`               |
+| Phase 4.5c sandbox validation gate                                      | `audit-sandbox-validation --check`              |
+
+The `audits-content` job dropped from 53 to 40 steps. The umbrella's
+total wall-clock runs in one shell with one Python process startup, so
+end-to-end CI is no slower than before.
+
+**What stays unchanged.** Every audit emitting structural pass/fail
+context keeps its own dedicated step: `audit-compliance-mappings`,
+`audit-baseline-clause-grammar-free`, `audit-regulation-alignment`,
+`audit-mitre-taxonomy`, `audit-monitoring-type`, `audit-cim-spl-alignment`,
+`audit-known-fp`, `audit-peer-review-signoffs`,
+`audit-legal-review-signoffs`, `audit-sme-review-signoffs`,
+`audit-regulatory-change-watch`, `audit-mapping-ledger`,
+`audit-catalog-schema`. The `generate-doc-references.py --validate-library`
+step (purely schema-validates the references library; independent of
+the per-doc rewrite) also stays as its own step.
+
+**Intentional exclusions.** `generate-api-surface --check` keeps its
+position in the `audits-build` job because it consumes the full
+post-build `dist/` tree. The post-build `audit-prerequisites --check`
+belt-and-braces step in `audits-build` (different drift surface —
+markdown edited without report regen after the build) also stays
+untouched.
+
+See drift ledger #20 in `docs/health-check-2026-progress.md` for the
+full rationale.
+
 ### Removed — lean-mode PR-1: solo-maintainer cleanup of team-coordination scaffolding
 
 The repository is a one-person catalogue; several CI surfaces were
