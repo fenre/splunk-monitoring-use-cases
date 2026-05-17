@@ -1,58 +1,51 @@
 # Contributing
 
-The **v7** catalog pipeline is the only supported path: `content/cat-*/UC-*.json` → `tools/build/build.py` → `dist/`.
+> Solo-maintainer project. PRs are welcome but reviewed on a best-effort
+> basis. The notes below are the minimum you need to land a content or
+> tooling change without bouncing on CI.
 
-## Getting started
+## Quick start
 
 ```bash
 git clone https://github.com/fenre/splunk-monitoring-use-cases.git
 cd splunk-monitoring-use-cases
-make build
+make build           # build the site into dist/
+make serve           # preview dist/ at http://localhost:8080
 ```
 
-Open `dist/index.html` in a browser (via `make serve`, or any static server rooted at `dist/`). The site loads data from the API endpoints in `dist/api/`.
+The catalogue is single-source: `content/cat-*/UC-*.json` → `tools/build/build.py` → `dist/`.
 
-## Adding use cases
+## Adding a use case
 
-### Files and IDs
+### File and ID conventions
 
-- **Category directories:** `content/cat-XX-descriptive-name/` containing `UC-X.Y.Z.json` files, where `XX` is the two-digit category.
-- **UC files:** `UC-X.Y.Z.json` with `id` (`X.Y.Z`) and `title` fields — category `X`, subcategory `Y`, use case `Z`.
-- **ID rules (`python3 -m splunk_uc audit-uc-ids`):** `X` must match the directory’s `cat-XX-`. Within each subcategory `(X.Y)`, `Z` values must be **strictly increasing with no gaps** (e.g. …2 then …4 is invalid). The `id` values (and thus `UC-X.Y.Z`) must be unique repo-wide.
+- **Category folder:** `content/cat-XX-descriptive-name/` (zero-padded `XX`).
+- **UC file:** `UC-X.Y.Z.json` with `id` `"X.Y.Z"` matching the directory's `cat-XX`.
+- Within a subcategory `(X.Y)`, `Z` values must be strictly increasing, no gaps. UC IDs are globally unique.
 
-### Required UC fields (CI)
+`make audit` enforces these.
 
-Structure and enums are enforced against [`schemas/uc.schema.json`](schemas/uc.schema.json). `python3 -m splunk_uc audit-uc-structure` and the build treat that schema (plus CI rules) as the contract. The table below lists JSON properties commonly required for catalog UCs; see the schema for the full required/optional set and valid `monitoringType` values.
+### Required fields
 
-| JSON property | Notes |
-|--------|--------|
-| `criticality` | One of: `critical`, `high`, `medium`, `low` |
-| `difficulty` | One of: `beginner`, `intermediate`, `advanced`, `expert` |
-| `monitoringType` | Non-empty array; values must match the schema enum (e.g. `Security`, `Performance`, …) |
-| `value` | Why this matters |
-| `app` | Splunk app or add-on id — catalog “primary app” |
+Every UC validates against [`schemas/uc.schema.json`](schemas/uc.schema.json). The schema is authoritative; the most common required properties are:
+
+| Property | Notes |
+| --- | --- |
+| `criticality` | `critical` \| `high` \| `medium` \| `low` |
+| `difficulty` | `beginner` \| `intermediate` \| `advanced` \| `expert` |
+| `monitoringType` | Non-empty array, values from schema enum |
+| `value` | Why this matters (one-paragraph business case) |
+| `app` | Primary Splunk app or TA |
 | `dataSources` | What feeds the detection |
-| `spl` | Primary SPL string (plain text in JSON, no markdown fencing) |
+| `spl` | Plain-text SPL (no markdown fencing) |
 | `implementation` | Deployment / tuning guidance |
 | `visualization` | Suggested views |
-| `cimModels` | Model name(s); omit or use `[]` / entries as appropriate per schema |
+| `cimModels` | Model name(s), `[]` if none |
+| `grandmaExplanation` | 20–400 char plain-language one-liner (run `make sync-generated` if missing) |
 
-Common optional properties (not all enforced on every UC): `mitreAttack`, `cimSpl`, `references`, `wave`, `prerequisiteUseCases`, and other fields documented in the schema.
+Optional: `mitreAttack`, `cimSpl`, `references`, `wave`, `prerequisiteUseCases`, equipment tags, compliance entries. See [`docs/use-case-fields.md`](docs/use-case-fields.md) for the full authoring contract.
 
-### Implementation ordering (optional)
-
-Curators can mark each UC with an **implementation wave** and list **UCs that must be implemented first** so readers know which order to roll things out:
-
-| Field | Values / format | Notes |
-|--------|------------------|-------|
-| `wave` | `crawl`, `walk`, `run` | `crawl` = foundation (platform + data sources + primary TAs); `walk` = extends or correlates foundation data; `run` = cross-source correlation, ML, or multi-UC orchestration. |
-| `prerequisiteUseCases` | Array of `UC-X.Y.Z` strings | UCs that must be implemented first (data sources, macros, lookups, upstream detections). Validated at build time — unknown ids, self-references, and dependency cycles fail the build. |
-
-See [`docs/use-case-fields.md#implementation-ordering-optional-v14`](docs/use-case-fields.md#implementation-ordering-optional-v14) for display details.
-
-## UC template
-
-Copy verbatim shape; replace placeholders.
+### Template
 
 ```json
 {
@@ -61,9 +54,9 @@ Copy verbatim shape; replace placeholders.
   "criticality": "high",
   "difficulty": "intermediate",
   "wave": "walk",
-  "prerequisiteUseCases": ["UC-1.1.1", "UC-13.1.1"],
+  "prerequisiteUseCases": ["UC-1.1.1"],
   "monitoringType": ["Security"],
-  "value": "One or two sentences on impact.",
+  "value": "One or two sentences on operational impact.",
   "app": "Your_TA_id",
   "dataSources": "Sourcetypes / APIs / logs.",
   "spl": "index=... | ...",
@@ -74,158 +67,42 @@ Copy verbatim shape; replace placeholders.
 }
 ```
 
-## CIM SPL guidelines
-
-- `cimSpl` must **match the UC title and intent** (same entities, actions, and time scope as the main `spl`). Do **not** paste generic `tstats` snippets from other UCs.
-- If there is **no** sensible CIM datamodel for the UC, omit `cimSpl` (and avoid claiming CIM models that do not apply).
-
-## Non-technical view
-
-When you add a **new category** or **subcategory**, add a matching entry in `non-technical-view.js` (`window.NON_TECHNICAL`). Each `areas[]` item needs `name`, `description`, and **exactly three** `ucs` objects `{ id: "X.Y.Z", why: "..." }` that reference real UC ids present in `content/`. Run:
+## Local validation before opening a PR
 
 ```bash
-node -e "const window={}; eval(require('fs').readFileSync('non-technical-view.js','utf8')); console.log(Object.keys(window.NON_TECHNICAL).length+' categories OK');"
+make build                      # full site build
+make audit                      # core audit suite
+make sync-generated-check       # 14 cascade-generator drift gates (PR-2 umbrella)
+PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/ -q
 ```
 
-When you add a **new UC** or meaningfully edit an existing UC's `title` / `description` / `value`, regenerate the per-UC plain-language summary used by the non-technical view:
+`make sync-generated-check` is the single drift gate that replaces 14 individual cascade-regen `--check` steps. If it fails, run `make sync-generated && git add -A && git diff --staged` and commit the regenerated files.
 
-```bash
-PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations            # fills missing UCs
-PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --only 1.1.1  # regenerate one UC
-PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --force    # overwrite (rarely needed)
-PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations --check    # CI drift guard (exit 1 on missing)
-```
+## CI overview
 
-CI runs the `--check` step on every PR and blocks merge if any UC sidecar is missing a `grandmaExplanation`. Existing curator-authored values are never overwritten unless `--force` is passed. Full authoring guide: [`docs/grandma-explanations.md`](docs/grandma-explanations.md).
+Every PR runs [`.github/workflows/validate.yml`](.github/workflows/validate.yml) — five parallel jobs (`lint`, `audits-content`, `audits-build`, `mcp`, `frontend`). The detailed map is in [`docs/ci-architecture.md`](docs/ci-architecture.md); the umbrella drift gate sits at the top of `audits-content`.
 
-## Documentation-UC map
+A separate UC end-to-end harness ([`.github/workflows/uc-tests.yml`](.github/workflows/uc-tests.yml)) spins up Splunk Enterprise and replays every UC fixture; it requires two repo secrets (`UC_TEST_SPLUNK_PASSWORD`, `UC_TEST_HEC_TOKEN`) and short-circuits cleanly when they aren't present.
 
-When you add or rename a **documentation file** under `docs/`, or add a **new UC** that is a strong example for an existing doc topic, update `docs-uc-map.js`. Each entry maps a doc path to a title and an array of relevant UC IDs. The reverse index (UC → docs) is computed automatically and powers the "Related Documentation" section in the UC detail panel.
+## JSON is the source of truth
 
-Verify with:
+`.md` companions under `content/` are auto-generated from JSON by `splunk_uc generate-md-from-json`. Never edit them by hand — they're rewritten on every `make build`.
 
-```bash
-node -e "eval(require('fs').readFileSync('docs-uc-map.js','utf8')); console.log(Object.keys(DOC_UC_MAP).length + ' docs OK');"
-```
+## Version bumps
 
-CI runs a syntax check on every PR and the build validates that all referenced UC IDs exist in the catalog.
+`VERSION` is the single source of truth. The top entry of `CHANGELOG.md` and the newest release-notes section in `index.html` must match it (CI enforces). See [`.cursor/rules/versioning.mdc`](.cursor/rules/versioning.mdc) for the bump procedure.
 
-## Version management
+## Quality tiers
 
-1. Read **`VERSION`** before editing release text.
-2. **`VERSION`**, top **`CHANGELOG.md`** header (`## [x.y.z] - YYYY-MM-DD`), and the **newest** release-notes tag in **`index.html`** must all match (CI enforces this).
-3. **Ask a maintainer before bumping** the version number.
+The catalogue follows a quality-over-quantity philosophy.
 
-## Gold Standard — quality-over-quantity authoring
+| Tier | Target |
+| --- | --- |
+| Gold | API-polled products with complex TAs — full 5-step implementation depth |
+| Silver | Syslog or simpler integrations — three substantive sections, ≥1 reference |
+| Bronze | Minimum viable — enough metadata + SPL to be useful |
 
-The catalog follows a **quality-over-quantity** philosophy: fewer excellent
-use cases beat many shallow ones. Every UC should aim for operational utility
-— can someone implement this UC end-to-end from this page alone?
-
-### Quality tiers
-
-| Tier | Label | Target |
-|------|-------|--------|
-| Gold | Deep | API-polled products, complex TAs — full 5-step implementation with product-specific depth |
-| Silver | Solid | Syslog-based or simpler integrations — 3+ substantive sections, at least 1 reference |
-| Bronze | Basic | Minimum viable — enough metadata and SPL to be useful |
-
-See [`docs/gold-standard-template.md`](docs/gold-standard-template.md) for the
-full quality contract and the exemplar (UC-5.13.1).
-
-### AI-first authoring workflow
-
-Content uplift is primarily AI-authored via Cursor agent sessions, with human
-review via Pull Requests:
-
-1. **Author** — The Cursor rule at `.cursor/rules/gold-standard-authoring.mdc`
-   guides agents to produce operationally deep content
-2. **Audit** — `python3 -m splunk_uc audit-gold-profile --files <changed files>`
-   validates depth, not just field presence
-3. **Generate .md** — `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files <changed files>`
-   regenerates companion markdown from JSON (JSON is the single source of truth)
-4. **Review** — Open a PR; the quality audit runs in CI; human reviewers check
-   product knowledge and consolidation decisions
-
-### JSON is the source of truth
-
-Never edit `.md` files directly under `content/`. They are auto-generated from
-JSON by `python -m splunk_uc generate-md-from-json` (legacy `python3 -m splunk_uc generate-md-from-json` shim still works during soak). Edit only the `.json` files.
-
-### Consolidation
-
-When uplifting a subcategory, actively look for redundant or near-duplicate UCs.
-If 15 UCs are threshold variations of the same alert, consolidate into fewer UCs
-with tuning guidance. See the template guide for detailed merge/keep criteria.
-
-## Audits (`scripts/`)
-
-Run locally before opening a PR (validates UC JSON under **`content/cat-*/UC-*.json`**):
-
-```bash
-python3 -m splunk_uc audit-uc-ids && python3 -m splunk_uc audit-uc-structure --full
-```
-
-| Script | What it checks |
-|--------|----------------|
-| `audit_uc_ids.py` | Duplicate UC IDs; `X` vs `cat-XX` directory; per-subcategory `Z` order and no gaps |
-| `audit_uc_structure.py` | Required JSON fields, criticality/difficulty enums, and structure per CI/schema |
-| `audit_non_technical_sync.py` | `non-technical-view.js` UC ids exist in content; every `cat-NN` category and subcategory has JS coverage |
-| `audit_changelog_uc_refs.py` | `CHANGELOG.md` version headers (shape, dates, ordering, duplicates); `UC-*` references point to real UC ids |
-| `audit_repo_consistency.py` | `INDEX.md` vs `content/cat-*` tree, icons vs `index.html` `SI_PATHS`, Quick Start UCs, `tools/build/enrichment.py` (`CAT_GROUPS`, `SPLUNK_APPS`) |
-| `audit_catalog_schema.py` | `catalog.json` schema validation: category/subcategory/UC structure, required fields, enum values, optional `wv` (wave) / `pre` (prerequisite UC) fields, and the top-level `implementationRoadmap` block |
-| `generate_grandma_explanations.py --check` | Every UC sidecar has a non-empty, in-bounds `grandmaExplanation` (20–400 chars); also runs as a dedicated CI step |
-| `audit_gold_profile.py` | Gold Standard depth audit — measures operational completeness, detects shallow boilerplate, flags consolidation candidates |
-| `generate_md_from_json.py --check` | Checks that all `.md` companion files are up-to-date with their JSON source |
-| `generate_backlinks.py --check` | Wiki-style "What links here" index (`docs/backlinks.md`) is up to date with every doc's outbound markdown links |
-| `generate_doc_references.py --check` | Every doc carries a fresh, APA-formatted References footer sourced from `data/source-references.json` + `data/source-mappings.json`, with inline `[N]` citation markers driven by `data/inline-citation-phrases.json` |
-| `generate_doc_references.py --validate-library` | Every source ID referenced from `data/source-mappings.json` or `data/inline-citation-phrases.json` resolves in the bibliographic database |
-| `audit_auto_gen_provenance.py --check` | Every entry in `data/auto-generated-docs.json` carries an honest "Generated by ..." banner; SKIP set and registry never drift |
-| `check_source_links.py` | (On demand / scheduled) HTTP-probe every URL in the bibliographic database and write `data/source-links-status.json`. Not wired into per-PR CI to keep gating deterministic. |
-
-Other `scripts/*` files are generators or one-off tools, not part of the default validation loop.
-
-### Adding a new authoritative source
-
-1. Add a record to the appropriate section in `data/source-references.json`. Use a stable kebab-case ID (it becomes a permanent contract; never rename).
-2. Reference it from `data/source-mappings.json` under the docs that should cite it (`primary` for the foremost authority, `supporting` for context, `related` for an aside).
-3. If the source corresponds to a recognisable phrase that should auto-trigger an inline citation marker, add the phrase(s) to `data/inline-citation-phrases.json` under the source's ID.
-4. Run `python3 scripts/generate_doc_references.py` to refresh the affected footers, and `python3 scripts/check_source_links.py --only <id>` to verify the URL is reachable.
-
-## CI (`.github/workflows/validate.yml`)
-
-On pull requests (when paths under `content/`, `tools/build/`, `non-technical-view.js`, `scripts/`, `CHANGELOG.md`, `index.html`, `VERSION`, etc. change), CI runs all audits above, Node eval on `non-technical-view.js`, **version triple consistency**, then **`python3 tools/build/build.py --out dist`**. That command writes the browseable site under `dist/`, but the **merge gate does not** compare or require a clean `dist/` tree: after the build, the **Build check** step runs `git diff` only on committed **repo-root** paths:
-
-`catalog.json`, `llms.txt`, `llm.txt`, `llms-full.txt`, `sitemap.xml`, `api/*.json`, `provenance.json`, `provenance.js`, `docs/provenance-coverage.md`, `scorecard.json`, and `docs/scorecard.md`.
-
-If any of those would change without matching commits, CI fails (run `make build` and commit the updated files in that set). Other generated trees (e.g. `api/v1/`, `splunk-apps/`) are guarded by separate `--check` steps earlier in the same workflow.
-
-## UC test harness secrets (`.github/workflows/uc-tests.yml`)
-
-The end-to-end test job spins up a Splunk Enterprise 9.4 service container and runs every UC with a `samples/UC-*/positive.log` fixture against its SPL. Two repository secrets gate the E2E run:
-
-| Secret | Used for |
-|---|---|
-| `UC_TEST_SPLUNK_PASSWORD` | Bootstraps the Splunk service container (admin password) and authenticates REST/HEC calls from `scripts/run_uc_tests.py`. |
-| `UC_TEST_HEC_TOKEN` | HEC token that `run_uc_tests.py` uses to ingest each `positive.log` into the container. |
-
-Set both under *Settings → Secrets and variables → Actions → New repository secret*. Any strong value is acceptable — they only exist for the disposable container; they do not authenticate anywhere else.
-
-When the password secret is missing, the `precheck` job in `uc-tests.yml` short-circuits and the E2E job is skipped cleanly (CI stays green). The pre-flight `Validate fixtures` job always runs and does not require secrets.
-
-## Build workflow
-
-After **any** catalog content or build-input change:
-
-```bash
-make build
-```
-
-The build regenerates the full static site into `dist/` (pages, bundled assets, search index, `dist/api/*`, etc.). Most of that tree is for local preview or release packaging — **not** what PR CI diffs. Commit any updates to the **repo-root** artefacts listed in the **CI** section above (same paths as the `git diff` line in `validate.yml`’s **Build check** step), plus anything your edits disturb that other workflow steps guard (e.g. regenerators with `--check`).
-
-## Acknowledgements
-
-Contributors are recognized in the git log and GitHub contributor insights. Significant changes are called out in `CHANGELOG.md` and release notes.
+See [`docs/gold-standard-template.md`](docs/gold-standard-template.md) for the contract and the exemplar (UC-5.13.1).
 
 ---
 
@@ -237,13 +114,15 @@ Contributors are recognized in the git log and GitHub contributor insights. Sign
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-1"></a>**[1]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
 
-<a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
+<a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
 
-<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunk Cloud Platform App Vetting requirements*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud/latest/Service/SplunkCloudservice
+<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunk AppInspect documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://dev.splunk.com/enterprise/docs/developapps/testvalidate/appinspect/
 
-<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
+<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Cloud Platform App Vetting requirements*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud/latest/Service/SplunkCloudservice
+
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
 
 ### Cited by
 

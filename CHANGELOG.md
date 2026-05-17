@@ -12,6 +12,73 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Changed — lean-mode PR-3: solo-maintainer doc rewrite + workflow-audit consolidation
+
+Three community-facing docs were carrying multi-contributor / governance
+framing that no longer fits a single-maintainer project. PR-3 rewrites
+them as lean operational docs, folds `docs/workflow-audit.md` into
+`docs/ci-architecture.md`, and preserves every structural test the
+catalogue depends on. No correctness machinery is removed — every
+audit, every CI gate, and every schema check stays exactly as it was.
+
+**Rewritten docs.**
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — replaced the multi-page
+  contributor-onboarding narrative with a solo-maintainer quick-start
+  (UC conventions, required fields, local validation, the `make
+  sync-generated-check` umbrella, JSON-as-SSOT, versioning, quality
+  tiers). The old prose about review SLAs, sign-off batches, and
+  inter-team handoffs was deleted; PR review remains on a
+  best-effort basis.
+- [`GOVERNANCE.md`](GOVERNANCE.md) — collapsed to a one-page
+  description of who decides what (`@fenre`), how cadence depends on
+  capacity, where the operational pair lives (`capacity-and-staffing.md`
+  + `rollback-playbook.md`), and the non-goals (no foundation status,
+  no sponsorships). Now cross-links `docs/capacity-and-staffing.md`,
+  unblocking the latent `test_governance_references_capacity_doc`
+  invariant when its v8.x skip is lifted.
+- [`docs/capacity-and-staffing.md`](docs/capacity-and-staffing.md) —
+  pruned the long FAQ / scope-down / external-reader sections into a
+  TL;DR + three operating-mode subsections (full / reduced / solo).
+  The 1–2 platform-engineer + 0.5 FTE curator + tier-1 legal-review
+  capacity baseline is preserved as a single TL;DR sentence; every
+  structural invariant in `tests/build/test_capacity_and_staffing.py`
+  still passes (635/635 green).
+
+**Workflow inventory consolidation.**
+
+`docs/workflow-audit.md` was a single-page inventory of every
+GitHub Actions workflow plus a third-party SHA-pin table. The
+inventory duplicated content that `docs/ci-architecture.md` already
+carried per-workflow, and the pin table was a human-readable view of
+what `python3 -m splunk_uc audit-action-pins` already enforces. PR-3:
+
+- Folded the inventory table + cadence calendar into a new
+  [`Workflow inventory`](docs/ci-architecture.md#workflow-inventory)
+  section in `docs/ci-architecture.md`.
+- Deleted the standalone `docs/workflow-audit.md`.
+- Updated every inbound reference: the banner + See-also in
+  `docs/ci-architecture.md`, the companion notes in
+  `docs/f8-frontend-hardening-inventory.md`, and the historical
+  ledger entries in `docs/health-check-2026-progress.md` (kept the
+  prose, redirected the broken links).
+- The third-party SHA-pin table was not re-published as prose —
+  `audit-action-pins` remains the single source of truth.
+
+**No correctness machinery removed.** PR-3 stays inside the
+"lean simplifications only" envelope: every audit verb still exists,
+every CI gate still runs, every structural test still passes, the
+cascade-generator umbrella from PR-2 is unchanged, and the
+per-file coverage ratchet (`src/splunk_uc/audits/coverage_budget.py`)
+is preserved — it's correctness machinery, not team-coordination
+machinery (it prevents test-coverage regressions on the build
+pipeline and audit CLIs, which matters just as much for a solo dev).
+
+**Verification.** `make sync-generated-check` (CI drift gate) green;
+`PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/ -q`
+green (635 passed, 4 skipped — the four skips are pre-existing v8.x
+deferrals, unchanged by this PR).
+
 ### Changed — lean-mode PR-2: collapse 14 cascade-regen `--check` gates into one umbrella drift gate
 
 The same content edit can ripple through up to ~10 generators (sidecar

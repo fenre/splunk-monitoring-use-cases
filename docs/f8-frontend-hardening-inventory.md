@@ -7,10 +7,9 @@
 > writes, whether it touches untrusted input, and how to migrate it without
 > breaking the build.
 >
-> Companion to [docs/ci-architecture.md](ci-architecture.md) and
-> [docs/workflow-audit.md](workflow-audit.md) — same single-page format,
-> same auditability contract: every claim has a line number, every line
-> number resolves at HEAD.
+> Companion to [docs/ci-architecture.md](ci-architecture.md) — same
+> single-page format, same auditability contract: every claim has a
+> line number, every line number resolves at HEAD.
 >
 > **Authored:** 2026-05-13 at HEAD `b3f0da75a` (post-PR #21 squash).
 > The five raw numbers below were captured by `grep` / `wc -l` against the
@@ -413,8 +412,7 @@ follow-up.
 ## See also
 
 - [docs/health-check-2026-progress.md](health-check-2026-progress.md) — F8 row
-- [docs/ci-architecture.md](ci-architecture.md) — surrounding CI guardrails
-- [docs/workflow-audit.md](workflow-audit.md) — sibling single-page inventory
+- [docs/ci-architecture.md](ci-architecture.md) — surrounding CI guardrails + workflow inventory
 - OWASP XSS Prevention Cheat Sheet, §4–§5 (HTML & JavaScript context encoding)
 - `index.html` lines 3582 (`esc`), 4273 (`buildMitreDdList`), 6120 (`_invBuildBody`)
 
@@ -434,7 +432,6 @@ follow-up.
 
 - [`docs/ci-architecture.md`](ci-architecture.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
-- [`docs/workflow-audit.md`](workflow-audit.md)
 
 ### Cited by
 

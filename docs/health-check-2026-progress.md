@@ -72,7 +72,7 @@ documentation-only "next-deliverable" tier has been drained in the
 2026-05-13 sprint:
 
 - **F22** closed by [ADR-0010](adr/0010-sample-and-sample-data-co-exist.md) (sample-regime split ratified).
-- **P2.5** closed by [docs/workflow-audit.md](workflow-audit.md) (14-workflow inventory + cadence + pin map).
+- **P2.5** closed by the [Workflow inventory](ci-architecture.md#workflow-inventory) section of `docs/ci-architecture.md` (13-workflow inventory + cadence calendar; pin map enforced by `audit-action-pins`). PR-3 (2026-05-17) folded the former standalone `docs/workflow-audit.md` into ci-architecture and retired the duplicate page.
 - **P0 + P2 baselines** closed by `data/baselines/v8.2.0.json` + the new `make baseline` target.
 - **P4 first canary** closed by `mypy --strict src/splunk_uc/audits/` going green and being CI-gated.
 - **P4 second canary** closed by `mypy --strict src/splunk_uc/generators/` going green and being CI-gated (2026-05-13).
@@ -125,7 +125,7 @@ including the deferred sample-data shape ADR).
 | **P0** Hygiene + secrets hardening | **DONE** (2026-05-13) | `.cursorignore` ✓ (with explicit secrets / dotenv block — F10 closed 2026-05-12), pre-commit ✓ (`.pre-commit-config.yaml`), archived script dirs gone ✓, **and** `data/baselines/v7.4.2.json` confirmed in tree (was always there; the prior "v7.4.x not visible" claim was glob-pattern noise). Companion `data/baselines/v8.2.0.json` captured at HEAD `d4a5cc677` (2026-05-13) so we have **two anchored data points** to compare against. `tools/capture_baselines.py` TRACKED_FILES list pruned of the dead `dist/data.js` entry (the build evicts it; see `tools/build/build.py:478-480`) so future captures don't carry a perpetual `null`. New `make baseline` target wired so the `docs/baselines-howto.md` instructions are no longer aspirational. |
 | **P1** One build pipeline | DONE | Legacy `build.py` deleted (v8.0.0); `use-cases/` retired (v8.2.0); F1/F2/F3 all resolved. Vestigial `reset_legacy_module_cache()` stub at `tools/build/parse_content.py:1058` is minor dead code. |
 | **P2** CI overhaul | **DONE** (2026-05-13) | CodeQL ✓ + dependency-review ✓ + gitleaks ✓ as separate workflows. F7 closed (2026-05-12): zero `continue-on-error: true`. F12 closed (2026-05-12): `validate.yml` now 5 parallel jobs (PR-5). F19 closed (2026-05-12): every workflow uses the composite `setup-python` action (PR #8). **Remaining gap (P2-baselines, 2026-05-13):** closed by `data/baselines/v8.2.0.json` at HEAD `d4a5cc677` — gives reviewers a current-version anchor next to the historical v7.4.2 floor. (A future audit verb that fails CI on regression against the latest baseline is tracked as a follow-on ADR, Q4-2026 target — not blocking the P2 close. ADR number assigned at authorship time; previous "ADR-0013" placeholder was retired when ADR-0011 absorbed the schema-lineage slot.) |
-| **P2.5** Audit other 7 workflows | **DONE** (2026-05-13) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored [`docs/workflow-audit.md`](workflow-audit.md), a single-page inventory of all **14** workflows with purpose / trigger / cadence / runs-on / timeout / writes-to-repo / pinned-third-party-actions columns, a Monday-cluster + Tuesday-backstop cadence calendar, and a per-action SHA-pin map for the 14 distinct third-party references (`actions/*`, `github/codeql-action/*`, `gitleaks/*`, `peter-evans/*`, `softprops/*`). [`docs/ci-architecture.md`](ci-architecture.md) cross-links the new audit doc from both its banner and its `## See also` block, and its TL;DR table was extended with the two previously-missing rows (`stewardship.yml`, `build-reproducibility.yml`). |
+| **P2.5** Audit other 7 workflows | **DONE** (2026-05-13, consolidated 2026-05-17) | Composite-action migration done (F19, 2026-05-12) — every workflow uses the centralized `./.github/actions/setup-python` and the `audit-action-pins` audit blocks unpinned `actions/*@<sha>` references on PRs. P2.5 closure (2026-05-13): authored the standalone `docs/workflow-audit.md` single-page inventory. **PR-3 (2026-05-17, drift ledger #21):** folded that inventory into [`docs/ci-architecture.md` § Workflow inventory](ci-architecture.md#workflow-inventory) and retired the duplicate page. The inventory now lists 13 workflows (post-PR-1 stewardship retirement) with purpose / trigger / cadence / writes-to-repo columns plus the Monday-cluster + Tuesday-backstop cadence calendar. The third-party SHA-pin map is no longer duplicated in prose — `python3 -m splunk_uc audit-action-pins` is the single source of truth for pin enforcement. |
 | **P3** ADR + docs reconciliation | **DONE** (2026-05-13) | ADR-0001 `Superseded by: ADR-0007` ✓; AGENTS.md says 11 tools ✓. The plan's "proposed `docs/architecture-2027.md`" placeholder is now explicitly absorbed by [`docs/architecture.md`](architecture.md) §"Forward-looking work" (added 2026-05-13): forward-looking architectural work goes into [`ROADMAP.md`](../ROADMAP.md) (release-aligned plan) and [`docs/adr/`](adr/) (numbered-on-acceptance decision records — ADR-0010, ADR-0011, ADR-0012 all landed 2026-05-13 demonstrating the active cadence). No separate dated-architecture doc is needed; the same rationale that retired the placeholder "ADR-0011 (sample-data shape)" slot ([`ADR-0011 §"Alternatives considered"`](adr/0011-schema-lineage-governance.md) point C) applies here: reserved-but-empty docs distort the lineage. |
 | **P4** Typed Python pipeline | PARTIAL (package floor locked) | `pyproject.toml` ✓; ruff + mypy + coverage configs ✓; `[project.scripts]` ✓ (P6 Tier 4); per-module mypy strictness gradient in place. **First canary closed 2026-05-13:** `mypy --strict src/splunk_uc/audits/` (51 source files, 0 errors). **Second canary closed 2026-05-13:** `mypy --strict src/splunk_uc/generators/` (17 source files, 0 errors after a one-line `set[str]` fix in `recommender_app._gsa_load_ucs`). **Package-wide floor closed 2026-05-13:** survey showed every remaining subpackage (`ingest`, `feasibility`, `migrations`, `tools`) plus the three top-level modules was already strict-clean; the two per-canary overrides were consolidated into a single `[[tool.mypy.overrides]] module = "splunk_uc.*"` block and the CI step now lints the whole package — **94 source files, ~25 kLOC, every module under `src/splunk_uc/` type-clean under `--strict`**. **Remaining gaps:** the build pipeline (`tools/build/*`) and the legacy `build.py` entrypoint still carry per-module loosened overrides; no typed `UseCase` / `Catalog` Pydantic/dataclass model in `src/splunk_uc/`. |
 | **P5** Frontend rebuild | SCAFFOLDED + first migration in CI (2026-05-16) + SOT inversion for `non-technical-view.js` (2026-05-17) | <a id="p5-first-cut"></a>[`apps/web/`](../apps/web/) exists with Vite 8.0.13 + TypeScript 6.0.3 (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`) + Vitest 4.1.6, ratified by [ADR-0013](adr/0013-frontend-rebuild-scaffold.md). The scaffold is no longer opt-in — `validate.yml`'s `frontend` job now runs `cd apps/web && npm ci && npm run typecheck && npm test` on every PR, and the path filter was widened to include `apps/**`. **First real migration target in tree:** [`apps/web/src/non-technical-view.ts`](../apps/web/src/non-technical-view.ts) is a typed loader (using `node:vm` `runInThisContext()`) over the legacy [`non-technical-view.js`](../non-technical-view.js); [`apps/web/src/non-technical-view.types.ts`](../apps/web/src/non-technical-view.types.ts) declares the `NonTechnicalCatalog` / `NonTechnicalCategory` / `NonTechnicalArea` / `NonTechnicalUcRef` interfaces; [`apps/web/src/__tests__/non-technical-view.test.ts`](../apps/web/src/__tests__/non-technical-view.test.ts) asserts 81 shape invariants over the live data (734 ms in vitest jsdom). F8 (a11y landmarks) closed under P10; F16 reclassified PARTIAL above (test-runner half now in CI; bundler half waits for source-of-truth inversion); F17 (11 HTML pages duplicate chrome) still unresolved. |
@@ -889,8 +889,10 @@ findings but should not be lost:
       CODEOWNERS-routing framing.
     - `docs/scorecard.md` regenerated from the updated generator
       so the preamble matches the source.
-    - `docs/workflow-audit.md` drops the two stewardship rows
-      from the inventory table (15 → 13), removes the two
+    - The workflow inventory (then `docs/workflow-audit.md`, since
+      folded into [`docs/ci-architecture.md` § Workflow inventory](ci-architecture.md#workflow-inventory)
+      in PR-3 / 2026-05-17 / ledger #21) drops the two stewardship
+      rows from the inventory table (15 → 13), removes the two
       cadence-calendar entries for them, prunes them from the
       `upload-artifact` consumer list, and rewords the
       Monday-cluster paragraph to "three weekly maintenance
@@ -1044,6 +1046,130 @@ findings but should not be lost:
     is collapsed. PR-3 (strip community docs + per-file coverage
     ratchet + references-footer regen) follows.
 
+21. **Lean-mode PR-3: solo-maintainer doc rewrite + workflow-audit
+    consolidation (2026-05-17).** PR-1 removed the team-coordination
+    machinery in the build (stewardship rotation, per-category
+    CODEOWNERS, scorecard drill-down structural pins). PR-2
+    consolidated 14 CI drift gates into one umbrella. PR-3 finishes
+    the lean-mode pass by rewriting three community-facing docs
+    (`CONTRIBUTING.md`, `GOVERNANCE.md`, `docs/capacity-and-staffing.md`)
+    around a solo-maintainer reality and folding the duplicate
+    `docs/workflow-audit.md` page into `docs/ci-architecture.md`.
+
+    **Doc rewrites (write-mode, structural tests preserved).**
+
+    - `CONTRIBUTING.md` — collapsed from the multi-page contributor
+      onboarding narrative (review SLAs, sign-off batches, inter-team
+      handoff prose) into a single page covering UC conventions,
+      required fields, the JSON template, local validation, the
+      `make sync-generated-check` umbrella, CI overview, JSON-as-SSOT,
+      versioning, and quality tiers. Best-effort review remains the
+      explicit contract.
+    - `GOVERNANCE.md` — collapsed to a one-page description of who
+      decides what (`@fenre`), how release cadence depends on the
+      `docs/capacity-and-staffing.md` calibration, the operational
+      pair (`capacity-and-staffing.md` + `rollback-playbook.md`), and
+      the project's non-goals (no foundation status, no sponsorships).
+      Cross-link to `docs/capacity-and-staffing.md` is now present —
+      the latent `test_governance_references_capacity_doc` invariant
+      will pass when its v8.x skip is eventually lifted.
+    - `docs/capacity-and-staffing.md` — pruned the long FAQ /
+      scope-down narrative / external-reader sections into a TL;DR
+      + three operating-mode subsections (full / reduced / solo).
+      The 1–2 platform-engineer + 0.5 FTE curator + tier-1
+      legal-review capacity baseline survives as a TL;DR sentence
+      so `test_capacity_doc_declares_platform_engineer_count` (and
+      every other structural pin in `tests/build/test_capacity_and_staffing.py`)
+      still passes.
+
+    **Workflow inventory consolidation.**
+
+    The standalone `docs/workflow-audit.md` page (authored 2026-05-13
+    under §P2.5) duplicated content that `docs/ci-architecture.md`
+    already carried per-workflow, plus a third-party SHA-pin table
+    that was a human-readable view of what `python3 -m splunk_uc
+    audit-action-pins` already enforces. PR-3:
+
+    - Added a new `## Workflow inventory` section near the top of
+      `docs/ci-architecture.md` carrying the 13-row inventory table
+      (post-PR-1: stewardship workflows are gone) + the cadence
+      calendar + the Monday-cluster / Tuesday-backstop design
+      rationale.
+    - Deleted `docs/workflow-audit.md` (16,601 bytes).
+    - Updated every inbound reference: the banner + See-also block
+      in `docs/ci-architecture.md`, the companion notes in
+      `docs/f8-frontend-hardening-inventory.md`, and the historical
+      ledger entries in this file (kept the prose, redirected the
+      broken `.md` links to the new section anchor).
+    - The third-party SHA-pin map is **not** re-published as prose —
+      `audit-action-pins` is the single source of truth.
+
+    **What stays unchanged.** No correctness machinery is removed.
+    The cascade-generator umbrella from PR-2 is untouched. The
+    per-file coverage ratchet (`src/splunk_uc/audits/coverage_budget.py`)
+    is preserved — re-reading its docstring, the original
+    "contributors-friendly" framing is just packaging; the actual
+    behavior (prevent test-coverage regressions on the build pipeline
+    and audit CLIs) is correctness machinery a solo developer
+    benefits from just as much. Every CI gate, every audit verb,
+    and every schema check is exactly as it was before PR-3.
+
+    **Files edited (write-mode).**
+
+    - `CONTRIBUTING.md` — rewritten.
+    - `GOVERNANCE.md` — rewritten.
+    - `docs/capacity-and-staffing.md` — rewritten + TL;DR sentence
+      injected so the structural regex still matches.
+    - `docs/ci-architecture.md` — added `## Workflow inventory`
+      section + cadence calendar; updated banner; removed See-also
+      link to the deleted page.
+    - `docs/f8-frontend-hardening-inventory.md` — removed the
+      "sibling single-page inventory" companion line; updated the
+      See-also list.
+    - `docs/health-check-2026-progress.md` — converted broken
+      `(workflow-audit.md)` links inside historical ledger entries
+      to the new section anchor (prose narrative preserved); updated
+      §P2.5 row to record the consolidation; added this entry.
+    - `CHANGELOG.md` — added the "Changed — lean-mode PR-3" section
+      under [Unreleased].
+
+    **Files deleted.**
+
+    - `docs/workflow-audit.md` — folded into
+      `docs/ci-architecture.md#workflow-inventory`.
+
+    **Files automatically regenerated.**
+
+    - `docs/backlinks.md` — backlink index updated (213 pages, was
+      214).
+    - `docs/rollback-playbook.md` — auto-generated `Cited by` footer
+      dropped `docs/capacity-and-staffing.md` (the leaner page no
+      longer carries an inline `[N]` citation marker matching a
+      source ID that rollback-playbook also cites). Legitimate
+      consequence of leaner prose; the structural invariant
+      `test_rollback_playbook_references_capacity_doc` (which checks
+      the rollback playbook still *links to* the capacity doc) still
+      passes — that test reads the prose body, not the auto-footer.
+    - Evidence-pack `.md` files (18 rewritten by `generate-evidence-packs`
+      because their citation footers re-rendered after the references
+      library scan).
+
+    **Verification.** `make sync-generated-check` runs clean
+    (~29s end-to-end). `PYTHONPATH=src python3 -m pytest tests/build/
+    tests/scripts/ -q` runs 635 tests in 116s with 4 pre-existing
+    v8.x skips. The 4 skips are unchanged by this PR and predate
+    the lean-mode sweep. `mapping-ledger.json` had to be reverted
+    (same metadata-only drift pattern as PR-2: only `generatedAt`
+    + `catalogueCommit` change while the merkle root stays stable
+    at `ccb056b770…`) — keeping the committed ledger metadata
+    stable across PRs that don't change UC content.
+
+    **Why now.** Same lean-mode rationale as PR-1 and PR-2: the
+    catalogue is one person's responsibility, and three of the
+    repo's most-read top-level docs were carrying multi-contributor
+    governance prose that misled readers about the actual operating
+    model. The rewrites bring the docs in line with the code.
+
 ## Recommended next actions, in size order
 
 1. ~~**Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,
@@ -1110,11 +1236,17 @@ findings but should not be lost:
    to a follow-on ADR (Q3-2026 target; number assigned at
    authorship).
 6. ~~**P2.5 (~no code, 1 PR):** Author `docs/workflow-audit.md`.~~
-   **Done 2026-05-13** — `docs/workflow-audit.md` checked in with a
-   14-row inventory, weekly-cadence calendar, third-party SHA-pin map
-   covering all 14 distinct external action references, and a
-   "How to keep this doc honest" maintainer guide. The companion
-   `docs/ci-architecture.md` has been extended with the two
+   **Done 2026-05-13, consolidated 2026-05-17 (PR-3, ledger #21)** —
+   the original standalone `docs/workflow-audit.md` shipped on
+   2026-05-13 with a 14-row inventory, weekly-cadence calendar,
+   third-party SHA-pin map, and a "How to keep this doc honest"
+   maintainer guide. PR-3 folded the live portion of that page into
+   [`docs/ci-architecture.md` § Workflow inventory](ci-architecture.md#workflow-inventory)
+   (13 rows after PR-1's stewardship retirement) and retired the
+   duplicate page; the pin map now lives entirely in
+   `python3 -m splunk_uc audit-action-pins` instead of being
+   restated in prose. The companion `docs/ci-architecture.md` has
+   been extended with the two
    previously-missing rows (`stewardship.yml`,
    `build-reproducibility.yml`) and cross-links the new audit doc.
 7. ~~**F8 (~no code, 1 PR):** Inventory the `index.html`
@@ -1268,8 +1400,11 @@ delta; live `python -m splunk_uc generate-md-from-json --check`
 typecheck` / `npm run build` for the P5 scaffold smoke; the
 `gh pr checks 8` rollup on PR #8 (CI partition wall-clock evidence);
 the post-PR-#13/#17 `gh api repos/.../dependabot/alerts` rollup
-(0 open at HEAD); the `docs/workflow-audit.md` 14-row inventory
-generated from a direct sweep of `.github/workflows/*.yml`;
+(0 open at HEAD); the 14-row workflow inventory generated from a
+direct sweep of `.github/workflows/*.yml` (originally shipped as
+`docs/workflow-audit.md`; consolidated into
+[`docs/ci-architecture.md` § Workflow inventory](ci-architecture.md#workflow-inventory)
+by PR-3 / ledger #21 on 2026-05-17);
 `pytest --collect-only`; and direct grep / glob of the repo. No claim
 above is based on the plan's self-reported state at plan-writing time
 without verification at HEAD.
@@ -1306,8 +1441,8 @@ without verification at HEAD.
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
+- [`docs/ci-architecture.md`](ci-architecture.md)
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
-- [`docs/workflow-audit.md`](workflow-audit.md)
 
 ### Cited by
 

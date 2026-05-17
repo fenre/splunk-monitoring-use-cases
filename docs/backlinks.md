@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_214 pages indexed; 127 have at least one inbound link; 426 unique source→target edges._
+_213 pages indexed; 126 have at least one inbound link; 421 unique source→target edges._
 
 ---
 
@@ -50,7 +50,6 @@ _No inbound links yet._
 ## `GOVERNANCE.md`
 
 - [`docs/DESIGN.md`](DESIGN.md)
-- [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 
 ## `LEGAL.md`
 
@@ -287,7 +286,7 @@ _No inbound links yet._
 
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
-- [`docs/workflow-audit.md`](workflow-audit.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `docs/cim-and-data-models.md`
 
@@ -1035,7 +1034,6 @@ _No inbound links yet._
 
 ## `docs/rollback-playbook.md`
 
-- [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/ci-architecture.md`](ci-architecture.md)
 
 ## `docs/samples-coverage.md`
@@ -1139,12 +1137,6 @@ _No inbound links yet._
 ## `docs/v7.1-release-report.md`
 
 - [`README.md`](../README.md)
-
-## `docs/workflow-audit.md`
-
-- [`docs/ci-architecture.md`](ci-architecture.md)
-- [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
-- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `eventgen_data/README.md`
 

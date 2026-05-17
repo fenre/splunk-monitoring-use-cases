@@ -1,8 +1,10 @@
 # CI Architecture
 
-> Maintainer reference for the GitHub Actions workflow tree. Pairs with
-> [workflow-audit.md](workflow-audit.md) (single-page workflow
-> inventory + SHA-pin map), [rollback-playbook.md](rollback-playbook.md),
+> Maintainer reference for the GitHub Actions workflow tree. The
+> [Workflow inventory](#workflow-inventory) section below is the
+> single-page list of every workflow and its trigger; the rest of the
+> document is per-workflow detail. Pairs with
+> [rollback-playbook.md](rollback-playbook.md),
 > [external-consumer-matrix.md](external-consumer-matrix.md) and
 > [capacity-and-staffing.md](capacity-and-staffing.md).
 
@@ -86,6 +88,57 @@ enforces both the SHA-pinning and the SHA↔tag-comment integrity.
    because the SHA won't resolve via GitHub's git API.
 
 The audit runs in the `lint` job (~5 minutes from PR open).
+
+## Workflow inventory
+
+The repository ships 13 GitHub Actions workflows. The merge gate is
+`validate.yml`; every other workflow is either a scheduled maintenance
+probe, a deployment surface, or a path-filtered helper.
+
+| Workflow | Purpose | Trigger | Cadence | Writes to repo? |
+| --- | --- | --- | --- | --- |
+| [`validate.yml`](../.github/workflows/validate.yml) | Merge gate — 5 parallel jobs (`lint`, `audits-content`, `audits-build`, `mcp`, `frontend`) | `pull_request` (paths-filtered) | per PR | No |
+| [`pages.yml`](../.github/workflows/pages.yml) | Build + deploy the static site + signed-provenance attestations to GitHub Pages | `push` to `main`, `workflow_dispatch` | every push to `main` | No (Pages only) |
+| [`release.yml`](../.github/workflows/release.yml) | Package + publish TA / DA / recommender `.spl` artefacts as a GitHub Release | `push` of `v*.*.*` tag, `workflow_dispatch` | per release | No (Release) |
+| [`codeql.yml`](../.github/workflows/codeql.yml) | CodeQL static analysis (Python + JavaScript) | `push`/`pull_request` to `main`; weekly cron | Mon 06:17 UTC + PRs/pushes | No |
+| [`dependency-review.yml`](../.github/workflows/dependency-review.yml) | Blocks PRs introducing dependencies with critical CVEs or non-permissive licences | `pull_request` | per PR | No |
+| [`gitleaks.yml`](../.github/workflows/gitleaks.yml) | Secret-leak detection (defence-in-depth backup to the pre-commit hook) | `push`/`pull_request` to `main`; weekly cron | Tue 03:42 UTC + per PR/push | No |
+| [`link-check.yml`](../.github/workflows/link-check.yml) | External-link health audit; opens an issue on failure | `workflow_dispatch`, weekly cron | Mon 06:00 UTC | Issue |
+| [`regulatory-watch.yml`](../.github/workflows/regulatory-watch.yml) | Probes regulator artefacts (NIST OSCAL, MITRE ATT&CK<sup class="ref">[<a href="#ref-2">2</a>]</sup>, PCI SSC, HHS, EUR-Lex), commits manifest deltas | `workflow_dispatch`, weekly cron | Mon 09:00 UTC | Commit + Issue |
+| [`splunkbase-sync.yml`](../.github/workflows/splunkbase-sync.yml) | Refreshes `data/splunkbase-catalog.json` from Splunkbase<sup class="ref">[<a href="#ref-6">6</a>]</sup> REST; opens PR with diff | `workflow_dispatch`, weekly cron | Tue 08:00 UTC | PR |
+| [`build-reproducibility.yml`](../.github/workflows/build-reproducibility.yml) | Asserts two consecutive `--reproducible` builds produce byte-identical `dist/integrity.json` | `workflow_dispatch`, nightly cron, build-pipeline PRs | 03:00 UTC nightly | No |
+| [`uc-tests.yml`](../.github/workflows/uc-tests.yml) | UC sample-data fixtures validation (pre-flight); production E2E gated by repo secrets | `push`/`pull_request` (paths-filtered), `workflow_dispatch` | per relevant PR | No |
+| [`uc-manifest.yml`](../.github/workflows/uc-manifest.yml) | Generates `manifest-all.json` and validates UC count / payload shape | `push`/`pull_request` (paths-filtered) | per relevant PR | No |
+| [`traffic.yml`](../.github/workflows/traffic.yml) | Archives GitHub repo traffic data daily (extends GitHub's 14-day window) | `workflow_dispatch`, daily cron | 00:00 UTC daily | Commit |
+
+### Cadence calendar
+
+```
+Mon 06:00 UTC   link-check.yml           (weekly)
+Mon 06:17 UTC   codeql.yml               (weekly + on PR/push)
+Mon 09:00 UTC   regulatory-watch.yml     (weekly)
+Tue 03:42 UTC   gitleaks.yml             (weekly + on PR/push)
+Tue 08:00 UTC   splunkbase-sync.yml      (weekly)
+Daily 00:00 UTC traffic.yml              (every day)
+Daily 03:00 UTC build-reproducibility.yml (every night)
+Per-PR          validate.yml, dependency-review.yml, gitleaks.yml (push/PR), codeql.yml (push/PR), uc-manifest.yml, uc-tests.yml
+Per-push-main   pages.yml
+Per-tag         release.yml
+```
+
+The Monday cluster (`link-check` → `codeql` → `regulatory-watch`)
+intentionally lands in the same triage window so a maintainer's first
+look of the week sees the whole batch. `gitleaks` and `splunkbase-sync`
+are staggered to Tuesday so the backlog doesn't double up. The two
+daily jobs are separated by 3 hours so `traffic.yml` (which has
+`contents: write`) and `build-reproducibility.yml` (which uploads
+large artefacts) don't contend for the runner pool.
+
+All workflows run on `ubuntu-latest`, use the two composite setup
+actions for toolchain provisioning, and pin every third-party action
+to a 40-character SHA. The pin map is enforced by
+`python3 -m splunk_uc audit-action-pins` (no separate inventory doc —
+the audit is the source of truth).
 
 ## Validate.yml (five parallel jobs)
 
@@ -236,7 +289,7 @@ the npm-installed Node deps.
 | Recommender frontend unit tests                   | `node --test tests/recommender/match.test.mjs`  |
 | Phase 4.4 scorecard.html render test              | `node --test tests/scorecard/render.test.mjs`   |
 | Phase 4.5c sandbox validation Node drift guard    | `node --test tests/sandbox/validate.test.mjs`   |
-| Phase 4.5d ATT&CK<sup class="ref">[<a href="#ref-2">2</a>]</sup> simulation gate (Python)        | `scripts/simulate_controltest.py --check`       |
+| Phase 4.5d ATT&CK simulation gate (Python)        | `scripts/simulate_controltest.py --check`       |
 | Phase 4.5d ATT&CK simulation Node drift guard     | `node --test tests/attack/simulate.test.mjs`    |
 | Phase 4.5e OSCAL round-trip gate (Python)         | `python3 -m splunk_uc audit-oscal-roundtrip --check`      |
 | Phase 4.5e OSCAL round-trip Node drift guard      | `node --test tests/oscal/roundtrip.test.mjs`    |
@@ -414,8 +467,6 @@ hard — the tests are the contract.
 
 ## See also
 
-- [docs/workflow-audit.md](workflow-audit.md) — single-page workflow
-  inventory, cadence calendar, and third-party SHA-pin map.
 - [docs/rollback-playbook.md](rollback-playbook.md) — how to revert when CI lies.
 - [docs/external-consumer-matrix.md](external-consumer-matrix.md) — public release contract.
 - [docs/capacity-and-staffing.md](capacity-and-staffing.md) — when to skip CI work in solo mode.
@@ -451,12 +502,11 @@ hard — the tests are the contract.
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
 - [`docs/rollback-playbook.md`](rollback-playbook.md)
-- [`docs/workflow-audit.md`](workflow-audit.md)
 
 ### Cited by
 
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
-- [`docs/workflow-audit.md`](workflow-audit.md)
+- [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 <!-- END-AUTOGENERATED-SOURCES -->
