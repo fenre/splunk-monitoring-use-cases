@@ -1,0 +1,228 @@
+# Repo-overhaul plan §P14 follow-on — weekly per-category
+# stewardship-rotation reminder.
+#
+# Sits alongside ``stewardship.yml`` (the global weekly digest) and
+# closes the cadence half of §P14. The structure half closed in PRs
+# #35 (per-category CODEOWNERS rows, 2026-05-13) + ``00729f198``
+# (per-category scorecard drill-downs, 2026-05-14); this workflow
+# now consumes both surfaces to keep human stewards in the loop on
+# their categories without the spam of one issue per category per
+# week.
+#
+# What this workflow does
+# ----------------------
+#
+#   1) Builds the static site (``make build``) so
+#      ``dist/scorecard.json`` is fresh against current ``content/``.
+#   2) Picks one of the 23 categories deterministically from the ISO
+#      week number via ``python -m splunk_uc pick-rotation-category``.
+#      The mapping is ``cat_num = (iso_week % 23) + 1`` so the cycle
+#      length is 23 weeks (~2.3 reminders per category per year).
+#   3) Writes the rendered GitHub-issue markdown to a temp file via
+#      ``--write-issue-body``.
+#   4) Opens — or, if a matching open issue exists for the same week
+#      tag, comments on — a GitHub issue assigned to the category's
+#      CODEOWNERS owner(s), labelled ``stewardship-rotation`` and the
+#      category slug (``cat-NN-<slug>``). Idempotent: re-running for
+#      the same ISO week updates the open issue rather than creating
+#      a duplicate.
+#
+# The picker is pure (stdlib-only, deterministic, decoupled from
+# GitHub) — see ``src/splunk_uc/tools/pick_rotation_category.py``
+# and the 14-test suite at ``tests/splunk_uc/test_pick_rotation_category.py``.
+# This workflow does the I/O half: building the site, calling the
+# picker, and routing the result to ``gh issue``.
+#
+# Scheduling
+# ----------
+#
+# Mondays at 08:30 UTC — 30 minutes after ``stewardship.yml``'s
+# 08:00 run so the two notifications land in sequence rather than
+# fighting for the maintainer's first triage window. Manual
+# dispatch is supported with optional ``week`` / ``year`` overrides
+# for one-off catch-up runs or for testing a future-week pick.
+
+name: Stewardship rotation reminder
+
+on:
+  schedule:
+    # Mondays 08:30 UTC. The 30-minute offset from the stewardship
+    # digest at 08:00 keeps the two issues from interleaving in the
+    # maintainer's notification feed.
+    - cron: "30 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "Override the ISO week (1..53). Blank = current ISO week (UTC)."
+        type: string
+        default: ""
+      year:
+        description: "Override the ISO year. Blank = current ISO year (UTC)."
+        type: string
+        default: ""
+      dry_run:
+        description: "If true, skip the gh issue step (only emit JSON + markdown to logs)."
+        type: boolean
+        default: false
+
+# Never run two rotation pickers concurrently. The picker is
+# deterministic for a given ISO week so a second run would either
+# produce the same record (harmless) or — if the week boundary was
+# crossed mid-job — open a second issue for the new week's
+# category. The concurrency group is per-week to allow back-to-back
+# manual dispatches for different weeks while still preventing
+# scheduled-vs-manual races within the same week.
+concurrency:
+  group: stewardship-rotation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        # F19 (2026-05-12): composite ``setup-python`` action so the
+        # toolchain pin lives in one file across all nine
+        # workflow-yaml callers. ``install-audits: true`` installs
+        # ``.github/requirements-ci.txt`` so ``jsonschema`` /
+        # ``PyYAML`` are available; the picker is stdlib-only but
+        # ``make build`` upstream needs the audit deps.
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
+      - name: Build site so dist/scorecard.json is fresh
+        # The picker reads ``dist/scorecard.json`` and aborts if it is
+        # missing; rebuilding here makes sure every rotation pick
+        # reflects the current state of ``content/`` rather than a
+        # stale committed file. Reproducibility (``audit-reproducibility``,
+        # nightly) keeps the scorecard byte-stable for the same
+        # commit, so the build cost is paid only once per week.
+        run: make build
+
+      - name: Pick rotation category + render issue body
+        id: pick
+        run: |
+          set -u
+          week_arg=""
+          year_arg=""
+          if [ -n "${{ inputs.week }}" ]; then
+            week_arg="--week ${{ inputs.week }}"
+          fi
+          if [ -n "${{ inputs.year }}" ]; then
+            year_arg="--year ${{ inputs.year }}"
+          fi
+          body_path="$RUNNER_TEMP/rotation-issue-body.md"
+          json_path="$RUNNER_TEMP/rotation-record.json"
+          # Picker emits the JSON record on stdout; we tee it both to
+          # the GitHub Actions log and to a file the next step parses
+          # with ``jq``.
+          # Word-splitting on $week_arg / $year_arg is intentional —
+          # they expand to either "" or "--week N" / "--year N" pairs
+          # depending on whether the workflow_dispatch input was set.
+          # shellcheck disable=SC2086
+          PYTHONPATH=src python3 -m splunk_uc pick-rotation-category \
+            $week_arg $year_arg \
+            --write-issue-body "$body_path" \
+            --repo-url-base "https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}" \
+            | tee "$json_path"
+          # Extract a handful of fields the downstream ``gh issue``
+          # step needs as workflow outputs. Using ``jq`` keeps the
+          # shell glue legible and avoids re-parsing the JSON twice.
+          {
+            echo "body_path=${body_path}"
+            echo "json_path=${json_path}"
+            echo "iso_year=$(jq -r .iso_year < "$json_path")"
+            echo "iso_week=$(jq -r .iso_week < "$json_path")"
+            echo "cat_num=$(jq -r .cat_num < "$json_path")"
+            echo "slug=$(jq -r .slug < "$json_path")"
+            echo "name=$(jq -r .name < "$json_path")"
+            echo "grade=$(jq -r .grade < "$json_path")"
+            echo "composite=$(jq -r .composite < "$json_path")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update rotation issue
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          iso_year="${{ steps.pick.outputs.iso_year }}"
+          iso_week="${{ steps.pick.outputs.iso_week }}"
+          slug="${{ steps.pick.outputs.slug }}"
+          # ``name`` is intentionally not bound here — the rendered
+          # issue body already carries the full human-readable
+          # category name in its level-2 heading, so the shell does
+          # not need it. Surfaced here only to acknowledge the
+          # picker's output for future maintainers.
+          grade="${{ steps.pick.outputs.grade }}"
+          composite="${{ steps.pick.outputs.composite }}"
+          body_path="${{ steps.pick.outputs.body_path }}"
+
+          # Per-week label keeps the issue idempotent. Re-running the
+          # workflow on a Tuesday after the Monday schedule (or a
+          # manual catch-up the next week) lands on the same label and
+          # comments rather than opening a duplicate.
+          week_tag=$(printf "stewardship-rotation-%s-w%02d" "$iso_year" "$iso_week")
+          title=$(printf "Stewardship rotation — %s — ISO %s-W%02d" "$slug" "$iso_year" "$iso_week")
+
+          # Make sure the per-week label exists before we try to use
+          # it. ``gh label create`` is idempotent only when --force is
+          # used; the simpler pattern is to swallow the "already exists"
+          # exit and continue.
+          gh label create "$week_tag" \
+            --color "0E8A16" \
+            --description "Stewardship rotation pick for ISO ${iso_year}-W${iso_week}" \
+            >/dev/null 2>&1 || true
+          gh label create "stewardship-rotation" \
+            --color "1D76DB" \
+            --description "Per-category stewardship-rotation pings (P14)" \
+            >/dev/null 2>&1 || true
+          gh label create "$slug" \
+            --color "FBCA04" \
+            --description "Touches content/${slug}/" \
+            >/dev/null 2>&1 || true
+
+          # Look for an already-open issue tagged with this week's
+          # label so we can update it instead of opening a duplicate.
+          # ``--json number`` gives a list; ``--jq '.[0].number'``
+          # returns the first hit or empty string.
+          existing=$(gh issue list \
+            --state open \
+            --label "$week_tag" \
+            --json number \
+            --jq '.[0].number' || true)
+
+          if [ -n "$existing" ]; then
+            echo "Updating existing rotation issue #${existing} for ${week_tag}..."
+            gh issue comment "$existing" --body-file "$body_path"
+          else
+            echo "Opening new rotation issue for ${week_tag} (${slug}, ${grade} ${composite})..."
+            gh issue create \
+              --title "$title" \
+              --body-file "$body_path" \
+              --label "stewardship-rotation" \
+              --label "$slug" \
+              --label "$week_tag"
+          fi
+
+      - name: Upload rotation record (artefact)
+        # Always run, even on the dry-run path, so a manual dispatch
+        # with ``dry_run: true`` still leaves an inspectable artefact
+        # for debugging.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stewardship-rotation-${{ steps.pick.outputs.iso_year }}-w${{ steps.pick.outputs.iso_week }}
+          path: |
+            ${{ steps.pick.outputs.json_path }}
+            ${{ steps.pick.outputs.body_path }}
+          if-no-files-found: warn

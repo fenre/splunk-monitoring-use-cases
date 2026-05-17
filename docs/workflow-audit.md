@@ -11,7 +11,7 @@
 > action, **update this file in the same PR** — it is the single
 > per-workflow reference and there is no auto-generator behind it yet.
 
-## Inventory (14 workflows)
+## Inventory (15 workflows)
 
 | Workflow                                           | Purpose                                                                  | Trigger surface                                                              | Cadence                                  | Runs-on        | Timeout | Writes to repo? | Pinned third-party actions (see [Pin map](#third-party-action-pin-map)) |
 |----------------------------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------|------------------------------------------|----------------|--------:|-----------------|-------------------------------------------------------------------------|
@@ -23,6 +23,7 @@
 | [`gitleaks.yml`](../.github/workflows/gitleaks.yml)               | Secret-leak detection — defence-in-depth backup to the `gitleaks` pre-commit hook. | `push`/`pull_request` to `main`; weekly cron                                  | Tue 03:42 UTC + every PR/push to `main`  | `ubuntu-latest` | 30m     | No              | `checkout`, `gitleaks/gitleaks-action`                                  |
 | [`link-check.yml`](../.github/workflows/link-check.yml)           | Markdown / doc external-link health audit; opens an issue on failure.    | `workflow_dispatch`, weekly cron                                              | Mon 06:00 UTC                            | `ubuntu-latest` | 20m     | Issue           | `checkout`, `upload-artifact`                                          |
 | [`stewardship.yml`](../.github/workflows/stewardship.yml)         | Weekly stewardship digest — writes `dist/stewardship-digest.{json,md}`, opens/updates a tracking issue. | `workflow_dispatch`, weekly cron                                              | Mon 08:00 UTC                            | `ubuntu-latest` | 30m     | Issue + artifact | `checkout`, `upload-artifact`                                          |
+| [`stewardship-rotation.yml`](../.github/workflows/stewardship-rotation.yml) | **§P14 cadence-half (2026-05-17).** Round-robins the 23 content categories one per ISO week; opens/updates an issue tagged with the per-category CODEOWNERS owner + scorecard drill-down link. | `workflow_dispatch` (with `week`/`year`/`dry_run` inputs), weekly cron | Mon 08:30 UTC | `ubuntu-latest` | 20m | Issue + artifact + Labels | `checkout`, `upload-artifact` |
 | [`regulatory-watch.yml`](../.github/workflows/regulatory-watch.yml) | Probes regulator-published artefacts (NIST OSCAL, MITRE ATT&CK<sup class="ref">[<a href="#ref-1">1</a>]</sup>, PCI SSC, HHS, EUR-Lex), commits manifest deltas, opens issues. | `workflow_dispatch`, weekly cron                                              | Mon 09:00 UTC                            | `ubuntu-latest` | 30m     | Commit + Issue  | `checkout`, `upload-artifact`                                          |
 | [`splunkbase-sync.yml`](../.github/workflows/splunkbase-sync.yml) | Refreshes `data/splunkbase-catalog.json` from the public Splunkbase<sup class="ref">[<a href="#ref-2">2</a>]</sup> REST API; opens a PR with diff. | `workflow_dispatch`, weekly cron                                              | Tue 08:00 UTC                            | `ubuntu-latest` | 20m     | PR              | `checkout`, `peter-evans/create-pull-request`, `upload-artifact`        |
 | [`build-reproducibility.yml`](../.github/workflows/build-reproducibility.yml) | Asserts two consecutive `--reproducible` builds against the same HEAD produce byte-identical `dist/integrity.json`. | `workflow_dispatch`, nightly cron, `pull_request` (paths-filtered to build pipeline) | 03:00 UTC nightly + on build-pipeline PRs | `ubuntu-latest` | 30m     | No              | `checkout`, `upload-artifact`                                          |
@@ -51,13 +52,14 @@
 The numeric cadence table above is most useful as a calendar:
 
 ```
-Mon 06:00 UTC   link-check.yml         (weekly)
-Mon 06:17 UTC   codeql.yml             (weekly + on PR/push)
-Mon 08:00 UTC   stewardship.yml        (weekly)
-Mon 09:00 UTC   regulatory-watch.yml   (weekly)
-Tue 03:42 UTC   gitleaks.yml           (weekly + on PR/push)
-Tue 08:00 UTC   splunkbase-sync.yml    (weekly)
-Daily 00:00 UTC traffic.yml            (every day)
+Mon 06:00 UTC   link-check.yml           (weekly)
+Mon 06:17 UTC   codeql.yml               (weekly + on PR/push)
+Mon 08:00 UTC   stewardship.yml          (weekly)
+Mon 08:30 UTC   stewardship-rotation.yml (weekly, P14 cadence-half)
+Mon 09:00 UTC   regulatory-watch.yml     (weekly)
+Tue 03:42 UTC   gitleaks.yml             (weekly + on PR/push)
+Tue 08:00 UTC   splunkbase-sync.yml      (weekly)
+Daily 00:00 UTC traffic.yml              (every day)
 Daily 03:00 UTC build-reproducibility.yml (every night)
 Per-PR          validate.yml, dependency-review.yml, gitleaks.yml (push/PR), codeql.yml (push/PR), uc-manifest.yml, uc-tests.yml
 Per-push-main   pages.yml
@@ -66,12 +68,16 @@ Per-tag         release.yml
 
 Two design conventions encoded above:
 
-1. **Monday cluster, then Tuesday backstop.** All four weekly
+1. **Monday cluster, then Tuesday backstop.** All five weekly
    maintenance probes (`link-check`, `codeql`, `stewardship`,
-   `regulatory-watch`) fire on Monday between 06:00 and 09:00 UTC so a
-   maintainer's first triage window of the week sees the whole batch.
-   `gitleaks` and `splunkbase-sync` are staggered into Tuesday so the
-   triage backlog never doubles up.
+   `stewardship-rotation`, `regulatory-watch`) fire on Monday between
+   06:00 and 09:00 UTC so a maintainer's first triage window of the
+   week sees the whole batch. `gitleaks` and `splunkbase-sync` are
+   staggered into Tuesday so the triage backlog never doubles up. The
+   `stewardship-rotation` slot is deliberately tucked between the
+   global digest (`stewardship` at 08:00) and the regulatory watch
+   (09:00) so the per-category ping arrives in the same triage cluster
+   as the digest it expands on.
 2. **Nightly reproducibility, daily traffic.** The two `daily` jobs
    are intentionally separated by 3 hours so that if `traffic.yml`
    (which holds the `contents: write` permission) ever races
@@ -90,7 +96,7 @@ also caught by that audit.
 | Action                                              | Pin SHA                                    | Comment | Used by                                                       |
 |-----------------------------------------------------|--------------------------------------------|---------|---------------------------------------------------------------|
 | `actions/checkout`                                  | `de0fac2e4500dabe0009e67214ff5f5447ce83dd` | `v6.0.2` | every workflow that interacts with the repo tree              |
-| `actions/upload-artifact`                           | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | `v7.0.1` | `validate`, `pages`, `release`, `link-check`, `stewardship`, `regulatory-watch`, `splunkbase-sync`, `build-reproducibility`, `uc-tests` |
+| `actions/upload-artifact`                           | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | `v7.0.1` | `validate`, `pages`, `release`, `link-check`, `stewardship`, `stewardship-rotation`, `regulatory-watch`, `splunkbase-sync`, `build-reproducibility`, `uc-tests` |
 | `actions/download-artifact`                         | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` | `v8.0.1` | `release.yml`                                                 |
 | `actions/attest-build-provenance`                   | `a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32` | `v4.1.0` | `pages.yml`, `release.yml`                                    |
 | `actions/configure-pages`                           | `45bfe0192ca1faeb007ade9deae92b16b8254a0d` | `v6.0.0` | `pages.yml`                                                   |
