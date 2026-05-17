@@ -103,19 +103,26 @@ CRITICAL_STEP_NAMES = [
     "CHANGELOG and cross-references",
     "Repository consistency",
     "Catalog schema validation",
-    "Prerequisite graph audit",
+    # PR-2 lean-mode collapse (2026-05-17, drift ledger #20): the 14
+    # individual cascade-regen ``--check`` steps were replaced by a
+    # single umbrella drift gate that calls ``make
+    # sync-generated-check``. The umbrella covers (and the per-step
+    # log makes visible) every previously-named cascade gate, so
+    # losing it would still lose coverage for: prerequisite graph,
+    # phase3.{1,2,3} backfills, equipment-tags, grandma explanations,
+    # md-from-json freshness, cat-22 NTV regen, compliance-gaps,
+    # evidence-packs, mapping-ledger determinism, sandbox-validation,
+    # backlinks index, and the auto-generated doc references rewrite.
+    # If the umbrella is ever split back into individual steps, add
+    # the per-step names here in the same PR.
+    "Cascade-generator drift gate (umbrella)",
     "Compliance mapping audit",
-    "Equipment-tags regeneration check",
-    "Non-technical grandma explanation regeneration check",
     "Gold Standard quality audit",
-    "Markdown freshness check",
     "Phase 4.5a peer-review signoff audit",
     "Phase 4.5b legal-review signoff audit",
     "Phase 5.2 SME-review signoff audit",
     "Phase 5.3 regulatory change-watch",
     "Phase 5.4 signed provenance ledger",
-    "Phase 4.2 evidence-pack generator regeneration check",
-    "Clause-level gap report regeneration check",
     # Build job
     "Build check (catalog regeneration)",
     "Audit — byte budgets",
