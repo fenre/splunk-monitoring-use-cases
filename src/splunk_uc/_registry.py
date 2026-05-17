@@ -823,11 +823,3 @@ register(
         category="tools",
     )
 )
-register(
-    Verb(
-        name="pick-rotation-category",
-        module="tools.pick_rotation_category",
-        help="P14 weekly stewardship-rotation picker (ISO-week → cat → owners + scorecard record).",
-        category="tools",
-    )
-)

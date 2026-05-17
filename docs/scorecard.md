@@ -28,49 +28,46 @@ Grades:
 
 ## Global rollup
 
-- **Total UCs:** 7,677
-- **Weighted composite score:** 71.9 — overall grade **Silver**
+- **Total UCs:** 7,929
+- **Weighted composite score:** 72.0 — overall grade **Silver**
 
 ## Per-category scorecard
 
 | Cat | Category | UCs | Depth | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
 | --- | -------- | --- | ----- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 281 | 35 | 100.0% | 96.4% | 0% | 19d | 98 | 1.8% | **71.4** | **Silver** |
-| 2 | Virtualization | 224 | 35 | 100.0% | 100.0% | 30% | 19d | 71 | 23.2% | **70.2** | **Silver** |
-| 3 | Containers & Orchestration | 129 | 89 | 100.0% | 100.0% | 20% | 17d | 92 | 0.8% | **83.0** | **Silver** |
+| 1 | Server & Compute | 281 | 35 | 100.0% | 96.4% | 0% | 23d | 98 | 1.8% | **71.4** | **Silver** |
+| 2 | Virtualization | 224 | 35 | 100.0% | 100.0% | 30% | 23d | 71 | 23.2% | **70.2** | **Silver** |
+| 3 | Containers & Orchestration | 129 | 89 | 100.0% | 100.0% | 20% | 21d | 92 | 0.8% | **83.0** | **Silver** |
 | 4 | Cloud Infrastructure | 227 | 36 | 100.0% | 100.0% | 83% | — | 100 | 0.9% | **63.8** | **Bronze** |
-| 5 | Network Infrastructure | 720 | 61 | 100.0% | 100.0% | 12% | 10d | 60 | 3.2% | **70.6** | **Silver** |
-| 6 | Storage & Backup | 152 | 36 | 100.0% | 100.0% | 0% | 19d | 63 | 0.0% | **64.7** | **Bronze** |
-| 7 | Database & Data Platforms | 187 | 36 | 100.0% | 100.0% | 0% | 346d | 72 | 0.0% | **61.4** | **Bronze** |
-| 8 | Application Infrastructure | 241 | 37 | 100.0% | 100.0% | 0% | 19d | 55 | 0.0% | **63.4** | **Bronze** |
-| 9 | Identity & Access Management | 116 | 36 | 100.0% | 100.0% | 75% | 19d | 92 | 0.9% | **76.6** | **Silver** |
-| 10 | Security Infrastructure | 2,455 | 28 | 100.0% | 99.0% | 84% | 19d | 87 | 0.3% | **74.5** | **Silver** |
-| 11 | Email & Collaboration | 135 | 35 | 100.0% | 100.0% | 4% | 19d | 83 | 0.0% | **69.1** | **Bronze** |
-| 12 | DevOps & CI/CD | 126 | 36 | 100.0% | 100.0% | 0% | 19d | 76 | 0.8% | **67.5** | **Bronze** |
-| 13 | Observability & Monitoring Stack | 184 | 62 | 100.0% | 100.0% | 3% | 17d | 82 | 0.5% | **74.0** | **Silver** |
-| 14 | IoT & Operational Technology (OT) | 249 | 36 | 100.0% | 94.0% | 0% | 19d | 94 | 0.0% | **70.3** | **Silver** |
-| 15 | Data Center Physical Infrastructure | 117 | 34 | 100.0% | 100.0% | 0% | 19d | 75 | 0.0% | **67.0** | **Bronze** |
-| 16 | Service Management & ITSM | 102 | 34 | 100.0% | 100.0% | 0% | 19d | 84 | 0.0% | **68.5** | **Bronze** |
-| 17 | Network Security & Zero Trust | 208 | 41 | 100.0% | 100.0% | 73% | 7d | 60 | 0.0% | **71.2** | **Silver** |
-| 18 | Data Center Fabric & SDN | 76 | 87 | 100.0% | 100.0% | 27% | 14d | 100 | 0.0% | **84.5** | **Silver** |
-| 19 | Compute Infrastructure (HCI & Converged) | 93 | 76 | 100.0% | 100.0% | 12% | 18d | 82 | 0.0% | **77.5** | **Silver** |
-| 20 | Cost & Capacity Management | 77 | 36 | 100.0% | 100.0% | 0% | 17d | 100 | 0.0% | **72.2** | **Silver** |
-| 21 | Industry Verticals | 146 | 39 | 100.0% | 100.0% | 0% | 13d | 91 | 0.0% | **70.9** | **Silver** |
-| 22 | Regulatory and Compliance Frameworks | 1,369 | 38 | 100.0% | 100.0% | 11% | 21d | 94 | 0.0% | **72.3** | **Silver** |
-| 23 | Business Analytics & Executive Intelligence | 63 | 79 | 100.0% | 100.0% | 0% | 15d | 100 | 0.0% | **80.9** | **Silver** |
+| 5 | Network Infrastructure | 720 | 61 | 100.0% | 100.0% | 12% | 14d | 60 | 3.2% | **70.6** | **Silver** |
+| 6 | Storage & Backup | 152 | 36 | 100.0% | 100.0% | 0% | 23d | 63 | 0.0% | **64.7** | **Bronze** |
+| 7 | Database & Data Platforms | 187 | 36 | 100.0% | 100.0% | 0% | 350d | 72 | 0.0% | **61.4** | **Bronze** |
+| 8 | Application Infrastructure | 241 | 37 | 100.0% | 100.0% | 0% | 23d | 55 | 0.0% | **63.4** | **Bronze** |
+| 9 | Identity & Access Management | 116 | 36 | 100.0% | 100.0% | 75% | 23d | 92 | 0.9% | **76.6** | **Silver** |
+| 10 | Security Infrastructure | 2,455 | 28 | 100.0% | 99.0% | 84% | 23d | 87 | 0.3% | **74.5** | **Silver** |
+| 11 | Email & Collaboration | 135 | 35 | 100.0% | 100.0% | 4% | 23d | 83 | 0.0% | **69.1** | **Bronze** |
+| 12 | DevOps & CI/CD | 126 | 36 | 100.0% | 100.0% | 0% | 23d | 76 | 0.8% | **67.5** | **Bronze** |
+| 13 | Observability & Monitoring Stack | 184 | 62 | 100.0% | 100.0% | 3% | 21d | 82 | 0.5% | **74.0** | **Silver** |
+| 14 | IoT & Operational Technology (OT) | 249 | 36 | 100.0% | 94.0% | 0% | 23d | 94 | 0.0% | **70.3** | **Silver** |
+| 15 | Data Center Physical Infrastructure | 117 | 34 | 100.0% | 100.0% | 0% | 23d | 75 | 0.0% | **67.0** | **Bronze** |
+| 16 | Service Management & ITSM | 102 | 34 | 100.0% | 100.0% | 0% | 23d | 84 | 0.0% | **68.5** | **Bronze** |
+| 17 | Network Security & Zero Trust | 208 | 41 | 100.0% | 100.0% | 73% | 11d | 60 | 0.0% | **71.2** | **Silver** |
+| 18 | Data Center Fabric & SDN | 76 | 87 | 100.0% | 100.0% | 27% | 18d | 100 | 0.0% | **84.5** | **Silver** |
+| 19 | Compute Infrastructure (HCI & Converged) | 93 | 76 | 100.0% | 100.0% | 12% | 22d | 82 | 0.0% | **77.5** | **Silver** |
+| 20 | Cost & Capacity Management | 77 | 36 | 100.0% | 100.0% | 0% | 21d | 100 | 0.0% | **72.2** | **Silver** |
+| 21 | Industry Verticals | 146 | 39 | 100.0% | 100.0% | 0% | 17d | 91 | 0.0% | **70.9** | **Silver** |
+| 22 | Regulatory and Compliance Frameworks | 1,621 | 44 | 100.0% | 100.0% | 26% | 25d | 83 | 0.0% | **72.4** | **Silver** |
+| 23 | Business Analytics & Executive Intelligence | 63 | 79 | 100.0% | 100.0% | 0% | 19d | 100 | 0.0% | **80.9** | **Silver** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
 
 ## Category drill-downs
 
-Per-category quality detail with a stable ID anchor for each
-subsection. The anchor matches the canonical CODEOWNERS slug
-(`cat-NN-<kebab-name>`), so each row in `.github/CODEOWNERS`
-can deep-link to its scorecard view via
-`docs/scorecard.md#cat-NN-<slug>` — see the comment block above
-the per-category CODEOWNERS rows. Dimension weights match the
-Methodology table above; the `Contribution` column shows the
-weighted dimension score that feeds the composite.
+Per-category quality detail with a stable ID anchor
+(`cat-NN-<kebab-name>`) for each subsection, so it can be
+deep-linked via `docs/scorecard.md#cat-NN-<slug>`. Dimension
+weights match the Methodology table above; the `Contribution`
+column shows the weighted dimension score that feeds the composite.
 
 <a id="cat-01-server-compute"></a>
 ### 1. Server & Compute — **Silver** (71.4)
@@ -84,7 +81,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 35 | 20% | 7.0 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 98 | 20% | 19.7 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 96.4% | 10% | 9.6 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 1.8% | 7% | 0.1 |
@@ -105,7 +102,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 35 | 20% | 6.9 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 71 | 20% | 14.3 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 30% | 8% | 2.4 |
 | Sample fixtures | 23.2% | 7% | 1.6 |
@@ -126,7 +123,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 89 | 20% | 17.9 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 92 | 20% | 18.5 |
-| Freshness (17d median) | 100 | 15% | 15.0 |
+| Freshness (21d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 20% | 8% | 1.6 |
 | Sample fixtures | 0.8% | 7% | 0.1 |
@@ -168,7 +165,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 61 | 20% | 12.3 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 60 | 20% | 12.1 |
-| Freshness (10d median) | 100 | 15% | 15.0 |
+| Freshness (14d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 12% | 8% | 1.0 |
 | Sample fixtures | 3.2% | 7% | 0.2 |
@@ -189,7 +186,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 63 | 20% | 12.5 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -210,7 +207,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 72 | 20% | 14.4 |
-| Freshness (346d median) | 65 | 15% | 9.8 |
+| Freshness (350d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -231,7 +228,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 37 | 20% | 7.3 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 55 | 20% | 11.0 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -252,7 +249,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 92 | 20% | 18.3 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 75% | 8% | 6.0 |
 | Sample fixtures | 0.9% | 7% | 0.1 |
@@ -273,7 +270,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 28 | 20% | 5.5 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 87 | 20% | 17.3 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 99.0% | 10% | 9.9 |
 | MITRE ATT&CK coverage | 84% | 8% | 6.7 |
 | Sample fixtures | 0.3% | 7% | 0.0 |
@@ -294,7 +291,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 35 | 20% | 7.1 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 83 | 20% | 16.7 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 4% | 8% | 0.3 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -315,7 +312,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.3 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 76 | 20% | 15.2 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.8% | 7% | 0.1 |
@@ -336,7 +333,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 62 | 20% | 12.3 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 82 | 20% | 16.4 |
-| Freshness (17d median) | 100 | 15% | 15.0 |
+| Freshness (21d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 3% | 8% | 0.2 |
 | Sample fixtures | 0.5% | 7% | 0.0 |
@@ -357,7 +354,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.1 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 94 | 20% | 18.8 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 94.0% | 10% | 9.4 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -378,7 +375,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 34 | 20% | 6.9 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 75 | 20% | 15.1 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -399,7 +396,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 34 | 20% | 6.8 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 84 | 20% | 16.7 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Freshness (23d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -420,7 +417,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 41 | 20% | 8.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 60 | 20% | 12.1 |
-| Freshness (7d median) | 100 | 15% | 15.0 |
+| Freshness (11d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 73% | 8% | 5.8 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -441,7 +438,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 87 | 20% | 17.3 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
-| Freshness (14d median) | 100 | 15% | 15.0 |
+| Freshness (18d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 27% | 8% | 2.2 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -462,7 +459,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 76 | 20% | 15.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 82 | 20% | 16.4 |
-| Freshness (18d median) | 100 | 15% | 15.0 |
+| Freshness (22d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 12% | 8% | 1.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -483,7 +480,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 36 | 20% | 7.2 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
-| Freshness (17d median) | 100 | 15% | 15.0 |
+| Freshness (21d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -504,7 +501,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 39 | 20% | 7.8 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 91 | 20% | 18.1 |
-| Freshness (13d median) | 100 | 15% | 15.0 |
+| Freshness (17d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -514,25 +511,25 @@ weighted dimension score that feeds the composite.
 **Status mix:** unset 129 · verified 11 · draft 6
 
 <a id="cat-22-regulatory-compliance"></a>
-### 22. Regulatory and Compliance Frameworks — **Silver** (72.3)
+### 22. Regulatory and Compliance Frameworks — **Silver** (72.4)
 
-- **Volume:** 1,369 UCs (1,207 security)
+- **Volume:** 1,621 UCs (1,457 security)
 - **Content:** [`content/cat-22-regulatory-compliance/`](../content/cat-22-regulatory-compliance/)
 - **CODEOWNERS row:** `/content/cat-22-regulatory-compliance/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 38 | 20% | 7.6 |
+| Content depth | 44 | 20% | 8.8 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 94 | 20% | 18.8 |
-| Freshness (21d median) | 100 | 15% | 15.0 |
+| Provenance authority | 83 | 20% | 16.5 |
+| Freshness (25d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 11% | 8% | 0.8 |
+| MITRE ATT&CK coverage | 26% | 8% | 2.1 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 1,288 · Gold 78 · Silver 3
-**Provenance origins:** splunk-official 1,167 · contributor 59 · nist-compliance 51 · mitre-attack 46 · unclassified 46
-**Status mix:** unset 1,026 · verified 297 · draft 34 · community 12
+**Depth tiers:** Bronze 1,288 · Gold 304 · Silver 29
+**Provenance origins:** splunk-official 1,167 · contributor 311 · nist-compliance 51 · mitre-attack 46 · unclassified 46
+**Status mix:** unset 1,026 · verified 549 · draft 34 · community 12
 
 <a id="cat-23-business-analytics"></a>
 ### 23. Business Analytics & Executive Intelligence — **Silver** (80.9)
@@ -546,7 +543,7 @@ weighted dimension score that feeds the composite.
 | Content depth | 79 | 20% | 15.9 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
-| Freshness (15d median) | 100 | 15% | 15.0 |
+| Freshness (19d median) | 100 | 15% | 15.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
@@ -560,7 +557,7 @@ weighted dimension score that feeds the composite.
 | Grade | Categories | Total UCs |
 | ----- | ---------- | --------- |
 | **Gold** | 0 | 0 |
-| **Silver** | 15 | 6,390 |
+| **Silver** | 15 | 6,642 |
 | **Bronze** | 8 | 1,287 |
 | **Needs work** | 0 | 0 |
 

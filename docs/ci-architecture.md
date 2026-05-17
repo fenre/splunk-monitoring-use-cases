@@ -20,8 +20,6 @@
 | [`gitleaks.yml`](#gitleaks-yml)        | Secret-leak detection.                             | ~30 sec    | PR + push              |
 | [`splunkbase-sync.yml`](#splunkbase-sync-yml) | Refresh `data/splunkbase-catalog.json`.            | ~2 min     | weekly cron + manual   |
 | [`regulatory-watch.yml`](#regulatory-watch-yml) | Refresh `data/regulations-watch.json`.             | ~3 min     | weekly cron + manual   |
-| [`stewardship.yml`](#stewardship-yml) | Weekly stewardship digest → `dist/stewardship-digest.{json,md}` + tracking issue. | ~2 min | weekly cron + manual |
-| [`stewardship-rotation.yml`](#stewardship-rotation-yml) | §P14 cadence-half: weekly per-category rotation — picks `cat-NN-<slug>` via `(iso_week % 23) + 1`, opens/updates an owner-tagged issue. | ~3 min | weekly cron + manual |
 | [`build-reproducibility.yml`](#build-reproducibility-yml) | Two `--reproducible` builds → byte-identical assert.   | ~3 min     | nightly cron + build-PRs |
 | [`link-check.yml`](#link-check-yml)    | Markdown link-check.                               | ~2 min     | weekly cron + PR       |
 | [`traffic.yml`](#traffic-yml)          | Cache GitHub repo traffic stats.                   | ~10 sec    | daily cron             |
@@ -331,42 +329,20 @@ Daily: pulls GitHub repo traffic stats into `data/traffic-cache.json`
 (GitHub's API only retains 14 days; the cache extends visibility).
 Manual + cron.
 
-## Stewardship.yml
+## Stewardship digest (on-demand only)
 
-Weekly stewardship digest. Mondays 08:00 UTC + `workflow_dispatch`.
-Builds the static site, captures soft-failable audit warnings
-(currently just `audit_roadmap_consistency` `WARN :` lines), runs
-`python3 -m splunk_uc generate-stewardship-digest` to produce
-`dist/stewardship-digest.{json,md}` (schema: `schemas/v2/stewardship-digest.schema.json`),
-and opens / updates a single tracking issue so the digest lands in a
-maintainer-visible surface without a separate dashboard. Inputs:
-`reference_date` (override "today" for staleness math), `stale_threshold_days`
-(default 180). Concurrency: `stewardship-digest`,
-`cancel-in-progress: false` — the JSON artefact is a singleton.
+The scheduled `stewardship.yml` and `stewardship-rotation.yml`
+workflows were retired alongside the per-category CODEOWNERS routing
+that fed the rotation reminders. The digest *generator* is still
+wired and can be invoked on demand:
 
-## Stewardship-rotation.yml
+```bash
+make stewardship-digest   # writes dist/stewardship-digest.{json,md}
+```
 
-§P14 cadence-half. Mondays 08:30 UTC + `workflow_dispatch` (30 minutes
-after the digest above so both notifications cluster into the
-maintainer's first triage window). Builds the static site so
-`dist/scorecard.json` is fresh, then runs
-`python3 -m splunk_uc pick-rotation-category` to deterministically pick
-one of the 23 content categories via `(iso_week % 23) + 1`. The picker
-emits a JSON record (cat-num, slug, owners pulled from `.github/CODEOWNERS`,
-composite score, grade, dimension breakdown) and renders a markdown
-issue body that the workflow routes into `gh issue` — opening a new
-issue if no open one carries the per-week label
-(`stewardship-rotation-YYYY-wNN`), commenting on the existing one if it
-does. Labels applied: `stewardship-rotation`, `cat-NN-<slug>`, and the
-per-week tag — so issues are filterable both by category and by ISO
-week. Inputs: `week` and `year` overrides (for catch-up runs or future
-testing), `dry_run` (skips the `gh issue` step so a manual dispatch
-only emits the markdown into the workflow log + artefact). Concurrency:
-`stewardship-rotation`, `cancel-in-progress: false`. The picker itself
-is stdlib-only, mypy-strict, and is unit-tested by
-`tests/splunk_uc/test_pick_rotation_category.py` (14 assertions
-covering rotation determinism, cycle coverage, CODEOWNERS parsing,
-scorecard lookup, and the CLI entry-point).
+Schema: `schemas/v2/stewardship-digest.schema.json`. Useful when you
+want a snapshot of staleness / coverage / leaderboards across the
+catalogue, but no longer noises a weekly GitHub issue.
 
 ## Build-reproducibility.yml
 

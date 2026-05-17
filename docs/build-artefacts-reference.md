@@ -188,7 +188,7 @@ that `integrity.json` is byte-identical across runs.
 
 | Path | Description | How to generate |
 |---|---|---|
-| `dist/stewardship-digest.json` + `.md` | Release-over-release deltas, top movers, open audit warnings, stale-UC backlog. | `make stewardship-digest` (or weekly via `.github/workflows/stewardship.yml`). See [Stewardship Digest](stewardship-digest.md). |
+| `dist/stewardship-digest.json` + `.md` | Release-over-release deltas, top movers, open audit warnings, stale-UC backlog. | `make stewardship-digest` (on-demand only). See [Stewardship Digest](stewardship-digest.md). |
 | `data/metrics-history/<VERSION>.json` | Snapshot of `dist/metrics.json` at release time. | `make snapshot-metrics`. See [Metrics History](metrics-history.md). |
 | `data/license-inventory.json` | Dependency-licence rollup baseline. | `make write-license-inventory`. See [License Inventory](license-inventory.md). |
 

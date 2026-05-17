@@ -1,13 +1,13 @@
-# Weekly stewardship digest
+# Stewardship digest (on-demand)
 
-> Repo-overhaul plan §P8 step 4 — landed 2026-05-09.
+> Repo-overhaul plan §P8 step 4 — landed 2026-05-09. The weekly
+> scheduled workflow was retired 2026-05-17 (drift ledger #19 in
+> `docs/health-check-2026-progress.md`); the generator is preserved
+> and still produces the same JSON + markdown twin on demand.
 
 The **stewardship digest** is a small JSON + markdown twin emitted by
-`python -m splunk_uc generate-stewardship-digest` (legacy
-[`python3 -m splunk_uc generate-stewardship-digest`](../scripts/generate_stewardship_digest.py)
-shim still works during soak)
-that distils three recurring stewardship questions into a single
-artefact:
+`python -m splunk_uc generate-stewardship-digest` that distils three
+recurring stewardship questions into a single artefact:
 
 1. **What changed in the catalogue since the last release?**
    Counts, quality-tier mix, coverage axes, and movers in the
@@ -21,10 +21,8 @@ artefact:
    `--stale-threshold-days` (default 180) is surfaced, with the
    longest-overdue 20 UCs called out by name.
 
-The digest is **derived**: it is *not* committed to the repo. The
-weekly workflow regenerates it, posts it as a GitHub issue, and
-uploads the JSON as a workflow artifact. PR CI smoke-tests the
-generator against
+The digest is **derived**: it is *not* committed to the repo. PR CI
+smoke-tests the generator against
 [`schemas/v2/stewardship-digest.schema.json`](../schemas/v2/stewardship-digest.schema.json)
 to keep the schema honest.
 
@@ -35,8 +33,7 @@ to keep the schema honest.
 | `dist/stewardship-digest.json` | Machine-readable payload, schema-validated. |
 | `dist/stewardship-digest.md` | Human-friendly twin (drop into release notes verbatim). |
 | `schemas/v2/stewardship-digest.schema.json` | JSON Schema 2020-12 contract. |
-| `.github/workflows/stewardship.yml` | Mondays 08:00 UTC scheduled run. |
-| `src/splunk_uc/generators/stewardship_digest.py` (verb `generate-stewardship-digest`; legacy `python3 -m splunk_uc generate-stewardship-digest` shim) | Stdlib-only generator. |
+| `src/splunk_uc/generators/stewardship_digest.py` (verb `generate-stewardship-digest`) | Stdlib-only generator. |
 | `tests/scripts/test_generate_stewardship_digest.py` | 55 unit tests. |
 
 ## How to regenerate locally
@@ -106,32 +103,6 @@ _Generated 2026-05-09T00:00:00Z (reference date: 2026-05-09)_
 When `previous` is null (first release after the digest landed), the
 "Previous" and "Delta" columns render as `—` and the top-movers
 sections are omitted.
-
-## How the weekly workflow works
-
-`.github/workflows/stewardship.yml` runs every **Monday 08:00 UTC**:
-
-1. `make build` so `dist/metrics.json` reflects current `content/`.
-2. Capture `WARN :` lines from
-   `python3 -m splunk_uc audit-roadmap-consistency --check` and thread them
-   through the generator's `--audit-warning name=message` flag.
-3. Run `python -m splunk_uc generate-stewardship-digest` (no
-   `--reference-date`, so the issue carries today's date).
-4. Validate the JSON against the schema (defence-in-depth — the
-   generator already produces schema-shaped output, but a stale
-   schema vs. generator drift would be caught here).
-5. Upload the JSON + markdown as a workflow artifact (`stewardship-digest`).
-6. Open or comment on a tracking GitHub issue with the markdown
-   pasted in (label: `stewardship-digest`).
-
-If you want a one-off run with a specific reference date or a
-non-default staleness threshold, dispatch the workflow manually:
-
-```text
-Actions → "Stewardship digest" → Run workflow
-  reference_date:           2026-05-09     # optional
-  stale_threshold_days:     90             # optional, default 180
-```
 
 ## How the PR CI gate works
 

@@ -12,95 +12,77 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-- **P14 cadence-half closed: weekly per-category stewardship-rotation reminders now ship.**
-  Follow-on to the §P14 structure work that landed in 2026-05-13 (PR
-  #35, per-category CODEOWNERS rows) + 2026-05-14
-  (commit `00729f198`, per-category scorecard drill-downs). Those two
-  PRs gave the catalogue per-category routing and per-category quality
-  visibility but stopped short of a cadence: there was no automated
-  surface telling owners _when_ to look at _their_ category. This PR
-  closes that gap.
+### Removed — lean-mode PR-1: solo-maintainer cleanup of team-coordination scaffolding
 
-  **What landed.** Four new surfaces plus tightly-scoped edits to the
-  workflow inventory and CI documentation:
+The repository is a one-person catalogue; several CI surfaces were
+designed for a co-maintainer rotation that never materialised and
+were just emailing the solo maintainer about their own work. PR-1
+of the lean-mode cleanup deletes those surfaces and collapses the
+per-category CODEOWNERS routing back to a single catch-all rule.
+Net effect: −7 files, −2 scheduled workflows, no loss of correctness
+coverage.
 
-      src/splunk_uc/tools/pick_rotation_category.py  <- 322-line stdlib-only picker
-      .github/workflows/stewardship-rotation.yml     <- weekly Mon 08:30 UTC scheduled workflow
-      tests/splunk_uc/test_pick_rotation_category.py <- 14 structural / determinism / wiring tests
-      docs/stewardship-rotation.md                   <- maintainer runbook
+**Workflows removed.**
 
-  **Picker.** `python -m splunk_uc pick-rotation-category` (registered
-  under the `tools` category) computes
-  `cat_num = (iso_week % 23) + 1` and resolves the picked category
-  against three live surfaces:
+- `.github/workflows/stewardship-rotation.yml` — the weekly Monday
+  08:30 UTC rotation that shipped only ~6 hours earlier (it
+  assigned `@fenre` to review `@fenre`'s content on a 23-week
+  cycle).
+- `.github/workflows/stewardship.yml` — the weekly Monday 08:00 UTC
+  global digest workflow. The *generator* itself
+  (`python -m splunk_uc generate-stewardship-digest`, exposed as
+  `make stewardship-digest`) is preserved so the digest is still
+  reachable on demand; only the scheduled run + GitHub-issue
+  notification surface is gone.
 
-  * `content/cat-NN-<slug>/` for the canonical slug (mirrors the
-    derivation used by `tests/build/test_codeowners.py`)
-  * `.github/CODEOWNERS` for the owner @-mention list (multi-owner
-    rows are parsed via `OWNER_TOKEN_RE`)
-  * `dist/scorecard.json` for the composite score, grade, dimension
-    breakdown, depth tiers, status distribution, and origin mix
+**Code + tests removed.**
 
-  The verb emits a JSON record on stdout (every field the workflow
-  needs to render the issue) and optionally writes a Markdown
-  issue body via `--write-issue-body PATH`. Stdlib-only by design
-  so it has no install footprint beyond what `make build`
-  upstream already provides. Mypy-strict clean (99 source files
-  including the new one).
+- `src/splunk_uc/tools/pick_rotation_category.py` — the picker that
+  resolved `(iso_week % 23) + 1` → cat / owners / scorecard record.
+- `tests/splunk_uc/test_pick_rotation_category.py` — its 14-test
+  suite.
+- `tests/build/test_codeowners.py` — the 6-case structural test
+  that pinned the per-category CODEOWNERS rows; obsolete now that
+  CODEOWNERS is a single catch-all.
+- `tests/build/test_scorecard_drilldowns.py` — the 5-case three-way
+  alignment test (CODEOWNERS rows × content dirs × scorecard
+  anchors); obsolete for the same reason.
 
-  **Workflow.** `stewardship-rotation.yml` runs Mondays at 08:30 UTC
-  (30 minutes after the global `stewardship.yml` digest) and supports
-  `workflow_dispatch` with `week` / `year` / `dry_run` inputs. Steps:
-  checkout → composite `setup-python` → `make build` (so scorecard.json
-  is fresh) → picker → `gh issue` (open new or comment on existing
-  per-week-tagged issue). Labels applied to each issue:
-  `stewardship-rotation`, the per-category slug (`cat-NN-<slug>`),
-  and a per-week label (`stewardship-rotation-YYYY-wNN`) so the
-  workflow can detect prior runs and de-duplicate.
+**Docs removed.**
 
-  Concurrency group: `stewardship-rotation`, `cancel-in-progress: false`
-  — two concurrent runs would either produce the same record (harmless)
-  or open duplicate issues across a week boundary (the named group
-  prevents that).
+- `docs/stewardship-rotation.md` — the rotation runbook.
 
-  **Tests.** 14 unit tests in
-  `tests/splunk_uc/test_pick_rotation_category.py` lock the three
-  contracts that matter:
+**Edits.**
 
-  * **Rotation determinism + coverage.** `_rotation_index(N)` is
-    deterministic; over 23 consecutive weeks every category is
-    picked exactly once (no silent gaps, no duplicates). Cycle
-    wraps cleanly across week 53 boundaries.
-  * **CODEOWNERS / scorecard wiring.** Every `content/cat-NN-<slug>/`
-    directory has a CODEOWNERS row; the multi-owner parser handles
-    `@a @b @c` correctly; unknown slugs return `[]` (so a new
-    category without a CODEOWNERS row still produces a usable
-    issue body with a graceful "no @-mention" notice); the live
-    scorecard resolves every cat 1..23 with valid composite, grade,
-    and name fields.
-  * **Record + issue-body shape.** The `_build_record()` JSON
-    carries every field the workflow's `gh issue` step renders;
-    the `_format_dimensions_table()` markdown has all 7 scorecard
-    dimensions; the issue body includes owner @-mentions, the
-    scorecard drill-down URL, the ISO-week tag, the stewardship
-    checklist, and ends with a single trailing newline.
+- `.github/CODEOWNERS` collapses from 60 lines (23 per-category
+  rows + governance routing) to a single `* @fenre` catch-all.
+- `src/splunk_uc/_registry.py` drops the `pick-rotation-category`
+  verb registration.
+- `src/splunk_uc/generators/scorecard.py` keeps the per-category
+  drill-downs (they are genuinely useful self-information for
+  understanding which dimensions are dragging which category), but
+  softens the section preamble to remove the now-defunct
+  CODEOWNERS-routing framing.
+- `docs/scorecard.md` is regenerated from the updated generator
+  so the preamble matches the source.
+- `docs/workflow-audit.md` drops the two stewardship rows + the
+  cadence-calendar lines for them + their entry in the
+  `upload-artifact` consumers list (15 → 13 workflows).
+- `docs/ci-architecture.md` drops the two stewardship rows from
+  the TL;DR table and collapses the two long-form sections into
+  one short "Stewardship digest (on-demand only)" note that points
+  at `make stewardship-digest`.
 
-  **Documentation.** `docs/workflow-audit.md` gains the new workflow
-  row (inventory count moves from 14 → 15) and the cadence calendar
-  picks up the Mon 08:30 UTC slot. `docs/ci-architecture.md` gets a
-  TL;DR-table entry and a long-form per-workflow section.
-  `docs/stewardship-rotation.md` (new) is the maintainer runbook —
-  covers manual catch-up, adding / renaming categories, owner
-  assignment, the algorithm rationale, and a troubleshooting
-  table.
-
-  **What this does not change.** No content edits, no schema
-  changes, no SPL changes. `validate.yml` is untouched (the new
-  workflow lives outside the merge-gate partition by design).
-  Every other audit, generator, and build step runs exactly as
-  before. `splunk_uc audit-action-pins` still passes because the
-  new workflow reuses the already-pinned `actions/checkout@v6.0.2`
-  and `actions/upload-artifact@v7.0.1` references.
+**What this does not change.** Every correctness gate stays
+exactly as it was: the 660-test pytest suite, `mypy --strict` on
+`src/splunk_uc/`, the SPL audits (grammar, hallucinations,
+references), the CIM↔SPL alignment audit, schema validation +
+diff, build reproducibility, CodeQL, dependency-review, gitleaks,
+link-check, and the `validate.yml` 5-job partition all continue
+to run. `splunk_uc audit-action-pins` continues to pass because
+the two deleted workflows reused the already-pinned
+`actions/checkout` and `actions/upload-artifact` references; no
+new third-party pin landed and no existing one became orphaned.
 
 - **F16 / P5 source-of-truth inversion for `non-technical-view.js` — typed TS module is now canonical; legacy JS is a generated artefact under CI drift guard.**
   Continuation of the P5 frontend rebuild ratified by ADR-0013

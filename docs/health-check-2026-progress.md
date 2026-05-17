@@ -137,7 +137,7 @@ including the deferred sample-data shape ADR).
 | **P11** OSS release polish | PARTIAL (2026-05-13, reclassified) | The original "no `.devcontainer/`" caveat is wrong at HEAD: [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json) ships **pinned by OCI image-index digest** (Microsoft `mcr.microsoft.com/devcontainers/python:3.12@sha256:8b1b15…`), with Node 20 + GitHub CLI features, ruff + mypy + markdownlint + YAML extensions, pre-forwarded port 8000, pip-cache volume mount, and an 8-assertion structural test suite ([`tests/build/test_devcontainer.py`](../tests/build/test_devcontainer.py)) that pins the invariants. **Closed gap (2026-05-13):** the `postCreateCommand: make devcontainer-init` reference used to point at a Make target that did not exist (the structural test for that was deliberately skipped with `pytest.mark.skip("deferred to v8.x")`). PR — adds the `devcontainer-init` target to `Makefile` (installs `pip install -e .[audits,dev,test]`, registers pre-commit hooks, warm-builds `dist/`), unskips `test_make_target_exists`, and asserts that `devcontainer-init` is listed in `.PHONY`. The "ROADMAP.md still says v7.1" half of the original caveat was already resolved on 2026-05-12 (loose-end ledger #1). **What's still open:** no automated workflow that pushes `reports/roadmap-export.json` to a public Project board (the `make export-roadmap` target produces the snapshot; the sync side is the residual P11 work). |
 | **P12** Splunk content quality moonshot | NOT STARTED | F22 (two sample regimes) unresolved; no per-UC `thresholds` field in schema; no SPL formatter; no AppInspect gate. |
 | **P13** Recommender TA hardening | NOT STARTED | The recommender TA was overhauled in v8.0.0 (CHANGELOG mentions "single Cloud-safe recommender app") but P13's threat model + Sigstore on `.spl` + AppInspect Cloud gate not visible. |
-| **P14** Content stewardship | DONE (2026-05-17; all three halves closed) | **First half — Per-category CODEOWNERS routing (2026-05-13, PR #35)**: `.github/CODEOWNERS` now carries one `/content/cat-NN-<slug>/` row per category (all 23), with a new structural test (`tests/build/test_codeowners.py`, 6 cases) that locks the invariant so the file cannot silently drift back to a single catch-all. **Second half — Per-category scorecards (2026-05-14)**: `docs/scorecard.md` gains a `## Category drill-downs` section with one block per category. Each block carries a stable `<a id="cat-NN-<slug>"></a>` anchor (matching the CODEOWNERS slug exactly), composite + grade header, dimension breakdown table including per-dimension `Contribution` (the weighted score that feeds the composite — readers can finally see *why* a composite landed where it did), and one-line summaries of depth tiers, provenance origins, and status mix. `.github/CODEOWNERS` is annotated with a comment block pointing at the matching scorecard anchors. A new structural test (`tests/build/test_scorecard_drilldowns.py`, 5 cases) pins the three-way alignment between content directories, CODEOWNERS rows, and scorecard anchors so the deep-link routing cannot silently drift. Until co-maintainers join the project, every CODEOWNERS row still points at the lead maintainer; the *structure* is in place across all three artefacts, so swapping in a domain owner is a one-line change. **Third half — Cadence (2026-05-17)** closed by [`.github/workflows/stewardship-rotation.yml`](../.github/workflows/stewardship-rotation.yml) (weekly Mon 08:30 UTC) + the stdlib-only picker [`src/splunk_uc/tools/pick_rotation_category.py`](../src/splunk_uc/tools/pick_rotation_category.py) (`python -m splunk_uc pick-rotation-category`) + 14-test suite [`tests/splunk_uc/test_pick_rotation_category.py`](../tests/splunk_uc/test_pick_rotation_category.py). The picker uses `cat_num = (iso_week % 23) + 1` so over a 23-week cycle every category is picked exactly once (~2.3 reminders per category per year). The workflow opens or comments on a per-week-tagged GitHub issue assigned to the category's CODEOWNERS owner(s), with the scorecard drill-down link, current composite + grade, dimension table, and a stewardship checklist. Mypy-strict clean (99 source files). Drift ledger #18 carries the change details; runbook at [`docs/stewardship-rotation.md`](stewardship-rotation.md). |
+| **P14** Content stewardship | REVERTED (2026-05-17, drift ledger #19) | The 2026-05-13 / -14 / -17 P14 work (per-category CODEOWNERS routing, the two structural tests that locked it, the per-category scorecard drill-downs as a routing surface, and the weekly rotation reminder workflow) was scaffolding for a co-maintainer team that doesn't exist. PR-1 of the lean-mode cleanup deletes the rotation workflow + picker + tests + runbook, deletes the global stewardship-digest scheduled workflow (the *generator* is preserved as `make stewardship-digest` for on-demand use), collapses `.github/CODEOWNERS` to a single `* @fenre` catch-all, and removes the two structural pin tests (`test_codeowners.py`, `test_scorecard_drilldowns.py`). The per-category scorecard drill-down *content* stays in `docs/scorecard.md` — it is genuinely useful self-information about which dimensions are dragging which category — but its preamble no longer frames itself as a CODEOWNERS-routing surface. Net effect: −7 files, −2 scheduled workflows, no loss of correctness coverage. See drift ledger #19. |
 | **P15** Specification compliance moonshot | NOT STARTED | 2027 target per plan; no `clauseText[]` bindings. |
 | **P16** Test coverage burndown | PARTIAL | 660 tests collected ✓. Coverage baseline floor in place at [`data/baselines/coverage-v9.1.0.json`](../data/baselines/coverage-v9.1.0.json) — schema-validated (`schemas/coverage-baseline.schema.json`), consumed by `src/splunk_uc/audits/coverage_budget.py` as the no-regression contract, with 24 tier-1 / 68 tier-2 per-file records + 26 tier-3 exempt files. **What's still open**: P16 burndown work proper — *raising* per-tier floors via new tests, plus mutation testing (`mutmut` / `cosmic-ray`) and property-based testing (`hypothesis`) haven't been adopted. The headline 19.76% total is the floor we ratchet *from*; whose-side-still-low is plainly visible in the per-file records (e.g. `tools/build/templates/uc.py` at 4.77%, `src/splunk_uc/generators/api_surface.py` at 0% — both currently large untested surfaces). |
 | **P17** AI-readiness + LLM eval | NOT STARTED | `llms.txt` + `llms-full.txt` exist (AGENTS.md), but no LLM-eval harness, no `dist/rag/`, no embedding fingerprints. |
@@ -828,49 +828,114 @@ findings but should not be lost:
     §"Recommended next actions" #10 + the CHANGELOG `[Unreleased]`
     bullet. The repo-root `non-technical-view.js` is unchanged
     byte-for-byte.
-18. **§P14 cadence-half closed.** **2026-05-17** —
+18. **§P14 cadence-half closed.** **2026-05-17** — Reverted same
+    day by drift ledger #19 below as part of the lean-mode
+    cleanup; left in place as a historical anchor.
     [`.github/workflows/stewardship-rotation.yml`](../.github/workflows/stewardship-rotation.yml)
-    now runs Mondays 08:30 UTC and rotates one of the 23 content
-    categories per week into a per-category GitHub issue assigned to
-    the CODEOWNERS owner(s), with the scorecard drill-down link,
-    current composite / grade, dimension table, and a stewardship
-    checklist. The decision-maker is a stdlib-only Python verb
-    [`pick-rotation-category`](../src/splunk_uc/tools/pick_rotation_category.py)
-    that computes `cat_num = (iso_week % 23) + 1` and resolves the
-    pick against three live surfaces in lockstep:
-    `content/cat-NN-<slug>/` (slug),
-    [`.github/CODEOWNERS`](../.github/CODEOWNERS) (owners), and
-    `dist/scorecard.json` (composite + dimensions + distributions).
-    Outputs both structured JSON (stdout) and Markdown (via
-    `--write-issue-body`). Workflow uses per-week labels
-    (`stewardship-rotation-YYYY-wNN`) for idempotent issue
-    de-duplication and `gh label create … || true` for label
-    bootstrapping. 14-test suite at
-    [`tests/splunk_uc/test_pick_rotation_category.py`](../tests/splunk_uc/test_pick_rotation_category.py)
-    locks rotation determinism (`_rotation_index(N)` stable),
-    cycle coverage (23 weeks → 23 unique picks), CODEOWNERS
-    parsing (single + multi-owner rows + unknown-slug fallback),
-    scorecard wiring (every cat 1..23 resolves), record shape
-    (every workflow-consumed field present), dimensions-table
-    render (7 rows + 2 header rows), issue-body render (owner
-    @-mention, drilldown URL, ISO-week tag, stewardship
-    checklist, trailing newline), and the CLI entry-point
-    (JSON-on-stdout, `--write-issue-body`, invalid-week
-    rejection). Mypy-strict clean (99 source files — was 98
-    prior to landing). Files touched:
-    `src/splunk_uc/tools/pick_rotation_category.py` (new, 322 LOC),
-    `src/splunk_uc/_registry.py` (one new `register()` block),
-    `.github/workflows/stewardship-rotation.yml` (new, 209 LOC),
-    `tests/splunk_uc/test_pick_rotation_category.py` (new, 296 LOC),
-    `docs/stewardship-rotation.md` (new runbook),
-    `docs/workflow-audit.md` (inventory count 14 → 15 + cadence
-    calendar + upload-artifact pin row + cluster note),
-    `docs/ci-architecture.md` (TL;DR row + long-form section),
-    `CHANGELOG.md` (`[Unreleased]` entry). Plus this drift-ledger
-    entry + the P14 row update above + the cross-out in
-    §"Recommended next actions" #10. `validate.yml` is untouched
-    by design (the new workflow lives outside the merge-gate
-    partition).
+    ran Mondays 08:30 UTC and rotated one of the 23 content
+    categories per week into a per-category GitHub issue assigned
+    to the CODEOWNERS owner(s). Files added: the workflow,
+    `src/splunk_uc/tools/pick_rotation_category.py`,
+    `tests/splunk_uc/test_pick_rotation_category.py`,
+    `docs/stewardship-rotation.md` — all removed in PR-1.
+
+19. **Lean-mode PR-1: solo-maintainer cleanup of
+    team-coordination scaffolding (2026-05-17).** The repository
+    is a one-person catalogue. Several CI surfaces were
+    scaffolding for a co-maintainer rotation that never
+    materialised: weekly stewardship-rotation reminders assigning
+    `@fenre` to review `@fenre`'s content, a 23-row CODEOWNERS
+    routing scheme whose every row pointed at `@fenre`, two
+    structural tests that pinned the 23-row layout against
+    silent drift, the per-category scorecard drill-down framing
+    as a "CODEOWNERS deep-link surface", and a separate global
+    stewardship-digest workflow that opened a weekly tracking
+    issue. PR-1 deletes those surfaces. Net diff: **−7 files,
+    −2 scheduled workflows, no loss of correctness coverage**.
+
+    **Files removed.**
+
+    - `.github/workflows/stewardship-rotation.yml` (the rotation
+      workflow shipped ~6 hours earlier in drift ledger #18).
+    - `.github/workflows/stewardship.yml` (the weekly digest
+      workflow; the *generator*
+      `python -m splunk_uc generate-stewardship-digest` is
+      preserved as `make stewardship-digest` for on-demand use).
+    - `src/splunk_uc/tools/pick_rotation_category.py` + its
+      14-test suite at
+      `tests/splunk_uc/test_pick_rotation_category.py`.
+    - `tests/build/test_codeowners.py` (the 6-case structural
+      test pinning per-category routing; obsolete after the
+      CODEOWNERS collapse).
+    - `tests/build/test_scorecard_drilldowns.py` (the 5-case
+      three-way-alignment test; obsolete for the same reason).
+    - `docs/stewardship-rotation.md` (runbook for a workflow
+      that no longer exists).
+
+    **Files edited.**
+
+    - `.github/CODEOWNERS` collapsed from 60 lines (default
+      catch-all + per-area routing + 23 per-category rows +
+      governance routing) to a single `* @fenre` rule with a
+      brief comment. If a co-maintainer ever joins the
+      project, path-specific rules can be added below — order
+      matters (last-match wins).
+    - `src/splunk_uc/_registry.py` drops the
+      `pick-rotation-category` verb registration.
+    - `src/splunk_uc/generators/scorecard.py` keeps the
+      per-category drill-downs (they are useful self-information
+      about which dimensions are dragging which category) but
+      softens the section preamble to remove the now-defunct
+      CODEOWNERS-routing framing.
+    - `docs/scorecard.md` regenerated from the updated generator
+      so the preamble matches the source.
+    - `docs/workflow-audit.md` drops the two stewardship rows
+      from the inventory table (15 → 13), removes the two
+      cadence-calendar entries for them, prunes them from the
+      `upload-artifact` consumer list, and rewords the
+      Monday-cluster paragraph to "three weekly maintenance
+      probes" (was five).
+    - `docs/ci-architecture.md` drops the two TL;DR rows for the
+      stewardship workflows and collapses the two long-form
+      sections into one short "Stewardship digest (on-demand
+      only)" note that points at `make stewardship-digest`.
+
+    **Verification.** Pre-push verification ran `make build`,
+    `make audit-full`, `pytest`, `mypy --strict src/splunk_uc/`,
+    and `ruff check src/ tests/` — every gate green. The
+    `audit-action-pins` audit still passes because the two
+    removed workflows reused already-pinned `actions/checkout`
+    and `actions/upload-artifact` references; no new pin landed
+    and no existing pin became orphaned. `splunk_uc`
+    dispatcher --help loses one verb (`pick-rotation-category`)
+    but the registry-shape test still passes since it iterates
+    `all_verbs()` rather than pinning a count.
+
+    **What this is *not*.** Not a correctness cut. The 660
+    pytest cases, `mypy --strict` over
+    `src/splunk_uc/` (now 94 files after removing the picker),
+    the SPL audits (grammar, hallucinations, references), the
+    CIM↔SPL alignment audit, schema validation + diff, build
+    reproducibility, CodeQL, dependency-review, gitleaks,
+    link-check, and the `validate.yml` 5-job partition all
+    continue to run unchanged. The per-category scorecard
+    drill-down *content* (composites, dimensions, depth tiers,
+    provenance mix) also stays — it just no longer pretends to
+    serve a CODEOWNERS routing surface that does not exist.
+
+    **Why now.** The previous session's drift ledger #16 ("third
+    cascade-style regen on `main` in 24 hours") and #18 (rotation
+    reminders for a solo maintainer) made the underlying drift
+    visible: process surface was outgrowing the solo-developer
+    bandwidth it was meant to support. The user's explicit
+    instruction was: "I want this project to be as clean and
+    efficient as possible, but also as stable and robust as
+    possible." PR-1 is the first cut in that direction — strip
+    team-coordination machinery, keep every correctness gate.
+    PR-2 (collapse cascade-regen `--check` gates into one
+    umbrella `make sync-generated`) and PR-3 (strip community
+    docs + per-file coverage ratchet + auto-references footer
+    regen) follow.
 
 ## Recommended next actions, in size order
 

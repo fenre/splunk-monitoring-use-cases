@@ -411,23 +411,18 @@ def render_markdown(
             "",
             "## Category drill-downs",
             "",
-            "Per-category quality detail with a stable ID anchor for each",
-            "subsection. The anchor matches the canonical CODEOWNERS slug",
-            "(`cat-NN-<kebab-name>`), so each row in `.github/CODEOWNERS`",
-            "can deep-link to its scorecard view via",
-            "`docs/scorecard.md#cat-NN-<slug>` — see the comment block above",
-            "the per-category CODEOWNERS rows. Dimension weights match the",
-            "Methodology table above; the `Contribution` column shows the",
-            "weighted dimension score that feeds the composite.",
+            "Per-category quality detail with a stable ID anchor",
+            "(`cat-NN-<kebab-name>`) for each subsection, so it can be",
+            "deep-linked via `docs/scorecard.md#cat-NN-<slug>`. Dimension",
+            "weights match the Methodology table above; the `Contribution`",
+            "column shows the weighted dimension score that feeds the composite.",
             "",
         ]
     )
     for s in sorted_scores:
         slug = slug_for(s.cat_num)
         mitre_score_cell = f"{s.mitre_pct:.0f}%" if s.security_count else "n/a"
-        mitre_contrib = (
-            s.mitre_pct * DIMENSION_WEIGHTS["mitre_pct"] if s.security_count else 0.0
-        )
+        mitre_contrib = s.mitre_pct * DIMENSION_WEIGHTS["mitre_pct"] if s.security_count else 0.0
         sec_blurb = f"{s.uc_count:,} UCs ({s.security_count:,} security)"
         fresh_label = (
             "Freshness"
@@ -455,8 +450,7 @@ def render_markdown(
                 f"{s.freshness_score * DIMENSION_WEIGHTS['freshness']:.1f} |",
                 f"| Known false positives | {fmt_pct(s.kfp_pct)} | 10% | "
                 f"{s.kfp_pct * DIMENSION_WEIGHTS['kfp_pct']:.1f} |",
-                f"| MITRE ATT&CK coverage | {mitre_score_cell} | 8% | "
-                f"{mitre_contrib:.1f} |",
+                f"| MITRE ATT&CK coverage | {mitre_score_cell} | 8% | {mitre_contrib:.1f} |",
                 f"| Sample fixtures | {fmt_pct(s.samples_pct)} | 7% | "
                 f"{s.samples_pct * DIMENSION_WEIGHTS['samples_pct']:.1f} |",
                 "",
