@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -359,16 +360,18 @@ def _extract_field_from_gap(gap: str) -> str:
             if field_key == "reference":
                 return "references"
             return field_key
-    return gap[:40]
+    digest = hashlib.sha1(gap.encode()).hexdigest()[:8]
+    return f"_unparsed:{digest}"
 
 
 def score_sidecar(
     uc: dict[str, Any],
     tier: str = "silver",
-) -> tuple[int, dict[str, str]]:
+) -> tuple[int, dict[str, list[str]]]:
     """Score a UC dict against the audit depth rubric.
 
-    Returns (depth_score between 0 and 100 inclusive, failing_field -> gap text).
+    Returns (depth_score between 0 and 100 inclusive,
+    failing_field -> list of gap messages).
 
     The ``tier`` parameter is reserved for future tier-specific thresholds
     (for example Gold-v2); today's scoring path matches ``audit_uc``.
@@ -376,9 +379,10 @@ def score_sidecar(
     _ = tier
     fake_path = REPO_ROOT / "content" / "scoring-only.json"
     result = audit_uc(uc, fake_path)
-    failing_fields: dict[str, str] = {}
+    failing_fields: dict[str, list[str]] = {}
     for gap in result["gaps"]:
-        failing_fields[_extract_field_from_gap(gap)] = gap
+        key = _extract_field_from_gap(gap)
+        failing_fields.setdefault(key, []).append(gap)
     return int(result["depth_score"]), failing_fields
 
 

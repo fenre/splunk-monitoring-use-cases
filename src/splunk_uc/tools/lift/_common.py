@@ -41,8 +41,8 @@ class GapReport:
     sidecar_path: Path
     target_tier: TargetTier
     current_score: int
-    failing_fields: dict[str, str] = field(default_factory=dict)
-    # field_name -> human-readable rubric violation
+    failing_fields: dict[str, list[str]] = field(default_factory=dict)
+    # field_name -> human-readable rubric violations (one entry per gap)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -50,7 +50,7 @@ class GapReport:
             "sidecar_path": str(self.sidecar_path),
             "target_tier": self.target_tier.value,
             "current_score": self.current_score,
-            "failing_fields": dict(self.failing_fields),
+            "failing_fields": {k: list(v) for k, v in self.failing_fields.items()},
         }
 
 
@@ -61,19 +61,28 @@ def resolve_sidecar_path(
     """Locate the sidecar JSON for a given UC-X.Y.Z identifier.
 
     Searches ``content_root/cat-*/UC-<id>.json``. Raises
-    ``FileNotFoundError`` if no match is found.
+    ``FileNotFoundError`` if no match is found, or ``RuntimeError`` if
+    more than one match is found (a healthy catalogue never has two
+    ``cat-*`` dirs containing the same UC ID).
     """
     root = content_root if content_root is not None else DEFAULT_CONTENT_ROOT
     bare_id = uc_id.removeprefix("UC-")
-    for sidecar in root.glob(f"cat-*/UC-{bare_id}.json"):
-        return sidecar
-    raise FileNotFoundError(f"no sidecar found for {uc_id} under {root}")
+    matches = sorted(root.glob(f"cat-*/UC-{bare_id}.json"))
+    if not matches:
+        raise FileNotFoundError(f"no sidecar found for {uc_id} under {root}")
+    if len(matches) > 1:
+        rendered = ", ".join(str(path.relative_to(root)) for path in matches)
+        raise RuntimeError(f"multiple sidecars found for {uc_id} under {root}: {rendered}")
+    return matches[0]
 
 
 def load_sidecar(path: Path) -> dict[str, Any]:
-    """Parse a UC sidecar JSON file."""
-    with path.open(encoding="utf-8") as handle:
-        return cast(dict[str, Any], json.load(handle))
+    """Parse a UC sidecar JSON file. Raises ValueError for non-object JSON."""
+    with path.open(encoding="utf-8-sig") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"sidecar {path} must be a JSON object; got {type(data).__name__}")
+    return cast(dict[str, Any], data)
 
 
 def score_uc(
