@@ -342,6 +342,46 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
     return result
 
 
+def _extract_field_from_gap(gap: str) -> str:
+    """Pull a field name out of a gap string for failing_fields mapping keys."""
+    patterns = (
+        r"Missing field: (\w+)",
+        r"For \w+: missing (\w+)",
+        r"^(\w+) too short",
+        r"For \w+: (\w+) too short",
+        r"For \w+: (\w+) has \d+/\d+",
+        r"need at least \d+ (\w+)",
+    )
+    for pat in patterns:
+        match = re.search(pat, gap)
+        if match:
+            field_key = match.group(1)
+            if field_key == "reference":
+                return "references"
+            return field_key
+    return gap[:40]
+
+
+def score_sidecar(
+    uc: dict[str, Any],
+    tier: str = "silver",
+) -> tuple[int, dict[str, str]]:
+    """Score a UC dict against the audit depth rubric.
+
+    Returns (depth_score between 0 and 100 inclusive, failing_field -> gap text).
+
+    The ``tier`` parameter is reserved for future tier-specific thresholds
+    (for example Gold-v2); today's scoring path matches ``audit_uc``.
+    """
+    _ = tier
+    fake_path = REPO_ROOT / "content" / "scoring-only.json"
+    result = audit_uc(uc, fake_path)
+    failing_fields: dict[str, str] = {}
+    for gap in result["gaps"]:
+        failing_fields[_extract_field_from_gap(gap)] = gap
+    return int(result["depth_score"]), failing_fields
+
+
 # ---------------------------------------------------------------------------
 # Consolidation detection
 # ---------------------------------------------------------------------------
