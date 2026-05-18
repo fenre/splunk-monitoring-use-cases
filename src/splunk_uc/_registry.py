@@ -847,3 +847,11 @@ register(
         category="lift",
     )
 )
+register(
+    Verb(
+        name="lift-validate",
+        module="tools.lift.validate",
+        help="Apply an AI-authored diff for one UC and run the §5 validation chain.",
+        category="lift",
+    )
+)
