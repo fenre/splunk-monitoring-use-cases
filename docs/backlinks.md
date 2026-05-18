@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_215 pages indexed; 126 have at least one inbound link; 421 unique source→target edges._
+_215 pages indexed; 126 have at least one inbound link; 422 unique source→target edges._
 
 ---
 
@@ -888,6 +888,7 @@ _No inbound links yet._
 
 ## `docs/health-check-2026-progress.md`
 
+- [`CHANGELOG.md`](../CHANGELOG.md)
 - [`ROADMAP.md`](../ROADMAP.md)
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 

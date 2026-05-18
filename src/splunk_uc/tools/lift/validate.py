@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from copy import deepcopy
@@ -46,6 +47,7 @@ from typing import Any, cast
 
 import jsonschema
 
+from splunk_uc._uc_sidecar import canonical_sidecar
 from splunk_uc.tools.lift._common import (
     DEFAULT_CONTENT_ROOT,
     REPO_ROOT,
@@ -98,6 +100,16 @@ FIREWALLED_FIELDS: frozenset[str] = frozenset(
 
 #: Identity fields that must never change on either side of the diff.
 _IDENTITY_FIELDS = ("id", "title")
+
+#: ``mitreAttack`` entries this verb accepts. Tighter than
+#: ``schemas/uc.schema.json``, which also permits ``TA<digits>`` tactic
+#: IDs — but the downstream gate ``scripts/simulate_controltest.py``
+#: rejects tactic IDs as hard failures, so a tactic-shaped value
+#: silently passes ``lift-validate`` only to fail at the post-push CI
+#: gate (UC-15.3.1, 2026-05-18). This regex mirrors
+#: ``ATTACK_ID_RE`` in that script plus the schema's ``N/A (<reason>)``
+#: escape hatch for non-security UCs.
+_MITRE_ATTACK_ID_RE = re.compile(r"^(T\d{4}(\.\d{3})?|N/A \(.+\))$")
 
 #: Catalog-wide audits invoked when --strict is set. They scan the
 #: full live catalog (none of these verbs accept a --files filter), so
@@ -199,6 +211,35 @@ def _validate_lifted_types(diff: dict[str, Any], schema: dict[str, Any]) -> None
             ) from exc
 
 
+def _check_lifted_mitre_techniques(diff: dict[str, Any]) -> None:
+    """Reject ``mitreAttack`` entries that are not technique-shaped.
+
+    The catalogue schema regex is more permissive than the downstream
+    ``simulate_controltest.py`` gate (it permits ``TA<digits>`` tactic
+    IDs that the gate then rejects as hard failures). We mirror the
+    stricter gate here so the orchestrator never produces a UC that
+    looks valid locally but breaks the post-push CI run.
+    """
+    lifted = diff["lifted_fields"]
+    if "mitreAttack" not in lifted:
+        return
+    value = lifted["mitreAttack"]
+    if not isinstance(value, list):
+        # Per-field schema validation already caught a non-list here.
+        # Defensive guard so the regex loop below cannot crash.
+        return
+    bad: list[str] = [
+        item
+        for item in value
+        if not isinstance(item, str) or not _MITRE_ATTACK_ID_RE.match(item)
+    ]
+    if bad:
+        raise _ValidationError(
+            "mitreAttack entries must be technique IDs (Txxxx or "
+            f"Txxxx.yyy) or 'N/A (<reason>)'; rejected entries: {bad}"
+        )
+
+
 def _apply_diff(sidecar: dict[str, Any], diff: dict[str, Any]) -> dict[str, Any]:
     """Return a new sidecar dict with the diff's lifted_fields applied."""
     out = deepcopy(sidecar)
@@ -212,9 +253,12 @@ def _dump_sidecar(data: dict[str, Any]) -> str:
 
     Matches the convention used by ``generators/grandma_explanations``
     and friends: ``indent=2``, ``ensure_ascii=False`` (raw UTF-8 — 97 %
-    of the catalog uses raw em dashes), trailing newline.
+    of the catalog uses raw em dashes), trailing newline, and keys in
+    :data:`splunk_uc._uc_sidecar.SIDECAR_FIELD_ORDER` so the post-lift
+    sidecar is already byte-comparable to what the generator cascade
+    would otherwise reorder it to.
     """
-    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(canonical_sidecar(data), indent=2, ensure_ascii=False) + "\n"
 
 
 def _check_identity_preserved(original: dict[str, Any], lifted: dict[str, Any]) -> None:
@@ -342,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         _check_field_allowlist(diff)
         schema = _load_schema()
         _validate_lifted_types(diff, schema)
+        _check_lifted_mitre_techniques(diff)
         lifted = _apply_diff(original, diff)
         _check_identity_preserved(original, lifted)
     except _ValidationError as exc:

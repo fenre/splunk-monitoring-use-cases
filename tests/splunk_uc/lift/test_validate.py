@@ -378,3 +378,164 @@ def test_validate_emits_canonical_utf8_when_writing(tmp_path: Path) -> None:
     raw = sidecar.read_text(encoding="utf-8")
     assert "\u2014" in raw
     assert "\\u2014" not in raw
+
+
+# ---------------------------------------------------------------------------
+# MITRE ATT&CK ID hardening (PR-4 follow-up #1)
+#
+# The schema regex in ``schemas/uc.schema.json`` permits ``TA<digits>``
+# (tactic IDs) as well as ``T<digits>`` (technique IDs), but the
+# downstream gate ``scripts/simulate_controltest.py`` is stricter — it
+# rejects tactic IDs as hard failures. ``lift-validate`` must catch
+# this at validate time so the orchestrator never produces a UC that
+# is rejected by a CI gate it doesn't run locally.
+# ---------------------------------------------------------------------------
+
+
+def test_validate_rejects_mitre_tactic_id_in_lift(tmp_path: Path, capsys) -> None:
+    """``TA<digits>`` (tactic ID) in ``mitreAttack`` is rejected.
+
+    Reproduces the UC-15.3.1 incident where a subagent emitted
+    ``TA0006`` and the failure surfaced only at the post-push
+    ``simulate_controltest.py`` gate.
+    """
+    content_root, sidecar = _stage_uc(tmp_path)
+    lifted = _silver_lifted_fields()
+    lifted["mitreAttack"] = ["T1078", "TA0006"]  # tactic id smuggled in
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", lifted)
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "mitreAttack" in captured.err
+    assert "TA0006" in captured.err
+    # Sidecar must be byte-identical to the pre-lift baseline on refusal.
+    assert json.loads(sidecar.read_text()) == json.loads(BRONZE.read_text())
+
+
+def test_validate_accepts_valid_mitre_technique_ids(tmp_path: Path) -> None:
+    """Bare technique IDs (``T<digits>``), sub-techniques (``T<digits>.<digits>``),
+    and the ``N/A (<reason>)`` escape hatch must all be accepted."""
+    content_root, _sidecar = _stage_uc(tmp_path)
+    lifted = _silver_lifted_fields()
+    lifted["mitreAttack"] = ["T1078", "T1078.001", "N/A (operational telemetry)"]
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", lifted)
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 0
+
+
+def test_validate_rejects_garbage_mitre_id(tmp_path: Path, capsys) -> None:
+    """A free-form string that does not match T#### / T####.### / N/A (...)
+    is rejected with the same code path used for tactic IDs."""
+    content_root, _sidecar = _stage_uc(tmp_path)
+    lifted = _silver_lifted_fields()
+    lifted["mitreAttack"] = ["lateral movement"]  # not an ID at all
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", lifted)
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "mitreAttack" in captured.err
+    assert "lateral movement" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Canonical sidecar key ordering (PR-4 follow-up #2)
+#
+# After a lift-validate write, the on-disk sidecar must already be in
+# the canonical key order used by the rest of the generator chain so
+# the post-lift ``make sync-generated`` cascade reorders zero keys.
+# ---------------------------------------------------------------------------
+
+
+def test_validate_writes_sidecar_in_canonical_key_order(tmp_path: Path) -> None:
+    """A newly lifted sidecar's keys must follow ``SIDECAR_FIELD_ORDER``.
+
+    The bronze fixture happens to be in canonical order already. The
+    diff adds ``knownFalsePositives`` and ``references`` — which were
+    already in the fixture — and a new ``detailedImplementation``
+    (lift-surface field). ``detailedImplementation`` is not in the
+    canonical order tuple, so it must be preserved at the end.
+    """
+    from splunk_uc._uc_sidecar import SIDECAR_FIELD_ORDER
+
+    content_root, sidecar = _stage_uc(tmp_path)
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", _silver_lifted_fields())
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 0
+    keys = list(json.loads(sidecar.read_text()).keys())
+    # Filter the canonical order down to keys actually present, then
+    # the on-disk key order must start with that filtered sequence.
+    expected_prefix = [k for k in SIDECAR_FIELD_ORDER if k in keys]
+    assert keys[: len(expected_prefix)] == expected_prefix, (
+        f"on-disk key order diverges from canonical:\n"
+        f"  got prefix: {keys[: len(expected_prefix)]}\n"
+        f"  expected:   {expected_prefix}"
+    )
+
+
+def test_validate_canonical_order_appends_unknown_keys_at_end(tmp_path: Path) -> None:
+    """Lift-surface fields outside ``SIDECAR_FIELD_ORDER`` (e.g.
+    ``detailedImplementation``) land after all canonical keys, in the
+    order the diff introduced them."""
+    from splunk_uc._uc_sidecar import SIDECAR_FIELD_ORDER
+
+    content_root, sidecar = _stage_uc(tmp_path)
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", _silver_lifted_fields())
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 0
+    keys = list(json.loads(sidecar.read_text()).keys())
+    canonical_keys = [k for k in keys if k in SIDECAR_FIELD_ORDER]
+    extra_keys = [k for k in keys if k not in SIDECAR_FIELD_ORDER]
+    # Every canonical key must come before every non-canonical key.
+    if extra_keys:
+        last_canonical = max(keys.index(k) for k in canonical_keys)
+        first_extra = min(keys.index(k) for k in extra_keys)
+        assert last_canonical < first_extra, (
+            f"non-canonical keys appear before canonical ones:\n"
+            f"  canonical positions: {[keys.index(k) for k in canonical_keys]}\n"
+            f"  extra positions:    {[keys.index(k) for k in extra_keys]}"
+        )

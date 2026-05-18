@@ -1304,6 +1304,101 @@ findings but should not be lost:
     7,929 UCs). 30 / 30 cat-15 PoC commits validated end-to-end
     with byte-faithful diffs and clean markdown regeneration.
 
+23. **PR-4 follow-up: lift-validate MITRE + canonical-order
+    hardening (2026-05-18).** Two correctness gaps observed during
+    the cat-15 PoC (drift ledger #22) deferred at the time so the 30
+    lift commits could land in a clean sequence; now collapsed into
+    a surgical follow-up to `lift-validate` so the next category
+    rollout has a strictly tighter contract.
+
+    1. **MITRE ATT&CK tactic-ID rejection.** The schema regex in
+       [`schemas/uc.schema.json`](../schemas/uc.schema.json) permits
+       `TA<digits>` (tactic IDs) as well as `T<digits>` (technique
+       IDs), but the downstream ATT&CK simulation gate
+       [`scripts/simulate_controltest.py`](../scripts/simulate_controltest.py)
+       only accepts technique IDs. A subagent emitted `TA0006` for
+       UC-15.3.1 during the PoC; `lift-validate` accepted it under
+       the existing schema check, and the failure only surfaced at
+       the post-push `attack-simulation.json` gate forcing fixup
+       commit `56766cfba`. New `_check_lifted_mitre_techniques`
+       helper applies the simulator's
+       `^(T\d{4}(\.\d{3})?|N/A \(.+\))$` regex at validate time.
+
+    2. **Canonical sidecar key ordering at write time.** Previously
+       `_dump_sidecar` preserved whatever insertion order the diff
+       happened to produce, so newly-added lift-surface fields (e.g.
+       `dataModelAcceleration`) landed at the end of the sidecar.
+       Then the next `make sync-generated` cascade reordered them
+       into canonical position, generating a churn commit (`aedee6ff8`
+       was one such re-stamp) that did nothing semantically useful.
+       New module
+       [`src/splunk_uc/_uc_sidecar.py`](../src/splunk_uc/_uc_sidecar.py)
+       exposes `SIDECAR_FIELD_ORDER` + a `canonical_sidecar()`
+       reorderer. `lift-validate` applies it before writing so the
+       post-lift sidecar is byte-comparable to what the cascade would
+       produce. Verified **byte-identical against all 7,929 sidecars
+       in the catalogue** (zero churn on existing content, no
+       follow-up reorder commit needed after future lifts).
+
+    **Files added (write-mode).**
+
+    - [`src/splunk_uc/_uc_sidecar.py`](../src/splunk_uc/_uc_sidecar.py)
+      — shared canonical sidecar field order tuple + reorder helper.
+      Mirrors the longest published version of the constant (the
+      four generators `equipment_tags`, `phase3_2_cross_cutting`,
+      `phase3_3_derivatives`, `grandma_explanations` already
+      converge on it; the historical outlier in `phase3_1_backfill`
+      is a latent bug tracked separately).
+
+    **Files modified (write-mode).**
+
+    - [`src/splunk_uc/tools/lift/validate.py`](../src/splunk_uc/tools/lift/validate.py)
+      — new `_MITRE_ATTACK_ID_RE`, new `_check_lifted_mitre_techniques`
+      helper wired into the main validation chain right after
+      per-field schema validation, `_dump_sidecar` now feeds the
+      lifted sidecar through `canonical_sidecar()` before
+      serialisation.
+    - [`tests/splunk_uc/lift/test_validate.py`](../tests/splunk_uc/lift/test_validate.py)
+      — four new cases:
+      `test_validate_rejects_mitre_tactic_id_in_lift`,
+      `test_validate_accepts_valid_mitre_technique_ids`,
+      `test_validate_rejects_garbage_mitre_id`,
+      `test_validate_writes_sidecar_in_canonical_key_order`,
+      `test_validate_canonical_order_appends_unknown_keys_at_end`.
+
+    **Verification.**
+
+    - `tests/splunk_uc/lift/` — 48/48 green (was 44/44, +4 cases).
+    - `tests/splunk_uc/` — 121/121 green (was 117/117).
+    - `tests/build/ tests/scripts/` — 635/635 green (4 pre-existing
+      v8.x skips, unchanged).
+    - `python3 -m mypy --strict src/splunk_uc/` — clean at 105
+      source files (was 104; the new `_uc_sidecar` is type-clean).
+    - `python3 -m ruff check` — clean on the three touched files.
+    - `make sync-generated-check` — clean in ~30s. Merkle root
+      `ccb056b7704b87a2…` stable (same as PR-3 / PR-4 close).
+    - Smoke-tested `canonical_sidecar()` against every sidecar in
+      `content/cat-*/UC-*.json` — 7,929 / 7,929 byte-identical to
+      what the helper produces. Zero churn risk on the existing
+      corpus; the helper only changes behaviour for fresh
+      `lift-validate` invocations on UCs that introduce new
+      lift-surface fields.
+
+    **Future cleanup tracked, NOT addressed here.** Five generators
+    duplicate `SIDECAR_FIELD_ORDER` in their own modules
+    (`equipment_tags`, `grandma_explanations`, `phase3_1_backfill`,
+    `phase3_2_cross_cutting`, `phase3_3_derivatives`). One of them
+    (`phase3_1_backfill`) carries a slightly stale version that
+    omits the `industry` key. Folding them onto the new shared
+    `splunk_uc._uc_sidecar.SIDECAR_FIELD_ORDER` would remove a real
+    duplication smell, but it's deliberately out of scope: the
+    hardening lands `lift-validate` first; the generator
+    consolidation follows whenever any of those generators is
+    otherwise touched. Until then, the on-disk catalogue's
+    convergence on the canonical order (verified by the
+    byte-identical 7,929-UC sweep above) is sufficient empirical
+    evidence that the generators agree at runtime.
+
 ## Recommended next actions, in size order
 
 1. ~~**Quick win (~50 line PR):** Close **F10** by adding `secrets.env`,

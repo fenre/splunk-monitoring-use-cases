@@ -12,6 +12,64 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Changed — PR-4 follow-up: lift-validate MITRE + canonical-order hardening
+
+Two correctness gaps from the cat-15 PoC closed in one surgical
+commit. Both fixes were observed during the 30-UC orchestration run
+([drift-ledger #22](docs/health-check-2026-progress.md)) but were
+deferred at the time so the PoC commits could land in a clean
+sequence; this entry collapses them into the `lift-validate` verb so
+the next category rollout has a strictly tighter contract.
+
+1. **MITRE ATT&CK tactic-ID rejection.** The schema regex in
+   [`schemas/uc.schema.json`](schemas/uc.schema.json) permits
+   `TA<digits>` (tactic IDs) as well as `T<digits>` (technique IDs),
+   but the downstream ATT&CK simulation gate
+   [`scripts/simulate_controltest.py`](scripts/simulate_controltest.py)
+   only accepts technique IDs as canonical. A subagent emitted
+   `TA0006` for UC-15.3.1 during the PoC; `lift-validate` accepted it
+   under the existing schema check, and the failure only surfaced at
+   the post-push `attack-simulation.json` gate, forcing a fixup
+   commit. The new `_check_lifted_mitre_techniques` helper applies
+   the simulator's `^(T\d{4}(\.\d{3})?|N/A \(.+\))$` regex at
+   validate time so the orchestrator never produces a UC that looks
+   valid locally but breaks the CI gate it doesn't run.
+2. **Canonical sidecar key ordering at write time.** Previously the
+   `_dump_sidecar` helper preserved whatever insertion order the
+   diff happened to produce, so newly-added lift-surface fields
+   (e.g. `dataModelAcceleration`) landed at the end of the sidecar
+   — then the next `make sync-generated` cascade reordered them
+   into canonical position, generating a churn commit that did
+   nothing semantically useful. New helper module
+   [`src/splunk_uc/_uc_sidecar.py`](src/splunk_uc/_uc_sidecar.py)
+   exposes `SIDECAR_FIELD_ORDER` (matches the four generators that
+   already converge on the longest published order:
+   `equipment_tags`, `phase3_2_cross_cutting`,
+   `phase3_3_derivatives`, `grandma_explanations`) plus a
+   `canonical_sidecar()` reorderer. `lift-validate` now applies it
+   before writing so the post-lift sidecar is byte-comparable to
+   what the cascade would produce. Verified byte-identical against
+   all 7,929 sidecars in the catalogue — zero churn on the existing
+   corpus, no follow-up reorder commit needed after future lifts.
+
+**Tests.** Four new cases under
+[`tests/splunk_uc/lift/test_validate.py`](tests/splunk_uc/lift/test_validate.py)
+take the verb's coverage from 44 to 48 cases. The
+`tests/splunk_uc/lift/` suite is 48/48 green; full
+`tests/splunk_uc/` is 121/121 green; full `tests/build/ tests/scripts/`
+is 635/635 green (4 pre-existing v8.x skips, unchanged). `mypy
+--strict` over `src/splunk_uc/` is clean at 105 source files (was
+104; the new `_uc_sidecar` module is type-clean).
+
+**Future cleanup.** Five generators currently duplicate the
+`SIDECAR_FIELD_ORDER` tuple in their own modules (one of them —
+`phase3_1_backfill` — even has a slightly stale version that omits
+`industry`). Folding them onto the new shared
+`splunk_uc._uc_sidecar.SIDECAR_FIELD_ORDER` would remove a real
+duplication smell, but it's deliberately out of scope here: the
+hardening lands `lift-validate` first; the generator consolidation
+follows whenever any of those generators is otherwise touched.
+
 ### Added — PR-4: content-quality lift loop + cat-15 proof-of-concept
 
 PR-4 builds on the lean-mode arc (PR-1 → PR-2 → PR-3) by adding the
