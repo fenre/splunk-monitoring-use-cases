@@ -1,10 +1,13 @@
 # Roadmap board sync
 
-> **Status (2026-05-09):** automated structural + link gate is live in CI;
-> Project-board sync is documented here as a maintainer-side runbook with
-> a stable JSON contract. Wiring an actual GitHub Project v2 board is a
-> maintainer-credentials operation and is intentionally not automated in
-> this repository.
+> **Status (2026-05-18):** automated structural + link gate is live in CI;
+> the JSON snapshot is published as a workflow artifact on every push to
+> `ROADMAP.md`, every Monday 08:30 UTC, and on manual dispatch (see
+> [`.github/workflows/roadmap-export.yml`](../.github/workflows/roadmap-export.yml));
+> Project-board sync is documented here as a maintainer-side runbook
+> that consumes that artifact. Wiring an actual GitHub Project v2 board
+> is a maintainer-credentials operation and is intentionally not
+> automated in this repository.
 
 The single source of truth for the project's direction is
 [`ROADMAP.md`](../ROADMAP.md) at the repo root. The
@@ -82,11 +85,22 @@ Stability commitments:
 
 ## Maintainer runbook: GitHub Project v2 sync
 
-Wiring `dist/roadmap.json` into a public Project board is a one-time
-setup that requires repo-admin credentials. The recipe below is the
-recommended path, but the repo deliberately doesn't ship a
-`workflow_dispatch` for it — the maintainer owns the project ID + token
-binding, not the build pipeline.
+Wiring the published `reports/roadmap-export.json` artifact into a
+public Project board is a one-time setup that requires repo-admin
+credentials. The recipe below is the recommended path; the repo
+deliberately stops at *publishing the snapshot as a workflow artifact*
+([`roadmap-export.yml`](../.github/workflows/roadmap-export.yml)) and
+does not push to a Project v2 board, because the maintainer owns the
+project ID + token binding, not the build pipeline.
+
+Pull the latest artifact down with:
+
+```bash
+# Inspect the latest run of the publisher workflow:
+gh run list --workflow roadmap-export.yml --limit 1
+# Download the artifact from a specific run:
+gh run download <run-id> --name roadmap-export --dir reports/
+```
 
 ### One-time setup
 

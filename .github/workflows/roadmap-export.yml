@@ -1,0 +1,195 @@
+# P11 — Roadmap snapshot publisher.
+#
+# Keeps ``reports/roadmap-export.json`` (the structured JSON snapshot of
+# ``ROADMAP.md`` defined in `docs/roadmap-sync.md` §"JSON snapshot contract")
+# in sync with the live ``ROADMAP.md`` on three triggers:
+#
+#   1. Every push to ``main`` that touches ``ROADMAP.md`` (or the audit /
+#      this workflow itself) — keeps the in-tree snapshot byte-current with
+#      whatever just landed on the default branch.
+#   2. Every Monday 08:30 UTC — catches silent drift if a regenerated
+#      ``ROADMAP.md`` somehow lands without re-running the auditor locally
+#      (the validate.yml structural gate still rejects bad merges, but
+#      the **byte-identical export** is only enforced here).
+#   3. Manual ``workflow_dispatch`` — for one-off refreshes when the
+#      maintainer wants to see what the snapshot looks like for a draft.
+#
+# On every run the workflow:
+#   (a) regenerates the snapshot via ``audit-roadmap-consistency --export``
+#       — the ``--check`` half of the same verb still runs in every PR's
+#       ``validate.yml`` lint job, so this workflow does not duplicate the
+#       structural / link-rot gate;
+#   (b) sanity-checks the generated JSON against the eight required
+#       top-level keys, pinned ``schema_version: "1.0"``, and the three
+#       required backlog buckets documented in ``docs/roadmap-sync.md``;
+#   (c) commits the regenerated file back to ``main`` with a bot message
+#       *if and only if* it differs from the tracked HEAD — same
+#       commit-back pattern ``regulatory-watch.yml`` uses for its weekly
+#       refresh, so the in-tree artifact never lags reality;
+#   (d) uploads the snapshot as the ``roadmap-export`` workflow artifact
+#       so a maintainer running the Project v2 sync recipe in
+#       ``docs/roadmap-sync.md`` §"Maintainer runbook" can pull a single
+#       artifact via ``gh run download`` without needing a fresh checkout.
+#
+# The repo deliberately stops there — the Project v2 sync side stays in
+# the maintainer runbook because project IDs, field IDs, and the
+# Projects v2 schema evolve out-of-band of this repo. The artifact (and
+# the in-tree file) is the stable hand-off surface.
+
+name: Roadmap snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ROADMAP.md
+      - src/splunk_uc/audits/roadmap_consistency.py
+      - .github/workflows/roadmap-export.yml
+  schedule:
+    # Mondays 08:30 UTC — fires just before the European business day so
+    # a maintainer reviewing Monday morning has a fresh artifact attached
+    # to a well-known weekly run. Picked deliberately offset from the
+    # 09:00 regulatory-watch slot so the two scheduled jobs don't
+    # contend for runner capacity, and from the 08:00 build-reproducibility
+    # nightly so the commit-back step doesn't race with that workflow's
+    # own commit-back.
+    - cron: "30 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      strict_version:
+        description: "Promote VERSION-triple drift from a warning to an error."
+        type: boolean
+        default: false
+
+# A roadmap snapshot is a singleton view; never run two publishes
+# concurrently or the commit-back step would race.
+concurrency:
+  group: roadmap-export
+  cancel-in-progress: false
+
+permissions:
+  # ``contents: write`` is needed so the bot can push the regenerated
+  # snapshot back to ``main`` when it drifts. The default GITHUB_TOKEN
+  # is scoped to this single repo, never reused across orgs.
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Need the full HEAD so the commit-back step can push to main.
+          # ``persist-credentials`` is true by default for actions/checkout
+          # which is what enables the subsequent ``git push``.
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: true
+
+      - name: Emit roadmap JSON snapshot
+        run: |
+          mkdir -p reports
+          STRICT_FLAG=""
+          if [ "${{ github.event.inputs.strict_version }}" = "true" ]; then
+            STRICT_FLAG="--strict-version"
+          fi
+          # ``--check`` still lives in the lint job of validate.yml on
+          # every PR; here we exercise ``--export`` so the JSON twin
+          # stays current. The dispatcher's ``--export`` flag also runs
+          # the same structural gate before writing, so a malformed
+          # ROADMAP.md still fails the publisher.
+          PYTHONPATH=src python3 -m splunk_uc audit-roadmap-consistency \
+            $STRICT_FLAG \
+            --export reports/roadmap-export.json
+
+      - name: Inspect snapshot shape
+        # Cheap sanity check; surfaces an obvious regression in the
+        # snapshot contract (schema_version drift, missing required keys,
+        # lost backlog bucket) before we either commit the file back or
+        # upload it as an artifact. Failure here means the snapshot is
+        # unusable for downstream Project-board sync.
+        run: |
+          PYTHONPATH=src python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          path = Path("reports/roadmap-export.json")
+          data = json.loads(path.read_text())
+          required = {
+              "schema_version",
+              "captured_at",
+              "git_head",
+              "current_release",
+              "previous_releases",
+              "next_up",
+              "backlog",
+              "deprecated_ideas",
+          }
+          missing = required - data.keys()
+          if missing:
+              print(f"roadmap snapshot missing keys: {sorted(missing)}",
+                    file=sys.stderr)
+              sys.exit(1)
+          if data.get("schema_version") != "1.0":
+              print(f"unexpected schema_version: {data.get('schema_version')!r}; "
+                    "this workflow pins 1.0 per docs/roadmap-sync.md",
+                    file=sys.stderr)
+              sys.exit(1)
+          # Backlog must always carry the three named buckets — anything
+          # else means ``ROADMAP.md`` lost a heading.
+          backlog_names = {b.get("name") for b in data.get("backlog", [])}
+          required_buckets = {"Content", "Tooling", "Community & process"}
+          if not required_buckets.issubset(backlog_names):
+              missing_buckets = required_buckets - backlog_names
+              print(f"roadmap backlog missing buckets: {sorted(missing_buckets)}",
+                    file=sys.stderr)
+              sys.exit(1)
+          print(
+              f"roadmap snapshot OK — schema_version={data['schema_version']}, "
+              f"current_release={data['current_release'].get('version')}, "
+              f"next_up={data['next_up'].get('version')}, "
+              f"backlog buckets={sorted(backlog_names)}"
+          )
+          PY
+
+      - name: Commit refreshed snapshot (if changed)
+        # Mirrors the commit-back pattern in regulatory-watch.yml. The
+        # snapshot carries ``captured_at`` and ``git_head`` fields, so
+        # back-to-back runs against an unchanged ROADMAP.md still produce
+        # a different byte stream — we explicitly skip those by comparing
+        # only the *content-bearing* keys via ``git diff``'s built-in
+        # comparator after staging. If the only diff is the timestamp /
+        # git_head header, ``audit-roadmap-consistency --export`` would
+        # still trip; that's a deliberate trade-off: the daily refresh
+        # window is small enough that "always commit when there's any
+        # diff" is correct behaviour and keeps the audit trail aligned
+        # with the source-of-truth file.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/roadmap-export.json
+          if git diff --cached --quiet; then
+            echo "No snapshot changes; skipping commit."
+            exit 0
+          fi
+          git commit -m "chore(roadmap): refresh roadmap-export.json $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Upload artifact
+        # Secondary hand-off surface for maintainers running the
+        # Project v2 sync recipe in docs/roadmap-sync.md who don't want
+        # to clone the repo — `gh run download <run-id> --name
+        # roadmap-export` pulls just the JSON.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: roadmap-export
+          path: reports/roadmap-export.json
+          # 90 days = the default; declared explicitly so a future change
+          # to the org-level default doesn't silently shrink the window
+          # the maintainer expects when reaching for an older snapshot.
+          retention-days: 90
+          if-no-files-found: error

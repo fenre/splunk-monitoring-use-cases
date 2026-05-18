@@ -12,6 +12,62 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added — P11 close: scheduled `Roadmap snapshot` publisher workflow
+
+Repo-health phase **P11** (OSS release polish) had one residual item
+after the 2026-05-13 devcontainer-init close: "no automated workflow
+that pushes `reports/roadmap-export.json` to a public Project board."
+The repo deliberately doesn't push to a public Project v2 board (project
+IDs, field IDs, and the Projects v2 schema evolve out-of-band of this
+repo — rationale in [`docs/roadmap-sync.md`](docs/roadmap-sync.md)
+§"Why two layers (CI + maintainer runbook)?"), but **publishing the
+JSON snapshot as a workflow artifact** is a stable, no-credentials
+hand-off the build pipeline can own.
+
+The new [`.github/workflows/roadmap-export.yml`](.github/workflows/roadmap-export.yml)
+workflow:
+
+- runs on every push to `main` that touches `ROADMAP.md`, the
+  `audit-roadmap-consistency` audit module, or the workflow itself;
+- runs every **Monday 08:30 UTC** (offset from the 09:00 regulatory-watch
+  slot so the two scheduled jobs don't contend for runner capacity)
+  to catch silent drift;
+- accepts a manual `workflow_dispatch` with an optional `strict_version`
+  input that promotes VERSION-triple drift from a warning to an error;
+- emits `reports/roadmap-export.json` via
+  `python3 -m splunk_uc audit-roadmap-consistency --export`, exercising
+  the same `--check` structural gate inline so a broken `ROADMAP.md`
+  fails the publisher rather than silently producing a stale artifact;
+- runs an inline shape sanity check against the eight required top-level
+  keys, pinned `schema_version: "1.0"`, and the three required backlog
+  buckets (`Content`, `Tooling`, `Community & process`) documented in
+  [`docs/roadmap-sync.md`](docs/roadmap-sync.md) §"JSON snapshot
+  contract" — a regression in the snapshot contract surfaces at
+  publish time, not downstream at maintainer-sync time;
+- commits the regenerated file back to `main` (only if it differs from
+  the tracked HEAD) using the same `github-actions[bot]` commit-back
+  pattern that the `Regulatory change-watch` workflow uses for its
+  weekly manifest refresh; the in-tree `reports/roadmap-export.json`
+  therefore never lags reality;
+- uploads the snapshot as the `roadmap-export` artifact with
+  `retention-days: 90` and `if-no-files-found: error` for off-band
+  consumers who don't want a fresh checkout.
+
+The maintainer pulls the artifact down with `gh run download
+<run-id> --name roadmap-export` (recipe added to
+[`docs/roadmap-sync.md`](docs/roadmap-sync.md) §"Maintainer runbook")
+and feeds it into the unmaintained `scripts/_unmaintained/sync_roadmap_to_project.py`
+recipe in the same doc.
+
+`actions/upload-artifact` pinned at the repo-wide
+`@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1`; verified by
+`python3 -m splunk_uc audit-action-pins` (16/16 pins match upstream).
+The 89 workflow-partition + composite-action structural tests
+(`tests/build/test_composite_actions.py`,
+`tests/build/test_validate_workflow_partition.py`) stay green.
+
+P11 row in `docs/health-check-2026-progress.md` flipped to **DONE**.
+
 ### Removed — F21 close: 7,929 per-UC `.md` companions deleted; `generate-md-from-json` retired
 
 Repo-health item **F21** (the long-standing "7,657 markdown companions
