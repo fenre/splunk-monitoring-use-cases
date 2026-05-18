@@ -237,6 +237,7 @@ new addition requires updating the table.
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](0011-schema-lineage-governance.md)
 - [`docs/adr/0013-frontend-rebuild-scaffold.md`](0013-frontend-rebuild-scaffold.md)
+- [`docs/adr/0014-per-uc-thresholds-field.md`](0014-per-uc-thresholds-field.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/capacity-and-staffing.md`](../capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](../external-consumer-matrix.md)
