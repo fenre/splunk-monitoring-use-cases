@@ -8,24 +8,36 @@
     "Capacity"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=\"snmp:pdu:outlet\"` (outlet_index, current_amps)",
+  "dataSources": "Ingest via Splunk Connect for SNMP ([Splunkbase app ID 6266](https://splunkbase.splunk.com/app/6266)) or the SNMP Modular Input add-on ([Splunkbase app ID 1537](https://splunkbase.splunk.com/app/1537)) aligned with SNMP TA (PDU-MIB, ENCLOSURE-MIB); land polled outlet telemetry in index=power with sourcetype=\"snmp:pdu:outlet\" and extracted numeric fields outlet_index and current_amps (plus pdu_id, outlet_id, rated_amps_outlet when mapped from MIB tables).",
   "app": "SNMP TA (PDU-MIB, ENCLOSURE-MIB)",
   "spl": "index=power sourcetype=\"snmp:pdu:outlet\"\n| eval pct_outlet=if(rated_amps_outlet>0, round(current_amps/rated_amps_outlet*100,1), null())\n| where pct_outlet > 85 OR current_amps > 12\n| table pdu_id, outlet_id, current_amps, rated_amps_outlet, pct_outlet\n| sort -current_amps",
-  "description": "Per-outlet amps identify rogue devices and balance load across strips before branch trips.",
-  "value": "Per-outlet amps identify rogue devices and balance load across strips before branch trips.",
-  "implementation": "Poll outlet bank tables on smart PDUs. Map outlet labels from DCIM. Alert on high draw or imbalance vs peer outlets on same strip.",
-  "visualization": "Bar chart (outlet draw), Heatmap (PDU × outlet), Table (top consumers).",
+  "description": "Tracks SNMP-polled smart PDU outlet banks so each outlet reports metered load (current_amps and outlet_index) against rated capacity for that socket on index=power under sourcetype=\"snmp:pdu:outlet\".",
+  "value": "Outlet-level overload visibility protects downstream branch breakers and rack circuits from surprise trips, reveals stealth gear drawing power without inventory approval, and gives capacity planners credible numbers before ordering more strips or redistribution.",
+  "implementation": "Deploy SNMP TA (PDU-MIB, ENCLOSURE-MIB) polling against each managed PDU outlet bank table on a five-minute cadence, merge outlet labels from your DCIM export into a lookup keyed by pdu_id and outlet_index, then schedule the provided SPL as a report or threshold alert tied to pct_outlet and absolute amp rules used in your electrical design package.",
+  "visualization": "Dashboard Studio: splunk.singlevalue for the highest pct_outlet in the fleet; splunk.bar chart of mean current_amps by pdu_id; splunk.column or matrix-style heat mapping outlet_index within each pdu_id; splunk.table of top offenders with drilldown to a DCIM lookup–enriched asset name; optional trendline using timechart after binning polls to five minutes.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
+      "title": "Splunk Connect for SNMP (Splunkbase 6266)",
+      "url": "https://splunkbase.splunk.com/app/6266"
+    },
+    {
+      "title": "SNMP Modular Input (Splunkbase 1537)",
+      "url": "https://splunkbase.splunk.com/app/1537"
+    },
+    {
+      "title": "Splunk Documentation: Splunk Connect for SNMP Introduction",
+      "url": "https://docs.splunk.com/Documentation/SC4SNMP/latest/SC4SNMP/Introduction"
+    },
+    {
+      "title": "Splunk Lantern",
       "url": "https://lantern.splunk.com/"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "Blade enclosure during initial power-on draws a short inrush on the same PDU outlet bank; distinguish it with a maintenance window asset tag from DCIM and suppress alerts for hosts in that state. Scheduled load-transfer exercises for dual-feed racks raise balanced draw on both sides of an A/B pair; correlate with your change calendar and suspend the alert for documented window IDs. Stale rated_amps_outlet values imported from an old spreadsheet make healthy current_amps look like >85% load; distinguish by reconciling lookup versions weekly and clearing false rows. Development burn-in benches that intentionally run GPUs at max TDP; suppress using a rack_group field that labels lab space distinct from production cabinets.",
   "equipment": [
     "snmp"
   ],
@@ -33,6 +45,12 @@
     "snmp_generic",
     "snmp_pdu"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP TA (PDU-MIB, ENCLOSURE-MIB).\n• Ensure the following data sources are available: `sourcetype=\"snmp:pdu:outlet\"` (outlet_index, current_amps).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll outlet bank tables on smart PDUs. Map outlet labels from DCIM. Alert on high draw or imbalance vs peer outlets on same strip.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"snmp:pdu:outlet\"\n| eval pct_outlet=if(rated_amps_outlet>0, round(current_amps/rated_amps_outlet*100,1), null())\n| where pct_outlet > 85 OR current_amps > 12\n| table pdu_id, outlet_id, current_amps, rated_amps_outlet, pct_outlet\n| sort -current_amps\n```\n\nUnderstanding this SPL\n\n**PDU Outlet-Level Power Draw** — Per-outlet amps identify rogue devices and balance load across strips before branch trips.\n\nDocumented **Data sources**: `sourcetype=\"snmp:pdu:outlet\"` (outlet_index, current_amps). **App/TA** (typical add-on context): SNMP TA (PDU-MIB, ENCLOSURE-MIB). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: snmp:pdu:outlet. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"snmp:pdu:outlet\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pct_outlet** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where pct_outlet > 85 OR current_amps > 12` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **PDU Outlet-Level Power Draw**): table pdu_id, outlet_id, current_amps, rated_amps_outlet, pct_outlet\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (outlet draw), Heatmap (PDU × outlet), Table (top consumers).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Install collection that matches SNMP TA (PDU-MIB, ENCLOSURE-MIB) coverage: Splunk Connect for SNMP (Splunkbase app ID 6266) **or** SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder with UDP/161 reachability to PDU management VLANs; store SNMPv3 credentials with your secrets manager, not inside search strings.\n• Reserve index=power (or the index your runbook standardizes for facility SNMP) and confirm props/transforms normalize ENCLOSURE-MIB / PDU-MIB walk results to sourcetype=\"snmp:pdu:outlet\" with working extractions for outlet_index, current_amps, pdu_id, outlet_id, and rated_amps_outlet so the SPL ratio logic is populated every poll.\n• Create a Splunk RBAC role (for example power_cap_ops) limited to index=power, this sourcetype, and the DCIM lookup objects operators need—Search Head cluster exports should mirror that role so dashboard tokens cannot pivot into unrelated security indexes.\n\nStep 1 — Configure data collection\nAuthor modular-input stanzas (inputs.conf under the SNMP app) or SC4SNMP profiles that walk the outlet bank OIDs every five minutes; document OID-to-field parity in your implementation guide appendix because firmware branches sometimes alias outlets differently. Tie human-readable outlet labels from DCIM into a lookup so alerts print cabinet and device names instead of raw outlet_index integers.\n\nStep 2 — Create the search and alert\nRun the SPL from this UC inside Search & Reporting using a relative time picker of Last 15 minutes while tuning, then save it as an alert with dispatch.earliest_time=-5m aligned to the five-minute poll so you do not double-count stale rows. Wire alert actions (email, ticket webhook) to the facility NOC queue that owns PDU change control.\n\n```spl\nindex=power sourcetype=\"snmp:pdu:outlet\"\n| eval pct_outlet=if(rated_amps_outlet>0, round(current_amps/rated_amps_outlet*100,1), null())\n| where pct_outlet > 85 OR current_amps > 12\n| table pdu_id, outlet_id, current_amps, rated_amps_outlet, pct_outlet\n| sort -current_amps\n```\n\nUnderstanding this SPL — The search anchors on index=power and sourcetype=\"snmp:pdu:outlet\", computes pct_outlet from current_amps versus rated_amps_outlet, filters to hot outlets, then surfaces sortable forensic columns for the operator console.\n\nStep 3 — Validate\nSpot-check two PDUs per site: compare Splunk’s latest current_amps for a given outlet_index with the PDU’s own web UI or a one-off snmpwalk during a maintenance window; mismatch usually means scaling (0.1 A units) or a missed FIELDALIAS in props.conf.\n\nStep 4 — Operationalize & troubleshoot\nPublish a Dashboard Studio row with a bar chart by pdu_id, a heatmap of outlet slots, and a table of worst pct_outlet. If alerts flood during churn, roll in maintenance suppression using a KV store of approved change tickets keyed by pdu_id. Common break: stale rated_amps_outlet defaults from template PDUs—refresh the lookup whenever you re-rack gear or change derated bank limits.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "During a controlled maintenance window, connect a known test load to a single metered PDU outlet and increase draw until the device’s own outlet display and the PDU web UI agree the socket is above 85% of its published bank rating; after the next five-minute SNMP poll lands in index=power, the saved search returns that pdu_id and outlet_id with pct_outlet above threshold and current_amps matching the field technician’s clamp meter within instrument tolerance.",
+    "negativeScenario": "Repoint the SNMP profile at a PDU community that only exposes aggregate strip totals without per-outlet tables, which leaves outlet_index empty and current_amps null on every poll while the strip still carries heavy load; the alert must stay quiet, proving the detection is tied to outlet-level extraction rather than aggregate noise."
+  },
+  "evidence": "Archived alert snapshot or scheduled PDF export listing _time, pdu_id, outlet_id, current_amps, rated_amps_outlet, and pct_outlet, stapled to the matching PDU web UI screenshot or SNMP walk captured in the CMDB ticket.",
+  "exclusions": "Legacy basic PDUs without per-outlet metering, home-built power strips polled only via aggregate SNMP OIDs, or environments where ENCLOSURE-MIB data is intentionally disabled and only branch-panel CTs exist—those need a different capacity use case."
 }
