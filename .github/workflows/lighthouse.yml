@@ -1,0 +1,174 @@
+# P10 — Lighthouse CI for static-site perf + a11y.
+#
+# Complements (does not replace) the existing Phase 4.5f
+# ``audit-perf-a11y`` gate in ``validate.yml``. That gate enforces:
+#
+#   * per-file byte budgets on critical-path assets (catalog.json,
+#     index.html, scorecard.html bundles); and
+#   * axe-core v4 a11y rules under jsdom against ``index.html`` and
+#     ``scorecard.html``.
+#
+# Lighthouse adds a fundamentally different signal: full-page rendering
+# under a real headless Chrome with Core Web Vitals (LCP, CLS, TBT, FCP),
+# a complete a11y check (color-contrast, focus order, target-size — rules
+# that jsdom-axe cannot evaluate because they need layout), and SEO /
+# best-practice categories that jsdom-axe doesn't cover at all. The
+# combination is the P10 perf/a11y contract.
+#
+# Why workflow_dispatch + main-only push instead of every PR?
+#
+#   * Lighthouse runs against four pages × 1 run = ~3-4 minutes of
+#     headless Chrome wall-clock. Per-PR runs would double validate.yml's
+#     fan-out cost without commensurate signal during early authoring
+#     iterations.
+#   * Lighthouse scores fluctuate ±3 points between runs on the same
+#     commit (CI noise + Chrome version drift). The warn-only thresholds
+#     in ``.lighthouserc.json`` reflect that; the workflow's job is to
+#     publish trends, not to gate individual PRs *yet*.
+#   * Once ``.lighthouserc.json`` thresholds graduate from warn to
+#     error after a soak period, this workflow can move to pull_request
+#     trigger and become a hard gate.
+#
+# Action pins are verified by ``python3 -m splunk_uc audit-action-pins`` on
+# every PR; the same SHA-comment-honesty contract applies here as
+# everywhere else in ``.github/``.
+
+name: Lighthouse CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - scorecard.html
+      - clause-navigator.html
+      - guide-reader.html
+      - regulatory-primer.html
+      - api-docs.html
+      - graph.html
+      - docs.html
+      - compliance-story.html
+      - "src/styles/**"
+      - "src/scripts/**"
+      - "tools/build/**"
+      - .lighthouserc.json
+      - .github/workflows/lighthouse.yml
+  workflow_dispatch:
+    inputs:
+      url_override:
+        description: "Optional single URL path to audit (overrides the four-page default; useful for one-off ad-hoc runs)."
+        type: string
+        required: false
+        default: ""
+
+# Lighthouse runs are not idempotent (each captures a fresh headless
+# Chrome trace), so concurrent runs are tolerable — but only one push or
+# one dispatch should be active at a time so the artifact list stays
+# coherent.
+concurrency:
+  group: lighthouse-ci-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    # Lighthouse + Chrome download + build + audit; ample headroom for
+    # cold-cache runs that pull the Chrome binary on first execution.
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: true
+
+      - name: Set up Node.js
+        # The Lighthouse-CI action needs Node 20+ at runtime; relying on
+        # the centralised composite keeps the pin policy in one place.
+        # install-deps: false because Lighthouse-CI ships its own
+        # vendored deps and we have nothing to install from
+        # package.json for this job.
+        uses: ./.github/actions/setup-node
+        with:
+          install-deps: "false"
+
+      - name: Build dist/
+        # Reproducible build keeps the audit pinned to a deterministic
+        # surface — same flag used by the build-reproducibility nightly.
+        # The build emits index.html + scorecard.html + clause-navigator
+        # at known paths Lighthouse points at via .lighthouserc.json.
+        run: |
+          PYTHONPATH=src python3 tools/build/build.py --out dist --reproducible
+
+      - name: Resolve audit URL override (if any)
+        id: urls
+        # When the dispatcher passes ``url_override``, swap the
+        # four-page list in .lighthouserc.json for that single page so
+        # a maintainer can drill into one regression without rebuilding
+        # the config. The override is purely additive; the on-disk
+        # .lighthouserc.json is the source of truth for the scheduled
+        # / push path.
+        run: |
+          override="${{ github.event.inputs.url_override }}"
+          if [ -n "$override" ]; then
+            echo "Using single-URL override: $override"
+            echo "urls=http://localhost/${override#/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "urls=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Lighthouse CI
+        # treosh/lighthouse-ci-action wraps ``lhci autorun`` so the
+        # action runner doesn't have to install @lhci/cli locally
+        # (Lighthouse ships ~250 MB of vendored Chrome + deps). The
+        # action's own pin is verified by ``audit-action-pins``.
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # 12.6.2
+        with:
+          configPath: ./.lighthouserc.json
+          urls: ${{ steps.urls.outputs.urls }}
+          temporaryPublicStorage: true
+          # uploadArtifacts: true is the new flag in v12+; older
+          # treosh releases used ``artifactName`` directly. Setting
+          # both is safe and forward-compatible.
+          uploadArtifacts: true
+          artifactName: lighthouse-results
+
+      - name: Inspect aggregate results
+        # Cheap post-run sanity log: counts how many runs Lighthouse
+        # produced and emits a one-line summary per URL into the job
+        # log so the PR reviewer doesn't have to crack open the
+        # ``.lighthouseci/`` artifact for trend at-a-glance.
+        if: always()
+        run: |
+          if [ ! -d ".lighthouseci" ]; then
+            echo "No .lighthouseci/ directory produced — Lighthouse run failed before emitting results."
+            exit 0
+          fi
+          # ``manifest.json`` is emitted by ``lhci autorun`` — one
+          # row per (url, run) carrying summary categories.
+          if [ ! -f ".lighthouseci/manifest.json" ]; then
+            echo "No manifest.json in .lighthouseci/ — Lighthouse did not complete a successful run."
+            ls -la .lighthouseci/ || true
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path(".lighthouseci/manifest.json").read_text())
+          print(f"Lighthouse runs captured: {len(manifest)}")
+          for row in manifest:
+              summary = row.get("summary", {})
+              line = (
+                  f"  {row.get('url','?'):<60} "
+                  f"perf={summary.get('performance',0):.2f} "
+                  f"a11y={summary.get('accessibility',0):.2f} "
+                  f"bp={summary.get('best-practices',0):.2f} "
+                  f"seo={summary.get('seo',0):.2f}"
+              )
+              print(line)
+          PY

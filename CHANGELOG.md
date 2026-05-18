@@ -12,6 +12,60 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added — P10 (in flight): Lighthouse CI workflow for static-site perf + a11y
+
+Repo-health phase **P10** (Performance + a11y hardening) gets its first
+real CI deliverable: a Lighthouse audit on every push to `main` that
+touches the build inputs, plus a `workflow_dispatch` button for ad-hoc
+runs.
+
+The existing Phase 4.5f `audit-perf-a11y` gate in `validate.yml` covers
+byte budgets on critical-path assets + axe-core v4 a11y rules under
+`jsdom`. Lighthouse adds the complementary signal that jsdom-axe cannot
+produce: full-page rendering under headless Chrome with Core Web Vitals
+(LCP, CLS, TBT, FCP), the layout-dependent a11y rules disabled in the
+jsdom audit (`color-contrast`, `target-size`, `focus-order-semantics`,
+`scrollable-region-focusable`, …), and the SEO + best-practice
+categories. The combination is the P10 perf/a11y contract.
+
+New files:
+
+- [`.github/workflows/lighthouse.yml`](.github/workflows/lighthouse.yml)
+  — `Lighthouse CI` workflow. Triggers: push to `main` that touches
+  HTML / `src/styles/**` / `src/scripts/**` / `tools/build/**` /
+  `.lighthouserc.json` / the workflow file itself, plus
+  `workflow_dispatch` with an optional single-URL override. Builds
+  `dist/` with `--reproducible`, runs `treosh/lighthouse-ci-action`
+  with `staticDistDir: ./dist`, uploads results both to Lighthouse's
+  `temporaryPublicStorage` (for at-a-glance trend dashboards) and as
+  the `lighthouse-results` workflow artifact (for archival via
+  `gh run download`). Concurrency-grouped on `${{ github.ref }}` so
+  back-to-back pushes don't race the artifact upload.
+- [`.lighthouserc.json`](.lighthouserc.json) — pinned config covering
+  the four highest-traffic pages (`index.html`, `scorecard.html`,
+  `clause-navigator.html`, `uc/UC-1.1.1/index.html`). Thresholds are
+  deliberately **warn-only** in this first cut — Lighthouse scores
+  fluctuate ±3 points between runs on the same commit, so we collect
+  a soak-period baseline before tightening any score floor into a
+  hard gate. `numberOfRuns: 1` keeps the workflow under 5 minutes;
+  lift to 3 (the Lighthouse-CI default) once budgets stabilize and we
+  want the trimmed-mean noise reduction.
+
+Action pin policy:
+
+- `treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18`
+  pins the v12.6.2 release tag (uses bare `12.6.2` because the
+  upstream tag naming convention drops the `v` prefix). Verified by
+  `python3 -m splunk_uc audit-action-pins`: **17/17** pins match
+  upstream (was 16/16 before this change).
+
+`docs/health-check-2026-progress.md` P10 row updated to record the
+scaffold landing; the row stays **PARTIAL** because three items remain
+open under P10: warn → error promotion of the Lighthouse thresholds
+after the soak period, CSP `'unsafe-inline'` tightening (F8 PR-C
+precondition), and the virtual-scroll renderer `<template>`-clone
+refactor (F8 PR-C proper).
+
 ### Added — P11 close: scheduled `Roadmap snapshot` publisher workflow
 
 Repo-health phase **P11** (OSS release polish) had one residual item
