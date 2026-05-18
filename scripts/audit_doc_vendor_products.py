@@ -60,8 +60,10 @@ STATUS_PATH = REPO / "data" / "doc-vendor-mentions.json"
 # ---------------------------------------------------------------- corpus
 #
 # Re-use the same set of prose docs that audit_doc_urls.py walks.
-# We deliberately exclude content/cat-*/UC-*.md sidecars; those are
-# generated from the JSON SSOT (validated by spl_hallucinations.py).
+# (Historical: content/cat-*/UC-*.md companions were deleted in F21
+# close on 2026-05-18, so the explicit exclusion below is now a no-op
+# but harmless. The LLM markdown twin lives only in
+# dist/uc/UC-X.Y.Z/uc.md, which this audit does not walk either.)
 
 DOCS_DIR = REPO / "docs"
 DEFAULT_EXTRA = [

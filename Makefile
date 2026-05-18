@@ -13,7 +13,7 @@
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
        baseline devcontainer-init \
-       generate-md-from-json generate-grandma-explanations \
+       generate-grandma-explanations \
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-api-surface \
@@ -226,9 +226,6 @@ devcontainer-init: ## Bootstrap a fresh devcontainer (called by .devcontainer/de
 stewardship-digest: ## Generate dist/stewardship-digest.{json,md}
 	$(SPLUNK_UC) generate-stewardship-digest
 
-generate-md-from-json: ## Render UC-X.Y.Z.md companions from JSON SSOT
-	$(SPLUNK_UC) generate-md-from-json
-
 generate-grandma-explanations: ## Fill missing plain-language `grandmaExplanation` fields
 	$(SPLUNK_UC) generate-grandma-explanations
 
@@ -290,33 +287,31 @@ generate-phase3-3-derivatives: ## Phase 3.3 generator (derivative-regulation pro
 #     their own CI steps because their failure messages carry
 #     useful per-domain context.
 sync-generated: ## Run every cascade-style generator (write-mode) in dependency-safe order
-	@echo "==> [1/14] sidecar mutator: phase3-1 backfill"
+	@echo "==> [1/13] sidecar mutator: phase3-1 backfill"
 	@$(SPLUNK_UC) generate-phase3-1-backfill
-	@echo "==> [2/14] sidecar mutator: phase3-2 cross-cutting"
+	@echo "==> [2/13] sidecar mutator: phase3-2 cross-cutting"
 	@$(SPLUNK_UC) generate-phase3-2-cross-cutting
-	@echo "==> [3/14] sidecar mutator: phase3-3 derivatives"
+	@echo "==> [3/13] sidecar mutator: phase3-3 derivatives"
 	@$(SPLUNK_UC) generate-phase3-3-derivatives
-	@echo "==> [4/14] sidecar mutator: equipment-tags"
+	@echo "==> [4/13] sidecar mutator: equipment-tags"
 	@$(SPLUNK_UC) generate-equipment-tags
-	@echo "==> [5/14] sidecar mutator: grandma-explanations"
+	@echo "==> [5/13] sidecar mutator: grandma-explanations"
 	@$(SPLUNK_UC) generate-grandma-explanations
-	@echo "==> [6/14] derived report: cat-22 non-technical-view block"
+	@echo "==> [6/13] derived report: cat-22 non-technical-view block"
 	@$(SPLUNK_UC) migrate-cat22-ntv
-	@echo "==> [7/14] derived report: prerequisites graph"
+	@echo "==> [7/13] derived report: prerequisites graph"
 	@$(SPLUNK_UC) audit-prerequisites
-	@echo "==> [8/14] derived report: compliance gaps"
+	@echo "==> [8/13] derived report: compliance gaps"
 	@$(SPLUNK_UC) audit-compliance-gaps
-	@echo "==> [9/14] derived report: sandbox validation"
+	@echo "==> [9/13] derived report: sandbox validation"
 	@$(SPLUNK_UC) audit-sandbox-validation
-	@echo "==> [10/14] derived report: evidence packs"
+	@echo "==> [10/13] derived report: evidence packs"
 	@$(SPLUNK_UC) generate-evidence-packs
-	@echo "==> [11/14] derived report: mapping ledger"
+	@echo "==> [11/13] derived report: mapping ledger"
 	@$(SPLUNK_UC) generate-mapping-ledger
-	@echo "==> [12/14] doc companions: md-from-json"
-	@$(SPLUNK_UC) generate-md-from-json
-	@echo "==> [13/14] doc footer: backlinks index"
+	@echo "==> [12/13] doc footer: backlinks index"
 	@$(PYTHON) scripts/generate_backlinks.py
-	@echo "==> [14/14] doc footer: APA references + inline citations"
+	@echo "==> [13/13] doc footer: APA references + inline citations"
 	@$(PYTHON) scripts/generate_doc_references.py
 	@echo "==> sync-generated: done"
 
@@ -334,8 +329,7 @@ sync-generated-check: ## CI drift gate — run every cascade generator with --ch
 	  "audit-compliance-gaps --check" \
 	  "audit-sandbox-validation --check" \
 	  "generate-evidence-packs --check" \
-	  "generate-mapping-ledger --check" \
-	  "generate-md-from-json --check"; do \
+	  "generate-mapping-ledger --check"; do \
 	  echo "==> $$step"; \
 	  $(SPLUNK_UC) $$step || { failed=1; echo "    DRIFT in: $$step"; }; \
 	done; \

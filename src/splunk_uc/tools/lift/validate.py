@@ -17,14 +17,23 @@ check in the chain passes:
     **strictly greater** than the pre-lift score.
 8.  ``--strict`` (opt-in) additionally runs the catalog-wide audit chain.
 
-On success the lifted content is written back to the sidecar and the
-markdown twin is regenerated. On any failure the on-disk sidecar is
-left untouched and a structured error is printed to stderr.
+On success the lifted content is written back to the sidecar. On any
+failure the on-disk sidecar is left untouched and a structured error
+is printed to stderr.
 
 The verb is pure-function except for:
-* the optional ``generate-md-from-json`` subprocess (skip with
-  ``--skip-md-regen`` — tests use this for speed).
 * the optional ``--strict`` audit-chain subprocesses.
+
+.. note::
+
+   Prior to 2026-05-18 this verb also invoked ``generate-md-from-json``
+   after a successful lift to keep the per-UC ``content/.../UC-X.Y.Z.md``
+   companion in lock-step with the sidecar. F21 close (2026-05-18) deleted
+   those companions; the LLM-friendly markdown twin is now rendered only
+   at build time by ``tools/build/templates/uc.py::render_markdown_twin``
+   into ``dist/uc/UC-X.Y.Z/uc.md``. The ``--skip-md-regen`` flag is
+   accepted but ignored (kept for backward compatibility with existing
+   orchestrators and test invocations).
 
 Usage::
 
@@ -294,26 +303,17 @@ def _run_strict_audits() -> None:
 
 
 def _regen_markdown(sidecar_path: Path) -> None:
-    env = {**os.environ, "PYTHONPATH": str(SRC_DIR)}
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "splunk_uc",
-            "generate-md-from-json",
-            "--files",
-            str(sidecar_path),
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise _ValidationError(
-            f"generate-md-from-json failed (exit {result.returncode}):\n"
-            f"{result.stdout}\n{result.stderr}"
-        )
+    """No-op since F21 close (2026-05-18).
+
+    The per-UC ``content/.../UC-X.Y.Z.md`` companion was deleted in F21
+    close. The LLM-friendly markdown twin is now emitted only at build
+    time by ``tools/build/templates/uc.py::render_markdown_twin`` into
+    ``dist/uc/UC-X.Y.Z/uc.md``, so the lift validator has nothing to
+    regenerate at sidecar-write time. The function is retained as a
+    stub so callers and tests that still go through this path do not
+    have to be modified.
+    """
+    del sidecar_path
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -359,7 +359,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-md-regen",
         action="store_true",
-        help="Skip regenerating the .md twin (test mode).",
+        help=(
+            "Deprecated since 2026-05-18 (F21 close). Accepted for "
+            "backward compatibility but ignored — no in-tree .md "
+            "companion is regenerated any more."
+        ),
     )
     parser.add_argument(
         "--json",

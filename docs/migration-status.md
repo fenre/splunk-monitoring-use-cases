@@ -128,9 +128,14 @@ semantically equivalent; tracked in `tests/build/test_legacy_artifacts_parity.py
   `.github/workflows/validate.yml`.
 - New UCs are created exclusively under `content/cat-NN-<slug>/UC-X.Y.Z.json`
   and must validate against `schemas/uc.schema.json`.
-- The auto-generated `.md` companions inside `content/` (one per UC) are
-  emitted by `python -m splunk_uc generate-md-from-json` and consumed by
-  per-UC LLM agents; they are SSOT-derived, not source.
+- Per-UC `.md` companions inside `content/cat-*/UC-*.md` were deleted on
+  2026-05-18 (F21 close). The build pipeline never read them; they were
+  pinned by a `--check` round-trip gate only. The LLM-friendly markdown
+  twin is now emitted at build time only by
+  `tools/build/templates/uc.py::render_markdown_twin` into
+  `dist/uc/UC-X.Y.Z/uc.md`, where MCP clients and per-UC agents pull it
+  from. See [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+  F21 row.
 
 ---
 

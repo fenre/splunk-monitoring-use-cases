@@ -126,6 +126,9 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         ("scripts/_draft_uc_18_1_15.py", "tier3"),
         ("scripts/backfill_cim_models.py", "tier3"),
         ("scripts/enrich_di_gold.py", "tier3"),
+        # ``generate-md-from-json`` was retired on 2026-05-18 (F21 close);
+        # this row is retained as a path-shape fixture so the classifier
+        # logic is exercised, not as a live invocation.
         ("python3 -m splunk_uc generate-md-from-json", "tier3"),
         # P6 Tier 2 batch 5: generate_recommender_app.py is now a shim;
         # the implementation moved to src/splunk_uc/generators/recommender_app.py.

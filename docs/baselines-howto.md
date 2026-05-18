@@ -26,7 +26,7 @@ The output is `data/baselines/v<VERSION>.json` and it must validate against
 |-----------------------------|------------------------------------------------------------------------------|----------------|
 | `tracked_file_sizes_bytes`  | Per-file raw + gzipped byte counts for every file the plan refers to.       | `os.stat` + `gzip.compress` |
 | `counts.uc_json_sidecars`   | Total UC JSON sidecars under `content/cat-*/UC-*.json`.                     | rglob          |
-| `counts.uc_md_companions`   | Total `.md` companions under `content/cat-*/UC-*.md`.                       | rglob          |
+| ~~`counts.uc_md_companions`~~   | ~~Total `.md` companions under `content/cat-*/UC-*.md`.~~ **Retired 2026-05-18 (F21 close)** — the companions were deleted from git; the LLM markdown twin now lives only in `dist/uc/UC-X.Y.Z/uc.md`. | rglob          |
 | `counts.use_cases_md_headings` | Total `### UC-*` headings in legacy `use-cases/cat-*.md`.                | grep           |
 | `counts.scripts_total`      | Files in `scripts/` (folders count as 1).                                   | iterdir        |
 | `counts.categories`         | Files matching `_category.json` under `content/`.                           | rglob          |

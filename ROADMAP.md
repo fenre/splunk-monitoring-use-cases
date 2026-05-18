@@ -805,8 +805,12 @@ Infrastructure shipped:
   summaries, and a dedicated Quality review tab
 - **Scorecard integration** — content depth is now a 20% weighted dimension
   in `generate_scorecard.py`
-- **Markdown generation** (`python3 -m splunk_uc generate-md-from-json`) — JSON is the
-  single source of truth; companion `.md` under `content/`, when present, is optional
+- **Markdown twin** — JSON sidecars under `content/cat-NN-slug/UC-X.Y.Z.json`
+  are the single source of truth. Per-UC `.md` companions under `content/`
+  were deleted on 2026-05-18 (F21 close); the LLM-friendly markdown twin
+  is now emitted only at build time by
+  `tools/build/templates/uc.py::render_markdown_twin` into
+  `dist/uc/UC-X.Y.Z/uc.md`
 
 ### Content uplift workflow
 

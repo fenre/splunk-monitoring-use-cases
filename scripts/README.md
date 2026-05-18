@@ -46,7 +46,7 @@ make manifest         # Regenerate eventgen manifest
 |--------|--------|---------|
 | `inventory_ucs.py` | `data/inventory/` | UC inventory (JSON + CSV) |
 | `parse_uc_catalog.py` | `eventgen_data/manifest-all.json` | UC manifest for eventgen |
-| `generate_md_from_json.py` | `.md` files | Generate markdown from JSON content |
+| ~~`generate_md_from_json.py`~~ | ~~`.md` files~~ | **Retired 2026-05-18 (F21 close)** — per-UC `.md` companions deleted from `content/`; the LLM markdown twin now lives only in `dist/uc/UC-X.Y.Z/uc.md`, emitted by `tools/build/templates/uc.py::render_markdown_twin`. The `src/splunk_uc/generators/md_from_json.py` module remains as a deprecation stub. |
 | `generate_api_surface.py` | API payloads | Full API surface generation |
 | `generate_scorecard.py` | scorecard report | Quality scorecard markdown |
 | `generate_equipment_tags.py` | equipment tags | Equipment tag generation |

@@ -112,8 +112,19 @@ Every UC must pass ALL 16 checks before marking `status: "verified"`:
 ```
 
 ### .md Regeneration Command
+
+**Retired 2026-05-18 (F21 close).** The per-UC `.md` companions under
+`content/cat-*/UC-*.md` were deleted from git. The LLM-friendly
+markdown twin is now emitted only at build time by
+`tools/build/templates/uc.py::render_markdown_twin` into
+`dist/uc/UC-X.Y.Z/uc.md`. Authors no longer need to regenerate any
+`.md` companion after editing a JSON sidecar — `make build` (or a
+single `python3 -m splunk_uc audit-doc-counts`-bearing CI run) covers
+it. See [`docs/health-check-2026-progress.md`](../docs/health-check-2026-progress.md)
+F21 row for the deletion rationale.
+
 ```bash
-python3 scripts/generate_md_from_json.py --files content/cat-XX-*/UC-X.Y.Z.json
+make build   # emits dist/uc/UC-X.Y.Z/uc.md for every sidecar
 ```
 
 ### Parent Verification Script (inline)
@@ -168,7 +179,8 @@ knownFalsePositives tokens already used: [list]
 1. Read stub JSON
 2. Rewrite ALL fields to true-gold quality
 3. Write complete JSON back
-4. Run: python3 scripts/generate_md_from_json.py --files [path]
+4. *(Step removed 2026-05-18, F21 close: no in-tree `.md` companion
+   to regenerate any more — the build emits it into `dist/`.)*
 5. Run verification script
 6. Return verification output
 ```
@@ -200,7 +212,9 @@ schemas/
   uc.schema.json                   # JSON schema for UC files (validated at build time)
   uc-profile-gold.json             # Gold profile definition
 scripts/
-  generate_md_from_json.py         # .md sidecar generator
+  generate_md_from_json.py         # RETIRED 2026-05-18 (F21 close); module
+                                   #   src/splunk_uc/generators/md_from_json.py
+                                   #   kept as a deprecation stub only.
   audit_gold_profile.py            # Gold quality auditor
   audit_gold_profile_v2.py         # V2 auditor
 tools/

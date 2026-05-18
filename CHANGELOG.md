@@ -12,6 +12,77 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Removed — F21 close: 7,929 per-UC `.md` companions deleted; `generate-md-from-json` retired
+
+Repo-health item **F21** (the long-standing "7,657 markdown companions
+tracked alongside JSON" finding in
+[`docs/health-check-2026-progress.md`](docs/health-check-2026-progress.md))
+closes. Every `content/cat-*/UC-*.md` file was removed from git in this
+PR — **7,929 files / ~7 MB of generated artefacts** that the build
+pipeline never read. The companions were pinned in lockstep with the
+JSON sidecars by a `--check` round-trip gate only; the actual contract
+they were supposed to satisfy (machine-readable per-UC markdown for
+LLM agents) is already fulfilled by `dist/uc/UC-X.Y.Z/uc.md`, which
+`tools/build/templates/uc.py::render_markdown_twin` emits at build time
+and which has been advertised on every UC HTML page via
+`<link rel="alternate" type="text/markdown">` since v7.0.
+
+**Concretely removed in this PR:**
+
+- `content/cat-*/UC-*.md` (7,929 files) — all deleted via `git rm`.
+- `generate-md-from-json` verb registration in
+  [`src/splunk_uc/_registry.py`](src/splunk_uc/_registry.py). The
+  underlying module `src/splunk_uc/generators/md_from_json.py` is
+  retained as a deprecation stub (prints a retirement notice and
+  exits non-zero) so existing imports do not crash and the coverage
+  baseline entry stays valid.
+- `Markdown freshness check` step in
+  [`.github/workflows/validate.yml`](.github/workflows/validate.yml).
+  The cascade-generator umbrella now exercises **13** generators (was 14).
+- `generate-md-from-json` from the `GENERATORS` list and from the
+  `sync-generated` / `sync-generated-check` targets in
+  [`Makefile`](Makefile); all `[N/14]` step numbering rewritten to
+  `[N/13]`. The dedicated `make generate-md-from-json` target was
+  also removed.
+- `_regen_markdown` was demoted to a no-op in
+  [`src/splunk_uc/tools/lift/validate.py`](src/splunk_uc/tools/lift/validate.py).
+  The `--skip-md-regen` flag still parses (kept for backward
+  compatibility with existing orchestrators); the verb now never
+  writes a sibling `.md` next to a JSON sidecar. Pinned by
+  `tests/splunk_uc/lift/test_validate.py::test_validate_does_not_emit_in_tree_md_companion`.
+
+**Guard rails:** the pattern `content/cat-*/UC-*.md` is now in
+[`.gitignore`](.gitignore) with a comment naming F21, so a future
+maintainer reflexively re-running the generator (or restoring it from
+a stash) does not silently re-introduce 7,929 tracked artefacts. The
+coverage-baseline entry at
+[`data/baselines/coverage-v9.1.0.json`](data/baselines/coverage-v9.1.0.json)
+keeps the `md_from_json` module pinned to its retirement-stub LOC so
+the per-file ratchet still resolves.
+
+**Doc updates** in
+[`CONTRIBUTING.md`](CONTRIBUTING.md),
+[`ROADMAP.md`](ROADMAP.md),
+[`scripts/README.md`](scripts/README.md),
+[`docs/adr/0007-json-as-source-of-truth.md`](docs/adr/0007-json-as-source-of-truth.md),
+[`docs/adr/0009-generated-artefact-policy.md`](docs/adr/0009-generated-artefact-policy.md),
+[`docs/ci-architecture.md`](docs/ci-architecture.md),
+[`docs/migration-status.md`](docs/migration-status.md),
+[`docs/implementation-brief-v7.1.md`](docs/implementation-brief-v7.1.md),
+[`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md),
+[`docs/gold-standard-authoring-playbook.md`](docs/gold-standard-authoring-playbook.md),
+and [`docs/use-cases-burndown.md`](docs/use-cases-burndown.md) — every
+forward-looking reference to `generate-md-from-json` is either struck
+through with a retirement note pointing at this CHANGELOG entry, or
+re-pointed at `dist/uc/UC-X.Y.Z/uc.md`. Historical narratives in
+release-notes sections and prior `[Unreleased]` blocks are intact
+because they describe what was true at the time.
+
+**Obsoletes** drift-ledger items #10 and #12 in
+[`docs/health-check-2026-progress.md`](docs/health-check-2026-progress.md)
+(the cat-22 OT-arc parity gap — there is no parity gap to close once
+the companions stop existing).
+
 ### Changed — PR-4 follow-up: lift-validate MITRE + canonical-order hardening
 
 Two correctness gaps from the cat-15 PoC closed in one surgical

@@ -216,8 +216,12 @@ Major sub-areas:
   `generate-grandma-explanations`, `migrate-cat22-ntv`,
   `audit-prerequisites`, `audit-compliance-gaps`,
   `audit-sandbox-validation`, `generate-evidence-packs`,
-  `generate-mapping-ledger`, `generate-md-from-json`,
+  `generate-mapping-ledger`,
   `generate-backlinks`, `generate-doc-references`).
+  *(2026-05-18: `generate-md-from-json` retired in F21 close — the
+  per-UC `.md` companions were deleted from `content/` and the LLM
+  markdown twin is now emitted at build time only into
+  `dist/uc/UC-X.Y.Z/uc.md`.)*
 - Quality gates (Gold Standard summary).
 - Phase 4.5 / 5.x signoffs (peer review, legal review, SME review,
   regulatory change-watch, mapping-ledger audit).

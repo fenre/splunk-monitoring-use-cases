@@ -58,11 +58,17 @@ images, blockquotes, or nested lists.
 
 ### 3. Delete .md companion files
 
-The `content/cat-*/UC-*.md` files are generated from JSON by
-`python3 -m splunk_uc generate-md-from-json`. They are NOT read by the build — the build
+**Status: ✅ DONE 2026-05-18 (F21 close)**
+
+The `content/cat-*/UC-*.md` files were generated from JSON by
+`python3 -m splunk_uc generate-md-from-json`. They were NOT read by the build — the build
 reads JSON directly. They caused a staleness bug where the panel showed garbage
-because the `.md` was stale while the JSON was gold-standard. Delete all companion
-`.md` files that are no longer needed for authoring and retire the generation script.
+because the `.md` was stale while the JSON was gold-standard. All 7,929 companion
+`.md` files were deleted from `content/` and the generator was retired (`src/splunk_uc/generators/md_from_json.py`
+remains as a deprecation stub). The LLM-friendly markdown twin is now rendered
+at build time only by `tools/build/templates/uc.py::render_markdown_twin` into
+`dist/uc/UC-X.Y.Z/uc.md`. See [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+F21 row.
 
 ### 4. Add a list/grid toggle
 
@@ -150,9 +156,11 @@ unchanged.
 
 ### Files to delete
 - `index2.html`
-- `content/cat-*/UC-*.md` (companion markdown files targeted for deletion in this plan)
-- `python3 -m splunk_uc generate-md-from-json` (delete in P1; the legacy
-  `scripts/_archived/` copy was removed in the Phase 0 hygiene pass).
+- ~~`content/cat-*/UC-*.md`~~ ✅ Deleted 2026-05-18 (F21 close; 7,929 files removed).
+- ~~`python3 -m splunk_uc generate-md-from-json`~~ ✅ Retired 2026-05-18.
+  Verb removed from `splunk_uc/_registry.py`; the
+  `src/splunk_uc/generators/md_from_json.py` module remains as a
+  deprecation stub (prints retirement notice and exits non-zero).
 
 ### Files to modify
 

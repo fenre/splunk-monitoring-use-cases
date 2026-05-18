@@ -521,14 +521,13 @@ register(
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
 # ----------------------------------------------------------------------
-register(
-    Verb(
-        name="generate-md-from-json",
-        module="generators.md_from_json",
-        help="Render UC-X.Y.Z.md companions from JSON SSOT (auto-generated artefacts).",
-        category="generators",
-    )
-)
+# 2026-05-18 (F21 close): ``generate-md-from-json`` retired. The 7,761
+# ``content/cat-*/UC-*.md`` companions it wrote were deleted from the
+# repository; the per-UC LLM-friendly markdown twin is now emitted at
+# build time only by ``tools/build/templates/uc.py::render_markdown_twin``
+# into ``dist/uc/UC-X.Y.Z/uc.md``. The ``generators/md_from_json.py``
+# module remains importable so any out-of-tree caller imports without an
+# AttributeError, but the verb itself is no longer dispatchable.
 register(
     Verb(
         name="generate-grandma-explanations",

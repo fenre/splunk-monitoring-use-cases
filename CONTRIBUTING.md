@@ -86,7 +86,14 @@ A separate UC end-to-end harness ([`.github/workflows/uc-tests.yml`](.github/wor
 
 ## JSON is the source of truth
 
-`.md` companions under `content/` are auto-generated from JSON by `splunk_uc generate-md-from-json`. Never edit them by hand — they're rewritten on every `make build`.
+The canonical authoring surface for every use case is the JSON sidecar at
+`content/cat-NN-slug/UC-X.Y.Z.json` (validated against
+`schemas/uc.schema.json`). Per-UC `.md` companions under `content/` were
+deleted in 2026-05-18 (F21 close); the LLM-friendly markdown twin is now
+emitted at build time only by `tools/build/templates/uc.py::render_markdown_twin`
+into `dist/uc/UC-X.Y.Z/uc.md`. See
+[`docs/adr/0007-json-as-source-of-truth.md`](docs/adr/0007-json-as-source-of-truth.md)
+for the contract.
 
 ## Version bumps
 

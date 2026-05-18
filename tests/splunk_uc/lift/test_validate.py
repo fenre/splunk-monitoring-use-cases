@@ -3,8 +3,10 @@
 The verb is the §5 firewall: it must reject any diff that touches a
 firewalled field, that fails to lift the score strictly, or whose
 identity does not match the on-disk sidecar. On a clean diff it writes
-the lifted content back to the sidecar and regenerates the markdown
-companion (unless ``--dry-run`` or ``--skip-md-regen`` is set).
+the lifted content back to the sidecar. (``--skip-md-regen`` is
+accepted for backward compatibility but is a no-op since F21 close
+on 2026-05-18 — the per-UC ``.md`` companion was deleted and the LLM
+markdown twin now lives only in ``dist/uc/UC-X.Y.Z/uc.md``.)
 """
 
 from __future__ import annotations
@@ -328,12 +330,20 @@ def test_validate_rejects_diff_with_value_of_wrong_type(tmp_path: Path, capsys) 
     assert json.loads(sidecar.read_text()) == json.loads(BRONZE.read_text())
 
 
-def test_validate_writes_markdown_twin_when_md_regen_enabled(tmp_path: Path) -> None:
-    """Without --skip-md-regen, lift-validate regenerates the .md twin.
+def test_validate_does_not_emit_in_tree_md_companion(tmp_path: Path) -> None:
+    """Lift-validate never writes ``content/.../UC-X.Y.Z.md`` (post-F21).
 
-    Exercises the ``generate-md-from-json --files`` subprocess so a
-    regression in that path is caught here rather than at integration
-    time. Subprocess overhead is ~50 ms; acceptable for one test.
+    Before F21 close (2026-05-18) the validator invoked
+    ``generate-md-from-json --files <sidecar>`` after a successful
+    lift to keep the per-UC ``.md`` companion in lock-step with the
+    sidecar. The companions have been deleted from the tree and the
+    LLM-friendly markdown twin now lives only in
+    ``dist/uc/UC-X.Y.Z/uc.md`` (emitted at build time by
+    ``tools/build/templates/uc.py::render_markdown_twin``).
+
+    This test pins the new invariant: even when the caller omits
+    ``--skip-md-regen``, the validator must not write a sibling
+    ``.md`` next to the JSON sidecar.
     """
     content_root, sidecar = _stage_uc(tmp_path)
     md_path = sidecar.with_suffix(".md")
@@ -349,10 +359,9 @@ def test_validate_writes_markdown_twin_when_md_regen_enabled(tmp_path: Path) -> 
         ]
     )
     assert exit_code == 0
-    assert md_path.exists()
-    md_content = md_path.read_text(encoding="utf-8")
-    assert "15.1.1" in md_content
-    assert "APC Smart-UPS" in md_content
+    assert not md_path.exists(), (
+        ".md companion must not be regenerated post-F21 close"
+    )
 
 
 def test_validate_emits_canonical_utf8_when_writing(tmp_path: Path) -> None:

@@ -189,7 +189,7 @@ silently introduce eager-import side-effects.
 | `audit-spl-grammar`           | `splunk_uc.audits.spl_grammar`              | 2026-05-09 (Tier 1, batch 11) |
 | `audit-spl-hallucinations`    | `splunk_uc.audits.spl_hallucinations`       | 2026-05-09 (Tier 1, batch 11) |
 | `audit-splunk-cloud-compat`   | `splunk_uc.audits.splunk_cloud_compat`      | 2026-05-09 (Tier 1, batch 11) |
-| `generate-md-from-json`       | `splunk_uc.generators.md_from_json`         | 2026-05-09 (Tier 2, batch 1) |
+| ~~`generate-md-from-json`~~   | ~~`splunk_uc.generators.md_from_json`~~     | Retired 2026-05-18 (F21 close — no in-tree `.md` companions). Module remains as a deprecation stub. |
 | `generate-grandma-explanations` | `splunk_uc.generators.grandma_explanations` | 2026-05-09 (Tier 2, batch 1) |
 | `generate-stewardship-digest` | `splunk_uc.generators.stewardship_digest`   | 2026-05-09 (Tier 2, batch 1) |
 | `generate-mapping-ledger`     | `splunk_uc.generators.mapping_ledger`       | 2026-05-09 (Tier 2, batch 1) |
@@ -221,7 +221,7 @@ silently introduce eager-import side-effects.
 | Tier 1 — audit batch 10       | ✅ `audit-gold-profile-v2` + `audit-prerequisites` + `audit-sandbox-validation` + `audit-sme-review-signoffs` + `audit-mapping-ledger` |
 | Tier 1 — audit batch 11       | ✅ `audit-gold-profile` (v1) + `audit-perf-a11y` + `audit-spl-grammar` + `audit-spl-hallucinations` + `audit-splunk-cloud-compat` |
 | Tier 1 — remaining audits     | ✅ Closed (intentional non-verb one-shot driver `audit_guide_external_links_oneshot.py` stays in `scripts/`) |
-| Tier 2 — generator batch 1    | ✅ `generate-md-from-json` + `generate-grandma-explanations` + `generate-stewardship-digest` + `generate-mapping-ledger` |
+| Tier 2 — generator batch 1    | ✅ ~~`generate-md-from-json`~~ (retired 2026-05-18) + `generate-grandma-explanations` + `generate-stewardship-digest` + `generate-mapping-ledger` |
 | Tier 2 — generator batch 2    | ✅ `generate-manifest-samples` + `generate-equipment-tags` + `generate-evidence-packs` + `generate-api-surface` |
 | Tier 2 — generator batch 3    | ✅ `generate-phase2-mini-categories` + `generate-phase2-3-per-regulation` + `generate-phase3-1-backfill` + `generate-phase3-2-cross-cutting` + `generate-phase3-3-derivatives` |
 | Tier 2 — generator batches 4+ | 🔜 NEXT — ~17 generators remaining in `scripts/` |

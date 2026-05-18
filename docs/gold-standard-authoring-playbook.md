@@ -167,7 +167,7 @@ Each pack record is the source of truth for facts in that family. When authoring
 9. **Regenerate** dependent artifacts:
    - `python3 -m splunk_uc generate-equipment-tags` (writes `equipment[]` / `equipmentModels[]` from your prose)
    - `PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations` if the field is empty
-   - `PYTHONPATH=src python3 -m splunk_uc generate-md-from-json --files content/cat-22-regulatory-compliance/UC-22.2.{n}.json`
+   - *Removed 2026-05-18:* the `generate-md-from-json` step is no longer required. Per-UC `.md` companions were deleted in F21 close; the LLM markdown twin is rendered at `make build` time by `tools/build/templates/uc.py::render_markdown_twin` into `dist/uc/UC-X.Y.Z/uc.md`.
 10. **Run the no-gap audit** to confirm the matrix is still complete:
     - `python3 -m splunk_uc audit-nis2-no-gap`
 

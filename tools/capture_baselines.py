@@ -160,7 +160,14 @@ def capture(*, run_build: bool, version: str | None) -> dict[str, object]:
 
     counts = {
         "uc_json_sidecars": _count_files("UC-*.json", REPO_ROOT / "content"),
-        "uc_md_companions": _count_files("UC-*.md", REPO_ROOT / "content"),
+        # ``uc_md_companions`` was deprecated on 2026-05-18 (F21 close).
+        # The per-UC ``content/cat-*/UC-*.md`` companions were deleted
+        # from git; the LLM markdown twin now lives only in
+        # ``dist/uc/UC-X.Y.Z/uc.md``. The counter is retained at 0 for
+        # backward-compat with the
+        # ``data/baselines/repo-baseline.json`` schema; remove the
+        # field in the next baseline-schema bump.
+        "uc_md_companions": 0,
         "use_cases_md_headings": _count_uc_headings(),
         "scripts_total": len([
             p for p in (REPO_ROOT / "scripts").iterdir() if p.is_file() or p.is_dir()

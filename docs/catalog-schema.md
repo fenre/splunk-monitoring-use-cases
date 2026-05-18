@@ -263,7 +263,7 @@ cat_names = [
 ## Versioning and build
 
 - `catalog.json` is generated; do not edit it by hand.
-- Re-run `make build` (or `python3 tools/build/build.py --out dist`) after changing `content/cat-*/UC-*.json`, companion markdown, or `content/INDEX.md`.
+- Re-run `make build` (or `python3 tools/build/build.py --out dist`) after changing `content/cat-*/UC-*.json` or `content/INDEX.md`. (Prior to 2026-05-18 a companion `content/cat-*/UC-*.md` artefact was also tracked in-tree; those companions were deleted in F21 close, and the LLM-friendly markdown twin is now emitted at build time only into `dist/uc/UC-X.Y.Z/uc.md`.)
 - The schema may gain new optional use case fields as the canonical `content/cat-*/UC-*.json` source is extended; existing keys remain backward compatible.
 
 ---
