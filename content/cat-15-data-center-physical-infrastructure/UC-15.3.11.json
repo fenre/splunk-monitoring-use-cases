@@ -9,27 +9,51 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "NVR API (camera status, storage), ONVIF device management",
+  "dataSources": "Poll Hikvision ISAPI device and storage endpoints, Milestone XProtect Management Server REST, Genetec Security Center REST, or ONVIF device-management responses, then land normalized JSON or XML in index=physical as sourcetype=\"nvr:camera_status\" with extracted fields connection_status, recording_status, storage_util_pct, last_frame_time, and camera_id. Use the REST API Modular Input (Splunkbase app ID 1747) or an equivalent Splunk-supported HTTP poller—never embedding credentials in dashboards—to ingest five- to fifteen-minute snapshots aligned with vendor rate limits.",
   "app": "Custom (NVR API, ONVIF, Hikvision ISAPI)",
   "spl": "index=physical sourcetype=\"nvr:camera_status\"\n| where connection_status!=\"online\" OR recording_status!=\"recording\" OR storage_util_pct > 90\n| table camera_id, location, connection_status, recording_status, storage_util_pct, last_frame_time\n| sort connection_status",
-  "description": "Camera online/offline, storage utilization, recording status ensures continuous surveillance coverage and prevents blind spots during security incidents.",
-  "value": "Camera online/offline, storage utilization, recording status ensures continuous surveillance coverage and prevents blind spots during security incidents.",
-  "implementation": "Poll NVR API (Hikvision ISAPI, Milestone, Genetec) or ONVIF for camera status. Ingest connection_status, recording_status, storage_util_pct. Poll every 5–15 minutes. Alert on camera offline, recording stopped, or storage >90%. Track camera uptime percentage. Report on coverage gaps by zone.",
-  "visualization": "Status grid (camera × status), Table (offline or degraded cameras), Gauge (storage utilization), Floor plan (camera locations with status).",
+  "description": "Continuous telemetry from data-center CCTV paths that surfaces camera reachability, active recording arms, NVR-attached disk consumption, and last-frame freshness so operators see coverage loss before an investigation needs footage.",
+  "value": "Persistent blind spots weaken physical-access investigations, regulatory evidence requests, and after-hours alarm correlation; correlating NVR-reported camera state with storage headroom protects incident timelines and proves the surveillance control stayed within policy.",
+  "implementation": "Deploy REST polling (Splunkbase #1747 modular input or scripted HEC forwarder) against Hikvision ISAPI, Milestone, or Genetec management APIs plus optional ONVIF metadata pulls; normalize into connection_status, recording_status, storage_util_pct, last_frame_time; schedule polls every 5–15 minutes; alert when cameras are not online, recording is paused, or storage_util_pct exceeds ninety percent; trend uptime by zone and reconcile against rack-level physical-access maps.",
+  "visualization": "Heatmap matrix of zones × camera health, sortable Table of offline channels with storage_util_pct and last_frame_time, radial Gauge for pooled NVR disk headroom, and optional datacenter floor overlay fed from location metadata.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "REST API Modular Input (Splunkbase 1747)",
+      "url": "https://splunkbase.splunk.com/app/1747"
+    },
+    {
+      "title": "Splunk Documentation — Monitor data from REST APIs",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorRESTfulAPIs"
+    },
+    {
+      "title": "ONVIF — Core specifications and device management",
+      "url": "https://www.onvif.org/profiles/specifications/"
+    },
+    {
+      "title": "Hikvision Open Platform — ISAPI integration resources",
+      "url": "https://open.hikvision.com/"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "(1) Milestone Recording Server maintenance toggles archiving policies—suppress alerts when change_ticket=<CHG#####> matches an approved maintenance lookup Join covering that subnet window. (2) Genetec failover clusters briefly flip recording_status while VIP migrates—require two consecutive polls offline before paging unless cluster_role=floating_draining. (3) Hikvision ISAPI storage_util_pct spikes during RAID rebuild—differentiate rebuild_pct>0 via REST JSON block hddList[].statusStatus before firing critical pages. (4) ONVIF-only probes lose connectivity when cameras reboot firmware yet NVR retains healthy upstream streams—cross-reference gateway_keepalive=true from the VMS heartbeat feed to avoid duplicate tickets.",
   "equipment": [
     "cctv"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (NVR API, ONVIF, Hikvision ISAPI).\n• Ensure the following data sources are available: NVR API (camera status, storage), ONVIF device management.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll NVR API (Hikvision ISAPI, Milestone, Genetec) or ONVIF for camera status. Ingest connection_status, recording_status, storage_util_pct. Poll every 5–15 minutes. Alert on camera offline, recording stopped, or storage >90%. Track camera uptime percentage. Report on coverage gaps by zone.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=physical sourcetype=\"nvr:camera_status\"\n| where connection_status!=\"online\" OR recording_status!=\"recording\" OR storage_util_pct > 90\n| table camera_id, location, connection_status, recording_status, storage_util_pct, last_frame_time\n| sort connection_status\n```\n\nUnderstanding this SPL\n\n**CCTV / IP Camera Health Monitoring** — Camera online/offline, storage utilization, recording status ensures continuous surveillance coverage and prevents blind spots during security incidents.\n\nDocumented **Data sources**: NVR API (camera status, storage), ONVIF device management. **App/TA** (typical add-on context): Custom (NVR API, ONVIF, Hikvision ISAPI). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: physical; **sourcetype**: nvr:camera_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=physical, sourcetype=\"nvr:camera_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where connection_status!=\"online\" OR recording_status!=\"recording\" OR storage_util_pct > 90` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **CCTV / IP Camera Health Monitoring**): table camera_id, location, connection_status, recording_status, storage_util_pct, last_frame_time\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the video NVR or camera management system for the same cameras and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (camera × status), Table (offline or degraded cameras), Gauge (storage utilization), Floor plan (camera locations with status).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Confirm network paths from the Splunk heavy forwarder or input tier to each NVR management VLAN; TLS intercept must not break mutual-auth scenarios used by Milestone or Genetec.\n• Install REST API Modular Input (Splunkbase app 1747) or maintain an approved custom collector consistent with Custom (NVR API, ONVIF, Hikvision ISAPI); store credentials via Splunk secrets/RBAC—not props.conf literals.\n• Map each manufacturer to its documented HTTP surface (Hikvision ISAPI XML/JSON, Milestone REST, Genetec Web SDK) and translate responses into shared keys connection_status, recording_status, storage_util_pct, last_frame_time, camera_id, location.\n\nConfigure data collection\n• Create modular-input stanzas that GET management URIs every five to fifteen minutes (tighter during commissioning) and stamp _time from the appliance clock inside the payload.\n• Route successful polls to index=physical with sourcetype=\"nvr:camera_status\"; optionally duplicate a summary metric stream for executive dashboards.\n• For ONVIF complements, call lightweight device-management actions permitted by your VMS and fold identifiers into the same sourcetype via FIELDALIAS so downstream SPL stays unified.\n\nSearch, alerting, and access controls\n• Base detection SPL on the existing saved pattern targeting index=physical sourcetype=\"nvr:camera_status\"; schedule production alerts with dispatch.earliest_time=-15m when polls run every five minutes to capture two samples minimum.\n• Restrict knowledge objects to a dedicated RBAC role such as physical_security_ops plus delegated admins; reviewers without CCTV clearance should see masked location tokens only.\n\nValidate\n• Spot-check five cameras per site against the Milestone Smart Client, Genetec Security Desk, or Hikvision web GUI for the identical poll window; reconcile storage_util_pct with NVR RAID dashboards before trusting thresholds.\n\nOperationalize\n• Publish a coverage dashboard (status grid + drill-down table), attach webhook or ticketing alert actions, and document escalation when recording_status stays non-recording beyond vendor SLA timers.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "During a controlled test in a staging cage, disconnect a campus camera Ethernet drop or stop its channel in Milestone Recording Server while leaving the NVR online and TLS polling credentials valid; within two REST modular-input poll cycles spanning dispatch.earliest_time=-15m the collector emits connection_status=offline and recording_status!=recording so the scheduled alert triggers, carries camera_id plus last_frame_time evidence, and matches what Genetec Security Desk shows for that channel.",
+    "negativeScenario": "Mark the same camera under a documented change record, pause the REST input for that host group, and feed synthetic keepalives showing connection_status=online with recording_status=recording while the GUI still shows maintenance; the correlation should suppress because the maintenance lookup flag is present, proving the rule is not blindly trust the poller."
+  },
+  "evidence": "Export the alert result set (camera_id, connection_status, recording_status, storage_util_pct, _time) plus a screenshot or API response JSON from Hikvision ISAPI or the VMS UI for the matching window and store it with the physical security case record.",
+  "exclusions": "Does not validate pixel-level tampering, video analytics false-negative rates, or cloud-only consumer cameras outside the enterprise VMS; license-mapped archival tiers and legal hold workflows are out of scope.",
+  "equipmentModels": [
+    "Hikvision DS-7616NI-K2",
+    "Hikvision DS-9632NI-I8",
+    "Milestone XProtect Corporate 2024 R3",
+    "Genetec Security Center 5.14"
+  ]
 }
