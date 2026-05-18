@@ -855,3 +855,11 @@ register(
         category="lift",
     )
 )
+register(
+    Verb(
+        name="lift-batch",
+        module="tools.lift.batch",
+        help="Pick N UCs from a category sorted by depth for the lift loop.",
+        category="lift",
+    )
+)
