@@ -8,24 +8,36 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"generator:telemetry\"` (fuel_level_pct, fuel_gallons)",
+  "dataSources": "Land **`generator:telemetry`** events on **`index=power`** after SNMP polling via **Splunk Connect for SNMP ([Splunkbase app 6266](https://splunkbase.splunk.com/app/6266))** or the **SNMP Modular Input add-on ([Splunkbase app 1537](https://splunkbase.splunk.com/app/1537))**, or after a BMS-forwarded Modbus register map that writes the same schema. Each event should carry extracted fields **`fuel_level_pct`**, **`fuel_gallons`**, **`generator_id`**, and **`engine_status`** so the catalog SPL thresholds and tables resolve without ad hoc renaming.",
   "app": "BMS, generator controller Modbus/SNMP",
   "spl": "index=power sourcetype=\"generator:telemetry\"\n| where fuel_level_pct < 25\n| table generator_id, fuel_level_pct, fuel_gallons, engine_status",
-  "description": "Tank level and burn rate determine how long the site can run off-grid; critical for extended utility failures.",
-  "value": "Tank level and burn rate determine how long the site can run off-grid; critical for extended utility failures.",
-  "implementation": "Poll fuel level and totalizer. Compute burn rate during engine run. Alert on low level and abnormal consumption (leak suspicion).",
-  "visualization": "Gauge (fuel %), Line chart (level vs time), Table (hours of fuel at current load).",
+  "description": "Monitors normalized standby generator fuel telemetry pulled from the generator controller’s Modbus or SNMP paths and reconciled against the BMS fuel view so percent tank, totalizer gallons, and engine state stay aligned before a low-fuel breach pages anyone.",
+  "value": "Leadership gains a defendable countdown to empty-tank risk during utility loss, which steers diesel vendor dispatches, customer impact calls, and load-prioritization decisions without relying on manual stick readings in a storm.",
+  "implementation": "Schedule five- to fifteen-minute Modbus holding-register or SNMP OID polls from the generator controller, merge the BMS historian check for drift, normalize to `sourcetype=\"generator:telemetry\"`, derive burn rate whenever `engine_status` shows a run, and alert when `fuel_level_pct` violates the contracted reserve window while correlating `_indextime` lag.",
+  "visualization": "Primary **`splunk.singlevalue`** gauge bound to **`fuel_level_pct`** with red threshold below the contracted reserve; companion **`splunk.line`** chart plotting **`fuel_gallons`** and **`fuel_level_pct`** over `_time`; investigator **`splunk.table`** listing **`generator_id`**, **`engine_status`**, calculated burn rate, and indexed lag minutes; optional facility map overlay keyed by **`generator_id`** for multisite fleets.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
+      "title": "Splunk Connect for SNMP (Splunkbase 6266)",
+      "url": "https://splunkbase.splunk.com/app/6266"
+    },
+    {
+      "title": "SNMP Modular Input (Splunkbase 1537)",
+      "url": "https://splunkbase.splunk.com/app/1537"
+    },
+    {
+      "title": "Splunk Lantern — guided operational analytics",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Splunk Documentation — Splunk Enterprise modular inputs overview",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ForwardingDatatoSplunk"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "• **Generator controller firmware refresh** — transient SNMP timeouts can null `fuel_level_pct`; distinguish with a lookup-tagged maintenance host and suppress pages until polls succeed twice. • **Quarterly load-bank exercise** — rapid gallon deltas while **`engine_status=running`** mimic leaks; distinguish by correlating the CMMS exercise ticket window and expected burn envelope. • **BMS historian catch-up batch** — replays duplicate gallons readings; distinguish by requiring monotonic timestamps per **`generator_id`** before alerting. • **Tank refill air-pocket stabilization** — percent snaps upward then settles; distinguish by delaying alerts until readings hold for two poll cycles after the refill work order closes.",
   "equipment": [
     "modbus",
     "snmp"
@@ -33,6 +45,12 @@
   "equipmentModels": [
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: BMS, generator controller Modbus/SNMP.\n• Ensure the following data sources are available: `sourcetype=\"generator:telemetry\"` (fuel_level_pct, fuel_gallons).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll fuel level and totalizer. Compute burn rate during engine run. Alert on low level and abnormal consumption (leak suspicion).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"generator:telemetry\"\n| where fuel_level_pct < 25\n| table generator_id, fuel_level_pct, fuel_gallons, engine_status\n```\n\nUnderstanding this SPL\n\n**Generator Fuel Level Monitoring** — Tank level and burn rate determine how long the site can run off-grid; critical for extended utility failures.\n\nDocumented **Data sources**: `sourcetype=\"generator:telemetry\"` (fuel_level_pct, fuel_gallons). **App/TA** (typical add-on context): BMS, generator controller Modbus/SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: generator:telemetry. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"generator:telemetry\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where fuel_level_pct < 25` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Generator Fuel Level Monitoring**): table generator_id, fuel_level_pct, fuel_gallons, engine_status\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (fuel %), Line chart (level vs time), Table (hours of fuel at current load).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Stand up collector capacity for the **BMS, generator controller Modbus/SNMP** path documented in this UC: either **Splunk Connect for SNMP (Splunkbase 6266)** profiles that walk generator OIDs or **SNMP Modular Input (1537)** stanzas on a Heavy Forwarder, plus any Modbus middleware your BMS team operates that forwards JSON to HEC—keep secrets in `storage/passwords`, not in dashboards.\n• Contract `props.conf` / transforms so every event lands on **`index=power`** as **`sourcetype=\"generator:telemetry\"`** with stable extractions for **`fuel_level_pct`**, **`fuel_gallons`**, **`generator_id`**, and **`engine_status`** before you enable alerting.\n• Create a least-privilege RBAC role such as **`power_facilities_ops`** with search rights limited to **`index=power`** and grant **`schedule_search`** only to the service account that owns this detection.\n\nStep 1 — Configure data collection\nPoll tank percent and gallon totalizer registers (Modbus function blocks) or SNMP fuel tables every **five minutes** (`cron` `*/5 * * * *` on modular inputs), stamp maintenance windows in a lookup when the generator controller firmware is upgraded, and have the BMS publish reconciliation rows so drift between building automation and the controller surfaces during QA.\n\nStep 2 — Create the search and alert\nPaste the UC SPL into Search, save it as a report, then schedule an alert whose **`dispatch.earliest_time`** matches the poll cadence (for example `-10m@m`). Keep thresholds in a macro (`macros.conf`) so winter demand changes do not require editing raw SPL.\n\nStep 3 — Validate\nSpot-check **`fuel_level_pct`** and **`fuel_gallons`** against the generator controller’s local panel and the BMS fuel module for the same **`generator_id`** across a `-24h` window; confirm `_time` tracks controller time, not just forwarder receipt, before promoting the alert.\n\nStep 4 — Operationalize & troubleshoot\nPublish a dashboard with fuel gauge, trend, and residual-runtime math, document runbook actions (dispatch fuel truck, shed load), and if alerts fire during queue backlogs, inspect Heavy Forwarder pipeline metrics—treat sustained `_indextime` skew as ingestion triage, not a true low-fuel event.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "During a controlled utility failover drill the generator stays online, SNMP polls record monotonic decreases in fuel_gallons with fuel_level_pct crossing 22 while engine_status remains running, and the scheduled alert returns the generator row within the five-minute poll window.",
+    "negativeScenario": "An operator opens a maintenance window that flips engine_status to standby and pauses SNMP walks; stale cached gallons briefly satisfy the numeric predicate until ingestion resumes—tests should prove the alert stays suppressed when the maintenance lookup flag is active."
+  },
+  "evidence": "Export the triggered alert snapshot showing `_time`, `generator_id`, `fuel_level_pct`, `fuel_gallons`, and `engine_status`, attach the paired trending panel for the preceding six hours, and file the CMMS fuel verification or dipstick reading ticket ID referenced in the incident record.",
+  "exclusions": "Sites whose generators lack an authenticated Modbus/SNMP fuel totalizer feed, unmetered belly tanks, or dual-fuel plants where gallons telemetry does not map to the monitored circuit should exclude this UC until instrumentation parity exists."
 }
