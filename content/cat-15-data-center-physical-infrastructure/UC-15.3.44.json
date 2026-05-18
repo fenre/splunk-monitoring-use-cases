@@ -9,28 +9,40 @@
     "Physical Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=physical` `sourcetype=cctv:ptz` or VMS logs with `PTZ`, `preset`, `home`, `timeout`, `motor` fields",
+  "dataSources": "Land Axis, Hanwha, Hikvision SDK diagnostics or Milestone Recording Server bridges into `index=physical` using **`sourcetype=cctv:ptz`** (and companion **`sourcetype=nvr:diagnostic`** lines where the VMS emits PTZ health separately) with Splunk-extracted fields **`preset`**, **`home`**, **`timeout`**, **`motor`**, and **`error_code`** tied to **`camera_id`**. Typical ingest uses syslog/TLS forwarded through **Splunk Connect for Syslog** ([Splunkbase app **4740**](https://splunkbase.splunk.com/app/4740)), Heavy Forwarder `inputs.conf` listeners, or **`POST /services/collector/event`** HEC JSON when SDK exporters emit structured payloads.",
   "app": "Axis, Hanwha, Hikvision PTZ SDK logs via syslog, or Milestone device logs",
   "spl": "index=physical sourcetype=cctv:ptz OR (sourcetype=nvr:diagnostic PTZ)\n| search preset OR Home OR timeout OR motor OR stall OR \"PTZ error\"\n| stats count by host, camera_id, error_code\n| where count > 5\n| sort - count",
-  "description": "Pan-tilt-zoom cameras that fail to return to home preset after tours leave blind spots in perimeter coverage. Aggregating PTZ driver errors and preset timeouts highlights worn motors, icing, or serial control contention before guards notice wrong framing.",
-  "value": "Maintains intended camera coverage for patrol routes and perimeter analytics by fixing mechanical PTZ faults early.",
-  "implementation": "Enable verbose PTZ diagnostics only on problematic units to control volume. Map vendor codes to `error_code` lookup for human text. Alert when failures/hour exceed 5 for two consecutive hours. Correlate with weather API for outdoor domes.",
-  "visualization": "Table (camera_id, error_code), Line chart (failures), Geo map for perimeter cams.",
+  "description": "Detects PTZ units that repeatedly fail homing after patrol tours complete—motor stalls, preset timeouts, or controller contention logged while frames stay pointed away from guard routes so perimeter analytics lose continuity.",
+  "value": "Protects perimeter assurance for data halls and fenced compounds by shortening mean-time-to-repair on mechanical PTZ faults before patrol narratives or badge-correlation reviews contradict what cameras actually framed.",
+  "implementation": "Tier diagnostics verbosity on noisy Axis/Hanwha/Hikvision bodies first; normalize vendor integers into **`error_code`** via transforms lookup tables Milestone administrators align with Device Pack release notes. Schedule the hourly aggregation saved search under the physical-security service account, alert when Splunk counts failures/hour stay above five for two rolling hours per camera, and optionally enrich outdoor domes with approved weather CSV lookups gated behind RBAC.",
+  "visualization": "Primary `splunk.table` of latest hour: `camera_id`, `site`, `error_code`, failure count, linked drilldown to raw `cctv:ptz` events; companion `splunk.line` trending failures per camera; optional `splunk.singlevalue` KPI for cameras breaching threshold; geo context only when CMDB coordinates exist.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "ONVIF — Open Network Video Interface Forum",
-      "url": "https://www.onvif.org/"
+      "title": "Splunk Connect for Syslog (Splunkbase 4740)",
+      "url": "https://splunkbase.splunk.com/app/4740"
     },
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Docs — Forwarding and receiving syslog",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ForwardingReception"
+    },
+    {
+      "title": "Axis Developer Documentation — VAPIX",
+      "url": "https://developer.axis.com/"
+    },
+    {
+      "title": "Milestone Developer — integrations and APIs",
+      "url": "https://developer.milestonesys.com/"
+    },
+    {
+      "title": "ONVIF — Open Network Video Interface Forum",
+      "url": "https://www.onvif.org/"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "**Milestone XProtect scheduled patrol scripts** deliberately sweep presets—suppress via KVStore **`ptz_maintenance`** rows keyed by `camera_id` plus `_time` windows sourced from SOC change calendars. **Axis Device Manager bulk firmware pushes** flood transient motor warnings—require two consecutive trending hours before paging or whitelist `job_id` markers emitted during upgrades. **Hanwha/Wisenet dome self-diagnostics after weather or surge events** mimic stalls until the head clears—differentiate using short-duration bursts that lack repeated `error_code` in a second hour or tie to published maintenance windows. **Hikvision privacy-mask or scene-cutover commands** issued from the VMS resemble failed homing—ignore spikes that align with operator mask changes logged in the same `camera_id` stream while no tour-completion event is present.",
   "equipment": [
     "cctv",
     "syslog"
@@ -42,6 +54,18 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Asset tag whether camera is PTZ vs fixed.\n• Maintenance contract for mechanical service.\n\nStep 1 — Capture baseline during calibration.\n\nStep 2 — Suppress alerts during scheduled tours if errors expected.\n\nStep 3 — Integrate with work order system.\n\nStep 4 — Video clip bookmarking in VMS on alert.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Approved syslog/TLS or HEC path from Milestone Recording Server, Axis Companion/Device Manager feeds, Hanwha diagnostic bridges, or Hikvision SDK exporters into Splunk Cloud or Splunk Enterprise—Splunk Connect for Syslog ([Splunkbase app 4740](https://splunkbase.splunk.com/app/4740)) on a hardened Heavy Forwarder is the usual pattern alongside documented **`inputs.conf`** UDP/TCP stanzas.\n• Require normalized events on **`index=physical`** with **`sourcetype=cctv:ptz`** plus optional **`sourcetype=nvr:diagnostic`** rows referencing the same **`camera_id`**; extracted tokens must include **`preset`**, **`home`**, **`timeout`**, **`motor`**, **`error_code`**, and **`host`** before promoting alerting.\n• RBAC: constrain dashboards and scheduled searches to a **`physical_security_analyst`** (or similarly scoped) role with search/filter limits on **`index=physical`** only; store integration secrets outside SPL literals.\n• CMMS linkage fields (`work_order_id`, `vendor_case`) simplify tuning once mechanical remediation loops mature.\n\nStep 1 — Configure collection\nForward verbose PTZ traces during calibration windows only; otherwise rely on Milestone audit bridges or Axis/Hanwha/Hikvision SDK heartbeat logs at vendor-documented intervals. For JSON-capable exporters, bind **`POST /services/collector/event`** HEC tokens with explicit sourcetype overrides so multi-line syslog fragmentation cannot split **`PTZ error`** strings.\n\nStep 2 — Build validation searches\nBefore enabling automation, run ad hoc searches over **`index=physical`** **`sourcetype=cctv:ptz`** with **`camera_id`** split-by counts inside a **`-24h`** window to capture baseline jitter when icing or lubrication cycles occur; repeat against **`sourcetype=nvr:diagnostic`** if Milestone duplicates alarms.\n\nStep 3 — Validate against consoles\nCross-check spikes against Milestone Smart Client playback timelines and Axis/Hanwha/Hikvision maintenance utilities so Splunk cardinality mirrors observed mechanical faults rather than benign UI retries.\n\nStep 4 — Operationalize\nPublish dashboard drilldowns (camera × **`error_code`**, hourly failure sparklines, geo overlays fed by CMDB latitude/longitude lookups) and route breaches into CMMS tickets referencing stored Splunk SID URLs as forensic breadcrumbs.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "Force a lab Axis Q6075-LE paired to Milestone XProtect to abort a tour without returning home, generating repeated PTZ motor timeout lines with nonzero `error_code` for the same `camera_id` across two Splunk hourly buckets while `preset=home` never succeeds.",
+    "negativeScenario": "Operators run an approved Milestone maintenance tour that intentionally pauses on a preset for training; Splunk sees single-hour spikes but CMMS/KVStore suppressions mark the window, so the alert stays quiet despite transient `motor` chatter without sustained `error_code` accumulation. Matching CMMS ticket IDs prove the outage was planned."
+  },
+  "evidence": "Splunk saved search or alert history for PTZ homing failures plus linked dashboard panels on `index=physical` showing per-`camera_id` `error_code` rollups exported as PDF or scheduled CSV to the physical security evidence share.",
+  "exclusions": "Does not certify video chain-of-custody for legal evidence beyond log correlation, does not replace VMS-native health dashboards for storage or network throughput, and does not cover fixed-lens cameras lacking PTZ telemetry.",
+  "equipmentModels": [
+    "Axis Q6075-LE",
+    "Hanwha Vision XNP-6320",
+    "Hikvision DS-2DE4425IW-AE",
+    "Milestone XProtect Corporate Recording Server"
+  ]
 }
