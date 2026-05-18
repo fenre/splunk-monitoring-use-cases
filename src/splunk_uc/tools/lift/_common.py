@@ -80,11 +80,18 @@ def score_uc(
     sidecar_path: Path,
     target_tier: TargetTier,
 ) -> GapReport:
-    """Score a UC against the target tier's rubric and return a gap report.
+    """Score a UC against the depth rubric and return a gap report.
 
-    Delegates the actual scoring to the existing ``audit-gold-profile``
-    audit, parsing its summary output. For Silver/Gold the v1 audit is
-    sufficient; for Gold-v2 the v2 audit is also consulted.
+    Delegates to ``gold_profile.score_sidecar``, which scores a parsed
+    UC dict against the Bronze/Silver/Gold gradient defined in
+    ``src/splunk_uc/audits/gold_profile.py``. The ``target_tier``
+    argument is recorded on the returned ``GapReport`` for downstream
+    consumers (``lift-prompt`` etc.) but does not change the score —
+    the audit always returns the highest tier reached.
+
+    Gold-v2 (``schemas/uc-profile-gold.json`` v2) is not consulted
+    here; callers requesting Gold-v2 thresholds should additionally
+    invoke ``gold_profile_v2`` themselves.
     """
     from splunk_uc.audits import gold_profile  # local import: lazy
 
