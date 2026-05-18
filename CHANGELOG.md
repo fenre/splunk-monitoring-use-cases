@@ -12,6 +12,105 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added — PR-4: content-quality lift loop + cat-15 proof-of-concept
+
+PR-4 builds on the lean-mode arc (PR-1 → PR-2 → PR-3) by adding the
+first piece of new machinery on top of the lean base: a
+**scoreboard-driven, firewalled lift loop** that turns the existing
+`gold_profile` scoring rubric into an orchestratable content-quality
+ratchet. Four pure-function CLI verbs let an orchestrator identify
+low-scoring UCs, generate rubric-aware prompts, validate AI-authored
+diffs against a fixed §5 contract, and produce per-UC commits — all
+without ever letting the AI touch the catalogue's SPL, identity, or
+other correctness-critical fields.
+
+**New CLI verbs (registered under the `lift` category).**
+
+- `lift-score` — runs `gold_profile` over one or more UC sidecars
+  and emits a JSON gap report. Pure function, no network or
+  subprocess calls.
+- `lift-prompt` — assembles a deterministic prompt for one UC
+  containing the rubric, the current sidecar (firewalled fields
+  elided), the gap report, the lift-surface allow-list, and the
+  exact diff shape the author must produce.
+- `lift-validate` — applies an AI-authored diff to one UC's
+  sidecar and runs the §5 contract: firewall (no `spl`, `id`,
+  `title`, etc.), allow-list (only the 14 lift-surface fields),
+  `jsonschema` per-field validation against
+  [`schemas/uc.schema.json`](schemas/uc.schema.json), identity
+  preservation, and a strictly-greater post-lift score. Writes
+  the lifted sidecar byte-faithfully (`ensure_ascii=False`) and
+  regenerates the markdown twin via
+  `generate-md-from-json --files`. `--strict` additionally
+  re-runs the catalog-wide audits in a subprocess; on any
+  failure the sidecar reverts from a cached `original_bytes`
+  buffer.
+- `lift-batch` — scans a category for low-scoring UCs and emits a
+  JSON manifest (`ucs[]`: `uc_id`, `sidecar_path`,
+  `current_score`, `failing_fields`) for the orchestrator to
+  iterate. Supports worst-first (default) and `--random --seed`
+  for deterministic shuffling.
+
+All four verbs ship with full TDD red→green test coverage under
+[`tests/splunk_uc/lift/`](tests/splunk_uc/lift/). The dispatcher
+smoke pin
+([`tests/splunk_uc/test_dispatcher.py`](tests/splunk_uc/test_dispatcher.py))
+asserts the new verbs show up under `--help` and resolve.
+
+**The §5 contract (what `lift-validate` enforces).**
+
+- **Firewalled fields** (can never appear in a diff): `id`,
+  `title`, `spl`, `cimSpl`, `monitoringType`, `splunkPillar`,
+  `criticality`, `difficulty`, `compliance`, `fixtureRef`,
+  `assurance`, `grandmaExplanation`, `prerequisiteUseCases`,
+  `wave`.
+- **Lift-surface fields** (the only ones the AI may touch):
+  `description`, `value`, `dataSources`, `detailedImplementation`,
+  `knownFalsePositives`, `references`, `controlTest`, `evidence`,
+  `exclusions`, `visualization`, `equipmentModels`, `mitreAttack`,
+  `implementation`, `dataModelAcceleration`.
+- Any diff that touches a field outside the allow-list is
+  rejected; any diff that does not strictly raise the
+  gold-profile score is rejected; any diff that fails per-field
+  schema validation is rejected; identity (`id`, `title`) must be
+  unchanged.
+
+**Cat-15 proof-of-concept (30 / 30 lifts).**
+
+Generated a 30-UC worst-first manifest with
+`lift-batch cat-15 --limit 30 --report reports/lift-batch-cat-15-poc.json`,
+dispatched 30 `generalPurpose` subagents in batches of 4 (each one
+read a pre-generated `/tmp/lift-UC-X.Y.Z.prompt.txt`, authored a
+`/tmp/lift-UC-X.Y.Z.diff.json`, and returned the path only),
+validated every diff with `lift-validate`, and produced 30 separate
+`docs(uc): lift UC-X.Y.Z to silver` commits — one per UC,
+byte-faithful diffs, no manual edits.
+
+- 30 / 30 lifts validated without revert. The score-strictly-
+  increases gate was respected by every diff; the firewall never
+  fired.
+- Score deltas: smallest +5, largest +22, median +10. Total raw
+  gold-profile score added: **+307 points across 30 UCs** in
+  cat-15. The lifted UCs all crossed the 20–25 "structural-only"
+  floor into the 30–40 "rubric-satisfied bronze" band.
+- `audit-gold-profile --summary` snapshot shows cat-15 average
+  depth at **27.4** (was anchored ~24).
+- `make audit` clean (zero new findings vs. baseline).
+- `make build` clean (7,929 UCs / 23 categories / 82 regulations
+  in 49.83 s, full reproducible artefacts emitted).
+
+**Why now.** The lean-mode PRs removed the team-coordination
+machinery that had been masking content-quality drift; PR-4 gives
+the solo maintainer a high-leverage way to clear that drift without
+re-introducing team-coordination overhead. Each lift produces an
+independently-reviewable commit that can be reverted in isolation;
+the firewall makes it safe to invoke the loop unattended in a future
+scheduled-CI job.
+
+See drift ledger #22 in
+[`docs/health-check-2026-progress.md`](docs/health-check-2026-progress.md)
+for the full rationale.
+
 ### Changed — lean-mode PR-3: solo-maintainer doc rewrite + workflow-audit consolidation
 
 Three community-facing docs were carrying multi-contributor / governance

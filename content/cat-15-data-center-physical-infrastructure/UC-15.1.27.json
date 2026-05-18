@@ -9,6 +9,12 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Drop hosts listed in planned-maintenance lookups, DR-drill asset tags, or harmonic-only monitoring classes until battery-transfer SNMP OIDs are confirmed for those assets.",
+  "evidence": "Exports of the saved search over a 30-day window plus PDF timeline panels showing voltage nadirs matched to facility work orders and breaker labels for audit reviews.",
+  "controlTest": {
+    "positiveScenario": "Replay lab SNMP polls for host lab-ups01 where upsAdvInputLineVoltage reports 102 V on three consecutive five-minute samples and upsLastTransferReason begins reporting on-battery; confirm the detection search returns an event with host, min_vin, and xfer_events populated in the alerting payload.",
+    "negativeScenario": "Feed steady 120 V polls with upsLastTransferReason locked to normal utility for a full day and verify the search job result count stays at zero unless a maintenance suppression token is injected, proving thresholds are not misfiring on clean power."
+  },
   "dataSources": "Poll and trap APC-compatible UPS SNMP variables into `index=power` via Splunk Connect for SNMP (Splunkbase app ID 6266) or the SNMP Modular Input (Splunkbase app ID 1537); standardize `sourcetype=snmp:apc:ups` for scheduled walks and optionally merge parallel trap streams carrying UPS MIB OIDs under `sourcetype=snmp:trap`. Primary extracted readings include numeric `upsAdvInputLineVoltage`, enumerated `upsLastTransferReason`, and status bits from `upsBasicOutputStatus`.",
   "app": "Splunk Connect for SNMP (Splunkbase #6266), SNMP Modular Input (Splunkbase #1537)",
   "spl": "index=power sourcetype=snmp:apc:ups host=*\n| eval vin=tonumber(upsAdvInputLineVoltage), reason=coalesce(upsLastTransferReason, transfer_reason)\n| where vin < 108 OR vin > 132 OR match(toString(reason), \"(?i)transfer|battery|boost|trim\")\n| bin _time span=15m\n| stats count as xfer_events, min(vin) as min_vin by _time, host\n| where xfer_events > 0 OR min_vin < 108",
@@ -43,7 +49,8 @@
     "snmp"
   ],
   "equipmentModels": [
-    "snmp_generic"
+    "snmp_generic",
+    "snmp_ups"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -53,11 +60,5 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Install Splunk Connect for SNMP (Splunkbase #6266) or SNMP Modular Input (Splunkbase #1537) with SNMPv3 credentials confined to password managers—not embedded in dashboards.\n• Land polled UPS MIB walks and SNMP traps in `index=power`; tag poll documents `sourcetype=snmp:apc:ups` and trap payloads `sourcetype=snmp:trap`, using a saved-search macro or `append` only when both paths exist.\n• Publish CSV lookup `ups_nominal_voltage` keyed by `host` (or UPS management IP) to map nominal 120 V vs 230 V fleets and expected high/low thresholds.\n\nConfiguration\n• Configure the modular input or SC4SNMP poller to walk `upsAdvInputLineVoltage`, `upsLastTransferReason`, and `upsBasicOutputStatus` on a five-minute cadence aligned to facility change windows.\n• Schedule the supervisory saved search with `cron_schedule=*/5 * * * *`, `dispatch.earliest_time=-15m`, and `dispatch.latest_time=now` so each run covers at least two poll cycles.\n• Apply least-privilege RBAC: assign a `power_ops` role that may search only `index=power` and attach the same index allow-list to the scheduled search owner on the SHC captain.\n\nOperations\n1) Normalize thresholds from `ups_nominal_voltage` (for example flag sustained readings under 108 V on 120 V service across two successive polls).\n2) Overlay transfer spikes on facility feeder labels to isolate breaker, transformer tap, or harmonic filter work.\n3) Ingest planned maintenance markers (CMDB CSV or KV lookup) to suppress scheduled generator or ATS exercises.\n4) Feed downstream battery-cycle dashboards from the same `index=power` stream to prove cycle counts fall after upstream electrical repairs.\n\nHandover\n• Document SNMP community or USM rotation in the runbook and map on-call escalation to facility electrical partners when min line voltage breaches SLO for thirty minutes.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
-  "controlTest": {
-    "positiveScenario": "Replay lab SNMP polls for host lab-ups01 where upsAdvInputLineVoltage reports 102 V on three consecutive five-minute samples and upsLastTransferReason begins reporting on-battery; confirm the detection search returns an event with host, min_vin, and xfer_events populated in the alerting payload.",
-    "negativeScenario": "Feed steady 120 V polls with upsLastTransferReason locked to normal utility for a full day and verify the search job result count stays at zero unless a maintenance suppression token is injected, proving thresholds are not misfiring on clean power."
-  },
-  "evidence": "Exports of the saved search over a 30-day window plus PDF timeline panels showing voltage nadirs matched to facility work orders and breaker labels for audit reviews.",
-  "exclusions": "Drop hosts listed in planned-maintenance lookups, DR-drill asset tags, or harmonic-only monitoring classes until battery-transfer SNMP OIDs are confirmed for those assets."
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
 }

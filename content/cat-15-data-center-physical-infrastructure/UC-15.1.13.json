@@ -8,6 +8,12 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not certify NEC separation distances, substitute arc-flash engineering studies, or replace vendor ATS commissioning reports—only correlates telemetry already modeled as sourcetype \"ats:events\".",
+  "evidence": "Retain exported alert results showing _time, ats_id, event, source_side, duration_ms plus screenshots or SNMP MIB polls proving feeder state during the window for retroactive audits.",
+  "controlTest": {
+    "positiveScenario": "Operators simulate a mains dropout on ATS-GSS1 so SNMP normalization emits transfer_to_gen with source_side moving from utility to generator and duration_ms recorded between 120 ms and 450 ms; within five minutes the scheduled search returns exactly one qualifying row per ats_id and the alert triggers.",
+    "negativeScenario": "Network maintenance bounces the SNMP collector interface without any ATS transfer; traps contain coldStart linkUp noise lacking event and duration_ms fields—after ingestion those rows fail the SPL predicates and the alert stays idle."
+  },
   "dataSources": "Land ATS telemetry on index=power as sourcetype=\"ats:events\" with Splunk-extracted dimensions ats_id, event (for example transfer_to_gen, retransfer_to_utility, test), source_side, duration_ms, and the relay or trap source field referenced in props. Typical collection paths are SNMP traps or polled OIDs from the ATS SNMP/BMS integration described in App, dry-contact closures into a syslog or HEC bridge, Splunk Connect for SNMP (Splunkbase app ID 6266), or SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder with UDP/162 trap stanzas in inputs.conf.",
   "app": "ATS SNMP/BMS, relay contacts",
   "spl": "index=power sourcetype=\"ats:events\"\n| where event IN (\"transfer_to_gen\",\"retransfer_to_utility\",\"test\") OR duration_ms > 500\n| table _time, ats_id, event, source_side, duration_ms\n| sort -_time",
@@ -39,17 +45,12 @@
   ],
   "knownFalsePositives": "Scenario A — Quarterly ATS exercise programmes emit event=test bursts from the ATS SNMP/BMS stream; distinguish them with a maintenance_calendar lookup keyed on site_code and suppress paging outside drill windows while still indexing the rows. Scenario B — Relay chatter from adjacent HVAC/BMS panels shares the forwarding host and mimics transitions; require populated ats_id plus sourcetype=\"ats:events\" before firing. Scenario C — SNMP agent warm reboots replay stale transfer traps with duplicate _time skew under one second; collapse duplicates with dedup ats_id event within a two-second span. Scenario D — Vendor firmware emits prolonged duration_ms spikes during benign capacitor bank switching; tune thresholds per ATS model via a thresholds.csv lookup joined on ats_id.",
   "equipment": [
-    "snmp"
+    "snmp",
+    "syslog"
   ],
   "equipmentModels": [
     "snmp_generic"
   ],
   "detailedImplementation": "Prerequisites\n• Deploy collection that matches App: ATS SNMP/BMS traps/polls plus optional dry-contact relays—prefer Splunk Connect for SNMP (Splunkbase app ID 6266) or SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder that owns UDP/162 trap listeners declared in inputs.conf, forwarding into index=power with sourcetype=\"ats:events\".\n• Validate props/transforms extract ats_id, event, source_side, duration_ms, and trap identity fields before alerting; spot-check Interactive Search over `-24h@h` for field completeness.\n• RBAC: grant facility engineers a scoped role such as power_facility_ops read/search on index=power only; dedicate a scheduler account with schedule_search for the saved detection.\n• Document ATS-specific enumerated event tokens your normalization emits so Splunk admins map trap OID payloads consistently.\n\nStep 1 — Configure data collection\nMap SNMP trap bindings or relay closures into structured rows with `_time` anchored to device-reported timestamps; if relays arrive via syslog, tune LINE_BREAKER/TIME_PREFIX so `_time` reflects switch action, not forwarder receipt lag.\n\nStep 2 — Create the search and alert\nPaste the UC SPL into Search, verify rows for known transfers and drills, then save as an alert with cron_schedule `*/5 * * * *` paired to dispatch.earliest_time `-5m` so oscillations surface quickly without overlapping windows.\n\nStep 3 — Validate\nCross-check Splunk rows against the ATS local status indication or an SNMP poll/walk from the same management VLAN for the same ats_id during the `_time` window; reconcile discrepancies before promoting to production schedules.\n\nStep 4 — Operationalize\nPublish the query on an operational dashboard (timeline plus sortable table), route alert actions through your paging policy, record tuning thresholds for duration_ms and allowed event vocabulary in the facility runbook, and rehearse DR drills with suppression macros keyed on maintenance CSV lookups.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
-  "controlTest": {
-    "positiveScenario": "Operators simulate a mains dropout on ATS-GSS1 so SNMP normalization emits transfer_to_gen with source_side moving from utility to generator and duration_ms recorded between 120 ms and 450 ms; within five minutes the scheduled search returns exactly one qualifying row per ats_id and the alert triggers.",
-    "negativeScenario": "Network maintenance bounces the SNMP collector interface without any ATS transfer; traps contain coldStart linkUp noise lacking event and duration_ms fields—after ingestion those rows fail the SPL predicates and the alert stays idle."
-  },
-  "evidence": "Retain exported alert results showing _time, ats_id, event, source_side, duration_ms plus screenshots or SNMP MIB polls proving feeder state during the window for retroactive audits.",
-  "exclusions": "Does not certify NEC separation distances, substitute arc-flash engineering studies, or replace vendor ATS commissioning reports—only correlates telemetry already modeled as sourcetype \"ats:events\"."
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
 }
