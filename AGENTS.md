@@ -173,7 +173,24 @@ PYTHONPATH=src python3 -m splunk_uc --help          # canonical splunk_uc dispat
 PYTHONPATH=src python3 -m splunk_uc generate-grandma-explanations  # fill missing plain-language fields
 python3 -m splunk_uc splunk-fortune                   # random UC "fortune cookie"
 PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate implementation ordering
+PYTHONPATH=src python3 -m splunk_uc lift-score UC-X.Y.Z          # depth score + gap report for one UC
+PYTHONPATH=src python3 -m splunk_uc lift-prompt UC-X.Y.Z         # emit AI prompt for one UC (orchestrator-consumed)
+PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of worst-N UCs in a category
+PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
 ```
+
+## Content-quality lift loop
+
+The lift loop is an AI-assisted, human-supervised workflow for raising the depth dimension of UC sidecars against the [gold-profile rubric](schemas/uc-profile-gold.json). It pairs four pure-function CLI verbs with an orchestration agent that dispatches one subagent per UC. SPL, compliance, classification, and identity fields are firewalled — the loop only touches the curated content surface (description, value, dataSources, detailedImplementation, knownFalsePositives, references, controlTest, evidence, exclusions, visualization, equipmentModels, mitreAttack).
+
+| Verb | Role | Pure? |
+|---|---|---|
+| `lift-score` | Score one UC; list the rubric fields that are short of the target tier. | yes |
+| `lift-prompt` | Emit the deterministic AI prompt (rubric + UC JSON + gap report + firewall + output-shape contract) for one UC. The orchestrator feeds this to a `Task` subagent. | yes |
+| `lift-validate` | Apply an AI-authored JSON diff and refuse to commit it unless the §5 contract holds: identity match, allow-list, firewall, per-field schema, identity preserved, score strictly increased, optional `--strict` catalogue-wide audits. | yes (subprocesses only when committing the .md twin or running `--strict`) |
+| `lift-batch` | Pick worst-N (or random-N) UCs in a category; emit a manifest the orchestration loop iterates over. | yes |
+
+Design + plan: [`docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`](docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md) and [`docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md`](docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md).
 
 ## Further reading
 
@@ -189,6 +206,8 @@ PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate impl
 - [`docs/roadmap-sync.md`](docs/roadmap-sync.md) — Project-board sync runbook
 - [`docs/scripts-taxonomy.md`](docs/scripts-taxonomy.md) — `splunk_uc` package + dispatcher runbook (P6)
 - [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md) — three-layer SPL identifier validation (commands, macros, sourcetypes, datamodels) and how to grow the curated vocabulary
+- [`docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`](docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md) — content-quality lift loop architecture (the §5 firewall, four CLI verbs, orchestration contract)
+- [`docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md`](docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md) — implementation plan and PoC run for the lift loop
 
 ---
 
