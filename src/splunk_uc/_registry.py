@@ -839,3 +839,11 @@ register(
         category="lift",
     )
 )
+register(
+    Verb(
+        name="lift-prompt",
+        module="tools.lift.prompt",
+        help="Emit the AI prompt for one UC (consumed by an orchestration agent).",
+        category="lift",
+    )
+)
