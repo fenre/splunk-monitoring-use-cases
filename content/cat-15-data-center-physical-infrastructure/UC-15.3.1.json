@@ -65,28 +65,54 @@
       "evidenceArtifact": "Saved search 'UC-15.3.1' running on Access control system events, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Access control system events",
+  "dataSources": "`index=physical` events with `sourcetype=access_control` representing Access control system events (grant, deny, door held, forced) with Splunk-extracted fields such as `badge_id`, `badge_holder`, `door`, `action`, and `result`; ingest is commonly via syslog through Splunk Connect for Syslog (Splunkbase app 4740) or a Heavy Forwarder `inputs.conf` `splunktcp://` / `udp://` stanza, with optional vendor REST-to-HEC `/services/collector/event` paths when the head-end exposes an API.",
   "app": "Access control syslog/API",
   "spl": "index=physical sourcetype=\"access_control\"\n| table _time, badge_holder, badge_id, door, action, result\n| sort -_time",
-  "description": "Complete badge access audit trail is required for compliance (SOC2, PCI-DSS) and supports security investigations.",
-  "value": "Complete badge access audit trail is required for compliance (SOC2, PCI-DSS) and supports security investigations.",
-  "implementation": "Forward access control events to Splunk. Parse all badge events (granted, denied, door held, forced). Retain per compliance requirements. Enable search by person, door, or time for investigations.",
-  "visualization": "Table (access log), Bar chart (access by door), Timeline (access events for person), Single value (total access today).",
+  "description": "Monitors normalized physical-access telemetry—badge grants, denials, door-held, and forced-door events—from data-center mantraps, suites, and cage entrances so analysts can reconstruct who accessed which reader within Splunk.",
+  "value": "Stronger audit evidence for SOC 2, PCI-DSS, and critical-infrastructure reviews reduces remediation costs after incidents, tightens least-privilege enforcement for contractors, and shortens insider-threat or tailgating investigations that depend on authoritative door timelines.",
+  "implementation": "Classify every PACS export line or API payload into those event types, normalize door and cardholder identifiers to stable keys, forward with time sync within one second of the controller clock, restrict `index=physical` to `physical_security` and `splunk_monitoring_ops` roles, and retain hot/warm tiers per policy while archiving compressed exports for multi-year audits.",
+  "visualization": "Primary table of badge events sorted by `_time`; bar chart of `action` counts by `door`; timeline (timechart) of grants versus denies; single-value panel for distinct `badge_holder` in the selected window; optional map or floor-plan drilldown when door metadata includes building/floor tags.",
   "cimModels": [
     "Authentication"
   ],
   "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user, Authentication.action, Authentication.src span=1h\n| sort - count",
-  "dataModelAcceleration": "Enable for Authentication (Authentication).",
+  "dataModelAcceleration": "Enable summaries for `Authentication` when badge events are tagged into the Authentication data model; expect higher cardinality on `Authentication.user` and `Authentication.src`—accelerate only after field aliases map `badge_holder` to `user` and reader IP or controller `host` to `src`.",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk Connect for Syslog (Splunkbase 4740)",
+      "url": "https://splunkbase.splunk.com/app/4740"
+    },
+    {
+      "title": "Splunk Documentation — Forward data to Splunk Enterprise",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ForwardingData"
+    },
+    {
+      "title": "Splunk Common Information Model — Authentication dataset",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+    },
+    {
+      "title": "PCI DSS v4.x — Requirement 9 (physical access)",
+      "url": "https://www.pcisecuritystandards.org/"
     }
   ],
-  "knownFalsePositives": "Denied access for expired badges, role changes pending update, or guest badges with limited zones.",
+  "knownFalsePositives": "(1) **Front-desk visitor management queue** — Temporary QR or mobile credentials can log as `grant` without a plastic badge card; differentiate using `credential_type` fields when present or suppress rows tagged `contractor_visitor` during scheduled tour windows in the visitor workflow. (2) **Elevator destination dispatch hand-off** — Some high-rise integrations read the badge at a lobby reader and again at a car-call panel, duplicating rows; collapse with `dedup badge_id,door,_time` inside a three-second window. (3) **Antipassback occupancy lockouts** — The access-control database emits rapid `deny` bursts when antipassback or max-occupancy rules trip; suppress unless per-`door` `deny` rates exceed values in `access_baseline.csv`. (4) **Head-end controller fail-over backlog** — During primary-to-secondary controller switchover, syslog backfill replays historic `grant` rows; pause alerts when exported `controller_state=sync` markers or maintenance flags appear on the head-end stream.",
   "equipment": [
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Access control syslog/API.\n• Ensure the following data sources are available: Access control system events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward access control events to Splunk. Parse all badge events (granted, denied, door held, forced). Retain per compliance requirements. Enable search by person, door, or time for investigations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=physical sourcetype=\"access_control\"\n| table _time, badge_holder, badge_id, door, action, result\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Badge Access Audit** — Complete badge access audit trail is required for compliance (SOC2, PCI-DSS) and supports security investigations.\n\nDocumented **Data sources**: Access control system events. **App/TA** (typical add-on context): Access control syslog/API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: physical; **sourcetype**: access_control. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=physical, sourcetype=\"access_control\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Badge Access Audit**): table _time, badge_holder, badge_id, door, action, result\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the badge reader and access control system for the same doors, events, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (access log), Bar chart (access by door), Timeline (access events for person), Single value (total access today).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Install Splunk Connect for Syslog (Splunkbase app 4740) or confirm a Universal / Heavy Forwarder `inputs.conf` listener is authorized to receive syslog from the access control head-end; document the forwarding path in the facility runbook.\n• Map Access control syslog/API feeds to `index=physical` and `sourcetype=access_control`, ensuring `props.conf` extracts `badge_id`, `badge_holder`, `door`, `action`, and `result` exactly as referenced in operational searches.\n• Grant `physical_security_analyst` and `audit_reader` roles search access only to `index=physical`, and require `audit_evidence` outputs to be written by a dedicated scheduled search identity.\n• For app layout, modular input placement, and upgrade order, follow docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nPoint syslog (default UDP/514 or TCP/TLS per site standard) from the physical access controller or integration server to SC4S or the forwarder, or schedule a REST polling modular input / HEC POST to `/services/collector/event` if the vendor only offers HTTPS. Use a five-minute acceptance test window (`-15m@m` to `now`) to verify event rate, then move to `-24h@h` monitoring. Tag `host` with the controller name and include mantrap versus suite in a lookup if multiple sites share one index.\n\nStep 2 — Create the search and alert\nRun the published SPL inside a `-24h@h` window, save as a report, then clone to an alert that triggers on suspicious patterns (for example elevated `deny` counts per `door`). Throttle alerts by `badge_holder` and `door` for at least 2× the controller poll interval.\n\n```spl\nindex=physical sourcetype=\"access_control\"\n| table _time, badge_holder, badge_id, door, action, result\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Badge Access Audit** scopes `index=physical` and `sourcetype=\"access_control\"`, then lists the forensic fields auditors expect. Expand with `stats` or `bin` stages when leadership needs rollups, but keep the base table intact for evidence exports.\n\n**Pipeline walkthrough**\n• `index=physical` isolates facility security data from enterprise application logs.\n• `sourcetype=\"access_control\"` binds to the Access control system events parsing contract.\n• `table` preserves `_time`, identity, reader, and outcome columns for CSV handoff.\n• `sort -_time` orders the audit trail newest-first for triage.\n\nStep 3 — Validate\nPick three badging events from the PACS operator console within the same `-4h@h` slice, confirm matching `_time`, `door`, and `action` rows in Splunk, and reconcile any delta with NTP drift or relay batching.\n\nStep 4 — Operationalize\nPublish the table to a dashboard with a drilldown on `badge_holder`, attach the runbook owner, route compliance exports to secured object storage, and document exception handling when the controller fails over to secondary nodes.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "During a quarterly access review, facilities seeds three controlled badge swipes at the data-hall mantrap (two grants, one denied expired card) while the PACS streams syslog to Splunk; within the -1h window the saved search shows three `access_control` rows with matching `badge_holder`, `door=DH-MANTRAP-01`, and `action` values that mirror the controller live view export. Capture the forwarder `host`, attach raw syslog excerpts, and retain the CSV extract under change-control evidence.",
+    "negativeScenario": "A shared syslog relay misroutes a non-physical facility feed into `index=physical` where every line lacks `badge_id` and `door`; the badge-audit workflow adds `where isnotnull(badge_id)` guardrails so the panel returns no rows even though unrelated infrastructure noise is present, proving the saved content does not auto-triage foreign streams as cardholder activity."
+  },
+  "evidence": "Export the saved search or dashboard panel for UC-15.3.1 showing `index=physical` `sourcetype=access_control` with columns `_time`, `badge_holder`, `badge_id`, `door`, `action`, `result` plus the alert or report job ID for the sampled audit interval.",
+  "exclusions": "Does not replace the access control system's authoritative database, certify wiring or door hardware health, monitor video analytic tailgating, or cover logical identity stores (Active Directory, SAML) unless those events are explicitly ingested into the same sourcetype.",
+  "equipmentModels": [
+    "Physical access control head-end (syslog or API export to Splunk)",
+    "Mantrap / data-hall badge reader infrastructure (panel-supervised)"
+  ],
+  "mitreAttack": [
+    "T1078",
+    "TA0006"
+  ]
 }
