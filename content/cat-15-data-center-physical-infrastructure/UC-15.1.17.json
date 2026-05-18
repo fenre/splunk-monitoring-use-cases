@@ -8,24 +8,36 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"snmp:ups:selftest\"`",
+  "dataSources": "Route polled UPS-MIB style self-test telemetry into `index=power` with `sourcetype=\"snmp:ups:selftest\"`, commonly emitted after configuring SNMP polling through Splunk SNMP Modular Input (**Splunkbase app ID 1537**) alongside field mappings shipped with **UPS SNMP (upsTestResultsSummary)**—confirm your deployed package keeps those sourcetype aliases consistent. Mandatory extracted dimensions for this UC include enumerated **`upsTestResultsSummary`**, outcome **`test_result`**, asset **`ups_name`**, and discriminator **`test_type`** alongside `_time`.",
   "app": "UPS SNMP (upsTestResultsSummary)",
   "spl": "index=power sourcetype=\"snmp:ups:selftest\"\n| where test_result!=\"passed\" OR upsTestResultsSummary!=\"donePass\"\n| table _time, ups_name, test_type, test_result, upsTestResultsSummary",
-  "description": "Failed self-tests indicate battery or inverter faults before a real outage.",
-  "value": "Failed self-tests indicate battery or inverter faults before a real outage.",
-  "implementation": "Ingest results from scheduled and manual tests. Alert on any failure. Force battery replacement workflow per vendor guidance.",
-  "visualization": "Table (failed tests), Timeline (self-test history), Single value (UPS with last fail).",
+  "description": "This detection consumes SNMP-derived UPS diagnostics normalized into `sourcetype=\"snmp:ups:selftest\"`, highlighting rows where `upsTestResultsSummary` is not `donePass` or `test_result` is not `passed`—patterns that accompany aborted battery or inverter qualification cycles.",
+  "value": "Surfacing unsuccessful diagnostics early preserves uptime commitments by prompting proactive swap-outs or vendor corrective maintenance before an actual mains loss forces an unplanned transfer that can strand racks, chillers, or storage fabrics tied to the same critical-power segment.",
+  "implementation": "Stand up SNMP polling or trap normalization so each rack UPS posts self-test summaries on a steady cadence, map them to `snmp:ups:selftest`, then schedule a saved search or alert that fires whenever failures breach your maintenance thresholds and routes tickets into your battery-replacement workflow.",
+  "visualization": "Primary panel: sortable Table keyed by `ups_name`, `_time`, `test_type`, `test_result`, `upsTestResultsSummary` with conditional formatting on failures; companion Single Value showing distinct failing assets over `-24h`; optional Timeline overlay comparing successful versus failed diagnostics streams per site.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
+      "title": "SNMP Modular Input — Splunkbase",
+      "url": "https://splunkbase.splunk.com/app/1537"
+    },
+    {
+      "title": "Splunk Lantern — Operational analytics guidance",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "RFC 1628 — UPS Management Information Base",
+      "url": "https://www.rfc-editor.org/info/rfc1628"
+    },
+    {
+      "title": "Splunk Documentation — Configure alerting on scheduled searches",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Alert/AlertWizardWalkthrough"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "**Facility generator qualifying drill** — Monthly loadbank exercises force UPS diagnostics into transient fault enumerations; correlate `_time` with `facility_generator_drill` tickets keyed by site and suppress matching `ups_name` rows inside approved windows.\n\n**SNMP discovery sweep from NetOps** — Inventory scanners hammer UPS agents during audits and surface bogus failures; whitelist forwarding hosts tied to certified scanner subnets before alerting.\n\n**Splunk Modular Input startup replay** — After restarts cached SNMP bundles replay stale summaries; drop rows where `_indextime-_time` exceeds 600 seconds unless corroborated by a fresh poll.\n\n**Planned UPS firmware staging queue** — Maintenance consoles kick scripted self-tests ahead of upgrades that intentionally fail until calibration completes; route events tagged `vendor_calibration_pending=true` from props transforms into an informational index.",
   "equipment": [
     "snmp"
   ],
@@ -33,6 +45,12 @@
     "snmp_generic",
     "snmp_ups"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: UPS SNMP (upsTestResultsSummary).\n• Ensure the following data sources are available: `sourcetype=\"snmp:ups:selftest\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest results from scheduled and manual tests. Alert on any failure. Force battery replacement workflow per vendor guidance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"snmp:ups:selftest\"\n| where test_result!=\"passed\" OR upsTestResultsSummary!=\"donePass\"\n| table _time, ups_name, test_type, test_result, upsTestResultsSummary\n```\n\nUnderstanding this SPL\n\n**UPS Self-Test Failure** — Failed self-tests indicate battery or inverter faults before a real outage.\n\nDocumented **Data sources**: `sourcetype=\"snmp:ups:selftest\"`. **App/TA** (typical add-on context): UPS SNMP (upsTestResultsSummary). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: snmp:ups:selftest. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"snmp:ups:selftest\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where test_result!=\"passed\" OR upsTestResultsSummary!=\"donePass\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **UPS Self-Test Failure**): table _time, ups_name, test_type, test_result, upsTestResultsSummary\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed tests), Timeline (self-test history), Single value (UPS with last fail).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Deploy **UPS SNMP (upsTestResultsSummary)** so MIB-derived UPS diagnostics land with the sourcetype aliases referenced below; pair it with SNMP Modular Input (**Splunkbase app ID 1537**) when you need hosted polling credentials managed inside Splunk.\n• Grant Splunk administrators plus facility/power SMEs the ability to edit modular-input definitions (`inputs.conf`) while restricting alert acknowledgement to the `power_operator` RBAC role group.\n• Validate SNMP reachability from the Universal Forwarder tier using timed polls every 300 seconds minimum so `_time` aligns with physical test completion.\n\nStep 1 — Configure collection\n• Target `index=power` for retention parity with other facility telemetry and bind outputs to `sourcetype=\"snmp:ups:selftest\"` exactly as your TA documents.\n• Ensure extracts populate `upsTestResultsSummary`, `test_result`, `ups_name`, and `test_type`; missing keys indicate incomplete MIB transforms upstream.\n• Document enterprise SNMP credentials via Splunk credential stores—not plaintext props—to satisfy rotation policies.\n\nStep 2 — Author detection logic\nPaste the catalogue SPL into Search, constrain `dispatch.earliest_time` to `-24h@h` while tuning, then promote to alert mode with `-15m` rolling windows once stable.\nCompare `_time` versus `_indextime` to detect ingestion backlog skew.\n\nStep 3 — Validate\nSpot-check failing rows against the UPS local panel or embedded web summary for the same `ups_name`, epoch, and test identifier.\nCross-verify SNMP trap floods versus polled facts before acknowledging incidents.\n\nStep 4 — Operationalize\nPublish the failing-event table plus a sparkline history panel on an Observability dashboard, attach webhook routing for facility queues, and annotate known maintenance windows via lookups keyed by asset.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "Force an SNMP-managed UPS through an administrator-triggered runtime self-test while Splunk polls every five minutes; within two polling intervals Splunk indexes `snmp:ups:selftest` rows where `upsTestResultsSummary` reads something other than `donePass` or `test_result` differs from `passed`, proving the detection surfaces genuine diagnostic faults tied to that asset.",
+    "negativeScenario": "Repeat identical SNMP polling windows immediately after intentionally clearing alarms when the UPS LCD confirms `passed`/`donePass`; Splunk should return zero qualifying alert rows aside from benign ingestion duplicates that age out once freshness filters (`_indextime` skew checks) run."
+  },
+  "evidence": "Export the saved search \"UPS Self-Test Failure\" PDF weekly plus underlying `index=power` event samples filtered to failing `ups_name` values for auditors proving diagnostics monitoring existed.",
+  "exclusions": "Does not judge battery impedance projections, UPS firmware CVE posture, outlet-level PDU metrics, or predictive cooling correlations—those stay separate catalogue tracks requiring additional datasets."
 }
