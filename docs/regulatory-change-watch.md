@@ -91,6 +91,25 @@ is observed. Rotate through the following steps:
    `data/provenance/ingest-manifest.json` (via the ingest scripts in
    `scripts/ingest/`) so the downstream crosswalks consume the new
    artefact.
+
+   > **Cache pitfall (2026-05-18).** `python -m splunk_uc ingest-<source>`
+   > defaults to `cache=True` in `src/splunk_uc/ingest/manifest.py:fetch()`.
+   > If the local `vendor/<source>/…` file already exists, the ingest
+   > re-reads it from disk and **does not contact upstream**, so it will
+   > silently confirm the stale SHA. This is intentional for hermetic CI
+   > re-builds, but it means the ingest CLI cannot, by itself, prove that
+   > the openFinding is real. The single source of truth for live upstream
+   > state is `audit-regulatory-change-watch --fetch`, which always hits
+   > the network. To force the ingest to re-download:
+   >
+   > ```bash
+   > rm vendor/oscal/nist_sp_800_53_r5_catalog.json   # or vendor/attack/*.json
+   > python -m splunk_uc ingest-oscal                 # re-fetches the deleted files
+   > ```
+   >
+   > Then compare the freshly-computed SHA in `ingest-manifest.json` against
+   > the `newHash` recorded in the watchlist's `openFinding`. They must
+   > agree before you commit the adoption PR.
 3. Update affected UC sidecars and `data/regulations.json` clauses.
 4. Clear the `openFinding` block on each reviewed watchlist entry in the
    same PR. `--check` will enforce that findings are resolved before
