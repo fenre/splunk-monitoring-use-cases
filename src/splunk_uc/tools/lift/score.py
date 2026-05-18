@@ -44,8 +44,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    sidecar = resolve_sidecar_path(args.uc_id, content_root=args.content_root)
-    report = score_uc(sidecar, target_tier=TargetTier.from_str(args.target_tier))
+    try:
+        sidecar = resolve_sidecar_path(args.uc_id, content_root=args.content_root)
+        report = score_uc(sidecar, target_tier=TargetTier.from_str(args.target_tier))
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        print(f"lift-score: {exc}", file=sys.stderr)
+        return 1
 
     if args.json:
         print(json.dumps(report.to_json(), indent=2, sort_keys=True))
