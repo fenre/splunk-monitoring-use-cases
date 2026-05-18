@@ -8,30 +8,48 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Humidity sensors",
+  "dataSources": "Relative humidity telemetry from SNMP-managed environmental probes (humidity sensors) paired with SNMP environmental sensors ingestion—commonly SNMP Modular Input (Splunkbase app 1537) or Splunk Connect for SNMP (Splunkbase app 6266)—routed to index=environment as sourcetype \"sensor:humidity\" with extracted numeric field humidity_pct and zone identifiers for aisles or containment rows.",
   "app": "SNMP environmental sensors",
   "spl": "index=environment sourcetype=\"sensor:humidity\"\n| where humidity_pct > 60 OR humidity_pct < 40\n| table _time, zone, humidity_pct",
-  "description": "Low humidity causes ESD risk; high humidity causes condensation. Maintaining 40-60% RH protects equipment.",
-  "value": "Low humidity causes ESD risk; high humidity causes condensation. Maintaining 40-60% RH protects equipment.",
-  "implementation": "Deploy humidity sensors alongside temperature sensors. Alert on out-of-range humidity (below 40% or above 60% RH). Track dew point to prevent condensation. Correlate with HVAC system humidifier/dehumidifier operation.",
-  "visualization": "Line chart (humidity trend), Gauge (current humidity per zone), Table (zones out of range).",
+  "description": "Detects SNMP-delivered relative humidity samples that violate the 40–60% RH envelope by rack zone, using normalized readings in sourcetype sensor:humidity so operators see sustained drift before condensation films or electrostatic discharge risk builds at IT intake points.",
+  "value": "Keeping humidity inside the envelope protects uptime by avoiding emergency HVAC call-outs, corrosion at connectors and sheet metal, moisture-sensitive hardware failures, and noisy thermal models that mis-size cooling capacity during capacity-planning cycles.",
+  "implementation": "Deploy humidity probes beside temperature sensing in each hall or containment boundary. Poll SNMP OIDs every one to five minutes, normalize RH into humidity_pct, and tag zone from rack-row metadata. Alert when RH stays outside 40–60% for longer than three consecutive polls; correlate spikes with HVAC humidifier or dehumidifier cycles and dew-point estimates before paging.",
+  "visualization": "Line chart of humidity_pct over time split by zone; single-value gauge for worst-zone RH versus 40–60% band; table listing zones currently outside policy with last breach timestamp.",
   "cimModels": [
     "N/A"
   ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
+      "title": "Splunk Lantern — operations guidance library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "SNMP Modular Input (Splunkbase 1537)",
+      "url": "https://splunkbase.splunk.com/app/1537"
+    },
+    {
+      "title": "Splunk Connect for SNMP (Splunkbase 6266)",
+      "url": "https://splunkbase.splunk.com/app/6266"
+    },
+    {
+      "title": "Splunk Docs — Forward data to Splunk",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ForwardingData"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "(1) CRAC load-shedding tests — Facility operations runs chiller failover drills in Hall-2 CRAC pairs, producing sharp RH dips at cold-aisle probes; suppress with CMMS change flag `hvac_drill=true` or require two consecutive polls outside band. (2) Wet-fog cleaning — Janitorial misting near overhead sensors in Zone-East during quarterly floor washes spikes humidity_pct for <20 minutes; exclude when work-order WO-ENV lists `wet_clean`, or gate alerts to sustained (>45m) breaches. (3) Bulk SNMP walks — NetOps Ansible jump hosts issue wide snmpwalk jobs for inventory baselines, temporarily elevating latency and duplicated samples; dedupe by source and discard bursts where dc(poll_cycle_id) spikes in one minute. (4) Probe recalibration — DCIM calibration scripts step offset registers on PDU-attached humidity sensors, showing staircase ramps; hold alerts until slope stabilizes unless humidity_pct stays out of band across an entire polling hour.",
   "equipment": [
     "snmp"
   ],
   "equipmentModels": [
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP environmental sensors.\n• Ensure the following data sources are available: Humidity sensors.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy humidity sensors alongside temperature sensors. Alert on out-of-range humidity (below 40% or above 60% RH). Track dew point to prevent condensation. Correlate with HVAC system humidifier/dehumidifier operation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=environment sourcetype=\"sensor:humidity\"\n| where humidity_pct > 60 OR humidity_pct < 40\n| table _time, zone, humidity_pct\n```\n\nUnderstanding this SPL\n\n**Humidity Monitoring** — Low humidity causes ESD risk; high humidity causes condensation. Maintaining 40-60% RH protects equipment.\n\nDocumented **Data sources**: Humidity sensors. **App/TA** (typical add-on context): SNMP environmental sensors. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: environment; **sourcetype**: sensor:humidity. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=environment, sourcetype=\"sensor:humidity\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where humidity_pct > 60 OR humidity_pct < 40` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Humidity Monitoring**): table _time, zone, humidity_pct\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (humidity trend), Gauge (current humidity per zone), Table (zones out of range).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Install SNMP environmental sensors collection aligned with SNMP Modular Input (Splunkbase app 1537) or Splunk Connect for SNMP (Splunkbase app 6266); grant the splunkfwd or modular-input service account SNMP read-only strings over UDP/161 from approved collectors.\n• Stage inputs.conf stanzas that send parsed events to index=environment with sourcetype=\"sensor:humidity\"; reserve \"power\" or \"splunk_monitoring_ops\" RBAC roles read access to that index only.\n• Confirm humidity sensors expose numeric RH percentage compatible with field humidity_pct and aisle labels mapped to zone.\n• For directory layout and upgrade steps, follow docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nPoint the modular input or SC4SNMP profile at each environmental probe OID, poll on a five-minute cadence (tighten to 60s during bring-up), and translate timeticks into _time using the appliance clock. Stamp zone from rack metadata or SNMP context fields. Keep temperature series in parallel feeds for dew-point correlation during validation.\n\nStep 2 — Create the search and alert\nRun the published SPL against the last 24h@h window, save as a report, then clone to a scheduled alert with throttle on zone and 2x poll interval suppression.\n\n```spl\nindex=environment sourcetype=\"sensor:humidity\"\n| where humidity_pct > 60 OR humidity_pct < 40\n| table _time, zone, humidity_pct\n```\n\nUnderstanding this SPL\n**Humidity Monitoring** scopes index=environment and sourcetype=\"sensor:humidity\", then surfaces rows where humidity_pct crosses policy. The table stage preserves _time for BMS reconciliation. Ifhumidity_pct is null during agent restarts, add fillnull strategy in a follow-on tuning change (out of scope for the base detection).\n\n**Pipeline walkthrough**\n• index=environment narrows to the environmental telemetry landing zone agreed with facility operations.\n• sourcetype=\"sensor:humidity\" binds to SNMP environmental sensors parsing that emits humidity_pct.\n• where humidity_pct > 60 OR humidity_pct < 40 enforces the dual-threshold envelope without mutating raw events.\n• table _time, zone, humidity_pct formats evidence for dashboards and ticketing.\n\nStep 3 — Validate\nCompare max(_time) slices against the building management console for the same zone over -4h@h; spot-check three sensors with snmpwalk from the collector host to ensure MIB units match humidity_pct scaling.\n\nStep 4 — Operationalize\nPublish a line chart of humidity_pct by zone, add a gauge for worst-zone RH, wire alert actions to PagerDuty or email with runbook links, and document humidifier/dehumidifier owner handoffs.",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "controlTest": {
+    "positiveScenario": "During commissioning, engineers elevate rack inlet RH to 67% for forty minutes while SNMP polls populate index=environment with sourcetype sensor:humidity; humidity_pct exceeds 60 on zone Lab-North across three five-minute buckets and the saved search returns alerting rows tied to that zone.",
+    "negativeScenario": "A PDU SNMP agent reboots during firmware activation and yields empty humidity_pct readings while ambient temperature stays nominal; with guardrails expecting three consecutive samples, the pipeline should emit no alert because missing RH does not prove an envelope breach."
+  },
+  "evidence": "Saved report or alert titled Humidity Monitoring referencing index=environment sourcetype=sensor:humidity plus exported CSV of _time, zone, humidity_pct for audit windows.",
+  "exclusions": "Does not certify ASHRAE compliance by itself, replace BMS alarming, monitor outdoor air economizer mixed-mode faults, or detect liquid water leaks without separate leak-detection feeds."
 }
