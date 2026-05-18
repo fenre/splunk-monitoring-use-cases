@@ -823,3 +823,19 @@ register(
         category="tools",
     )
 )
+
+# ----------------------------------------------------------------------
+# Lift loop (Tier 2 batch 12) -- AI-assisted content-quality lift loop.
+# Four deterministic CLI primitives that, together with an
+# orchestration agent using the `dispatching-parallel-agents` skill,
+# lift UC sidecar depth without touching SPL, compliance, or identity
+# fields. See docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="lift-score",
+        module="tools.lift.score",
+        help="Print depth score + gap report for one UC.",
+        category="lift",
+    )
+)
