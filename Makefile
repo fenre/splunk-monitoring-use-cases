@@ -18,6 +18,7 @@
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-api-surface \
        generate-rag-chunks audit-rag-chunks \
+       generate-alert-actions audit-alert-actions \
        audit-retrieval-eval audit-retrieval-eval-check \
        generate-phase2-mini-categories generate-phase2-3-per-regulation \
        generate-phase3-1-backfill generate-phase3-2-cross-cutting \
@@ -242,6 +243,12 @@ generate-rag-chunks: ## Build the RAG-ready chunked corpus under dist/rag/ (P17)
 
 audit-rag-chunks: ## Drift-guard dist/rag/manifest.json against a fresh chunk rebuild (P17)
 	$(SPLUNK_UC) generate-rag-chunks --check
+
+generate-alert-actions: ## Emit per-UC SOAR + email alert action templates (Task H-4)
+	$(SPLUNK_UC) generate-alert-actions
+
+audit-alert-actions: ## Drift-guard alert-action golden fixtures (Task H-4)
+	$(SPLUNK_UC) generate-alert-actions --check --limit 20
 
 audit-retrieval-eval: ## Run curated query set + BM25 baseline on dist/rag/ (P17)
 	$(SPLUNK_UC) audit-retrieval-eval
