@@ -1,0 +1,110 @@
+# Phase C-2 — scheduled evidence-pack signing.
+#
+# Weekly (and on manual dispatch) we:
+#   1. Regenerate machine-readable evidence packs.
+#   2. Emit deterministic UC evidence manifests under dist/evidence/.
+#   3. Attest evidence-pack JSON via Sigstore (OIDC + actions/attest-build-provenance@v4).
+#   4. Fall back to detached GPG signatures when Sigstore is unavailable.
+#   5. Verify end-to-end with audit-evidence-signatures.
+#
+# Hermetic PR CI runs ``audit-evidence-signatures --check`` against fixtures only;
+# this workflow keeps production dist/ artefacts fresh.
+name: Sign evidence packs
+
+on:
+  schedule:
+    # Sundays 06:00 UTC — low-traffic window after weekly regulatory-watch.
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      gpg_fallback:
+        description: "Force GPG signing instead of Sigstore attestation."
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: sign-evidence
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+          install-extras: "test"
+
+      - name: Generate evidence packs
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs
+
+      - name: Generate evidence manifests
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc generate-evidence-signatures --all
+
+      - name: Attest evidence-pack JSON (Sigstore)
+        if: ${{ inputs.gpg_fallback != true }}
+        id: pack-attest
+        continue-on-error: true
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: dist/evidence-packs/gdpr.json
+
+      - name: Place Sigstore bundle at canonical path
+        if: steps.pack-attest.outcome == 'success'
+        run: |
+          BUNDLE_SRC="${{ steps.pack-attest.outputs.bundle-path }}"
+          if [ -n "${BUNDLE_SRC}" ] && [ -f "${BUNDLE_SRC}" ]; then
+            cp "${BUNDLE_SRC}" dist/evidence-packs/gdpr.sigstore.bundle.json
+          fi
+
+      - name: Stamp pack descriptor (Sigstore)
+        if: steps.pack-attest.outcome == 'success'
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          PYTHONPATH=src python3 - <<'PY'
+          import os
+          from splunk_uc.generators.sign_evidence import stamp_pack_sigstore
+          stamp_pack_sigstore(
+              "gdpr",
+              "gdpr.sigstore.bundle.json",
+              run_id=os.environ.get("GITHUB_RUN_ID", ""),
+              commit=os.environ.get("GITHUB_SHA", ""),
+          )
+          PY
+
+      - name: GPG fallback signing
+        if: steps.pack-attest.outcome != 'success' || inputs.gpg_fallback == true
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnupg
+          gpg --batch --passphrase '' --quick-gen-key "Evidence Pack Bot <evidence-bot@local>" default default
+          FINGERPRINT="$(gpg --list-secret-keys --with-colons | awk -F: '$1=="sec"{print $5; exit}')"
+          PYTHONPATH=src python3 -m splunk_uc generate-evidence-signatures --all --gpg --gpg-key "${FINGERPRINT}"
+          gpg --armor --export "${FINGERPRINT}" > dist/evidence-packs/gpg-public-key.asc
+
+      - name: Verify evidence signatures
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc audit-evidence-signatures --check --verify-signature
+
+      - name: Upload evidence artefacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evidence-signatures
+          path: |
+            dist/evidence/
+            dist/evidence-packs/
+          if-no-files-found: warn
