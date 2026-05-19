@@ -20,6 +20,8 @@
        generate-phase2-mini-categories generate-phase2-3-per-regulation \
        generate-phase3-1-backfill generate-phase3-2-cross-cutting \
        generate-phase3-3-derivatives \
+       generate-sarif \
+       audit-sarif \
        generate-backlinks generate-doc-references \
        sync-generated sync-generated-check \
        check-source-links audit-auto-gen-provenance \
@@ -63,7 +65,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type audit-sarif ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -261,6 +263,12 @@ generate-phase3-2-cross-cutting: ## Phase 3.2 generator (cross-cutting complianc
 
 generate-phase3-3-derivatives: ## Phase 3.3 generator (derivative-regulation propagation)
 	$(SPLUNK_UC) generate-phase3-3-derivatives
+
+generate-sarif: ## Emit SARIF 2.1.0 logs from dist/audits/*.json
+	$(SPLUNK_UC) generate-sarif --out dist/sarif
+
+audit-sarif: ## Validate SARIF logs emitted by generate-sarif
+	$(SPLUNK_UC) audit-sarif --check
 
 # --- Sync-generated umbrella (PR-2 lean-mode) ---
 #
