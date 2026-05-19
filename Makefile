@@ -7,7 +7,7 @@
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
        audit-regulatory-change-watch \
-       audit-compliance-gaps audit-compliance-mappings \
+       audit-compliance-gaps audit-compliance-mappings audit-evidence-signatures \
        audit-doc-counts audit-openapi-drift audit-content-quality \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
@@ -16,7 +16,7 @@
        generate-grandma-explanations \
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
-       generate-evidence-packs generate-api-surface \
+       generate-evidence-packs generate-evidence-signatures generate-api-surface \
        generate-rag-chunks audit-rag-chunks \
        audit-retrieval-eval audit-retrieval-eval-check \
        generate-phase2-mini-categories generate-phase2-3-per-regulation \
@@ -187,6 +187,9 @@ audit-sme-review-signoffs: ## Validate data/provenance/sme-signoffs.json (schema
 audit-mapping-ledger: ## Validate data/provenance/mapping-ledger.json (schema + hash chain + integrity)
 	$(SPLUNK_UC) audit-mapping-ledger
 
+audit-evidence-signatures: ## Audit dist/evidence manifests and evidence-pack signatures
+	$(SPLUNK_UC) audit-evidence-signatures --check
+
 audit-roadmap: ## Validate ROADMAP.md structure + repo-relative links
 	$(SPLUNK_UC) audit-roadmap-consistency --check
 
@@ -260,6 +263,9 @@ generate-equipment-tags: ## Backfill UC sidecar equipment[]/equipmentModels[] ta
 
 generate-evidence-packs: ## Build per-regulation evidence packs
 	$(SPLUNK_UC) generate-evidence-packs
+
+generate-evidence-signatures: ## Generate dist/evidence manifests (unsigned; workflow signs)
+	$(SPLUNK_UC) generate-evidence-signatures --all
 
 generate-api-surface: ## Regenerate api/v1/* static JSON surface
 	$(SPLUNK_UC) generate-api-surface
