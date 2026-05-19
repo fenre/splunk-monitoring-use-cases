@@ -78,6 +78,37 @@ PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/ -q
 
 `make sync-generated-check` is the single drift gate that replaces 14 individual cascade-regen `--check` steps. If it fails, run `make sync-generated && git add -A && git diff --staged` and commit the regenerated files.
 
+## Parallel execution (multi-agent / worktree workflow)
+
+When several catalogue-improvement tasks run at the same time, each task gets its
+own **git worktree** so builds, branches, and local edits do not collide.
+
+| Convention | Pattern | Example |
+| --- | --- | --- |
+| Worktree directory | `.worktrees/<lane>-<slug>` | `.worktrees/A-mcp-http-transport` |
+| Branch (catalogue tasks) | `<lane>/<slug>` | `A/mcp-http-transport` |
+| Build output | `<worktree>/dist/` (default) | isolated per checkout |
+
+Quick start:
+
+```bash
+make worktree-new TASK=A-mcp-http-transport   # ad-hoc: branch worktree/<TASK>
+cd .worktrees/A-mcp-http-transport
+make devcontainer-init                        # optional full bootstrap
+make build                                    # writes to this worktree's dist/
+```
+
+For tasks from the parallel execution programme, use the branch name `<lane>/<slug>`
+from the task block (not `worktree/<TASK>`). The `make worktree-new` helper is for
+smoke tests and ad-hoc isolation; real lane tasks should create worktrees with
+`git worktree add -b <lane>/<slug> .worktrees/<lane>-<slug>`.
+
+**Subagents must not edit UC sidecars** (`content/cat-*/UC-*.json`) or handwritten
+starter-bundle entries — those are maintainer-authored only.
+
+Full rules (central files, schema cycles, proposal queues, merge protocol):
+[`docs/parallel-execution-substrate.md`](docs/parallel-execution-substrate.md).
+
 ## CI overview
 
 Every PR runs [`.github/workflows/validate.yml`](.github/workflows/validate.yml) — five parallel jobs (`lint`, `audits-content`, `audits-build`, `mcp`, `frontend`). The detailed map is in [`docs/ci-architecture.md`](docs/ci-architecture.md); the umbrella drift gate sits at the top of `audits-content`.
