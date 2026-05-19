@@ -1,0 +1,139 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-05-19",
+  "schema_version": "1.0",
+  "entries": [
+    {
+      "id": "ANTIPAT-001",
+      "name": "join command",
+      "pattern": "\\|\\s*join\\b",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "performance",
+      "description": "The join command truncates subsearch results at 50K events with a 60s timeout and is a common source of silent data loss in catalogue SPL.",
+      "remediation": "Replace join with OR + conditional stats, lookup, or subsearch-free correlation patterns documented in splunk-conf-and-spl.mdc.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-002",
+      "name": "makeresults in catalogue SPL",
+      "pattern": "\\|\\s*makeresults\\b",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "fabrication",
+      "description": "makeresults fabricates inline events instead of querying real indexes. Acceptable in dashboard JSON for empty-state demos but not in UC sidecar SPL that must run against live data.",
+      "remediation": "Query a real index/sourcetype pair (or tstats/datamodel) so the search returns zero rows when no data exists rather than fake values.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-003",
+      "name": "random() placeholder values",
+      "pattern": "\\brandom\\s*\\(",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "fabrication",
+      "description": "random() produces unstable values on every refresh and masks missing data instead of surfacing empty results.",
+      "remediation": "Remove random(); use fixed demo constants only in simulators, never in catalogue SPL.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-004",
+      "name": "coalesce hardcoded numeric fallback",
+      "pattern": "coalesce\\s*\\([^,)]+,\\s*\\d+\\.\\d+\\s*\\)",
+      "pattern_kind": "regex",
+      "severity": "medium",
+      "category": "fabrication",
+      "description": "coalesce(field, 87.3) embeds demo data in SPL. When the field is null the panel shows a plausible but fabricated number.",
+      "remediation": "Use coalesce(field, 0) or omit the fallback; let empty results propagate.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-005",
+      "name": "search after stats",
+      "pattern": "\\|\\s*stats\\b[\\s\\S]*?\\|\\s*search\\b",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "performance",
+      "description": "Using search after stats redistributes aggregated results to indexers. where runs locally on the search head and is cheaper.",
+      "remediation": "Replace '| search count>0' (or similar) with '| where count>0' after stats.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-006",
+      "name": "leading wildcard term",
+      "pattern": "(?:^|\\s|\\()\\*\\w",
+      "pattern_kind": "regex",
+      "severity": "medium",
+      "category": "performance",
+      "description": "Leading wildcards (*foo) prevent index-time term pruning and force full bucket scans.",
+      "remediation": "Anchor the literal prefix (foo*) or use field=value with a trailing wildcard only.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-007",
+      "name": "oversized lookback earliest=0",
+      "pattern": "\\bearliest\\s*=\\s*0\\b",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "performance",
+      "description": "earliest=0 scans from the Unix epoch and is almost never intentional in monitoring searches.",
+      "remediation": "Use a bounded relative window (-24h, -7d) or an explicit ISO timestamp aligned to the use case.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-008",
+      "name": "missing index filter",
+      "pattern": "",
+      "pattern_kind": "semantic",
+      "severity": "low",
+      "category": "discipline",
+      "description": "Catalogue SPL should anchor on index= (or tstats/datamodel/inputlookup) so reviewers know which bucket the search targets.",
+      "remediation": "Add index=<name> to the base search or document why a generating command replaces it.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-009",
+      "name": "missing sourcetype filter",
+      "pattern": "",
+      "pattern_kind": "semantic",
+      "severity": "low",
+      "category": "discipline",
+      "description": "When index= is present, sourcetype= (or an equivalent field constraint) narrows the scan and documents the expected wire format.",
+      "remediation": "Add sourcetype=<name> alongside index= unless tstats/datamodel already scopes the dataset.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-010",
+      "name": "multi-pipe single line",
+      "pattern": "",
+      "pattern_kind": "semantic",
+      "severity": "medium",
+      "category": "style",
+      "description": "Every pipe stage must start its own physical line. One-liners are hard to review and hide anti-patterns.",
+      "remediation": "Reformat so the base search is line 1 and each | stage begins a new line.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-pipe-per-line-rule"
+    },
+    {
+      "id": "ANTIPAT-011",
+      "name": "transaction without bounds",
+      "pattern": "\\|\\s*transaction\\b(?![\\s\\S]*\\b(?:maxspan|maxpause|maxevents|memcontrol)\\s*=)",
+      "pattern_kind": "regex",
+      "severity": "high",
+      "category": "performance",
+      "description": "Unbounded transaction commands accumulate unbounded memory and can stall search heads on busy indexes.",
+      "remediation": "Add maxspan=, maxpause=, or maxevents= limits appropriate to the correlation window.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    },
+    {
+      "id": "ANTIPAT-012",
+      "name": "streamstats over unbounded data",
+      "pattern": "\\|\\s*streamstats\\b(?![\\s\\S]*\\b(?:time_window|window|global)\\s*=)",
+      "pattern_kind": "regex",
+      "severity": "medium",
+      "category": "performance",
+      "description": "streamstats without time_window= or window= retains state for the entire result set and can exhaust memory.",
+      "remediation": "Add time_window= or window=, or pre-filter/limit events before streamstats.",
+      "doc_anchor": "splunk-conf-and-spl.mdc#spl-quality-standards"
+    }
+  ]
+}
