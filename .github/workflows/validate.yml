@@ -268,25 +268,15 @@ jobs:
           fi
           echo "Schema-cycle gate PASS"
 
-      - name: Subagent UC-firewall placeholder (Task B-7)
-        # TODO: B-7 will activate enforcement (will FAIL when subagent-authored PR touches content/cat-*/UC-*.json)
+      - name: Subagent UC-firewall (Task B-7)
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           git fetch origin main --depth=50
-          PR="${{ github.event.pull_request.number }}"
-          LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}" --jq '.labels[].name' 2>/dev/null || true)
-          TOUCHES_UC=$(git diff --name-only origin/main...HEAD | grep -cE '^content/cat-[^/]+/UC-[^/]+\.json$' || true)
-          if echo "${LABELS}" | grep -qx 'subagent-authored'; then
-            echo "Label subagent-authored present"
-            if [ "${TOUCHES_UC}" -gt 0 ]; then
-              echo "::warning::PR touches ${TOUCHES_UC} UC sidecar(s) — will FAIL once Task B-7 activates audit-subagent-uc-firewall"
-            fi
-          else
-            echo "No subagent-authored label — placeholder skips enforcement"
-          fi
-          echo "Subagent UC-firewall placeholder PASS"
+          PYTHONPATH=src python3 -m splunk_uc audit-subagent-uc-firewall --check
 
   # ============================================================================
   # Job 2: audits-content (~25 min budget)
