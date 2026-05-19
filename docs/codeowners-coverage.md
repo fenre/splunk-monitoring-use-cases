@@ -1,0 +1,146 @@
+# CODEOWNERS coverage audit
+
+This document describes the **CODEOWNERS coverage audit** — a repository
+health check that cross-references [GitHub CODEOWNERS](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners)
+rules against the tracked source tree and surfaces paths with no assigned
+owner.
+
+## What the audit does
+
+1. Parses `.github/CODEOWNERS` (`pattern owner [owner...]` lines; comments
+   and blank lines are ignored).
+2. Enumerates every tracked file via `git ls-files` (the canonical list of
+   paths git knows about — automatically excluding `.gitignore`d content and
+   worktree noise).
+3. Applies **last-match-wins** semantics (same as GitHub) to decide which
+   rule owns each file.
+4. Marks a file **uncovered** when no rule matches, or when the winning
+   rule lists zero owners.
+5. Flags **orphan rules** — patterns that match zero tracked files (likely
+   stale after renames or deletions).
+
+Reports are written to `dist/audits/codeowners-coverage.{json,md}` (both
+gitignored).
+
+## Threshold-ratchet policy
+
+CI currently runs the audit in **warn-only** mode:
+
+```bash
+python -m splunk_uc audit-codeowners-coverage --check --threshold 0
+```
+
+The threshold is a **floor on covered-file percentage**. It starts at `0`
+so the audit can land without blocking merges while ownership gaps are
+triaged. As path-specific rules are added, maintainers **ratchet the
+threshold upward** in `.github/workflows/validate.yml` and the Makefile
+target so new modules cannot ship without an owner.
+
+Example progression:
+
+| Phase | Threshold | Intent |
+|------:|----------:|--------|
+| Bootstrap | 0 | Surface the queue; never block |
+| Lane owners landed | 50 | Half the tree has dedicated owners |
+| Mature stewardship | 90 | Catch-all only for edge paths |
+
+## Reading the report
+
+### JSON (`dist/audits/codeowners-coverage.json`)
+
+Machine-readable, schema version `1.0`. Key fields:
+
+- `coverage_percent` — share of tracked files with at least one owner
+- `files_uncovered` — sorted repo-relative paths needing rules
+- `by_directory` — rollups keyed by **lane prefix** (see below)
+- `top_uncovered_directories` — directories ranked by uncovered count
+- `orphan_rules` — stale patterns to delete or fix
+
+### Markdown (`dist/audits/codeowners-coverage.md`)
+
+Human summary grouped by lane prefix:
+
+| Lane | Typical content |
+|------|-----------------|
+| `src/splunk_uc/` | Dispatcher, audits, generators |
+| `tools/` | Build pipeline |
+| `apps/web/` | Non-technical UI |
+| `mcp/` | MCP server package |
+| `scripts/` | Legacy / one-shot helpers |
+| `docs/` | Maintainer documentation |
+| `content/` | UC JSON sidecars |
+| `data/` | Curated data files |
+| `schemas/` | JSON Schema contracts |
+| `tests/` | Pytest suite |
+| `.github/` | Workflows and repo config |
+
+Use the **Top uncovered directories** table as a work queue: add a
+CODEOWNERS rule for the lane, then re-run the audit locally.
+
+## Why `git ls-files`
+
+The audit intentionally uses `git ls-files` rather than walking the
+filesystem:
+
+- Only **tracked** files count — generated artefacts and local experiments
+  that are gitignored do not pollute the queue.
+- The list matches what GitHub sees when evaluating CODEOWNERS on a PR.
+- Worktrees and sparse checkouts inherit the same index-backed truth.
+
+If `git ls-files` fails (not a git checkout, corrupt index), the audit exits
+`2` with a clear error instead of crashing.
+
+## Maintainer workflow
+
+Regenerate locally:
+
+```bash
+make audit-codeowners-coverage
+# or
+python -m splunk_uc audit-codeowners-coverage --out dist/audits
+```
+
+Check against a threshold:
+
+```bash
+python -m splunk_uc audit-codeowners-coverage --check --threshold 0
+```
+
+### Example: owner for a new module
+
+When adding `src/splunk_uc/audits/my_new_audit.py`, append a rule **below**
+existing patterns (last match wins):
+
+```gitattributes
+# .github/CODEOWNERS
+*                               @fenre
+
+# Audits owned by the platform team
+/src/splunk_uc/audits/          @platform-team
+```
+
+Re-run the audit; the new path should disappear from `files_uncovered` and
+the lane rollup for `src/splunk_uc/` should show increased `covered`.
+
+## Missing CODEOWNERS
+
+If `.github/CODEOWNERS` does not exist, the audit warns on stderr and the
+markdown report includes a one-line remediation suggestion:
+
+```gitattributes
+* @your-github-handle
+```
+
+The audit **does not** create or modify CODEOWNERS — assigning owners is a
+maintainer decision.
+
+## Related commands
+
+| Command | Purpose |
+|---------|---------|
+| `make audit-codeowners-coverage` | Run with `--check --threshold 0` |
+| `make audit-full` | Umbrella including this audit |
+| `python -m splunk_uc audit-codeowners-coverage --help` | Full CLI flags |
+
+See also [`AGENTS.md`](../AGENTS.md) for the dispatcher entry point and
+CI gate listing.

@@ -517,6 +517,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-codeowners-coverage",
+        module="audits.codeowners_coverage",
+        help="Cross-check .github/CODEOWNERS against git ls-files; surface uncovered paths.",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
