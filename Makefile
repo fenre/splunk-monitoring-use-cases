@@ -2,7 +2,7 @@
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
-       audit-splunk-cloud-compat audit-splunk-version-matrix \
+       audit-spl-anti-patterns audit-splunk-cloud-compat audit-splunk-version-matrix \
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
@@ -65,7 +65,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -108,6 +108,12 @@ audit-spl-hallucinations: ## Detect SPL hallucinations (unknown commands, bad CI
 
 audit-spl-references: ## Validate SPL identifiers against curated vocabulary (HIGH gate)
 	$(SPLUNK_UC) audit-spl-references --check
+
+audit-spl-anti-patterns: ## Report SPL style/risk anti-patterns (writes dist/audits/)
+	$(SPLUNK_UC) audit-spl-anti-patterns
+
+audit-spl-anti-patterns-check: ## CI gate: fail on new high-severity SPL anti-patterns
+	$(SPLUNK_UC) audit-spl-anti-patterns --check --severity high --limit 2000
 
 audit-spl-references-build: ## Rebuild data/spl-reference.local.json from external/ corpora
 	$(PYTHON) -m tools.research.build_spl_reference
