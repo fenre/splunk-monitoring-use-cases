@@ -155,7 +155,7 @@ audit-doc-counts: ## Cross-check numeric claims (UC counts) in AGENTS.md and doc
 audit-openapi-drift: ## Flag dist/api/ paths missing from openapi.yaml / api/v1/openapi.yaml
 	$(SPLUNK_UC) audit-openapi-drift
 
-audit-content-quality: ## Flag description==value, jargon in grandmaExplanation, broken fixtureRefs
+audit-content-quality: ## Flag description==value, jargon in grandmaExplanation, broken fixtureRefs, description/value gaps
 	$(SPLUNK_UC) audit-content-quality
 
 audit-baseline-clause-grammar-free: ## Refuse `clause-grammar` fingerprints in audit-baseline.json
