@@ -517,6 +517,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-dashboards",
+        module="audits.dashboards",
+        help="Validate per-UC dashboard scaffolds under dist/dashboards/ (--check).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -645,6 +653,14 @@ register(
         name="generate-splunkbase-mappings",
         module="generators.splunkbase_mappings",
         help="Propose splunkbaseApps[] arrays for UC sidecars (--check / --write).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-dashboards",
+        module="generators.dashboards",
+        help="Emit per-UC Splunk dashboard scaffolds (Simple XML + Dashboard Studio).",
         category="generators",
     )
 )
