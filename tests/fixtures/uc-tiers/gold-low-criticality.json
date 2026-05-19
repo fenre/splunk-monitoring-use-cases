@@ -1,0 +1,89 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "99.99.3",
+  "subcategory": "99.99",
+  "title": "Fixture: Gold-tier low-criticality UC for tests",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "monitoringType": ["Operations", "Inventory"],
+  "splunkPillar": "Platform",
+  "industry": "Synthetic test fixtures",
+  "owner": "Head of Platform",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Does not validate certificate expiry or TLS cipher suites — informational uptime only.",
+  "evidence": "Saved search fixture_gold_low_uptime.json archived to platform_ops index monthly.",
+  "evidenceSigning": {
+    "method": "none",
+    "signer": "fixture-ci-bot"
+  },
+  "compliance": [
+    {
+      "regulation": "soc-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Fixture maps operational monitoring to SOC 2 availability narrative for test harnesses.",
+      "controlObjective": "Demonstrates that forwarder heartbeat gaps are detected within one hour.",
+      "evidenceArtifact": "Monthly CSV of hosts missing heartbeat events from fixture_gold_low_uptime.json.",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A forwarder stops sending internal metrics for 65 minutes; the absence search returns the host.",
+    "negativeScenario": "Planned maintenance suppresses the host in maintenance_windows lookup; search excludes it and returns zero rows.",
+    "fixtureRef": "tests/fixtures/uc-tiers/gold-low-criticality.json",
+    "fixtureStatus": "approved"
+  },
+  "dataSources": "index=_internal sourcetype=splunkd host=* component=Metrics group=per_host_thruput. Fields: host, kb, _time.",
+  "app": "Splunk Enterprise (built-in _internal metrics), no additional TA required.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "role": "optional"
+    }
+  ],
+  "premiumApps": [],
+  "spl": "index=_internal sourcetype=splunkd component=Metrics group=per_host_thruput earliest=-65m\n| stats latest(_time) AS last_seen BY host\n| eval gap_minutes=round((now()-last_seen)/60,0)\n| where gap_minutes > 60\n| lookup maintenance_windows host OUTPUT in_window\n| where isnull(in_window) OR in_window!=\"yes\"",
+  "cimSpl": "",
+  "cimModels": [],
+  "schema": "Platform internal metrics",
+  "dataModelAcceleration": "Not applicable — queries _internal directly.",
+  "description": "Identifies Splunk forwarders that have not emitted internal throughput metrics for more than sixty minutes, indicating a silent or stopped agent.",
+  "value": "Quiet forwarders create blind spots in security and operations dashboards. Detecting gaps early prevents data-loss incidents from going unnoticed until audit time.",
+  "grandmaExplanation": "We check that each data collector is still checking in every hour. When one goes quiet, we flag it so someone can restart it before we lose visibility.",
+  "implementation": "Schedule the search hourly over the last 65 minutes, email platform team when results appear, maintain maintenance_windows lookup for planned outages.",
+  "detailedImplementation": "Prerequisites\n• Search head can read index=_internal; role includes internal indexes.\n• maintenance_windows.csv lookup deployed with host and in_window columns.\n\nStep 1 — Configure data collection\nNo extra inputs — rely on splunkd Metrics on each forwarder. Confirm `_internal` retention covers at least 7 days.\n\nStep 2 — Create the search\nUse stats latest(_time) to find stale hosts; filter maintenance via lookup. Understanding this SPL: 65m window avoids false positives from brief restarts.\n\nStep 3 — Validate\nStop splunkd on a lab forwarder for 70 minutes; confirm host appears. Restart and confirm disappearance on next run.\n\nStep 4 — Operationalize\nWeekly report to platform team; no paging unless gap exceeds 4 hours (separate high-severity UC).\n\nStep 5 — Troubleshooting\nAll hosts missing: search head clock skew or wrong index filter. Lookup errors: verify transforms.conf stanza and CSV permissions.",
+  "scriptExample": "",
+  "visualization": "Table of silent hosts with gap_minutes and last_seen; single-value count; bar chart by deployment serverclass if available.",
+  "references": [
+    {
+      "title": "Splunk documentation: internal indexes",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Troubleshooting/WhatSplunklogsaboutitself",
+      "retrieved": "2026-05-19"
+    },
+    {
+      "title": "Splunk documentation: about lookups",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Aboutlookupsandfieldactions",
+      "retrieved": "2026-05-19"
+    }
+  ],
+  "knownFalsePositives": "Forwarders in airplane mode during shipping or decommissioned hosts still in server_inventory — filter via active flag lookup.",
+  "mitreAttack": ["N/A (platform hygiene fixture)"],
+  "detectionType": "Baseline",
+  "securityDomain": "audit",
+  "requiredFields": ["host", "_time"],
+  "equipment": ["splunk"],
+  "equipmentModels": ["splunk_universal_forwarder"],
+  "hardware": "Universal Forwarder fleet in fixture lab.",
+  "telcoUseCase": "Not applicable — synthetic fixture.",
+  "status": "verified",
+  "lastReviewed": "2026-05-19",
+  "splunkVersions": ["9.0+", "Cloud"],
+  "reviewer": "fixture-maintainer",
+  "dataDomain": ["platform"]
+}
