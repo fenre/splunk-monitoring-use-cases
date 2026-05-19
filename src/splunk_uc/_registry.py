@@ -595,6 +595,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-observability-drift",
+        module="audits.observability_drift",
+        help="Validate dist/observability/* freshness/quality/coverage/Prom artefacts.",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -766,6 +774,14 @@ register(
         name="generate-sarif",
         module="generators.sarif_emit",
         help="Emit SARIF 2.1.0 logs from dist/audits/*.json for DevSecOps tooling.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-observability-metrics",
+        module="generators.observability_metrics",
+        help="Emit dist/observability freshness/quality/coverage JSON + catalogue.prom.",
         category="generators",
     )
 )
