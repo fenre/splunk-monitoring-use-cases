@@ -18,6 +18,7 @@
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-api-surface \
        generate-rag-chunks audit-rag-chunks \
+       generate-dashboards audit-dashboards \
        audit-retrieval-eval audit-retrieval-eval-check \
        generate-phase2-mini-categories generate-phase2-3-per-regulation \
        generate-phase3-1-backfill generate-phase3-2-cross-cutting \
@@ -65,7 +66,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type audit-dashboards ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -242,6 +243,13 @@ generate-rag-chunks: ## Build the RAG-ready chunked corpus under dist/rag/ (P17)
 
 audit-rag-chunks: ## Drift-guard dist/rag/manifest.json against a fresh chunk rebuild (P17)
 	$(SPLUNK_UC) generate-rag-chunks --check
+
+generate-dashboards: ## Emit per-UC Splunk dashboard scaffolds (Simple XML + Studio)
+	$(SPLUNK_UC) generate-dashboards
+
+audit-dashboards: ## Validate dist/dashboards/ scaffolds (generate + audit --check)
+	$(SPLUNK_UC) generate-dashboards
+	$(SPLUNK_UC) audit-dashboards --check
 
 audit-retrieval-eval: ## Run curated query set + BM25 baseline on dist/rag/ (P17)
 	$(SPLUNK_UC) audit-retrieval-eval
