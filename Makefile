@@ -2,7 +2,7 @@
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
-       audit-spl-anti-patterns audit-splunk-cloud-compat audit-splunk-version-matrix \
+	audit-spl-anti-patterns audit-splunk-cloud-compat audit-splunk-version-matrix audit-cost-coverage \
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
        audit-codeowners-coverage \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
@@ -71,7 +71,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -129,6 +129,9 @@ audit-splunk-cloud-compat: ## Audit SPL + content packs for Splunk Cloud compati
 
 audit-splunk-version-matrix: ## Audit the 2-D Splunk-version compatibility matrix
 	$(SPLUNK_UC) audit-splunk-version-matrix --check
+
+audit-cost-coverage: ## Report cost.tier coverage (threshold ratchet for Lane N backfill)
+	$(SPLUNK_UC) audit-cost-coverage --check --threshold 0
 
 generate-backlinks: ## Refresh docs/backlinks.md (wiki "What links here" index)
 	$(PYTHON) scripts/generate_backlinks.py
