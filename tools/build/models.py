@@ -212,6 +212,21 @@ class UseCaseReference(TypedDict, total=False):
     sourceType: str
 
 
+class CostImpact(TypedDict, total=False):
+    """Splunk licensing cost-impact metadata (schema v1.8.0)."""
+
+    tier: Literal["low", "medium", "high", "extreme"]
+    ingest_gb_per_day: float
+    search_load: Literal["light", "moderate", "heavy", "real-time"]
+    search_load_notes: str
+    tstats_eligible: bool
+    storage_class: Literal["hot", "warm", "cold", "frozen"]
+    retention_days: int
+    sources: list[str]
+    last_estimated: str
+    estimated_by: Literal["maintainer", "ai-advisory", "vendor", "customer-report"]
+
+
 class TaLinkEntry(TypedDict, total=False):
     """Wire-format shape of ``CatalogUC.ta_link``.
 
@@ -270,6 +285,7 @@ class UseCase(TypedDict, total=False):
     evidenceSigning: EvidenceSigning
     compliance: list[ComplianceMapping]
     controlTest: ControlTest
+    cost: CostImpact
 
     # Data sources / SPL.
     dataSources: str
