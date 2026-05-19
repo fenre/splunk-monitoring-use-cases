@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "99.99.4",
+  "subcategory": "99.99",
+  "title": "Fixture: Silver-tier high-criticality UC for tests",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": ["Security", "Audit"],
+  "splunkPillar": "Security",
+  "wave": "walk",
+  "prerequisiteUseCases": ["UC-99.99.9"],
+  "dataSources": "index=wineventlog sourcetype=WinEventLog:Security EventCode=4625 from Splunk_TA_windows on domain controllers.",
+  "app": "Splunk Add-on for Microsoft Windows (Splunkbase 742), 9.x on DC forwarders.",
+  "spl": "index=wineventlog sourcetype=WinEventLog:Security EventCode=4625 earliest=-15m\n| stats count AS failures BY src_ip, user\n| where failures > 10",
+  "cimSpl": "| tstats summariesonly=t count FROM datamodel=Authentication WHERE Authentication.action=failure BY Authentication.src, Authentication.user\n| rename Authentication.src AS src_ip, Authentication.user AS user\n| where count > 10",
+  "cimModels": ["Authentication"],
+  "schema": "CIM",
+  "dataModelAcceleration": "Accelerate Authentication datamodel on index=wineventlog for 90 days.",
+  "description": "Surfaces source IPs and accounts with more than ten failed Windows logon attempts in fifteen minutes on domain controllers.",
+  "value": "Burst failed logons often precede password-spray or brute-force activity against privileged accounts. Early detection lets identity teams block sources before a successful compromise.",
+  "grandmaExplanation": "We watch for computers that keep getting login passwords wrong many times in a row. When that happens, we alert the security team to investigate before someone breaks in.",
+  "implementation": "Deploy Splunk_TA_windows to DCs, enable Security log forwarding, schedule every 5 minutes, integrate with ES notable or email action.",
+  "detailedImplementation": "Prerequisites\n• Splunk_TA_windows on all domain controllers; WinEventLog:Security inputs enabled.\n• Search head role with wineventlog index access.\n\nStep 1 — Configure data collection\nEnable `[WinEventLog://Security]` on each DC forwarder; verify EventCode 4625 appears in index=wineventlog within 2 minutes.\n\nStep 2 — Create the search\nAggregate failures by src_ip and user; threshold 10 is a starting point — tune per environment.\n\nStep 3 — Validate\nRun test failed logons from a lab account; confirm row appears. Compare count to Windows Event Viewer Security log on the DC.\n\nStep 4 — Operationalize\nAdd to SOC dashboard; throttle alerts per src_ip for 30 minutes to reduce noise during pen tests.",
+  "visualization": "Table of src_ip, user, failures; map panel if geo lookup available.",
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-05-19"
+    }
+  ],
+  "knownFalsePositives": "Vulnerability scanners and misconfigured service accounts can generate bursts; maintain allowlist lookup for known scanners.",
+  "mitreAttack": ["T1110"],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
+  "requiredFields": ["EventCode", "src_ip", "user"],
+  "equipment": ["microsoft", "windows"],
+  "exclusions": "Does not cover successful logons or Kerberos pre-auth failures on non-DC members.",
+  "evidence": "Saved search fixture_silver_high_logon.json exported daily to secops index.",
+  "controlTest": {
+    "positiveScenario": "Lab account triggers 11 failed logons in 10 minutes; search returns src_ip and user.",
+    "negativeScenario": "Single typo logon per user stays below threshold; search empty."
+  },
+  "status": "verified",
+  "lastReviewed": "2026-05-19",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "fixture-maintainer"
+}
