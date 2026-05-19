@@ -517,6 +517,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-vendor-changelog",
+        module="audits.vendor_changelog",
+        help="Audit vendor product changelogs (schema, freshness, UC SPL impact).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -645,6 +653,14 @@ register(
         name="generate-splunkbase-mappings",
         module="generators.splunkbase_mappings",
         help="Propose splunkbaseApps[] arrays for UC sidecars (--check / --write).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="add-vendor-changelog-entry",
+        module="generators.vendor_changelog",
+        help="Append a curated entry to data/vendor-changelog/<vendor>.json.",
         category="generators",
     )
 )
