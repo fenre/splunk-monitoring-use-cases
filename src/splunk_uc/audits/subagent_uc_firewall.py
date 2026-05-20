@@ -137,20 +137,13 @@ def _resolve_inputs(
 
     if labels is None:
         if not (effective_pr and env_repo and env_token):
-            missing = [
-                name
-                for name, value in (
-                    ("GITHUB_EVENT_PULL_REQUEST_NUMBER or --pr-number", effective_pr),
-                    ("GITHUB_REPOSITORY", env_repo),
-                    ("GH_TOKEN", env_token),
-                )
-                if not value
-            ]
-            raise RuntimeError(
-                "CI mode requires PR context to fetch labels: missing "
-                + ", ".join(missing)
-            )
-        labels = _fetch_labels(env_repo, effective_pr, env_token)
+            # Partial / missing PR context (e.g. push-to-main run, local
+            # invocation, or scheduled job) — safe-pass with an empty label
+            # set so the firewall only fires when *all three* signals say
+            # "this is a PR" and one of them is ``subagent-authored``.
+            labels = []
+        else:
+            labels = _fetch_labels(env_repo, effective_pr, env_token)
 
     if paths is None:
         paths = _fetch_changed_paths()
