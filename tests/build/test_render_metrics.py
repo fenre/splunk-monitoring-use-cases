@@ -661,3 +661,69 @@ def test_emitted_json_is_sort_key_stable(
     parsed: dict[str, Any] = json.loads(text)
     re_emitted = json.dumps(parsed, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     assert text == re_emitted
+
+
+# ---------------------------------------------------------------------------
+# _git_commit_iso fallback paths (close the last branch coverage gap)
+# ---------------------------------------------------------------------------
+
+
+class TestGitCommitIsoFallback:
+    """Covers the empty-stdout branch (line 407→411) in
+    ``_git_commit_iso``: when ``git log`` returns no stdout we fall
+    through to the Unix-epoch sentinel rather than returning the empty
+    string."""
+
+    def test_empty_stdout_returns_unix_epoch(self, monkeypatch, tmp_path: Path) -> None:
+        import subprocess
+        monkeypatch.setattr(
+            subprocess, "check_output", lambda *a, **kw: b""
+        )
+        assert render_metrics._git_commit_iso(tmp_path) == "1970-01-01T00:00:00Z"
+
+    def test_whitespace_only_stdout_returns_unix_epoch(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        """The function strips ``.strip()`` so whitespace-only output
+        normalises to an empty string and falls through."""
+        import subprocess
+        monkeypatch.setattr(
+            subprocess, "check_output", lambda *a, **kw: b"   \n  "
+        )
+        assert render_metrics._git_commit_iso(tmp_path) == "1970-01-01T00:00:00Z"
+
+    def test_git_not_installed_returns_unix_epoch(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        import subprocess
+
+        def boom(*a, **kw):
+            raise FileNotFoundError("no git")
+
+        monkeypatch.setattr(subprocess, "check_output", boom)
+        assert render_metrics._git_commit_iso(tmp_path) == "1970-01-01T00:00:00Z"
+
+    def test_called_process_error_returns_unix_epoch(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        import subprocess
+
+        def boom(*a, **kw):
+            raise subprocess.CalledProcessError(128, ["git"])
+
+        monkeypatch.setattr(subprocess, "check_output", boom)
+        assert render_metrics._git_commit_iso(tmp_path) == "1970-01-01T00:00:00Z"
+
+    def test_well_formed_stdout_returns_timestamp(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        """Sanity baseline — when git outputs a proper ISO timestamp we
+        do NOT fall back."""
+        import subprocess
+        monkeypatch.setattr(
+            subprocess,
+            "check_output",
+            lambda *a, **kw: b"2024-01-15T12:34:56+00:00\n",
+        )
+        out = render_metrics._git_commit_iso(tmp_path)
+        assert out == "2024-01-15T12:34:56+00:00"

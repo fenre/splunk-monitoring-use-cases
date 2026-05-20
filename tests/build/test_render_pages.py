@@ -924,3 +924,131 @@ class TestWriteJson:
         assert body.endswith("\n")
         # Exactly one newline (the trailing one).
         assert body.count("\n") == 1
+
+
+class TestDefensiveBranches:
+    """Cover the four remaining defensive branches (82, 93, 247, 403)
+    in render_pages.py — none are reachable from a well-formed catalog;
+    each requires a malformed input that gets silently ignored."""
+
+    def test_render_skips_categories_without_id_key(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Lines 82 + 93 + 431: ``cat.get("i") is None`` continue paths
+        in ``render`` (cat_name_for loop + per-cat render loop) and in
+        ``_build_slug_map``. All three fire when a category dict lacks
+        an ``i`` key entirely. (``i = None`` would crash the reproducible
+        sort at line 87 — use missing key so the sort sees 0 fallback.)"""
+        good = {
+            "i": 1,
+            "n": "Good",
+            "s": [
+                {
+                    "i": "1.1",
+                    "n": "S",
+                    "u": [_make_uc("1.1.1", "Some UC")],
+                }
+            ],
+        }
+        # Missing ``i`` key entirely — survives sort, hits all three
+        # ``cid is None`` continue branches.
+        bad: dict = {"n": "Bad", "s": []}
+        cat = _make_catalog(tmp_path, categories=[good, bad])
+        rp.render(cat, tmp_path / "dist", reproducible=True)
+        # Good UC was emitted; bad cat ignored.
+        assert (tmp_path / "dist" / "uc" / "UC-1.1.1" / "index.json").exists()
+
+    def test_emit_regulations_skips_groups_for_missing_framework(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Line 247: ``if not fw: continue``. Construct the scenario by
+        building the alias map first, then evicting the framework from
+        the catalog so the lookup at line 245 returns None."""
+        cat = _make_catalog(
+            tmp_path,
+            categories=[
+                {
+                    "i": 1,
+                    "n": "C",
+                    "s": [
+                        {
+                            "i": "1.1",
+                            "n": "S",
+                            "u": [_make_uc("1.1.1", "UC", regs=["GDPR"])],
+                        }
+                    ],
+                }
+            ],
+            regulations={
+                "gdpr": {
+                    "id": "gdpr",
+                    "name": "General Data Protection Regulation",
+                    "shortName": "GDPR",
+                    "aliases": ["GDPR"],
+                }
+            },
+        )
+        # Patch the alias index so the loop sees a non-empty grouping
+        # but the regulation has been evicted from the dict before the
+        # lookup.
+        real_build = rp._build_regulation_alias_index
+
+        def _build_then_evict(catalog):
+            fw_slug, alias = real_build(catalog)
+            # Now drop the regulation but keep the alias map so the
+            # main loop iterates a grouped item whose fw is missing.
+            catalog.regulations.clear()
+            return fw_slug, alias
+
+        monkeypatch.setattr(rp, "_build_regulation_alias_index", _build_then_evict)
+        cat_slug_for = rp._build_slug_map(cat)
+        cat_name_for: dict[int, str] = {
+            c["i"]: str(c.get("n", "")) for c in cat.categories if c.get("i") is not None
+        }
+        ctx = rp._build_context(cat, reproducible=True)
+        rp._emit_regulations(
+            cat,
+            cat_slug_for=cat_slug_for,
+            cat_name_for=cat_name_for,
+            out_dir=tmp_path / "dist",
+            ctx=ctx,
+            reproducible=True,
+        )
+        # No regulation directory should have been created.
+        assert not (tmp_path / "dist" / "regulation" / "gdpr").exists()
+
+    def test_build_uc_prereq_indexes_sort_key_handles_malformed_full_id(
+        self, tmp_path: Path
+    ):
+        """Line 403: ``_sort_key`` fallback when the regex doesn't
+        match. Triggered by a UC whose `i` field is something other
+        than ``X.Y.Z`` — ``full = "UC-<garbage>"`` then becomes a value
+        in the reverse-prereq map and gets sorted by ``_sort_key``."""
+        cat = _make_catalog(
+            tmp_path,
+            categories=[
+                {
+                    "i": 1,
+                    "n": "C",
+                    "s": [
+                        {
+                            "i": "1.1",
+                            "n": "S",
+                            "u": [
+                                _make_uc("1.1.1", "Real UC"),
+                                # Malformed ``i`` (not X.Y.Z). Build path
+                                # still constructs ``full = "UC-weird"``
+                                # and appends it to the reverse map for
+                                # any valid ``pre`` reference.
+                                _make_uc("weird", "Bad", pre=["UC-1.1.1"]),
+                            ],
+                        }
+                    ],
+                }
+            ],
+        )
+        title_idx, reverse_idx = rp._build_uc_prereq_indexes(cat)
+        # The malformed full id was appended to the reverse list for
+        # UC-1.1.1, and got sorted via the fallback branch on line 403.
+        rev = reverse_idx.get("UC-1.1.1", ())
+        assert "UC-weird" in rev
