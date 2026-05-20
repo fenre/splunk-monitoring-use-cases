@@ -66,3 +66,59 @@ def test_audit_pipe_per_line_exported() -> None:
 def test_audit_validate_spl_rejects_makeresults() -> None:
     errors = audit.validate_spl_text("| makeresults count=1\n| stats count")
     assert any("makeresults" in err for err in errors)
+
+
+def test_audit_main_runs_check_against_mini_corpus(
+    mini_corpus: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    content, out = mini_corpus
+    rc = audit.main(["--check", "--out", str(out), "--content", str(content)])
+    captured = capsys.readouterr()
+    # Single-UC fixture is well below the 500-pair floor — gate returns 1.
+    assert rc == 1
+    assert "audit-dashboards" in captured.out
+
+
+def test_audit_main_surfaces_validation_errors(
+    mini_corpus: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    content, out = mini_corpus
+    studio = out / "UC-99.98.01" / "studio.xml"
+    studio.write_text(
+        "<dashboard><definition><![CDATA[{not json}]]></definition></dashboard>",
+        encoding="utf-8",
+    )
+    rc = audit.main(["--check", "--out", str(out), "--content", str(content)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "ERROR" in captured.err
+
+
+def test_audit_validate_artefact_pair_round_trip(mini_corpus: tuple[Path, Path]) -> None:
+    _, out = mini_corpus
+    panel_dir = out / "UC-99.98.01"
+    simple_text = (panel_dir / "simple.xml").read_text(encoding="utf-8")
+    studio_text = (panel_dir / "studio.xml").read_text(encoding="utf-8")
+    errors = audit.validate_artefact_pair(simple_text, studio_text)
+    assert errors == []
+
+
+def test_audit_validate_simple_xml_rejects_unknown_root() -> None:
+    errors = audit.validate_simple_xml("<not_dashboard></not_dashboard>")
+    assert errors
+
+
+def test_audit_validate_studio_xml_rejects_missing_definition() -> None:
+    errors = audit.validate_studio_xml('<dashboard version="2"><label>x</label></dashboard>')
+    assert errors
+
+
+def test_audit_generated_skips_when_no_pairs(tmp_path: Path) -> None:
+    report = audit.audit_generated(tmp_path)
+    assert report.checked == 0
+
+
+def test_audit_emit_report_dataclass_round_trip() -> None:
+    report = audit.EmitReport(checked=3, drift=0, skipped=0, errors=[], uc_ids=["UC-1.2.3"])
+    assert report.checked == 3
+    assert report.uc_ids == ["UC-1.2.3"]
