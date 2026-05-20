@@ -222,6 +222,57 @@ _FUNC_CALL_RE = re.compile(r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\(")
 # leading `| <command>` (which the splitter has already stripped).
 _CMD_HEAD_RE = re.compile(r"^\s*(?P<cmd>[A-Za-z_][A-Za-z0-9_]*)\b")
 
+# Quoted-string literal regex used by ``_blank_quoted_strings`` to scrub
+# string contents before applying the function-call extractor. We accept
+# both double-quoted and single-quoted forms because both occur in real
+# SPL (double quotes dominate, but ``eval x = if(field='foo', 1, 0)``
+# does appear in author-curated content).
+#
+# The regex tolerates escaped quotes inside the literal — ``\"`` and
+# ``\'`` are common in regex patterns (``match(field, "(?i)foo\\(")``)
+# and field-equal predicates.
+_QUOTED_STR_RE = re.compile(
+    r"""
+    "                       # opening double quote
+    (?:\\.|[^"\\])*         # any escaped char or non-quote / non-backslash
+    "                       # closing double quote
+    |
+    '                       # opening single quote
+    (?:\\.|[^'\\])*         # any escaped char or non-quote / non-backslash
+    '                       # closing single quote
+    """,
+    re.VERBOSE,
+)
+
+
+def _blank_quoted_strings(text: str) -> str:
+    """Replace the contents of quoted strings with spaces (same length).
+
+    Function-call extraction is regex-based and would otherwise match
+    identifiers that appear inside string literals — for example
+    ``healthz(`` inside the regex literal ``"(?i)/healthz(\\?|$)"``.
+    Those substrings are never real function calls in SPL semantics
+    (the bytes are search data, not code), so reporting them as
+    ``unknown-eval-function`` produces noise rather than signal.
+
+    We blank out the *content* of every quoted string in place while
+    keeping the surrounding quotes and the overall string length. The
+    length preservation matters because ``_functions_in_segment`` uses
+    ``re.finditer`` offsets to compare against ``_CMD_HEAD_RE`` head
+    boundaries; shifting offsets would break that check.
+    """
+
+    def _scrub(m: re.Match[str]) -> str:
+        s = m.group(0)
+        if len(s) < 2:
+            return s
+        # Keep the opening + closing quote, replace inner bytes with
+        # spaces so the substring no longer carries any identifier
+        # followed by ``(``.
+        return s[0] + (" " * (len(s) - 2)) + s[-1]
+
+    return _QUOTED_STR_RE.sub(_scrub, text)
+
 # Search-segment "context" detection — drives where eval/where/stats
 # functions live. We look at the segment's leading command word.
 _EVAL_LIKE = frozenset(
@@ -401,7 +452,13 @@ def extract_commands(spl: str) -> list[str]:
 
 def _functions_in_segment(seg: str, context: str) -> list[FunctionRef]:
     out: list[FunctionRef] = []
-    for fm in _FUNC_CALL_RE.finditer(seg):
+    # Blank out quoted-string content before scanning so identifiers
+    # like ``healthz`` inside the regex literal
+    # ``"(?i)/healthz(\\?|$)"`` are not mistaken for function calls.
+    # ``_blank_quoted_strings`` preserves offsets so the head-of-segment
+    # comparison against ``_CMD_HEAD_RE`` still lines up.
+    scanned = _blank_quoted_strings(seg)
+    for fm in _FUNC_CALL_RE.finditer(scanned):
         name = fm.group("name").lower()
         # Skip the segment's leading command — we don't want to report the
         # command itself as a function call.

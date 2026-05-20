@@ -135,6 +135,8 @@ VALID_EVAL_FUNCTIONS: set[str] = {
     "mvindex",
     "mvjoin",
     "mvmap",
+    "mvmax",
+    "mvmin",
     "mvrange",
     "mvsort",
     "mvzip",
@@ -142,6 +144,7 @@ VALID_EVAL_FUNCTIONS: set[str] = {
     "split",
     # Statistical
     "max",
+    "median",
     "min",
     "random",
     # Text
@@ -203,6 +206,7 @@ VALID_STATS_FUNCTIONS: set[str] = {
     "var",
     "varp",
     # Event-order
+    "current",
     "earliest",
     "earliest_time",
     "first",
