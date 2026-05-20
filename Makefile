@@ -8,7 +8,7 @@
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
        audit-regulatory-change-watch \
        audit-compliance-gaps audit-compliance-mappings \
-       audit-doc-counts audit-openapi-drift audit-content-quality \
+       audit-doc-counts audit-openapi-drift audit-content-quality audit-exclusions-coverage \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
@@ -63,7 +63,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type audit-exclusions-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -172,6 +172,9 @@ audit-gold-profile-v2: ## Gold-standard v2 audit (SPL provenance, KFP, suppressi
 
 audit-prerequisites: ## Validate UC prerequisite graph (cycles, unknown IDs, wave monotonicity)
 	$(SPLUNK_UC) audit-prerequisites --check
+
+audit-exclusions-coverage: ## Report UC sidecars missing useful exclusions scope text
+	$(SPLUNK_UC) audit-exclusions-coverage --check --threshold 0
 
 audit-sandbox-validation: ## Audit sample-data/ fixture coverage and shape vs UC controlTest blocks
 	$(SPLUNK_UC) audit-sandbox-validation --check
