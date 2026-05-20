@@ -522,6 +522,14 @@ register(
 )
 register(
     Verb(
+        name="audit-spl-anti-patterns",
+        module="audits.spl_anti_patterns",
+        help="Flag SPL style/risk anti-patterns (join, makeresults, random) for maintainer queue.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-meraki-spl",
         module="audits.meraki_spl",
         help="Audit Cisco Meraki UCs for SPL hallucinations (unknown sourcetypes/indexes/fields).",
