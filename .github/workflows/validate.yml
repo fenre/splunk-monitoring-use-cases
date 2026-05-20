@@ -123,6 +123,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: ./.github/actions/setup-python
@@ -244,6 +246,47 @@ jobs:
             FAIL=1
           fi
           exit $FAIL
+
+      - name: Schema-cycle gate (parallel atlas §3.1)
+        # At most one schemas/uc.schema.json bump may land on main per 24-hour
+        # merge cycle. PRs that touch the schema while main already received a
+        # bump in that window fail closed.
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main --depth=200
+          RECENT=$(git log origin/main --since="24 hours ago" --diff-filter=AM --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
+          echo "Schema commits on main (last 24h): ${RECENT}"
+          if [ "${RECENT}" -gt 1 ]; then
+            echo "::error::More than one schema bump on main in 24h (found ${RECENT}). Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
+            exit 1
+          fi
+          if git diff --name-only origin/main...HEAD | grep -qx 'schemas/uc.schema.json'; then
+            if [ "${RECENT}" -ge 1 ]; then
+              echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h."
+              exit 1
+            fi
+          fi
+          echo "Schema-cycle gate PASS"
+
+      - name: Subagent UC-firewall placeholder (Task B-7)
+        # TODO: B-7 will activate enforcement (will FAIL when subagent-authored PR touches content/cat-*/UC-*.json)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin main --depth=50
+          PR="${{ github.event.pull_request.number }}"
+          LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}" --jq '.labels[].name' 2>/dev/null || true)
+          TOUCHES_UC=$(git diff --name-only origin/main...HEAD | grep -cE '^content/cat-[^/]+/UC-[^/]+\.json$' || true)
+          if echo "${LABELS}" | grep -qx 'subagent-authored'; then
+            echo "Label subagent-authored present"
+            if [ "${TOUCHES_UC}" -gt 0 ]; then
+              echo "::warning::PR touches ${TOUCHES_UC} UC sidecar(s) — will FAIL once Task B-7 activates audit-subagent-uc-firewall"
+            fi
+          else
+            echo "No subagent-authored label — placeholder skips enforcement"
+          fi
+          echo "Subagent UC-firewall placeholder PASS"
 
   # ============================================================================
   # Job 2: audits-content (~25 min budget)
@@ -915,6 +958,58 @@ jobs:
             exit 1
           fi
 
+      - name: Splunk version-matrix audit (P18)
+        # 2-D rollup of every UC's ``splunkVersions`` declarations vs.
+        # the canonical vocabulary in
+        # ``data/splunk-version-vocabulary.json``. ``--check`` exits
+        # non-zero on any unknown-token finding, blocking the PR
+        # rather than silently regenerating an artefact in CI. The
+        # in-tree ``data/splunk-version-matrix.json`` +
+        # ``docs/splunk-version-matrix.md`` stay byte-identical to
+        # ``main`` because ``--check`` skips the write step (the
+        # drift guard below catches any committed-but-stale copy).
+        run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix --check
+
+      - name: Splunk version-matrix audit — generated artefacts are committed
+        # The audit, run in *write* mode, must produce byte-identical
+        # output to what's on disk. A diff means a maintainer changed
+        # ``splunkVersions`` on a sidecar (or the vocabulary file) and
+        # forgot to commit the regenerated rollup.
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix >/dev/null
+          CHANGED=$(git diff --name-only -- data/splunk-version-matrix.json docs/splunk-version-matrix.md)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::splunk-version-matrix artefacts are out of date — run \`python -m splunk_uc audit-splunk-version-matrix\` and commit"
+            git --no-pager diff --stat -- data/splunk-version-matrix.json docs/splunk-version-matrix.md
+            exit 1
+          fi
+
+      - name: Generate RAG chunked corpus (P17)
+        # Walks every ``dist/uc/UC-*/uc.md`` produced by the build and
+        # emits the LLM-eval-ready chunked corpus under ``dist/rag/``:
+        # one frontmatter-stamped chunk per markdown section + the
+        # ``manifest.json`` + ``manifest.md`` rollup. ``dist/`` is
+        # gitignored, so the artefact is rebuilt fresh on every CI
+        # run; the chunker's ``--check`` flag (run right after) acts
+        # as a determinism smoke test by re-running the chunker and
+        # comparing against the just-written manifest. A non-zero
+        # exit there would be a real generator-non-determinism bug.
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
+          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks --check
+
+      - name: Retrieval-eval drift gate (P17 wave D)
+        # Runs the curated 30-query BM25 retrieval-eval harness
+        # over the chunked corpus produced by the previous step
+        # and drift-guards the aggregate metrics (mean recall@k,
+        # MRR, nDCG@10) against the frozen baseline at
+        # ``data/baselines/retrieval-eval-v1.0.json``. Tolerance
+        # defaults to 2% relative regression with a 0.01 absolute
+        # floor so floating-point noise across Python releases
+        # doesn't fail the gate.
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc audit-retrieval-eval --check
+
       - name: Package recommender .spl
         # Builds the deployable ``splunk-uc-recommender-vX.Y.Z.spl``
         # bundle (plus ``.sha256`` + ``SHA256SUMS.txt`` +
@@ -1292,6 +1387,13 @@ jobs:
         # dispositions reconcile with hard_failures + warnings, and
         # that the payload is canonically serialised.
         run: node --test tests/a11y/perfa11y.test.mjs
+
+      - name: Vendor changelog freshness gate (J-5 Cisco v1)
+        # audit-vendor-changelog validates hand-curated vendor release
+        # notes under data/vendor-changelog/, checks schema + freshness,
+        # and scans UC SPL for renamed/removed vendor fields. v1 is
+        # Cisco-only; other vendors land in follow-up PRs.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-vendor-changelog --check --max-age-days 180
 
       # ----- frontend artefact upload -----
 
