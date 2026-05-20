@@ -394,6 +394,11 @@ def _run_to_dict(run: SarifRun) -> dict[str, Any]:
                 ],
             }
         },
+        # automationDetails.id makes each run uniquely categorised in
+        # GitHub Code Scanning, so the combined catalogue.sarif (with
+        # multiple per-audit runs) is accepted by upload-sarif@v3 — see
+        # https://github.blog/changelog/2025-07-21-code-scanning-will-stop-combining-multiple-sarif-runs-uploaded-in-the-same-sarif-file/
+        "automationDetails": {"id": f"splunk-uc-catalogue/{run.audit_name}/"},
         "artifacts": list(artifacts.values()),
         "results": [
             {
