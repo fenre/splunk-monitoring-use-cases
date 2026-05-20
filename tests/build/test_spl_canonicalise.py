@@ -147,3 +147,146 @@ def test_keep_tweaks_flag_preserves_head() -> None:
         drop_operator_tweaks=False,
     )
     assert "head" in canon
+
+
+# ---------------------------------------------------------------------------
+# Macro-resolver corner cases — exception fallback, runaway expansion,
+# empty-token guards (cover lines 175-176, 189, 230 in spl_canonicalise.py)
+# ---------------------------------------------------------------------------
+
+
+def test_canonicalise_swallows_exception_from_macro_resolver() -> None:
+    """When the user-supplied resolver raises, the macro collapses to
+    ``?`` rather than propagating the exception (line 175-176)."""
+
+    def hostile_resolver(name: str) -> str | None:
+        raise RuntimeError("resolver blew up")
+
+    canon = canonicalise(
+        "index=foo `mymacro` | stats count",
+        macro_resolver=hostile_resolver,
+    )
+    assert "mymacro" not in canon
+    assert "?" in canon
+
+
+def test_canonicalise_bounds_recursive_macro_expansion() -> None:
+    """A macro chain that flips between two names every iteration never
+    converges to a fixed point. The resolver loop MUST still exit after
+    the 8-iteration cap, returning whatever expansion happens to be
+    current (line 189)."""
+
+    def flip_resolver(name: str) -> str | None:
+        if name == "alpha":
+            return "`beta`"
+        if name == "beta":
+            return "`alpha`"
+        return None
+
+    # The fact that this call returns at all (rather than hanging) is the
+    # contract under test — the 8-iteration cap fires.
+    canon = canonicalise(
+        "index=foo `alpha` | stats count",
+        macro_resolver=flip_resolver,
+    )
+    # The remaining macro-shaped token gets shredded by the
+    # post-resolution inline-comment stripper, so neither name leaks.
+    assert "alpha" not in canon
+    assert "beta" not in canon
+
+
+def test_canonicalise_quoting_returns_empty_on_whitespace_token() -> None:
+    """``_canonicalise_quoting('  ')`` returns the stripped empty string
+    instead of producing ``""`` quotes (covers the early-return at line 230)."""
+
+    from tools.build.spl_canonicalise import _canonicalise_quoting
+
+    assert _canonicalise_quoting("   ") == ""
+    assert _canonicalise_quoting("") == ""
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point — lines 410-446 (_build_argparser) + 449-468 (main)
+# ---------------------------------------------------------------------------
+
+
+def test_main_canonicalise_subcommand_prints_canonical_form(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.build.spl_canonicalise import main
+
+    rc = main(["canonicalise", "index=foo | stats count BY host"])
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    # Output is the canonical form — keywords lowercased, value quoted.
+    assert 'index="foo"' in out
+    assert " by " in out
+
+
+def test_main_canonicalise_subcommand_honours_keep_tweaks(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.build.spl_canonicalise import main
+
+    rc = main(
+        ["canonicalise", "--keep-tweaks", "index=foo | stats count | head 100"]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    # --keep-tweaks preserves the `head` stage that drop-tweaks would strip.
+    assert "head" in out
+
+
+def test_main_fingerprint_subcommand_emits_64_char_hex(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.build.spl_canonicalise import main
+
+    rc = main(["fingerprint", "index=foo | stats count"])
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    assert len(out) == 64
+    int(out, 16)
+
+
+def test_main_compare_subcommand_returns_zero_when_equivalent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.build.spl_canonicalise import main
+
+    rc = main(
+        [
+            "compare",
+            "index=foo status==200",
+            "index=foo status=200",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "equivalent: yes" in out
+
+
+def test_main_compare_subcommand_returns_one_when_not_equivalent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.build.spl_canonicalise import main
+
+    rc = main(
+        [
+            "compare",
+            "index=foo",
+            "index=bar",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "equivalent: no" in out
+
+
+def test_main_rejects_unknown_subcommand() -> None:
+    from tools.build.spl_canonicalise import main
+
+    # argparse turns the missing required subcommand into SystemExit(2);
+    # an unknown subcommand likewise fails parsing.
+    with pytest.raises(SystemExit):
+        main(["totally-not-a-subcommand"])
