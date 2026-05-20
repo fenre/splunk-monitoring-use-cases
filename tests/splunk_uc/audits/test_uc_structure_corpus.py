@@ -389,3 +389,97 @@ def test_main_respects_full_flag_when_population_below_threshold(
         "All 1 UCs checked (population at or under threshold 5000)" in out
         or "Full scan" in out
     )
+
+
+# --------------------------------------------------------------------- #
+# audit_uc_json — gap closures (criticality/difficulty edge paths
+# untouched by the legacy unit tests at tests/scripts/...)
+# --------------------------------------------------------------------- #
+
+
+def test_audit_uc_json_invalid_criticality_not_emoji(tmp_path: Path) -> None:
+    """A criticality string that is neither a valid enum nor a legacy
+    markdown emoji must produce the ``invalid criticality`` issue
+    (covers the else-branch on line 120-124 of ``uc_structure.py``)."""
+
+    payload = _good_uc("1.1.1")
+    payload["criticality"] = "extreme"  # not in VALID, not an emoji
+    p = tmp_path / "UC-1.1.1.json"
+    p.touch()
+    issues = audit.audit_uc_json(str(p), payload)
+    assert any("invalid criticality 'extreme'" in i for i in issues), issues
+
+
+def test_audit_uc_json_legacy_emoji_difficulty_rejected(
+    tmp_path: Path,
+) -> None:
+    """The legacy markdown emoji form of difficulty must produce the
+    ``uses the legacy markdown emoji form`` issue (covers the
+    legacy-emoji branch on line 129-134 of ``uc_structure.py``)."""
+
+    payload = _good_uc("1.1.1")
+    payload["difficulty"] = "🔵 Intermediate"  # legacy emoji form
+    p = tmp_path / "UC-1.1.1.json"
+    p.touch()
+    issues = audit.audit_uc_json(str(p), payload)
+    assert any("uses the legacy markdown emoji form" in i for i in issues), (
+        issues
+    )
+
+
+# --------------------------------------------------------------------- #
+# Sampling / threshold messaging — exercise the >LARGE_THRESHOLD branches
+# by monkey-patching the constants to small numbers so we don't have to
+# generate 5,000 UC files on every CI run.
+# --------------------------------------------------------------------- #
+
+
+def test_corpus_samples_when_total_exceeds_threshold(
+    temp_corpus: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When total > LARGE_THRESHOLD and ``--full`` is NOT set, the
+    audit must take a deterministic random sample and announce
+    "Sampling: ..." (covers lines 206-208 and 230 of
+    ``uc_structure.py``)."""
+
+    monkeypatch.setattr(audit, "LARGE_THRESHOLD", 2)
+    monkeypatch.setattr(audit, "SAMPLE_SIZE", 2)
+    _write_uc(temp_corpus, "1.1.1", _good_uc("1.1.1"))
+    _write_uc(temp_corpus, "1.1.2", _good_uc("1.1.2"))
+    _write_uc(temp_corpus, "1.1.3", _good_uc("1.1.3"))
+
+    args = audit.argparse.Namespace(
+        full=False, baseline=None, print_baseline=False
+    )
+    issues, total = audit._audit_json_corpus(args)
+    out = capsys.readouterr().out
+
+    assert total == 3
+    assert issues == 0
+    assert "Sampling: 2 UCs checked (random seed=42, population>2)" in out
+
+
+def test_corpus_full_scan_announces_threshold_message(
+    temp_corpus: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When ``--full`` is passed AND total > LARGE_THRESHOLD, the
+    audit must announce "Full scan: all N UCs checked (--full, ...)"
+    (covers line 235 of ``uc_structure.py``)."""
+
+    monkeypatch.setattr(audit, "LARGE_THRESHOLD", 1)
+    _write_uc(temp_corpus, "1.1.1", _good_uc("1.1.1"))
+    _write_uc(temp_corpus, "1.1.2", _good_uc("1.1.2"))
+
+    args = audit.argparse.Namespace(
+        full=True, baseline=None, print_baseline=False
+    )
+    issues, total = audit._audit_json_corpus(args)
+    out = capsys.readouterr().out
+
+    assert total == 2
+    assert issues == 0
+    assert "Full scan: all 2 UCs checked (--full, population>1)" in out

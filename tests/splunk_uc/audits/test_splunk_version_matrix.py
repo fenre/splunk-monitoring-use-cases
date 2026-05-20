@@ -547,3 +547,258 @@ def test_main_missing_vocabulary_returns_two(
     rc = svm.main([])
     assert rc == 2
     assert "splunk-version vocabulary not found" in capsys.readouterr().err
+
+
+# ----------------------------------------------------------------------
+# Loader edge cases — close the remaining gaps in load_vocabulary
+# ----------------------------------------------------------------------
+
+
+def test_collect_entries_skips_when_all_elements_non_string(
+    tmp_path: Path,
+) -> None:
+    """If every element of ``splunkVersions`` is non-string, the UC
+    contributes nothing to ``entries`` even though each non-string
+    is reported as a parse error (covers branch 271->234 of
+    ``splunk_version_matrix.py``, the empty-``valid_versions``
+    skip)."""
+
+    content = tmp_path / "content"
+    _write_sidecar(
+        content,
+        "cat-11-test",
+        "11.1.1",
+        splunkVersions=[1, 2, 3],
+    )
+    entries, errors = collect_entries(content)
+    assert entries == []
+    # All three non-string elements got reported.
+    assert sum(1 for e in errors if "is not a string" in e) == 3
+
+
+def test_load_vocabulary_with_explicit_path_skips_default(
+    tmp_path: Path,
+) -> None:
+    """Passing an explicit ``path`` to ``load_vocabulary`` must skip
+    the default ``VOCAB_PATH`` fallback (covers branch 104->106
+    of ``splunk_version_matrix.py``)."""
+
+    p = tmp_path / "vocab.json"
+    p.write_text(
+        json.dumps(
+            {
+                "tokens": [
+                    {
+                        "id": "Tiny",
+                        "kind": "cloud",
+                        "track": "cloud",
+                        "support_phase": "ga",
+                        "description": "minimal",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    vocab = load_vocabulary(p)
+    assert list(vocab.keys()) == ["Tiny"]
+
+
+def test_load_vocabulary_rejects_non_list_tokens(tmp_path: Path) -> None:
+    """``tokens`` must be a list — a dict or scalar is rejected (covers
+    line 149 of ``splunk_version_matrix.py``)."""
+
+    p = tmp_path / "vocab.json"
+    p.write_text(json.dumps({"tokens": {"Cloud": {}}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="'tokens' must be a JSON array"):
+        load_vocabulary(p)
+
+
+def test_load_vocabulary_rejects_non_object_token_entry(
+    tmp_path: Path,
+) -> None:
+    """Each element of ``tokens`` must be an object — bare strings are
+    rejected (covers line 153 of ``splunk_version_matrix.py``)."""
+
+    p = tmp_path / "vocab.json"
+    p.write_text(json.dumps({"tokens": ["Cloud"]}), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"tokens\[0\] is not an object"):
+        load_vocabulary(p)
+
+
+def test_load_vocabulary_rejects_non_string_field_value(
+    tmp_path: Path,
+) -> None:
+    """A required field with non-string value is rejected (covers
+    line 161 of ``splunk_version_matrix.py``)."""
+
+    p = tmp_path / "vocab.json"
+    p.write_text(
+        json.dumps(
+            {
+                "tokens": [
+                    {
+                        "id": "Cloud",
+                        "kind": "cloud",
+                        "track": "cloud",
+                        "support_phase": "ga",
+                        "description": 42,  # non-string
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="must be a string"):
+        load_vocabulary(p)
+
+
+# ----------------------------------------------------------------------
+# _parse_uc_id — bare TypeError contract
+# ----------------------------------------------------------------------
+
+
+def test_parse_uc_id_rejects_path_input(tmp_path: Path) -> None:
+    """Passing a ``Path`` instead of a ``str`` is a programmer error and
+    must raise ``TypeError`` (covers line 208 of
+    ``splunk_version_matrix.py``)."""
+
+    from splunk_uc.audits.splunk_version_matrix import _parse_uc_id
+
+    with pytest.raises(TypeError, match="pass the id string"):
+        _parse_uc_id(tmp_path, tmp_path)
+
+
+# ----------------------------------------------------------------------
+# collect_entries — missing/non-string id branch
+# ----------------------------------------------------------------------
+
+
+def test_collect_entries_flags_missing_id_field(tmp_path: Path) -> None:
+    """A sidecar missing the ``id`` key entirely lands in parse_errors
+    via the ``isinstance(uc_id_raw, str)`` check (covers lines 245-246
+    of ``splunk_version_matrix.py``)."""
+
+    content = tmp_path / "content"
+    cat = content / "cat-08-test"
+    cat.mkdir(parents=True)
+    (cat / "UC-8.1.1.json").write_text(
+        json.dumps({"title": "no id field"}), encoding="utf-8"
+    )
+    entries, errors = collect_entries(content)
+    assert entries == []
+    assert any("missing or non-string 'id'" in e for e in errors)
+
+
+def test_collect_entries_flags_non_string_id_field(tmp_path: Path) -> None:
+    """A sidecar with a non-string ``id`` (e.g. an integer) also lands
+    in parse_errors."""
+
+    content = tmp_path / "content"
+    cat = content / "cat-09-test"
+    cat.mkdir(parents=True)
+    (cat / "UC-9.1.1.json").write_text(
+        json.dumps({"id": 9, "title": "id is an int"}), encoding="utf-8"
+    )
+    entries, errors = collect_entries(content)
+    assert entries == []
+    assert any("missing or non-string 'id'" in e for e in errors)
+
+
+# ----------------------------------------------------------------------
+# _matrix_to_json — VOCAB_PATH outside REPO_ROOT
+# ----------------------------------------------------------------------
+
+
+def test_matrix_to_json_handles_vocab_path_outside_repo_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When ``VOCAB_PATH`` cannot be made relative to ``REPO_ROOT``
+    (as in tests that monkey-patch it to a tmp_path), the JSON
+    renderer must fall back to ``str(VOCAB_PATH)`` (covers lines
+    372-375 of ``splunk_version_matrix.py``)."""
+
+    from splunk_uc.audits import splunk_version_matrix as svm
+
+    detached = tmp_path / "outside-repo" / "vocab.json"
+    detached.parent.mkdir(parents=True)
+    detached.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(svm, "VOCAB_PATH", detached)
+
+    out = svm._matrix_to_json(
+        Matrix(total_sidecars=0, sidecars_with_versions=0),
+        _toy_vocab(),
+    )
+    assert out["vocabulary_path"] == str(detached)
+
+
+# ----------------------------------------------------------------------
+# _render_markdown — parse-errors block with truncation
+# ----------------------------------------------------------------------
+
+
+def test_render_markdown_includes_parse_errors_section() -> None:
+    """When the matrix carries parse errors, they appear in their
+    own section (covers lines 497-501 of
+    ``splunk_version_matrix.py``)."""
+
+    matrix = Matrix(
+        total_sidecars=1,
+        sidecars_with_versions=0,
+        parse_errors=["uc-1: bad", "uc-2: oops"],
+    )
+    md = _render_markdown(matrix, _toy_vocab())
+    assert "## Parse errors" in md
+    assert "- uc-1: bad" in md
+    assert "- uc-2: oops" in md
+
+
+def test_render_markdown_truncates_parse_errors_at_fifty() -> None:
+    """If parse_errors > 50, only the first 50 are shown and the
+    remainder is announced with a trailing ``\u2026 and N more``
+    bullet (covers line 502)."""
+
+    matrix = Matrix(
+        total_sidecars=99,
+        sidecars_with_versions=0,
+        parse_errors=[f"uc-{i}: bad" for i in range(55)],
+    )
+    md = _render_markdown(matrix, _toy_vocab())
+    assert "- uc-49: bad" in md  # the 50th element
+    assert "- uc-50: bad" not in md  # the 51st is truncated
+    assert "and 5 more" in md
+
+
+# ----------------------------------------------------------------------
+# main() — parse-error warning to stderr
+# ----------------------------------------------------------------------
+
+
+def test_main_warns_to_stderr_when_parse_errors_present(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When ``collect_entries`` reports parse errors, ``main`` emits a
+    ``WARNING:`` line to stderr (covers line 580 of
+    ``splunk_version_matrix.py``)."""
+
+    from splunk_uc.audits import splunk_version_matrix as svm
+
+    content = tmp_path / "content"
+    cat = content / "cat-10-test"
+    cat.mkdir(parents=True)
+    # Deliberately broken JSON → exactly one parse error.
+    (cat / "UC-10.1.1.json").write_text("{ broken", encoding="utf-8")
+    json_out = tmp_path / "data" / "matrix.json"
+    md_out = tmp_path / "docs" / "matrix.md"
+    monkeypatch.setattr(svm, "CONTENT_DIR", content)
+    monkeypatch.setattr(svm, "MATRIX_JSON_PATH", json_out)
+    monkeypatch.setattr(svm, "MATRIX_MD_PATH", md_out)
+
+    rc = svm.main([])
+    err = capsys.readouterr().err
+
+    assert rc == 0  # parse error alone doesn't fail the audit
+    assert "WARNING: 1 sidecar(s) failed to parse" in err
