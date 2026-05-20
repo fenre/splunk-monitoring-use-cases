@@ -2,7 +2,7 @@
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
-       audit-splunk-cloud-compat \
+       audit-splunk-cloud-compat audit-splunk-version-matrix \
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
@@ -17,6 +17,9 @@
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-api-surface \
+       generate-rag-chunks audit-rag-chunks \
+       generate-dashboards audit-dashboards \
+       audit-retrieval-eval audit-retrieval-eval-check \
        generate-phase2-mini-categories generate-phase2-3-per-regulation \
        generate-phase3-1-backfill generate-phase3-2-cross-cutting \
        generate-phase3-3-derivatives \
@@ -24,7 +27,7 @@
        sync-generated sync-generated-check \
        check-source-links audit-auto-gen-provenance \
        splunk-uc splunk-uc-help \
-       inventory manifest test test-unit help
+       inventory manifest test test-unit help worktree-new
 
 PYTHON ?= python3
 BUILD  := $(PYTHON) tools/build/build.py --out dist
@@ -63,7 +66,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type audit-dashboards ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -112,6 +115,9 @@ audit-spl-references-build: ## Rebuild data/spl-reference.local.json from extern
 
 audit-splunk-cloud-compat: ## Audit SPL + content packs for Splunk Cloud compatibility
 	$(SPLUNK_UC) audit-splunk-cloud-compat
+
+audit-splunk-version-matrix: ## Audit the 2-D Splunk-version compatibility matrix
+	$(SPLUNK_UC) audit-splunk-version-matrix --check
 
 generate-backlinks: ## Refresh docs/backlinks.md (wiki "What links here" index)
 	$(PYTHON) scripts/generate_backlinks.py
@@ -231,6 +237,25 @@ generate-grandma-explanations: ## Fill missing plain-language `grandmaExplanatio
 
 generate-stewardship-digest: ## Alias for stewardship-digest (dispatcher verb name)
 	$(SPLUNK_UC) generate-stewardship-digest
+
+generate-rag-chunks: ## Build the RAG-ready chunked corpus under dist/rag/ (P17)
+	$(SPLUNK_UC) generate-rag-chunks
+
+audit-rag-chunks: ## Drift-guard dist/rag/manifest.json against a fresh chunk rebuild (P17)
+	$(SPLUNK_UC) generate-rag-chunks --check
+
+generate-dashboards: ## Emit per-UC Splunk dashboard scaffolds (Simple XML + Studio)
+	$(SPLUNK_UC) generate-dashboards
+
+audit-dashboards: ## Validate dist/dashboards/ scaffolds (generate + audit --check)
+	$(SPLUNK_UC) generate-dashboards
+	$(SPLUNK_UC) audit-dashboards --check
+
+audit-retrieval-eval: ## Run curated query set + BM25 baseline on dist/rag/ (P17)
+	$(SPLUNK_UC) audit-retrieval-eval
+
+audit-retrieval-eval-check: ## Drift-guard retrieval-eval against baseline (P17 CI gate)
+	$(SPLUNK_UC) audit-retrieval-eval --check
 
 generate-mapping-ledger: ## Regenerate data/provenance/mapping-ledger.json
 	$(SPLUNK_UC) generate-mapping-ledger
@@ -376,3 +401,23 @@ test: test-unit build ## Run unit tests + build validation
 
 test-unit: ## Run pytest unit tests for tools/build
 	$(PYTHON) -m pytest tests/build/ -v
+
+# --- Parallel execution (Lane O substrate) ---
+
+worktree-new: ## Create isolated worktree .worktrees/$(TASK) on branch worktree/$(TASK)
+ifndef TASK
+	$(error TASK is required — e.g. make worktree-new TASK=A-mcp-http-transport)
+endif
+	@mkdir -p .worktrees
+	@if [ -d ".worktrees/$(TASK)" ]; then \
+		echo "Worktree .worktrees/$(TASK) already exists"; exit 1; \
+	fi
+	@if git show-ref --verify --quiet "refs/heads/worktree/$(TASK)"; then \
+		echo "Branch worktree/$(TASK) already exists — pick a different TASK slug"; exit 1; \
+	fi
+	git worktree add -b "worktree/$(TASK)" ".worktrees/$(TASK)"
+	@echo "→ Bootstrapping .worktrees/$(TASK)…"
+	@$(MAKE) -C ".worktrees/$(TASK)" help >/dev/null
+	@echo "✓ Worktree ready at .worktrees/$(TASK) (branch worktree/$(TASK))"
+	@echo "  Catalogue parallel tasks use branch <lane>/<slug> — see docs/parallel-execution-substrate.md"
+	@echo "  Full dev setup: cd .worktrees/$(TASK) && make devcontainer-init"
