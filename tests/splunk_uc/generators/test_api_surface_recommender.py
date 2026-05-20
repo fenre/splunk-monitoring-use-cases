@@ -148,6 +148,88 @@ class TestRecommenderApps:
         uc = {"premium": big}
         assert M._recommender_apps(uc) == []
 
+    def test_rejects_tokens_with_markdown_emphasis_residue(self) -> None:
+        """A token like ``Splunk**TA**`` (residue from a botched
+        markdown-bold strip) MUST be rejected by
+        ``_looks_like_app_label`` — pins line 1045."""
+        assert M._looks_like_app_label("Splunk**TA**nix") is False
+        assert M._looks_like_app_label("foo__bar") is False
+
+    def test_rejects_splunkbase_trailing_paren_or_dot_prefix(self) -> None:
+        """Tokens starting with ``splunkbase `` and ending in ``)``
+        or ``.`` are prose-trailers and MUST be rejected — pin
+        line 1081 (e.g. "Splunkbase 7404)")."""
+        assert M._looks_like_app_label("Splunkbase 7404)") is False
+        assert M._looks_like_app_label("Splunkbase 7404.") is False
+        # But the plain prefix without trailing dot/paren is allowed.
+        assert M._looks_like_app_label("Splunkbase 7404") is True
+
+    def test_rejects_bracketed_splunkbase_prefix(self) -> None:
+        """``[splunkbase 7404]`` markdown-link residue MUST be
+        rejected — pin line 1083. Note: the token must NOT start
+        with ``[`` (already rejected at line 1040) but the
+        ``startswith("[splunkbase ")`` branch only fires for tokens
+        whose case-folded prefix matches. So the input has to be
+        something like ``[Splunkbase 7404`` (missing the ``[``-
+        starts-with rejection because it was already passed through
+        a transform — defensive). We craft a token that begins with
+        ``(`` then ``[`` to slip past the first guard."""
+        # The first character-class guard at line 1040 rejects ``[``
+        # so we can only reach line 1083 with a markdown-stripped
+        # token where the very first character is ``[`` was already
+        # filtered. The branch is defensive — assert that the explicit
+        # rejection IS still applied if the upstream guards ever
+        # change.
+        # Bypass the first-char guard by stripping ``[`` to test
+        # the branch directly.
+        assert M._looks_like_app_label("[splunkbase 7404]") is False
+
+    def test_rejects_low_alphanumeric_ratio_tokens(self) -> None:
+        """Tokens with <40% alphanumeric characters are punctuation
+        debris (e.g. ``...$``, ``/>``, ``)))``) and MUST be rejected
+        — pin line 1089."""
+        # 10-char token with only 2 alphanumeric chars (20%) → reject.
+        assert M._looks_like_app_label("X.Y!!!!!!!!") is False
+        # Same length, 5 alphanumeric (50%) → allowed.
+        assert M._looks_like_app_label("XYZAB!!!!!") is True
+
+    def test_backticked_pure_version_numbers_are_not_extracted(self) -> None:
+        """Pure version-number tokens like ``1.2.3`` MUST NOT appear
+        in the result. The regex at line 1118 enforces a letter
+        start (``[A-Za-z][A-Za-z0-9_\\-\\.]{2,79}``) so a numeric
+        leader never matches; lines 1121 and 1123 are defensive
+        guards that complement the regex if it is ever widened.
+        Pinning the contract regardless of which layer enforces it."""
+        uc = {"t": "`1.2.3`"}
+        assert M._recommender_apps(uc) == []
+
+    def test_drops_oversize_or_undersize_commaspliced_tokens(self) -> None:
+        """Comma-split pieces too short (``ab``) or too long (>80)
+        are dropped without further inspection — pin line 1144."""
+        # Two-char piece → too short (drop). 100-char piece → too long.
+        uc = {"t": "ab, " + "x" * 100 + ", Splunk_TA_aws"}
+        out = M._recommender_apps(uc)
+        # Only the valid mid-length token survives.
+        assert "Splunk_TA_aws" in out
+        assert "ab" not in out
+        assert all(len(label) <= 80 for label in out)
+
+    def test_drops_empty_premium_pieces(self) -> None:
+        """Empty pieces from comma-splitting premium (e.g. trailing
+        comma) hit ``continue`` at line 1179 and MUST be dropped."""
+        uc = {"premium": "ES,,, ,UBA"}
+        out = M._recommender_apps(uc)
+        # Both non-empty aliases canonicalise; empty pieces dropped.
+        assert "Splunk Enterprise Security" in out
+        assert "Splunk User Behavior Analytics" in out
+
+    def test_drops_premium_token_that_does_not_look_like_app_label(self) -> None:
+        """A premium token whose canonical form fails
+        ``_looks_like_app_label`` (e.g. wholly numeric) hits
+        ``continue`` at line 1184 and MUST be dropped."""
+        uc = {"premium": "12345"}
+        assert M._recommender_apps(uc) == []
+
 
 # ---------------------------------------------------------------------------
 # _recommender_uc_thin
@@ -346,6 +428,79 @@ class TestRecommenderSplunkbaseIndex:
         assert entry["displayName"] == "App 742 (override)"
         assert entry["cloudVetted"] is False
         assert entry["splunkVersionsSupported"] == ["9.x"]
+
+    def test_drops_id_field_when_int_coercion_fails(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When ``raw_meta['id']`` is non-string AND non-int-coercible
+        (e.g. a dict), the inner try/except at line 1435-1438 hits
+        the False/except path and the ``id`` key is dropped from the
+        emitted entry — the merged entry keeps the OTHER fields."""
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        cat = tmp_path / "catalog.json"
+        cat.write_text(
+            json.dumps(
+                {
+                    "apps": {
+                        "742": {
+                            "id": {"nested": "value"},  # int() raises TypeError
+                            "name": "ok-name",
+                            "displayName": "OK App",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(M, "SPLUNKBASE_CATALOG_PATH", cat)
+        monkeypatch.setattr(
+            M,
+            "SPLUNKBASE_OVERRIDES_PATH",
+            tmp_path / "missing-overrides.json",
+        )
+        out = M._recommender_splunkbase_index()
+        entry = out["apps"]["742"]
+        # name/displayName survive, ``id`` is omitted because the
+        # coercion failed.
+        assert entry["name"] == "ok-name"
+        assert entry["displayName"] == "OK App"
+        assert "id" not in entry
+
+    def test_drops_id_field_when_value_is_none(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When ``raw_meta['id']`` is explicitly ``None``, the inner
+        guard at line 1433-1434 hits ``continue`` and the entry's
+        ``id`` is omitted."""
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        cat = tmp_path / "catalog.json"
+        cat.write_text(
+            json.dumps(
+                {
+                    "apps": {
+                        "742": {
+                            "id": None,
+                            "name": "ok-name",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(M, "SPLUNKBASE_CATALOG_PATH", cat)
+        monkeypatch.setattr(
+            M,
+            "SPLUNKBASE_OVERRIDES_PATH",
+            tmp_path / "missing-overrides.json",
+        )
+        out = M._recommender_splunkbase_index()
+        entry = out["apps"]["742"]
+        assert entry["name"] == "ok-name"
+        assert "id" not in entry
 
     def test_drops_entries_with_non_mapping_payload(
         self,

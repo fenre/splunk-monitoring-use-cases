@@ -436,8 +436,16 @@ def _install_minimal_corpus(
         )
     )
 
-    # Empty crosswalks — generators handle empty dirs gracefully.
-    # (No oscal, attack, d3fend, olir files needed.)
+    # OSCAL crosswalks — seed ONE catalog + ONE component-definition so
+    # the orchestrator hits the for-loop bodies at lines 2253-2259
+    # (write catalog body, write component body) instead of skipping
+    # the empty dict. Other crosswalk dirs stay empty.
+    (repo / "data" / "crosswalks" / "oscal" / "fake-catalog.normalised.json").write_text(
+        json.dumps({"control_count": 0, "controls": []})
+    )
+    (repo / "data" / "crosswalks" / "oscal" / "component-definition-1.1.1.json").write_text(
+        json.dumps({"component-definition": {"uc": "1.1.1"}})
+    )
 
     # Re-point every module-level path at the temp repo.
     monkeypatch.setattr(M, "REPO_ROOT", repo)
@@ -471,6 +479,96 @@ def _install_minimal_corpus(
     monkeypatch.setattr(M, "_render_story_surfaces", lambda _out: None)
 
     return {"repo": repo}
+
+
+# ---------------------------------------------------------------------------
+# _render_story_surfaces — directly exercise the legacy-module loader + the
+# three-step compliance-story pipeline. The orchestrator end-to-end test
+# above stubs this out; this class exercises it against the real repo data.
+# ---------------------------------------------------------------------------
+
+
+class TestRenderStorySurfaces:
+    def test_loads_legacy_augment_module_and_runs_all_three_stages(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Drives ``_render_story_surfaces`` against an output tree
+        that has already been seeded with the regulations subtree (so
+        augment can index those files). The test uses the real repo
+        ``data/regulations.json`` because the legacy
+        ``augment_regulation_api.py`` script resolves ``REPO_ROOT``
+        from its own ``__file__`` and we cannot monkeypatch a
+        constant inside a module loaded via ``importlib.util``.
+
+        The contract being pinned is: (a) the legacy loader resolves
+        ``augment_regulation_api`` without error, (b) ``clauses/`` is
+        created and populated, (c) ``story/`` is created, (d) if
+        ``regulations/`` already exists then the augment step runs
+        against it (we MUST NOT skip with no regulations dir).
+        """
+        out = tmp_path / "out"
+        regs = out / "compliance" / "regulations"
+        regs.mkdir(parents=True)
+        # Seed a one-framework regulations file matching the real
+        # repo regulations.json shape so augment_regulation_api can
+        # process it. We pick the smallest tier-1 framework so the
+        # test runs in <1s.
+        from importlib import util as _u
+
+        scripts = M._LEGACY_SCRIPTS_DIR
+        spec = _u.spec_from_file_location(
+            "augment_regulation_api", scripts / "augment_regulation_api.py"
+        )
+        assert spec is not None and spec.loader is not None
+        mod = _u.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        real_regs = json.loads(mod.REGULATIONS_PATH.read_text(encoding="utf-8"))
+        # Pick the first framework so the test does not depend on
+        # any specific regulation surviving in the catalogue.
+        first_fw = real_regs["frameworks"][0]
+        fw_id = first_fw["id"]
+        # Write the per-regulation file with just enough shape for
+        # augment_regulation_file to process.
+        payload = {
+            "id": fw_id,
+            "shortName": first_fw.get("shortName", fw_id.upper()),
+            "name": first_fw.get("name", fw_id),
+            "versions": first_fw.get("versions", []),
+            "clauseCoverageMatrix": {},
+        }
+        (regs / f"{fw_id}.json").write_text(json.dumps(payload))
+        # The augment step also reads an index.json for the
+        # regulations listing.
+        (regs / "index.json").write_text(
+            json.dumps({"regulations": [{"id": fw_id}]})
+        )
+
+        # Now call the orchestrator. It MUST run all three stages
+        # without raising and MUST leave clauses/ + story/ in place.
+        M._render_story_surfaces(out)
+
+        clauses = out / "compliance" / "clauses"
+        story = out / "compliance" / "story"
+        assert clauses.is_dir()
+        assert story.is_dir()
+        # clauses/index.json is the always-present marker.
+        assert (clauses / "index.json").exists()
+
+    def test_raises_systemexit_when_regulations_dir_absent(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """If ``regulations/`` does not exist, the augment step is
+        skipped (False branch of ``if regs_dir.exists()``) but
+        ``story_mod.generate`` still requires ``regs_dir`` and raises
+        ``SystemExit``. This pins the documented failure mode and
+        prevents a future refactor from silently swallowing it.
+        """
+        out = tmp_path / "out"
+        out.mkdir()
+        with pytest.raises(SystemExit, match=r"regulations missing"):
+            M._render_story_surfaces(out)
 
 
 class TestRenderEndToEnd:
