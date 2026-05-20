@@ -4,6 +4,7 @@
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
        audit-splunk-cloud-compat \
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
+       audit-codeowners-coverage \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
        audit-regulatory-change-watch \
@@ -63,7 +64,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-ids audit-monitoring-type audit-codeowners-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -190,6 +191,9 @@ export-roadmap: ## Emit a Project-board JSON snapshot of ROADMAP.md
 
 audit-license-inventory: ## Validate dependency licenses against allowlist
 	$(SPLUNK_UC) audit-license-inventory --check
+
+audit-codeowners-coverage: ## Cross-check CODEOWNERS against tracked files (threshold 0)
+	$(SPLUNK_UC) audit-codeowners-coverage --check --threshold 0
 
 write-license-inventory: ## Regenerate data/license-inventory.json baseline
 	$(SPLUNK_UC) audit-license-inventory --write
