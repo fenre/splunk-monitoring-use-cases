@@ -62,6 +62,26 @@ def test_registry_returns_none_for_unknown_verb() -> None:
     assert resolve("definitely-not-a-verb-name") is None
 
 
+def test_registry_resolve_raises_when_module_has_no_callable_main(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the defensive guard in ``resolve``: if a registered module
+    accidentally exposes a non-callable ``main`` attribute, the
+    dispatcher must raise a clear RuntimeError rather than silently
+    returning a non-callable to the caller.
+    """
+    from splunk_uc import _registry
+
+    # Pick any registered verb and replace its module's ``main`` with
+    # a string. ``importlib.import_module`` re-uses the cached module
+    # so the monkeypatch sticks.
+    verb = _registry.all_verbs()[0]
+    module = importlib.import_module(f"splunk_uc.{verb.module}")
+    monkeypatch.setattr(module, "main", "not callable")
+    with pytest.raises(RuntimeError, match="does not expose a callable main"):
+        _registry.resolve(verb.name)
+
+
 def test_registry_register_rejects_duplicates() -> None:
     """Re-registering an existing verb name must raise ``ValueError``.
 
@@ -205,6 +225,22 @@ def test_dispatcher_returns_verb_exit_code(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(registry, "resolve", lambda _name: lambda _argv: 17)
     rc = main(["audit-reproducibility"])
     assert rc == 17
+
+
+def test_dispatcher_help_with_empty_registry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """If the registry is empty, ``--help`` falls back to a short
+    'No verbs are registered yet.' message. Pins the early-return
+    branch in ``_format_help`` so a future registry-loading refactor
+    can't silently swallow the empty-state UX."""
+    from splunk_uc import __main__ as dispatcher
+
+    monkeypatch.setattr(dispatcher._registry, "by_category", dict)
+    rc = dispatcher.main([])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "No verbs are registered yet." in out
 
 
 # ---------------------------------------------------------------------------
