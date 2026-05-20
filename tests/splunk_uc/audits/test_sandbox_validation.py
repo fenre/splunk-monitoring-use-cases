@@ -474,6 +474,41 @@ def test_main_exits_red_on_hard_failure(
     assert "Hard failures:" in out
 
 
+def test_main_hard_failures_section_skips_non_hard_records(
+    fake_corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When a corpus contains BOTH a hard-failing UC and a clean UC,
+    the ``Hard failures:`` printout iterates every record but only
+    prints the offenders. Pins the False branch (372->371) of
+    ``if rec['status'] in HARD_FAIL_STATUSES`` so a future refactor of
+    the printer can't accidentally start dumping every record.
+    """
+    bad_fixture = audit.SAMPLE_DATA / "bad.json"
+    _write_fixture(bad_fixture, "{ not json")
+    bad_sidecar = _uc_sidecar(
+        "1.1.1",
+        controlTest={"fixtureRef": str(bad_fixture.relative_to(audit.REPO))},
+    )
+    _write_uc(fake_corpus, "1.1.1", bad_sidecar)
+
+    good_fixture = audit.SAMPLE_DATA / "good.json"
+    _write_fixture(good_fixture, _legacy())
+    good_sidecar = _uc_sidecar(
+        "1.1.2",
+        controlTest={"fixtureRef": str(good_fixture.relative_to(audit.REPO))},
+    )
+    _write_uc(fake_corpus, "1.1.2", good_sidecar)
+
+    rc = audit.main([])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "Hard failures:" in out
+    assert "1.1.1" in out
+    after_header = out.split("Hard failures:", 1)[1]
+    assert "1.1.2" not in after_header
+
+
 def test_main_check_mode_passes_when_committed_report_matches(
     fake_corpus: Path,
     capsys: pytest.CaptureFixture[str],
