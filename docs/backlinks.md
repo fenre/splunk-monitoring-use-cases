@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_217 pages indexed; 128 have at least one inbound link; 428 unique source→target edges._
+_218 pages indexed; 128 have at least one inbound link; 428 unique source→target edges._
 
 ---
 
@@ -1046,6 +1046,10 @@ _No inbound links yet._
 - [`docs/ci-architecture.md`](ci-architecture.md)
 
 ## `docs/samples-coverage.md`
+
+_No inbound links yet._
+
+## `docs/sarif-emit.md`
 
 _No inbound links yet._
 

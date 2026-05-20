@@ -539,6 +539,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-sarif",
+        module="audits.sarif",
+        help="Validate SARIF 2.1.0 logs emitted by generate-sarif (--check).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -678,6 +686,14 @@ register(
         name="generate-splunkbase-mappings",
         module="generators.splunkbase_mappings",
         help="Propose splunkbaseApps[] arrays for UC sidecars (--check / --write).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-sarif",
+        module="generators.sarif_emit",
+        help="Emit SARIF 2.1.0 logs from dist/audits/*.json for DevSecOps tooling.",
         category="generators",
     )
 )
