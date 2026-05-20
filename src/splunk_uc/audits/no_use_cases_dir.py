@@ -130,6 +130,13 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         "tests/build/test_validate_workflow_partition.py",
         # ── This audit module — the allowlist itself mentions the path ────
         "tests/scripts/test_audit_no_use_cases_dir.py",
+        # ── P16 wave FF coverage tests for the dispatcher-routed audit ───
+        # The same audit, but exercised via ``splunk_uc.audits.no_use_cases_dir``
+        # (dispatcher path) rather than the legacy ``scripts/`` entry point.
+        # The file contains many ``use-cases/`` literal references because
+        # that is exactly what the audit regex matches; the file MUST live
+        # in the allowlist for the audit not to flag itself.
+        "tests/splunk_uc/audits/test_no_use_cases_dir.py",
     }
 )
 
