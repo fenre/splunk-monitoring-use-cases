@@ -508,6 +508,63 @@ def test_extract_autogen_footer_returns_empty_when_missing(
     assert svm._extract_autogen_footer(half) == ""
 
 
+def test_extract_autogen_footer_when_no_separator_rule_present(
+    tmp_path: Path,
+) -> None:
+    """Pin the False branch of the ``\\n---\\n\\n`` lookup (104->106).
+
+    When the BEGIN marker is preceded by something other than a horizontal-rule
+    separator within 8 chars, ``begin`` stays where it is and the function
+    returns from ``begin:end`` without including a "---" prefix.
+    """
+    from splunk_uc.audits import splunk_version_matrix as svm
+
+    doc = tmp_path / "no-sep.md"
+    # No "\n---\n\n" anywhere — the rfind returns -1, the condition is False,
+    # and the returned slice starts at the BEGIN marker exactly.
+    body = (
+        "# Just a heading\n\n"
+        f"{svm.AUTOGEN_BEGIN_MARKER}\n"
+        "footer body\n"
+        f"{svm.AUTOGEN_END_MARKER}\n"
+    )
+    doc.write_text(body, encoding="utf-8")
+    out = svm._extract_autogen_footer(doc)
+    assert out.startswith(svm.AUTOGEN_BEGIN_MARKER)
+    assert out.endswith(svm.AUTOGEN_END_MARKER)
+    # The "---" prefix MUST NOT appear because the separator wasn't there.
+    assert "---" not in out
+
+
+def test_extract_autogen_footer_when_separator_too_far_from_begin(
+    tmp_path: Path,
+) -> None:
+    """Pin the ``(begin - sep_idx) < 8`` False branch.
+
+    A horizontal rule exists, but with >8 chars of padding between it
+    and the BEGIN marker, so the helper treats the rule as belonging
+    to the doc body, not the footer, and does NOT pull it into the
+    returned slice.
+    """
+    from splunk_uc.audits import splunk_version_matrix as svm
+
+    doc = tmp_path / "too-far.md"
+    body = (
+        "# Heading\n"
+        "\n---\n\n"
+        "Lots of paragraph text in between with more than eight chars.\n\n"
+        f"{svm.AUTOGEN_BEGIN_MARKER}\n"
+        "footer body\n"
+        f"{svm.AUTOGEN_END_MARKER}\n"
+    )
+    doc.write_text(body, encoding="utf-8")
+    out = svm._extract_autogen_footer(doc)
+    assert out.startswith(svm.AUTOGEN_BEGIN_MARKER)
+    # The "---" rule lives well before the BEGIN marker, so it must not
+    # be pulled into the returned slice.
+    assert not out.startswith("\n---")
+
+
 def test_main_json_mode_emits_to_stdout(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

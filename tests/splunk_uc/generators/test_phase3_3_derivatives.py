@@ -1417,6 +1417,39 @@ class TestProcessWrite:
         assert rc == 0
         assert path.read_text(encoding="utf-8") == before
 
+    def test_touched_but_canonical_bytes_match_on_disk_skips_write(
+        self,
+        make_sidecar: MakeSidecar,
+        make_regulations: MakeRegulations,
+        stub_synth: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pin the ``new_text == on_disk`` continue branch (line 722).
+
+        Production path is contrived (rewrite says it changed something
+        but the canonical re-serialisation still matches disk byte for
+        byte), so we monkeypatch ``_rewrite_sidecar`` to flip
+        ``changed=True`` without mutating the sidecar dict. Disk is
+        pre-seeded with the canonical bytes, so the equality check
+        succeeds and the loop continues past the bookkeeping that adds
+        the path to ``updated``.
+        """
+        make_regulations(_build_basic_regulations())
+        path = make_sidecar(
+            "cat-09-identity-access-management",
+            "9.1.1",
+            {"id": "9.1.1", "title": "T", "compliance": []},
+        )
+        before = path.read_text(encoding="utf-8")
+        # Pretend rewrite touched the sidecar without actually mutating
+        # it; the loop should re-encode, compare to disk, find a match,
+        # and skip the write.
+        monkeypatch.setattr(p33, "_rewrite_sidecar", lambda *_a, **_kw: (True, 1))
+        rc = p33._process(check_only=False)
+        # Returns 0 because no real write happened.
+        assert rc == 0
+        assert path.read_text(encoding="utf-8") == before
+
 
 class TestProcessCheck:
     def test_check_clean_returns_zero_with_ok_summary(

@@ -706,6 +706,55 @@ class TestProcess:
         first_key_index = loaded_text.find('"compliance"')
         assert first_key_index < loaded_text.find('"id"')
 
+    def test_touched_but_canonical_bytes_match_on_disk_skips_write(
+        self,
+        fake_repo: pathlib.Path,
+        make_sidecar: MakeSidecar,
+        make_manifest: MakeManifest,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pin the ``new_text == on_disk`` continue branch (line 251).
+
+        In production, this branch fires when ``_apply_mapping`` mutates
+        the sidecar but the canonical re-serialisation happens to
+        produce bytes byte-identical to disk. The natural path requires
+        very contrived dict ordering, so we monkeypatch
+        ``_apply_mapping`` to flip ``touched=True`` without mutating —
+        which guarantees ``new_text == on_disk`` whenever the disk
+        already holds the canonical bytes.
+        """
+        entry = {
+            "regulation": "ISO 27001",
+            "version": "2013",
+            "clause": "A.5.1",
+            "mode": "primary",
+            "assurance": "high",
+            "assurance_rationale": "existing",
+        }
+        sidecar_payload = {
+            "$schema": "../../schemas/uc.schema.json",
+            "id": "22.1.1",
+            "title": "UC A",
+            "compliance": [entry],
+        }
+        # Write disk in canonical bytes.
+        canonical = p31._canonical_sidecar(sidecar_payload)
+        text = json.dumps(canonical, indent=2, ensure_ascii=False) + "\n"
+        path = p31._sidecar_path("22.1.1")
+        path.write_text(text, encoding="utf-8")
+
+        make_manifest([{"uc_id": "22.1.1", **entry}])
+
+        # _apply_mapping must return True without mutating the sidecar
+        # so that ``touched=True`` AND ``new_text==on_disk`` both hold.
+        monkeypatch.setattr(p31, "_apply_mapping", lambda *_args, **_kw: True)
+
+        rc = p31._process(check_only=False)
+        # rc=0 because the file was NOT changed — the continue branch
+        # skipped past the bookkeeping that records changed UCs.
+        assert rc == 0
+        assert path.read_text(encoding="utf-8") == text
+
 
 class TestMainCli:
     def test_default_runs_writes(

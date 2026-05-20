@@ -325,6 +325,33 @@ class TestExtractAppFieldIds:
         out = sbm._extract_app_field_ids({"app": "Splunkbase 00"})
         assert out == []
 
+    def test_unparseable_capture_group_is_skipped_silently(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Defensive-contract test for the ``except ValueError: continue``
+        branch on lines 167-168.
+
+        The shipped regex ``\\d{2,6}`` guarantees the capture group is
+        always int-parseable, so the except branch is unreachable in
+        production. We monkeypatch in a relaxed regex that captures the
+        prefix word (e.g. ``"app"``) instead of digits to prove the
+        function still degrades gracefully — i.e. it skips the unparseable
+        token instead of raising. This pins the contract for any future
+        regex tweak.
+        """
+        import re
+
+        relaxed = re.compile(
+            r"(?:Splunkbase\s+|splunkbase\.splunk\.com/app/)(\w+)",
+            re.IGNORECASE,
+        )
+        monkeypatch.setattr(sbm, "SPLUNKBASE_ID_RE", relaxed)
+        # "Splunkbase notanumber 4567 Splunkbase alsobad" → only 4567 should survive.
+        out = sbm._extract_app_field_ids(
+            {"app": "Splunkbase notanumber Splunkbase 4567 Splunkbase alsobad"}
+        )
+        assert out == [4567]
+
 
 # ---------------------------------------------------------------------------
 # Heuristics: equipment match
