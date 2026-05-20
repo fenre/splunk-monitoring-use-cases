@@ -359,3 +359,75 @@ def test_looks_like_app_label_accepts_short_abbreviations() -> None:
     cost a low-confidence match; false negatives cost real app coverage."""
     assert M._looks_like_app_label("API") is True
     assert M._looks_like_app_label("ITSI") is True
+
+
+def test_looks_like_app_label_rejects_bracketed_splunkbase_prefix() -> None:
+    """Tokens that begin with ``[splunkbase `` are markdown-link debris like
+    ``[Splunkbase 1234](https://...)`` whose surrounding ``)`` got trimmed
+    in earlier sanitisation. They are NOT real app names — pin the
+    rejection at line 1082-1083 (the pre-existing prose-debris parametric
+    only covers ``Splunkbase 1352)`` without the leading ``[``)."""
+    assert M._looks_like_app_label("[Splunkbase 1234") is False
+    assert M._looks_like_app_label("[splunkbase 9876") is False
+
+
+# ---------------------------------------------------------------------------
+# _regulation_alias_to_id — empty-shortName branch (line 322-325)
+# ---------------------------------------------------------------------------
+
+
+def test_regulation_alias_to_id_omits_alias_for_framework_without_short_name() -> None:
+    """A framework with an ``id`` but no ``shortName`` MUST still be
+    indexed by its lowercase id (and any aliases) — but MUST NOT add an
+    empty-string entry. Pins branch ``[322, 325]`` in
+    ``_regulation_alias_to_id``: the falsy-``short`` jump from line 323
+    straight to line 325 (the aliases loop) without writing an empty
+    key into the alias map."""
+    regs = {
+        "frameworks": [
+            {"id": "iso-27001", "aliases": ["ISO/IEC 27001"]},
+        ]
+    }
+    alias_map = M._regulation_alias_to_id(regs)
+    assert alias_map["iso-27001"] == "iso-27001"
+    assert alias_map["iso/iec 27001"] == "iso-27001"
+    assert "" not in alias_map
+
+
+def test_regulation_alias_to_id_handles_empty_short_name_string() -> None:
+    """Defensive twin of the previous test: an explicit empty-string
+    ``shortName`` is treated identically to the missing key (falsy → skip)."""
+    regs = {"frameworks": [{"id": "soc2", "shortName": "", "aliases": []}]}
+    alias_map = M._regulation_alias_to_id(regs)
+    assert alias_map["soc2"] == "soc2"
+    assert "" not in alias_map
+
+
+# ---------------------------------------------------------------------------
+# _recommender_apps — backtick-extraction filter branches
+# ---------------------------------------------------------------------------
+
+
+def test_recommender_apps_drops_backticked_token_with_internal_space() -> None:
+    """Backtick-extraction is meant to harvest folder-name keys
+    (``Splunk_TA_nix``, ``cisco-meraki-app-for-splunk``) — not display
+    names. A backticked candidate that contains a space MUST be
+    discarded (line 1120-1121) so we don't pollute the recommender
+    with prose. The trailing display-name ``Splunk_TA_real`` proves
+    the path stays open for valid tokens."""
+    uc = {"t": "Use `bad name with spaces` and `Splunk_TA_real`"}
+    apps = M._recommender_apps(uc)
+    assert "Splunk_TA_real" in apps
+    assert "bad name with spaces" not in apps
+
+
+def test_recommender_apps_drops_backticked_pure_version_number() -> None:
+    """A backticked candidate that is a pure dotted-decimal version
+    (e.g. ``5.2.0``, ``11.4.1``) MUST be discarded (line 1122-1123)
+    because the regex would happily consume it but it's a version
+    string, not an app name."""
+    uc = {"t": "Tested against `5.2.0` and `11.4`. App: `Splunk_TA_xyz`"}
+    apps = M._recommender_apps(uc)
+    assert "Splunk_TA_xyz" in apps
+    assert "5.2.0" not in apps
+    assert "11.4" not in apps

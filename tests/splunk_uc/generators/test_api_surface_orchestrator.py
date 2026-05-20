@@ -685,3 +685,81 @@ class TestRenderEndToEnd:
         assert any(
             entry.get("regulation") == "GDPR" for entry in body.get("compliance", [])
         )
+
+    def test_render_handles_catalog_only_uc_and_sidecar_without_splunkbase_apps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pin two rare-but-real defensive branches in ``_generate_all``:
+
+        * **catalog-only UC (no sidecar)** — exercises the
+          ``if not sidecar: return []`` early-returns inside the nested
+          ``_resolve_regulation_ids`` and ``_resolve_regulation_clauses``
+          (lines 1561-1562 / 1576-1577). The catalog references UC
+          ``1.1.2`` but no JSON sidecar exists under
+          ``content/cat-1/UC-1.1.2.json``, so ``compliance_by_id``
+          has no entry — the resolvers MUST short-circuit to ``[]``
+          rather than crash on a ``None`` ``sidecar.get`` call.
+        * **sidecar without splunkbaseApps** — exercises the
+          ``if isinstance(sb_field, list)`` False arm (branch
+          ``[2276, 2271]``): a well-formed UC whose sidecar omits the
+          ``splunkbaseApps`` key falls through the ``isinstance`` guard
+          without populating ``sidecar_sb_map``.
+
+        Note: the parallel ``if not isinstance(uc_id, str): continue``
+        guard at line 2273-2274 is genuinely unreachable from a real
+        ``_render`` invocation because ``_load_ucs`` already raises
+        ``SystemExit`` on any sidecar lacking a string ``id``. We do
+        NOT test that branch here — defensive guards left in place
+        for direct unit-test reuse should not be exercised through
+        side-effecting integration tests.
+
+        ``_render`` MUST still complete cleanly (no exception) and
+        emit every expected top-level artefact.
+        """
+        paths = _install_minimal_corpus(tmp_path, monkeypatch)
+        repo = paths["repo"]
+
+        # 1) Append a catalog-only UC (no sidecar on disk) so the
+        #    catalog walker hits ``compliance_by_id.get(uc_id)`` ->
+        #    None inside the nested resolvers.
+        catalog_path = repo / "dist" / "catalog.json"
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        catalog["DATA"][0]["s"][0]["u"].append(
+            {
+                "i": "1.1.2",
+                "n": "Catalog-only UC",
+                "q": "index=foo",
+                "t": "Splunk_TA_test",
+                "d": "AWS CloudTrail",
+                "e": [],
+                "em": [],
+                "mitre": [],
+                "pillar": "security",
+                "mtype": ["proactive"],
+            }
+        )
+        catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+        # 2) Add a well-formed UC sidecar that LACKS splunkbaseApps so
+        #    the ``isinstance(sb_field, list)`` False arm fires.
+        (repo / "content" / "cat-1" / "UC-1.1.4.json").write_text(
+            json.dumps(
+                {
+                    "id": "1.1.4",
+                    "title": "No splunkbase apps",
+                    "compliance": [],
+                    "mitreAttack": [],
+                    "cimModels": [],
+                }
+            )
+        )
+
+        out = tmp_path / "out"
+        M._render(out)
+
+        # _render completed without raising — that already proves the
+        # defensive branches are exercised. Sanity-check that the
+        # recommender app-index is still emitted.
+        assert (out / "recommender" / "app-index.json").exists()
