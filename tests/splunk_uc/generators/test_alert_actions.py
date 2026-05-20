@@ -24,7 +24,7 @@ class _HtmlSmokeParser(html.parser.HTMLParser):
         self.errors: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        del tag, attrs
+        _ = (tag, attrs)
 
     def error(self, message: str) -> None:
         self.errors.append(message)
@@ -104,7 +104,10 @@ def test_required_runtime_placeholders_present(uc_id: str) -> None:
         assert uc_id in blob
         assert "{timestamp_placeholder}" in blob
         assert "{spl_summary}" in blob
-        assert "fenre.github.io" in blob
+        # Anchor to the full canonical catalogue URL prefix (not just the
+        # bare host) so CodeQL doesn't flag this as incomplete URL
+        # sanitization (py/incomplete-url-substring-sanitization).
+        assert "https://fenre.github.io/splunk-monitoring-use-cases/" in blob
 
 
 def test_limit_caps_uc_count() -> None:
