@@ -247,3 +247,96 @@ def test_batch_random_selection_does_not_preserve_score_order(tmp_path: Path) ->
     manifest = json.loads(report_path.read_text())
     assert manifest["selection"] == "random"
     assert len(manifest["ucs"]) == 4
+
+
+def test_batch_errors_when_category_prefix_matches_multiple_dirs(
+    tmp_path: Path, capsys
+) -> None:
+    """Two sibling folders sharing the ``cat-15-*`` prefix must trip the
+    RuntimeError in ``_resolve_category`` and surface a rc=1 with a
+    helpful error message."""
+    root = tmp_path / "content"
+    (root / "cat-15-foo").mkdir(parents=True)
+    (root / "cat-15-bar").mkdir(parents=True)
+    rc = batch.main(
+        [
+            "--category",
+            "cat-15",
+            "--content-root",
+            str(root),
+            "--report",
+            str(tmp_path / "report.json"),
+        ]
+    )
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "multiple category folders matched" in err
+    assert "cat-15-foo" in err and "cat-15-bar" in err
+
+
+def test_default_report_path_lands_under_content_parent(
+    tmp_path: Path,
+) -> None:
+    """``_default_report_path`` writes under ``<content_root>.parent/reports/``
+    with a UTC-stamped filename. Pins the side-effect-free contract."""
+    content_root = tmp_path / "content"
+    content_root.mkdir()
+    p = batch._default_report_path(content_root)
+    assert p.parent == tmp_path / "reports"
+    assert p.name.startswith("lift-batch-")
+    assert p.name.endswith(".json")
+
+
+def test_batch_uses_default_report_path_when_report_arg_omitted(
+    tmp_path: Path,
+) -> None:
+    """When ``--report`` is omitted, the manifest is written to the
+    default path next to the content root."""
+    cat = _stage_cat15(tmp_path)
+    _stage_uc(cat, "15.1.1", BRONZE)
+    rc = batch.main(
+        [
+            "--category",
+            "cat-15",
+            "--content-root",
+            str(tmp_path / "content"),
+        ]
+    )
+    assert rc == 0
+    reports = list((tmp_path / "reports").glob("lift-batch-*.json"))
+    assert len(reports) == 1
+    manifest = json.loads(reports[0].read_text())
+    assert manifest["ucs"][0]["uc_id"] == "UC-15.1.1"
+
+
+def test_batch_surfaces_warnings_for_unparseable_sidecars(
+    tmp_path: Path,
+) -> None:
+    """A sidecar that ``score_uc`` rejects must NOT abort the run — it
+    is recorded as a warning in the manifest and the rest of the
+    category continues to be scored. Pins the ``except (...)`` branch
+    in ``_score_all`` and the ``warnings`` key write in ``main``.
+    """
+    cat = _stage_cat15(tmp_path)
+    _stage_uc(cat, "15.1.1", BRONZE)
+    # A second sidecar that score_uc will reject (invalid JSON shape).
+    (cat / "UC-15.1.2.json").write_text(
+        "{ not valid json", encoding="utf-8"
+    )
+    report_path = tmp_path / "report.json"
+    rc = batch.main(
+        [
+            "--category",
+            "cat-15",
+            "--content-root",
+            str(tmp_path / "content"),
+            "--report",
+            str(report_path),
+        ]
+    )
+    assert rc == 0
+    manifest = json.loads(report_path.read_text())
+    assert "warnings" in manifest
+    assert any("UC-15.1.2.json" in w for w in manifest["warnings"])
+    # Only the good UC survives in the entries list.
+    assert [u["uc_id"] for u in manifest["ucs"]] == ["UC-15.1.1"]

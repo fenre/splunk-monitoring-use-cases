@@ -162,6 +162,53 @@ def test_spl_must_be_string(audit, tmp_path):
     assert any("spl must be a string" in i for i in issues), issues
 
 
+def test_criticality_not_string_short_circuits_validation(audit, tmp_path):
+    """Pin branch 112->126: when ``criticality`` is non-string, the validator
+    skips the enum / legacy-form check and jumps to the difficulty block
+    without raising any criticality-related issue."""
+    p = tmp_path / "UC-1.2.3.json"
+    payload = _good_uc()
+    payload["criticality"] = 99  # non-string
+    issues = audit.audit_uc_json(str(p), payload)
+    # No criticality enum / legacy hint should be raised. The required-field
+    # check ALSO doesn't flag this because criticality is present (just typed
+    # wrong).
+    assert not any("criticality" in i for i in issues), issues
+
+
+def test_difficulty_not_string_short_circuits_validation(audit, tmp_path):
+    """Pin branch 127->141: when ``difficulty`` is non-string, the validator
+    skips the enum / legacy-form check and jumps to the spl block."""
+    p = tmp_path / "UC-1.2.3.json"
+    payload = _good_uc()
+    payload["difficulty"] = 99
+    issues = audit.audit_uc_json(str(p), payload)
+    assert not any("difficulty" in i for i in issues), issues
+
+
+def test_spl_none_short_circuits_validation(audit, tmp_path):
+    """Pin branch 142->148: when ``spl`` is missing/None, the validator
+    skips the type / emptiness check and returns straight away.
+
+    Note: ``spl`` is in REQUIRED_JSON_FIELDS, so a missing key is flagged
+    by the required-field loop. ``None`` explicitly is also caught by the
+    ``elif v is None`` branch. To hit the 142->148 short-circuit cleanly
+    we need ``spl`` to be missing from ``payload`` so ``.get("spl")``
+    returns None AND the required-field loop's ``continue`` for missing
+    keys path is exercised — both bookkeeping signals are the same.
+    """
+    p = tmp_path / "UC-1.2.3.json"
+    payload = _good_uc()
+    del payload["spl"]
+    issues = audit.audit_uc_json(str(p), payload)
+    # The required-field loop flags the missing key, but the spl-type
+    # block should NOT add an additional "must be a string" / "is empty"
+    # issue because it short-circuits on the None value.
+    assert any("missing required field 'spl'" in i for i in issues), issues
+    assert not any("spl must be a string" in i for i in issues), issues
+    assert not any("spl is empty" in i for i in issues), issues
+
+
 def test_required_fields_match_agents_md(audit):
     """Pin the AGENTS.md authoring contract to the audit list.
 

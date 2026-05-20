@@ -548,3 +548,268 @@ def test_validate_canonical_order_appends_unknown_keys_at_end(tmp_path: Path) ->
             f"  canonical positions: {[keys.index(k) for k in canonical_keys]}\n"
             f"  extra positions:    {[keys.index(k) for k in extra_keys]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Direct-helper coverage for the §5 firewall branches that the existing
+# CLI-driven tests don't naturally reach.
+# ---------------------------------------------------------------------------
+
+
+def test_load_diff_raises_when_path_unreadable(tmp_path: Path) -> None:
+    """Pin lines 143-144: OSError on ``diff_path.read_text``."""
+    import pytest
+
+    missing = tmp_path / "nope" / "missing.json"
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._load_diff(missing)
+    assert "cannot read diff file" in str(excinfo.value)
+
+
+def test_load_diff_raises_when_json_invalid(tmp_path: Path) -> None:
+    """Pin lines 147-148: JSONDecodeError on ``json.loads``."""
+    import pytest
+
+    bad = tmp_path / "broken.json"
+    bad.write_text("{not json", encoding="utf-8")
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._load_diff(bad)
+    assert "not valid JSON" in str(excinfo.value)
+
+
+def test_load_diff_raises_when_payload_is_not_dict(tmp_path: Path) -> None:
+    """Pin line 150: top-level payload not a JSON object."""
+    import pytest
+
+    p = tmp_path / "list.json"
+    p.write_text(json.dumps(["a", "b"]), encoding="utf-8")
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._load_diff(p)
+    assert "must be a JSON object" in str(excinfo.value)
+
+
+def test_load_diff_raises_when_lifted_fields_is_not_dict(tmp_path: Path) -> None:
+    """Pin line 155: ``lifted_fields`` not an object."""
+    import pytest
+
+    p = tmp_path / "wrong-shape.json"
+    p.write_text(
+        json.dumps(
+            {"uc_id": "15.1.1", "target_tier": "silver", "lifted_fields": ["not", "a", "dict"]}
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._load_diff(p)
+    assert "lifted_fields must be an object" in str(excinfo.value)
+
+
+def test_validate_lifted_types_raises_when_schema_drifts() -> None:
+    """Pin line 211: no schema fragment for a field on the lift surface.
+
+    Constructed by passing a schema with empty ``properties`` so every
+    lookup returns ``None`` and the drift guard fires.
+    """
+    import pytest
+
+    diff = {"lifted_fields": {"description": "anything"}}
+    schema_with_no_properties: dict[str, object] = {"properties": {}}
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._validate_lifted_types(diff, schema_with_no_properties)
+    assert "no schema fragment for lifted field" in str(excinfo.value)
+
+
+def test_check_lifted_mitre_techniques_returns_early_when_value_not_list() -> None:
+    """Pin line 239: defensive guard against non-list ``mitreAttack``.
+
+    The per-field schema validation is what actually catches the bad
+    type at the CLI level. Calling the helper directly with a non-list
+    value exercises the defensive return that prevents the regex loop
+    from crashing if the validation ordering ever changes.
+    """
+    # No raise → returned early.
+    validate._check_lifted_mitre_techniques(
+        {"lifted_fields": {"mitreAttack": "not-a-list"}}
+    )
+
+
+def test_check_identity_preserved_raises_when_id_changes() -> None:
+    """Pin line 276: identity field flipped by the diff."""
+    import pytest
+
+    original = {"id": "15.1.1", "title": "Original"}
+    lifted = {"id": "15.1.1", "title": "Lifted"}
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._check_identity_preserved(original, lifted)
+    assert "identity field 'title' changed" in str(excinfo.value)
+
+
+def test_run_strict_audits_raises_when_subprocess_returns_nonzero(
+    monkeypatch,
+) -> None:
+    """Pin lines 289-299: strict audit chain surfaces a non-zero rc.
+
+    Monkeypatches ``subprocess.run`` so the test stays hermetic — we
+    don't actually want to fork & re-enter the dispatcher.
+    """
+    import subprocess as _subproc
+
+    import pytest
+
+    class _FakeResult:
+        def __init__(self, rc: int) -> None:
+            self.returncode = rc
+            self.stdout = "stdout-content"
+            self.stderr = "stderr-content"
+
+    captured: list[list[str]] = []
+
+    def _fake_run(cmd: list[str], **kwargs: object) -> _FakeResult:
+        captured.append(cmd)
+        # First verb passes; second fails. Pin the rc-handling branch
+        # and that we actually iterate STRICT_AUDIT_VERBS in order.
+        return _FakeResult(0 if len(captured) == 1 else 2)
+
+    monkeypatch.setattr(validate, "subprocess", _subproc)
+    monkeypatch.setattr(validate.subprocess, "run", _fake_run)
+    with pytest.raises(validate._ValidationError) as excinfo:
+        validate._run_strict_audits()
+    msg = str(excinfo.value)
+    assert "strict audit" in msg
+    assert "exit 2" in msg
+    assert "stdout-content" in msg
+    assert "stderr-content" in msg
+
+
+def test_run_strict_audits_passes_clean_when_every_verb_returns_zero(
+    monkeypatch,
+) -> None:
+    """Companion of the failure test: every verb returns 0 → no raise."""
+    import subprocess as _subproc
+
+    class _FakeResult:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(validate, "subprocess", _subproc)
+    monkeypatch.setattr(validate.subprocess, "run", lambda *a, **kw: _FakeResult())
+    # No raise.
+    validate._run_strict_audits()
+
+
+def test_validate_strict_mode_reverts_when_audit_chain_fails(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    """Pin lines 421-426: ``--strict`` failure reverts the sidecar bytes.
+
+    Hermetic by monkeypatching ``_run_strict_audits`` so we never fork.
+    """
+    content_root, sidecar = _stage_uc(tmp_path)
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", _silver_lifted_fields())
+    original_bytes = sidecar.read_bytes()
+
+    def _boom() -> None:
+        raise validate._ValidationError("simulated strict-audit failure")
+
+    monkeypatch.setattr(validate, "_run_strict_audits", _boom)
+
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+            "--strict",
+            "--skip-md-regen",
+        ]
+    )
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "simulated strict-audit failure" in err
+    # Bytes must be reverted to the pre-lift content.
+    assert sidecar.read_bytes() == original_bytes
+
+
+def test_validate_reverts_when_regen_markdown_raises(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    """Pin lines 432-438: ``_regen_markdown`` failure reverts sidecar bytes.
+
+    The shipped ``_regen_markdown`` is a no-op stub, so we monkeypatch
+    it to raise so the rollback branch is exercised. Drops the
+    ``--skip-md-regen`` flag so the regen path is entered.
+    """
+    content_root, sidecar = _stage_uc(tmp_path)
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", _silver_lifted_fields())
+    original_bytes = sidecar.read_bytes()
+
+    def _boom(_path: Path) -> None:
+        raise validate._ValidationError("simulated markdown-regen failure")
+
+    monkeypatch.setattr(validate, "_regen_markdown", _boom)
+
+    exit_code = validate.main(
+        [
+            "UC-15.1.1",
+            "--diff",
+            str(diff_path),
+            "--content-root",
+            str(content_root),
+        ]
+    )
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "simulated markdown-regen failure" in err
+    assert sidecar.read_bytes() == original_bytes
+
+
+def test_validate_reraises_unexpected_exception_and_reverts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Pin the ``except Exception: ... raise`` block (lines 436-438).
+
+    Forces an unexpected exception by monkeypatching ``score_uc`` so
+    the second call raises a ``RuntimeError``. The validator must
+    write the original bytes back and propagate the exception.
+    """
+    import pytest
+
+    content_root, sidecar = _stage_uc(tmp_path)
+    diff_path = _write_diff(tmp_path, "UC-15.1.1", _silver_lifted_fields())
+    original_bytes = sidecar.read_bytes()
+
+    # Stash a reference to the genuine implementation, then replace it
+    # with a wrapper that returns the first time (so the pre-lift score
+    # is computed normally) and raises on the second call.
+    real_score = validate.score_uc
+    call_count = {"n": 0}
+
+    def _wrapped(*a: object, **kw: object) -> object:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return real_score(*a, **kw)
+        raise RuntimeError("synthetic post-lift score error")
+
+    monkeypatch.setattr(validate, "score_uc", _wrapped)
+
+    with pytest.raises(RuntimeError, match="synthetic post-lift score error"):
+        validate.main(
+            [
+                "UC-15.1.1",
+                "--diff",
+                str(diff_path),
+                "--content-root",
+                str(content_root),
+                "--skip-md-regen",
+            ]
+        )
+    # Even though the exception propagates, the rollback in the
+    # ``except Exception`` block must have restored the sidecar.
+    assert sidecar.read_bytes() == original_bytes
