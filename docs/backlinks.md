@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_217 pages indexed; 128 have at least one inbound link; 428 unique source→target edges._
+_218 pages indexed; 129 have at least one inbound link; 429 unique source→target edges._
 
 ---
 
@@ -335,6 +335,10 @@ _No inbound links yet._
 - [`docs/site-user-guide.md`](site-user-guide.md)
 
 ## `docs/content-gap-analysis.md`
+
+_No inbound links yet._
+
+## `docs/content-quality-audit.md`
 
 _No inbound links yet._
 
@@ -1119,7 +1123,7 @@ _No inbound links yet._
 
 ## `docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`
 
-_No inbound links yet._
+- [`docs/content-quality-audit.md`](content-quality-audit.md)
 
 ## `docs/uc-migration-report.md`
 
