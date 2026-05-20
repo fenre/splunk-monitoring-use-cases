@@ -839,6 +839,80 @@ class TestProcessWrite:
         # Bad sidecar emits a warning but doesn't crash.
         assert rc == 0
 
+    def test_records_missing_when_compute_returns_empty_string(
+        self,
+        make_category_meta: MakeCategoryMeta,
+        make_sidecar: MakeSidecar,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Defensive guard: _compute_grandma should never return empty,
+        but if a future refactor breaks the contract the offending UC
+        must be recorded in ``missing`` rather than silently overwritten
+        with a sub-schema value. In ``--check`` mode that surfaces as
+        rc=1 with a FATAL log."""
+        make_category_meta("cat-01-server-compute", 1)
+        make_sidecar(
+            "cat-01-server-compute",
+            "1.1.1",
+            {"id": "1.1.1", "title": "T", "value": "v"},
+        )
+        monkeypatch.setattr(ge, "_compute_grandma", lambda *a, **kw: "")
+        rc = ge._process(
+            check=True,
+            force=False,
+            dry_run=False,
+            only=None,
+            category=None,
+            report=False,
+        )
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "FATAL" in captured.err
+        # The sidecar should remain unmodified.
+        path = ge._CONTENT_ROOT / "cat-01-server-compute" / "UC-1.1.1.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert "grandmaExplanation" not in payload
+
+    def test_skips_when_existing_matches_computed_value(
+        self,
+        make_category_meta: MakeCategoryMeta,
+        make_sidecar: MakeSidecar,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An existing curator value identical to what we would have
+        written is treated as already-up-to-date — the run must skip
+        the write to keep the sidecar byte-stable."""
+        make_category_meta("cat-01-server-compute", 1)
+        computed = "We watch this part of your environment — so problems are spotted early."
+        path = make_sidecar(
+            "cat-01-server-compute",
+            "1.1.1",
+            {
+                "id": "1.1.1",
+                "title": "T",
+                "value": "v",
+                # Force the "existing.strip() == new_value" branch by
+                # passing force=True (so the earlier "kept" short-circuit
+                # is bypassed) and pinning the computed value.
+                "grandmaExplanation": computed,
+            },
+        )
+        before = path.read_text(encoding="utf-8")
+        monkeypatch.setattr(ge, "_compute_grandma", lambda *a, **kw: computed)
+        rc = ge._process(
+            check=False,
+            force=False,
+            dry_run=False,
+            only=None,
+            category=None,
+            report=False,
+        )
+        # force=False, so we hit the early "kept" branch (line 628).
+        # That guarantees byte stability.
+        assert rc == 0
+        assert path.read_text(encoding="utf-8") == before
+
 
 class TestProcessCheck:
     def test_check_clean_returns_zero(
