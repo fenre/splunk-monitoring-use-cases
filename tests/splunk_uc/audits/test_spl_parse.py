@@ -484,6 +484,77 @@ def test_extract_eval_functions_handles_no_leading_command() -> None:
     assert refs == []
 
 
+def test_extract_eval_functions_ignores_calls_inside_double_quoted_strings() -> None:
+    """Function-call regex must NOT match identifiers that sit inside a
+    quoted string literal.
+
+    Real-world example from UC-3.2.9:
+
+    .. code-block:: spl
+
+        | eval is_synthetic=if(
+              match(uri, "(?i)/healthz(\\?|$)") OR
+              match(uri, "(?i)/readyz(\\?|$)")  OR
+              match(uri, "(?i)/livez(\\?|$)"),
+          1, 0)
+
+    Before the quoted-string carve-out, the parser would emit
+    ``healthz``, ``readyz`` and ``livez`` as unknown eval-functions
+    because ``\\bword\\(`` matched the substrings inside the regex
+    literals. None of those names are Splunk built-ins; they are
+    Kubernetes HTTP probe paths. The audit reports become noisy and
+    the maintainer chases ghosts.
+
+    The carve-out wipes quoted-string content (single OR double-quoted)
+    before applying the function regex while preserving the segment's
+    leading command head so the ``is`` / ``and`` / ``or`` skip list
+    still works.
+    """
+
+    spl = (
+        '| eval is_synthetic=if(match(uri, "(?i)/healthz(\\?|$)") OR '
+        'match(uri, "(?i)/readyz(\\?|$)") OR '
+        'match(uri, "(?i)/livez(\\?|$)"), 1, 0)'
+    )
+    refs = p.extract_eval_functions(spl)
+    names = [r.name for r in refs]
+
+    # Real eval-function calls survive.
+    assert "if" in names, names
+    assert "match" in names, names
+
+    # Substrings inside the quoted regex literals must NOT leak.
+    assert "healthz" not in names, names
+    assert "readyz" not in names, names
+    assert "livez" not in names, names
+
+
+def test_extract_eval_functions_ignores_calls_inside_single_quoted_strings() -> None:
+    """SPL also accepts single-quoted string literals for some contexts.
+
+    The carve-out must handle them symmetrically with double quotes.
+    """
+
+    spl = "| eval x = if(field='healthz(', 1, 0)"
+    refs = p.extract_eval_functions(spl)
+    names = [r.name for r in refs]
+    assert "if" in names
+    assert "healthz" not in names, names
+
+
+def test_extract_stats_functions_ignores_calls_inside_quoted_strings() -> None:
+    """The same quoted-string skip applies to ``stats`` / ``timechart``
+    aggregators.
+    """
+
+    spl = '| stats count(eval(status="livez(")) AS livez_hits BY host'
+    refs = p.extract_stats_functions(spl)
+    names = [r.name for r in refs]
+    assert "count" in names
+    assert "eval" in names
+    assert "livez" not in names, names
+
+
 # ----------------------------------------------------------------------
 # extract_stats_functions
 # ----------------------------------------------------------------------
