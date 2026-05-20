@@ -241,6 +241,23 @@ def test_audit_sort_order_flags_out_of_order_entries() -> None:
     assert errors and "not sorted" in errors[0]
 
 
+def test_audit_sort_order_skips_equal_prefix_and_reports_first_divergence() -> None:
+    """Three entries whose first mappingId matches the sorted order
+    but whose second is out of place — the loop must walk past the
+    matching index 0 before reporting at index 1 (covers the
+    ``164->163`` branch in ``audit_sort_order``)."""
+
+    # Use direct dicts so we can pick mappingIds that produce a stable
+    # alphabetical sort distinct from the input order without having
+    # to construct three full canonical entries.
+    bad = {"entries": [{"mappingId": "AA"}, {"mappingId": "CC"}, {"mappingId": "BB"}]}
+    errors = audit.audit_sort_order(bad)
+    # sorted = [AA, BB, CC]; divergence first appears at index 1
+    assert errors
+    assert "index 1" in errors[0]
+    assert "'CC' should be 'BB'" in errors[0]
+
+
 # --------------------------------------------------------------------- #
 # audit_referential_integrity — gather_sidecar_mappings is monkey-
 # patched so we don't depend on the real corpus.
@@ -288,6 +305,211 @@ def test_referential_integrity_truncates_to_twenty_per_side(
     truncation_lines = [e for e in errors if "more sidecar mappings missing" in e]
     assert len(truncation_lines) == 1
     assert "5 more" in truncation_lines[0]  # 25 - 20 = 5
+
+
+def test_referential_integrity_truncates_reverse_side_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symmetric to the forward-direction truncation: when the ledger
+    has >20 orphan entries (no backing sidecar), the audit prints the
+    first 20 plus a single "…and N more" summary on the reverse axis
+    (covers line 247 of ``mapping_ledger.py``)."""
+
+    # Build 25 hermetic ledger entries that the sidecar set won't claim.
+    entries: list[dict[str, Any]] = []
+    for i in range(25):
+        e, _ = _entry(uc_id=f"1.1.{i + 1}")
+        entries.append(e)
+    monkeypatch.setattr(audit, "gather_sidecar_mappings", lambda: set())
+    errors = audit.audit_referential_integrity(_ledger(entries))
+    truncation_lines = [e for e in errors if "more ledger entries without sidecars" in e]
+    assert len(truncation_lines) == 1
+    assert "5 more" in truncation_lines[0]
+
+
+# --------------------------------------------------------------------- #
+# gather_sidecar_mappings — corpus walk continue paths
+# --------------------------------------------------------------------- #
+
+
+def _write_sidecar(root: Path, rel: str, payload: dict[str, Any]) -> Path:
+    """Write *payload* to ``root/rel`` and return the absolute path."""
+
+    full = root / rel
+    full.parent.mkdir(parents=True, exist_ok=True)
+    full.write_text(json.dumps(payload), encoding="utf-8")
+    return full
+
+
+def test_gather_sidecar_mappings_skips_missing_uc_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A sidecar with no ``id`` is silently skipped (covers line 183
+    of ``mapping_ledger.py``)."""
+
+    sidecar = _write_sidecar(
+        tmp_path,
+        "content/cat-01/UC-1.1.1.json",
+        {"compliance": [{"regulation": "iso27001"}]},  # no "id"
+    )
+    monkeypatch.setattr(audit, "iter_uc_sidecars", lambda: iter([sidecar]))
+    # We never reach resolve_regulation_id when uc_id is missing, so
+    # we can stub the regulation index to anything.
+    monkeypatch.setattr(audit, "load_regulation_index", lambda: {})
+    assert audit.gather_sidecar_mappings() == set()
+
+
+def test_gather_sidecar_mappings_skips_blank_regulation_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A compliance entry with no ``regulation`` is silently skipped
+    (covers line 187 of ``mapping_ledger.py``)."""
+
+    sidecar = _write_sidecar(
+        tmp_path,
+        "content/cat-01/UC-1.1.1.json",
+        {
+            "id": "1.1.1",
+            "compliance": [{"clause": "A.1", "mode": "satisfies", "assurance": "full"}],
+        },
+    )
+    monkeypatch.setattr(audit, "iter_uc_sidecars", lambda: iter([sidecar]))
+    monkeypatch.setattr(audit, "load_regulation_index", lambda: {})
+    assert audit.gather_sidecar_mappings() == set()
+
+
+def test_gather_sidecar_mappings_skips_unresolvable_regulation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When ``resolve_regulation_id`` raises ``KeyError`` the entry is
+    silently skipped — the generator's own --check step is the
+    enforcement layer for that drift (covers lines 190-191 of
+    ``mapping_ledger.py``)."""
+
+    sidecar = _write_sidecar(
+        tmp_path,
+        "content/cat-01/UC-1.1.1.json",
+        {
+            "id": "1.1.1",
+            "compliance": [
+                {
+                    "regulation": "Made-Up Regulation",
+                    "version": "1.0",
+                    "clause": "X.1",
+                    "mode": "satisfies",
+                    "assurance": "full",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(audit, "iter_uc_sidecars", lambda: iter([sidecar]))
+    monkeypatch.setattr(audit, "load_regulation_index", lambda: {})
+
+    def _raise(name: str, _idx: dict[str, Any]) -> str:
+        raise KeyError(name)
+
+    monkeypatch.setattr(audit, "resolve_regulation_id", _raise)
+    assert audit.gather_sidecar_mappings() == set()
+
+
+def test_gather_sidecar_mappings_skips_incomplete_compliance_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """An entry missing ``clause`` (or with an invalid ``mode`` /
+    ``assurance``) is silently skipped (covers line 207 of
+    ``mapping_ledger.py``)."""
+
+    sidecar = _write_sidecar(
+        tmp_path,
+        "content/cat-01/UC-1.1.1.json",
+        {
+            "id": "1.1.1",
+            "compliance": [
+                {
+                    "regulation": "iso27001",
+                    "version": "2022",
+                    "clause": "",  # blank clause → reject
+                    "mode": "satisfies",
+                    "assurance": "full",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(audit, "iter_uc_sidecars", lambda: iter([sidecar]))
+    monkeypatch.setattr(audit, "load_regulation_index", lambda: {})
+    monkeypatch.setattr(audit, "resolve_regulation_id", lambda n, _i: "iso27001-2022")
+    monkeypatch.setattr(audit, "normalise_version", lambda _r, v: v)
+    assert audit.gather_sidecar_mappings() == set()
+
+
+def test_gather_sidecar_mappings_returns_mapping_id_for_complete_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Sanity: when every gate passes, the function emits the
+    well-formed mappingId so the continue-path tests above can be
+    trusted to be negative-only."""
+
+    sidecar = _write_sidecar(
+        tmp_path,
+        "content/cat-01/UC-1.1.1.json",
+        {
+            "id": "1.1.1",
+            "compliance": [
+                {
+                    "regulation": "iso27001",
+                    "version": "2022",
+                    "clause": "A.8.16",
+                    "mode": "satisfies",
+                    "assurance": "full",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(audit, "iter_uc_sidecars", lambda: iter([sidecar]))
+    monkeypatch.setattr(audit, "load_regulation_index", lambda: {})
+    monkeypatch.setattr(audit, "resolve_regulation_id", lambda n, _i: "iso27001-2022")
+    monkeypatch.setattr(audit, "normalise_version", lambda _r, v: v)
+    result = audit.gather_sidecar_mappings()
+    assert len(result) == 1
+
+
+# --------------------------------------------------------------------- #
+# audit_signature_envelope — verify-signature pass-through
+# --------------------------------------------------------------------- #
+
+
+def test_signature_envelope_invokes_gh_verify_when_attested_and_verify_true(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """With ``verify_signature=True`` on an attested ledger the audit
+    forwards to ``_run_gh_attestation_verify`` (covers line 311 of
+    ``mapping_ledger.py``).  We stub the helper so the assertion is
+    only about the *call*, not about a real ``gh`` invocation."""
+
+    entry, _ = _entry()
+    ledger = _ledger([entry], state="attested", commit="abc1234")
+
+    calls: list[tuple[dict[str, Any], dict[str, Any], pathlib.Path]] = []
+
+    def _stub(sig: dict[str, Any], lg: dict[str, Any], lf: pathlib.Path) -> list[str]:
+        calls.append((sig, lg, lf))
+        return ["signature: bundle missing — synthetic"]
+
+    monkeypatch.setattr(audit, "_run_gh_attestation_verify", _stub)
+    errors = audit.audit_signature_envelope(
+        ledger,
+        verify_signature=True,
+        require_signature=False,
+        ledger_file=tmp_path / "x",
+    )
+    assert calls and calls[0][2] == tmp_path / "x"
+    assert errors == ["signature: bundle missing — synthetic"]
 
 
 # --------------------------------------------------------------------- #

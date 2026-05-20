@@ -152,6 +152,19 @@ def test_classify_phase2_non_list_events_is_malformed(tmp_path: Path) -> None:
     assert any("'events_positive'" in i for i in issues)
 
 
+def test_classify_phase2_non_list_events_negative_is_malformed(tmp_path: Path) -> None:
+    """Mirror of the above for the negative axis (covers line 151
+    of ``sandbox_validation.py``)."""
+
+    payload = _phase2()
+    payload["events_negative"] = "still-not-a-list"
+    p = _write_fixture(tmp_path / "x.json", payload)
+    status, shape, _, _, issues = audit._classify_fixture(p)
+    assert status == audit.STATUS_MALFORMED
+    assert shape == audit.FIXTURE_SHAPE_PHASE2
+    assert any("'events_negative' is not a list" in i for i in issues)
+
+
 def test_classify_phase3_populated(tmp_path: Path) -> None:
     p = _write_fixture(tmp_path / "x.json", _phase3(1, 1))
     status, shape, _, _, _ = audit._classify_fixture(p)
@@ -169,6 +182,19 @@ def test_classify_phase3_non_list_evidence_is_malformed(tmp_path: Path) -> None:
     assert status == audit.STATUS_MALFORMED
     assert shape == audit.FIXTURE_SHAPE_PHASE3
     assert any("'negative'" in i for i in issues)
+
+
+def test_classify_phase3_non_list_positive_is_malformed(tmp_path: Path) -> None:
+    """Mirror of the above for the positive axis (covers line 169
+    of ``sandbox_validation.py``)."""
+
+    payload = _phase3()
+    payload["positive"] = 42  # not a list
+    p = _write_fixture(tmp_path / "x.json", payload)
+    status, shape, _, _, issues = audit._classify_fixture(p)
+    assert status == audit.STATUS_MALFORMED
+    assert shape == audit.FIXTURE_SHAPE_PHASE3
+    assert any("'positive' is not a list" in i for i in issues)
 
 
 def test_classify_legacy_populated(tmp_path: Path) -> None:
@@ -196,6 +222,49 @@ def test_classify_legacy_case_not_object_is_malformed(tmp_path: Path) -> None:
     status, _, _, _, issues = audit._classify_fixture(p)
     assert status == audit.STATUS_MALFORMED
     assert any("must be objects" in i for i in issues)
+
+
+def test_classify_legacy_positive_case_events_not_list_is_malformed(
+    tmp_path: Path,
+) -> None:
+    """``positiveCase.events`` must be a list (covers line 186 of
+    ``sandbox_validation.py``)."""
+
+    payload = _legacy()
+    payload["positiveCase"]["events"] = "should-be-list"
+    p = _write_fixture(tmp_path / "x.json", payload)
+    status, _, _, _, issues = audit._classify_fixture(p)
+    assert status == audit.STATUS_MALFORMED
+    assert any("'positiveCase.events' is not a list" in i for i in issues)
+
+
+def test_classify_legacy_negative_case_events_not_list_is_malformed(
+    tmp_path: Path,
+) -> None:
+    """``negativeCase.events`` must be a list (covers line 188 of
+    ``sandbox_validation.py``)."""
+
+    payload = _legacy()
+    payload["negativeCase"]["events"] = 0  # not a list
+    p = _write_fixture(tmp_path / "x.json", payload)
+    status, _, _, _, issues = audit._classify_fixture(p)
+    assert status == audit.STATUS_MALFORMED
+    assert any("'negativeCase.events' is not a list" in i for i in issues)
+
+
+def test_classify_legacy_negative_case_wrong_polarity_is_malformed(
+    tmp_path: Path,
+) -> None:
+    """A negativeCase whose ``expectedFire`` is anything but ``False``
+    (e.g. ``True`` or ``None``) is rejected (covers line 194 of
+    ``sandbox_validation.py``)."""
+
+    payload = _legacy()
+    payload["negativeCase"]["expectedFire"] = True  # wrong polarity
+    p = _write_fixture(tmp_path / "x.json", payload)
+    status, _, _, _, issues = audit._classify_fixture(p)
+    assert status == audit.STATUS_MALFORMED
+    assert any("'negativeCase.expectedFire' must be false" in i for i in issues)
 
 
 def test_classify_unknown_shape_is_malformed(tmp_path: Path) -> None:

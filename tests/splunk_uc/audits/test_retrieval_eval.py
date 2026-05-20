@@ -831,3 +831,232 @@ def test_main_exits_2_when_query_set_malformed(tmp_path: Path) -> None:
 def test_load_corpus_handles_missing_rag_dir(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="not found"):
         load_corpus(tmp_path / "missing")
+
+
+# ----------------------------------------------------------------------
+# load_queries — remaining edge paths
+# ----------------------------------------------------------------------
+
+
+def test_load_queries_rejects_non_dict_query_entry(tmp_path: Path) -> None:
+    """An element in ``queries`` that is not a dict must be rejected
+    with the contracted error message (covers line 214 of
+    ``retrieval_eval.py``)."""
+
+    p = tmp_path / "q.json"
+    p.write_text(
+        json.dumps({"queries": ["not-a-dict"]}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="each query must be a JSON object"):
+        load_queries(p)
+
+
+def test_load_queries_rejects_non_string_expected_uc(tmp_path: Path) -> None:
+    """``expected_ucs`` must be a list of non-empty strings; a numeric
+    or empty element triggers the strict per-element check (covers
+    line 232 of ``retrieval_eval.py``)."""
+
+    p = tmp_path / "q.json"
+    p.write_text(
+        json.dumps(
+            {
+                "queries": [
+                    {
+                        "id": "Q1",
+                        "text": "stub",
+                        "expected_ucs": ["1.1.1", 2],  # 2 is not a string
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="expected_ucs must be UC-ID strings"):
+        load_queries(p)
+
+
+# ----------------------------------------------------------------------
+# main() — non-quiet code paths
+# ----------------------------------------------------------------------
+
+
+def test_main_non_quiet_prints_summary_to_stdout(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Without ``--quiet``, main() emits a summary block to stdout via
+    ``_print_summary`` (covers lines 695-703 and 807 of
+    ``retrieval_eval.py``)."""
+
+    rag_dir, queries_path = _build_hermetic_eval_workspace(tmp_path)
+    rc = main(
+        [
+            "--rag-dir",
+            str(rag_dir),
+            "--queries",
+            str(queries_path),
+            "--out-json",
+            str(tmp_path / "out.json"),
+            "--out-md",
+            str(tmp_path / "out.md"),
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Retrieval-eval: 1 queries x" in out
+    assert "mean recall@1" in out
+    assert "mean MRR" in out
+    assert "mean nDCG@10" in out
+
+
+def test_main_write_baseline_non_quiet_announces_write(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--write-baseline`` without ``--quiet`` prints a ``Wrote
+    baseline:`` line (covers line 804 of ``retrieval_eval.py``)."""
+
+    rag_dir, queries_path = _build_hermetic_eval_workspace(tmp_path)
+    baseline = tmp_path / "new-baseline.json"
+    rc = main(
+        [
+            "--rag-dir",
+            str(rag_dir),
+            "--queries",
+            str(queries_path),
+            "--out-json",
+            str(tmp_path / "out.json"),
+            "--out-md",
+            str(tmp_path / "out.md"),
+            "--baseline",
+            str(baseline),
+            "--write-baseline",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert baseline.exists()
+    assert f"Wrote baseline: {baseline}" in out
+
+
+def test_main_check_non_quiet_announces_ok_on_pass(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A passing ``--check`` without ``--quiet`` prints
+    ``baseline check: OK`` (covers line 828 of
+    ``retrieval_eval.py``)."""
+
+    rag_dir, queries_path = _build_hermetic_eval_workspace(tmp_path)
+    baseline = tmp_path / "baseline.json"
+    # First write the baseline from this corpus...
+    main(
+        [
+            "--rag-dir",
+            str(rag_dir),
+            "--queries",
+            str(queries_path),
+            "--out-json",
+            str(tmp_path / "out.json"),
+            "--out-md",
+            str(tmp_path / "out.md"),
+            "--baseline",
+            str(baseline),
+            "--write-baseline",
+            "--quiet",
+        ]
+    )
+    capsys.readouterr()  # discard write-baseline output
+
+    # ...then re-run --check against it; same corpus → no drift.
+    rc = main(
+        [
+            "--rag-dir",
+            str(rag_dir),
+            "--queries",
+            str(queries_path),
+            "--out-json",
+            str(tmp_path / "out.json"),
+            "--out-md",
+            str(tmp_path / "out.md"),
+            "--baseline",
+            str(baseline),
+            "--check",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "baseline check: OK" in out
+
+
+def test_main_check_reports_regression_with_per_metric_lines(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A regressed metric must surface as a per-line stderr report and
+    exit non-zero (covers lines 818-826 of ``retrieval_eval.py``).
+
+    Strategy: ship the hermetic corpus but swap the query so it
+    expects a UC the search will NOT retrieve (we expect UC-2.2.2
+    but search for cpu/linux terms that match UC-1.1.1 exclusively).
+    That forces recall@k = 0.0 for the current run while we ship a
+    baseline whose metrics are all 1.0 — guaranteed regression past
+    the relative tolerance AND the absolute 0.01 floor that the
+    ``_check_metric`` helper enforces.
+    """
+
+    rag_dir, _ = _build_hermetic_eval_workspace(tmp_path)
+    mismatched_queries = tmp_path / "mismatched.json"
+    mismatched_queries.write_text(
+        json.dumps(
+            {
+                "queries": [
+                    {
+                        "id": "Q1",
+                        "text": "monitor cpu linux",
+                        # The corpus retrieves UC-1.1.1 for this text;
+                        # we deliberately expect a different UC so
+                        # every recall metric collapses to 0.0.
+                        "expected_ucs": ["2.2.2"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    perfect_baseline = {
+        "$schema_version": SCHEMA_VERSION,
+        "aggregate": {
+            "query_count": 1,
+            "corpus_chunk_count": 3,
+            "corpus_uc_count": 2,
+            "mean_recall_at_k": {str(k): 1.0 for k in RECALL_KS},
+            "mean_mrr": 1.0,
+            "mean_ndcg_at_10": 1.0,
+        },
+        "per_query": [],
+    }
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps(perfect_baseline), encoding="utf-8")
+    rc = main(
+        [
+            "--rag-dir",
+            str(rag_dir),
+            "--queries",
+            str(mismatched_queries),
+            "--out-json",
+            str(tmp_path / "out.json"),
+            "--out-md",
+            str(tmp_path / "out.md"),
+            "--baseline",
+            str(baseline),
+            "--check",
+            "--quiet",
+        ]
+    )
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "retrieval-eval regressed against baseline" in err
+    # At least one metric line with the arrow + delta should appear.
+    assert "\u2192" in err  # rightwards arrow
+    assert "tolerance" in err

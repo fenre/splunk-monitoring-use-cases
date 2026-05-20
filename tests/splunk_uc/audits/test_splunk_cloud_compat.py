@@ -328,6 +328,80 @@ def test_audit_packs_records_line_numbers_in_location(
     assert any(":3" in f.location for f in matching)
 
 
+def test_audit_packs_skips_missing_app_dir_entry(
+    hermetic_env: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """``APP_DIRS`` may include directories that don't exist (e.g.
+    when the host repo has no ``splunk-apps/`` tree); the audit must
+    skip silently rather than crash (covers line 292 of
+    ``splunk_cloud_compat.py``)."""
+
+    monkeypatch.setattr(
+        audit,
+        "APP_DIRS",
+        (hermetic_env["ta"], tmp_path / "does-not-exist"),
+    )
+    # We still want at least one real finding so the test verifies
+    # the loop did execute against the existing dir.
+    _write_conf(
+        hermetic_env,
+        "ta/TA-x/default/commands.conf",
+        "[my_cmd]\nfilename = bar.py\n",
+    )
+    findings = audit.audit_packs()
+    assert findings
+    assert all("does-not-exist" not in f.location for f in findings)
+
+
+def test_audit_packs_skips_glob_matches_that_are_directories(
+    hermetic_env: dict[str, Path],
+) -> None:
+    """A glob may resolve to a directory (e.g. someone creates an
+    ``inputs.conf/`` folder by mistake); the audit must skip the
+    non-file path instead of trying to read it (covers line 296 of
+    ``splunk_cloud_compat.py``)."""
+
+    # commands.conf is the glob target; create a directory in that
+    # slot to force ``path.is_file()`` to return False.
+    bogus = hermetic_env["ta"] / "TA-trap" / "default" / "commands.conf"
+    bogus.mkdir(parents=True)
+    findings = audit.audit_packs()
+    # No findings should reference the bogus directory.
+    assert all("TA-trap" not in f.location for f in findings)
+
+
+def test_audit_packs_swallows_read_text_failure(
+    hermetic_env: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A file that exists but raises on ``read_text`` (e.g. a broken
+    symlink, permission error, or filesystem corruption) must be
+    skipped silently (covers lines 299-300 of
+    ``splunk_cloud_compat.py``)."""
+
+    _write_conf(
+        hermetic_env,
+        "ta/TA-x/default/commands.conf",
+        "[my_cmd]\nfilename = bar.py\n",
+    )
+
+    from pathlib import Path as _PathClass
+
+    real_read_text = _PathClass.read_text
+
+    def _selective_raise(self: _PathClass, *a: object, **k: object) -> str:
+        if self.name == "commands.conf":
+            raise OSError("simulated read failure")
+        return real_read_text(self, *a, **k)
+
+    monkeypatch.setattr(_PathClass, "read_text", _selective_raise)
+    # No exception should bubble; commands.conf is silently skipped.
+    findings = audit.audit_packs()
+    assert all("commands.conf" not in f.location for f in findings)
+
+
 # --------------------------------------------------------------------- #
 # render_report
 # --------------------------------------------------------------------- #

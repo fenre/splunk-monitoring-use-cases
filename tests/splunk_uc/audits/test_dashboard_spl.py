@@ -804,6 +804,111 @@ def test_splunkd_dispatch_blocking_handles_http_error_on_dispatch(
         err.close()
 
 
+def test_splunkd_dispatch_blocking_handles_http_error_on_job_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dispatch succeeds (returns a sid) but the follow-up GET to
+    ``/search/jobs/<sid>`` returns 500 — the audit must classify
+    this as a transport-level failure (covers line 355 of
+    ``dashboard_spl.py``)."""
+
+    import urllib.error
+
+    err = urllib.error.HTTPError(
+        url="https://x:8089/services/search/jobs/abc",
+        code=500,
+        msg="Internal Server Error",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=None,
+    )
+    try:
+        err.read = lambda: b'{"messages": [{"type": "FATAL", "text": "broken"}]}'  # type: ignore[method-assign]
+        opener = _FakeOpener(
+            [
+                _FakeResponse(status=201, body=b'{"sid": "abc"}'),
+                err,
+            ]
+        )
+        monkeypatch.setattr(audit.urllib.request, "urlopen", opener)
+
+        client = audit.Splunkd("https://x:8089", "tok")
+        result = client.dispatch_blocking(
+            "search foo",
+            app="a",
+            earliest="-1h",
+            latest="now",
+        )
+        assert result.ok is False
+        assert result.transport_error is not None
+        assert "HTTP 500 on job status" in result.transport_error
+    finally:
+        err.close()
+
+
+def test_splunkd_dispatch_blocking_handles_unexpected_job_status_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dispatch succeeds but the job-status payload is missing the
+    expected ``entry[0].content`` chain — the audit must surface a
+    deterministic transport-level error rather than KeyError-crash
+    (covers lines 362-363 of ``dashboard_spl.py``)."""
+
+    opener = _FakeOpener(
+        [
+            _FakeResponse(status=201, body=b'{"sid": "abc"}'),
+            _FakeResponse(status=200, body=b'{"entry": []}'),  # no [0]
+            # DELETE cleanup may run after this; FakeOpener tolerates exhaustion
+        ]
+    )
+    monkeypatch.setattr(audit.urllib.request, "urlopen", opener)
+
+    client = audit.Splunkd("https://x:8089", "tok")
+    result = client.dispatch_blocking(
+        "search foo",
+        app="a",
+        earliest="-1h",
+        latest="now",
+    )
+    assert result.ok is False
+    assert result.transport_error is not None
+    assert "unexpected job-status payload" in result.transport_error
+
+
+def test_splunkd_dispatch_blocking_tolerates_delete_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The trailing DELETE that cleans up the dispatch directory is
+    best-effort — any exception must be swallowed and the audit must
+    still return a healthy ``AuditResult`` (covers lines 378-379 of
+    ``dashboard_spl.py``)."""
+
+    opener = _FakeOpener(
+        [
+            _FakeResponse(status=201, body=b'{"sid": "abc"}'),
+            _FakeResponse(
+                status=200,
+                body=(
+                    b'{"entry": [{"content": {"isFailed": false, '
+                    b'"isDone": true, "resultCount": 7, "messages": []}}]}'
+                ),
+            ),
+            RuntimeError("cleanup blew up"),  # raised on the DELETE
+        ]
+    )
+    monkeypatch.setattr(audit.urllib.request, "urlopen", opener)
+
+    client = audit.Splunkd("https://x:8089", "tok")
+    result = client.dispatch_blocking(
+        "search index=os",
+        app="myapp",
+        earliest="-15m",
+        latest="now",
+    )
+    assert result.ok is True
+    assert result.result_count == 7
+    assert result.transport_error is None
+
+
 def test_splunkd_request_falls_back_to_raw_on_non_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -945,6 +1050,41 @@ def test_main_returns_one_on_dispatch_failure(
     assert "[FAIL]" in cap.err
     assert "Invalid argument" in cap.err
     assert "1 of 1 dashboard panels FAILED" in cap.err
+
+
+def test_main_prints_transport_error_under_fail_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When a panel fails *with* a transport error, the per-panel
+    FAIL output must include a ``transport:`` line (covers line 506
+    of ``dashboard_spl.py``)."""
+
+    import urllib.error
+
+    app_root = tmp_path / "app"
+    _write_minimal_dashboard(app_root, "v.xml", "search foo | head 1")
+    monkeypatch.setenv("AUDIT_FAKE_TOKEN", "tok")
+
+    opener = _FakeOpener(
+        [urllib.error.URLError("name or service not known")]
+    )
+    monkeypatch.setattr(audit.urllib.request, "urlopen", opener)
+
+    rc = audit.main(
+        [
+            "--app-root",
+            str(app_root),
+            "--token-var",
+            "AUDIT_FAKE_TOKEN",
+        ]
+    )
+    cap = capsys.readouterr()
+    assert rc == 1
+    assert "[FAIL]" in cap.err
+    assert "transport:" in cap.err
+    assert "name or service not known" in cap.err
 
 
 def test_main_quiet_mode_suppresses_pass_lines(
