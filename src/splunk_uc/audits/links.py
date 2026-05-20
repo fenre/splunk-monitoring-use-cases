@@ -22,7 +22,24 @@ from urllib.parse import urlsplit
 from splunk_uc.audits._uc_walk import iter_uc_sidecars
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-URL_PATTERN = re.compile(r"https?://[^\s,<>]+")
+# URL_PATTERN intentionally excludes characters that almost never appear
+# inside a real URL but do appear as adjacent markdown / JSON / code-fence
+# decoration in the catalogue's prose fields:
+#
+#   * whitespace (any) — natural URL terminator
+#   * ``,``  — comma between URLs in a list
+#   * ``<``  — angle-bracketed reference (``<https://x>``)
+#   * ``>``  — closing angle bracket of the same
+#   * `` ` `` — inline-code-fence backtick (``\`https://x\```)
+#   * ``{`` / ``}`` — templated value placeholder
+#     (``https://{host}/path``) — we deliberately strip these here so a
+#     loose ``}`` next to a real URL doesn't pull into the match
+#   * ``"`` / ``'`` — JSON-embedded URL (``{"url": "https://x"}``)
+#   * ``\`` — escape character in JSON strings (``https://x\n``)
+#
+# Conservative trailing-punctuation cleanup still happens in
+# ``normalize_url`` so e.g. ``http://x/y.``  →  ``http://x/y``.
+URL_PATTERN = re.compile(r"https?://[^\s,<>`{}\"'\\]+")
 BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -59,19 +76,34 @@ def load_ignore_patterns() -> list[re.Pattern[str]]:
 
 
 def normalize_url(raw: str) -> str:
-    """Strip trailing punctuation while keeping balanced parentheses.
+    """Strip trailing decoration while preserving balanced parentheses.
 
     Bare URLs written in prose may be followed by punctuation like
-    ``.``/``,``/``;`` that is not part of the URL.  Parentheses and brackets
-    are trickier: a URL like
-    ``https://en.wikipedia.org/wiki/Entropy_(information_theory)`` ends with
-    a ``)`` that IS part of the URL.  We preserve parens whenever they are
-    balanced inside the URL.
+    ``.`` / ``,`` / ``;`` / ``!`` that is not part of the URL, or by
+    markdown / JSON / code-fence decoration like ``\\```, ``"``, ``'``,
+    ``}``, ``\\``. We strip both classes here as a defence in depth on
+    top of the regex (``URL_PATTERN``) — the regex already excludes
+    most of these, but some sneak in through ``references[].url``
+    fields where authors hand-paste a URL with adjacent quoting.
+
+    Parentheses and brackets are trickier: a URL like
+    ``https://en.wikipedia.org/wiki/Entropy_(information_theory)`` ends
+    with a ``)`` that IS part of the URL. We preserve parens / brackets
+    whenever they are balanced inside the URL, and strip them only
+    when unbalanced (surplus closers).
     """
+
     url = raw
-    while url and url[-1] in ".,;!":
+
+    # 1. Strip sentence punctuation and markdown / JSON / code-fence
+    #    decoration that never belongs in a URL. Loop because the
+    #    catalogue carries chains like ``http://x/y\`.,;!``.
+    decoration = ".,;!`\"'}\\"
+    while url and url[-1] in decoration:
         url = url[:-1]
-    # Strip trailing ')' or ']' only when unbalanced (surplus closers).
+
+    # 2. Strip trailing ')' or ']' only when unbalanced (surplus
+    #    closers). Wikipedia URLs are the canonical preservation case.
     while url and url[-1] in ")]":
         opener = "(" if url[-1] == ")" else "["
         closer = url[-1]
@@ -79,6 +111,7 @@ def normalize_url(raw: str) -> str:
             url = url[:-1]
         else:
             break
+
     return url
 
 
@@ -238,10 +271,32 @@ def main(argv: list[str] | None = None) -> int:
 
     # Group URLs by host so we can throttle requests within each host while
     # still processing different hosts concurrently.
+    #
+    # ``urlsplit`` raises ``ValueError`` for malformed URLs (the catalogue
+    # has historically carried placeholder literals like
+    # ``https://[server]:[port]/...`` that Python rejects as bad IPv6).
+    # A single bad URL must not abort the entire audit — warn and drop
+    # from BOTH ``by_host`` (so we don't probe it) and ``urls`` (so the
+    # downstream report loop doesn't ``KeyError`` looking it up).
     by_host: dict[str, list[str]] = {}
+    malformed: list[tuple[str, str]] = []
     for u in urls:
-        host = urlsplit(u).netloc.lower()
+        try:
+            host = urlsplit(u).netloc.lower()
+        except ValueError as exc:
+            malformed.append((u, str(exc)))
+            continue
         by_host.setdefault(host, []).append(u)
+    if malformed:
+        print(
+            f"WARN: skipped {len(malformed)} malformed URL(s) "
+            "that ``urlsplit`` rejected — first 5 shown:",
+            file=sys.stderr,
+        )
+        for u, exc in malformed[:5]:
+            print(f"  - {u!r}: {exc}", file=sys.stderr)
+        malformed_set = {u for u, _ in malformed}
+        urls = [u for u in urls if u not in malformed_set]
 
     def check_host(host_urls: list[str]) -> list[tuple[str, tuple[bool, str]]]:
         out: list[tuple[str, tuple[bool, str]]] = []
