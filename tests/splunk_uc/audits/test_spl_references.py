@@ -519,6 +519,48 @@ class TestCheckOneSplFieldMacros:
         )
         assert [f for f in out if f.category == "unknown-macro" and f.identifier == known] == []
 
+    def test_dotted_macro_skipped_as_json_path(self, vocab: sr.Vocabulary) -> None:
+        """Macro candidates containing ``.`` are JSON field paths embedded
+        in backticks (a content bug, not a vocabulary gap).
+
+        Splunk's curated macro vocabulary is alphanumeric + underscore
+        only — none of the 2,381 macros in
+        ``data/spl-reference.local.json`` carry a dot in their name.
+        A backtick-wrapped name with a dot is therefore almost certainly
+        a JSON field path that a UC author wrapped in backticks by
+        mistake (e.g. ``coalesce(field, \\`involvedObject.kind\\`)``).
+
+        The audit must not flag these as ``unknown-macro`` — that
+        misleads the maintainer into searching for the symbol in
+        macros.conf, which they will never find. Skipping the dotted
+        candidates trims the report to true vocabulary gaps; the
+        content-bug class can be surfaced by a separate audit if
+        wanted.
+        """
+
+        out = sr.check_one_spl_field(
+            uc_id="3.2.11",
+            file_label="UC-3.2.11.json",
+            field="spl",
+            spl=(
+                "| spath\n"
+                '| eval kind=lower(coalesce(involvedObject.kind, '
+                "`involvedObject.kind`, \"\"))"
+            ),
+            vocab=vocab,
+            declared_sourcetypes=set(),
+            declared_indexes=set(),
+        )
+        dotted = [
+            f
+            for f in out
+            if f.category == "unknown-macro" and "." in f.identifier
+        ]
+        assert dotted == [], (
+            "dotted backtick names must be skipped as JSON field paths, "
+            f"not flagged as unknown macros: {dotted}"
+        )
+
     def test_unknown_sourcetype_with_close_suggestion(self) -> None:
         """Covers the suggestion-found branch (lines 337-338) — typo
         on a known sourcetype should surface a `did you mean` hint."""

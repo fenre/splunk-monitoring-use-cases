@@ -299,6 +299,19 @@ def check_one_spl_field(
         # vocabulary; treat the suffix as known-good.
         if mref.name.endswith("_filter"):
             continue
+        # Backtick-wrapped names containing ``.`` are JSON field paths,
+        # not real macros. Splunk macro names are alphanumeric + ``_``
+        # by convention — none of the 2,381 macros in the curated
+        # ``data/spl-reference.local.json`` vocabulary carry a dot. A
+        # dotted candidate is therefore a UC-content bug (a field path
+        # mistakenly wrapped in backticks, e.g.
+        # ``coalesce(field, \`involvedObject.kind\`)``) and not an
+        # unknown-macro finding. Skipping these here keeps the audit
+        # report focused on true vocabulary gaps; the content-bug class
+        # can be picked up by a dedicated audit if a maintainer wants
+        # to track it separately.
+        if "." in mref.name:
+            continue
         sug = _suggest(mref.name, vocab.macros)
         findings.append(
             Finding(
