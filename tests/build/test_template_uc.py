@@ -387,3 +387,344 @@ class TestRenderMarkdownTwin:
         md = uc_template.render_markdown_twin(minimal, cat, sub, "identity-access", ctx=render_ctx)
         assert "# UC-1.1.99" in md
         assert "Minimal UC" in md
+
+
+# ---------------------------------------------------------------------------
+# Coverage uplift — targeted edge-case tests for the remaining branches
+# left after the representative-UC suite above.
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdownTwinEdgeCases:
+    """Drive the defensive branches in ``render_markdown_twin``."""
+
+    def test_quick_facts_skipped_when_no_facts(self, cat, sub, render_ctx):
+        """Branch 356->365: ``if facts:`` false arm — minimal UC where
+        ``_add_fact()`` never appends a row."""
+        uc = {"i": "9.9.99", "n": "Bare UC"}
+        empty_cat = {"i": "", "n": ""}
+        empty_sub = {"i": "", "n": ""}
+        md = uc_template.render_markdown_twin(
+            uc, empty_cat, empty_sub, "identity-access", ctx=render_ctx
+        )
+        assert "## Quick facts" not in md
+
+    def test_add_fact_rejects_whitespace_only_value(self, cat, sub, render_ctx):
+        """Line 329-330: ``if not value: return`` — a whitespace-only
+        string trims to empty and never lands as a fact row."""
+        uc = {"i": "1.1.99", "n": "X", "status": "   "}
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        assert "| Status |" not in md
+
+    def test_pre_skips_blank_entries(self, cat, sub, render_ctx):
+        """Line 371-372: ``if not p_str: continue`` — pre-list entry
+        that's only whitespace is silently dropped."""
+        uc = {"i": "1.1.99", "n": "X", "pre": ["UC-1.1.0", "  "]}
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        assert "UC-1.1.0" in md
+        # Exactly one bullet — the blank one was dropped.
+        pre_section = md.split("## Prerequisite use cases", 1)[1].split("##", 1)[0]
+        assert pre_section.count("- [") == 1
+
+    def test_kfp_as_list_renders_bullets(self, cat, sub, render_ctx):
+        """Lines 427-430: defensive branch when ``kfp`` is a list/tuple
+        of items (forward-compat with structured falsePositives)."""
+        uc = {
+            "i": "1.1.99",
+            "n": "X",
+            "kfp": ["First case", "   ", "Second case"],
+        }
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        assert "## Known false positives" in md
+        assert "- First case" in md
+        assert "- Second case" in md
+
+    def test_mitre_skips_blank_entries(self, cat, sub, render_ctx):
+        """Branch 441->439: ``if t_str:`` false arm — a blank MITRE entry
+        is dropped from the list."""
+        uc = {"i": "1.1.99", "n": "X", "mitre": ["T1078", "   ", "T1003"]}
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        mitre_section = md.split("## MITRE ATT&CK", 1)[1].split("##", 1)[0]
+        assert "- T1078" in mitre_section
+        assert "- T1003" in mitre_section
+        assert mitre_section.count("- ") == 2
+
+    def test_regs_skips_blank_entries(self, cat, sub, render_ctx):
+        """Branch 451->449: ``if r_str:`` false arm."""
+        uc = {"i": "1.1.99", "n": "X", "regs": ["gdpr", "  ", "hipaa"]}
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        regs_section = md.split("## Regulations", 1)[1].split("##", 1)[0]
+        assert regs_section.count("- ") == 2
+
+    def test_refs_as_list_renders_bullets(self, cat, sub, render_ctx):
+        """Lines 463-471: defensive branch when ``refs`` is a list/tuple
+        (legacy markdown-corpus shape) instead of the wire-format CSV
+        string."""
+        uc = {
+            "i": "1.1.99",
+            "n": "X",
+            "refs": ["[A](https://a)", "   ", "[B](https://b)"],
+        }
+        md = uc_template.render_markdown_twin(
+            uc, cat, sub, "identity-access", ctx=render_ctx
+        )
+        assert "## References" in md
+        refs_section = md.split("## References", 1)[1].split("---", 1)[0]
+        assert "- [A](https://a)" in refs_section
+        assert "- [B](https://b)" in refs_section
+
+
+class TestRenderHtmlEdgeCases:
+    """Drive defensive branches across the various ``_section_*`` helpers."""
+
+    def test_quick_facts_omitted_when_all_fields_empty(self, render_ctx):
+        """Line 527-528: ``_section_quick_facts`` returns ``""`` when
+        no rows accumulated."""
+        uc = {"i": "9.9.99", "n": "Bare"}
+        empty_cat = {"i": "", "n": ""}
+        empty_sub = {"i": "", "n": ""}
+        html = uc_template.render_html(
+            uc, empty_cat, empty_sub, "x", ctx=render_ctx
+        )
+        assert "<h2>Quick facts</h2>" not in html
+
+    def test_implementation_ordering_omitted_when_no_signals(self, cat, sub, render_ctx):
+        """Branches inside ``_section_implementation_ordering``:
+        ``pre`` empty + ``enables`` empty -> section omitted."""
+        uc = {"i": "9.9.99", "n": "X"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Implementation ordering" not in html
+
+    def test_implementation_ordering_pre_only(self, cat, sub, render_ctx):
+        """Branch 622 (pre is truthy) but enables empty."""
+        uc = {"i": "9.9.99", "n": "X", "pre": ["UC-1.1.0"]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Implementation ordering" in html
+        assert "Implement first (prerequisites)" in html
+        assert "Enables" not in html
+
+    def test_implementation_ordering_enables_only(self, cat, sub, render_ctx):
+        """Branch 631 (enables truthy) when pre is empty — uses the
+        reverse-prereq index baked into the fixture (UC-1.1.1 enables
+        UC-1.1.2 and UC-1.1.3)."""
+        uc = {"i": "1.1.1", "n": "X"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Implementation ordering" in html
+        assert "Enables" in html
+        assert "Implement first" not in html
+        assert "UC-1.1.2" in html
+
+    def test_implementation_ordering_pre_filters_self_reference(self, cat, sub, render_ctx):
+        """Line 614: ``pre = [p for p in pre if p != self_full]`` — when
+        the UC lists itself in ``pre`` (data error), it must not render
+        a self-link.
+
+        The fixture's ``uc_reverse_prereq`` has ``UC-1.1.1`` enabling
+        other UCs, so the section will still render via the ``enables``
+        path even after self-cycle is filtered."""
+        uc = {"i": "1.1.1", "n": "X", "pre": ["UC-1.1.1"]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Implementation ordering" in html
+        # The "Implement first" subsection is omitted because the only
+        # entry was the self-reference (now filtered).
+        assert "Implement first (prerequisites)" not in html
+
+    def test_implementation_ordering_pre_as_string_treated_as_empty(self, cat, sub, render_ctx):
+        """Branch 609->614: ``isinstance(pre_raw, (list, tuple))`` false
+        arm — a malformed string ``pre`` value falls through to the empty
+        list (defensive guard against schema drift)."""
+        uc = {"i": "9.9.99", "n": "X", "pre": "UC-1.1.0"}  # string, not list
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        # The implementation-ordering section is omitted entirely because
+        # pre is treated as empty and there is no reverse-enables entry
+        # for UC-9.9.99.
+        assert "Implementation ordering" not in html
+
+    def test_implementation_ordering_pre_skips_non_string(self, cat, sub, render_ctx):
+        """``[p for p in pre_raw if isinstance(p, str) ...]`` — non-string
+        entries are skipped."""
+        uc = {"i": "9.9.99", "n": "X", "pre": ["UC-1.1.0", 123, None, "  "]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Implementation ordering" in html
+        prereq_block = html.split("Implement first (prerequisites)", 1)[1].split(
+            "</ul>", 1
+        )[0]
+        assert prereq_block.count("<li>") == 1
+        assert "UC-1.1.0" in prereq_block
+
+    def test_uc_chip_omits_wave_badge_for_unknown_wave(self, render_ctx):
+        """Branch 655->666: ``if pair is not None:`` false arm — when
+        ``wave_label`` returns ``None`` (unknown wave), the chip emits
+        no wave badge."""
+        ctx = _helpers.RenderContext(
+            asset_styles="s.css",
+            asset_app_js="a.js",
+            build_id="b",
+            generated_at="2026-05-20",
+            version="9.1.0",
+            uc_reverse_prereq={"UC-1.1.1": ("UC-1.1.2",)},
+            # uc-1.1.2 mapped to an UNKNOWN wave ('sprint' is not in
+            # _WAVE_TOOLTIPS) — render_uc_chip must not crash and must
+            # not emit a chip-wave span.
+            uc_title_index={"UC-1.1.2": ("Downstream UC", "sprint")},
+        )
+        uc = {"i": "1.1.1", "n": "X"}
+        cat = {"i": 1, "n": "Cat"}
+        sub = {"i": "1.1", "n": "Sub", "u": []}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=ctx)
+        # Chip exists for UC-1.1.2 but with no wave badge.
+        chip_block = html.split("Enables", 1)[1].split("</section>", 1)[0]
+        assert "UC-1.1.2" in chip_block
+        assert "chip-wave" not in chip_block
+
+    def test_dma_spl_dma_only_no_qs(self, cat, sub, render_ctx):
+        """Branch 697->699: ``if dma:`` true / ``if qs:`` false — only
+        the markdown summary renders, no code block."""
+        uc = {"i": "9.9.99", "n": "X", "dma": "Use the Authentication model."}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Data model acceleration" in html
+        assert "Use the Authentication model." in html
+        # ``qs`` not provided, so no ``lang-spl`` code block in the DMA
+        # section. (There may be one elsewhere from regular SPL, but
+        # this UC has no ``q`` either.)
+        dma_section = html.split("Data model acceleration", 1)[1].split("</section>", 1)[0]
+        assert "lang-spl" not in dma_section
+
+    def test_dma_spl_qs_only_no_dma(self, cat, sub, render_ctx):
+        """Branch 699->705: ``if dma:`` false / ``if qs:`` true — only
+        the code block renders."""
+        uc = {"i": "9.9.99", "n": "X", "qs": "| tstats count from datamodel=Auth"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Data model acceleration" in html
+        assert "tstats count" in html
+
+    def test_regulations_mitre_regs_only(self, cat, sub, render_ctx):
+        """Branch 748 true / 755 false — regs present, mitre absent."""
+        uc = {"i": "9.9.99", "n": "X", "regs": ["gdpr", "hipaa"]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Compliance" in html
+        assert "<h3>Regulations</h3>" in html
+        assert "<h3>MITRE" not in html
+
+    def test_regulations_mitre_mitre_only(self, cat, sub, render_ctx):
+        """Branch 748 false / 755 true — mitre present, regs absent."""
+        uc = {"i": "9.9.99", "n": "X", "mitre": ["T1078"]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Compliance" in html
+        assert "<h3>MITRE" in html
+        assert "<h3>Regulations</h3>" not in html
+
+    def test_regulations_mitre_skips_blank_mitre_entries(self, cat, sub, render_ctx):
+        """Line 760: ``if not label: continue`` — empty-string MITRE
+        entries are filtered."""
+        uc = {"i": "9.9.99", "n": "X", "mitre": ["T1078", "", "T1003"]}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        mitre_block = html.split("MITRE", 1)[1].split("</ul>", 1)[0]
+        # Exactly two list items rendered.
+        assert mitre_block.count("<li>") == 2
+
+    def test_apps_with_sapp_only_no_ta_link(self, cat, sub, render_ctx):
+        """Branch 774->790: ``if ta_name:`` false arm — sapp entries
+        still render."""
+        uc = {
+            "i": "9.9.99",
+            "n": "X",
+            "sapp": [
+                {"id": 1, "name": "App One", "url": "https://x/1"},
+                {"id": 2, "name": "App Two"},  # no URL — covers line 805
+                {"id": 3, "name": "", "url": "https://x/3"},  # no name — line 795
+                {"id": 4, "name": "App Four", "url": "https://x/4", "desc": "extras"},
+            ],
+        }
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Splunkbase apps" in html
+        assert "App One" in html
+        assert "App Two" in html
+        assert "App Four" in html
+        assert "extras" in html
+        # Empty-name entry is dropped.
+        apps_block = html.split("Splunkbase apps", 1)[1].split("</section>", 1)[0]
+        # primary TA <em> badge absent because ta_link wasn't supplied.
+        assert "primary TA" not in apps_block
+
+    def test_apps_with_ta_link_without_url_renders_plain_text(self, cat, sub, render_ctx):
+        """Lines 785-789: ``if ta_url:`` false arm — TA name without
+        a URL renders as plain text with the ``(primary TA)`` suffix."""
+        uc = {
+            "i": "9.9.99",
+            "n": "X",
+            "ta_link": {"name": "Bare TA"},  # no url
+        }
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        apps_block = html.split("Splunkbase apps", 1)[1].split("</section>", 1)[0]
+        assert "Bare TA" in apps_block
+        assert "primary TA" in apps_block
+        # No <a href> for the TA entry because the URL was missing.
+        ta_li = apps_block.split("<li>", 1)[1].split("</li>", 1)[0]
+        assert "<a href=" not in ta_li
+
+    def test_full_narrative_with_implementation_collapses_into_details(
+        self, cat, sub, render_ctx
+    ):
+        """Lines 827-838: when both ``m`` and ``md`` are present AND
+        ``md`` starts with 'Prerequisites', collapse the long version
+        into a ``<details>`` element."""
+        uc = {
+            "i": "9.9.99",
+            "n": "X",
+            "m": "Short ordered steps.",
+            "md": "Prerequisites: Splunk ES + ISE TA.\n\nFull narrative.",
+        }
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Detailed walkthrough" in html
+        assert "<details>" in html
+        assert "Show full narrative" in html
+
+    def test_full_narrative_renders_inline_without_implementation(
+        self, cat, sub, render_ctx
+    ):
+        """The non-details arm of the full-narrative section — when ``m``
+        is absent, the long markdown renders inline."""
+        uc = {
+            "i": "9.9.99",
+            "n": "X",
+            "md": "Prerequisites: just a single block.",
+        }
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        assert "Detailed walkthrough" in html
+        assert "<details>" not in html
+
+    def test_provenance_with_reviewed_only(self, cat, sub, render_ctx):
+        """Branch 855->857: ``if rby:`` false arm."""
+        uc = {"i": "9.9.99", "n": "X", "reviewed": "2026-05-01"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        prov = html.split("Provenance", 1)[1].split("</section>", 1)[0]
+        assert "Last reviewed" in prov
+        assert "Reviewer:" not in prov
+        assert "Splunk versions:" not in prov
+
+    def test_provenance_with_reviewer_only(self, cat, sub, render_ctx):
+        """Branch 853->855 + 857->859 hybrid: ``rby`` only."""
+        uc = {"i": "9.9.99", "n": "X", "rby": "ops-team"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        prov = html.split("Provenance", 1)[1].split("</section>", 1)[0]
+        assert "Reviewer: ops-team" in prov
+        assert "Last reviewed" not in prov
+
+    def test_provenance_with_sver_only(self, cat, sub, render_ctx):
+        """Branch 857->859 with just ``sver`` populated."""
+        uc = {"i": "9.9.99", "n": "X", "sver": "9.1, 9.2"}
+        html = uc_template.render_html(uc, cat, sub, "x", ctx=render_ctx)
+        prov = html.split("Provenance", 1)[1].split("</section>", 1)[0]
+        assert "Splunk versions" in prov
+        assert "Reviewer:" not in prov
