@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_215 pages indexed; 126 have at least one inbound link; 422 unique source→target edges._
+_217 pages indexed; 128 have at least one inbound link; 428 unique source→target edges._
 
 ---
 
@@ -139,6 +139,7 @@ _No inbound links yet._
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
+- [`docs/adr/0014-per-uc-thresholds-field.md`](adr/0014-per-uc-thresholds-field.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -163,6 +164,7 @@ _No inbound links yet._
 - [`docs/adr/0010-sample-and-sample-data-co-exist.md`](adr/0010-sample-and-sample-data-co-exist.md)
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/0013-frontend-rebuild-scaffold.md`](adr/0013-frontend-rebuild-scaffold.md)
+- [`docs/adr/0014-per-uc-thresholds-field.md`](adr/0014-per-uc-thresholds-field.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
@@ -182,6 +184,7 @@ _No inbound links yet._
 - [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
+- [`docs/adr/0014-per-uc-thresholds-field.md`](adr/0014-per-uc-thresholds-field.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 - [`docs/schema-versioning.md`](schema-versioning.md)
@@ -195,7 +198,12 @@ _No inbound links yet._
 ## `docs/adr/0013-frontend-rebuild-scaffold.md`
 
 - [`CHANGELOG.md`](../CHANGELOG.md)
+- [`docs/adr/README.md`](adr/README.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+
+## `docs/adr/0014-per-uc-thresholds-field.md`
+
+- [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/README.md`
 
@@ -481,7 +489,7 @@ _No inbound links yet._
 
 ## `docs/gold-standard-authoring-playbook.md`
 
-_No inbound links yet._
+- [`docs/adr/0014-per-uc-thresholds-field.md`](adr/0014-per-uc-thresholds-field.md)
 
 ## `docs/gold-standard-template.md`
 
@@ -1092,6 +1100,10 @@ _No inbound links yet._
 
 - [`docs/recommender-app.md`](recommender-app.md)
 - [`docs/sme-review-guide.md`](sme-review-guide.md)
+
+## `docs/splunk-version-matrix.md`
+
+_No inbound links yet._
 
 ## `docs/splunkbase-review-guide.md`
 
