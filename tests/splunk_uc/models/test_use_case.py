@@ -372,6 +372,34 @@ def test_round_trip_unknown_extras_are_appended_at_tail() -> None:
     assert list(out)[:2] == ["id", "title"]
 
 
+def test_prerequisite_use_cases_round_trip_when_present() -> None:
+    """When the source sidecar specifies a non-empty ``prerequisiteUseCases``
+    list, the modelled value is re-emitted intact. Pins the
+    ``if self.prerequisite_use_cases`` branch on line 301."""
+    sidecar = dict(_minimal_sidecar())
+    sidecar["prerequisiteUseCases"] = ["1.1.1", "1.1.2"]
+    uc = UseCase.from_dict(sidecar)
+    out = uc.to_dict()
+    assert out["prerequisiteUseCases"] == ["1.1.1", "1.1.2"]
+
+
+def test_extras_do_not_overwrite_modelled_attributes_on_round_trip() -> None:
+    """``UseCase.to_dict`` writes the modelled value FIRST, then merges
+    extras. If an extras key collides with a modelled attribute (which
+    can happen when callers manually inject conflicting keys into
+    ``extras``), the modelled attribute must win. Pins the
+    ``if key not in out`` defensive branch."""
+    uc = UseCase.from_dict(_minimal_sidecar())
+    # Force a collision: stash a value under the same key as a modelled
+    # attribute. ``extras`` is bound to a dict that lives behind the
+    # frozen dataclass attribute, so we use ``object.__setattr__`` to
+    # rebind it without violating frozen-ness conceptually.
+    object.__setattr__(uc, "extras", {**uc.extras, "id": "9.9.9-extras-injected"})
+    out = uc.to_dict()
+    # The modelled ``id`` value wins.
+    assert out["id"] == uc.id != "9.9.9-extras-injected"
+
+
 def test_to_typed_dict_returns_same_shape_as_to_dict() -> None:
     """``to_typed_dict`` is a typed view — content stays identical."""
     uc = UseCase.from_dict(_full_sidecar())
