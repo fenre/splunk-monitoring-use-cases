@@ -24,7 +24,9 @@ trend-tracking dashboards consume:
 from __future__ import annotations
 
 import json
+import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -375,6 +377,82 @@ def test_render_writes_reproducible_file(
     p2 = render_metrics.render(synthetic_catalog, out_b, reproducible=True)
     assert p1.name == p2.name == "metrics.json"
     assert p1.read_bytes() == p2.read_bytes()
+
+
+def test_quality_block_coerces_float_depth_to_int() -> None:
+    """When a UC carries a float ``_qs`` value (and it isn't NaN) the
+    quality block coerces it to an int before percentile aggregation
+    (covers the float arm of the depth-score capture at line 173)."""
+
+    ucs = [
+        (None, None, {"_qt": "gold", "_qs": 7}),
+        (None, None, {"_qt": "silver", "_qs": 5.9}),
+        (None, None, {"_qt": "bronze", "_qs": float("nan")}),
+    ]
+    block = render_metrics._quality_block(ucs)
+    # 5.9 → 5 (int cast). NaN is filtered. So percentile inputs are [7, 5].
+    assert block["depthScore"]["count"] == 2
+    assert block["depthScore"]["min"] == 5
+    assert block["depthScore"]["max"] == 7
+
+
+def test_ucs_by_category_skips_non_int_category_id() -> None:
+    """A category whose ``i`` field is not an int is filtered out
+    (covers the true arm of ``not isinstance(cid, int)`` at line 292)."""
+
+    catalog = parse_content.Catalog(
+        project_root=Path("/tmp"),
+        categories=[
+            {"i": 1, "s": [{"u": [{"i": "1.1.1"}, {"i": "1.1.2"}]}]},
+            {"i": "two", "s": [{"u": [{"i": "X.X.X"}]}]},
+            {"i": 3, "s": [{"u": [{"i": "3.1.1"}]}]},
+        ],
+    )
+    by_cat = render_metrics._ucs_by_category(catalog)
+    assert by_cat == {"1": 2, "3": 1}
+
+
+def test_leaderboards_skips_non_string_entries() -> None:
+    """``_leaderboards`` filters out non-string regs/MITRE/CIM/equipment
+    entries so a malformed sidecar can't pollute the top-N (covers the
+    false arms of the four ``isinstance`` filters at lines 315/318/321/324)."""
+
+    ucs = [
+        (
+            None,
+            None,
+            {
+                # ``regs``, ``mitre``, ``a`` and ``e`` mix valid strings,
+                # whitespace-only strings, ``None``s, ints, and dicts.
+                # Only the strings with non-empty stripped content survive.
+                "regs": ["GDPR", "  ", None, 42, "GDPR"],
+                "mitre": ["T1078", {"id": "T1059"}, ""],
+                "a": ["Authentication", None, "  "],
+                "e": ["paloalto", 7, " ", "paloalto"],
+            },
+        ),
+    ]
+    leaders = render_metrics._leaderboards(ucs)
+    assert leaders["regulations"] == [{"regulation": "GDPR", "count": 2}]
+    assert leaders["mitreAttack"] == [{"technique": "T1078", "count": 1}]
+    assert leaders["cimModels"] == [{"model": "Authentication", "count": 1}]
+    assert leaders["equipment"] == [{"id": "paloalto", "count": 2}]
+
+
+def test_emit_timestamp_non_reproducible_uses_wall_clock(
+    synthetic_catalog: parse_content.Catalog,
+) -> None:
+    """When ``reproducible=False`` the helper returns the current UTC
+    wall-clock in RFC 3339 format (covers line 396 in ``render_metrics.py``)."""
+
+    ts = render_metrics._emit_timestamp(synthetic_catalog, reproducible=False)
+    # Format: 2026-05-20T13:45:00Z
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", ts)
+    # Cross-check: the value parses back as a timezone-aware UTC datetime
+    # and is within 5 minutes of "now" (test-clock tolerance, no flakes).
+    parsed = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    now = datetime.now(UTC)
+    assert abs((now - parsed).total_seconds()) < 300
 
 
 def test_render_creates_out_dir_if_missing(
