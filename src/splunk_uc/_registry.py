@@ -511,9 +511,31 @@ register(
 )
 register(
     Verb(
+        name="audit-splunk-version-matrix",
+        module="audits.splunk_version_matrix",
+        help=(
+            "Audit the 2-D Splunk-version compatibility matrix "
+            "(splunkVersions vocabulary + per-category rollup)."
+        ),
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-meraki-spl",
         module="audits.meraki_spl",
         help="Audit Cisco Meraki UCs for SPL hallucinations (unknown sourcetypes/indexes/fields).",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-retrieval-eval",
+        module="audits.retrieval_eval",
+        help=(
+            "Run curated query set against BM25 baseline over dist/rag/ "
+            "(P17 retrieval-eval harness; recall@k / MRR / nDCG@10)."
+        ),
         category="audits",
     )
 )
@@ -549,6 +571,17 @@ register(
         name="generate-stewardship-digest",
         module="generators.stewardship_digest",
         help="P8 step 4 release-over-release stewardship digest (deltas + stale UCs).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-rag-chunks",
+        module="generators.rag_chunks",
+        help=(
+            "Generate the RAG-ready chunked corpus under dist/rag/ "
+            "(first LLM-eval primitive, P17)."
+        ),
         category="generators",
     )
 )
