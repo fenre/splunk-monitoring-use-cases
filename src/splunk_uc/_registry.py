@@ -539,6 +539,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-observability-drift",
+        module="audits.observability_drift",
+        help="Validate dist/observability/* freshness/quality/coverage/Prom artefacts.",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -678,6 +686,14 @@ register(
         name="generate-splunkbase-mappings",
         module="generators.splunkbase_mappings",
         help="Propose splunkbaseApps[] arrays for UC sidecars (--check / --write).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-observability-metrics",
+        module="generators.observability_metrics",
+        help="Emit dist/observability freshness/quality/coverage JSON + catalogue.prom.",
         category="generators",
     )
 )
