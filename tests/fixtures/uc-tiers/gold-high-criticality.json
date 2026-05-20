@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "99.99.1",
+  "subcategory": "99.99",
+  "title": "Fixture: Gold-tier high-criticality UC for tests",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "wave": "walk",
+  "prerequisiteUseCases": ["UC-99.99.9"],
+  "monitoringType": ["Performance", "Availability"],
+  "splunkPillar": "Observability",
+  "industry": "Synthetic test fixtures",
+  "owner": "Head of IT Operations",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Does not cover Windows hosts, container cgroup metrics, or GPU saturation — fixture scope only.",
+  "evidence": "Saved search fixture_gold_high_cpu.json plus dashboard panel export archived to restricted audit index.",
+  "evidenceSigning": {
+    "method": "none",
+    "signer": "fixture-ci-bot"
+  },
+  "compliance": [
+    {
+      "regulation": "gdpr",
+      "version": "2016/679",
+      "clause": "Art.32(1)(b)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.32(1)(b)",
+      "mode": "detects-violation-of",
+      "assurance": "contributing",
+      "assurance_rationale": "Fixture entry demonstrating story-layer compliance shape for gold-tier sidecars.",
+      "controlObjective": "Detects sustained CPU overload that could delay breach-notification workflows.",
+      "evidenceArtifact": "Scheduled search fixture_gold_high_cpu.json with daily CSV export to audit_evidence index.",
+      "obligationRef": "gdpr@2016/679#Art.32(1)(b)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "A Linux host reports cpu_used above 90 for a full hour; the search returns one row for that host.",
+    "negativeScenario": "A host spikes to 100% for two minutes during a package upgrade window; hourly average stays below 90 and the search stays empty.",
+    "fixtureRef": "tests/fixtures/uc-tiers/gold-high-criticality.json",
+    "fixtureStatus": "approved"
+  },
+  "dataSources": "index=os sourcetype=cpu from Splunk_TA_nix scripted input cpu.sh (60s interval). Fields: CPU, pctIdle, pctUser, pctSystem, pctIowait, host.",
+  "app": "Splunk Add-on for Unix and Linux (Splunkbase 833), 9.x on Universal Forwarders and Search Heads.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "minVersion": "8.0.0",
+      "role": "primary"
+    }
+  ],
+  "premiumApps": ["Splunk ITSI"],
+  "spl": "index=os sourcetype=cpu host=* CPU=\"all\"\n| eval cpu_used = 100 - pctIdle\n| timechart span=1h avg(cpu_used) AS avg_cpu BY host\n| where avg_cpu > 90",
+  "cimSpl": "| tstats summariesonly=t avg(Performance.cpu_load_percent) AS avg_cpu FROM datamodel=Performance WHERE nodename=Performance.CPU BY Performance.host span=1h\n| where avg_cpu > 90\n| rename Performance.host AS host",
+  "cimModels": ["Performance"],
+  "schema": "CIM",
+  "dataModelAcceleration": "Enable Performance datamodel acceleration for 30 days; dataset Performance.CPU required.",
+  "description": "Detects Linux hosts whose aggregate CPU has averaged above 90 percent for a full hour, signalling sustained overload before user-facing latency appears.",
+  "value": "Sustained CPU saturation drives queueing, missed SLAs, and emergency scaling. Catching the trend on the host lets operators rebalance workloads or add capacity before the service desk hears about slowness.",
+  "grandmaExplanation": "We watch how hard each test server is working hour by hour. When one stays overloaded for too long, we alert the team so they can fix it before people notice things slowing down.",
+  "implementation": "Deploy Splunk_TA_nix to Linux forwarders, enable the cpu scripted input to index=os, schedule the search every 15 minutes over the last hour, throttle alerts by host for four hours.",
+  "detailedImplementation": "Prerequisites\n• Splunk_TA_nix 8.0+ on forwarders and Search Heads; role linux_observer with srchIndexesAllowed=os.\n• Network path from each UF to indexers on 9997/tcp or 9998/tcp (TLS).\n\nStep 1 — Configure data collection\nEnable `[script://./bin/cpu.sh]` with interval=60, sourcetype=cpu, index=os in deployment-apps/Splunk_TA_nix/local/inputs.conf. Expect one summary row per host per minute (`CPU=all`).\n\nStep 2 — Create the search and alert\nUse the SPL in the sidecar with `CPU=\"all\"` to avoid double-counting per-core rows. Schedule */15 * * * * over -1h@h to @h; trigger when result count > 0; suppress on host for 4h.\n\nUnderstanding this SPL: `avg` over 1h filters brief spikes; tune to span=5m and threshold 85 for tighter SLOs.\n\nStep 3 — Validate\nCompare newest `pctIdle` to `top -bn1` on a sample host within 1%. Confirm CIM tagging with `eventtype=nix_cpu_metric`. Compare host count to your CMDB export.\n\nStep 4 — Operationalize\nDashboard row: single-value hosts over threshold, timechart top 10 hosts, table with owner lookup. Default time range Last 4 hours for incidents, Last 30 days for capacity review.\n\nStep 5 — Troubleshooting\nNo events: verify cpu.sh disabled=0 via btool. NULL pctIdle: props extraction broken — compare raw cpu.sh output. CIM empty: accelerate Performance datamodel. Nightly 03:00 alerts: filter maintenance_windows lookup.",
+  "scriptExample": "#!/bin/bash\n# Fixture-only reference script — not executed in CI.\necho 'CPU pctUser pctSystem pctIowait pctIdle all 12 3 1 84'",
+  "visualization": "Row 1: single-value count of hosts >90% sustained 1h. Row 2: timechart avg_cpu by host (top 10). Row 3: table host, peak cpu, hours over threshold, owner from server_inventory lookup.",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-05-19"
+    },
+    {
+      "title": "Splunk CIM Performance data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-05-19"
+    }
+  ],
+  "knownFalsePositives": "Scheduled backup windows, dnf-automatic nightly upgrades, and brief post-deploy JVM warmup can pin CPU; correlate with index=changes and maintenance_windows lookup before paging.",
+  "mitreAttack": ["T1496"],
+  "detectionType": "Anomaly",
+  "securityDomain": "endpoint",
+  "requiredFields": ["host", "pctIdle", "CPU"],
+  "equipment": ["linux", "splunk"],
+  "equipmentModels": ["linux_rhel", "splunk_enterprise"],
+  "hardware": "Bare-metal and VM Linux hosts in fixture lab only.",
+  "telcoUseCase": "Not applicable — synthetic fixture.",
+  "status": "verified",
+  "lastReviewed": "2026-05-19",
+  "splunkVersions": ["9.2+", "Cloud"],
+  "reviewer": "fixture-maintainer",
+  "dataDomain": ["infrastructure"]
+}
