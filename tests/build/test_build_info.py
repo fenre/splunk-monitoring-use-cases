@@ -120,3 +120,40 @@ class TestBuildInfoHelpers:
         sch.write_text(json.dumps({"version": "3"}), encoding="utf-8")
         out = build_info._schema_versions(tmp_path)
         assert out.get("test.schema.json") == "3"
+
+    def test_schema_versions_falls_back_to_schema_version_field(self, tmp_path: Path):
+        schemas = tmp_path / "schemas"
+        schemas.mkdir()
+        sch = schemas / "alt.schema.json"
+        sch.write_text(json.dumps({"schemaVersion": "9"}), encoding="utf-8")
+        out = build_info._schema_versions(tmp_path)
+        assert out.get("alt.schema.json") == "9"
+
+    def test_schema_versions_returns_zero_on_malformed_json(self, tmp_path: Path):
+        """Covers the ``except (OSError, json.JSONDecodeError)`` branch
+        (lines 114-115). A garbage schema file MUST NOT crash the build
+        — fall back to version "0"."""
+        schemas = tmp_path / "schemas"
+        schemas.mkdir()
+        bad = schemas / "broken.schema.json"
+        bad.write_text("not valid {json", encoding="utf-8")
+        out = build_info._schema_versions(tmp_path)
+        assert out.get("broken.schema.json") == "0"
+
+    def test_schema_versions_returns_zero_when_version_field_absent(self, tmp_path: Path):
+        schemas = tmp_path / "schemas"
+        schemas.mkdir()
+        sch = schemas / "no_version.schema.json"
+        sch.write_text(json.dumps({"title": "Schema"}), encoding="utf-8")
+        out = build_info._schema_versions(tmp_path)
+        # Neither ``version`` nor ``schemaVersion`` present → default "0".
+        assert out.get("no_version.schema.json") == "0"
+
+    def test_schema_versions_preserves_directory_structure(self, tmp_path: Path):
+        """Nested schemas are reported with relative paths."""
+        nested = tmp_path / "schemas" / "v2"
+        nested.mkdir(parents=True)
+        sch = nested / "nested.schema.json"
+        sch.write_text(json.dumps({"version": "1.4"}), encoding="utf-8")
+        out = build_info._schema_versions(tmp_path)
+        assert out.get("v2/nested.schema.json") == "1.4"

@@ -620,3 +620,91 @@ class TestRenderApi:
         assert idx[0]["id"] == "gdpr"
         assert idx[0]["ucCount"] == 1
         assert "lazyHref" in idx[0]
+
+
+class TestDefensiveIsInstanceGuards:
+    """The render_api helpers carry three ``isinstance(...) -> continue``
+    guards (lines 297, 348, 367) that handle malformed JSON sneaking
+    past schema validation. These tests inject the malformed shapes
+    directly so the defensive branches actually execute."""
+
+    def test_build_regulations_skips_non_dict_entry(self, tmp_path: Path):
+        """Line 297: ``if not isinstance(reg, dict): continue``."""
+        cat = parse_content.Catalog(
+            project_root=tmp_path,
+            categories=[],
+            regulations={
+                "valid": {"name": "Valid", "shortName": "V"},
+                "garbage": "not a dict",  # type: ignore[dict-item]
+            },
+        )
+        idx = render_api._build_regulations_index(cat)
+        # Garbage filtered; only valid entry returned.
+        ids = [entry["id"] for entry in idx]
+        assert ids == ["valid"]
+
+    def test_count_ucs_per_regulation_skips_non_dict_regulation(
+        self, tmp_path: Path
+    ):
+        """Line 348: alias-collection loop guards against malformed
+        regulation JSON. The tag-match loop still has to run, so we
+        need a UC referencing the valid regulation."""
+        cat = parse_content.Catalog(
+            project_root=tmp_path,
+            categories=[
+                {
+                    "i": 1,
+                    "n": "C",
+                    "s": [
+                        {
+                            "i": "1.1",
+                            "n": "S",
+                            "u": [
+                                {"i": "1.1.1", "n": "U", "regs": ["VALID"]},
+                            ],
+                        }
+                    ],
+                }
+            ],
+            regulations={
+                "valid": {"name": "Valid Reg", "shortName": "VALID"},
+                "garbage": 42,  # type: ignore[dict-item]
+            },
+        )
+        counts = render_api._count_ucs_per_regulation(cat)
+        # Garbage didn't crash; valid still matched.
+        assert counts.get("valid") == 1
+
+    def test_count_ucs_per_regulation_skips_non_string_tag(self, tmp_path: Path):
+        """Line 367: ``if not isinstance(raw_tag, str): continue`` —
+        defensive guard for malformed ``regs`` list entries."""
+        cat = parse_content.Catalog(
+            project_root=tmp_path,
+            categories=[
+                {
+                    "i": 1,
+                    "n": "C",
+                    "s": [
+                        {
+                            "i": "1.1",
+                            "n": "S",
+                            "u": [
+                                # ``regs`` carries a mix of valid and
+                                # malformed entries.
+                                {
+                                    "i": "1.1.1",
+                                    "n": "U",
+                                    "regs": ["GDPR", 123, None, {"x": 1}],  # type: ignore[list-item]
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+            regulations={
+                "gdpr": {"name": "GDPR", "shortName": "GDPR"},
+            },
+        )
+        counts = render_api._count_ucs_per_regulation(cat)
+        # Only the string "GDPR" matched; non-string tags ignored.
+        assert counts.get("gdpr") == 1
