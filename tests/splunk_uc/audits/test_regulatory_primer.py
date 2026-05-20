@@ -23,7 +23,6 @@ import pytest
 
 from splunk_uc.audits import regulatory_primer as audit
 
-
 # --------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------- #
@@ -217,6 +216,28 @@ def test_audit_appendix_a_table_mismatch_returns_high(
     )
 
 
+def test_audit_appendix_a_table_match_returns_no_finding(
+    hermetic_paths: dict[str, Path],
+) -> None:
+    """Pins the false branch of ``if actual is not None and claimed
+    != actual`` on the Appendix A table loop — when the table count
+    matches truth no finding is emitted.
+    """
+    _seed_authoritative_sources(
+        hermetic_paths, sub_counts={"22.3": 12}
+    )
+    text = (
+        "Some intro.\n\n"
+        "| Sub | Title | Class | Owner | Count |\n"
+        "|-----|-------|-------|-------|-------|\n"
+        "| 22.3 | ISO 27001 | reg | sec | 12 |\n"
+    )
+    findings = audit.audit(text)
+    assert not any(
+        f.category == "uc-count-table" for f in findings
+    )
+
+
 # --------------------------------------------------------------------- #
 # audit() — framework total findings
 # --------------------------------------------------------------------- #
@@ -246,6 +267,19 @@ def test_audit_tier2_intro_mismatch_returns_high(
     )
 
 
+def test_audit_tier2_intro_match_returns_no_finding(
+    hermetic_paths: dict[str, Path],
+) -> None:
+    """Pins the false branch of ``if claimed != actual_t2`` on the
+    T2 intro check — when the claim matches truth, no finding is
+    emitted.
+    """
+    _seed_authoritative_sources(hermetic_paths)  # tier 2 = 2
+    text = "We added an additional 2 tier-2 frameworks last quarter."
+    findings = audit.audit(text)
+    assert not any(f.category == "tier2-count" for f in findings)
+
+
 def test_audit_tier2_badge_mismatch_returns_high(
     hermetic_paths: dict[str, Path],
 ) -> None:
@@ -258,6 +292,16 @@ def test_audit_tier2_badge_mismatch_returns_high(
     )
 
 
+def test_audit_tier2_badge_match_returns_no_finding(
+    hermetic_paths: dict[str, Path],
+) -> None:
+    """Pins the false branch of the T2 badge check (line 197->211)."""
+    _seed_authoritative_sources(hermetic_paths)  # tier 2 = 2
+    text = "**Tier 2** premium content; 2 frameworks are covered."
+    findings = audit.audit(text)
+    assert not any(f.category == "tier2-badge" for f in findings)
+
+
 def test_audit_tier3_badge_mismatch_returns_high(
     hermetic_paths: dict[str, Path],
 ) -> None:
@@ -268,6 +312,16 @@ def test_audit_tier3_badge_mismatch_returns_high(
         f.severity == "HIGH" and f.category == "tier3-badge"
         for f in findings
     )
+
+
+def test_audit_tier3_badge_match_returns_no_finding(
+    hermetic_paths: dict[str, Path],
+) -> None:
+    """Pins the false branch of the T3 badge check (line 215->228)."""
+    _seed_authoritative_sources(hermetic_paths)  # tier 3 = 1
+    text = "**Tier 3** emerging coverage; 1 today across regions."
+    findings = audit.audit(text)
+    assert not any(f.category == "tier3-badge" for f in findings)
 
 
 # --------------------------------------------------------------------- #
