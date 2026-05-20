@@ -1087,6 +1087,54 @@ def test_main_prints_transport_error_under_fail_line(
     assert "name or service not known" in cap.err
 
 
+def test_main_skips_non_severe_message_types(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When a failing panel has messages whose ``type`` is not in
+    ``{FATAL, ERROR, WARN}``, the per-message print loop iterates
+    but skips the print branch (covers the false arm of line 509 in
+    ``dashboard_spl.py``)."""
+
+    app_root = tmp_path / "app"
+    _write_minimal_dashboard(app_root, "v.xml", "search foo | head 1")
+    monkeypatch.setenv("AUDIT_FAKE_TOKEN", "tok")
+
+    opener = _FakeOpener(
+        [
+            _FakeResponse(status=201, body=b'{"sid": "abc"}'),
+            _FakeResponse(
+                status=200,
+                body=(
+                    b'{"entry": [{"content": {"isFailed": true, '
+                    b'"isDone": true, "resultCount": 0, '
+                    b'"messages": [{"type": "INFO", "text": "noise"},'
+                    b' {"type": "DEBUG", "text": "trace"}]}}]}'
+                ),
+            ),
+            _FakeResponse(status=200, body=b"{}"),
+        ]
+    )
+    monkeypatch.setattr(audit.urllib.request, "urlopen", opener)
+
+    rc = audit.main(
+        [
+            "--app-root",
+            str(app_root),
+            "--token-var",
+            "AUDIT_FAKE_TOKEN",
+        ]
+    )
+    cap = capsys.readouterr()
+    assert rc == 1
+    assert "[FAIL]" in cap.err
+    # Non-severe message types must NOT be echoed in the per-panel
+    # FAIL block — only their parent FAIL line is.
+    assert "INFO: noise" not in cap.err
+    assert "DEBUG: trace" not in cap.err
+
+
 def test_main_quiet_mode_suppresses_pass_lines(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

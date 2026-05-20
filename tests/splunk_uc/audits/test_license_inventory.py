@@ -201,6 +201,26 @@ def test_extract_spdx_returns_unknown_when_no_signal() -> None:
     assert source == "unknown"
 
 
+def test_extract_spdx_falls_through_when_legacy_license_normalises_to_none() -> None:
+    """When the ``License`` field is truthy but
+    ``_normalise_license_string`` returns ``None`` (e.g. a long,
+    unrecognised prose description), the extractor must skip the
+    license path and continue with classifier resolution. Covers the
+    false branch of the ``if normalised:`` guard on line 322 in
+    ``license_inventory.py``."""
+
+    meta = _StubMeta(
+        # Prose is too long for the SPDX regex *and* not in the alias
+        # table, so ``_normalise_license_string`` returns ``None``.
+        license_legacy="see project documentation for full license terms",
+        classifiers=["License :: OSI Approved :: MIT License"],
+    )
+    spdx, source = audit._extract_spdx_from_metadata(meta)
+    # The legacy License field DID not win — the classifier did.
+    assert spdx == "MIT"
+    assert source == "classifier"
+
+
 # --------------------------------------------------------------------- #
 # _identify_license_header
 # --------------------------------------------------------------------- #
