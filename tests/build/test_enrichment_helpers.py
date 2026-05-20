@@ -3789,3 +3789,626 @@ class TestParseCategoryFileEscuPostProcessing:
         uc = cat["s"][0]["u"][0]
         # Short ESCU impl is non-empty and contains an ESCU-specific marker.
         assert uc.get("m")
+
+
+# ---------------------------------------------------------------------------
+# _spl_explain_intro — data-sources cross-check branches
+# ---------------------------------------------------------------------------
+
+
+class TestSplExplainIntro:
+    """The intro paragraph for SPL pipeline explanations. Covers the
+    base-search cross-check that surfaces matched / unmatched
+    sourcetypes and the title/value formatting branches."""
+
+    def test_empty_ctx_returns_empty(self):
+        assert en._spl_explain_intro("index=foo", None) == ""
+        assert en._spl_explain_intro("index=foo", {}) == ""
+
+    def test_with_title_and_value(self):
+        ctx = {
+            "title": "My Title",
+            "value": "Detect issues fast",
+            "data_sources": "",
+            "app_ta": "",
+        }
+        result = en._spl_explain_intro("index=foo", ctx)
+        assert "My Title" in result
+        assert "Detect issues fast" in result
+
+    def test_with_title_only(self):
+        ctx = {"title": "T", "value": "", "data_sources": "", "app_ta": ""}
+        result = en._spl_explain_intro("index=foo", ctx)
+        assert "T" in result
+
+    def test_with_value_only(self):
+        ctx = {"title": "", "value": "Some value", "data_sources": "", "app_ta": ""}
+        result = en._spl_explain_intro("index=foo", ctx)
+        assert "Some value" in result
+
+    def test_data_sources_and_app_ta_environment(self):
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "ciscofw logs",
+            "app_ta": "Cisco TA",
+        }
+        result = en._spl_explain_intro("index=foo sourcetype=ciscofw", ctx)
+        assert "Data sources" in result
+        assert "App/TA" in result
+        assert "Cisco TA" in result or "ciscofw" in result
+
+    def test_cim_variant_surfaces_acceleration_warning(self):
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "logs",
+            "app_ta": "TA",
+        }
+        result = en._spl_explain_intro(
+            "| tstats count from datamodel=Web", ctx, cim_variant=True
+        )
+        assert "CIM" in result or "accelerated" in result
+        assert "acceleration" in result.lower()
+
+    def test_matched_sourcetype_renders_alignment_message_singular(self):
+        """Single matched sourcetype -> 'matches what this use case lists'."""
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "ciscofw",
+            "app_ta": "Cisco TA",
+            "dtype": "TTP",
+        }
+        result = en._spl_explain_intro("index=foo sourcetype=ciscofw | stats count", ctx)
+        # Singular alignment phrasing fired.
+        assert (
+            "matches what this use case lists" in result
+            or "align with what this use case lists" in result
+        )
+
+    def test_matched_sourcetype_renders_alignment_message_plural(self):
+        """Multiple matched sourcetypes -> 'align' phrasing."""
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "ciscofw, ciscoasa",
+            "app_ta": "TA",
+        }
+        # Two distinct sourcetypes both mentioned in data_sources.
+        spl = "(sourcetype=ciscofw OR sourcetype=ciscoasa) | stats count"
+        result = en._spl_explain_intro(spl, ctx)
+        assert "align" in result or "matches" in result
+
+    def test_unmatched_sourcetype_renders_warning(self):
+        """Sourcetype absent from data_sources -> warns about parsing."""
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "wineventlog",
+            "app_ta": "TA",
+        }
+        result = en._spl_explain_intro(
+            "index=foo sourcetype=ciscofw | stats count", ctx
+        )
+        # The "If that sourcetype is not mentioned" warning fired.
+        assert "not mentioned" in result or "double-check" in result
+
+    def test_dtype_in_ctx_renders_detection_type_line(self):
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "",
+            "app_ta": "",
+            "dtype": "Anomaly",
+        }
+        result = en._spl_explain_intro("index=foo", ctx)
+        assert "Detection type" in result
+        assert "Anomaly" in result
+
+    def test_index_filter_only(self):
+        """Base search with index= but no sourcetype= still produces a
+        scope-line bullet."""
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "",
+            "app_ta": "",
+        }
+        result = en._spl_explain_intro("index=foo | stats count", ctx)
+        assert "index" in result.lower()
+
+    def test_host_filter_present(self):
+        """Base search with host= renders the host-filter bullet."""
+        ctx = {
+            "title": "T",
+            "value": "v",
+            "data_sources": "",
+            "app_ta": "",
+        }
+        result = en._spl_explain_intro(
+            "index=foo host=server01 sourcetype=bar | stats count", ctx
+        )
+        assert "host" in result.lower()
+
+
+# ---------------------------------------------------------------------------
+# generate_llms_full_txt description / quick-tip branches
+# ---------------------------------------------------------------------------
+
+
+class TestWriteLlmsFullTxt:
+    """Render the catalog-wide LLM full-text index.
+
+    The OUTPUT_LLMS_FULL_TXT global is set lazily by the render-legacy
+    shim, so tests must inject it via ``setattr`` before invocation.
+    """
+
+    def _set_output(self, monkeypatch, path):
+        # The attribute is created lazily; use raising=False so monkeypatch
+        # adds it cleanly (and reverts on teardown).
+        monkeypatch.setattr(en, "OUTPUT_LLMS_FULL_TXT", str(path), raising=False)
+
+    def test_runs_with_minimal_inputs(self, tmp_path, monkeypatch):
+        """write_llms_full_txt writes a markdown index keyed by category;
+        category description and quick tip render when present."""
+        out_path = tmp_path / "llms-full.txt"
+        self._set_output(monkeypatch, out_path)
+
+        data = [
+            {
+                "i": 1,
+                "n": "Server & Compute",
+                "s": [
+                    {
+                        "i": "1.1",
+                        "n": "Linux",
+                        "u": [
+                            {"i": "1.1.1", "n": "CPU usage", "c": "high",
+                             "regs": ["PCI DSS"]},
+                            {"i": "1.1.2", "n": "Memory pressure"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        cat_meta = {"1": {"desc": "Servers and compute infrastructure.",
+                          "quick": "Watch CPU and memory."}}
+        files = []  # no slug lookup needed
+
+        size_kb = en.write_llms_full_txt(data, cat_meta, files, total_uc=2)
+        assert size_kb > 0
+        body = out_path.read_text(encoding="utf-8")
+        assert "Servers and compute infrastructure." in body
+        assert "Quick tip:" in body
+        assert "Watch CPU and memory." in body
+        assert "[high]" in body
+        assert "[PCI DSS]" in body
+
+    def test_uc_without_criticality_or_regs(self, tmp_path, monkeypatch):
+        """Catalog UCs without `c` or `regs` render unadorned."""
+        out_path = tmp_path / "llms-full.txt"
+        self._set_output(monkeypatch, out_path)
+
+        data = [
+            {
+                "i": 1,
+                "n": "Cat1",
+                "s": [
+                    {"i": "1.1", "n": "Sub1", "u": [{"i": "1.1.1", "n": "X"}]},
+                ],
+            }
+        ]
+        en.write_llms_full_txt(data, {}, [], total_uc=1)
+        body = out_path.read_text(encoding="utf-8")
+        assert "UC-1.1.1" in body
+        # No criticality bracket appended.
+        assert "[high]" not in body
+        assert "[medium]" not in body
+
+
+class TestWriteLlmsTxt:
+    """Concise llms.txt — the LLM-friendly catalog summary."""
+
+    def _set_output(self, monkeypatch, path):
+        monkeypatch.setattr(en, "OUTPUT_LLMS_TXT", str(path), raising=False)
+
+    def test_with_slug_for_category(self, tmp_path, monkeypatch):
+        """When _cat_slug_for_id returns a slug, the bullet links to it."""
+        out_path = tmp_path / "llms.txt"
+        self._set_output(monkeypatch, out_path)
+        data = [
+            {
+                "i": 1,
+                "n": "Server",
+                "s": [{"i": "1.1", "n": "Sub", "u": [{"i": "1.1.1", "n": "X"}]}],
+            }
+        ]
+        cat_meta = {"1": {"desc": "Servers."}}
+        # files contains the canonical category slug.
+        files = ["cat-01-server.md"]
+        size_kb = en.write_llms_txt(data, cat_meta, files, total_uc=1)
+        assert size_kb > 0
+        body = out_path.read_text(encoding="utf-8")
+        assert "[Server]" in body
+        assert "cat-01-server" in body
+        assert "1 use cases" in body
+
+    def test_without_slug_renders_plain_bullet(self, tmp_path, monkeypatch):
+        """Without a matching slug, the bullet falls back to plain text."""
+        out_path = tmp_path / "llms.txt"
+        self._set_output(monkeypatch, out_path)
+        data = [
+            {
+                "i": 99,
+                "n": "Phantom Cat",
+                "s": [{"i": "99.1", "n": "Sub", "u": [{"i": "99.1.1", "n": "X"}]}],
+            }
+        ]
+        # Empty files -> _cat_slug_for_id returns None -> plain bullet branch.
+        en.write_llms_txt(data, {}, [], total_uc=1)
+        body = out_path.read_text(encoding="utf-8")
+        # Plain bullet (no markdown link) for the category.
+        assert "- Phantom Cat:" in body
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file — sidecar metadata merge branches
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFileSidecarMerge:
+    """The post-loop merges with the sidecar caches (compliance, quality,
+    matched apps, ta_link). Each branch fires only when the sidecar
+    actually carries data, so we seed the module-level caches with
+    in-memory fixtures."""
+
+    def _write_md(self, tmp_path: Path, body: str) -> str:
+        p = tmp_path / "cat-99-test.md"
+        p.write_text(body, encoding="utf-8")
+        return str(p)
+
+    def _seed_sidecar_caches(
+        self,
+        monkeypatch,
+        *,
+        compliance=None,
+        quality=None,
+    ):
+        """Inject concrete sidecar caches so the post-loop merge branches
+        in parse_category_file fire deterministically."""
+        # Force the cache populator to early-exit (caches already loaded).
+        monkeypatch.setattr(en, "_SIDECAR_GRANDMA_CACHE", {}, raising=False)
+        monkeypatch.setattr(
+            en, "_SIDECAR_COMPLIANCE_CACHE", compliance or {}, raising=False
+        )
+        monkeypatch.setattr(en, "_SIDECAR_QUALITY_CACHE", quality or {}, raising=False)
+        monkeypatch.setattr(en, "_SIDECAR_EQUIPMENT_CACHE", None, raising=False)
+
+    def test_compliance_rows_merged_from_sidecar(self, tmp_path, monkeypatch):
+        """When _SIDECAR_COMPLIANCE_CACHE has rows for a UC id, the
+        post-loop branch copies them onto uc['cmp']."""
+        compliance = {
+            "99.1.1": [
+                {"r": "PCI DSS", "v": "4.0", "cl": "1.1.1", "m": "alert"}
+            ]
+        }
+        self._seed_sidecar_caches(monkeypatch, compliance=compliance)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("cmp") == compliance["99.1.1"]
+
+    def test_quality_kfp_merged_when_uc_has_no_kfp(self, tmp_path, monkeypatch):
+        """The qmeta KFP branch (line 3437) fires when the sidecar has a
+        KFP value AND the UC dict's KFP is empty."""
+        quality = {"99.1.1": {"kfp": "Maintenance windows."}}
+        self._seed_sidecar_caches(monkeypatch, quality=quality)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("kfp") == "Maintenance windows."
+
+    def test_quality_kfp_does_not_overwrite_existing(self, tmp_path, monkeypatch):
+        """The KFP branch is idempotent — it doesn't replace a value the
+        UC already provides inline."""
+        quality = {"99.1.1": {"kfp": "Sidecar KFP value"}}
+        self._seed_sidecar_caches(monkeypatch, quality=quality)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Known false positives:** Inline KFP value\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("kfp") == "Inline KFP value"
+
+    def test_quality_mitre_merged_when_uc_has_no_mitre(self, tmp_path, monkeypatch):
+        """The qmeta MITRE branch (line 3439) fires when the sidecar
+        carries MITRE tags AND the UC has none."""
+        quality = {"99.1.1": {"mitre": ["T1110", "T1078"]}}
+        self._seed_sidecar_caches(monkeypatch, quality=quality)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("mitre") == ["T1110", "T1078"]
+
+    def test_quality_reviewed_merged_when_uc_has_none(self, tmp_path, monkeypatch):
+        """The qmeta lastReviewed branch (line 3441) fires when sidecar
+        has a date and UC has none."""
+        quality = {"99.1.1": {"reviewed": "2026-02-15"}}
+        self._seed_sidecar_caches(monkeypatch, quality=quality)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("reviewed") == "2026-02-15"
+
+    def test_grandma_explanation_merged_from_sidecar(self, tmp_path, monkeypatch):
+        """When the sidecar grandma cache has a value for the UC, it is
+        used in preference to the runtime fallback."""
+        monkeypatch.setattr(
+            en,
+            "_SIDECAR_GRANDMA_CACHE",
+            {"99.1.1": "We watch for unusual things."},
+            raising=False,
+        )
+        monkeypatch.setattr(en, "_SIDECAR_COMPLIANCE_CACHE", {}, raising=False)
+        monkeypatch.setattr(en, "_SIDECAR_QUALITY_CACHE", {}, raising=False)
+        monkeypatch.setattr(en, "_SIDECAR_EQUIPMENT_CACHE", None, raising=False)
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["ge"] == "We watch for unusual things."
+
+
+# ---------------------------------------------------------------------------
+# assign_pillar — tier-1 and tier-2 branches
+# ---------------------------------------------------------------------------
+
+
+class TestAssignPillar:
+    """Pillar (security / observability / both) assignment for UCs.
+    Used by parse_category_file post-processing and the catalog UI."""
+
+    def test_existing_pillar_preserved(self):
+        uc = {"pillar": "both", "n": "X", "v": "v"}
+        assert en.assign_pillar(uc, 1) == "both"
+
+    def test_security_signal_via_sdomain(self):
+        uc = {"sdomain": "endpoint", "n": "X"}
+        # Cat 1 isn't security; observability signal = none -> security wins.
+        assert en.assign_pillar(uc, 1) == "security"
+
+    def test_security_signal_via_mitre(self):
+        uc = {"mitre": ["T1110"], "n": "X"}
+        assert en.assign_pillar(uc, 1) == "security"
+
+    def test_security_signal_via_dtype(self):
+        uc = {"dtype": "TTP", "n": "X"}
+        assert en.assign_pillar(uc, 1) == "security"
+
+    def test_security_cat_with_no_other_signal(self):
+        """Categories 9, 10, 17 default to security. Hits line 2000."""
+        uc = {"n": "X", "v": "Generic monitor"}
+        # Cat 10 is in PILLAR_SECURITY_CATS.
+        assert en.assign_pillar(uc, 10) == "security"
+
+    def test_security_cat_19_is_not_security(self):
+        """Categories outside PILLAR_SECURITY_CATS default to observability
+        when no other signal is present."""
+        uc = {"n": "X", "v": "Generic monitor"}
+        assert en.assign_pillar(uc, 19) == "observability"
+
+    def test_security_signal_from_security_keyword_in_title(self):
+        uc = {"n": "Detect malware", "v": "v"}
+        # "malware" or other security words trigger security.
+        assert en.assign_pillar(uc, 1) == "security"
+
+    def test_both_when_both_signals_present(self):
+        uc = {
+            "n": "Threat detection",  # security keyword
+            "mtype": ["Performance"],  # observability mtype
+        }
+        assert en.assign_pillar(uc, 1) == "both"
+
+    def test_security_mtype_marks_security(self):
+        uc = {"n": "X", "mtype": ["Security"]}
+        assert en.assign_pillar(uc, 1) == "security"
+
+    def test_observability_mtype_marks_observability(self):
+        uc = {"n": "X", "mtype": ["Performance"]}
+        assert en.assign_pillar(uc, 1) == "observability"
+
+
+# ---------------------------------------------------------------------------
+# assign_regulations — tier-2 PCI without prior tier-1 hit (line 1349)
+# ---------------------------------------------------------------------------
+
+
+class TestAssignRegulationsPciTier2NoDoubleAdd:
+    """Line 1349: `if "pci" in title and "PCI DSS" not in auto`.
+
+    Triggered when the UC mentions PCI but is NOT in subcategory 10.12
+    (so the tier-1 PCI branch didn't fire) — and crucially, the title
+    isn't 'cardholder' / 'payment card' (which would have fired before
+    line 1349 added it via the tier-2 check)."""
+
+    def test_pci_keyword_in_other_subcategory_adds_pci_dss(self):
+        # Cat 5, sub 5.1 — outside the tier-1 PCI subcategory 10.12.
+        uc = {"n": "PCI scope discovery"}
+        regs = en.assign_regulations(uc, 5, "5.1")
+        assert "PCI DSS" in regs
+
+
+# ---------------------------------------------------------------------------
+# write_llms_full_txt — slug branch (line 4160-4162)
+# ---------------------------------------------------------------------------
+
+
+class TestWriteLlmsFullTxtWithSlug:
+    """Covers the cat_slug branch in write_llms_full_txt that emits
+    'Full details:' and 'Raw GitHub:' bullets."""
+
+    def test_full_details_and_raw_github_bullets(self, tmp_path, monkeypatch):
+        out_path = tmp_path / "llms-full.txt"
+        monkeypatch.setattr(
+            en, "OUTPUT_LLMS_FULL_TXT", str(out_path), raising=False
+        )
+        data = [
+            {
+                "i": 1,
+                "n": "Server",
+                "s": [{"i": "1.1", "n": "Sub", "u": [{"i": "1.1.1", "n": "X"}]}],
+            }
+        ]
+        # files contains the slug -> _cat_slug_for_id returns it -> bullet branch.
+        files = ["cat-01-server.md"]
+        en.write_llms_full_txt(data, {}, files, total_uc=1)
+        body = out_path.read_text(encoding="utf-8")
+        assert "Full details:" in body
+        assert "Raw GitHub:" in body
+        assert "cat-01-server" in body
+
+
+# ---------------------------------------------------------------------------
+# apps_for_ta_string — defensive paths
+# ---------------------------------------------------------------------------
+
+
+class TestAppsForTaStringDefensivePaths:
+    """Two narrow defensive branches that fire on input edges:
+
+    - line 2073: ``ta_str`` becomes empty after stripping backticks
+      (e.g., a single backtick string passes the first non-empty check)
+    - line 2095: ``cited_ids`` skips entries whose ``app["id"]`` isn't
+      in the cited set (proves we don't return EVERY app when at least
+      one ID is cited)
+    """
+
+    def test_backtick_only_string_returns_empty(self, monkeypatch):
+        """A bare backtick passes the first strip() check (it strips to
+        just a backtick) but then becomes empty after replace + strip,
+        triggering the early return on line 2073."""
+        monkeypatch.setattr(en, "SPLUNK_APPS", [], raising=True)
+        # Input is `` ` `` followed by whitespace -> strip() = `` ` ``
+        # -> replace("`","")+strip() = "" -> raw is empty -> early return.
+        assert en.apps_for_ta_string("`") == []
+
+    def test_cited_ids_only_returns_apps_actually_cited(self, monkeypatch):
+        """When cited_ids has one ID, the loop must skip apps whose ID
+        is not in the set (line 2095 — `continue` branch)."""
+        fake_apps = [
+            {"id": 11111, "name": "App-One", "url": "https://x/11111",
+             "tas": ["zzz_no_match"], "desc": ""},
+            {"id": 22222, "name": "App-Two", "url": "https://x/22222",
+             "tas": ["yyy_no_match"], "desc": ""},
+            {"id": 33333, "name": "App-Three", "url": "https://x/33333",
+             "tas": ["xxx_no_match"], "desc": ""},
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps, raising=True)
+        # Cite ONLY ID 22222 — the loop must skip apps 11111 and 33333
+        # via the `continue` branch on line 2095.
+        result = en.apps_for_ta_string("Reference: Splunkbase 22222")
+        assert len(result) == 1
+        assert result[0]["id"] == 22222
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file — TA link assignment (line 3447)
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFileTaLinkAssignment:
+    """When ``ta_link_for_ta_string(uc['t'])`` returns a hit (the TA
+    matches a registered ``SPLUNK_TAS`` pattern), parse_category_file
+    must attach ``ta_link`` to the UC (line 3447)."""
+
+    def test_ta_link_attached_when_pattern_matches(self, tmp_path, monkeypatch):
+        # Register one TA whose pattern matches "Splunk_TA_Test_42".
+        fake_tas = [
+            {
+                "id": 4242,
+                "name": "Test TA",
+                "tas": ["splunk_ta_test_42"],
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_TAS", fake_tas, raising=True)
+
+        md = tmp_path / "cat-99-test.md"
+        md.write_text(
+            "# 99. Test Category\n\n"
+            "## 99.1 Sub\n\n"
+            "### UC-99.1.1 \u00b7 Test UC\n\n"
+            "- **Criticality:** Critical\n"
+            "- **Difficulty:** Easy\n"
+            "- **Value:** Detect badness.\n"
+            "- **App / TA:** Splunk_TA_Test_42\n",
+            encoding="utf-8",
+        )
+        cat = en.parse_category_file(str(md))
+        # parse_category_file returns a single category dict.
+        assert cat and cat["s"] and cat["s"][0]["u"]
+        uc = cat["s"][0]["u"][0]
+        # ta_link must be attached because pattern matched.
+        assert "ta_link" in uc
+        assert uc["ta_link"]["id"] == 4242
+        assert uc["ta_link"]["name"] == "Test TA"
+
+
+# ---------------------------------------------------------------------------
+# extract_filter_facets — garbage datasource skip (line 3809)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractFilterFacetsGarbageDatasource:
+    """When a UC's ``d`` (data sources) string contains a token that
+    matches the ``_DS_GARBAGE`` pattern (e.g., ``var``, ``log``, ``user``),
+    extract_filter_facets must skip it (line 3809)."""
+
+    def test_garbage_token_is_skipped(self):
+        data = [
+            {
+                "i": 1,
+                "n": "Cat",
+                "s": [
+                    {
+                        "i": "1.1",
+                        "n": "Sub",
+                        "u": [
+                            {
+                                "i": "1.1.1",
+                                "n": "UC",
+                                # "var" is in _DS_GARBAGE → skipped on 3809.
+                                # "WinEventLog" is NOT garbage → kept.
+                                "d": "var, WinEventLog, log",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+        facets = en.extract_filter_facets(data)
+        # Garbage tokens should not appear in any data-source group.
+        # The only legit token is "WinEventLog" but it has count=1, so
+        # it's filtered by the >=2 threshold. Either way, "var" and
+        # "log" must NOT be in facets["datasources"].
+        ds_groups = facets.get("datasources", [])
+        all_ds_names = []
+        for grp in ds_groups:
+            all_ds_names.extend(child.get("name", "") for child in grp.get("children", []))
+        assert "var" not in all_ds_names
+        assert "log" not in all_ds_names
