@@ -500,6 +500,54 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
 # to surface real hallucinations.
 # ---------------------------------------------------------------------------
 WELL_KNOWN_MACROS: set[str] = {
+    # ------------------------------------------------------------------
+    # Splunk Common Information Model (CIM) add-on — Splunkbase 1621
+    # ------------------------------------------------------------------
+    # ``cim_<datamodel>_indexes`` macros are the canonical entry points
+    # CIM authors expect every dashboard / detection to use as the
+    # data-source filter (lets the customer point each data model at
+    # the indexes that hold their data without rewriting SPL). They are
+    # documented in `docs.splunk.com/Documentation/CIM/.../Usage`.
+    "cim_Alerts_indexes",
+    "cim_Application_State_indexes",
+    "cim_Authentication_indexes",
+    "cim_Change_indexes",
+    "cim_Compute_Inventory_indexes",
+    "cim_DLP_indexes",
+    "cim_Databases_indexes",
+    "cim_Email_indexes",
+    "cim_Endpoint_indexes",
+    "cim_Event_Signatures_indexes",
+    "cim_IDS_indexes",
+    "cim_Inventory_indexes",
+    "cim_JVM_indexes",
+    "cim_Malware_indexes",
+    "cim_Network_Resolution_indexes",
+    "cim_Network_Sessions_indexes",
+    "cim_Network_Traffic_indexes",
+    "cim_Performance_indexes",
+    "cim_Splunk_Audit_indexes",
+    "cim_Ticket_Management_indexes",
+    "cim_Updates_indexes",
+    "cim_Vulnerabilities_indexes",
+    "cim_Web_indexes",
+    # ------------------------------------------------------------------
+    # Splunk Enterprise utility macros (commonly published in dashboards
+    # and the Splunk Lantern library; not strictly an add-on but every
+    # mature production environment carries them or an equivalent).
+    # ------------------------------------------------------------------
+    # IP -> geo enrichment used in many Splunk-supplied compliance and
+    # security dashboards. Documented in the Splunk Enterprise
+    # Search Reference under the `iplocation` command guidance.
+    "get_geolocation",
+    # ------------------------------------------------------------------
+    # Cisco ThousandEyes App for Splunk — Splunkbase 7719
+    # ------------------------------------------------------------------
+    # Index-aliasing macros the TA defines in `default/macros.conf`
+    # so dashboards work against whichever index the deployer routes
+    # ThousandEyes data into. See ``ta_cisco_thousandeyes`` README.
+    "event_index",
+    "path_viz_index",
     # Time / event helpers
     "security_content_ctime",
     "security_content_summariesonly",
