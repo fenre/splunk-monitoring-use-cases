@@ -1,0 +1,124 @@
+# False positive report process
+
+> **Audience.** Splunk operators who filed a [False positive
+> report](https://github.com/fenre/splunk-monitoring-use-cases/issues/new?template=false-positive-report.yml)
+> issue, and maintainers triaging those reports.
+
+## What this is (and is not)
+
+| Form | Purpose |
+| --- | --- |
+| **False positive report** | Operational tuning — the detection ran but was benign, too aggressive, or mismatched your CIM/deployment. |
+| [**Use case feedback**](../.github/ISSUE_TEMPLATE/use-case-feedback.yml) | Catalogue content error — wrong SPL, sourcetype, TA, typo, or broken reference in the JSON sidecar. |
+
+The dashboard **Report issue on GitHub** button pre-fills the **use case feedback**
+template, not this one. File a false-positive report manually when your Splunk
+environment behaved differently from what the catalogue documents.
+
+## Intake
+
+- **Channel:** GitHub issues only, using the
+  [`false-positive-report`](../.github/ISSUE_TEMPLATE/false-positive-report.yml)
+  template. Do not email maintainers or paste customer data in Discussions.
+- **Public by default.** Issues are visible to everyone. **Redact PII, customer
+  names, employee identifiers, hostnames tied to a customer, and raw event
+  payloads** before submitting. Describe patterns and volumes instead of pasting
+  `_raw` events.
+- **Labels applied automatically:** `false-positive`, `needs-triage`.
+
+## Triage checklist
+
+Maintainers work through this list before changing catalogue content:
+
+1. **Reproduce with sample data?** Can the SPL be run against synthetic or
+   anonymised events that match the reporter's sourcetype/index shape?
+2. **Threshold issue?** Is the detection logic sound but the default count,
+   time window, or percentile too aggressive for typical deployments?
+3. **Logic bug?** Does the SPL miss a benign branch (e.g. service account,
+   scanner, maintenance window) that should be excluded or documented?
+4. **Missing `knownFalsePositives` documentation?** Does the UC sidecar lack a
+   named scenario that gold-standard authoring expects? See
+   [`docs/gold-standard-authoring-playbook.md`](gold-standard-authoring-playbook.md)
+   §2.5 and [`docs/uc-quality-mandate.md`](uc-quality-mandate.md).
+5. **Environment-specific?** Is the report unique to one customer's indexing,
+   field aliasing, or CIM acceleration gap — better handled locally than in the
+   shared catalogue?
+
+## Outcomes
+
+Every triaged issue ends in one of these paths:
+
+### (a) Update `knownFalsePositives` via a maintainer lift PR
+
+When the scenario is general enough to help other operators, a **human maintainer**
+(or the content-quality lift loop) adds a named entry to the UC sidecar's
+`knownFalsePositives[]` field. This is the preferred outcome when the SPL is
+correct but the benign scenario was undocumented.
+
+### (b) Tune thresholds in documentation only
+
+When the SPL is intentionally strict and the fix is operational (widen the window,
+raise the count, add a lookup exclusion), maintainers may document the tuning
+guidance in the issue closure comment or in implementation notes — without
+changing the canonical SPL in the sidecar.
+
+### (c) Close as wontfix with explanation
+
+When the behaviour is correct for the catalogue's stated assumptions, or the report
+is purely environment-specific, close the issue with a clear explanation so
+future searchers understand the decision.
+
+## SLA
+
+The catalogue commits to **acknowledging new false-positive reports within
+10 business days** under full operating mode, consistent with the contributor
+PR triage target in [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
+("Contributor PR median triage ≤ 10 business days"). Resolution time depends on
+reproducibility and whether a sidecar lift is required; maintainers will post
+status updates on long-running items.
+
+During **reduced** or **solo** operating modes, acknowledgement may slip; see
+the capacity document for scope-down rules.
+
+## What contributors cannot do
+
+**Contributors and automation subagents must not commit UC JSON sidecar changes
+directly** (`content/cat-*/UC-*.json`). That surface is guarded by the subagent
+UC-firewall audit — sidecar edits flow through maintainer review and the
+content-quality lift loop (`lift-validate`, gold-profile gates).
+
+You *may*:
+
+- File this issue with anonymised context.
+- Propose SPL diffs or `knownFalsePositives` wording in the issue body.
+- Open a PR that touches **documentation only** (this file, runbooks, etc.).
+
+You *may not* (without maintainer delegation):
+
+- Push direct edits to UC sidecars from a subagent or bulk automation job.
+- Expect an immediate SPL rewrite in the canonical sidecar from a first report
+  without maintainer triage.
+
+See also the subagent UC-firewall audit documentation when it lands on `main`
+(`docs/subagent-firewall.md` — parallel track B-7).
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+
+<details>
+<summary>Additional online sources cited in the document body (1)</summary>
+
+<a id="ref-2"></a>**[2]** github.com. *GitHub: fenre/splunk-monitoring-use-cases*. Retrieved May 11, 2026, from https://github.com/fenre/splunk-monitoring-use-cases/issues/new?template=false-positive-report.yml
+
+</details>
+
+<!-- END-AUTOGENERATED-SOURCES -->
