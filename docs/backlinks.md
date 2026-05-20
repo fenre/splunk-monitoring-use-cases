@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_217 pages indexed; 128 have at least one inbound link; 428 unique source→target edges._
+_219 pages indexed; 129 have at least one inbound link; 432 unique source→target edges._
 
 ---
 
@@ -45,6 +45,7 @@ _No inbound links yet._
 
 ## `CONTRIBUTING.md`
 
+- [`docs/parallel-execution-substrate.md`](parallel-execution-substrate.md)
 - [`docs/replication-guide.md`](replication-guide.md)
 
 ## `GOVERNANCE.md`
@@ -144,6 +145,7 @@ _No inbound links yet._
 - [`docs/capacity-and-staffing.md`](capacity-and-staffing.md)
 - [`docs/external-consumer-matrix.md`](external-consumer-matrix.md)
 - [`docs/north-star-scorecard.md`](north-star-scorecard.md)
+- [`docs/parallel-execution-substrate.md`](parallel-execution-substrate.md)
 - [`docs/rollback-playbook.md`](rollback-playbook.md)
 
 ## `docs/adr/0008-canonical-constants.md`
@@ -295,6 +297,7 @@ _No inbound links yet._
 - [`docs/f8-frontend-hardening-inventory.md`](f8-frontend-hardening-inventory.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+- [`docs/parallel-execution-substrate.md`](parallel-execution-substrate.md)
 
 ## `docs/cim-and-data-models.md`
 
@@ -996,6 +999,10 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/parallel-execution-substrate.md`
+
+- [`docs/subagent-firewall.md`](subagent-firewall.md)
+
 ## `docs/peer-review-guide.md`
 
 - [`docs/sme-review-guide.md`](sme-review-guide.md)
@@ -1112,6 +1119,10 @@ _No inbound links yet._
 ## `docs/stewardship-digest.md`
 
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
+
+## `docs/subagent-firewall.md`
+
+_No inbound links yet._
 
 ## `docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md`
 

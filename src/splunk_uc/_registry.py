@@ -503,6 +503,14 @@ register(
 )
 register(
     Verb(
+        name="audit-subagent-uc-firewall",
+        module="audits.subagent_uc_firewall",
+        help="Fail closed when subagent-authored PRs touch content/cat-*/UC-*.json sidecars.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-splunk-cloud-compat",
         module="audits.splunk_cloud_compat",
         help="Audit SPL + content packs for Splunk Cloud (Victoria/Classic) compatibility.",
