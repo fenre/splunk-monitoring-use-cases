@@ -455,6 +455,14 @@ register(
 )
 register(
     Verb(
+        name="audit-evidence-signatures",
+        module="audits.evidence_signatures",
+        help="Audit dist/evidence manifests and evidence-pack signatures (Phase C-2).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-mapping-ledger",
         module="audits.mapping_ledger",
         help="Validate data/provenance/mapping-ledger.json (schema + hash chain + integrity).",
@@ -598,6 +606,14 @@ register(
         name="generate-equipment-tags",
         module="generators.equipment_tags",
         help="Backfill `equipment[]`/`equipmentModels[]` UC sidecar fields from EQUIPMENT registry.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-evidence-signatures",
+        module="generators.sign_evidence",
+        help="Generate dist/evidence manifests and optional GPG signatures (Phase C-2).",
         category="generators",
     )
 )
