@@ -4412,3 +4412,70 @@ class TestExtractFilterFacetsGarbageDatasource:
             all_ds_names.extend(child.get("name", "") for child in grp.get("children", []))
         assert "var" not in all_ds_names
         assert "log" not in all_ds_names
+
+
+# ---------------------------------------------------------------------------
+# explain_spl_pipeline / _split_spl_stages — defensive empty-stage path
+# ---------------------------------------------------------------------------
+
+
+class TestExplainSplPipelineNoStages:
+    """Pin line 2953: ``if not stages: return ""`` — fires when
+    ``_split_spl_stages`` returns ``[]`` for non-empty input. Reachable
+    by feeding only the pipe character (passes the strip-empty guard
+    on line 2948 but the splitter appends nothing because every
+    segment is empty after stripping)."""
+
+    def test_pipe_only_input_returns_empty(self):
+        assert en.explain_spl_pipeline("|") == ""
+
+    def test_multiple_pipes_only_returns_empty(self):
+        # ``|||`` → splitter sees three empty segments → returns [].
+        assert en.explain_spl_pipeline("|||") == ""
+
+    def test_whitespace_around_pipes_returns_empty(self):
+        # Each ``|`` boundary yields an empty stripped segment.
+        assert en.explain_spl_pipeline("  |  |  ") == ""
+
+
+# ---------------------------------------------------------------------------
+# _load_sidecar_caches — cache-hit short-circuit
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSidecarCachesShortCircuit:
+    """Pin line 2259: ``if not (grandma_needed or compliance_needed or
+    quality_needed): return`` — fires when every cache is already
+    populated. Verify by priming all three caches and asserting the
+    second call is a no-op (does NOT walk CONTENT_DIR)."""
+
+    def test_second_call_is_noop_when_all_caches_populated(
+        self, tmp_path: Path, monkeypatch
+    ):
+        # Snapshot and restore the module-level caches.
+        snap_g = en._SIDECAR_GRANDMA_CACHE
+        snap_c = en._SIDECAR_COMPLIANCE_CACHE
+        snap_q = en._SIDECAR_QUALITY_CACHE
+        try:
+            en._SIDECAR_GRANDMA_CACHE = {"1.1.1": "primed"}
+            en._SIDECAR_COMPLIANCE_CACHE = {"1.1.1": [{"r": "GDPR"}]}
+            en._SIDECAR_QUALITY_CACHE = {"1.1.1": {"reviewed": "2026-01-01"}}
+
+            # Ensure CONTENT_DIR is *not* walked: redirect it to a
+            # path that doesn't exist. If the function failed to
+            # short-circuit, the os.walk would silently yield no rows
+            # — so prove the short-circuit by also patching os.walk
+            # to raise.
+            def boom(_path):
+                raise AssertionError("os.walk should not be called when caches are full")
+
+            monkeypatch.setattr(en.os, "walk", boom)
+            en._populate_content_sidecar_caches()
+            # Caches unchanged.
+            assert en._SIDECAR_GRANDMA_CACHE == {"1.1.1": "primed"}
+            assert en._SIDECAR_COMPLIANCE_CACHE == {"1.1.1": [{"r": "GDPR"}]}
+            assert en._SIDECAR_QUALITY_CACHE == {"1.1.1": {"reviewed": "2026-01-01"}}
+        finally:
+            en._SIDECAR_GRANDMA_CACHE = snap_g
+            en._SIDECAR_COMPLIANCE_CACHE = snap_c
+            en._SIDECAR_QUALITY_CACHE = snap_q

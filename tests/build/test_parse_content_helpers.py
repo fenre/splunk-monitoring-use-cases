@@ -637,6 +637,25 @@ class TestLoadCatMetaFromContent:
         assert cat.cat_meta["99"]["desc"] == ""
         assert "quick" not in cat.cat_meta["99"]
 
+    def test_loads_description_only_no_icon(self, tmp_path):
+        """Pin branch [980, 982] — ``meta.get("icon")`` is missing/empty
+        so the icon-write branch is skipped, then description is still
+        applied. Symmetrical to ``test_loads_partial_fields`` but the
+        false arm of the icon check."""
+        content = tmp_path / "content"
+        content.mkdir()
+        d = content / "cat-99"
+        d.mkdir()
+        (d / "_category.json").write_text(
+            json.dumps({"id": 99, "name": "X", "description": "Desc only"}),
+            encoding="utf-8",
+        )
+        cat = parse_content.empty(project_root=tmp_path)
+        parse_content._load_cat_meta_from_content(cat, tmp_path)
+        # icon stays at the default empty string; desc is populated.
+        assert cat.cat_meta["99"]["icon"] == ""
+        assert cat.cat_meta["99"]["desc"] == "Desc only"
+
 
 # ---------------------------------------------------------------------------
 # _load_regulations

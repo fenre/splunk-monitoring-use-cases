@@ -781,6 +781,52 @@ class TestStageHtmlRewriteBranchCoverage:
         # applies because the file is in /browse/, even though prefix is "").
         assert "<style>X</style>" not in text  # swapped out
 
+    def test_root_spa_use_root_abs_false_skips_relative_rewrite(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Pin branch [469, 471]: the false arm of ``if use_root_abs``.
+
+        ``use_root_abs = index_path.parent != opts.out_dir`` — when the
+        SPA lives at ``dist/index.html`` (parent IS out_dir), the rewrite
+        is skipped but the file is still written. Build a setup where:
+
+        * Only ``out_dir/index.html`` exists (no /browse/).
+        * It does NOT carry the ``class="cta primary"`` SSG marker, so
+          ``_looks_like_ssg_landing`` returns False and the loop
+          processes it as a SPA copy.
+        * The relative ``href`` would be rewritten if use_root_abs were
+          True; we assert it survived intact.
+        """
+        cat = parse_content.empty(tmp_path)
+        cat.asset_hashes = {"styles_css": "s.css", "app_js": "a.js"}
+        opts = _make_opts(tmp_path)
+        opts.out_dir.mkdir(parents=True)
+        # SPA at root (no SSG marker) — gets rewritten with
+        # use_root_abs=False.
+        spa = opts.out_dir / "index.html"
+        spa.write_text(
+            '<head><style>X</style></head>'
+            '<body><link href="assets/foo.css">'
+            '<script>\nx\n</script></body>',
+            encoding="utf-8",
+        )
+        # No browse/ subdir — only the root copy is processed.
+        monkeypatch.setenv("SITE_URL", "https://example.com/x/")
+        build_mod._stage_html_rewrite(opts, cat)
+        text = spa.read_text(encoding="utf-8")
+        # File was written (rewrote >= 1).
+        assert text != ""
+        # Style block was swapped (use_root_abs=False applies to swap
+        # too, but it still happens).
+        assert "<style>X</style>" not in text
+        # The original relative href survived because the
+        # _rewrite_relative_refs_to_root_abs call was SKIPPED (line 470
+        # short-circuited on the false arm). When use_root_abs is True
+        # this href would have been rewritten to ``/x/assets/foo.css``;
+        # here it stays bare ``assets/foo.css``.
+        assert 'href="assets/foo.css"' in text
+        assert 'href="/x/assets/foo.css"' not in text
+
 
 # ---------------------------------------------------------------------------
 # CLI: main / _run_once / _run_check

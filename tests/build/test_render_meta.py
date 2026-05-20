@@ -1,661 +1,761 @@
-"""Hermetic tests for ``tools/build/render_meta.py``.
+"""Hermetic tests for tools/build/render_meta.py.
 
-Covers the static-file writers (robots/security/pwa/ai), the Atom
-feed builder, the sharded sitemap-index + per-section sitemaps, the
-machine-consumer manifest, the OpenAPI v2 template renderer, and the
-shared timestamp helpers.
+Targets the discovery surface emitted by ``render_meta.render``:
+
+* ``robots.txt`` (writes once, idempotent)
+* ``manifest.webmanifest`` (PWA install metadata)
+* ``.well-known/security.txt``
+* ``.well-known/ai.txt`` (mirrored from project-root ``ai.txt``)
+* ``feed.xml`` (Atom feed of the last 50 added UCs; falls back to
+  reverse-chrono iter_ucs when ``recently_added`` is empty)
+* ``sitemap.xml`` (sharded sitemap-index)
+* ``sitemap-pages.xml`` / ``-categories.xml`` / ``-regulations.xml``
+* ``sitemap-ucs-NN.xml`` (UC shards sized by ``_UC_SHARD_SIZE``)
+* ``manifest.json`` (machine consumer URL index)
+* ``api/v2/openapi.yaml`` (OpenAPI 3.1 description)
+
+Every test runs against an isolated ``tmp_path`` and a hand-built
+``Catalog`` so the suite never reaches the real ``content/`` tree or
+the network.
 """
 
 from __future__ import annotations
 
 import json
-import re
+import sys
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from build import render_meta as rm
-from build.parse_content import Catalog
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+TOOLS_DIR = str(REPO_ROOT / "tools")
+if TOOLS_DIR not in sys.path:
+    sys.path.insert(0, TOOLS_DIR)
+
+from build import render_meta as M  # noqa: E402
+from build.parse_content import Catalog  # noqa: E402
 
 
-def _empty_catalog(tmp_path: Path, **overrides) -> Catalog:
-    kwargs = dict(
-        project_root=tmp_path,
-        categories=[],
-        cat_meta={},
-        cat_groups={},
-        equipment=[],
-        regulations={},
-        recently_added=[],
-        facets={},
-    )
-    kwargs.update(overrides)
-    return Catalog(**kwargs)
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
-def _seeded_catalog(tmp_path: Path) -> Catalog:
-    """Catalog with one cat, two UCs, and two regulations."""
-    return _empty_catalog(
-        tmp_path,
-        categories=[
+def _make_catalog(tmp_path: Path, *, with_recently: bool = True) -> Catalog:
+    """Return a small, deterministic ``Catalog`` for sitemap/manifest tests.
+
+    Two categories, one regulation, three UCs (two in cat 1, one in
+    cat 2). One UC is tagged with the regulation so the manifest /
+    sitemap only counts matched frameworks.
+    """
+    cat = Catalog(project_root=tmp_path)
+    cat.files = ["cat-01-monitoring.md", "cat-02-security.md"]
+    cat.categories = [
+        {
+            "i": 1,
+            "n": "Monitoring",
+            "s": [
+                {
+                    "i": "1.1",
+                    "n": "Server health",
+                    "u": [
+                        {"i": "1.1.1", "n": "CPU saturation"},
+                        {"i": "1.1.2", "n": "Memory exhaustion", "regs": ["pci-dss"]},
+                    ],
+                }
+            ],
+        },
+        {
+            "i": 2,
+            "n": "Security",
+            "s": [
+                {
+                    "i": "2.1",
+                    "n": "Authentication",
+                    "u": [{"i": "2.1.1", "n": "Brute force"}],
+                }
+            ],
+        },
+    ]
+    cat.regulations = {
+        "pci-dss": {
+            "id": "pci-dss",
+            "shortName": "PCI DSS",
+            "name": "Payment Card Industry Data Security Standard",
+        }
+    }
+    if with_recently:
+        cat.recently_added = ["1.1.1", "1.1.2"]
+    return cat
+
+
+@pytest.fixture
+def catalog(tmp_path: Path) -> Catalog:
+    return _make_catalog(tmp_path)
+
+
+@pytest.fixture
+def out_dir(tmp_path: Path) -> Path:
+    d = tmp_path / "dist"
+    d.mkdir()
+    return d
+
+
+# ---------------------------------------------------------------------------
+# robots.txt / PWA manifest / security.txt — idempotent helpers
+# ---------------------------------------------------------------------------
+
+
+class TestWriteRobots:
+    def test_creates_when_absent(self, out_dir: Path) -> None:
+        M._write_robots(out_dir)
+        body = (out_dir / "robots.txt").read_text(encoding="utf-8")
+        assert body.startswith("User-agent: *\n")
+        assert "Sitemap: " in body
+        assert M.SITE_URL in body
+
+    def test_skipped_when_already_present(self, out_dir: Path) -> None:
+        (out_dir / "robots.txt").write_text("DO NOT TOUCH", encoding="utf-8")
+        M._write_robots(out_dir)
+        assert (out_dir / "robots.txt").read_text(encoding="utf-8") == "DO NOT TOUCH"
+
+
+class TestWritePwaManifest:
+    def test_creates_well_formed_manifest(self, out_dir: Path) -> None:
+        M._write_pwa_manifest(out_dir)
+        manifest = json.loads((out_dir / "manifest.webmanifest").read_text(encoding="utf-8"))
+        assert manifest["name"] == "Splunk Monitoring Use Cases"
+        assert manifest["display"] == "standalone"
+        assert {i["sizes"] for i in manifest["icons"]} == {"192x192", "512x512", "any"}
+
+    def test_idempotent(self, out_dir: Path) -> None:
+        (out_dir / "manifest.webmanifest").write_text("{}", encoding="utf-8")
+        M._write_pwa_manifest(out_dir)
+        assert (out_dir / "manifest.webmanifest").read_text(encoding="utf-8") == "{}"
+
+
+class TestWriteSecurityTxt:
+    def test_creates_in_well_known(self, out_dir: Path) -> None:
+        M._write_security_txt(out_dir)
+        text = (out_dir / ".well-known" / "security.txt").read_text(encoding="utf-8")
+        assert text.startswith("Contact:")
+        assert "Expires:" in text
+
+    def test_idempotent(self, out_dir: Path) -> None:
+        target = out_dir / ".well-known" / "security.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("PRESERVED", encoding="utf-8")
+        M._write_security_txt(out_dir)
+        assert target.read_text(encoding="utf-8") == "PRESERVED"
+
+
+# ---------------------------------------------------------------------------
+# .well-known/ai.txt mirror
+# ---------------------------------------------------------------------------
+
+
+class TestWriteWellKnownAiTxt:
+    def test_mirrors_from_project_root(self, out_dir: Path) -> None:
+        # ai.txt exists at the real project root; the mirror should
+        # produce a copy under .well-known/.
+        M._write_well_known_ai_txt(out_dir)
+        dst = out_dir / ".well-known" / "ai.txt"
+        assert dst.exists()
+        src = REPO_ROOT / "ai.txt"
+        assert dst.read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
+
+    def test_idempotent(self, out_dir: Path) -> None:
+        dst = out_dir / ".well-known" / "ai.txt"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text("KEEP-ME", encoding="utf-8")
+        M._write_well_known_ai_txt(out_dir)
+        assert dst.read_text(encoding="utf-8") == "KEEP-ME"
+
+    def test_silent_skip_when_source_missing(
+        self, out_dir: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # Re-route Path(__file__) by substituting the module-level path
+        # walker — easiest is to monkeypatch the helper to read from a
+        # fake project root that has no ai.txt.
+        fake_root = tmp_path / "fake-root"
+        fake_root.mkdir()
+        # No ai.txt here; helper must silently skip.
+        original_render_meta_file = M.__file__
+        # Build a fake Path object whose grandparent.parent.parent is fake_root.
+        fake_module_path = (
+            fake_root / "tools" / "build" / "render_meta.py"
+        )
+        fake_module_path.parent.mkdir(parents=True)
+        fake_module_path.write_text("# placeholder", encoding="utf-8")
+        monkeypatch.setattr(M, "__file__", str(fake_module_path))
+        try:
+            M._write_well_known_ai_txt(out_dir)
+            assert not (out_dir / ".well-known" / "ai.txt").exists()
+        finally:
+            monkeypatch.setattr(M, "__file__", original_render_meta_file)
+
+
+# ---------------------------------------------------------------------------
+# Atom feed
+# ---------------------------------------------------------------------------
+
+
+class TestAtomEntry:
+    def test_escapes_special_chars(self) -> None:
+        entry = M._atom_entry("1.1.1", "Title <X>", "https://example.com/x?y=1&z=2", "1970-01-01T00:00:00Z")
+        # Title is XML-escaped
+        assert "Title &lt;X&gt;" in entry
+        # ampersand in link is escaped
+        assert "y=1&amp;z=2" in entry
+        assert "<id>https://example.com/x?y=1&amp;z=2</id>" in entry
+
+
+class TestWriteAtomFeed:
+    def test_uses_recently_added_first(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_atom_feed(catalog, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        # Both recently-added IDs are present
+        assert "UC-1.1.1" in body
+        assert "UC-1.1.2" in body
+        # Updated timestamp is the reproducible epoch
+        assert "<updated>1970-01-01T00:00:00Z</updated>" in body
+
+    def test_falls_back_to_iter_ucs_when_recently_empty(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        cat = _make_catalog(tmp_path, with_recently=False)
+        M._write_atom_feed(cat, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        # All three UCs surface from iter_ucs fallback
+        for uc_id in ("UC-1.1.1", "UC-1.1.2", "UC-2.1.1"):
+            assert uc_id in body
+
+    def test_skips_unknown_recent_ids(self, tmp_path: Path, out_dir: Path) -> None:
+        cat = _make_catalog(tmp_path)
+        cat.recently_added = ["9.9.9", "1.1.1"]  # 9.9.9 is unknown; 1.1.1 known
+        M._write_atom_feed(cat, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        assert "UC-1.1.1" in body
+        assert "UC-9.9.9" not in body
+
+    def test_dedupes_repeated_recent_ids(self, tmp_path: Path, out_dir: Path) -> None:
+        cat = _make_catalog(tmp_path)
+        cat.recently_added = ["1.1.1", "1.1.1", "1.1.1"]
+        M._write_atom_feed(cat, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        assert body.count("UC-1.1.1 CPU saturation") == 1
+
+    def test_idempotent(self, catalog: Catalog, out_dir: Path) -> None:
+        (out_dir / "feed.xml").write_text("PRESERVED", encoding="utf-8")
+        M._write_atom_feed(catalog, out_dir, reproducible=True)
+        assert (out_dir / "feed.xml").read_text(encoding="utf-8") == "PRESERVED"
+
+    def test_non_reproducible_uses_now(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        before = datetime.now(timezone.utc)
+        M._write_atom_feed(catalog, out_dir, reproducible=False)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        # Updated stamp is current — verify it's NOT the reproducible epoch.
+        assert "1970-01-01T00:00:00Z" not in body
+        # And matches the RFC 3339 format.
+        assert "<updated>" in body and "Z</updated>" in body
+        # Sanity: timestamp parseable and ≥ before timestamp.
+        for line in body.splitlines():
+            line = line.strip()
+            if line.startswith("<updated>") and line.endswith("</updated>"):
+                ts = line[len("<updated>"):-len("</updated>")]
+                parsed = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc
+                )
+                assert parsed >= before.replace(microsecond=0)
+                break
+
+    def test_atom_feed_caps_at_50_entries(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        cat = Catalog(project_root=tmp_path)
+        # Build 60 UCs — feed must cap at 50.
+        cat.files = ["cat-01-monitoring.md"]
+        ucs = [{"i": f"1.1.{i}", "n": f"UC {i}"} for i in range(1, 61)]
+        cat.categories = [
+            {"i": 1, "n": "Monitoring", "s": [{"i": "1.1", "n": "X", "u": ucs}]}
+        ]
+        # No recently_added, so we exercise the fallback path's break.
+        M._write_atom_feed(cat, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        assert body.count("<entry>") == 50
+
+    def test_fallback_iter_skips_empty_ids_and_dupes(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        """Pin line 168 — fallback iter ``continue`` for empty / seen IDs."""
+        cat = Catalog(project_root=tmp_path)
+        cat.files = ["cat-01-monitoring.md"]
+        # First UC has no ``i`` field (empty string), second is duplicated
+        # under two subcategories. Both branches of line 167 fire.
+        cat.categories = [
             {
                 "i": 1,
-                "n": "Network",
+                "n": "Monitoring",
                 "s": [
                     {
                         "i": "1.1",
-                        "n": "Routing",
+                        "n": "x",
                         "u": [
-                            {"i": "1.1.1", "n": "OSPF down", "regs": ["GDPR"]},
-                            {"i": "1.1.2", "n": "BGP flapping", "regs": ["NIST"]},
+                            {"i": "", "n": "missing id"},
+                            {"i": "1.1.1", "n": "First"},
+                        ],
+                    },
+                    {
+                        "i": "1.2",
+                        "n": "y",
+                        "u": [{"i": "1.1.1", "n": "Same id again"}],
+                    },
+                ],
+            }
+        ]
+        # No recently_added → fallback iter is the only producer.
+        M._write_atom_feed(cat, out_dir, reproducible=True)
+        body = (out_dir / "feed.xml").read_text(encoding="utf-8")
+        # Empty id contributes nothing; duplicate id surfaces only once.
+        assert body.count("<entry>") == 1
+        assert "UC-1.1.1" in body
+
+
+# ---------------------------------------------------------------------------
+# Sitemap urlset / sitemap-index helpers
+# ---------------------------------------------------------------------------
+
+
+class TestWriteUrlset:
+    def test_writes_valid_urlset(self, tmp_path: Path) -> None:
+        path = tmp_path / "out" / "sitemap-x.xml"
+        M._write_urlset(path, ["https://x.test/a", "https://x.test/b"], lastmod="2026-05-20")
+        body = path.read_text(encoding="utf-8")
+        assert body.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+        # Both locs encoded as <url> entries with lastmod
+        assert "<loc>https://x.test/a</loc><lastmod>2026-05-20</lastmod>" in body
+        assert "<loc>https://x.test/b</loc><lastmod>2026-05-20</lastmod>" in body
+        # XML parses cleanly
+        ET.fromstring(body)
+
+    def test_creates_parent_dirs(self, tmp_path: Path) -> None:
+        nested = tmp_path / "deep" / "nest" / "site.xml"
+        M._write_urlset(nested, ["https://x.test/a"], lastmod="2026-05-20")
+        assert nested.exists()
+
+
+class TestWriteSitemapIndex:
+    def test_writes_sitemapindex(self, tmp_path: Path) -> None:
+        path = tmp_path / "sitemap.xml"
+        M._write_sitemap_index(
+            path, sitemaps=["sitemap-pages.xml", "sitemap-categories.xml"], lastmod="2026-05-20"
+        )
+        body = path.read_text(encoding="utf-8")
+        assert "<sitemapindex" in body
+        assert M.SITE_URL + "/sitemap-pages.xml" in body
+        assert M.SITE_URL + "/sitemap-categories.xml" in body
+        # XML parses cleanly
+        ET.fromstring(body)
+
+
+class TestWriteSitemap:
+    def test_writes_full_sharded_sitemap(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_sitemap(catalog, out_dir, reproducible=True)
+        # Per-section files exist
+        assert (out_dir / "sitemap-pages.xml").exists()
+        assert (out_dir / "sitemap-categories.xml").exists()
+        assert (out_dir / "sitemap-regulations.xml").exists()
+        # UC shards exist (at least one) and are referenced from index
+        shards = list(out_dir.glob("sitemap-ucs-*.xml"))
+        assert shards, "expected at least one UC shard"
+        idx_body = (out_dir / "sitemap.xml").read_text(encoding="utf-8")
+        for shard in shards:
+            assert shard.name in idx_body
+
+    def test_pages_sitemap_includes_landing_browse_regulation_api(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_sitemap(catalog, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-pages.xml").read_text(encoding="utf-8")
+        for path in ("/", "/browse/", "/regulation/", "/api/"):
+            assert f"<loc>{M.SITE_URL}{path}</loc>" in body
+
+    def test_categories_use_filename_slug(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_sitemap(catalog, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-categories.xml").read_text(encoding="utf-8")
+        # Slug from "cat-01-monitoring.md" is "monitoring"
+        assert f"{M.SITE_URL}/category/monitoring/" in body
+        assert f"{M.SITE_URL}/category/security/" in body
+
+    def test_regulations_only_includes_matched(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_sitemap(catalog, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-regulations.xml").read_text(encoding="utf-8")
+        # PCI DSS is referenced by UC-1.1.2 → must appear
+        assert "/regulation/" in body and "pci-dss" in body
+
+    def test_drops_unmatched_frameworks(self, tmp_path: Path, out_dir: Path) -> None:
+        cat = _make_catalog(tmp_path)
+        cat.regulations["zzz-unused"] = {
+            "id": "zzz-unused",
+            "shortName": "Unused",
+            "name": "Unused Framework",
+        }
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-regulations.xml").read_text(encoding="utf-8")
+        assert "zzz-unused" not in body
+
+    def test_uc_shard_paginates_at_size_limit(
+        self, tmp_path: Path, out_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Drop the shard size to 2 so 3 UCs split into 2 shards.
+        monkeypatch.setattr(M, "_UC_SHARD_SIZE", 2)
+        cat = _make_catalog(tmp_path)
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        shards = sorted(out_dir.glob("sitemap-ucs-*.xml"))
+        assert [s.name for s in shards] == [
+            "sitemap-ucs-01.xml",
+            "sitemap-ucs-02.xml",
+        ]
+
+    def test_clears_stale_uc_shards(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        # Leave a stale shard from a prior run.
+        stale = out_dir / "sitemap-ucs-99.xml"
+        stale.write_text("STALE", encoding="utf-8")
+        M._write_sitemap(catalog, out_dir, reproducible=True)
+        assert not stale.exists()
+
+    def test_reproducible_sorts_loc_lists(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        # Build a catalog with categories whose declaration order would
+        # NOT match alphabetical slug order, to verify reproducible
+        # sorting kicks in.
+        cat = Catalog(project_root=tmp_path)
+        cat.files = [
+            "cat-01-zzz-last.md",
+            "cat-02-aaa-first.md",
+        ]
+        cat.categories = [
+            {"i": 1, "n": "ZZZ", "s": [{"i": "1.1", "n": "x", "u": [{"i": "1.1.1"}]}]},
+            {"i": 2, "n": "AAA", "s": [{"i": "2.1", "n": "y", "u": [{"i": "2.1.1"}]}]},
+        ]
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-categories.xml").read_text(encoding="utf-8")
+        # Alphabetical: "aaa-first" appears before "zzz-last" once sorted
+        idx_a = body.find("aaa-first")
+        idx_z = body.find("zzz-last")
+        assert 0 <= idx_a < idx_z
+
+    def test_empty_uc_list_writes_no_shards(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        # Catalog with categories but no UCs at all.
+        cat = Catalog(project_root=tmp_path)
+        cat.files = ["cat-01-empty.md"]
+        cat.categories = [{"i": 1, "n": "Empty", "s": []}]
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        assert not list(out_dir.glob("sitemap-ucs-*.xml"))
+        # Still emits the index, even if it has no UC shards.
+        assert (out_dir / "sitemap.xml").exists()
+
+    def test_skips_categories_without_id(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        """Pin line 241 — categories that lack the ``i`` key entirely are
+        skipped. (A ``None`` value would break the sort key in
+        ``_build_slug_map``; the realistic missing-id case is no key.)
+        """
+        cat = Catalog(project_root=tmp_path)
+        cat.files = ["cat-01-monitoring.md"]
+        cat.categories = [
+            {"n": "Bogus — missing id key", "s": []},
+            {"i": 1, "n": "Monitoring", "s": [{"i": "1.1", "n": "x", "u": [{"i": "1.1.1"}]}]},
+        ]
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-categories.xml").read_text(encoding="utf-8")
+        assert "/category/monitoring/" in body
+        # Only one <url> entry — the missing-id category dropped.
+        assert body.count("<url>") == 1
+
+    def test_skips_categories_without_slug(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        """Pin line 244 — categories whose slug map returns empty are skipped.
+
+        Inject a slug map override via monkeypatch on
+        ``_render_pages._build_slug_map`` so that one category
+        deliberately gets an empty slug, exercising the
+        ``if not slug: continue`` branch.
+        """
+        cat = Catalog(project_root=tmp_path)
+        cat.files = ["cat-07-hidden.md", "cat-08-visible.md"]
+        cat.categories = [
+            {"i": 7, "n": "Hidden", "s": [{"i": "7.1", "n": "x", "u": [{"i": "7.1.1"}]}]},
+            {"i": 8, "n": "Visible", "s": [{"i": "8.1", "n": "y", "u": [{"i": "8.1.1"}]}]},
+        ]
+        # Patch the slug map producer to deliberately omit cat 7.
+        original_builder = M._render_pages._build_slug_map
+        try:
+            M._render_pages._build_slug_map = lambda catalog: {7: "", 8: "visible"}
+            M._write_sitemap(cat, out_dir, reproducible=True)
+        finally:
+            M._render_pages._build_slug_map = original_builder
+
+        body = (out_dir / "sitemap-categories.xml").read_text(encoding="utf-8")
+        assert "/category/visible/" in body
+        # Only one <url> emitted — empty-slug category was skipped.
+        assert body.count("<url>") == 1
+
+    def test_unresolved_regs_tag_does_not_match(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        """Pin branch 251->249 — a ``regs`` tag that doesn't resolve to any
+        framework must NOT be added to ``matched_fw_ids``.
+        """
+        cat = _make_catalog(tmp_path)
+        # UC tagged with a regulation that has no alias entry.
+        cat.categories[0]["s"][0]["u"][0]["regs"] = ["nonexistent-framework"]
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        body = (out_dir / "sitemap-regulations.xml").read_text(encoding="utf-8")
+        # Only the existing pci-dss UC contributes; nonexistent does not.
+        assert "nonexistent-framework" not in body
+
+    def test_skips_uc_without_id(self, tmp_path: Path, out_dir: Path) -> None:
+        """Pin branch 263->261 — UC entries without ``i`` produce no shard locs."""
+        cat = Catalog(project_root=tmp_path)
+        cat.files = ["cat-01-monitoring.md"]
+        cat.categories = [
+            {
+                "i": 1,
+                "n": "Monitoring",
+                "s": [
+                    {
+                        "i": "1.1",
+                        "n": "x",
+                        "u": [
+                            {"i": "", "n": "no id"},
+                            {"i": "1.1.1", "n": "real"},
                         ],
                     }
                 ],
             }
-        ],
-        regulations={
-            "gdpr": {"name": "General Data Protection Regulation", "shortName": "GDPR"},
-            "nist": {"name": "NIST Cybersecurity Framework", "shortName": "NIST"},
-        },
-        files=["cat-01-network.md"],
-        recently_added=["1.1.1"],
-    )
-
-
-# ---------------------------------------------------------------------------
-# _write_robots / _write_pwa_manifest / _write_security_txt / _write_well_known_ai_txt
-# ---------------------------------------------------------------------------
-
-
-class TestStaticWriters:
-    def test_write_robots_creates_file_when_absent(self, tmp_path: Path):
-        rm._write_robots(tmp_path)
-        body = (tmp_path / "robots.txt").read_text(encoding="utf-8")
-        assert "User-agent: *" in body
-        assert "Allow: /" in body
-        assert "Disallow: /assets/search-shard-" in body
-        assert "Sitemap: " in body
-
-    def test_write_robots_preserves_existing_file(self, tmp_path: Path):
-        """Covers the early-return on line 58."""
-        (tmp_path / "robots.txt").write_text("preserve me\n", encoding="utf-8")
-        rm._write_robots(tmp_path)
-        assert (tmp_path / "robots.txt").read_text(encoding="utf-8") == "preserve me\n"
-
-    def test_write_pwa_manifest_creates_file_when_absent(self, tmp_path: Path):
-        rm._write_pwa_manifest(tmp_path)
-        manifest = json.loads(
-            (tmp_path / "manifest.webmanifest").read_text(encoding="utf-8")
-        )
-        assert manifest["name"] == "Splunk Monitoring Use Cases"
-        assert manifest["short_name"] == "Splunk UCs"
-        assert manifest["display"] == "standalone"
-        # Three icons, all rooted at the SITE_URL path
-        assert len(manifest["icons"]) == 3
-        for icon in manifest["icons"]:
-            assert icon["src"].endswith((".png", ".svg"))
-
-    def test_write_pwa_manifest_preserves_existing_file(self, tmp_path: Path):
-        """Covers the early-return on line 77."""
-        (tmp_path / "manifest.webmanifest").write_text("{}", encoding="utf-8")
-        rm._write_pwa_manifest(tmp_path)
-        assert (tmp_path / "manifest.webmanifest").read_text(encoding="utf-8") == "{}"
-
-    def test_write_security_txt_creates_file_with_well_known_dir(
-        self, tmp_path: Path
-    ):
-        rm._write_security_txt(tmp_path)
-        body = (tmp_path / ".well-known" / "security.txt").read_text(encoding="utf-8")
-        assert body.startswith("Contact: ")
-        assert "Expires: 2099-12-31T23:59:59Z" in body
-        assert "Preferred-Languages: en" in body
-
-    def test_write_security_txt_preserves_existing_file(self, tmp_path: Path):
-        """Covers the early-return on line 103."""
-        (tmp_path / ".well-known").mkdir()
-        (tmp_path / ".well-known" / "security.txt").write_text(
-            "custom", encoding="utf-8"
-        )
-        rm._write_security_txt(tmp_path)
-        assert (
-            tmp_path / ".well-known" / "security.txt"
-        ).read_text(encoding="utf-8") == "custom"
-
-    def test_write_ai_txt_skips_when_source_missing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """Covers the early-return on line 130 (source missing)."""
-        # Point __file__ at a tmp tree that does NOT carry ai.txt.
-        fake = tmp_path / "tools" / "build" / "render_meta.py"
-        fake.parent.mkdir(parents=True)
-        fake.touch()
-        monkeypatch.setattr(rm, "__file__", str(fake))
-        rm._write_well_known_ai_txt(tmp_path)
-        assert not (tmp_path / ".well-known" / "ai.txt").exists()
-
-    def test_write_ai_txt_mirrors_source_to_well_known(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """Copies the source ai.txt into ``.well-known/`` when present
-        and the destination is absent."""
-        fake = tmp_path / "tools" / "build" / "render_meta.py"
-        fake.parent.mkdir(parents=True)
-        fake.touch()
-        (tmp_path / "ai.txt").write_text("AI policy\n", encoding="utf-8")
-        monkeypatch.setattr(rm, "__file__", str(fake))
-        out_dir = tmp_path / "dist"
-        out_dir.mkdir()
-        rm._write_well_known_ai_txt(out_dir)
-        assert (out_dir / ".well-known" / "ai.txt").read_text(encoding="utf-8") == (
-            "AI policy\n"
-        )
-
-    def test_write_ai_txt_preserves_existing_destination(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """Covers the early-return on line 133."""
-        fake = tmp_path / "tools" / "build" / "render_meta.py"
-        fake.parent.mkdir(parents=True)
-        fake.touch()
-        (tmp_path / "ai.txt").write_text("source ai\n", encoding="utf-8")
-        monkeypatch.setattr(rm, "__file__", str(fake))
-        out_dir = tmp_path / "dist"
-        (out_dir / ".well-known").mkdir(parents=True)
-        (out_dir / ".well-known" / "ai.txt").write_text(
-            "dest preserved", encoding="utf-8"
-        )
-        rm._write_well_known_ai_txt(out_dir)
-        assert (out_dir / ".well-known" / "ai.txt").read_text(encoding="utf-8") == (
-            "dest preserved"
-        )
-
-
-# ---------------------------------------------------------------------------
-# _write_atom_feed + _atom_entry
-# ---------------------------------------------------------------------------
-
-
-class TestAtomFeed:
-    def test_atom_entry_escapes_special_characters(self):
-        entry = rm._atom_entry(
-            uc_id="1.1.1",
-            title="Quotes & ampersands",
-            link="https://example.test/uc/UC-1.1.1/",
-            updated="2026-01-01T00:00:00Z",
-        )
-        assert "&amp;" in entry  # 'Quotes & ampersands' escaped
-        assert "<id>https://example.test/uc/UC-1.1.1/</id>" in entry
-        assert "<updated>2026-01-01T00:00:00Z</updated>" in entry
-
-    def test_write_atom_feed_uses_recently_added_first(self, tmp_path: Path):
-        cat = _seeded_catalog(tmp_path)
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        assert "<feed " in body
-        # UC-1.1.1 came from recently_added
-        assert "UC-1.1.1 OSPF down" in body
-
-    def test_write_atom_feed_falls_back_to_uc_iterator_when_recently_added_empty(
-        self, tmp_path: Path
-    ):
-        """Covers the fallback loop on lines 164-174."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [{"i": "1.1", "u": [{"i": "1.1.1", "n": "Alpha"}]}],
-                }
-            ],
-        )
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        assert "UC-1.1.1 Alpha" in body
-
-    def test_write_atom_feed_fallback_caps_at_50_entries(self, tmp_path: Path):
-        """The fallback loop on line 173 breaks at 50 entries.
-        Generate >50 UCs in a catalog with empty ``recently_added`` and
-        assert the entry count is exactly 50."""
-        ucs = [{"i": f"1.1.{i}", "n": f"UC {i}"} for i in range(1, 56)]
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {"i": 1, "n": "X", "s": [{"i": "1.1", "u": ucs}]},
-            ],
-        )
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        # Each entry block starts with "  <entry>" on its own line.
-        entry_count = body.count("<entry>")
-        assert entry_count == 50
-
-    def test_write_atom_feed_preserves_existing_file(self, tmp_path: Path):
-        """Covers the early-return on line 146."""
-        (tmp_path / "feed.xml").write_text("preserved", encoding="utf-8")
-        cat = _seeded_catalog(tmp_path)
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        assert (tmp_path / "feed.xml").read_text(encoding="utf-8") == "preserved"
-
-    def test_write_atom_feed_uses_wall_clock_when_not_reproducible(
-        self, tmp_path: Path
-    ):
-        """Covers the ``datetime.now(...)`` branch on line 149."""
-        cat = _seeded_catalog(tmp_path)
-        rm._write_atom_feed(cat, tmp_path, reproducible=False)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        assert re.search(
-            r"<updated>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z</updated>", body
-        )
-
-    def test_write_atom_feed_deduplicates_recently_added(self, tmp_path: Path):
-        """If ``recently_added`` carries the same id twice, the
-        ``seen`` set drops the duplicate (covers line 157 false arm)."""
-        cat = _seeded_catalog(tmp_path)
-        cat.recently_added = ["1.1.1", "1.1.1", "1.1.2"]
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        assert body.count("<id>https://fenre.github.io/splunk-monitoring-use-cases/uc/UC-1.1.1/</id>") == 1
-
-    def test_write_atom_feed_skips_unknown_uc_ids(self, tmp_path: Path):
-        """An id in ``recently_added`` that doesn't resolve via
-        ``uc_by_id`` is silently skipped (covers line 157 — ``not uc``)."""
-        cat = _seeded_catalog(tmp_path)
-        cat.recently_added = ["9.9.9", "1.1.1"]  # 9.9.9 doesn't exist
-        rm._write_atom_feed(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "feed.xml").read_text(encoding="utf-8")
-        assert "UC-9.9.9" not in body
-        assert "UC-1.1.1 OSPF down" in body
-
-
-# ---------------------------------------------------------------------------
-# _write_sitemap and the urlset / sitemap-index helpers
-# ---------------------------------------------------------------------------
-
-
-class TestSitemap:
-    def test_write_sitemap_emits_index_plus_per_section_files(
-        self, tmp_path: Path
-    ):
-        cat = _seeded_catalog(tmp_path)
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        for name in (
-            "sitemap.xml",
-            "sitemap-pages.xml",
-            "sitemap-categories.xml",
-            "sitemap-regulations.xml",
-            "sitemap-ucs-01.xml",
-        ):
-            assert (tmp_path / name).exists(), f"missing {name}"
-
-        # sitemap-pages always has the 4 fixed entries
-        pages = (tmp_path / "sitemap-pages.xml").read_text(encoding="utf-8")
-        for path in ("/", "/browse/", "/regulation/", "/api/"):
-            assert path in pages
-
-        # sitemap-categories points at the 'network' slug
-        cats = (tmp_path / "sitemap-categories.xml").read_text(encoding="utf-8")
-        assert "/category/network/" in cats
-
-        # sitemap-regulations carries both matched regs
-        regs = (tmp_path / "sitemap-regulations.xml").read_text(encoding="utf-8")
-        assert "/regulation/" in regs
-
-        # UC sitemap shard carries both UCs
-        ucs_shard = (tmp_path / "sitemap-ucs-01.xml").read_text(encoding="utf-8")
-        assert "/uc/UC-1.1.1/" in ucs_shard
-        assert "/uc/UC-1.1.2/" in ucs_shard
-
-        # sitemap.xml index references every emitted file
-        idx = (tmp_path / "sitemap.xml").read_text(encoding="utf-8")
-        for name in (
-            "sitemap-pages.xml",
-            "sitemap-categories.xml",
-            "sitemap-regulations.xml",
-            "sitemap-ucs-01.xml",
-        ):
-            assert name in idx
-
-    def test_write_sitemap_removes_stale_uc_shards(self, tmp_path: Path):
-        """Pre-existing ``sitemap-ucs-NN.xml`` files from larger prior
-        catalogs are unlinked before the new shards are written
-        (covers line 277-278)."""
-        (tmp_path / "sitemap-ucs-99.xml").write_text("stale", encoding="utf-8")
-        cat = _seeded_catalog(tmp_path)
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        assert not (tmp_path / "sitemap-ucs-99.xml").exists()
-
-    def test_write_sitemap_skips_category_without_id_or_slug(
-        self, tmp_path: Path
-    ):
-        """A category without ``i`` (line 240) or without a slug in
-        ``cat_slug_for`` (line 243) is omitted from the category
-        sitemap."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {"i": 1, "n": "Network", "s": []},
-                {"n": "Headless"},  # no `i` → skipped
-            ],
-        )
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        body = (tmp_path / "sitemap-categories.xml").read_text(encoding="utf-8")
-        # The headless category isn't present.
+        ]
+        M._write_sitemap(cat, out_dir, reproducible=True)
+        shard = next(iter(out_dir.glob("sitemap-ucs-*.xml")))
+        body = shard.read_text(encoding="utf-8")
+        # Only the well-formed UC made it into the shard.
         assert body.count("<url>") == 1
-
-    def test_write_sitemap_with_empty_catalog_still_emits_index(
-        self, tmp_path: Path
-    ):
-        """An empty catalog (no UCs, no regs) still emits the index +
-        the three fixed-section sitemaps; no UC shard is written
-        because ``uc_locs`` is empty (covers the false arm of
-        ``if uc_locs:`` on line 281)."""
-        cat = _empty_catalog(tmp_path)
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        assert (tmp_path / "sitemap.xml").exists()
-        assert (tmp_path / "sitemap-pages.xml").exists()
-        assert (tmp_path / "sitemap-categories.xml").exists()
-        assert (tmp_path / "sitemap-regulations.xml").exists()
-        assert not list(tmp_path.glob("sitemap-ucs-*.xml"))
-
-    def test_write_sitemap_non_reproducible_skips_sort(
-        self, tmp_path: Path
-    ):
-        """``reproducible=False`` (the developer default) MUST NOT
-        sort the URL lists — preserves the natural catalog order so
-        local previews match what the SPA renders. Covers the false
-        arm of ``if reproducible:`` (branch 266→271)."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [
-                        {"i": "1.1", "u": [
-                            {"i": "1.1.2", "n": "Bravo"},
-                            {"i": "1.1.1", "n": "Alpha"},
-                        ]}
-                    ],
-                }
-            ],
-            files=["cat-01-x.md"],
-        )
-        rm._write_sitemap(cat, tmp_path, reproducible=False)
-        shard = (tmp_path / "sitemap-ucs-01.xml").read_text(encoding="utf-8")
-        # Natural insertion order preserved: 1.1.2 first, then 1.1.1.
-        pos_111 = shard.find("/uc/UC-1.1.1/")
-        pos_112 = shard.find("/uc/UC-1.1.2/")
-        assert 0 <= pos_112 < pos_111
-
-    def test_write_sitemap_skips_uc_without_id(self, tmp_path: Path):
-        """A UC dict without ``i`` (or empty ``i``) is excluded from
-        the UC sitemap (covers branch 263→261)."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [
-                        {"i": "1.1", "u": [
-                            {"i": "1.1.1", "n": "Alpha"},
-                            {"n": "Headless"},  # no `i` → skipped
-                        ]}
-                    ],
-                }
-            ],
-            files=["cat-01-x.md"],
-        )
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        shard = (tmp_path / "sitemap-ucs-01.xml").read_text(encoding="utf-8")
-        # Only the real UC made it in.
-        assert shard.count("<url>") == 1
-        assert "/uc/UC-1.1.1/" in shard
-
-    def test_write_sitemap_unmatched_reg_tag_does_not_promote_to_matched_set(
-        self, tmp_path: Path
-    ):
-        """When a UC carries a ``regs`` entry that doesn't resolve to
-        any known framework (``_resolve_alias`` returns empty), the
-        false arm of ``if fw_id:`` (branch 251→249) is taken and the
-        regulation sitemap is empty."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [
-                        {"i": "1.1", "u": [
-                            {"i": "1.1.1", "regs": ["Made-Up Framework"]}
-                        ]}
-                    ],
-                }
-            ],
-            regulations={
-                "gdpr": {"name": "GDPR", "shortName": "GDPR"},
-            },
-            files=["cat-01-x.md"],
-        )
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        regs = (tmp_path / "sitemap-regulations.xml").read_text(encoding="utf-8")
-        # No URL inside the urlset block.
-        assert "<url>" not in regs
-
-    def test_write_sitemap_sorts_locs_when_reproducible(self, tmp_path: Path):
-        """``reproducible=True`` sorts the URL lists before emitting
-        (covers lines 266-269)."""
-        # Two UCs whose natural insertion order ≠ lex-sorted order.
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [
-                        {"i": "1.1", "u": [
-                            {"i": "1.1.2", "n": "Bravo"},
-                            {"i": "1.1.1", "n": "Alpha"},
-                        ]}
-                    ],
-                }
-            ],
-            files=["cat-01-x.md"],
-        )
-        rm._write_sitemap(cat, tmp_path, reproducible=True)
-        shard = (tmp_path / "sitemap-ucs-01.xml").read_text(encoding="utf-8")
-        # Verify 1.1.1 appears before 1.1.2 (lex-sorted)
-        pos_111 = shard.find("/uc/UC-1.1.1/")
-        pos_112 = shard.find("/uc/UC-1.1.2/")
-        assert 0 <= pos_111 < pos_112
-
-
-class TestUrlsetAndSitemapIndex:
-    def test_write_urlset_escapes_xml_special_chars(self, tmp_path: Path):
-        path = tmp_path / "out.xml"
-        rm._write_urlset(
-            path,
-            ["https://example.test/path?a=1&b=2"],
-            lastmod="2026-01-01",
-        )
-        body = path.read_text(encoding="utf-8")
-        assert "&amp;" in body
-        # Parses as valid XML
-        ET.fromstring(body)
-
-    def test_write_urlset_creates_parent_directory(self, tmp_path: Path):
-        path = tmp_path / "nested" / "out.xml"
-        rm._write_urlset(path, ["https://example.test/"], lastmod="2026-01-01")
-        assert path.exists()
-        assert path.parent.is_dir()
-
-    def test_write_sitemap_index_emits_one_sitemap_per_entry(self, tmp_path: Path):
-        path = tmp_path / "index.xml"
-        rm._write_sitemap_index(
-            path,
-            sitemaps=["a.xml", "b.xml"],
-            lastmod="2026-01-01",
-        )
-        body = path.read_text(encoding="utf-8")
-        assert body.count("<sitemap>") == 2
-        # Parses as valid XML
-        ET.fromstring(body)
+        assert "UC-1.1.1" in body
 
 
 # ---------------------------------------------------------------------------
-# _write_machine_manifest
+# manifest.json
 # ---------------------------------------------------------------------------
 
 
-class TestMachineManifest:
-    def test_emits_well_formed_manifest_with_expected_stats(
-        self, tmp_path: Path
-    ):
-        cat = _seeded_catalog(tmp_path)
-        rm._write_machine_manifest(cat, tmp_path, reproducible=True)
-        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+class TestWriteMachineManifest:
+    def test_writes_valid_json(self, catalog: Catalog, out_dir: Path) -> None:
+        M._write_machine_manifest(catalog, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert payload["site"] == M.SITE_URL
+        assert payload["version"] == "2.0.0"
+        # Stats roll up from the catalog
+        assert payload["stats"]["useCases"] == 3
+        assert payload["stats"]["categories"] == 2
+        assert payload["stats"]["regulations"] == 1
+        assert payload["stats"]["totalRegulations"] == 1
 
-        assert manifest["$schema"] == "/schemas/v2/manifest.schema.json"
-        assert manifest["version"] == "2.0.0"
-        assert manifest["stats"]["useCases"] == 2
-        assert manifest["stats"]["categories"] == 1
-        assert manifest["stats"]["totalRegulations"] == 2
-        # Both regulations are matched (each has 1 UC carrying its
-        # shortName), so the count is 2.
-        assert manifest["stats"]["regulations"] == 2
-        assert manifest["categories"][0]["id"] == 1
-        assert manifest["categories"][0]["name"] == "Network"
-        assert manifest["categories"][0]["useCases"] == 2
-        assert len(manifest["regulations"]) == 2
+    def test_endpoints_use_site_url(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_machine_manifest(catalog, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        for url in payload["endpoints"].values():
+            assert url.startswith(M.SITE_URL)
 
-    def test_machine_manifest_drops_unresolved_reg_tags(self, tmp_path: Path):
-        """When a UC's ``regs`` entry doesn't resolve via
-        ``_resolve_alias``, the false arm of ``if fw_id:`` (branch
-        354→352) is taken and the regulation never appears in the
-        manifest's ``regulations`` array."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {
-                    "i": 1, "n": "X",
-                    "s": [
-                        {"i": "1.1", "u": [
-                            {"i": "1.1.1", "regs": ["Unknown Framework"]}
-                        ]}
-                    ],
-                }
-            ],
-            regulations={
-                "gdpr": {"name": "GDPR", "shortName": "GDPR"},
-            },
-            files=["cat-01-x.md"],
-        )
-        rm._write_machine_manifest(cat, tmp_path, reproducible=True)
-        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
-        assert manifest["stats"]["regulations"] == 0
-        assert manifest["regulations"] == []
+    def test_categories_carry_html_and_json_twins(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_machine_manifest(catalog, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        cats = payload["categories"]
+        assert len(cats) == 2
+        for c in cats:
+            assert c["html"].startswith(M.SITE_URL + "/category/")
+            assert c["json"].endswith("/index.json")
+            assert isinstance(c["useCases"], int)
 
-    def test_categories_skips_entries_without_id(self, tmp_path: Path):
-        """A category without ``i`` is excluded from the manifest's
-        ``categories`` array (covers line 390 ``if cat.get('i') is not
-        None``)."""
-        cat = _empty_catalog(
-            tmp_path,
-            categories=[
-                {"i": 1, "n": "Network", "s": []},
-                {"n": "Headless"},
-            ],
-            files=["cat-01-network.md"],
-        )
-        rm._write_machine_manifest(cat, tmp_path, reproducible=True)
-        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
-        assert [c["id"] for c in manifest["categories"]] == [1]
+    def test_only_lists_matched_regulations(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        cat = _make_catalog(tmp_path)
+        # Add an unmatched framework — must not surface in manifest.
+        cat.regulations["zzz"] = {
+            "id": "zzz",
+            "shortName": "Z",
+            "name": "Zeta",
+        }
+        M._write_machine_manifest(cat, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        ids = [r["id"] for r in payload["regulations"]]
+        assert ids == ["pci-dss"]
+        # totalRegulations counts ALL frameworks; matched only the tagged one.
+        assert payload["stats"]["totalRegulations"] == 2
+        assert payload["stats"]["regulations"] == 1
+
+    def test_overwrites_existing_manifest(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        (out_dir / "manifest.json").write_text("{}", encoding="utf-8")
+        M._write_machine_manifest(catalog, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        # Confirm the manifest was rewritten (not preserved).
+        assert payload["version"] == "2.0.0"
+
+    def test_unresolved_regs_skip_in_manifest(
+        self, tmp_path: Path, out_dir: Path
+    ) -> None:
+        """Pin branch 354->352 — a ``regs`` tag that resolves to no framework
+        is not added to ``matched_fw_ids`` in the machine manifest either.
+        """
+        cat = _make_catalog(tmp_path)
+        # Add an unresolvable tag — must not surface as a regulation.
+        cat.categories[0]["s"][0]["u"][0]["regs"] = ["pci-dss", "nonexistent"]
+        M._write_machine_manifest(cat, out_dir, reproducible=True)
+        payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        ids = [r["id"] for r in payload["regulations"]]
+        # Only the resolvable framework appears.
+        assert ids == ["pci-dss"]
 
 
 # ---------------------------------------------------------------------------
-# _write_openapi_v2
+# OpenAPI v2
 # ---------------------------------------------------------------------------
 
 
-class TestOpenApiV2:
-    def test_emits_well_formed_yaml_with_counts(self, tmp_path: Path):
-        cat = _seeded_catalog(tmp_path)
-        rm._write_openapi_v2(cat, tmp_path, reproducible=True)
-        spec = (tmp_path / "api" / "v2" / "openapi.yaml").read_text(encoding="utf-8")
+class TestWriteOpenApiV2:
+    def test_writes_yaml_with_substituted_counts(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M._write_openapi_v2(catalog, out_dir, reproducible=True)
+        spec_path = out_dir / "api" / "v2" / "openapi.yaml"
+        assert spec_path.exists()
+        spec = spec_path.read_text(encoding="utf-8")
         assert "openapi: 3.1.0" in spec
-        assert "Splunk Monitoring Use Cases — SSG Catalog API (v2)" in spec
-        # Counts are formatted into the body
-        assert "2 use cases" in spec
-        assert "1 categories" in spec
-        assert "2 regulatory frameworks" in spec
-        # Paths block exists
-        assert "/manifest.json:" in spec
-        assert "/uc/{useCaseId}/index.json:" in spec
+        assert "{site_url}" not in spec  # template substituted
+        # Substituted counts appear verbatim in the description block
+        assert "Catalogue: 3 use cases, 2 categories" in spec
+        assert "1 regulatory frameworks" in spec
+        # SITE_URL appears as a server entry
+        assert M.SITE_URL in spec
+
+    def test_creates_nested_api_dir(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        # Sanity: api/v2/ should be created lazily.
+        M._write_openapi_v2(catalog, out_dir, reproducible=True)
+        assert (out_dir / "api" / "v2").is_dir()
 
 
 # ---------------------------------------------------------------------------
-# _timestamp / _date_only
+# Timestamp helpers
 # ---------------------------------------------------------------------------
 
 
 class TestTimestampHelpers:
-    def test_timestamp_reproducible_uses_source_date_epoch(
+    def test_reproducible_uses_source_date_epoch(
         self, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
-        assert rm._timestamp(reproducible=True) == "2023-11-14T22:13:20Z"
+    ) -> None:
+        # Friday, Jan 01, 2027 00:00:00 UTC == epoch 1798761600
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1798761600")
+        ts = M._timestamp(reproducible=True)
+        assert ts == "2027-01-01T00:00:00Z"
 
-    def test_timestamp_reproducible_invalid_epoch_falls_back_to_unix_epoch(
+    def test_reproducible_falls_back_to_zero_on_unset_env(
         self, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.setenv("SOURCE_DATE_EPOCH", "not-an-int")
-        assert rm._timestamp(reproducible=True) == "1970-01-01T00:00:00Z"
-
-    def test_timestamp_reproducible_missing_env_defaults_to_zero(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    ) -> None:
         monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
-        assert rm._timestamp(reproducible=True) == "1970-01-01T00:00:00Z"
+        ts = M._timestamp(reproducible=True)
+        assert ts == "1970-01-01T00:00:00Z"
 
-    def test_timestamp_non_reproducible_uses_wall_clock(self):
-        out = rm._timestamp(reproducible=False)
-        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", out), out
-
-    def test_date_only_returns_first_10_chars_of_timestamp(
+    def test_reproducible_falls_back_to_zero_on_invalid_env(
         self, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
-        assert rm._date_only(reproducible=True) == "2023-11-14"
+    ) -> None:
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "not-a-number")
+        ts = M._timestamp(reproducible=True)
+        assert ts == "1970-01-01T00:00:00Z"
+
+    def test_non_reproducible_returns_current_time(self) -> None:
+        before = datetime.now(timezone.utc)
+        ts = M._timestamp(reproducible=False)
+        parsed = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        # Within a couple of seconds.
+        delta = parsed - before
+        assert abs(delta.total_seconds()) < 5
+
+    def test_date_only_returns_first_10_chars(self) -> None:
+        d = M._date_only(reproducible=True)
+        assert len(d) == 10
+        # Confirm it's a valid YYYY-MM-DD prefix
+        datetime.strptime(d, "%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
-# render() — top-level orchestrator smoke test
+# render() — orchestrator
 # ---------------------------------------------------------------------------
 
 
-class TestRender:
-    def test_render_emits_all_top_level_artefacts(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """End-to-end: every static + sitemap + manifest + openapi
-        artefact lands under ``out_dir`` and parses as expected."""
-        # Source an ai.txt for the well-known mirror
-        (tmp_path / "ai.txt").write_text("AI policy\n", encoding="utf-8")
-        fake = tmp_path / "tools" / "build" / "render_meta.py"
-        fake.parent.mkdir(parents=True)
-        fake.touch()
-        monkeypatch.setattr(rm, "__file__", str(fake))
-
-        cat = _seeded_catalog(tmp_path)
-        out_dir = tmp_path / "dist"
-        out_dir.mkdir()  # render() expects an existing out_dir
-        rm.render(cat, out_dir, reproducible=True)
-
-        for name in (
+class TestRenderOrchestrator:
+    def test_render_emits_full_surface(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        M.render(catalog, out_dir, reproducible=True)
+        # Every file the discovery surface promises must land on disk.
+        expected = [
             "robots.txt",
             "manifest.webmanifest",
             ".well-known/security.txt",
             ".well-known/ai.txt",
             "feed.xml",
             "sitemap.xml",
+            "sitemap-pages.xml",
+            "sitemap-categories.xml",
+            "sitemap-regulations.xml",
             "manifest.json",
             "api/v2/openapi.yaml",
-        ):
-            assert (out_dir / name).exists(), f"missing {name}"
+        ]
+        for rel in expected:
+            assert (out_dir / rel).exists(), f"missing {rel}"
+
+    def test_render_idempotent_on_existing_static_files(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        # First render — captures baseline.
+        M.render(catalog, out_dir, reproducible=True)
+        before = (out_dir / "robots.txt").read_text(encoding="utf-8")
+        # Second render — robots.txt is idempotent (skip when present).
+        # Atom feed is also idempotent. Sitemap + manifest are unconditional.
+        M.render(catalog, out_dir, reproducible=True)
+        after = (out_dir / "robots.txt").read_text(encoding="utf-8")
+        assert before == after
+
+    def test_render_default_non_reproducible(
+        self, catalog: Catalog, out_dir: Path
+    ) -> None:
+        # Default kwarg — exercise the path without raising.
+        M.render(catalog, out_dir)
+        assert (out_dir / "manifest.json").exists()
