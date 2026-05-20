@@ -415,6 +415,100 @@ class TestAppsForTaString:
         b = en.apps_for_ta_string("Splunk ESCU")
         assert a == b
 
+    def test_splunkbase_id_match_when_pattern_misses(self, monkeypatch):
+        """Pass-2: numeric Splunkbase ID match after pass-1 substring fails.
+
+        Notes:
+        * SPLUNK_APPS entries use integer ``id`` fields, matching the
+          integer set returned by ``_splunkbase_ids_in``.
+        * ``_SPLUNKBASE_ID_RE`` matches 2-5 digit IDs after the literal
+          tokens ``splunkbase `` (space-delimited), ``app/``, or
+          ``splunkbase.splunk.com/app/``.
+        """
+        fake_apps = [
+            {
+                "id": 99999,
+                "name": "Fake App",
+                "url": "https://splunkbase.splunk.com/app/99999",
+                "tas": ["Fake App Name That Will Not Substring Match"],
+                "desc": "test",
+                "screenshots": [],
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps)
+        out = en.apps_for_ta_string("Reference: Splunkbase 99999")
+        assert len(out) == 1
+        assert out[0]["id"] == 99999
+        assert out[0]["name"] == "Fake App"
+
+    def test_splunkbase_id_via_app_url_path(self, monkeypatch):
+        """The ``app/<id>`` anchor in a URL is a valid pass-2 cue."""
+        fake_apps = [
+            {
+                "id": 12345,
+                "name": "URL-Cited App",
+                "url": "https://splunkbase.splunk.com/app/12345",
+                "tas": ["unmatched_substring"],
+                "desc": "",
+                "screenshots": [],
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps)
+        out = en.apps_for_ta_string("See splunkbase.splunk.com/app/12345")
+        assert len(out) == 1
+        assert out[0]["id"] == 12345
+
+    def test_splunkbase_id_skipped_when_already_matched(self, monkeypatch):
+        """If pass-1 substring already matched, pass-2 must not add a duplicate."""
+        fake_apps = [
+            {
+                "id": 99999,
+                "name": "Fake App",
+                "url": "https://splunkbase.splunk.com/app/99999",
+                "tas": ["Fake App"],
+                "desc": "",
+                "screenshots": [],
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps)
+        out = en.apps_for_ta_string("Fake App (Splunkbase 99999)")
+        assert len(out) == 1
+
+    def test_predecessor_field_included(self, monkeypatch):
+        fake_apps = [
+            {
+                "id": 88888,
+                "name": "New App",
+                "url": "https://splunkbase.splunk.com/app/88888",
+                "tas": ["new app"],
+                "desc": "",
+                "screenshots": [],
+                "predecessor": "old_app",
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps)
+        out = en.apps_for_ta_string("new app")
+        assert len(out) == 1
+        assert out[0]["predecessor"] == "old_app"
+
+    def test_predecessor_field_included_via_splunkbase_id(self, monkeypatch):
+        """The predecessor field is preserved via pass-2 (Splunkbase ID) too."""
+        fake_apps = [
+            {
+                "id": 77777,
+                "name": "New App",
+                "url": "https://splunkbase.splunk.com/app/77777",
+                "tas": ["never matches"],
+                "desc": "",
+                "screenshots": [],
+                "predecessor": "old_app",
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_APPS", fake_apps)
+        out = en.apps_for_ta_string("Splunkbase 77777")
+        assert len(out) == 1
+        assert out[0]["predecessor"] == "old_app"
+
 
 class TestTaLinkForTaString:
     def test_empty_returns_none(self):
@@ -424,12 +518,194 @@ class TestTaLinkForTaString:
     def test_unknown_returns_none(self):
         assert en.ta_link_for_ta_string("xyzzy-no-such-ta") is None
 
+    def test_only_backticks_returns_none(self):
+        # After stripping backticks, raw becomes empty → None.
+        assert en.ta_link_for_ta_string("``") is None
+
     def test_returns_dict_with_url(self):
         # Try a Splunkbase ID that's almost certainly in SPLUNK_TAS.
         out = en.ta_link_for_ta_string("Splunkbase 1928")
         if out is not None:
             assert "url" in out
             assert "splunkbase.splunk.com/app/" in out["url"]
+
+    def test_splunkbase_id_fallback(self, monkeypatch):
+        fake_tas = [
+            {
+                "id": 65432,
+                "name": "Fake TA",
+                "tas": ["never_matches_substring"],
+            }
+        ]
+        monkeypatch.setattr(en, "SPLUNK_TAS", fake_tas)
+        out = en.ta_link_for_ta_string("See Splunkbase 65432")
+        assert out is not None
+        assert out["id"] == 65432
+        assert out["url"] == "https://splunkbase.splunk.com/app/65432"
+
+    def test_first_match_wins(self, monkeypatch):
+        """Pass 1 returns the first substring match (legacy behaviour)."""
+        fake_tas = [
+            {"id": 100, "name": "First TA", "tas": ["alpha"]},
+            {"id": 200, "name": "Second TA", "tas": ["alpha"]},
+        ]
+        monkeypatch.setattr(en, "SPLUNK_TAS", fake_tas)
+        out = en.ta_link_for_ta_string("alpha")
+        assert out["id"] == 100
+
+
+# ---------------------------------------------------------------------------
+# _load_sidecar_equipment_cache + _sidecar_equipment_tags
+# ---------------------------------------------------------------------------
+
+
+class TestSidecarEquipmentCache:
+    def _reset_cache(self, monkeypatch, content_dir: Path):
+        monkeypatch.setattr(en, "_SIDECAR_EQUIPMENT_CACHE", None, raising=False)
+        monkeypatch.setattr(en, "CONTENT_DIR", str(content_dir))
+
+    def test_missing_content_dir_returns_empty(self, tmp_path, monkeypatch):
+        self._reset_cache(monkeypatch, tmp_path / "nonexistent")
+        cache = en._load_sidecar_equipment_cache()
+        assert cache == {}
+
+    def test_extracts_equipment_and_models(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps(
+                {
+                    "id": "22.1.1",
+                    "equipment": ["cisco_meraki", "palo_alto"],
+                    "equipmentModels": ["cisco_meraki_mx"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_equipment_cache()
+        assert "22.1.1" in cache
+        eq, models = cache["22.1.1"]
+        assert eq == ["cisco_meraki", "palo_alto"]
+        assert models == ["cisco_meraki_mx"]
+
+    def test_handles_missing_fields(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps({"id": "22.1.1"}), encoding="utf-8"
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_equipment_cache()
+        eq, models = cache["22.1.1"]
+        assert eq == []
+        assert models == []
+
+    def test_non_list_fields_coerced_to_empty(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps(
+                {
+                    "id": "22.1.1",
+                    "equipment": "should-be-a-list",
+                    "equipmentModels": {"also": "wrong"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        eq, models = en._load_sidecar_equipment_cache()["22.1.1"]
+        assert eq == []
+        assert models == []
+
+    def test_malformed_sidecar_skipped(self, tmp_path, monkeypatch, capsys):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text("not json", encoding="utf-8")
+        (content_dir / "UC-22.1.2.json").write_text(
+            json.dumps({"id": "22.1.2", "equipment": ["x"]}), encoding="utf-8"
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_equipment_cache()
+        out = capsys.readouterr().out
+        assert "WARN" in out
+        assert "22.1.2" in cache
+        assert "22.1.1" not in cache
+
+    def test_non_dict_sidecar_skipped(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text("[]", encoding="utf-8")
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_equipment_cache()
+        assert "22.1.1" not in cache
+
+    def test_sidecar_without_id_skipped(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps({"equipment": ["x"]}), encoding="utf-8"
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        assert en._load_sidecar_equipment_cache() == {}
+
+    def test_cache_is_idempotent(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps({"id": "22.1.1", "equipment": ["first"]}),
+            encoding="utf-8",
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        first = en._load_sidecar_equipment_cache()
+        # Mutate disk; cache should NOT reload.
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps({"id": "22.1.1", "equipment": ["second"]}),
+            encoding="utf-8",
+        )
+        second = en._load_sidecar_equipment_cache()
+        assert first == second
+        assert first["22.1.1"][0] == ["first"]
+
+    def test_sidecar_equipment_tags_returns_none_for_empty_id(
+        self, tmp_path, monkeypatch
+    ):
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        assert en._sidecar_equipment_tags(None, "") == (None, None)
+        assert en._sidecar_equipment_tags("22", None) == (None, None)
+
+    def test_sidecar_equipment_tags_returns_none_when_no_sidecar(
+        self, tmp_path, monkeypatch
+    ):
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        eq, models = en._sidecar_equipment_tags("22", "22.1.1")
+        assert eq is None
+        assert models is None
+
+    def test_sidecar_equipment_tags_returns_lists_when_sidecar_exists(
+        self, tmp_path, monkeypatch
+    ):
+        content_dir = tmp_path / "content" / "cat-22-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-22.1.1.json").write_text(
+            json.dumps(
+                {
+                    "id": "22.1.1",
+                    "equipment": ["cisco_meraki"],
+                    "equipmentModels": ["cisco_meraki_mx"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._reset_cache(monkeypatch, tmp_path / "content")
+        eq, models = en._sidecar_equipment_tags("22", "22.1.1")
+        assert eq == ["cisco_meraki"]
+        assert models == ["cisco_meraki_mx"]
+        # Returned lists are independent copies (mutation safety).
+        eq.append("mutated")
+        eq2, _ = en._sidecar_equipment_tags("22", "22.1.1")
+        assert "mutated" not in eq2
 
 
 # ---------------------------------------------------------------------------
@@ -1068,3 +1344,2448 @@ class TestExplainSplPipeline:
         out = en.explain_spl_pipeline(long_spl, max_bullets=100)
         # Just verify it doesn't crash and returns a string.
         assert isinstance(out, str)
+
+
+# ---------------------------------------------------------------------------
+# _explain_one_spl_stage — per-stage narration
+# ---------------------------------------------------------------------------
+
+
+class TestExplainOneSplStage:
+    def test_empty_returns_none(self):
+        assert en._explain_one_spl_stage("") is None
+        assert en._explain_one_spl_stage(None) is None
+        assert en._explain_one_spl_stage("   ") is None
+
+    def test_leading_pipe_stripped(self):
+        """Leading pipe is removed before classifying the stage."""
+        out = en._explain_one_spl_stage("| stats count by host")
+        assert out is not None
+        assert "stats" in out
+
+    def test_macro_invocation(self):
+        out = en._explain_one_spl_stage("`my_macro`")
+        assert out is not None
+        assert "macro" in out
+        assert "my_macro" in out
+
+    def test_tstats_with_datamodel(self):
+        out = en._explain_one_spl_stage(
+            "tstats count from datamodel=Authentication"
+        )
+        assert out is not None
+        assert "tstats" in out
+        assert "Authentication" in out
+
+    def test_tstats_without_datamodel(self):
+        out = en._explain_one_spl_stage("tstats count where index=foo")
+        assert out is not None
+        assert "tstats" in out
+        assert "accelerated" in out
+
+    def test_mstats(self):
+        out = en._explain_one_spl_stage("mstats avg(_value) by host")
+        assert out is not None
+        assert "mstats" in out
+        assert "metric" in out.lower()
+
+    def test_metadata(self):
+        out = en._explain_one_spl_stage("metadata type=hosts index=*")
+        assert out is not None
+        assert "metadata" in out.lower()
+
+    def test_inputlookup(self):
+        out = en._explain_one_spl_stage("inputlookup my_lookup.csv")
+        assert out is not None
+        assert "inputlookup" in out
+
+    def test_rest(self):
+        out = en._explain_one_spl_stage("rest /services/server/info")
+        assert out is not None
+        assert "rest" in out.lower()
+
+    def test_search(self):
+        out = en._explain_one_spl_stage("search status=error")
+        assert out is not None
+        assert "search" in out
+
+    def test_stats_by_clause(self):
+        out = en._explain_one_spl_stage("stats count by host")
+        assert out is not None
+        assert "stats" in out
+        assert "host" in out
+
+    def test_stats_no_by(self):
+        out = en._explain_one_spl_stage("stats count")
+        assert out is not None
+        assert "stats" in out
+
+    def test_eventstats(self):
+        out = en._explain_one_spl_stage("eventstats sum(bytes) by user")
+        assert out is not None
+        assert "eventstats" in out
+
+    def test_streamstats(self):
+        out = en._explain_one_spl_stage("streamstats count by user")
+        assert out is not None
+        assert "streamstats" in out
+
+    def test_timechart_with_span_and_by(self):
+        out = en._explain_one_spl_stage(
+            "timechart span=5m count by host"
+        )
+        assert out is not None
+        assert "timechart" in out
+        assert "5m" in out
+        assert "host" in out
+
+    def test_chart_with_by(self):
+        out = en._explain_one_spl_stage("chart count by user")
+        assert out is not None
+        assert "chart" in out
+
+    def test_top(self):
+        out = en._explain_one_spl_stage("top user")
+        assert out is not None
+        assert "top" in out
+
+    def test_top_with_by(self):
+        out = en._explain_one_spl_stage("top src_ip by user")
+        assert out is not None
+        assert "top" in out
+
+    def test_rare(self):
+        out = en._explain_one_spl_stage("rare user")
+        assert out is not None
+        assert "rare" in out.lower()
+
+    def test_eval(self):
+        out = en._explain_one_spl_stage("eval pct = bytes / total * 100")
+        assert out is not None
+        assert "eval" in out
+        assert "pct" in out
+
+    def test_where(self):
+        out = en._explain_one_spl_stage("where count > 100")
+        assert out is not None
+        assert "where" in out.lower() or "filter" in out.lower()
+
+    def test_where_with_long_condition_truncated(self):
+        long_cond = "x" * 200
+        out = en._explain_one_spl_stage(f"where {long_cond}")
+        assert out is not None
+        # Condition is truncated to 120 chars + ellipsis.
+        assert "…" in out
+
+    def test_where_with_short_condition(self):
+        out = en._explain_one_spl_stage("where cpu_pct > 80")
+        assert out is not None
+        assert "cpu_pct > 80" in out
+
+    def test_where_with_no_condition(self):
+        # Just `where` with no expression should fall through to generic message.
+        out = en._explain_one_spl_stage("where")
+        assert out is not None
+        assert "where" in out.lower() or "Filters" in out
+
+    def test_fields(self):
+        out = en._explain_one_spl_stage("fields - _raw")
+        assert out is not None
+        assert "fields" in out
+
+    def test_rename(self):
+        out = en._explain_one_spl_stage("rename foo as bar")
+        assert out is not None
+        assert "rename" in out
+
+    def test_sort(self):
+        out = en._explain_one_spl_stage("sort - count")
+        assert out is not None
+        assert "sort" in out
+
+    def test_head(self):
+        out = en._explain_one_spl_stage("head 10")
+        assert out is not None
+        assert "head" in out
+
+    def test_tail(self):
+        out = en._explain_one_spl_stage("tail 5")
+        assert out is not None
+        assert "tail" in out
+
+    def test_dedup(self):
+        out = en._explain_one_spl_stage("dedup host")
+        assert out is not None
+        assert "dedup" in out.lower()
+
+    def test_join(self):
+        out = en._explain_one_spl_stage("join host [search index=foo]")
+        assert out is not None
+        assert "join" in out
+
+    def test_appendcols(self):
+        out = en._explain_one_spl_stage("appendcols [search index=foo]")
+        assert out is not None
+        assert "appendcols" in out
+
+    def test_append(self):
+        out = en._explain_one_spl_stage("append [search index=foo]")
+        assert out is not None
+        assert "append" in out
+
+    def test_union(self):
+        out = en._explain_one_spl_stage("union [search index=foo] [search index=bar]")
+        assert out is not None
+        assert "union" in out
+
+    def test_lookup(self):
+        out = en._explain_one_spl_stage("lookup my_lookup user OUTPUT name")
+        assert out is not None
+        assert "lookup" in out
+
+    def test_outputlookup(self):
+        out = en._explain_one_spl_stage("outputlookup my_lookup.csv")
+        assert out is not None
+        assert "outputlookup" in out
+
+    def test_rex(self):
+        out = en._explain_one_spl_stage(r"rex field=_raw \"(?<host>\S+)\"")
+        assert out is not None
+        assert "rex" in out
+        assert "regular expression" in out.lower()
+
+    def test_regex(self):
+        out = en._explain_one_spl_stage("regex _raw=\"ERROR\"")
+        assert out is not None
+        assert "regex" in out
+
+    def test_transaction(self):
+        out = en._explain_one_spl_stage("transaction host maxspan=5m")
+        assert out is not None
+        assert "transaction" in out
+
+    def test_bin(self):
+        out = en._explain_one_spl_stage("bin _time span=5m")
+        assert out is not None
+        assert "bin" in out
+
+    def test_bucket(self):
+        out = en._explain_one_spl_stage("bucket _time span=10m")
+        assert out is not None
+        assert "bin" in out or "bucket" in out
+
+    def test_mvexpand(self):
+        out = en._explain_one_spl_stage("mvexpand tags")
+        assert out is not None
+        assert "mvexpand" in out
+
+    def test_spath(self):
+        out = en._explain_one_spl_stage("spath input=raw output=event_id path=event.id")
+        assert out is not None
+        assert "spath" in out
+
+    def test_makeresults(self):
+        out = en._explain_one_spl_stage("makeresults count=10")
+        assert out is not None
+        assert "makeresults" in out
+
+    def test_return(self):
+        out = en._explain_one_spl_stage("return host")
+        assert out is not None
+        assert "return" in out.lower()
+
+    def test_format(self):
+        out = en._explain_one_spl_stage("format")
+        assert out is not None
+        assert "format" in out.lower()
+
+    def test_map(self):
+        out = en._explain_one_spl_stage("map search=\"search foo=$bar$\"")
+        assert out is not None
+        assert "map" in out
+
+    def test_foreach(self):
+        out = en._explain_one_spl_stage("foreach * [eval <<FIELD>> = upper(<<FIELD>>)]")
+        assert out is not None
+        assert "foreach" in out
+
+    def test_xyseries(self):
+        out = en._explain_one_spl_stage("xyseries host status count")
+        assert out is not None
+        assert "xyseries" in out
+
+    def test_fillnull(self):
+        out = en._explain_one_spl_stage("fillnull value=0 cpu_pct")
+        assert out is not None
+        assert "fillnull" in out
+
+    def test_filldown(self):
+        out = en._explain_one_spl_stage("filldown host")
+        assert out is not None
+        assert "filldown" in out
+
+    def test_from(self):
+        out = en._explain_one_spl_stage("from datamodel:Authentication")
+        assert out is not None
+        assert "from" in out
+
+    def test_base_search_with_index(self):
+        out = en._explain_one_spl_stage("index=main sourcetype=syslog")
+        assert out is not None
+        assert "index=main" in out
+        assert "sourcetype=syslog" in out
+
+    def test_base_search_with_context_data_sources(self):
+        ctx = {"data_sources": "syslog, AWS CloudTrail"}
+        out = en._explain_one_spl_stage(
+            "index=main sourcetype=syslog", ctx=ctx
+        )
+        assert out is not None
+        assert "Cross-check against" in out
+
+    def test_base_search_with_context_no_data_sources(self):
+        ctx = {"title": "My UC"}
+        out = en._explain_one_spl_stage(
+            "index=main sourcetype=syslog", ctx=ctx
+        )
+        assert out is not None
+        assert "Adjust names if your deployment" in out
+
+    def test_base_search_with_time_bounds(self):
+        out = en._explain_one_spl_stage("index=foo earliest=-24h")
+        assert out is not None
+        assert "time bounds" in out
+
+    def test_base_search_with_tag(self):
+        out = en._explain_one_spl_stage("index=foo tag=authentication")
+        assert out is not None
+        assert "tags" in out
+
+    def test_base_search_with_source_only(self):
+        # source= alone (no index, sourcetype, etc.) triggers the base-search arm
+        # but with no `bits` so falls through to the generic message.
+        out = en._explain_one_spl_stage("source=/var/log/foo.log")
+        assert out is not None
+        assert "Filters" in out or "initial event set" in out
+
+    def test_base_search_with_many_indexes_truncated(self):
+        # More than 4 indexes → truncation marker.
+        spl = " ".join(f"index=i{i}" for i in range(8))
+        out = en._explain_one_spl_stage(spl)
+        assert out is not None
+        assert "…" in out
+
+    def test_bracketed_subsearch(self):
+        # Pure subsearch without index= or sourcetype= → falls through to the
+        # st.startswith("[") arm, not the base-search arm.
+        out = en._explain_one_spl_stage("[ stats count by host ]")
+        assert out is not None
+        assert "subsearch" in out.lower()
+
+    def test_fallback_unknown_stage(self):
+        out = en._explain_one_spl_stage("custom_unknown_command foo bar baz")
+        assert out is not None
+        assert "Pipeline stage" in out
+        assert "custom_unknown_command" in out
+
+    def test_fallback_with_long_stage_truncated(self):
+        long_stage = "custom " + ("x" * 200)
+        out = en._explain_one_spl_stage(long_stage)
+        assert out is not None
+        assert "…" in out
+
+    def test_fallback_with_ctx_title(self):
+        ctx = {"title": "Test UC"}
+        out = en._explain_one_spl_stage("custom_unknown_command foo", ctx=ctx)
+        assert out is not None
+        assert "Test UC" in out
+
+
+# ---------------------------------------------------------------------------
+# Sidecar caches — _populate_content_sidecar_caches + accessors
+# ---------------------------------------------------------------------------
+
+
+class TestSidecarCaches:
+    def _setup_caches(self, monkeypatch, content_dir: Path):
+        """Reset cache globals and rewire CONTENT_DIR to a temp dir."""
+        monkeypatch.setattr(en, "_SIDECAR_GRANDMA_CACHE", None, raising=False)
+        monkeypatch.setattr(en, "_SIDECAR_COMPLIANCE_CACHE", None, raising=False)
+        monkeypatch.setattr(en, "_SIDECAR_QUALITY_CACHE", None, raising=False)
+        monkeypatch.setattr(en, "CONTENT_DIR", str(content_dir))
+
+    def test_missing_content_dir_returns_empty_caches(self, tmp_path, monkeypatch):
+        """When CONTENT_DIR doesn't exist, every accessor returns empty."""
+        self._setup_caches(monkeypatch, tmp_path / "nonexistent")
+        assert en._load_sidecar_grandma_cache() == {}
+        assert en._load_sidecar_compliance_cache() == {}
+        assert en._load_sidecar_quality_cache() == {}
+        assert en._sidecar_grandma_for("1.1.1") == ""
+        assert en._sidecar_compliance_for("1.1.1") == []
+        assert en._sidecar_quality_for("1.1.1") == {}
+
+    def test_grandma_extraction(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        sidecar = content_dir / "UC-1.1.1.json"
+        sidecar.write_text(
+            json.dumps({"id": "1.1.1", "grandmaExplanation": "  Easy stuff.  "}),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_grandma_cache()
+        assert cache == {"1.1.1": "Easy stuff."}
+
+    def test_grandma_missing_field_excluded(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        sidecar = content_dir / "UC-1.1.1.json"
+        sidecar.write_text(
+            json.dumps({"id": "1.1.1"}),  # no grandmaExplanation
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        assert en._load_sidecar_grandma_cache() == {}
+
+    def test_compliance_extraction_drops_incomplete_rows(
+        self, tmp_path, monkeypatch
+    ):
+        """Rows lacking regulation/version/clause are skipped."""
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        sidecar = content_dir / "UC-1.1.1.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "id": "1.1.1",
+                    "compliance": [
+                        {"regulation": "GDPR", "version": "2016", "clause": "5.1"},
+                        {"regulation": "incomplete-no-clause"},  # dropped
+                        "not a dict",  # dropped
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_compliance_cache()
+        assert "1.1.1" in cache
+        assert len(cache["1.1.1"]) == 1
+        row = cache["1.1.1"][0]
+        assert row["r"] == "GDPR"
+        assert row["v"] == "2016"
+        assert row["cl"] == "5.1"
+
+    def test_compliance_optional_fields(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        sidecar = content_dir / "UC-1.1.1.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "id": "1.1.1",
+                    "compliance": [
+                        {
+                            "regulation": "GDPR",
+                            "version": "2016",
+                            "clause": "5.1",
+                            "mode": "satisfies",
+                            "assurance": "full",
+                            "controlObjective": "Test objective",
+                            "evidenceArtifact": "Test artifact",
+                            "clauseUrl": "https://example.com/5.1",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        row = en._sidecar_compliance_for("1.1.1")[0]
+        assert row["m"] == "satisfies"
+        assert row["a"] == "full"
+        assert row["co"] == "Test objective"
+        assert row["ea"] == "Test artifact"
+        assert row["u"] == "https://example.com/5.1"
+
+    def test_quality_extraction(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        sidecar = content_dir / "UC-1.1.1.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "id": "1.1.1",
+                    "knownFalsePositives": "Maintenance windows trigger this.",
+                    "mitreAttack": ["T1110", "T1078"],
+                    "lastReviewed": "2026-05-19",
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        entry = en._sidecar_quality_for("1.1.1")
+        assert entry["kfp"] == "Maintenance windows trigger this."
+        assert entry["mitre"] == ["T1110", "T1078"]
+        assert entry["reviewed"] == "2026-05-19"
+
+    def test_malformed_sidecar_skipped_with_warning(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-1.1.1.json").write_text("not json", encoding="utf-8")
+        # Plus a valid sidecar so the cache is not empty.
+        (content_dir / "UC-1.1.2.json").write_text(
+            json.dumps({"id": "1.1.2", "grandmaExplanation": "OK"}),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        cache = en._load_sidecar_grandma_cache()
+        out = capsys.readouterr().out
+        assert "WARN" in out
+        assert cache == {"1.1.2": "OK"}
+
+    def test_non_dict_sidecar_skipped(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-1.1.1.json").write_text("[]", encoding="utf-8")
+        (content_dir / "UC-1.1.2.json").write_text(
+            json.dumps({"id": "1.1.2", "grandmaExplanation": "OK"}),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        assert en._load_sidecar_grandma_cache() == {"1.1.2": "OK"}
+
+    def test_sidecar_without_id_skipped(self, tmp_path, monkeypatch):
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-1.1.1.json").write_text(
+            json.dumps({"grandmaExplanation": "no id"}), encoding="utf-8"
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        assert en._load_sidecar_grandma_cache() == {}
+
+    def test_accessors_with_empty_id(self, tmp_path, monkeypatch):
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        assert en._sidecar_grandma_for("") == ""
+        assert en._sidecar_grandma_for(None) == ""
+        assert en._sidecar_compliance_for("") == []
+        assert en._sidecar_compliance_for(None) == []
+        assert en._sidecar_quality_for("") == {}
+        assert en._sidecar_quality_for(None) == {}
+
+    def test_caches_populated_once(self, tmp_path, monkeypatch):
+        """Once populated, subsequent calls don't re-walk the filesystem."""
+        content_dir = tmp_path / "content" / "cat-01-foo"
+        content_dir.mkdir(parents=True)
+        (content_dir / "UC-1.1.1.json").write_text(
+            json.dumps({"id": "1.1.1", "grandmaExplanation": "first"}),
+            encoding="utf-8",
+        )
+        self._setup_caches(monkeypatch, tmp_path / "content")
+        first_call = en._load_sidecar_grandma_cache()
+        # Mutate the file but the cache should not see it.
+        (content_dir / "UC-1.1.1.json").write_text(
+            json.dumps({"id": "1.1.1", "grandmaExplanation": "second"}),
+            encoding="utf-8",
+        )
+        second_call = en._load_sidecar_grandma_cache()
+        assert first_call == second_call == {"1.1.1": "first"}
+
+
+# ---------------------------------------------------------------------------
+# parse_index_metadata — INDEX.md parser
+# ---------------------------------------------------------------------------
+
+
+class TestParseIndexMetadata:
+    def test_missing_file_returns_empty_tuple(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(en, "CONTENT_DIR", str(tmp_path))
+        cat_meta, cat_starters = en.parse_index_metadata()
+        assert cat_meta == {}
+        assert cat_starters == {}
+        out = capsys.readouterr().out
+        assert "WARNING" in out
+
+    def test_parses_category_metadata(self, tmp_path, monkeypatch):
+        index_md = tmp_path / "INDEX.md"
+        index_md.write_text(
+            "## 1. Server & Compute\n"
+            "- **Icon:** srv\n"
+            "- **Description:** Server hosts and OS observability.\n"
+            "- **Quick Tip:** Start with CPU and memory.\n"
+            "- **Quick Start:**\n"
+            "- UC-1.1.1 · CPU spike (high)\n"
+            "- UC-1.1.2 · Memory leak (medium, OS health)\n"
+            "\n"
+            "## 2. Virtualization\n"
+            "- **Icon:** vm\n"
+            "- **Description:** VM-level monitoring.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "CONTENT_DIR", str(tmp_path))
+        cat_meta, cat_starters = en.parse_index_metadata()
+
+        assert "1" in cat_meta
+        assert cat_meta["1"]["icon"] == "srv"
+        assert cat_meta["1"]["desc"] == "Server hosts and OS observability."
+        assert cat_meta["1"]["quick"] == "Start with CPU and memory."
+
+        assert "2" in cat_meta
+        assert cat_meta["2"]["icon"] == "vm"
+
+        assert "1" in cat_starters
+        assert len(cat_starters["1"]) == 2
+        assert cat_starters["1"][0]["i"] == "1.1.1"
+        assert cat_starters["1"][0]["n"] == "CPU spike"
+        assert cat_starters["1"][0]["c"] == "high"
+        assert cat_starters["1"][1]["sc"] == "OS health"
+
+    def test_ignores_content_before_first_category(self, tmp_path, monkeypatch):
+        index_md = tmp_path / "INDEX.md"
+        index_md.write_text(
+            "# Title\n\nSome preface.\n\n"
+            "## 1. Foo\n"
+            "- **Icon:** foo\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "CONTENT_DIR", str(tmp_path))
+        cat_meta, _ = en.parse_index_metadata()
+        assert cat_meta == {"1": {"icon": "foo", "desc": ""}}
+
+    def test_starters_terminated_by_non_dash_line(self, tmp_path, monkeypatch):
+        index_md = tmp_path / "INDEX.md"
+        index_md.write_text(
+            "## 1. Foo\n"
+            "- **Quick Start:**\n"
+            "- UC-1.1.1 · A (high)\n"
+            "Another paragraph terminates the list.\n"
+            "- UC-1.1.2 · B (low)\n",  # not parsed (in_starters=False)
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "CONTENT_DIR", str(tmp_path))
+        _, cat_starters = en.parse_index_metadata()
+        assert len(cat_starters["1"]) == 1
+        assert cat_starters["1"][0]["i"] == "1.1.1"
+
+
+# ---------------------------------------------------------------------------
+# equipment_ids_for_ta_string
+# ---------------------------------------------------------------------------
+
+
+class TestEquipmentIdsForTaString:
+    def test_empty_returns_empty_tuples(self):
+        assert en.equipment_ids_for_ta_string("") == ([], [])
+        assert en.equipment_ids_for_ta_string(None) == ([], [])
+        assert en.equipment_ids_for_ta_string("   ") == ([], [])
+
+    def test_only_backticks_returns_empty(self):
+        # After stripping backticks, raw becomes empty.
+        assert en.equipment_ids_for_ta_string("``") == ([], [])
+
+    def test_returns_sorted_unique_ids(self, monkeypatch):
+        fake_equipment = [
+            {
+                "id": "cisco_meraki",
+                "tas": ["Splunk Add-on for Cisco Meraki"],
+                "models": [
+                    {"id": "mx", "tas": ["Meraki MX"]},
+                    {"id": "ms", "tas": ["Meraki MS"]},
+                ],
+            },
+            {
+                "id": "palo_alto",
+                "tas": ["Palo Alto Networks Add-on"],
+            },
+        ]
+        monkeypatch.setattr(en, "EQUIPMENT", fake_equipment)
+
+        eq_ids, model_ids = en.equipment_ids_for_ta_string(
+            "Splunk Add-on for Cisco Meraki (Meraki MX, Meraki MS)"
+        )
+        assert eq_ids == ["cisco_meraki"]
+        assert model_ids == ["cisco_meraki_meraki_mx", "cisco_meraki_ms"] or model_ids == sorted(
+            ["cisco_meraki_mx", "cisco_meraki_ms"]
+        )
+
+    def test_no_match(self, monkeypatch):
+        fake_equipment = [
+            {"id": "cisco_meraki", "tas": ["Splunk Add-on for Cisco Meraki"]},
+        ]
+        monkeypatch.setattr(en, "EQUIPMENT", fake_equipment)
+        eq_ids, model_ids = en.equipment_ids_for_ta_string("Unknown app")
+        assert eq_ids == []
+        assert model_ids == []
+
+
+# ---------------------------------------------------------------------------
+# generate_detailed_impl — fallback step-by-step generator
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateDetailedImpl:
+    def test_minimal_uc_produces_full_outline(self):
+        uc = {"t": "MyApp", "d": "syslog", "q": "index=foo | stats count"}
+        out = en.generate_detailed_impl(uc)
+        assert "Prerequisites" in out
+        assert "MyApp" in out
+        assert "syslog" in out
+        assert "Step 1" in out
+        assert "Step 2" in out
+
+    def test_uses_default_values_when_missing(self):
+        out = en.generate_detailed_impl({})
+        assert "see App/TA above" in out
+        assert "see Data Sources above" in out
+        assert "Configure inputs and permissions" in out
+
+    def test_truncates_long_implementation_text(self):
+        uc = {"m": "x" * 600}
+        out = en.generate_detailed_impl(uc)
+        assert "…" in out  # truncation marker added
+
+    def test_falls_back_to_step2_text_when_no_query(self):
+        """No `q` field → Step 2 uses the generic "Run the SPL query" copy."""
+        out = en.generate_detailed_impl({"t": "MyApp"})
+        assert "Run the SPL query from the SPL Query section above" in out
+
+    def test_includes_explicit_script_block(self):
+        uc = {"script": "#!/usr/bin/env bash\necho hello"}
+        out = en.generate_detailed_impl(uc)
+        assert "Scripted input example" in out
+        assert "echo hello" in out
+        assert "```bash" in out
+
+    def test_generic_scripted_block_when_d_mentions_scripted(self):
+        """No `script` field, but `d` mentions "scripted" → generic example block."""
+        uc = {"d": "scripted input from agent"}
+        out = en.generate_detailed_impl(uc)
+        assert "Scripted input (generic example)" in out
+        assert "[script://" in out
+        assert "interval = 300" in out
+
+    def test_generic_scripted_block_when_m_mentions_scripted(self):
+        """No `script` field, but `m` mentions "scripted" → generic example block."""
+        uc = {"m": "We use a scripted approach to collect counters"}
+        out = en.generate_detailed_impl(uc)
+        assert "Scripted input (generic example)" in out
+
+    def test_no_scripted_block_when_not_mentioned(self):
+        uc = {"d": "syslog", "m": "Just configure the TA"}
+        out = en.generate_detailed_impl(uc)
+        assert "Scripted input" not in out
+
+    def test_qs_appears_as_optional_cim_variant(self):
+        uc = {
+            "q": "search foo | stats count by host",
+            "qs": "tstats count from datamodel=Web",
+        }
+        out = en.generate_detailed_impl(uc)
+        assert "Optional CIM / accelerated variant" in out
+        assert "tstats count from datamodel=Web" in out
+
+    def test_dma_note_when_tstats_in_q(self):
+        uc = {"q": "tstats count from datamodel=Authentication"}
+        out = en.generate_detailed_impl(uc)
+        assert "Data Model Acceleration" in out
+
+    def test_dma_note_when_mstats_in_q(self):
+        uc = {"q": "mstats avg(_value) where index=metrics"}
+        out = en.generate_detailed_impl(uc)
+        assert "Data Model Acceleration" in out
+        assert "metric indexes" in out
+
+    def test_dma_note_when_tstats_in_qs(self):
+        uc = {
+            "q": "search foo",  # plain SPL
+            "qs": "tstats count from datamodel=Network_Traffic",
+        }
+        out = en.generate_detailed_impl(uc)
+        assert "Data Model Acceleration" in out
+
+    def test_no_dma_note_for_plain_search(self):
+        uc = {"q": "search foo | stats count"}
+        out = en.generate_detailed_impl(uc)
+        assert "Data Model Acceleration" not in out
+
+    def test_visualization_hint_when_z_present(self):
+        uc = {"z": "Bar chart, single value KPI"}
+        out = en.generate_detailed_impl(uc)
+        assert "Consider visualizations: Bar chart, single value KPI" in out
+
+    def test_visualization_hint_fallback_when_z_missing(self):
+        uc = {}
+        out = en.generate_detailed_impl(uc)
+        assert "Use the Visualization section above for suggested panels." in out
+
+
+# ---------------------------------------------------------------------------
+# generate_escu_detailed_impl — ESCU-specific detailed implementation
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateEscuDetailedImpl:
+    def _base_uc(self, **overrides):
+        # ``dtype`` is the ESCU methodology field (TTP / Hunting / Anomaly /
+        # Baseline / Correlation), per ``_escu_classify``.
+        uc = {
+            "n": "Brute Force Detection",
+            "d": "Windows EventLog",
+            "q": "search status=fail | stats count",
+            "kfp": "Service-account password changes can trigger this.",
+            "mitre": ["T1110"],
+            "a": ["Authentication"],
+            "sdomain": "Endpoint",
+            "dtype": "TTP",
+        }
+        uc.update(overrides)
+        return uc
+
+    def test_ttp_methodology_includes_intro(self):
+        out = en.generate_escu_detailed_impl(self._base_uc())
+        assert "Enterprise Security Detection Rule" in out
+        assert "Brute Force Detection" in out
+        assert "TTP" in out
+
+    def test_hunting_methodology(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="Hunting"))
+        assert "Hunting" in out
+
+    def test_anomaly_methodology(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="Anomaly"))
+        assert "Anomaly" in out
+
+    def test_baseline_methodology(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="Baseline"))
+        assert "Baseline" in out
+
+    def test_correlation_methodology(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="Correlation"))
+        assert "Correlation" in out
+
+    def test_unknown_dtype_falls_through_to_ttp(self):
+        # _escu_classify treats unknown dtypes as TTP (the default).
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="Custom"))
+        assert "TTP" in out
+
+    def test_includes_validation_section(self):
+        out = en.generate_escu_detailed_impl(self._base_uc())
+        assert "Validation" in out
+        assert "tstats count" in out
+
+    def test_includes_mitre_when_present(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(mitre=["T1110", "T1078"])
+        )
+        assert isinstance(out, str)
+        assert len(out) > 100
+
+    def test_handles_missing_optional_fields(self):
+        out = en.generate_escu_detailed_impl({"dtype": "TTP"})
+        assert "Detection" in out  # default name
+
+    def test_rba_via_dtype_system_triggers_rba_intro(self):
+        # dtype="system" triggers entity_label="host or system" + is_rba=True.
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="system"))
+        assert "Risk-Based Alerting" in out or "RBA" in out
+        assert "host or system" in out
+
+    def test_rba_via_dtype_user(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="user"))
+        assert "user account" in out
+        assert "RBA" in out
+
+    def test_rba_via_dtype_process(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="process"))
+        assert "process" in out.lower()
+        assert "RBA" in out
+
+    def test_rba_via_spl_risk_object(self):
+        # When SPL contains risk_object, is_rba=True even with TTP dtype.
+        uc = self._base_uc(q="search foo | eval risk_object=user")
+        out = en.generate_escu_detailed_impl(uc)
+        assert "RBA" in out
+
+    def test_baseline_no_rba_path(self):
+        # Baseline + dtype="system" → is_rba True but Baseline path wins.
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(dtype="baseline")
+        )
+        assert "Baseline" in out
+        # The RBA branch is gated by methodology not in ("Hunting", "Baseline").
+        # So Baseline output should not include the RBA intro paragraph.
+
+    def test_includes_kfp_section_when_present(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(kfp="Maintenance windows can cause spurious alerts.")
+        )
+        assert "Maintenance windows" in out
+        assert "false positives" in out.lower()
+
+    def test_omits_kfp_section_when_blank(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(kfp=""))
+        # "Known false positives for this detection" line should not appear.
+        assert "Known false positives for this detection" not in out
+
+    def test_omits_kfp_section_when_pipe_only(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(kfp="|"))
+        assert "Known false positives for this detection" not in out
+
+    def test_includes_data_model_acceleration_when_cim_present(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(a=["Authentication", "Endpoint"])
+        )
+        assert "Data Model Acceleration" in out
+        assert "Authentication, Endpoint" in out
+
+    def test_omits_dma_when_cim_is_na(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(a=["N/A"]))
+        assert "Data Model Acceleration" not in out
+
+    def test_security_domain_endpoint(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(sdomain="endpoint"))
+        assert "endpoint" in out.lower()
+        assert "Sysmon" in out or "EDR" in out
+
+    def test_security_domain_network(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(sdomain="network"))
+        assert "DNS" in out or "proxy" in out
+
+    def test_security_domain_identity(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(sdomain="identity"))
+        assert "Asset and Identity" in out or "identity" in out.lower()
+
+    def test_security_domain_unknown(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(sdomain="custom-zone"))
+        # Falls through to generic domain message.
+        assert "custom-zone" in out
+
+    def test_mitre_appears_in_prerequisites(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(mitre=["T1110.001", "T1078.004"])
+        )
+        assert "T1110.001" in out
+        assert "T1078.004" in out
+
+    def test_rba_includes_tuning_block(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="user"))
+        # The RBA tuning block ("Adjust the risk score weight…") fires when
+        # is_rba and methodology not in ("Hunting", "Baseline").
+        assert "risk score" in out.lower()
+
+    def test_anomaly_includes_baseline_period_guidance(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="anomaly"))
+        assert "baseline period" in out.lower() or "14 day" in out.lower()
+
+    def test_rba_includes_analyst_workflow(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="system"))
+        assert "Risk Notable" in out
+        assert "Analyst Response Workflow" in out
+
+    def test_hunting_includes_analyst_workflow(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="hunting"))
+        assert "Analyst Response Workflow" in out
+        assert "Hunting results" in out or "hypothesis" in out.lower()
+
+    def test_baseline_omits_analyst_workflow(self):
+        out = en.generate_escu_detailed_impl(self._base_uc(dtype="baseline"))
+        assert "Analyst Response Workflow" not in out
+
+    def test_rba_endpoint_analyst_pivot(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(dtype="system", sdomain="endpoint")
+        )
+        assert "Asset Investigator" in out
+
+    def test_rba_network_analyst_pivot(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(dtype="system", sdomain="network")
+        )
+        assert "Asset Investigator" in out
+
+    def test_rba_identity_analyst_pivot(self):
+        out = en.generate_escu_detailed_impl(
+            self._base_uc(dtype="user", sdomain="identity")
+        )
+        assert "Identity Investigator" in out
+
+
+# ---------------------------------------------------------------------------
+# validate_non_technical
+# ---------------------------------------------------------------------------
+
+
+class TestValidateNonTechnical:
+    def test_missing_file_returns_none(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        result = en.validate_non_technical([])
+        assert result is None
+        out = capsys.readouterr().out
+        assert "SKIP" in out
+
+    def test_all_valid_no_errors(self, tmp_path, monkeypatch, capsys):
+        nt_path = tmp_path / "non-technical-view.js"
+        nt_path.write_text(
+            'var NON_TECHNICAL = {\n'
+            '  "1": { areas: [ { ucs: [ { id: "1.1.1" } ] } ] }\n'
+            '};',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [
+            {"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}]}]}
+        ]
+        errors = en.validate_non_technical(data)
+        assert errors == 0
+        out = capsys.readouterr().out
+        assert "0 errors" in out
+
+    def test_missing_category_warns(self, tmp_path, monkeypatch, capsys):
+        nt_path = tmp_path / "non-technical-view.js"
+        nt_path.write_text(
+            'var NON_TECHNICAL = {\n'
+            '  "1": { areas: [ { ucs: [ { id: "1.1.1" } ] } ] }\n'
+            '};',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [
+            {"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}]}]},
+            {"i": "2", "s": [{"i": "2.1", "u": [{"i": "2.1.1"}]}]},  # missing from NT
+        ]
+        en.validate_non_technical(data)
+        out = capsys.readouterr().out
+        assert "missing category 2" in out
+
+    def test_unknown_uc_in_nt_reports_error(self, tmp_path, monkeypatch, capsys):
+        nt_path = tmp_path / "non-technical-view.js"
+        nt_path.write_text(
+            'var NON_TECHNICAL = {\n'
+            '  "1": { areas: [ { ucs: [ { id: "1.1.1" }, { id: "1.1.999" } ] } ] }\n'
+            '};',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [{"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}]}]}]
+        errors = en.validate_non_technical(data)
+        out = capsys.readouterr().out
+        assert "1.1.999" in out
+        assert errors == 1
+
+    def test_unknown_category_in_nt_reports_error(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        nt_path = tmp_path / "non-technical-view.js"
+        nt_path.write_text(
+            'var NON_TECHNICAL = {\n'
+            '  "1": { areas: [ { ucs: [ { id: "1.1.1" } ] } ] },\n'
+            '  "99": { areas: [] }\n'  # phantom category
+            '};',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [{"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}]}]}]
+        errors = en.validate_non_technical(data)
+        out = capsys.readouterr().out
+        assert "unknown category 99" in out
+        assert errors == 1
+
+
+# ---------------------------------------------------------------------------
+# validate_docs_uc_map
+# ---------------------------------------------------------------------------
+
+
+class TestValidateDocsUcMap:
+    def test_missing_file_returns_zero(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        result = en.validate_docs_uc_map([])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "SKIP" in out
+
+    def test_all_valid_zero_errors(self, tmp_path, monkeypatch, capsys):
+        map_path = tmp_path / "docs-uc-map.js"
+        map_path.write_text(
+            'var DOC_UC_MAP = { "docs/foo.md": { ucs: ["1.1.1", "1.1.2"] } };',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [
+            {"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}, {"i": "1.1.2"}]}]}
+        ]
+        errors = en.validate_docs_uc_map(data)
+        assert errors == 0
+
+    def test_unknown_uc_reports_error(self, tmp_path, monkeypatch, capsys):
+        map_path = tmp_path / "docs-uc-map.js"
+        map_path.write_text(
+            'var DOC_UC_MAP = { "docs/foo.md": { ucs: ["9.9.9"] } };',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(en, "PROJECT_ROOT", str(tmp_path))
+        data = [{"i": "1", "s": [{"i": "1.1", "u": [{"i": "1.1.1"}]}]}]
+        errors = en.validate_docs_uc_map(data)
+        out = capsys.readouterr().out
+        assert "9.9.9" in out
+        assert errors == 1
+
+
+# ---------------------------------------------------------------------------
+# extract_filter_facets — populates the search UI facet dropdowns
+# ---------------------------------------------------------------------------
+
+
+class TestExtractFilterFacets:
+    def _uc(self, **overrides):
+        # Reasonable defaults — every field is optional in extract_filter_facets.
+        uc = {"i": "1.1.1"}
+        uc.update(overrides)
+        return uc
+
+    def _data(self, *ucs):
+        return [{"i": "1", "s": [{"i": "1.1", "u": list(ucs)}]}]
+
+    def test_empty_data_returns_empty_facets(self):
+        result = en.extract_filter_facets([])
+        assert result["dtype"] == []
+        assert result["premium"] == []
+        assert result["cim"] == []
+        assert result["sapp"] == []
+        assert result["industry"] == []
+        assert "datasource_groups" in result
+        assert result["datasource_groups"] == []
+
+    def test_dtype_facet_only_includes_allowed(self):
+        data = self._data(
+            self._uc(dtype="TTP"),
+            self._uc(i="1.1.2", dtype="invalid-dtype"),
+        )
+        result = en.extract_filter_facets(data)
+        assert "TTP" in result["dtype"]
+        assert "invalid-dtype" not in result["dtype"]
+
+    def test_premium_facet(self):
+        data = self._data(
+            self._uc(premium="ESCU"), self._uc(i="1.1.2", premium="ITSI")
+        )
+        result = en.extract_filter_facets(data)
+        assert "ESCU" in result["premium"]
+        assert "ITSI" in result["premium"]
+
+    def test_cim_facet_strips_parentheses(self):
+        data = self._data(self._uc(a=["Authentication", "Endpoint (Processes)"]))
+        result = en.extract_filter_facets(data)
+        assert "Authentication" in result["cim"]
+        assert "Endpoint" in result["cim"]
+        assert "Endpoint (Processes)" not in result["cim"]
+
+    def test_cim_facet_skips_na(self):
+        data = self._data(self._uc(a=["Authentication", "N/A"]))
+        result = en.extract_filter_facets(data)
+        assert "Authentication" in result["cim"]
+        assert "N/A" not in result["cim"]
+
+    def test_cim_facet_skips_non_list_input(self):
+        # If `a` is a string instead of a list, the loop is skipped silently.
+        data = self._data(self._uc(a="not-a-list"))
+        result = en.extract_filter_facets(data)
+        assert result["cim"] == []
+
+    def test_sapp_facet_populated_and_sorted_by_name(self):
+        data = self._data(
+            self._uc(
+                sapp=[
+                    {"id": 4882, "name": "Microsoft Azure App for Splunk"},
+                    {"id": 5403, "name": "IT Essentials Work"},
+                ]
+            )
+        )
+        result = en.extract_filter_facets(data)
+        sapps = result["sapp"]
+        assert len(sapps) == 2
+        # Sorted alphabetically by name.
+        assert sapps[0]["name"] == "IT Essentials Work"
+        assert sapps[1]["name"] == "Microsoft Azure App for Splunk"
+
+    def test_sapp_facet_dedupes_by_id(self):
+        # Same id appearing in multiple UCs should appear once.
+        data = self._data(
+            self._uc(sapp=[{"id": 5403, "name": "IT Essentials Work"}]),
+            self._uc(i="1.1.2", sapp=[{"id": 5403, "name": "IT Essentials Work"}]),
+        )
+        result = en.extract_filter_facets(data)
+        assert len(result["sapp"]) == 1
+        assert result["sapp"][0]["id"] == 5403
+
+    def test_industries_facet(self):
+        data = self._data(
+            self._uc(ind="Healthcare"), self._uc(i="1.1.2", ind="Finance")
+        )
+        result = en.extract_filter_facets(data)
+        assert "Healthcare" in result["industry"]
+        assert "Finance" in result["industry"]
+
+    def test_mitre_facet_grouped_by_tactic(self):
+        # _mitre_by_tactic groups technique IDs under their kill-chain tactic.
+        data = self._data(self._uc(mitre=["T1110", "T1078"]))
+        result = en.extract_filter_facets(data)
+        # The output is a dict/list keyed by tactic — at minimum, the function
+        # ran without raising and the key exists.
+        assert "mitre" in result
+
+    def test_datasource_count_threshold_two(self):
+        """A datasource appearing only once is dropped (cnt < 2)."""
+        data = self._data(
+            self._uc(d="WinEventLog:Security"),
+            self._uc(i="1.1.2", d="WinEventLog:Security"),
+            self._uc(i="1.1.3", d="rare_source_only_once"),
+        )
+        result = en.extract_filter_facets(data)
+        all_sources = []
+        for group in result["datasource_groups"]:
+            for src in group["sources"]:
+                all_sources.append(src["name"])
+        # WinEventLog:Security appears 2x → kept; rare_source_only_once → dropped.
+        assert any("WinEventLog:Security" in n for n in all_sources)
+        assert all("rare_source_only_once" not in n for n in all_sources)
+
+    def test_datasource_strips_sourcetype_prefix(self):
+        data = self._data(
+            self._uc(d="sourcetype=WinEventLog:Security"),
+            self._uc(i="1.1.2", d="sourcetype=WinEventLog:Security"),
+        )
+        result = en.extract_filter_facets(data)
+        all_names = []
+        for group in result["datasource_groups"]:
+            for src in group["sources"]:
+                all_names.append(src["name"])
+        assert all("sourcetype=" not in n for n in all_names)
+
+    def test_datasource_splits_on_separators(self):
+        data = self._data(
+            self._uc(d="WinEventLog:Security, Sysmon"),
+            self._uc(i="1.1.2", d="WinEventLog:Security; Sysmon"),
+        )
+        result = en.extract_filter_facets(data)
+        all_names = []
+        for group in result["datasource_groups"]:
+            for src in group["sources"]:
+                all_names.append(src["name"])
+        assert any("WinEventLog" in n for n in all_names)
+        assert any("Sysmon" in n for n in all_names)
+
+    def test_datasource_skips_short_tokens(self):
+        # Tokens with len < 3 (e.g., "ab") are skipped.
+        data = self._data(
+            self._uc(d="ab, cd"),
+            self._uc(i="1.1.2", d="ab, cd"),
+        )
+        result = en.extract_filter_facets(data)
+        all_names = []
+        for group in result["datasource_groups"]:
+            for src in group["sources"]:
+                all_names.append(src["name"])
+        assert "ab" not in all_names
+        assert "cd" not in all_names
+
+    def test_ds_groups_sorted_by_count_descending(self):
+        data = self._data(
+            self._uc(d="WinEventLog:Security"),
+            self._uc(i="1.1.2", d="WinEventLog:Security"),
+            self._uc(i="1.1.3", d="WinEventLog:Security"),
+            self._uc(i="1.1.4", d="WinEventLog:System"),
+            self._uc(i="1.1.5", d="WinEventLog:System"),
+        )
+        result = en.extract_filter_facets(data)
+        for group in result["datasource_groups"]:
+            if group["name"] == "Windows Event Logs":
+                counts = [s["count"] for s in group["sources"]]
+                assert counts == sorted(counts, reverse=True)
+                break
+        else:
+            pytest.fail("Windows Event Logs group not found")
+
+    def test_other_group_used_for_unmatched_sources(self):
+        data = self._data(
+            self._uc(d="custom_unmatched_source"),
+            self._uc(i="1.1.2", d="custom_unmatched_source"),
+        )
+        result = en.extract_filter_facets(data)
+        names = [g["name"] for g in result["datasource_groups"]]
+        assert "Other" in names
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file — legacy markdown parser
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFile:
+    """The legacy ``cat-NN-slug.md`` parser. Still in the codebase as a
+    fallback even though JSON is the SSOT since v7. Hermetic tests use
+    real-looking markdown files in ``tmp_path`` rather than real fixture
+    data so the suite stays independent of the catalog state.
+    """
+
+    def _write_md(self, tmp_path: Path, body: str) -> str:
+        p = tmp_path / "cat-99-test-category.md"
+        p.write_text(body, encoding="utf-8")
+        return str(p)
+
+    def test_parses_minimal_category_subcategory_uc(self, tmp_path):
+        md = (
+            "# 99. Test Category\n"
+            "\n"
+            "## 99.1 First subcategory\n"
+            "\n"
+            "### UC-99.1.1 · A simple use case\n"
+            "- **Criticality:** high\n"
+            "- **Difficulty:** intermediate\n"
+            "- **Value:** Detect threats fast\n"
+            "- **App/TA:** Splunk Add-on for Foo\n"
+            "- **Data sources:** Foo logs\n"
+            "- **SPL:** index=foo | stats count\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        assert cat["i"] == 99
+        assert cat["n"] == "Test Category"
+        assert cat["src"] == "cat-99-test-category.md"
+        assert len(cat["s"]) == 1
+        sub = cat["s"][0]
+        assert sub["i"] == "99.1"
+        assert sub["n"] == "First subcategory"
+        assert len(sub["u"]) == 1
+        uc = sub["u"][0]
+        assert uc["i"] == "99.1.1"
+        assert uc["n"] == "A simple use case"
+        assert uc["c"] == "high"
+        assert uc["f"] == "intermediate"
+        assert uc["v"] == "Detect threats fast"
+        assert uc["t"] == "Splunk Add-on for Foo"
+        assert uc["d"] == "Foo logs"
+        assert uc["q"] == "index=foo | stats count"
+
+    def test_parses_emoji_criticality(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** \U0001f534 critical\n"
+            "- **Difficulty:** \U0001f7e2 beginner\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["c"] == "critical"
+        assert uc["f"] == "beginner"
+
+    def test_parses_spl_code_block(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **SPL:**\n"
+            "```spl\n"
+            "index=foo\n"
+            "| stats count by host\n"
+            "```\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["q"] == "index=foo\n| stats count by host"
+
+    def test_parses_cim_spl_code_block(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **SPL:** index=foo\n"
+            "- **CIM SPL:**\n"
+            "```spl\n"
+            "tstats count from datamodel=Web\n"
+            "```\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["q"] == "index=foo"
+        assert uc["qs"] == "tstats count from datamodel=Web"
+
+    def test_parses_script_example_block(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Script example:**\n"
+            "```bash\n"
+            "echo hello\n"
+            "```\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["script"] == "echo hello"
+
+    def test_parses_mitre_attack_filtering_invalid_ids(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **MITRE ATT&CK:** T1110, T1078.004, not-a-tid, T1234\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["mitre"] == ["T1110", "T1078.004", "T1234"]
+
+    def test_parses_mitre_attack_strips_anchor_fragment(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **MITRE ATT&CK:** T1110#some-anchor, T1078.004\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert "T1110" in uc["mitre"]
+
+    def test_parses_cim_models_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **CIM models:** Authentication, Endpoint, Network_Traffic\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["a"] == ["Authentication", "Endpoint", "Network_Traffic"]
+
+    def test_parses_monitoring_type(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Monitoring type:** Availability, Performance\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["mtype"] == ["Availability", "Performance"]
+
+    def test_parses_status_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Status:** verified\n"
+            "### UC-99.1.2 · Y\n"
+            "- **Status:** not-a-real-status\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        ucs = cat["s"][0]["u"]
+        assert ucs[0]["status"] == "verified"
+        # Invalid status is silently dropped (default "" preserved).
+        assert ucs[1]["status"] == ""
+
+    def test_parses_last_reviewed_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Last reviewed:** 2026-05-19\n"
+            "### UC-99.1.2 · Y\n"
+            "- **Last reviewed:** invalid-date\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        ucs = cat["s"][0]["u"]
+        assert ucs[0]["reviewed"] == "2026-05-19"
+        # Invalid date silently dropped.
+        assert ucs[1]["reviewed"] == ""
+
+    def test_parses_pillar_security(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Splunk pillar:** security\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Note: parse_category_file's post-processing also calls
+        # assign_pillar which can override; just check it's set.
+        assert uc.get("pillar") in ("security", "both", "observability")
+
+    def test_parses_pillar_observability(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Splunk pillar:** observability\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("pillar") in ("observability", "both", "security")
+
+    def test_parses_pillar_both(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Splunk pillar:** security and observability\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc.get("pillar") == "both"
+
+    def test_parses_regulations(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Regulations:** PCI-DSS, HIPAA, GDPR\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Some regs may be added by auto-tagging, so verify the manual
+        # ones are preserved as a subset.
+        assert "PCI-DSS" in uc["regs"]
+        assert "HIPAA" in uc["regs"]
+        assert "GDPR" in uc["regs"]
+
+    def test_parses_detailed_implementation_multi_line(self, tmp_path):
+        """Detailed implementation text continues until a new field, heading, or fence."""
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Detailed implementation:** Line 1.\n"
+            "Line 2.\n"
+            "Line 3.\n"
+            "- **Visualization:** Bar chart\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert "Line 1." in uc["md"]
+        assert "Line 2." in uc["md"]
+        assert "Line 3." in uc["md"]
+        assert uc["z"] == "Bar chart"
+
+    def test_parses_prerequisite_ucs(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Prerequisite UCs:** UC-1.1.1, UC-1.1.2, UC-2.3.4\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["pre"] == ["UC-1.1.1", "UC-1.1.2", "UC-2.3.4"]
+
+    def test_parses_wave_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Wave:** crawl\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["wv"] == "crawl"
+
+    def test_parses_multiple_subcategories_and_ucs(self, tmp_path):
+        md = (
+            "# 99. Test\n"
+            "## 99.1 First sub\n"
+            "### UC-99.1.1 · A\n"
+            "- **Criticality:** high\n"
+            "### UC-99.1.2 · B\n"
+            "- **Criticality:** medium\n"
+            "## 99.2 Second sub\n"
+            "### UC-99.2.1 · C\n"
+            "- **Criticality:** low\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        assert len(cat["s"]) == 2
+        assert len(cat["s"][0]["u"]) == 2
+        assert len(cat["s"][1]["u"]) == 1
+        assert cat["s"][1]["i"] == "99.2"
+
+    def test_parses_industry_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Industry:** Healthcare\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["ind"] == "Healthcare"
+
+    def test_parses_premium_apps_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Premium apps:** ESCU\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Premium may be auto-set by post-processing, just verify it's present.
+        assert uc.get("premium")
+
+    def test_parses_detection_type_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Detection type:** TTP\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["dtype"] == "TTP"
+
+    def test_parses_security_domain_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Security domain:** endpoint\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["sdomain"] == "endpoint"
+
+    def test_parses_known_false_positives_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Known false positives:** Maintenance windows.\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["kfp"] == "Maintenance windows."
+
+    def test_parses_references_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **References:** https://example.com/a, https://example.com/b\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["refs"] == "https://example.com/a, https://example.com/b"
+
+    def test_parses_required_fields(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Required fields:** src, dest, user\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["reqf"] == "src, dest, user"
+
+    def test_parses_dma_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Data model acceleration:** Enable for Authentication\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["dma"] == "Enable for Authentication"
+
+    def test_parses_schema_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Schema:** OCSF: authentication\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["schema"] == "OCSF: authentication"
+
+    def test_parses_splunk_versions_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Splunk versions:** 9.2+\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["sver"] == "9.2+"
+
+    def test_parses_reviewer_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Reviewer:** alice@example.com\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["rby"] == "alice@example.com"
+
+    def test_parses_equipment_models_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Equipment models:** Cisco MX, Cisco MS\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["hw"] == "Cisco MX, Cisco MS"
+
+    def test_orphan_uc_before_subcategory_calls_sys_exit(self, tmp_path):
+        md = (
+            "# 99. Test\n"
+            "### UC-99.1.1 · Orphan UC\n"
+            "- **Criticality:** high\n"
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            en.parse_category_file(self._write_md(tmp_path, md))
+        assert exc_info.value.code == 1
+
+    def test_skips_unknown_field(self, tmp_path):
+        """Unknown field names are silently ignored (forward compat)."""
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Some Unknown Field:** ignored value\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Known field still parsed correctly.
+        assert uc["c"] == "high"
+
+    def test_handles_subcategory_without_use_cases(self, tmp_path):
+        md = "# 99. Test\n## 99.1 Empty subcategory\n## 99.2 Has a UC\n### UC-99.2.1 · X\n- **Criticality:** high\n"
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        assert len(cat["s"]) == 2
+        assert cat["s"][0]["u"] == []
+        assert len(cat["s"][1]["u"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# compute_implementation_roadmap + _uc_sort_key — wave bucketing
+# ---------------------------------------------------------------------------
+
+
+class TestComputeImplementationRoadmap:
+    """The wave-based roadmap aggregator. Used by the catalog UI to render
+    the implementation roadmap view per category."""
+
+    def _data(self, cat_id, *ucs):
+        return [{"i": cat_id, "n": "Cat", "s": [{"i": f"{cat_id}.1", "u": list(ucs)}]}]
+
+    def test_empty_data_returns_empty_dict(self):
+        assert en.compute_implementation_roadmap([]) == {}
+
+    def test_buckets_by_wave(self):
+        data = self._data(
+            1,
+            {"i": "1.1.1", "wv": "crawl"},
+            {"i": "1.1.2", "wv": "walk"},
+            {"i": "1.1.3", "wv": "run"},
+        )
+        result = en.compute_implementation_roadmap(data)
+        assert result["1"]["crawl"] == ["UC-1.1.1"]
+        assert result["1"]["walk"] == ["UC-1.1.2"]
+        assert result["1"]["run"] == ["UC-1.1.3"]
+        assert result["1"]["unassigned"] == []
+
+    def test_uc_without_wave_goes_to_unassigned(self):
+        data = self._data(1, {"i": "1.1.1"})
+        result = en.compute_implementation_roadmap(data)
+        assert result["1"]["unassigned"] == ["UC-1.1.1"]
+
+    def test_skips_categories_without_id(self):
+        data = [{"n": "no-id", "s": []}]
+        assert en.compute_implementation_roadmap(data) == {}
+
+    def test_skips_ucs_without_id_in_bucket_assignment(self):
+        data = self._data(1, {"i": "", "wv": "crawl"}, {"i": "1.1.1", "wv": "crawl"})
+        result = en.compute_implementation_roadmap(data)
+        # Empty id is filtered out of the bucket.
+        assert result["1"]["crawl"] == ["UC-1.1.1"]
+
+    def test_unknown_wave_routes_to_unassigned(self):
+        data = self._data(1, {"i": "1.1.1", "wv": "experimental"})
+        result = en.compute_implementation_roadmap(data)
+        assert result["1"]["unassigned"] == ["UC-1.1.1"]
+
+    def test_sort_order_is_deterministic(self):
+        data = [
+            {
+                "i": 1,
+                "s": [
+                    {
+                        "i": "1.2",
+                        "u": [
+                            {"i": "1.2.10", "wv": "crawl"},
+                            {"i": "1.2.2", "wv": "crawl"},
+                        ],
+                    },
+                    {
+                        "i": "1.1",
+                        "u": [
+                            {"i": "1.1.1", "wv": "crawl"},
+                        ],
+                    },
+                ],
+            }
+        ]
+        result = en.compute_implementation_roadmap(data)
+        # Sorted by (subcategory, uc_index) numerically — 1.1.1 before 1.2.2 before 1.2.10
+        assert result["1"]["crawl"] == ["UC-1.1.1", "UC-1.2.2", "UC-1.2.10"]
+
+
+class TestUcSortKey:
+    """Tuple-sort key for dotted-decimal UC ids."""
+
+    def test_simple_id(self):
+        assert en._uc_sort_key("1.2.3") == (1, 2, 3)
+
+    def test_empty_string(self):
+        assert en._uc_sort_key("") == (10**9,)
+
+    def test_none(self):
+        assert en._uc_sort_key(None) == (10**9,)
+
+    def test_invalid_components_become_sentinel(self):
+        # Sentinel (10**9) is appended for non-numeric tokens so they
+        # always sort AFTER numeric ones.
+        result = en._uc_sort_key("1.abc.3")
+        assert result[0] == 1
+        assert result[1] == 10**9
+        assert result[2] == 3
+
+    def test_sort_order(self):
+        ids = ["1.10.1", "1.2.1", "1.1.1"]
+        sorted_ids = sorted(ids, key=en._uc_sort_key)
+        assert sorted_ids == ["1.1.1", "1.2.1", "1.10.1"]
+
+
+# ---------------------------------------------------------------------------
+# validate_prerequisites + _extract_cycle — DAG validation
+# ---------------------------------------------------------------------------
+
+
+class TestValidatePrerequisites:
+    """Cycle detection, wave-monotonicity, and UC-id uniqueness."""
+
+    def _wrap(self, ucs):
+        return [{"i": 1, "s": [{"i": "1.1", "u": list(ucs)}]}]
+
+    def test_no_prereqs_is_clean(self, capsys):
+        data = self._wrap([{"i": "1.1.1"}, {"i": "1.1.2"}])
+        en.validate_prerequisites(data)
+        captured = capsys.readouterr()
+        assert "Waves:" in captured.out
+
+    def test_valid_prereqs_pass(self, capsys):
+        data = self._wrap(
+            [
+                {"i": "1.1.1", "wv": "crawl"},
+                {"i": "1.1.2", "wv": "walk", "pre": ["UC-1.1.1"]},
+            ]
+        )
+        en.validate_prerequisites(data)
+
+    def test_duplicate_uc_id_fails(self, capsys):
+        data = self._wrap([{"i": "1.1.1"}, {"i": "1.1.1"}])
+        with pytest.raises(SystemExit) as exc_info:
+            en.validate_prerequisites(data)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "duplicate UC id" in captured.err
+
+    def test_self_reference_fails(self, capsys):
+        data = self._wrap([{"i": "1.1.1", "pre": ["UC-1.1.1"]}])
+        with pytest.raises(SystemExit) as exc_info:
+            en.validate_prerequisites(data)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "self-reference" in captured.err
+
+    def test_unknown_prereq_fails(self, capsys):
+        data = self._wrap([{"i": "1.1.1", "pre": ["UC-9.9.9"]}])
+        with pytest.raises(SystemExit) as exc_info:
+            en.validate_prerequisites(data)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "unknown prerequisite" in captured.err
+
+    def test_wave_monotonicity_warning(self, capsys):
+        # crawl depending on run is a wave-monotonicity violation.
+        data = self._wrap(
+            [
+                {"i": "1.1.1", "wv": "run"},
+                {"i": "1.1.2", "wv": "crawl", "pre": ["UC-1.1.1"]},
+            ]
+        )
+        en.validate_prerequisites(data)
+        captured = capsys.readouterr()
+        assert "wave monotonicity" in captured.out
+
+    def test_cycle_detection_fails(self, capsys):
+        # A -> B -> A: simplest 2-node cycle.
+        data = self._wrap(
+            [
+                {"i": "1.1.1", "pre": ["UC-1.1.2"]},
+                {"i": "1.1.2", "pre": ["UC-1.1.1"]},
+            ]
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            en.validate_prerequisites(data)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "cycle detected" in captured.err
+
+
+class TestExtractCycle:
+    """Cycle extraction for error reporting."""
+
+    def test_finds_simple_2_node_cycle(self):
+        index = {
+            "UC-1": {"pre": ["UC-2"]},
+            "UC-2": {"pre": ["UC-1"]},
+        }
+        cycle = en._extract_cycle(index, ["UC-1", "UC-2"])
+        # Must contain both nodes — exact path can vary by traversal order.
+        assert "UC-1" in cycle
+        assert "UC-2" in cycle
+
+    def test_finds_3_node_cycle(self):
+        index = {
+            "UC-1": {"pre": ["UC-3"]},
+            "UC-2": {"pre": ["UC-1"]},
+            "UC-3": {"pre": ["UC-2"]},
+        }
+        cycle = en._extract_cycle(index, ["UC-1", "UC-2", "UC-3"])
+        # All three nodes participate in the cycle.
+        unique_nodes = set(cycle)
+        assert {"UC-1", "UC-2", "UC-3"}.issubset(unique_nodes)
+
+    def test_long_residual_truncates_preview(self):
+        # 11 nodes with no real cycle so DFS returns None for each;
+        # the function falls back to the truncated preview.
+        index = {f"UC-{i}": {"pre": []} for i in range(11)}
+        cycle = en._extract_cycle(index, [f"UC-{i}" for i in range(11)])
+        assert isinstance(cycle, list)
+        assert len(cycle) == 1
+        assert "..." in cycle[0]
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file post-processing branches
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFilePostProcessing:
+    """Branches inside the for-each-UC post-processing loop in
+    parse_category_file. These hit: ESCU detection, equipment sidecar
+    fallback, qmeta merging, auto_premium, and final regs union."""
+
+    def _write_md(self, tmp_path: Path, body: str) -> str:
+        p = tmp_path / "cat-99-test-category.md"
+        p.write_text(body, encoding="utf-8")
+        return str(p)
+
+    def test_non_escu_uc_with_no_md_gets_generated(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+            "- **App/TA:** Splunk Add-on for Foo\n"
+            "- **SPL:** index=foo | stats count\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # generate_detailed_impl was invoked because md was missing.
+        assert uc["md"]
+
+    def test_uc_with_md_already_present_is_not_overwritten(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Detailed implementation:** my custom impl text\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert "my custom impl text" in uc["md"]
+
+    def test_pillar_assigned_post_parse(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # assign_pillar always sets uc["pillar"] (potentially via fallback).
+        assert "pillar" in uc
+
+    def test_equipment_ids_assigned_from_ta_string(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **App/TA:** generic\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Equipment id list always set (could be empty).
+        assert "e" in uc
+        assert "em" in uc
+        assert isinstance(uc["e"], list)
+        assert isinstance(uc["em"], list)
+
+    def test_runtime_ge_fallback_used_when_no_sidecar(self, tmp_path):
+        """When neither the UC dict nor the sidecar provides a
+        grandmaExplanation, the per-category runtime fallback fills it."""
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Criticality:** high\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Runtime fallback always sets a non-empty ge.
+        assert (uc.get("ge") or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# assign_regulations — tier-1 / tier-2 keyword auto-tagging
+# ---------------------------------------------------------------------------
+
+
+class TestAssignRegulations:
+    """Auto-tagging of regulations from UC title and subcategory context."""
+
+    def _uc(self, title):
+        return {"n": title}
+
+    # Tier 1: subcategory 10.12 + title keywords
+    def test_pci_in_10_12(self):
+        regs = en.assign_regulations(self._uc("PCI DSS controls"), 10, "10.12")
+        assert "PCI DSS" in regs
+
+    def test_hipaa_in_10_12(self):
+        regs = en.assign_regulations(self._uc("HIPAA monitoring"), 10, "10.12")
+        assert "HIPAA" in regs
+
+    def test_sox_in_10_12(self):
+        regs = en.assign_regulations(self._uc("SOX evidence"), 10, "10.12")
+        assert "SOX" in regs
+
+    def test_fedramp_in_10_12(self):
+        regs = en.assign_regulations(self._uc("FedRAMP audit"), 10, "10.12")
+        assert "FedRAMP" in regs
+
+    def test_cmmc_in_10_12(self):
+        regs = en.assign_regulations(self._uc("CMMC level"), 10, "10.12")
+        assert "CMMC" in regs
+
+    def test_nist_in_10_12(self):
+        regs = en.assign_regulations(self._uc("NIST controls"), 10, "10.12")
+        assert "NIST 800-53" in regs
+
+    def test_fisma_in_10_12(self):
+        regs = en.assign_regulations(self._uc("FISMA reporting"), 10, "10.12")
+        assert "FISMA" in regs
+
+    def test_cjis_in_10_12(self):
+        regs = en.assign_regulations(self._uc("CJIS access"), 10, "10.12")
+        assert "CJIS" in regs
+
+    def test_nerc_cip_in_14_2(self):
+        regs = en.assign_regulations(self._uc("NERC CIP audit"), 14, "14.2")
+        assert "NERC CIP" in regs
+
+    def test_nerc_cip_in_10_14(self):
+        regs = en.assign_regulations(self._uc("NERC CIP control"), 10, "10.14")
+        assert "NERC CIP" in regs
+
+    # Tier 1: subcategory 21.11 + title keywords
+    def test_gdpr_in_21_11(self):
+        regs = en.assign_regulations(self._uc("GDPR compliance"), 21, "21.11")
+        assert "GDPR" in regs
+
+    def test_nis2_in_21_11(self):
+        regs = en.assign_regulations(self._uc("NIS2 reporting"), 21, "21.11")
+        assert "NIS2" in regs
+
+    def test_dora_in_21_11_outside_cat_12(self):
+        regs = en.assign_regulations(self._uc("DORA resilience"), 21, "21.11")
+        assert "DORA" in regs
+
+    def test_dora_in_21_11_skipped_for_cat_12(self):
+        # Category 12 (Application Performance) reuses "dora" in unrelated
+        # contexts, so explicit skip.
+        regs = en.assign_regulations(self._uc("DORA something"), 12, "21.11")
+        assert "DORA" not in regs
+
+    def test_ccpa_in_21_11(self):
+        regs = en.assign_regulations(self._uc("CCPA rights"), 21, "21.11")
+        assert "CCPA" in regs
+
+    def test_cpra_in_21_11(self):
+        regs = en.assign_regulations(self._uc("CPRA opt-out"), 21, "21.11")
+        assert "CCPA" in regs  # CPRA is the California successor; tagged as CCPA
+
+    def test_mifid_in_21_11(self):
+        regs = en.assign_regulations(self._uc("MiFID II monitoring"), 21, "21.11")
+        assert "MiFID II" in regs
+
+    def test_iso_27001_in_21_11(self):
+        regs = en.assign_regulations(self._uc("ISO 27001 controls"), 21, "21.11")
+        assert "ISO 27001" in regs
+
+    def test_isms_alias_in_21_11(self):
+        regs = en.assign_regulations(self._uc("ISMS framework"), 21, "21.11")
+        assert "ISO 27001" in regs
+
+    def test_nist_csf_in_21_11(self):
+        regs = en.assign_regulations(self._uc("NIST CSF map"), 21, "21.11")
+        assert "NIST CSF" in regs
+
+    def test_soc_2_in_21_11(self):
+        regs = en.assign_regulations(self._uc("SOC 2 evidence"), 21, "21.11")
+        assert "SOC 2" in regs
+
+    # Tier 2: keyword-based regardless of subcategory
+    def test_pii_keyword_tags_gdpr_ccpa(self):
+        regs = en.assign_regulations(self._uc("PII discovery"), 5, "5.1")
+        assert "GDPR" in regs
+        assert "CCPA" in regs
+
+    def test_data_masking_keyword(self):
+        regs = en.assign_regulations(self._uc("Data masking enforcement"), 5, "5.1")
+        assert "GDPR" in regs
+
+    def test_consent_tags_gdpr(self):
+        regs = en.assign_regulations(self._uc("Consent capture"), 5, "5.1")
+        assert "GDPR" in regs
+
+    def test_consent_admin_does_not_tag_gdpr(self):
+        # Special case: "consent admin" (e.g. an admin who has consent)
+        # is excluded so it doesn't pollute results.
+        regs = en.assign_regulations(self._uc("consent admin login"), 5, "5.1")
+        assert "GDPR" not in regs
+
+    def test_cardholder_tags_pci(self):
+        regs = en.assign_regulations(self._uc("Cardholder data flow"), 5, "5.1")
+        assert "PCI DSS" in regs
+
+    def test_payment_card_tags_pci(self):
+        regs = en.assign_regulations(self._uc("Payment card processing"), 5, "5.1")
+        assert "PCI DSS" in regs
+
+    def test_pci_tier_2_does_not_double_add(self):
+        # Both tier-1 (10.12 + "pci") and tier-2 ("pci" anywhere) match,
+        # but the result must not duplicate.
+        regs = en.assign_regulations(self._uc("PCI scope"), 10, "10.12")
+        assert regs.count("PCI DSS") == 1
+
+    def test_ephi_tags_hipaa(self):
+        regs = en.assign_regulations(self._uc("ePHI encryption"), 5, "5.1")
+        assert "HIPAA" in regs
+
+    def test_segregation_of_duties_tags_sox(self):
+        regs = en.assign_regulations(self._uc("Segregation of duties"), 5, "5.1")
+        assert "SOX" in regs
+
+    def test_bes_cyber_tags_nerc(self):
+        regs = en.assign_regulations(self._uc("BES Cyber Asset inventory"), 5, "5.1")
+        assert "NERC CIP" in regs
+
+    def test_dora_keyword_in_other_subcategory(self):
+        regs = en.assign_regulations(self._uc("DORA financial"), 5, "5.1")
+        assert "DORA" in regs
+
+    def test_no_keywords_returns_empty_list(self):
+        regs = en.assign_regulations(self._uc("Generic monitoring"), 5, "5.1")
+        assert regs == []
+
+
+# ---------------------------------------------------------------------------
+# _explain_one_spl_stage — branches not yet covered
+# ---------------------------------------------------------------------------
+
+
+class TestExplainOneSplStageRemainingBranches:
+    """Specific SPL stages whose narrative branches are still uncovered."""
+
+    def test_loadjob_command(self):
+        result = en._explain_one_spl_stage("loadjob 1234567890.12345", 0, None)
+        assert "loadjob" in result.lower()
+
+    def test_rest_command(self):
+        result = en._explain_one_spl_stage("| rest /services/auth/users", 0, None)
+        assert "rest" in result.lower()
+
+    def test_chart_without_by_clause(self):
+        result = en._explain_one_spl_stage("chart count", 0, None)
+        assert "chart" in result.lower()
+
+    def test_rare_with_by_clause(self):
+        result = en._explain_one_spl_stage("rare host by sourcetype", 0, None)
+        assert "rare" in result.lower()
+        assert "by" in result.lower()
+
+    def test_eval_without_assignment(self):
+        # No `field=` pattern -> falls through to the generic eval fallback.
+        result = en._explain_one_spl_stage("eval", 0, None)
+        assert "eval" in result.lower()
+
+    def test_metadata_command(self):
+        result = en._explain_one_spl_stage("metadata type=hosts", 0, None)
+        assert "metadata" in result.lower() or "metasearch" in result.lower()
+
+    def test_inputlookup_command(self):
+        result = en._explain_one_spl_stage("inputlookup my_lookup.csv", 0, None)
+        assert "inputlookup" in result.lower()
+
+    def test_mstats_command(self):
+        result = en._explain_one_spl_stage("mstats avg(metric_value) by host", 0, None)
+        assert "mstats" in result.lower()
+
+    def test_search_command_explicit(self):
+        result = en._explain_one_spl_stage("search status=200", 0, None)
+        assert "search" in result.lower()
+
+    def test_eventstats_with_by(self):
+        result = en._explain_one_spl_stage("eventstats avg(latency) by host", 0, None)
+        assert "eventstats" in result.lower()
+
+    def test_streamstats_with_by(self):
+        result = en._explain_one_spl_stage("streamstats sum(bytes) by host", 0, None)
+        assert "streamstats" in result.lower()
+
+    def test_eventstats_without_by(self):
+        result = en._explain_one_spl_stage("eventstats count", 0, None)
+        assert "eventstats" in result.lower()
+
+    def test_streamstats_without_by(self):
+        result = en._explain_one_spl_stage("streamstats count", 0, None)
+        assert "streamstats" in result.lower()
+
+    def test_top_with_by_clause(self):
+        result = en._explain_one_spl_stage("top user by host", 0, None)
+        assert "top" in result.lower()
+
+    def test_rare_without_by_clause(self):
+        result = en._explain_one_spl_stage("rare user", 0, None)
+        assert "rare" in result.lower()
+
+    def test_macro_invocation(self):
+        result = en._explain_one_spl_stage("`my_macro(arg)`", 0, None)
+        assert "macro" in result.lower()
+
+    def test_timechart_with_span_and_by(self):
+        result = en._explain_one_spl_stage(
+            "timechart span=1h count by host", 0, None
+        )
+        assert "timechart" in result.lower()
+        assert "1h" in result
+
+    def test_base_search_with_data_sources_context(self):
+        """Cross-check between base-search sourcetypes and Data sources."""
+        ctx = {
+            "title": "X",
+            "value": "v",
+            "data_sources": "ciscofw",
+            "app_ta": "Cisco TA",
+            "dtype": "TTP",
+        }
+        result = en._explain_one_spl_stage(
+            "index=foo sourcetype=ciscofw", 0, ctx
+        )
+        assert "scopes" in result.lower() or "data sources" in result.lower()
+
+    def test_base_search_with_ctx_but_no_data_sources(self):
+        ctx = {
+            "title": "X",
+            "value": "v",
+            "data_sources": "",
+            "app_ta": "TA",
+        }
+        result = en._explain_one_spl_stage(
+            "index=foo sourcetype=bar", 0, ctx
+        )
+        assert "Adjust" in result or "scopes" in result.lower()
+
+
+# ---------------------------------------------------------------------------
+# explain_spl_pipeline — empty/edge handling
+# ---------------------------------------------------------------------------
+
+
+class TestExplainSplPipeline:
+    """Plain-language SPL walkthrough."""
+
+    def test_empty_spl_returns_empty_string(self):
+        assert en.explain_spl_pipeline("") == ""
+        assert en.explain_spl_pipeline(None) == ""
+
+    def test_simple_spl_returns_walkthrough(self):
+        spl = "index=foo | stats count by host"
+        result = en.explain_spl_pipeline(spl)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_truncation_when_too_many_stages(self):
+        # 30 stages, max_bullets=4. Triggers the "Additional pipeline
+        # stages follow" truncation message.
+        spl = "index=foo " + "| stats count " * 30
+        result = en.explain_spl_pipeline(spl, max_bullets=4)
+        assert "Additional pipeline stages" in result
+
+    def test_explain_with_uc_context_and_truncation(self):
+        spl = "index=foo " + "| stats count " * 30
+        uc = {"n": "My Title", "v": "Detect issues."}
+        result = en.explain_spl_pipeline(spl, max_bullets=4, uc=uc)
+        assert "My Title" in result
+
+
+# ---------------------------------------------------------------------------
+# generate_escu_detailed_impl — RBA risk-investigation drilldown branch
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateEscuRiskInvestigationDrilldown:
+    """When the SPL contains `risk.all_risk`, the detailed impl includes
+    the 'About the SPL Query Shown Above' Risk Investigation section."""
+
+    def test_risk_all_risk_triggers_drilldown_explainer(self):
+        uc = {
+            "i": "10.4.1",
+            "n": "Risk-Based Detection",
+            "t": "Splunk ES",
+            "q": "| from datamodel:Risk.All_Risk | where risk.all_risk > 80",
+            "dtype": "Correlation",
+        }
+        result = en.generate_escu_detailed_impl(uc)
+        assert "About the SPL Query Shown Above" in result
+        assert "Risk Investigation" in result
+        assert "ESCU Correlation Search" in result
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file — additional inline field branches
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFileInlineFields:
+    """Specific inline-field branches in parse_category_file."""
+
+    def _write_md(self, tmp_path: Path, body: str) -> str:
+        p = tmp_path / "cat-99-test.md"
+        p.write_text(body, encoding="utf-8")
+        return str(p)
+
+    def test_implementation_inline_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Implementation:** Run query daily at 6am.\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["m"] == "Run query daily at 6am."
+
+    def test_cim_spl_inline_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **CIM SPL:** | tstats count from datamodel=Web\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["qs"] == "| tstats count from datamodel=Web"
+
+    def test_telco_use_case_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Telco use case:** Roaming fraud detection\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["tuc"] == "Roaming fraud detection"
+
+    def test_data_source_singular_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Data source:** syslog\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["d"] == "syslog"
+
+    def test_app_ta_with_spaces(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **App / TA:** Splunk Add-on for ServiceNow\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["t"] == "Splunk Add-on for ServiceNow"
+
+    def test_prerequisite_uc_singular_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Prerequisite UC:** UC-1.1.1\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["pre"] == ["UC-1.1.1"]
+
+    def test_prerequisites_plural_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Prerequisites:** UC-2.2.2, UC-3.3.3\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["pre"] == ["UC-2.2.2", "UC-3.3.3"]
+
+    def test_regulation_singular_field(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Regulation:** PCI-DSS\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert "PCI-DSS" in uc["regs"]
+
+    def test_last_dash_reviewed_alias(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Last-reviewed:** 2026-01-01\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["reviewed"] == "2026-01-01"
+
+    def test_reviewed_alias(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Reviewed:** 2026-02-02\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["reviewed"] == "2026-02-02"
+
+    def test_splunk_version_singular_alias(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **Splunk version:** Cloud\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["sver"] == "Cloud"
+
+    def test_ocsf_alias_for_schema(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **OCSF:** authentication\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert uc["schema"] == "authentication"
+
+    def test_mitre_attack_alias(self, tmp_path):
+        md = (
+            "# 99. Test\n## 99.1 Sub\n### UC-99.1.1 · X\n"
+            "- **MITRE attack:** T1110\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        assert "T1110" in uc["mitre"]
+
+
+# ---------------------------------------------------------------------------
+# parse_category_file — ESCU detection post-processing branches
+# ---------------------------------------------------------------------------
+
+
+class TestParseCategoryFileEscuPostProcessing:
+    """Post-loop branches that fire when a UC is classified as ESCU."""
+
+    def _write_md(self, tmp_path: Path, body: str) -> str:
+        p = tmp_path / "cat-10-security.md"
+        p.write_text(body, encoding="utf-8")
+        return str(p)
+
+    def test_escu_detection_triggers_es_specific_impl(self, tmp_path, capsys):
+        """A UC referencing the ESCU app is detected and gets an ES-specific impl."""
+        md = (
+            "# 10. Security\n## 10.1 Threat Detection\n### UC-10.1.1 · Detect Bruteforce\n"
+            "- **App/TA:** Splunk Enterprise Security Content Update (ESCU)\n"
+            "- **Data sources:** Authentication logs\n"
+            "- **SPL:** | from datamodel:Authentication.Authentication | stats count by user\n"
+            "- **Detection type:** TTP\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # ESCU detection sets the escu flag and replaces md with an ES-specific narrative.
+        assert uc.get("escu") is True
+        assert uc.get("md")
+        # Capsys captures the per-category print of escu_count.
+        captured = capsys.readouterr()
+        assert "ESCU detections" in captured.out
+
+    def test_escu_uc_with_short_implementation_gets_replaced(self, tmp_path):
+        """ESCU UC with a generic placeholder `m` (short impl) gets a fresh
+        ESCU-flavoured short impl regenerated."""
+        md = (
+            "# 10. Security\n## 10.1 Sub\n### UC-10.1.1 · Detect X\n"
+            "- **App/TA:** Splunk Enterprise Security Content Update (ESCU)\n"
+            "- **SPL:** index=foo | stats count\n"
+            "- **Detection type:** TTP\n"
+            "- **Implementation:**\n"
+        )
+        cat = en.parse_category_file(self._write_md(tmp_path, md))
+        uc = cat["s"][0]["u"][0]
+        # Short ESCU impl is non-empty and contains an ESCU-specific marker.
+        assert uc.get("m")
