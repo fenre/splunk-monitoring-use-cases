@@ -56,3 +56,71 @@ class TestMatchEquipment:
         pats = compile_patterns()
         eq_ids, model_ids = match_equipment("xyzzy12345", pats)
         assert len(eq_ids) == 0
+
+
+class TestLoadEquipmentDefensiveBranches:
+    """Pin the two ``raise RuntimeError`` branches in ``load_equipment``
+    that fire when the upstream ``EQUIPMENT`` SSOT is corrupted. The
+    branches are unreachable from the production registry (which is a
+    well-formed list of dicts), so we monkeypatch the cached SSOT
+    reference to inject malformed shapes.
+
+    Both tests reset the module-level ``_CACHE`` to None first so the
+    function's early-return doesn't short-circuit the validation.
+    """
+
+    def setup_method(self) -> None:
+        """Drain the load_equipment cache before each defensive test
+        so the validation branches we're targeting actually run."""
+        import equipment_lib as eq_mod
+
+        eq_mod._CACHE = None
+
+    def teardown_method(self) -> None:
+        """Drain again on exit so the next test (and the rest of the
+        suite) sees a clean cache slot."""
+        import equipment_lib as eq_mod
+
+        eq_mod._CACHE = None
+
+    # NOTE: ``equipment_lib.load_equipment`` line 62 raises if
+    # ``list(_SSOT_EQUIPMENT)`` doesn't produce a list. ``list(x)``
+    # in CPython is guaranteed to return a list for any iterable
+    # input — and ``_SSOT_EQUIPMENT`` is constrained upstream to be
+    # iterable. We document the branch as **unreachable in practice**
+    # but retain it as a tripwire against future refactors that
+    # replace the ``list(...)`` conversion with something else.
+
+    def test_raises_when_entry_is_malformed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Line 66-67: every EQUIPMENT entry must be a dict with both
+        ``id`` and ``tas`` keys. Pin the per-entry validation by
+        stubbing the upstream registry with a malformed entry.
+        """
+        import equipment_lib as eq_mod
+
+        # Replace the SSOT reference with a single malformed entry.
+        # The function does ``list(_SSOT_EQUIPMENT)`` so we provide an
+        # iterable whose first entry trips the validator.
+        monkeypatch.setattr(
+            eq_mod,
+            "_SSOT_EQUIPMENT",
+            [{"id": "x"}],  # missing ``tas`` key
+        )
+        with pytest.raises(RuntimeError, match="EQUIPMENT entry malformed"):
+            eq_mod.load_equipment()
+
+    def test_raises_when_entry_is_not_a_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Companion to the malformed-dict case: a non-dict entry (e.g.
+        a stray string or ``None``) must also trip the validator. Pin
+        the ``isinstance(entry, dict)`` half of the same check."""
+        import equipment_lib as eq_mod
+
+        monkeypatch.setattr(
+            eq_mod, "_SSOT_EQUIPMENT", ["not-a-dict"]
+        )
+        with pytest.raises(RuntimeError, match="EQUIPMENT entry malformed"):
+            eq_mod.load_equipment()
