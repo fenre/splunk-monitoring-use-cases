@@ -681,6 +681,14 @@ register(
         category="generators",
     )
 )
+register(
+    Verb(
+        name="generate-alert-actions",
+        module="generators.alert_actions",
+        help="Emit per-UC SOAR + email alert action templates under dist/alert-actions/.",
+        category="generators",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Ingest (Tier 2 batch 8) -- pull authoritative external sources into
