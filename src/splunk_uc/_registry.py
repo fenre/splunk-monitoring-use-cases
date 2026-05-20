@@ -539,6 +539,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-cost-coverage",
+        module="audits.cost_coverage",
+        help="Report cost.tier coverage across UC sidecars; ratcheting threshold gate.",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
