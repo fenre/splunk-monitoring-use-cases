@@ -350,6 +350,42 @@ class TestReadVersion:
         monkeypatch.setattr(M, "VERSION_FILE", tmp_path / "nope")
         assert M._read_version() == "0.0.0"
 
+    def test_returns_zero_fallback_when_version_file_is_blank(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An empty (zero-byte or whitespace-only) VERSION file hits
+        the ``if not raw`` guard and returns the zero sentinel."""
+        vf = tmp_path / "VERSION"
+        vf.write_text("   \n", encoding="utf-8")
+        monkeypatch.setattr(M, "VERSION_FILE", vf)
+        assert M._read_version() == "0.0.0"
+
+    def test_pads_two_part_version_to_semver(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A ``6.0`` VERSION must be padded to ``6.0.0`` so the
+        Splunk app.conf parser accepts it."""
+        vf = tmp_path / "VERSION"
+        vf.write_text("6.0\n", encoding="utf-8")
+        monkeypatch.setattr(M, "VERSION_FILE", vf)
+        assert M._read_version() == "6.0.0"
+
+    def test_truncates_four_part_version_to_semver(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Conversely, ``6.0.0.1`` is truncated to ``6.0.0`` — the
+        same parser refuses anything beyond three components."""
+        vf = tmp_path / "VERSION"
+        vf.write_text("6.0.0.1\n", encoding="utf-8")
+        monkeypatch.setattr(M, "VERSION_FILE", vf)
+        assert M._read_version() == "6.0.0"
+
 
 class TestDeterministicTimestamp:
     def test_uses_source_date_epoch_when_set(
@@ -486,6 +522,271 @@ class TestGsaLoadUcs:
         monkeypatch.setattr(M, "REPO_ROOT", tmp_path)
         with pytest.raises(SystemExit, match="Invalid JSON"):
             M._gsa_load_ucs()
+
+
+# ---------------------------------------------------------------------------
+# _uc_to_unified_savedsearch + _compliance_eventtypes_sections — pin the
+# small branches that the smoke test does not deterministically reach.
+# ---------------------------------------------------------------------------
+
+
+class TestGsaAliasMapEdgeBranches:
+    def test_framework_without_shortname_does_not_index_alias(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A framework that has an ``id`` but no ``shortName`` MUST
+        only contribute the id-lowercased alias; the ``shortName``
+        branch is skipped (line 145→147)."""
+        regs = {
+            "frameworks": [
+                {"id": "gdpr"},
+                {"id": "hipaa", "shortName": "HIPAA", "aliases": ["hipaa-2003"]},
+            ],
+            "aliasIndex": {},
+        }
+        result = M._gsa_alias_map(regs)
+        # gdpr only contributes "gdpr" (no shortName)
+        assert result["gdpr"] == "gdpr"
+        # hipaa contributes id, shortName, and alias
+        assert result["hipaa"] == "hipaa"
+        assert result["hipaa-2003"] == "hipaa"
+
+
+class TestComplianceMatchedUcsBlankRegulation:
+    def test_skips_compliance_entries_with_blank_regulation_field(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A UC sidecar that declares a compliance entry with an empty
+        / whitespace-only ``regulation`` string MUST skip that entry
+        before consulting the alias map (line 378, ``continue``)."""
+        ucs = [
+            {
+                "id": "1.1.1",
+                "title": "Test",
+                "compliance": [
+                    {"regulation": ""},
+                    {"regulation": "  "},
+                    {"regulation": "gdpr"},
+                ],
+            },
+            {
+                "id": "1.1.2",
+                "title": "No-match UC",
+                "compliance": [{"regulation": ""}],
+            },
+        ]
+        regs = {
+            "frameworks": [{"id": "gdpr", "shortName": "GDPR", "tier": 1}],
+            "aliasIndex": {},
+        }
+        monkeypatch.setattr(M, "_gsa_load_ucs", lambda: ucs)
+        monkeypatch.setattr(M, "_gsa_load_json", lambda _p: regs)
+        matched, frameworks = M._load_compliance_bundle()
+        # UC 1.1.1 still matches via the third entry; UC 1.1.2 is dropped
+        # because both its compliance entries are blank.
+        assert [u["id"] for u in matched] == ["1.1.1"]
+        assert list(frameworks) == ["gdpr"]
+
+
+class TestUcToUnifiedSavedsearch:
+    def test_emits_clauses_and_versions_lines_when_present(self) -> None:
+        """When matched compliance entries carry ``clause`` and
+        ``version`` data, the rendered stanza grows two extra
+        action.uc_compliance.param.* keys."""
+        uc = {
+            "id": "1.1.1",
+            "title": "Test UC",
+            "criticality": "high",
+            "spl": "index=foo\n| stats count",
+            "_matchedCompliance": [
+                {
+                    "_canonical": "gdpr",
+                    "clause": "Art. 32",
+                    "version": "2018",
+                },
+                {
+                    "_canonical": "pci-dss",
+                    "clause": "Req. 10",
+                    "version": "4.0",
+                },
+            ],
+        }
+        frameworks = {
+            "gdpr": {"shortName": "GDPR"},
+            "pci-dss": {"shortName": "PCI"},
+        }
+        _stanza, pairs = M._uc_to_unified_savedsearch(uc, frameworks)
+        keys = {k for k, _ in pairs}
+        assert "action.uc_compliance.param.clauses" in keys
+        assert "action.uc_compliance.param.versions" in keys
+        # Description includes the clauses line.
+        desc = next(v for k, v in pairs if k == "description")
+        assert "clauses=" in desc
+        # Multi-line SPL gets the backslash-newline join.
+        search = next(v for k, v in pairs if k == "search")
+        assert " \\\n" in search
+
+    def test_omits_clauses_key_when_no_clause_data(self) -> None:
+        """A UC whose matched compliance has no ``clause`` field MUST
+        NOT emit the ``action.uc_compliance.param.clauses`` key — pins
+        the False branch of ``if clauses`` (line 464→466). The
+        ``versions`` key still appears because ``_canonical`` alone is
+        enough to populate version_tags as ``<id>@unversioned``."""
+        uc = {
+            "id": "1.1.1",
+            "title": "Test UC",
+            "criticality": "medium",
+            "spl": "index=foo | stats count",
+            "_matchedCompliance": [{"_canonical": "gdpr"}],
+        }
+        _stanza, pairs = M._uc_to_unified_savedsearch(uc, {"gdpr": {"shortName": "GDPR"}})
+        keys = {k for k, _ in pairs}
+        assert "action.uc_compliance.param.clauses" not in keys
+        assert "action.uc_compliance.param.versions" in keys
+        # Description has NO 'clauses=' line.
+        desc = next(v for k, v in pairs if k == "description")
+        assert "clauses=" not in desc
+
+    def test_omits_versions_key_when_no_canonical_data(self) -> None:
+        """When every matched compliance entry has a falsy
+        ``_canonical``, both ``regulations`` and ``version_tags``
+        collapse to empty and the corresponding action.* keys are
+        omitted — pins the False branch of ``if version_tags`` (line
+        466→468). This is the contract used by UCs that map to a
+        framework the recommender does not yet recognise."""
+        uc = {
+            "id": "1.1.1",
+            "title": "Test UC",
+            "criticality": "medium",
+            "spl": "index=foo | stats count",
+            "_matchedCompliance": [{"_canonical": ""}, {"_canonical": None}],
+        }
+        _stanza, pairs = M._uc_to_unified_savedsearch(uc, {})
+        keys = {k for k, _ in pairs}
+        assert "action.uc_compliance.param.clauses" not in keys
+        assert "action.uc_compliance.param.versions" not in keys
+
+    def test_falls_back_to_placeholder_spl_when_uc_has_none(self) -> None:
+        """When the UC sidecar has no ``spl`` / ``query`` field, the
+        renderer emits the documented placeholder so the stanza is
+        still valid and disabled-by-default."""
+        uc = {
+            "id": "9.9.9",
+            "title": "No-SPL UC",
+            "criticality": "low",
+            "_matchedCompliance": [{"_canonical": "gdpr"}],
+        }
+        _stanza, pairs = M._uc_to_unified_savedsearch(uc, {"gdpr": {"shortName": "GDPR"}})
+        search = next(v for k, v in pairs if k == "search")
+        assert "_placeholder=1" in search
+        assert 'eval uc_id="9.9.9"' in search
+
+
+class TestComplianceEventtypesSections:
+    def test_skips_compliance_entries_with_blank_canonical(self) -> None:
+        """A matched-compliance entry whose ``_canonical`` resolves to
+        an empty/whitespace-only string is dropped before being keyed
+        into ``by_key`` (pin for line 516, the ``if not fw_id`` guard).
+        """
+        ucs = [
+            {
+                "id": "1.1.1",
+                "controlFamily": "Access Control",
+                "_matchedCompliance": [
+                    {"_canonical": ""},  # MUST be skipped
+                    {"_canonical": "   "},  # MUST be skipped
+                    {"_canonical": "gdpr"},
+                ],
+            }
+        ]
+        sections = M._compliance_eventtypes_sections(
+            ucs, {"gdpr": {"shortName": "GDPR"}}
+        )
+        # Only the gdpr/access_control eventtype is emitted.
+        stanzas = {stanza for stanza, _ in sections}
+        assert stanzas == {"uc_compliance_gdpr_access_control"}
+
+
+# ---------------------------------------------------------------------------
+# main truncates the diff list at 200 entries
+# ---------------------------------------------------------------------------
+
+
+class TestMainCheckDriftTruncation:
+    def test_diff_overflow_is_truncated_in_stderr(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When --check produces more than 200 diff lines, main MUST
+        print the first 200 and a "... N additional diffs omitted"
+        footer. Stub _scope_check_diff to return a fabricated diff
+        list so we don't need 201 real differing files."""
+        fake_diffs = [f"  differs: file-{i:04d}.txt" for i in range(250)]
+        monkeypatch.setattr(M, "_scope_check_diff", lambda *_a, **_kw: fake_diffs)
+        # _render is a no-op so we don't actually build the tree.
+        monkeypatch.setattr(M, "_render", lambda _root: {M.PRIMARY_APP_ID: tmp_path})
+        out_dir = tmp_path / "splunk-apps"
+        out_dir.mkdir()
+        rc = M.main(["--check", "--output", str(out_dir)])
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "additional diffs omitted" in err
+        assert "drift" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# _build_primary_app — directly exercise the legacy-file cleanup and the
+# LICENSE-absent branch without going through the full _render pipeline.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPrimaryAppLegacyAndLicense:
+    def test_removes_pre_existing_legacy_studio_artefacts(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """If a previous build left ``recommend_studio.xml`` /
+        ``recommend.json`` lying around, the new build MUST delete
+        them — pins line 4903 (``_legacy.unlink()``)."""
+        out_root = tmp_path / "splunk-apps"
+        app_root = out_root / M.PRIMARY_APP_ID
+        views = app_root / "default" / "data" / "ui" / "views"
+        views.mkdir(parents=True)
+        legacy_xml = views / "recommend_studio.xml"
+        legacy_json = views / "recommend.json"
+        legacy_xml.write_text("stale\n", encoding="utf-8")
+        legacy_json.write_text("{}\n", encoding="utf-8")
+
+        M._build_primary_app(out_root, "0.0.0", "2026-05-20T00:00:00Z", "/svc/api/v1")
+
+        assert not legacy_xml.exists()
+        assert not legacy_json.exists()
+        # The fresh recommend.xml DOES land.
+        assert (views / "recommend.xml").exists()
+
+    def test_skips_license_copy_when_repo_license_missing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When the repo-root LICENSE file does not exist, the
+        build MUST skip the LICENSE copy without raising. Pins the
+        False branch of ``if LICENSE_FILE.exists()`` (4950→4956)."""
+        out_root = tmp_path / "splunk-apps"
+        monkeypatch.setattr(M, "LICENSE_FILE", tmp_path / "no-such-LICENSE")
+
+        app_root = M._build_primary_app(
+            out_root,
+            "0.0.0",
+            "2026-05-20T00:00:00Z",
+            "/svc/api/v1",
+        )
+        assert app_root.exists()
+        assert not (app_root / "LICENSE").exists()
 
 
 def test_module_exposes_main_callable() -> None:
