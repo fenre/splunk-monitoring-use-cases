@@ -86,6 +86,131 @@ def _write_uc(corpus_root: Path, uc_id: str, payload: dict | str) -> Path:
 
 
 # --------------------------------------------------------------------- #
+# audit_uc_json — per-UC primitive, regression coverage for the
+# field-level branches that the corpus walker exercises only at the
+# happy path.
+# --------------------------------------------------------------------- #
+
+
+class TestAuditUcJsonFieldChecks:
+    """Pin every issue-emitting branch in ``audit_uc_json``.
+
+    The existing corpus tests assert on the orchestration layer; this
+    class fires the primitive directly so a future refactor of the
+    rule set cannot silently drop a check.
+    """
+
+    def test_id_mismatch_with_filename_is_flagged(self) -> None:
+        # File is UC-1.1.1.json but the JSON ``id`` claims 9.9.9.
+        payload = _good_uc("9.9.9")
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("does not match filename" in i for i in issues)
+
+    def test_empty_string_required_field_is_flagged(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["value"] = "   "  # whitespace-only is "empty" too
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("empty required field 'value'" in i for i in issues)
+
+    def test_empty_list_required_field_is_flagged(self) -> None:
+        payload = _good_uc("1.1.1")
+        # monitoringType is a list field and is NOT in
+        # JSON_FIELDS_ALLOW_EMPTY_LIST, so an empty list MUST be flagged.
+        payload["monitoringType"] = []
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("empty required field 'monitoringType'" in i for i in issues)
+
+    def test_empty_list_is_allowed_for_cim_models(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["cimModels"] = []  # explicitly allowed
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert not any("cimModels" in i for i in issues)
+
+    def test_null_required_field_is_flagged(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["visualization"] = None
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("null required field 'visualization'" in i for i in issues)
+
+    def test_legacy_markdown_criticality_is_flagged_with_hint(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["criticality"] = "🔴 Critical"
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("legacy markdown" in i and "criticality" in i for i in issues)
+
+    def test_unknown_criticality_value_is_flagged_as_invalid(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["criticality"] = "URGENT"
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("invalid criticality" in i for i in issues)
+
+    def test_legacy_markdown_difficulty_is_flagged_with_hint(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["difficulty"] = "🟠 Advanced"
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("legacy markdown" in i and "difficulty" in i for i in issues)
+
+    def test_unknown_difficulty_value_is_flagged_as_invalid(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["difficulty"] = "BRUTAL"
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("invalid difficulty" in i for i in issues)
+
+    def test_non_string_spl_is_flagged(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["spl"] = ["index=foo", "| stats count"]  # must be string
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert any("spl must be a string" in i for i in issues)
+
+    def test_empty_string_spl_is_flagged(self) -> None:
+        payload = _good_uc("1.1.1")
+        # Bypass the empty-required-field check by setting spl to
+        # whitespace-only — that still hits the spl-specific guard.
+        payload["spl"] = "   "
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        # Both the "empty required field" check and the spl-specific
+        # check fire on whitespace-only strings. Pin BOTH so the
+        # author can see which guard triggered.
+        assert any("empty required field 'spl'" in i for i in issues)
+        assert any(i.endswith("spl is empty") for i in issues)
+
+    def test_non_string_criticality_skips_enum_checks(self) -> None:
+        """If ``criticality`` is something exotic (e.g. an int or list)
+        the schema-level type check fails earlier; this audit short-
+        circuits the value-enum guard. Pin the False branch of the
+        ``isinstance(crit, str) and crit`` guard so a refactor that
+        starts coercing types cannot silently start emitting bogus
+        invalid-criticality errors."""
+        payload = _good_uc("1.1.1")
+        payload["criticality"] = 42
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        # No "invalid criticality" issue should appear because we
+        # never reached the enum check.
+        assert not any("invalid criticality" in i for i in issues)
+
+    def test_non_string_difficulty_skips_enum_checks(self) -> None:
+        payload = _good_uc("1.1.1")
+        payload["difficulty"] = ["intermediate"]
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        assert not any("invalid difficulty" in i for i in issues)
+
+    def test_missing_spl_field_skips_string_check(self) -> None:
+        """When ``spl`` is absent entirely, the per-field 'missing
+        required field' rule above takes care of it. The spl-specific
+        guard is skipped because ``payload.get('spl')`` is None. Pin
+        the None branch so a refactor that defaults to ``""`` cannot
+        silently start emitting double-issue noise."""
+        payload = _good_uc("1.1.1")
+        del payload["spl"]
+        issues = audit.audit_uc_json("/repo/content/cat-1/UC-1.1.1.json", payload)
+        # The "missing required field" issue is present...
+        assert any("missing required field 'spl'" in i for i in issues)
+        # ...but NOT the spl-specific "spl must be a string" / "spl is empty".
+        assert not any("spl must be a string" in i for i in issues)
+        assert not any(i.endswith("spl is empty") for i in issues)
+
+
+# --------------------------------------------------------------------- #
 # _audit_json_corpus — happy and unhappy paths
 # --------------------------------------------------------------------- #
 
