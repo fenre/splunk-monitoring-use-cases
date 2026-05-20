@@ -1,10 +1,11 @@
 """Hermetic coverage suite for ``splunk_uc.feasibility.validate_exemplar_uc``.
 
 This is the Phase 0.5c feasibility spike that validates the legacy
-exemplar UC (``use-cases/cat-22/uc-22.35.1.json``) against the draft
-schema. The production gate lives in ``audit_compliance_mappings`` —
-this is just a small reference spike, but pinning its behaviour
-prevents accidental regression while it stays in the dispatcher.
+exemplar UC (cat-22 / uc-22.35.1.json under the historical
+pre-``content/`` use_cases layout) against the draft schema. The
+production gate lives in ``audit_compliance_mappings`` — this is just
+a small reference spike, but pinning its behaviour prevents accidental
+regression while it stays in the dispatcher.
 
 Brings coverage from 36.4% to 100%.
 """
