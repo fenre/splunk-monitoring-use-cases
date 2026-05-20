@@ -248,7 +248,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
     if isinstance(cat_meta, dict) and data_category_ids:
-        meta_keys = set(cat_meta.keys())
+        # Non-numeric keys are already flagged above (per-key "invalid
+        # key" check). Filter them out here so the int() sort below
+        # cannot explode on a junk key like "bogus" \u2014 see
+        # ``test_main_does_not_crash_on_cat_meta_with_junk_key``.
+        meta_keys = {k for k in cat_meta.keys() if isinstance(k, str) and k.isdigit()}
         data_keys = {str(i) for i in data_category_ids}
         missing_meta = sorted(data_keys - meta_keys, key=lambda x: int(x))
         extra_meta = sorted(meta_keys - data_keys, key=lambda x: int(x))
