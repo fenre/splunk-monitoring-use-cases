@@ -716,6 +716,246 @@ def test_schema_is_valid_draft_2020_12(schema):
     jsonschema.Draft202012Validator.check_schema(schema)
 
 
+def test_previous_snapshot_does_not_downgrade_best_for_lower_version(tmp_path: Path):
+    """When ``sorted(history.glob(...))`` visits a higher version
+    before a lower one (alphabetic ``7.10.0`` < ``7.4.0``), the loop
+    must not downgrade ``best_key`` (covers branch 147->134 in
+    ``stewardship_digest.py``)."""
+
+    history = tmp_path / "metrics-history"
+    history.mkdir()
+    # Sorted alphabetically: 7.10.0 comes BEFORE 7.4.0
+    (history / "7.10.0.json").write_text(
+        json.dumps(_metrics("7.10.0")), encoding="utf-8"
+    )
+    (history / "7.4.0.json").write_text(
+        json.dumps(_metrics("7.4.0")), encoding="utf-8"
+    )
+    out = gsd._previous_snapshot(history, "8.0.0")
+    assert out is not None
+    assert out["catalogueVersion"] == "7.10.0"
+
+
+def test_previous_snapshot_skips_doc_with_non_string_version(tmp_path: Path):
+    """A history file whose ``catalogueVersion`` is not a string is
+    silently skipped (covers line 143 of
+    ``stewardship_digest.py``)."""
+
+    history = tmp_path / "metrics-history"
+    history.mkdir()
+    # Numeric version → not a string → must be ignored.
+    (history / "weird.json").write_text(
+        json.dumps({"catalogueVersion": 7.42}), encoding="utf-8"
+    )
+    (history / "7.3.0.json").write_text(
+        json.dumps(_metrics("7.3.0")), encoding="utf-8"
+    )
+    out = gsd._previous_snapshot(history, "8.0.0")
+    assert out is not None
+    assert out["catalogueVersion"] == "7.3.0"
+
+
+# ---------------------------------------------------------------------------
+# _walk_sidecars
+# ---------------------------------------------------------------------------
+
+
+def test_walk_sidecars_returns_empty_when_dir_missing(tmp_path: Path):
+    """Non-existent content_dir yields an empty list — the digest
+    must not crash when the catalogue tree isn't present."""
+
+    assert gsd._walk_sidecars(tmp_path / "nope") == []
+
+
+def test_walk_sidecars_skips_malformed_json(tmp_path: Path):
+    """Sidecars with invalid JSON are silently dropped (covers lines
+    305-308 of ``stewardship_digest.py``)."""
+
+    (tmp_path / "UC-1.1.1.json").write_text("{ not json", encoding="utf-8")
+    (tmp_path / "UC-1.1.2.json").write_text(
+        json.dumps({"id": "1.1.2", "title": "ok"}), encoding="utf-8"
+    )
+    out = gsd._walk_sidecars(tmp_path)
+    assert len(out) == 1
+    assert out[0]["id"] == "1.1.2"
+
+
+def test_walk_sidecars_skips_non_dict_payloads(tmp_path: Path):
+    """A sidecar whose top-level JSON is a list (or any non-dict) is
+    silently dropped (covers lines 309-311 of
+    ``stewardship_digest.py``)."""
+
+    (tmp_path / "UC-1.1.1.json").write_text("[1, 2, 3]", encoding="utf-8")
+    (tmp_path / "UC-1.1.2.json").write_text(
+        json.dumps({"id": "1.1.2", "title": "ok"}), encoding="utf-8"
+    )
+    out = gsd._walk_sidecars(tmp_path)
+    assert len(out) == 1
+    assert out[0]["id"] == "1.1.2"
+
+
+# ---------------------------------------------------------------------------
+# _stale_use_cases — title fallback
+# ---------------------------------------------------------------------------
+
+
+def test_stale_use_cases_falls_back_to_untitled_when_title_missing():
+    """A stale sidecar with no title gets the ``(untitled)``
+    fallback (covers line 350 of ``stewardship_digest.py``)."""
+
+    ref = _dt.date(2026, 5, 9)
+    sidecars = [{"id": "7.1.1", "lastReviewed": "2024-01-01"}]  # no title
+    out = gsd._stale_use_cases(sidecars, reference=ref, threshold_days=30)
+    assert out["count"] == 1
+    assert out["topStale"][0]["title"] == "(untitled)"
+
+
+# ---------------------------------------------------------------------------
+# render_markdown — visit every section
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_renders_signed_coverage_delta_with_pp(schema):
+    """When the digest carries a prior snapshot, the coverage table
+    must emit signed counts AND ``(pp)`` percentage deltas (covers
+    lines 533-535 of ``stewardship_digest.py``)."""
+
+    cur = _metrics("8.0.0")
+    prev = _metrics(
+        "7.4.2",
+        coverage={
+            "compliance": {"count": 5, "percentage": 5.0},
+            "mitreAttack": {"count": 10, "percentage": 10.0},
+            "cimModels": {"count": 50, "percentage": 50.0},
+            "equipment": {"count": 70, "percentage": 70.0},
+        },
+    )
+    digest = gsd.build_digest(
+        metrics=cur,
+        previous=prev,
+        sidecars=[],
+        audit_warnings=[],
+        reference_date=_dt.date(2026, 5, 9),
+    )
+    md = gsd.render_markdown(digest)
+    # current compliance count is 20, previous was 5 → +15 with +15.00pp
+    assert "+15" in md
+    assert "pp" in md
+
+
+def test_markdown_handles_coverage_block_without_percentage_delta(schema):
+    """Renders the coverage row even when ``percentageDelta`` is
+    absent but ``previousCount`` is present — defensive guard against
+    hand-crafted digests (covers branch 534->538 of
+    ``stewardship_digest.py``)."""
+
+    # Build a valid digest, then mutate one coverage block to drop
+    # percentageDelta while keeping previousCount. This exercises the
+    # ``if pct_delta is not None`` False branch without violating the
+    # JSON schema (percentageDelta is optional on the block).
+    digest = gsd.build_digest(
+        metrics=_metrics("8.0.0"),
+        previous=_metrics("7.4.2"),
+        sidecars=[],
+        audit_warnings=[],
+        reference_date=_dt.date(2026, 5, 9),
+    )
+    digest["coverageShifts"]["compliance"].pop("percentageDelta", None)
+    md = gsd.render_markdown(digest)
+    # The delta cell still renders the signed integer ("+0") but
+    # without the trailing "(...pp)" suffix.
+    assert "| compliance | 20 | 20.00% | +0 |" in md
+    assert "(+0.00pp)" not in md.split("| compliance")[1].split("\n")[0]
+
+
+def test_markdown_renders_top_movers_table_when_present(schema):
+    """A non-empty ``topMovers`` axis renders its own H2 + table
+    (covers lines 546-554 of ``stewardship_digest.py``)."""
+
+    cur = _metrics(
+        "8.0.0",
+        leaders={
+            "regulations": [{"regulation": "GDPR", "count": 12}],
+            "mitreAttack": [],
+            "cimModels": [],
+            "equipment": [],
+        },
+    )
+    prev = _metrics(
+        "7.4.2",
+        leaders={
+            "regulations": [{"regulation": "GDPR", "count": 5}],
+            "mitreAttack": [],
+            "cimModels": [],
+            "equipment": [],
+        },
+    )
+    digest = gsd.build_digest(
+        metrics=cur,
+        previous=prev,
+        sidecars=[],
+        audit_warnings=[],
+        reference_date=_dt.date(2026, 5, 9),
+    )
+    md = gsd.render_markdown(digest)
+    assert "## Top movers: regulations" in md
+    assert "| Name | Current | Previous | Delta |" in md
+    assert "GDPR" in md
+    assert "+7" in md
+
+
+def test_markdown_renders_top_stale_table_when_present(schema):
+    """A non-empty ``topStale`` list renders the stale-UC table
+    (covers lines 570-577 of ``stewardship_digest.py``)."""
+
+    sidecars = [_sidecar("8.1.1", "2024-01-01")]
+    digest = gsd.build_digest(
+        metrics=_metrics("8.0.0"),
+        previous=None,
+        sidecars=sidecars,
+        audit_warnings=[],
+        reference_date=_dt.date(2026, 5, 9),
+        stale_threshold_days=30,
+    )
+    md = gsd.render_markdown(digest)
+    assert "| ID | Title | Status | Last reviewed | Age (days) |" in md
+    assert "UC-8.1.1" in md
+    assert "UC 8.1.1" in md  # title from _sidecar helper
+
+
+# ---------------------------------------------------------------------------
+# main() — default reference date
+# ---------------------------------------------------------------------------
+
+
+def test_main_uses_current_utc_date_when_reference_date_omitted(tmp_path: Path):
+    """Omitting --reference-date must default to ``utcnow().date()``
+    rather than crash (covers line 691 of
+    ``stewardship_digest.py``)."""
+
+    metrics_path = tmp_path / "metrics.json"
+    metrics_path.write_text(json.dumps(_metrics("8.0.0")), encoding="utf-8")
+    out_dir = tmp_path / "out"
+    rc = gsd.main(
+        [
+            "--metrics", str(metrics_path),
+            "--history-dir", str(tmp_path / "history"),
+            "--content-dir", str(tmp_path / "content"),
+            "--out", str(out_dir),
+        ]
+    )
+    assert rc == 0
+    digest = json.loads(
+        (out_dir / "stewardship-digest.json").read_text(encoding="utf-8")
+    )
+    # The default must be today (UTC) — sanity-check that the field
+    # parses as an ISO date in the near present (within +/- 1 day to
+    # tolerate test runs near UTC midnight).
+    rd = _dt.date.fromisoformat(digest["referenceDate"])
+    today = _dt.datetime.now(tz=_dt.UTC).date()
+    assert abs((rd - today).days) <= 1
+
+
 def test_schema_top_level_keys_match_payload_keys():
     expected = {
         "$schema",
