@@ -109,6 +109,22 @@ class TestRecommenderApps:
         uc = {"t": "Version `1.2.3` only"}
         assert M._recommender_apps(uc) == []
 
+    def test_skips_backticked_token_that_fails_looks_like_app_label(
+        self,
+    ) -> None:
+        """A backticked token that the surrounding regex admits
+        (``[A-Za-z][A-Za-z0-9_\\-\\.]{2,79}``) but ``_looks_like_app_label``
+        rejects (here: alphanumeric ratio < 40%) MUST be dropped silently
+        rather than added to the app index. This pins the false branch
+        of ``if _looks_like_app_label(token)`` (line 1126->1118).
+        """
+        # ``a-.-.-.-.-`` is 11 chars, only 1 alnum (9%). The backtick
+        # regex admits it (starts with letter, rest in
+        # ``[A-Za-z0-9_\\-\\.]``), but ``_looks_like_app_label`` rejects
+        # it on the alphanumeric ratio check (alnum=1 < max(3, 11*0.4)=4.4).
+        uc = {"t": "See `a-.-.-.-.-` for the placeholder token."}
+        assert "a-.-.-.-.-" not in M._recommender_apps(uc)
+
     def test_strips_markdown_links_and_bold(self) -> None:
         uc = {"t": "[Splunk Add-on for Cisco](https://example), **Splunk Enterprise Security**"}
         out = M._recommender_apps(uc)
@@ -519,6 +535,65 @@ class TestRecommenderSplunkbaseIndex:
         out = M._recommender_splunkbase_index()
         assert out["appCount"] == 0
 
+    def test_non_dict_catalog_payload_is_ignored(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pins the false branch of ``isinstance(loaded, dict)`` for
+        the catalog file (line 1402->1404). When the catalog payload
+        decodes to a JSON list rather than an object, the merger MUST
+        silently fall back to an empty catalog, NOT raise.
+        """
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        cat = tmp_path / "catalog.json"
+        # Top-level JSON array — valid JSON but the wrong shape.
+        cat.write_text(json.dumps([{"id": 742}]), encoding="utf-8")
+        monkeypatch.setattr(M, "SPLUNKBASE_CATALOG_PATH", cat)
+        monkeypatch.setattr(
+            M,
+            "SPLUNKBASE_OVERRIDES_PATH",
+            tmp_path / "missing-overrides.json",
+        )
+        out = M._recommender_splunkbase_index()
+        assert out["appCount"] == 0
+        assert out["apps"] == {}
+
+    def test_non_dict_overrides_payload_is_ignored(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pins the false branch of ``isinstance(loaded, dict)`` for
+        the overrides file (line 1407->1409). A list-shaped overrides
+        file is silently ignored; the catalog wins as if no overrides
+        existed.
+        """
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        cat = tmp_path / "catalog.json"
+        cat.write_text(
+            json.dumps(
+                {
+                    "apps": {
+                        "742": {
+                            "id": 742,
+                            "name": "app-742",
+                            "displayName": "App 742",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        ovr = tmp_path / "overrides.json"
+        ovr.write_text(json.dumps(["wrong shape"]), encoding="utf-8")
+        monkeypatch.setattr(M, "SPLUNKBASE_CATALOG_PATH", cat)
+        monkeypatch.setattr(M, "SPLUNKBASE_OVERRIDES_PATH", ovr)
+        out = M._recommender_splunkbase_index()
+        # Catalog entry survives unchanged — overrides did NOT
+        # mutate displayName (no "(override)" suffix).
+        assert out["apps"]["742"]["displayName"] == "App 742"
+
 
 # ---------------------------------------------------------------------------
 # _equipment_metadata
@@ -668,6 +743,68 @@ class TestEquipmentPayloads:
         _idx, details = M._equipment_payloads(catalog, [], {})
         cats = [e["category"] for e in details["paloalto"]["useCasesByCategory"]]
         assert 0 in cats
+
+    def test_skips_non_string_equipment_and_model_ids(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pins the false branch of ``isinstance(eq_id, str) and eq_id``
+        on the catalog scan (lines 1552->1551 + 1555->1554). Non-string
+        or empty entries in ``e``/``em`` are silently dropped — the
+        equipment/model index MUST NOT crash on dirty catalog data.
+        """
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        monkeypatch.setattr(
+            M,
+            "load_equipment",
+            lambda: [{"id": "paloalto", "label": "Palo Alto", "models": []}],
+        )
+        catalog = [
+            {
+                "i": "5.1.1",
+                "e": ["paloalto", "", 42, {"nested": "dict"}, None],
+                "em": ["paloalto_pa-220", "", 99, ["list"], None],
+            },
+        ]
+        _idx, details = M._equipment_payloads(catalog, [], {})
+        # paloalto string still indexed; the malformed entries are
+        # filtered out (no KeyError, no crash).
+        assert "paloalto" in details
+        # useCaseCount counts only the valid equipment binding.
+        assert details["paloalto"]["useCaseCount"] == 1
+
+    def test_skips_compliance_entries_with_whitespace_regulation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pins the false branch of ``if fid:`` (line 1569->1564)
+        inside ``_resolve_regulation_ids``. A whitespace-only
+        regulation value passes the ``if not reg`` guard (it's
+        truthy) but resolves to an empty fid via
+        ``alias_to_id.get('  ') or '  '.strip().lower() == ''`` —
+        and so MUST NOT be added to the regulation set.
+        """
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        monkeypatch.setattr(
+            M,
+            "load_equipment",
+            lambda: [
+                {"id": "paloalto", "label": "Palo Alto Networks", "models": []}
+            ],
+        )
+        catalog = [{"i": "22.1.1", "n": "Cmp", "e": ["paloalto"]}]
+        compliance = [
+            {
+                "id": "22.1.1",
+                "compliance": [
+                    # Whitespace-only regulation — passes the truthy
+                    # guard but produces an empty fid downstream.
+                    {"regulation": "   ", "version": "4.0", "clause": "X"},
+                ],
+            }
+        ]
+        idx, _details = M._equipment_payloads(catalog, compliance, {})
+        paloalto = next(e for e in idx["equipment"] if e["id"] == "paloalto")
+        # No regulation tag survives the whitespace-only entry.
+        assert paloalto["regulationIds"] == []
 
 
 # ---------------------------------------------------------------------------

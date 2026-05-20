@@ -570,6 +570,39 @@ class TestRenderStorySurfaces:
         with pytest.raises(SystemExit, match=r"regulations missing"):
             M._render_story_surfaces(out)
 
+    def test_raises_runtimeerror_when_legacy_loader_returns_no_spec(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``_load_legacy_module`` is a closure inside
+        ``_render_story_surfaces`` that calls
+        ``importlib.util.spec_from_file_location``. When that returns
+        ``None`` (or a spec without a loader) we MUST raise
+        ``RuntimeError`` rather than silently continuing — otherwise
+        a stale checkout could quietly stop rebuilding the
+        compliance-story surfaces.
+
+        The closure is invoked exactly once per ``_render_story_surfaces``
+        call (for ``augment_regulation_api``), so patching
+        ``spec_from_file_location`` at the ``importlib.util`` level
+        catches the closure's call without affecting the two sibling
+        package imports (``clause_index``, ``story_payload``) above,
+        which use a regular ``from ... import`` statement that does
+        not go through ``spec_from_file_location``.
+        """
+        import importlib.util as _u
+
+        out = tmp_path / "out"
+        out.mkdir()
+
+        monkeypatch.setattr(_u, "spec_from_file_location", lambda *a, **kw: None)
+
+        with pytest.raises(
+            RuntimeError, match=r"Cannot load augment_regulation_api"
+        ):
+            M._render_story_surfaces(out)
+
 
 class TestRenderEndToEnd:
     def test_writes_expected_top_level_files(
