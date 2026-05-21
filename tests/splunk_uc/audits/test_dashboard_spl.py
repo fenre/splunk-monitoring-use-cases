@@ -414,6 +414,36 @@ def test_collect_panels_falls_back_to_synthetic_panel_label(
     assert panels[0].panel.startswith("panel#")
 
 
+def test_collect_panels_handles_search_as_document_root(
+    tmp_path: Path,
+) -> None:
+    """Pin the ancestor-walk fall-through branch (233->243).
+
+    Normally a ``<search>`` lives inside ``<panel>`` / ``<row>`` / a
+    chart wrapper, so ``root.iter()`` always yields some ancestor whose
+    direct children include the search element. The audit then breaks
+    out of the loop with a real or synthetic title.
+
+    When a malformed (or test-harness) view file makes the ``<search>``
+    element itself the document root, ``root.iter()`` yields no parent
+    that lists it as a direct child, so the inner for-loop completes
+    without ever taking the ``break`` branch. This case exists to keep
+    that path defensive — the panel must still be emitted with the
+    synthetic ``panel#1`` label rather than crashing.
+    """
+
+    view = _write_view(
+        tmp_path,
+        "headless.xml",
+        "<search><query>index=foo | head 1</query></search>",
+    )
+    panels, warnings = audit._collect_panels(view)
+    assert warnings == []
+    assert len(panels) == 1
+    assert panels[0].panel == "panel#1"
+    assert panels[0].spl == "index=foo | head 1"
+
+
 # --------------------------------------------------------------------- #
 # AuditResult.fatal_messages
 # --------------------------------------------------------------------- #
@@ -489,6 +519,39 @@ def test_resolve_token_reads_secrets_env_when_env_unset(
     )
     monkeypatch.setattr(audit, "__file__", str(fake_module))
     assert audit._resolve_token("TEST_AUDIT_TOKEN") == "from-secrets"
+
+
+def test_resolve_token_returns_empty_when_secrets_lacks_var(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Pin the secrets-present-but-no-match fall-through branch.
+
+    The existing ``test_resolve_token_returns_empty_when_unset`` case
+    skips the for-loop entirely because secrets.env doesn't exist. This
+    case exercises the *other* path that returns "": secrets.env DOES
+    exist, the for-loop walks every line, and none matches the
+    requested ``token_var``. That branch (407->414 in dashboard_spl.py)
+    was previously uncovered, leaving a silent gap between "no file" and
+    "file present but stale" outcomes — both must return "" identically.
+    """
+    monkeypatch.delenv("MISSING_AUDIT_TOKEN", raising=False)
+    fake_root = tmp_path / "src" / "splunk_uc" / "audits"
+    fake_root.mkdir(parents=True)
+    fake_module = fake_root / "x.py"
+    fake_module.write_text("", encoding="utf-8")
+    secrets = tmp_path / "secrets.env"
+    # File exists, but contains lines that all hit the skip-branch
+    # (empty, comment, missing '=') plus a non-matching k=v line.
+    secrets.write_text(
+        "\n"  # empty line -> `if not line: continue`
+        "# comment with no equals sign\n"
+        "no-equals-sign-line\n"
+        "OTHER_TOKEN=something\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(audit, "__file__", str(fake_module))
+    assert audit._resolve_token("MISSING_AUDIT_TOKEN") == ""
 
 
 # --------------------------------------------------------------------- #
