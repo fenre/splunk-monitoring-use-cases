@@ -803,6 +803,38 @@ def test_violations_flags_unknown_vendored_license() -> None:
     assert any("v/LICENSE-WEIRD" in v and "Proprietary" in v for v in violations)
 
 
+def test_violations_walks_past_allowed_vendored_entries() -> None:
+    """Pin the loop-continuation branch in the vendored-licenses walker.
+
+    The existing 'flags unknown vendored license' test only puts ONE
+    entry in ``vendored_licenses``, so the for-loop runs exactly once
+    and never exercises the iteration-continues branch (740->739).
+    When a real inventory mixes allowed and disallowed vendored
+    licences, the audit must skip past every allowed entry and still
+    flag the disallowed one — this test pins that contract.
+    """
+
+    inv = _minimal_inventory(
+        vendored_licenses=[
+            # First entry: Apache-2.0 is on the allowlist; the iteration
+            # must walk past it without raising a violation. This is the
+            # 740->739 continuation branch.
+            {"path": "v/LICENSE-OK", "spdx": "Apache-2.0", "subject": "ok"},
+            # Second entry: trips the violation so the test still has
+            # an outcome to assert against.
+            {"path": "v/LICENSE-NOT-OK", "spdx": "Proprietary", "subject": "?"},
+        ]
+    )
+    violations = audit._violations_against_allowlist(inv)
+    # Exactly one violation, naming only the disallowed entry.
+    assert len(violations) == 1
+    assert "v/LICENSE-NOT-OK" in violations[0]
+    assert "Proprietary" in violations[0]
+    # And the allowed entry must NOT show up.
+    assert "v/LICENSE-OK" not in violations[0]
+    assert "Apache-2.0" not in violations[0]
+
+
 def test_violations_flags_unknown_repo_license() -> None:
     inv = _minimal_inventory(repo_license={"spdx": "MysteryLic", "file": "LICENSE"})
     violations = audit._violations_against_allowlist(inv)
