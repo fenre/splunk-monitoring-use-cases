@@ -385,3 +385,248 @@ class TestGetUseCaseMarkdownSynthetic:
     ) -> None:
         with pytest.raises(ValueError, match="uc_id"):
             get_use_case_markdown(catalog=synthetic_catalog, uc_id="../etc")
+
+
+class TestGetUseCaseMarkdownAllSections:
+    """Drives ``get_use_case_markdown`` against a single UC dict that
+    has every optional section populated, so every render branch in
+    the renderer (last-modified header, plain-language, knownFalse
+    positives both shapes, references in four shapes, compliance with
+    mode + assurance, compliance with no clause) is exercised by one
+    parametrised UC dict.
+
+    The renderer calls ``get_use_case`` internally, so we monkeypatch
+    that symbol on the module to return our crafted dict instead of
+    reading from disk. This keeps the test hermetic and lets us prove
+    every branch fires from a single, readable fixture.
+    """
+
+    @pytest.fixture
+    def rich_uc(self) -> dict[str, object]:
+        return {
+            "id": "22.1.1",
+            "title": "Rich UC",
+            "reviewed": "2026-01-15",  # last-modified header
+            "grandmaExplanation": "We watch the data.",  # ge block
+            "criticality": "high",
+            "difficulty": "medium",
+            "wave": "walk",
+            "splunkPillar": "compliance",
+            "monitoringType": ["detection"],
+            "app": ["splunk_ta_linux"],
+            "dataSources": ["wineventlog"],
+            "cimModels": ["Authentication"],
+            "equipment": ["linux"],
+            "equipmentModels": ["azure:vm"],
+            "mitreAttack": ["T1078"],
+            "prerequisiteUseCases": [
+                "UC-1.1.1",
+                "   ",  # whitespace-only -> hits the "continue" branch
+            ],
+            "value": "Detect anomalous access patterns",
+            "spl": "index=foo | stats count",
+            "detailedImplementation": "Install the TA, enable the search.",
+            "visualization": "single-value panel",
+            "knownFalsePositives": [
+                "Batch jobs at 2 AM",
+                "   ",  # whitespace-only -> skipped
+                "Quarterly audits",
+            ],
+            "references": [
+                {"title": "Splunk Docs", "url": "https://docs.splunk.com"},  # both
+                {"url": "https://nourl-title.example/spec"},  # url only
+                {"title": "Title only, no URL"},  # title only
+                "https://plain-string.example",  # bare string
+                "   ",  # whitespace -> skipped
+            ],
+            "compliance": [
+                {
+                    "regulation": "GDPR",
+                    "clause": "Art.5",
+                    "mode": "detect",
+                    "assurance": "primary",
+                },
+                {"regulation": "PCI", "clause": ""},  # reg-only -> 483-484
+                "not a dict, skipped",  # non-dict -> 470 (continue)
+            ],
+        }
+
+    def test_renders_all_optional_sections(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+        rich_uc: dict[str, object],
+    ) -> None:
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        monkeypatch.setattr(
+            use_case_mod,
+            "get_use_case",
+            lambda *, catalog, uc_id: dict(rich_uc),
+        )
+
+        result = use_case_mod.get_use_case_markdown(
+            catalog=synthetic_catalog, uc_id="22.1.1"
+        )
+        md = result["markdown"]
+        # Header carries the canonical id and a last-modified line.
+        assert md.startswith("# UC-22.1.1 — Rich UC")
+        assert "> Last-modified: 2026-01-15" in md
+        # Plain-language block is rendered as a blockquote.
+        assert "## In plain language" in md
+        assert "> We watch the data." in md
+        # Quick-facts table has the standard rows.
+        assert "| Wave | walk |" in md
+        assert "| Criticality | high |" in md
+        # Prereq list keeps the UC-1.1.1 link and drops the whitespace.
+        assert "[UC-1.1.1](" in md
+        # Value, SPL fence, implementation, visualization all present.
+        assert "## Value" in md
+        assert "```spl" in md
+        assert "## Implementation" in md
+        assert "Install the TA" in md
+        assert "## Visualization" in md
+        # Known false positives renders both list items, skipping whitespace.
+        assert "## Known false positives" in md
+        assert "- Batch jobs at 2 AM" in md
+        assert "- Quarterly audits" in md
+        # References render in all four shapes.
+        assert "## References" in md
+        assert "[Splunk Docs](https://docs.splunk.com)" in md
+        assert "- https://nourl-title.example/spec" in md
+        assert "- Title only, no URL" in md
+        assert "- https://plain-string.example" in md
+        # Compliance section: GDPR with mode + assurance tail, PCI w/o clause,
+        # the bare string is silently skipped (non-dict branch).
+        assert "## Compliance mappings" in md
+        assert "GDPR — Art.5 (mode: detect; assurance: primary)" in md
+        assert "- PCI" in md
+        # The non-dict entry must NOT have created an output line.
+        assert "not a dict, skipped" not in md
+
+    def test_string_known_false_positive_renders_inline(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+    ) -> None:
+        """The ``knownFalsePositives`` field may be a bare string,
+        in which case the renderer emits it as a single paragraph
+        instead of a bullet list (server.py renderer lines 440-441
+        — the ``else`` branch of ``isinstance(kfp, (list, tuple))``)."""
+
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        monkeypatch.setattr(
+            use_case_mod,
+            "get_use_case",
+            lambda *, catalog, uc_id: {
+                "id": "22.1.1",
+                "title": "Bare-string KFP",
+                "spl": "index=foo | head 1",
+                "knownFalsePositives": "Just a single paragraph here.",
+            },
+        )
+
+        result = use_case_mod.get_use_case_markdown(
+            catalog=synthetic_catalog, uc_id="22.1.1"
+        )
+        md = result["markdown"]
+        assert "## Known false positives" in md
+        # The bare string is dropped under the heading; the list bullet
+        # ``-`` MUST be absent because we hit the non-list branch.
+        assert "Just a single paragraph here." in md
+        # The list path would have prefixed each line with `- ` — assert
+        # the renderer DID NOT use bullets for the string body.
+        kfp_section = md.split("## Known false positives", 1)[1]
+        first_para = kfp_section.strip().split("\n\n", 1)[0]
+        assert not first_para.lstrip().startswith("- ")
+
+    def test_empty_fact_value_after_filter_is_dropped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+    ) -> None:
+        """Hit the ``_add_fact`` early-return branch on use_case.py
+        line 363: when a fact's stringified value collapses to the
+        empty string after filtering, the renderer must drop it
+        from the Quick facts table rather than emit a blank row.
+
+        Reproducing this requires a list whose entries are all
+        ``None`` or the empty string — those entries pass the
+        first ``raw == []`` guard (the list itself is non-empty),
+        then ``", ".join(... if v not in (None, ""))`` filters
+        them all out, leaving ``value == ""`` which trips line 363.
+
+        Equivalently a non-list raw of ``"   "`` would also hit
+        line 363 via the ``str(raw).strip()`` path. We use both in
+        the same test (one per fact label) so a future refactor
+        that fixes just one path can't silently regress the other.
+        """
+
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        monkeypatch.setattr(
+            use_case_mod,
+            "get_use_case",
+            lambda *, catalog, uc_id: {
+                "id": "22.1.1",
+                "title": "Empty-fact UC",
+                "spl": "index=foo | head 1",
+                # List of all-empty entries -> hits the list filter
+                # path; the only element gets dropped by the join
+                # filter and value collapses to "".
+                "monitoringType": [None, ""],
+                # Bare whitespace string -> hits the str(raw).strip()
+                # path; value collapses to "" after strip.
+                "wave": "   ",
+            },
+        )
+
+        result = use_case_mod.get_use_case_markdown(
+            catalog=synthetic_catalog, uc_id="22.1.1"
+        )
+        md = result["markdown"]
+        # Neither row should appear in the Quick facts table.
+        assert "| Monitoring type |" not in md
+        assert "| Wave |" not in md
+
+
+class TestListCategoriesMalformedIds:
+    """Pin the line-523 guard in ``list_categories``: UC IDs that
+    don't have at least three dotted parts must be silently dropped
+    from the category tree rather than crashing on the index unpack."""
+
+    def test_skips_uc_ids_with_fewer_than_three_parts(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+    ) -> None:
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        def _load_json(*segments: str) -> dict[str, object]:
+            assert segments == ("recommender", "uc-thin.json")
+            return {
+                "useCases": [
+                    {"id": "22.1.1", "title": "Valid"},
+                    # Missing dotted parts — must be skipped, not crash.
+                    {"id": "bogus"},
+                    {"id": "22"},
+                    {"id": "22.1"},
+                    {"id": ""},
+                ]
+            }
+
+        monkeypatch.setattr(
+            synthetic_catalog, "load_json", _load_json
+        )
+        result = use_case_mod.list_categories(catalog=synthetic_catalog)
+        # Only the well-formed UC produces a category entry.
+        category_ids = [c["id"] for c in result["categories"]]
+        assert category_ids == ["22"]
+        # And exactly one UC was counted in that category's subcategory.
+        cat22 = next(c for c in result["categories"] if c["id"] == "22")
+        assert cat22["useCaseCount"] == 1
+        # Subcategory tree mirrors the same count for "22.1".
+        assert cat22["subcategories"] == [
+            {"id": "22.1", "useCaseCount": 1},
+        ]
