@@ -721,3 +721,394 @@ def test_live_snapshots_validate_against_metrics_schema(snap: ModuleType) -> Non
             f"{f}: snapshot does not validate against metrics.schema.json: "
             + "; ".join(f"{list(e.absolute_path)}: {e.message}" for e in errors[:5])
         )
+
+
+# ---------------------------------------------------------------------------
+# 9. Loader / index error paths (lines 121-126 + 165-180)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadMetricsErrorPaths:
+    """Cover the three failure modes of ``_load_metrics``: missing file
+    (FileNotFoundError, the only path the caller catches), malformed
+    JSON (SystemExit 2), and non-dict top-level (SystemExit 2).
+    """
+
+    def test_missing_file_raises_filenotfounderror(
+        self, snap: ModuleType, tmp_path: Path
+    ) -> None:
+        with pytest.raises(FileNotFoundError):
+            snap._load_metrics(tmp_path / "absent.json")
+
+    def test_malformed_json_exits_2_with_fatal_message(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Closes lines 121-123: ``json.JSONDecodeError`` triggers a
+        ``FATAL: malformed JSON`` message on stderr and ``exit(2)``.
+        """
+        p = tmp_path / "metrics.json"
+        p.write_text("{not valid json", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc_info:
+            snap._load_metrics(p)
+        assert exc_info.value.code == 2
+        assert "FATAL: malformed JSON" in capsys.readouterr().err
+
+    def test_non_dict_top_level_exits_2(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Closes lines 124-126: a JSON array (top-level list) is
+        rejected with ``FATAL: ... top-level is not an object``.
+        """
+        p = tmp_path / "metrics.json"
+        p.write_text(json.dumps(["not", "a", "dict"]), encoding="utf-8")
+        with pytest.raises(SystemExit) as exc_info:
+            snap._load_metrics(p)
+        assert exc_info.value.code == 2
+        assert "top-level is not an object" in capsys.readouterr().err
+
+
+class TestLoadIndexErrorPaths:
+    """Cover the three branches of ``_load_index``: missing file
+    (returns fresh skeleton — happy path), malformed JSON (SystemExit
+    2), and shape-rejection (SystemExit 2).
+    """
+
+    def test_missing_file_returns_fresh_skeleton(
+        self, snap: ModuleType, tmp_path: Path
+    ) -> None:
+        out = snap._load_index(tmp_path / "absent.json")
+        assert out["schema_version"] == snap.INDEX_SCHEMA_VERSION
+        assert out["snapshots"] == []
+        assert out["$schema"].endswith("metrics-history-index.schema.json")
+
+    def test_malformed_json_exits_2(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Closes lines 174-176: ``json.JSONDecodeError`` on the
+        index file is fatal — we never want to silently overwrite a
+        corrupted index with derived contents."""
+        p = tmp_path / "index.json"
+        p.write_text("not even json", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc_info:
+            snap._load_index(p)
+        assert exc_info.value.code == 2
+        assert "FATAL: malformed index file" in capsys.readouterr().err
+
+    def test_top_level_array_exits_2(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Closes line 177-180 branch where the top level is not a
+        dict (e.g. an accidental JSON array)."""
+        p = tmp_path / "index.json"
+        p.write_text(json.dumps([{"version": "9.2.0"}]), encoding="utf-8")
+        with pytest.raises(SystemExit) as exc_info:
+            snap._load_index(p)
+        assert exc_info.value.code == 2
+        assert "unexpected shape" in capsys.readouterr().err
+
+    def test_dict_without_snapshots_key_exits_2(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A dict whose ``snapshots`` field is not a list is also
+        rejected — covers the second clause of the same ``if``."""
+        p = tmp_path / "index.json"
+        p.write_text(
+            json.dumps({"snapshots": "not a list"}), encoding="utf-8"
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            snap._load_index(p)
+        assert exc_info.value.code == 2
+        assert "unexpected shape" in capsys.readouterr().err
+
+    def test_valid_index_file_returns_parsed_data(
+        self, snap: ModuleType, tmp_path: Path
+    ) -> None:
+        """Closes line 180 (the happy-path ``return data``): when
+        the index file exists, parses as JSON, has dict top-level
+        and a list ``snapshots`` field, the contents are returned
+        unchanged.
+
+        Note: ``_load_index`` is module-internal and currently not
+        called by any other helper in ``snapshot_metrics.py`` (the
+        write path uses ``_refresh_index`` directly and the check
+        path goes through ``_check_index`` → ``_refresh_index``).
+        This branch is therefore reachable only by direct call
+        from a downstream consumer or from tests.
+        """
+        p = tmp_path / "index.json"
+        payload = {
+            "$schema": "/schemas/v2/metrics-history-index.schema.json",
+            "schema_version": snap.INDEX_SCHEMA_VERSION,
+            "snapshots": [
+                {"version": "9.2.0", "path": "9.2.0.json"},
+            ],
+        }
+        p.write_text(json.dumps(payload), encoding="utf-8")
+        out = snap._load_index(p)
+        assert out == payload
+        assert isinstance(out["snapshots"], list)
+
+
+# ---------------------------------------------------------------------------
+# 10. Drift-detection branches in _check_snapshot (lines 332-334, 353-354, 371)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckSnapshotDriftBranches:
+    """Lines 332-334, 353-354, 356-365, 371 are reached only from
+    inside ``_check_snapshot`` and only by very specific drift
+    conditions. The end-to-end ``--check`` path exercises one happy
+    branch but not these defensive ones.
+    """
+
+    def test_malformed_snapshot_json_recorded_as_failure(
+        self, snap: ModuleType, tmp_path: Path
+    ) -> None:
+        """Closes lines 332-334: snapshot file is present but its
+        JSON is malformed — ``--check`` records the defect and
+        bails out of the rest of the snapshot inspection.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_path.write_text("{broken json", encoding="utf-8")
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        assert any("malformed JSON" in f for f in failures)
+
+    def test_non_dict_snapshot_top_level_recorded_as_failure(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+    ) -> None:
+        """Closes lines 336-338: a snapshot whose top-level is a list
+        instead of a dict is recorded as ``top-level is not an
+        object`` and short-circuits the rest of the inspection.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_path.write_text(json.dumps(["x", "y"]), encoding="utf-8")
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        assert any("top-level is not an object" in f for f in failures)
+
+    def test_live_metrics_malformed_short_circuits_schema_compare(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+    ) -> None:
+        """Closes lines 353-354: when the live ``dist/metrics.json``
+        is malformed, ``_load_metrics`` raises ``SystemExit`` (which
+        is caught) and we ``return failures`` *without* attempting
+        the schema-version comparison. The snapshot itself is fine;
+        the live build is broken; we still surface that as the
+        only failure.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_path.write_text(
+            json.dumps(_well_formed_metrics("9.2.0"), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        snap._refresh_index(s["history_dir"], s["index_path"])
+        derived = snap._refresh_index(s["history_dir"], s["index_path"])
+        s["index_path"].write_text(
+            json.dumps(
+                derived, ensure_ascii=False, sort_keys=True, indent=2
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        s["metrics_path"].parent.mkdir(parents=True, exist_ok=True)
+        s["metrics_path"].write_text("{broken", encoding="utf-8")
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        # Schema comparison was skipped (no message mentions
+        # "schema_version is ..."); the only path that could have
+        # surfaced one is gated by the ``try/except SystemExit``.
+        assert all("snapshot schema_version is" not in f for f in failures)
+
+    def test_live_metrics_different_catalogue_version_skips_schema_compare(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+    ) -> None:
+        """Closes branch 356->365: when the live build's
+        ``catalogueVersion`` does NOT match VERSION, the
+        schema-version comparison is INTENTIONALLY SKIPPED. This
+        protects the gate during transition periods: VERSION bumps
+        to 9.3.0 in the same PR that bumps schema_version, but
+        ``dist/metrics.json`` may still carry the previous
+        ``catalogueVersion`` until ``make build`` runs locally.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_payload = _well_formed_metrics("9.2.0")
+        snapshot_payload["schema_version"] = "1.0.0"
+        snapshot_path.write_text(
+            json.dumps(snapshot_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        derived = snap._refresh_index(s["history_dir"], s["index_path"])
+        s["index_path"].write_text(
+            json.dumps(
+                derived, ensure_ascii=False, sort_keys=True, indent=2
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        s["metrics_path"].parent.mkdir(parents=True, exist_ok=True)
+        # Live build is from an OLDER catalogueVersion AND a
+        # different schema_version — but since the cat-ver does
+        # not match VERSION, no schema_version failure is emitted.
+        live_payload = _well_formed_metrics("9.1.0")
+        live_payload["schema_version"] = "0.9.0"
+        s["metrics_path"].write_text(
+            json.dumps(live_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        # Schema-version mismatch is NOT raised because cat-vers
+        # diverge; the rest of the snapshot inspection still passes.
+        assert all(
+            "snapshot schema_version is" not in f for f in failures
+        )
+
+    def test_live_metrics_schema_version_match_records_no_failure(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+    ) -> None:
+        """Closes branch 356->365: when the live build's
+        ``catalogueVersion`` equals VERSION AND the live
+        ``schema_version`` MATCHES the snapshot's, NO failure is
+        emitted by this comparison block. The test confirms the
+        check is a true equality test, not a one-sided guard.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_payload = _well_formed_metrics("9.2.0")
+        snapshot_payload["schema_version"] = "1.0.0"
+        snapshot_path.write_text(
+            json.dumps(snapshot_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        derived = snap._refresh_index(s["history_dir"], s["index_path"])
+        s["index_path"].write_text(
+            json.dumps(
+                derived, ensure_ascii=False, sort_keys=True, indent=2
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        s["metrics_path"].parent.mkdir(parents=True, exist_ok=True)
+        live_payload = _well_formed_metrics("9.2.0")
+        live_payload["schema_version"] = "1.0.0"  # matches snapshot
+        s["metrics_path"].write_text(
+            json.dumps(live_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        # No failures from the schema-version comparison branch.
+        assert all(
+            "snapshot schema_version is" not in f for f in failures
+        )
+
+    def test_live_metrics_schema_version_mismatch_recorded(
+        self,
+        snap: ModuleType,
+        tmp_path: Path,
+    ) -> None:
+        """Closes line 356-365 branch where the live build emits a
+        DIFFERENT ``schema_version`` than the committed snapshot.
+        This is the canonical drift scenario after a schema bump
+        without a fresh snapshot.
+        """
+        s = _scaffold(tmp_path, live_metrics=False)
+        snapshot_path = s["history_dir"] / "9.2.0.json"
+        snapshot_payload = _well_formed_metrics("9.2.0")
+        snapshot_payload["schema_version"] = "1.0.0"
+        snapshot_path.write_text(
+            json.dumps(snapshot_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        derived = snap._refresh_index(s["history_dir"], s["index_path"])
+        s["index_path"].write_text(
+            json.dumps(
+                derived, ensure_ascii=False, sort_keys=True, indent=2
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        s["metrics_path"].parent.mkdir(parents=True, exist_ok=True)
+        live_payload = _well_formed_metrics("9.2.0")
+        live_payload["schema_version"] = "1.1.0"
+        s["metrics_path"].write_text(
+            json.dumps(live_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        failures = snap.check_snapshot(
+            metrics_path=s["metrics_path"],
+            history_dir=s["history_dir"],
+            index_path=s["index_path"],
+            version_file=s["version_file"],
+        )
+        assert any(
+            "snapshot schema_version is '1.0.0'" in f
+            and "live build emits '1.1.0'" in f
+            for f in failures
+        )
+
+
+class TestCheckIndexMissingPath:
+    """Closes line 371: ``_check_index`` returns a single
+    ``missing index at <path>`` failure when ``index.json`` is
+    absent.
+    """
+
+    def test_missing_index_returns_failure(
+        self, snap: ModuleType, tmp_path: Path
+    ) -> None:
+        history = tmp_path / "history"
+        history.mkdir()
+        index_path = history / "index.json"
+        assert not index_path.exists()
+        failures = snap._check_index(history, index_path)
+        assert len(failures) == 1
+        assert "missing index" in failures[0]
