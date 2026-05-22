@@ -6,7 +6,6 @@ from collections.abc import Iterator
 
 import pytest
 import respx
-
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
 from splunk_uc_mcp.tools.use_case import (
     GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
@@ -589,6 +588,104 @@ class TestGetUseCaseMarkdownAllSections:
         # Neither row should appear in the Quick facts table.
         assert "| Monitoring type |" not in md
         assert "| Wave |" not in md
+
+    def test_dict_reference_with_no_title_or_url_is_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+    ) -> None:
+        """Pin the 456->448 partial branch: when a reference dict
+        carries neither ``title`` nor ``url``, the renderer must fall
+        through every emission arm and continue to the next entry
+        without appending a malformed bullet (e.g. ``- `` with no
+        text). Without this test the False arm of ``elif t:`` on
+        line 456 was uncovered — only the True arms of the if/elif
+        cascade were exercised by the rich-UC fixture.
+        """
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        monkeypatch.setattr(
+            use_case_mod,
+            "get_use_case",
+            lambda *, catalog, uc_id: {
+                "id": "22.1.1",
+                "title": "Empty-refs UC",
+                "spl": "index=foo | head 1",
+                "references": [
+                    # Both fields are missing — the helper must skip.
+                    {},
+                    # Both fields are empty strings — same skip path.
+                    {"title": "", "url": ""},
+                    # Sanity bullet so the section still renders and we
+                    # can assert nothing leaked from the empty entries.
+                    {"title": "Anchor", "url": "https://example.invalid/"},
+                ],
+            },
+        )
+
+        result = use_case_mod.get_use_case_markdown(
+            catalog=synthetic_catalog, uc_id="22.1.1"
+        )
+        md = result["markdown"]
+        assert "## References" in md
+        # The valid entry renders as a markdown link.
+        assert "[Anchor](https://example.invalid/)" in md
+        # The two empty entries must NOT have produced any bullet —
+        # specifically there must be no bare ``- `` line with no
+        # following text inside the References section.
+        refs_section = md.split("## References", 1)[1].split("\n\n", 1)[0]
+        for line in refs_section.splitlines():
+            assert line.strip() != "-", (
+                "empty reference dict leaked an empty bullet"
+            )
+
+    def test_compliance_entry_with_no_regulation_is_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        synthetic_catalog: Catalog,
+    ) -> None:
+        """Pin the 483->468 partial branch: when a compliance entry
+        carries no ``regulation`` field, neither ``if reg and clause``
+        nor ``elif reg`` fires. The loop continues to the next entry
+        without appending anything. Without this test the False arm
+        of ``elif reg`` on line 483 was uncovered — the rich-UC
+        fixture covers the reg+clause and reg-only paths but not the
+        no-reg path.
+        """
+        from splunk_uc_mcp.tools import use_case as use_case_mod
+
+        monkeypatch.setattr(
+            use_case_mod,
+            "get_use_case",
+            lambda *, catalog, uc_id: {
+                "id": "22.1.1",
+                "title": "No-regulation compliance UC",
+                "spl": "index=foo | head 1",
+                "compliance": [
+                    # No regulation field at all — must be silently dropped.
+                    {"clause": "Art.5", "mode": "detect"},
+                    # Empty regulation string — same skip path.
+                    {"regulation": "", "clause": "Art.7"},
+                    # Sanity entry so the section still renders.
+                    {"regulation": "GDPR", "clause": "Art.32"},
+                ],
+            },
+        )
+
+        result = use_case_mod.get_use_case_markdown(
+            catalog=synthetic_catalog, uc_id="22.1.1"
+        )
+        md = result["markdown"]
+        assert "## Compliance mappings" in md
+        assert "GDPR — Art.32" in md
+        # The two reg-less entries MUST NOT have leaked their clause
+        # text into the rendered mappings (which would be the case if
+        # the helper accidentally rendered the clause alone).
+        compl_section = md.split("## Compliance mappings", 1)[1].split(
+            "\n\n", 1
+        )[0]
+        assert "Art.5" not in compl_section
+        assert "Art.7" not in compl_section
 
 
 class TestListCategoriesMalformedIds:
