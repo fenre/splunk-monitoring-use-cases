@@ -28,7 +28,6 @@ if SCRIPTS_DIR not in sys.path:
 
 import samples_index as M  # noqa: E402
 
-
 # -----------------------------------------------------------------------------
 # Fixture helpers
 # -----------------------------------------------------------------------------
@@ -252,6 +251,59 @@ class TestMiniYaml:
         p = tmp_path / "m.yaml"
         p.write_text("# only a comment\n\n", encoding="utf-8")
         assert M._mini_yaml(p) == {}
+
+    def test_key_with_empty_value_under_list_parent_skips_assignment(
+        self, tmp_path: Path
+    ) -> None:
+        """Cover branch 105->107 False arm: when a ``key:`` (empty value) line
+        is hit while ``parent`` is a list (created by an earlier ``key: -``
+        opener still on the stack), the new empty dict is pushed onto the
+        stack but ``parent[key] = new`` is silently skipped because
+        ``parent`` is not a dict.
+
+        The wire-level YAML to trigger this is ``items: -`` followed by an
+        indented ``subkey:`` (no value) line — the ``items`` list is on the
+        stack, and ``subkey:`` resolves with parent=list.
+        """
+        p = tmp_path / "m.yaml"
+        p.write_text(
+            "items: -\n  subkey:\n",
+            encoding="utf-8",
+        )
+        out = M._mini_yaml(p)
+        assert out["items"] == []
+
+    def test_key_with_dash_value_under_list_parent_skips_assignment(
+        self, tmp_path: Path
+    ) -> None:
+        """Cover branch 114->116 False arm: same pattern as above but the
+        nested key opens its own ``- `` list, so the False arm of
+        ``isinstance(parent, dict)`` in the ``elif raw_value == "-":`` branch
+        fires instead.
+        """
+        p = tmp_path / "m.yaml"
+        p.write_text(
+            "items: -\n  nested: -\n",
+            encoding="utf-8",
+        )
+        out = M._mini_yaml(p)
+        assert out["items"] == []
+
+    def test_key_with_scalar_value_under_list_parent_skips_assignment(
+        self, tmp_path: Path
+    ) -> None:
+        """Cover branch 119->121 False arm: the ``else`` arm of the
+        raw_value triage chain — ``key: scalar`` while parent is a list.
+        The scalar assignment is silently skipped because ``parent`` is not
+        a dict.
+        """
+        p = tmp_path / "m.yaml"
+        p.write_text(
+            "items: -\n  scalar_key: hello\n",
+            encoding="utf-8",
+        )
+        out = M._mini_yaml(p)
+        assert out["items"] == []
 
     def test_dead_code_branch_inside_else_is_unreachable_by_design(
         self,
@@ -1031,13 +1083,57 @@ class TestMain:
 
 
 # -----------------------------------------------------------------------------
-# Module entrypoint
+# Module entrypoint — runpy-copy smoke test
 # -----------------------------------------------------------------------------
 #
-# NOTE: ``samples_index.py`` ends with::
+# samples_index.py ends with ``if __name__ == "__main__": sys.exit(main())``.
+# A naive ``runpy.run_path(scripts/samples_index.py)`` would pollute the real
+# ``docs/samples-coverage.md`` because the module-level ``CATALOG_PATH`` /
+# ``COVERAGE_OUT`` constants are computed at import-time from the script's
+# absolute ``__file__``.
 #
-#     if __name__ == "__main__":
-#         sys.exit(main())
-#
-# Boilerplate; intentionally omitted from coverage to avoid the
-# runpy-side-effect trap (pollution of real ``docs/samples-coverage.md``).
+# The safe alternative: copy the script into a fake repo rooted at
+# ``tmp_path`` (so ``REPO_ROOT = tmp_path``). The script's CATALOG_PATH then
+# points to a missing tmp file, which short-circuits ``main()`` to return 2
+# (the documented "catalog missing" error path). That exercises the
+# ``sys.exit(main())`` boilerplate on the COPY without touching the real
+# repo. The original ``scripts/samples_index.py`` line 388 stays uncovered
+# in attribution (coverage is path-keyed), but the contract is exercised
+# end-to-end here.
+
+
+class TestMainGuard:
+    def test_runpy_invocation_returns_catalog_missing_exit_code(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import runpy
+        import shutil
+        import sys
+
+        repo = tmp_path / "fake_repo"
+        (repo / "samples").mkdir(parents=True)
+        (repo / "docs").mkdir(parents=True)
+        scripts_dir = repo / "scripts"
+        scripts_dir.mkdir()
+
+        real_script = (
+            Path(__file__).resolve().parent.parent.parent
+            / "scripts"
+            / "samples_index.py"
+        )
+        script_copy = scripts_dir / "samples_index.py"
+        shutil.copy(real_script, script_copy)
+
+        # main() reads sys.argv via argparse defaults; pin it so pytest's
+        # own CLI args don't leak in.
+        monkeypatch.setattr(sys, "argv", [str(script_copy)])
+
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_path(str(script_copy), run_name="__main__")
+        # CATALOG_PATH does not exist inside the fake repo, so main()
+        # short-circuits to return 2 ("ERROR: <path> missing — run
+        # build.py first.").
+        assert excinfo.value.code == 2
+        # The real repo's docs/samples-coverage.md is untouched (the
+        # error path exits before COVERAGE_OUT.write_text is reached).
+        assert script_copy.exists()
