@@ -637,7 +637,19 @@ def _process(
             missing.append(uc_id)
             continue
 
-        if isinstance(existing, str) and existing.strip() == new_value and not force:
+        if (  # pragma: no cover - unreachable; line 628 already exits
+            # any state where ``isinstance(existing, str) and
+            # existing.strip() and not force`` is True, and the
+            # equality check below requires the same three predicates
+            # (the `==` clause implicitly forces ``existing.strip()``
+            # truthy because ``new_value`` is non-empty per the
+            # ``_MIN_LEN`` guard at line 634). This branch is
+            # preserved as a defensive redundancy in case the
+            # early-exit at 628 is ever loosened.
+            isinstance(existing, str)
+            and existing.strip() == new_value
+            and not force
+        ):
             continue
 
         changed_paths.append(path)

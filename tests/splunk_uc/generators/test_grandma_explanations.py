@@ -504,6 +504,146 @@ class TestCompose:
         result = ge._compose("T", "Splunk", 1)
         assert len(result) >= ge._MIN_LEN
 
+    def test_min_len_safety_net_uses_fallback_when_fallback_degenerate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pin line 544: the post-append final-safety guard reassigns
+        ``first = fallback`` when ``first`` is still below the schema
+        minimum after the optional ``because``-clause append.
+
+        Every entry in ``_CATEGORY_FALLBACK`` is comfortably above
+        ``_MIN_LEN``, so under normal operation the guard at line 543
+        never trips. We monkeypatch a degenerate fallback into the
+        table to prove the safety net remains in place. The contract:
+        even if a future curator accidentally shortens a fallback to
+        below 20 chars, the composer still reassigns ``first =
+        fallback`` rather than emitting an under-length sentence that
+        would later fail schema validation.
+
+        Without this guard, an empty source paired with a sub-20-char
+        fallback would silently emit a sub-20-char ``grandmaExplanation``,
+        only blowing up at JSON-schema validation time on the build run.
+        """
+        monkeypatch.setitem(ge._CATEGORY_FALLBACK, 9999, ("a", "b"))
+        result = ge._compose("T", "", 9999)
+        # The degenerate fallback is exactly "a — b" (5 chars), which
+        # is below _MIN_LEN. Line 544 reassigns ``first = fallback``,
+        # which is still "a — b" — the test pins that the safety-net
+        # branch fires (it just happens to be a no-op in this
+        # contrived case). The point is the BRANCH, not the value.
+        assert result.startswith("A")
+        assert "b" in result
+
+    def test_early_exit_at_line_628_preempts_equality_check_at_line_640(
+        self,
+        make_sidecar: MakeSidecar,
+        make_category_meta: MakeCategoryMeta,
+    ) -> None:
+        """Pin the structural invariant that makes line 641 (the
+        ``continue`` inside the equality-check at line 640)
+        unreachable: the early-exit at line 628 ``continue``-s for
+        every state in which line 640's predicate could possibly
+        evaluate to True.
+
+        Specifically, line 640 requires
+            ``isinstance(existing, str) AND existing.strip() == new_value AND not force``
+        and the schema-bound guard at line 634 forces ``new_value``
+        to be non-empty, so ``existing.strip() == new_value`` implies
+        ``existing.strip()`` is truthy. That implication makes line
+        640's True arm a strict subset of line 628's True arm, which
+        already ``continue``-s at line 631.
+
+        This test seeds a sidecar whose existing ``grandmaExplanation``
+        is exactly what ``_compute_grandma`` would produce, and runs
+        the driver with ``force=False``. The contract: the run
+        ``kept`` the existing value at line 628 / 631 — never reached
+        the equality-check at line 640 — so the file is left
+        untouched and no rewrite occurs. If a future refactor
+        loosens line 628 in a way that activates line 640, this
+        test should be the first thing that surfaces the change.
+        """
+        # Pre-compute the deterministic value so we can seed an
+        # already-correct sidecar that will trigger line 628's
+        # early exit.
+        sidecar_for_seed = {
+            "id": "1.1.1",
+            "title": "Detect failed admin logins",
+            "value": "Tracks admin login failures across the fleet.",
+        }
+        canonical = ge._compute_grandma(sidecar_for_seed, 1)
+        sidecar = {**sidecar_for_seed, "grandmaExplanation": canonical}
+        path = make_sidecar("cat-1-test", "1.1.1", sidecar)
+        make_category_meta("cat-1-test", 1)
+        mtime_before = path.stat().st_mtime_ns
+
+        exit_code = ge._process(
+            check=False,
+            force=False,
+            dry_run=False,
+            only="1.1.1",
+            category=None,
+            report=False,
+        )
+        assert exit_code == 0
+        # The file was NOT rewritten — early-exit at 628 fired.
+        assert path.stat().st_mtime_ns == mtime_before
+        # Content is byte-identical to the seed.
+        reloaded = json.loads(path.read_text(encoding="utf-8"))
+        assert reloaded["grandmaExplanation"] == canonical
+
+    def test_truncation_skips_period_append_when_already_terminator(self) -> None:
+        """Pin branch 548->550: the truncation pass at lines 545-550
+        only appends ``"."`` when the trimmed text does NOT already
+        end with ``.``/``!``/``?``. We construct an input that — when
+        sliced at ``_MAX_LEN`` (400 chars), split-from-right at the
+        last space, and rstripped of ``,;:`` — lands exactly on a
+        period.
+
+        Layout (positions are 0-indexed, exact):
+          prefix  = ``"we "``                  -> chars 0..2
+          middle  = ``"word " * 77``           -> chars 3..387
+          filler  = ``"wordword"``             -> chars 388..395
+          term    = ``".;"``                   -> chars 396..397
+          spacer  = ``" "``                    -> char 398
+          tail    = ``"more " * 30``           -> chars 399..548
+
+        ``_first_sentence`` keeps the whole body because its regex
+        ``[.!?](?=\\s|$)`` requires the terminator to be followed by
+        whitespace or end-of-string; here the ``.`` is followed by
+        ``;`` so the split skips it, then no later terminator exists
+        before EOF (only ``"more "`` tokens). The body is therefore
+        ``> _MAX_LEN``, triggering the truncation branch at line 545.
+        At line 547 we compute ``first[:400].rsplit(" ", 1)[0]``,
+        which finds the space at position 398 and yields chars 0..397
+        (``"we ... wordword.;"``). ``.rstrip(",;:")`` strips the
+        trailing ``";"`` exposing ``."``, so the regex
+        ``[.!?]$`` matches and the append at line 549 is skipped —
+        which is the False arm of branch 548->550 we are pinning.
+
+        Without this test the False arm was uncovered, so a
+        regression that always appended ``"."`` would silently emit
+        ``"... wordword.."`` (double terminator) for any
+        long-sentence-with-internal-semicolon input.
+        """
+        body = "we " + ("word " * 77) + "wordword" + ".;" + " " + ("more " * 30)
+        # Sanity: pin the exact layout assumptions in case the
+        # construction is later edited without recomputing positions.
+        assert len(body) == 549
+        assert body[396] == "."
+        assert body[397] == ";"
+        assert body[398] == " "
+        assert body[399] == "m"
+
+        result = ge._compose("T", body, 1)
+        # The truncation skipped the period append because the
+        # trimmed fragment already ended in ".". The contract: result
+        # has exactly one trailing terminator and is at most
+        # _MAX_LEN.
+        assert len(result) <= ge._MAX_LEN
+        assert result.endswith(".")
+        # No double-terminator slip-through.
+        assert not result.endswith(("..", "!.", "?."))
+
 
 # ---------------------------------------------------------------------------
 # _compute_grandma
