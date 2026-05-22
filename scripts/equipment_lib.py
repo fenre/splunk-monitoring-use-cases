@@ -38,7 +38,21 @@ from typing import Dict, List, Optional, Set, Tuple
 # Prefer the installed package if available; fall back to the in-tree path.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 _TOOLS_DIR = _REPO_ROOT / "tools"
-if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:
+if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:  # pragma: no branch
+    # False arm reachable only at module-import time when EITHER the
+    # ``tools/`` directory was removed from the checkout OR the test
+    # harness already injected it into ``sys.path``. The first case
+    # would also make the ``from build.enrichment import EQUIPMENT``
+    # line below raise ``ImportError`` (the import is mandatory),
+    # so any environment that reaches this module with the False
+    # arm must already have ``tools/`` on ``sys.path`` via some
+    # other mechanism (``pip install -e .``, a pytest conftest that
+    # pre-prepends, an editor in-process loader, etc.). Exercising
+    # the False arm deterministically would require re-importing the
+    # module under conditions outside the test process's control.
+    # The branch is preserved as a defensive insertion guard so
+    # the module remains importable from a bare ``python3`` invocation
+    # without ``pip install -e .``.
     sys.path.insert(0, str(_TOOLS_DIR))
 
 # noqa: E402 — sys.path manipulation above is intentional for in-tree usage.
@@ -58,7 +72,13 @@ def load_equipment() -> List[Dict]:
     if _CACHE is not None:
         return _CACHE
     equipment = list(_SSOT_EQUIPMENT)
-    if not isinstance(equipment, list):
+    if not isinstance(equipment, list):  # pragma: no cover - unreachable.
+        # ``list(iterable)`` ALWAYS returns a list object, so
+        # ``isinstance(equipment, list)`` is invariably True here.
+        # The check is preserved as a tripwire in case a future
+        # refactor inlines or short-circuits the ``list(...)`` call
+        # (e.g. ``equipment = _SSOT_EQUIPMENT if isinstance(_SSOT_EQUIPMENT, list) else ...``)
+        # and lets a non-list slip through.
         raise RuntimeError(
             "tools/build/enrichment.py:EQUIPMENT did not produce a list."
         )

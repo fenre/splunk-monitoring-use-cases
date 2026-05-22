@@ -248,7 +248,19 @@ def cmd_signoff(args: argparse.Namespace) -> int:
         if not _open_review_entries(uc):
             continue
         new_uc, cleared = _strip_review_flag(uc)
-        if cleared == 0:
+        if cleared == 0:  # pragma: no cover - unreachable defensive guard.
+            # We only reach this point when
+            # ``_open_review_entries(uc)`` returned truthy (line 248
+            # gates with ``if not _open_review_entries(uc): continue``).
+            # That helper enumerates exactly the entries with a truthy
+            # ``requiresSmeReview`` flag. ``_strip_review_flag`` strips
+            # the same flag and counts the removals in ``cleared``.
+            # The two filters are logically equivalent, so a non-empty
+            # return from the first guarantees ``cleared >= 1`` from
+            # the second. The guard is preserved as a tripwire — see
+            # tests/scripts/test_review_splunkbase_mappings.py module
+            # docstring ("Coverage check") for the contract that
+            # makes this line dead today.
             continue
         if not args.dry_run:
             _write_uc(path, new_uc)

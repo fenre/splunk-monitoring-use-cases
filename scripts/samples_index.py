@@ -118,7 +118,20 @@ def _mini_yaml(path: Path) -> dict[str, Any]:
                     value = _parse_scalar(raw_value)
                     if isinstance(parent, dict):
                         parent[key] = value
-                    if raw_value == "":
+                    if raw_value == "":  # pragma: no cover - unreachable.
+                        # We're inside the ``else`` branch (line 117) of
+                        # the cascade ``if raw_value == "": / elif
+                        # raw_value == "|": / elif raw_value.startswith
+                        # ("-") and raw_value == "-":`` — by definition
+                        # ``raw_value`` is NOT the empty string when we
+                        # reach this block. The check + list-init below
+                        # is dead code preserved from an earlier
+                        # refactor that flattened a two-level cascade
+                        # into the current single-level shape. The
+                        # guard is preserved so a future tweak that
+                        # changes the cascade ordering (e.g. promotes
+                        # this branch to a sibling ``elif``) doesn't
+                        # silently drop list-shaped values.
                         new = []
                         if isinstance(parent, dict):
                             parent[key] = new

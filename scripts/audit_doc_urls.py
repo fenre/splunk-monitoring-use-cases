@@ -221,7 +221,19 @@ def extract_urls(text: str) -> set[str]:
         # Skip obviously templated URLs.
         if "<" in url or ">" in url or "{" in url or "}" in url:
             continue
-        if not url:
+        if not url:  # pragma: no cover - unreachable defensive guard.
+            # ``URL_RE = re.compile(r'https?://[^\s<>"\'`)\]]+')`` at
+            # line 177 only matches strings that start with the literal
+            # ``http://`` or ``https://`` (7 or 8 chars) followed by at
+            # least one non-delimiter character. The trailing-punctuation
+            # stripper at lines 219-220 removes characters from
+            # ``TRAILING_PUNCT`` (``.,;:!?)]`` plus curly quotes), none
+            # of which appear in the leading ``http``/``https`` slug.
+            # The URL therefore retains AT LEAST its 7-char scheme prefix
+            # and ``not url`` is always False here. The guard is preserved
+            # as a tripwire — see
+            # tests/scripts/test_audit_doc_urls.py::
+            # test_line_225_is_unreachable_tripwire for the contract.
             continue
         found.add(url)
     return found
