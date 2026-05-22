@@ -180,6 +180,42 @@ class TestCollectDocs:
         out = M.collect_docs()
         assert {p.name for p in out} == {"keep.md"}
 
+    def test_skips_directory_with_md_extension(self, fake_repo: Path) -> None:
+        """Cover the ``if p.is_file():`` False arm (line 81->80).
+
+        ``Path.rglob("*.md")`` matches *any* path with a ``.md`` suffix —
+        including a directory literally named ``fakedir.md``. The
+        ``is_file()`` guard at line 81 of ``collect_docs`` is the only
+        thing keeping such an entry out of the result; this test exercises
+        the False arm.
+        """
+        _write_md(fake_repo, "docs/real.md", "# real")
+        (fake_repo / "docs" / "fakedir.md").mkdir()
+        out = M.collect_docs()
+        names = {p.name for p in out}
+        assert "real.md" in names
+        assert "fakedir.md" not in names
+
+    def test_no_docs_dir_falls_through_to_extras(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cover the ``if DOCS_DIR.is_dir():`` False arm (line 79->83).
+
+        When ``DOCS_DIR`` does not exist on disk, ``collect_docs`` must
+        fall straight through to the ``DEFAULT_EXTRA`` loop. We point
+        ``REPO`` at a fresh tmpdir whose ``docs/`` directory was never
+        created, drop a ``README.md`` into the root, and confirm only
+        the extras are returned.
+        """
+        repo = tmp_path / "no_docs_repo"
+        repo.mkdir()
+        (repo / "README.md").write_text("# README", encoding="utf-8")
+        monkeypatch.setattr(M, "REPO", repo)
+        monkeypatch.setattr(M, "DOCS_DIR", repo / "docs")  # does NOT exist
+        out = M.collect_docs()
+        names = {p.name for p in out}
+        assert "README.md" in names
+
 
 # ---------------------------------------------------------------------------
 # load_catalog_acronyms
@@ -702,11 +738,74 @@ class TestMain:
         assert M.STATUS_PATH.exists()
 
 
-# Note: the ``if __name__ == "__main__": sys.exit(main())`` boilerplate
-# at the bottom of the script is intentionally not exercised here.
-# ``runpy.run_path`` would re-import the module fresh — losing the
-# monkeypatch on ``REPO`` / ``CAT_DIR`` / ``STATUS_PATH`` — and call
-# ``main()`` against the real repo, polluting
-# ``data/doc-regulation-mentions.json``. The boilerplate is one line
-# of standard CLI bootstrap; the real contract is exercised by every
-# ``TestMain.*`` case above which calls ``main()`` directly.
+# ---------------------------------------------------------------------------
+# __main__ guard (line 413) — end-to-end script smoke test
+# ---------------------------------------------------------------------------
+#
+# The naive ``runpy.run_path(scripts/audit_doc_regulations.py)`` approach
+# would re-import the module fresh — losing the monkeypatch on ``REPO`` /
+# ``CAT_DIR`` / ``STATUS_PATH`` — and call ``main()`` against the real
+# repo, polluting ``data/doc-regulation-mentions.json``.
+#
+# The safe alternative below: copy the script into a fake repo rooted at
+# ``tmp_path`` (so ``Path(__file__).resolve().parent.parent`` becomes
+# ``tmp_path``) and runpy-exec that copy. ``main()`` writes its status
+# file under ``tmp_path/data/doc-regulation-mentions.json`` and never
+# touches the real repo.
+#
+# COVERAGE CAVEAT: ``coverage`` attributes hits by absolute file path, so
+# this test exercises the ``__main__`` guard of the COPY — not the
+# original. Line 413 of ``scripts/audit_doc_regulations.py`` therefore
+# stays at "uncovered" in the per-file report (1 stmt / 137 = 99 %),
+# but the actual CLI bootstrap contract IS exercised end-to-end here.
+# Branch coverage on the original file is 100 % (48 / 48).
+#
+# Documented as an acceptable tradeoff: covering the original ``sys.exit
+# (main())`` line would require running the script against the real
+# repo, which is unsafe. This smoke test provides equivalent behavioural
+# assurance without the side-effect risk.
+
+
+class TestMainGuard:
+    def test_runpy_invocation_executes_main(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import runpy
+        import shutil
+        import sys
+
+        repo = tmp_path / "fake_repo"
+        (repo / "docs").mkdir(parents=True)
+        (repo / "content" / "cat-22-regulatory-compliance").mkdir(parents=True)
+        (repo / "data").mkdir(parents=True)
+        scripts_dir = repo / "scripts"
+        scripts_dir.mkdir()
+
+        real_script = (
+            Path(__file__).resolve().parent.parent.parent
+            / "scripts"
+            / "audit_doc_regulations.py"
+        )
+        script_copy = scripts_dir / "audit_doc_regulations.py"
+        shutil.copy(real_script, script_copy)
+
+        (repo / "docs" / "trivial.md").write_text(
+            "# trivial\n\nNo regulation tokens here.\n",
+            encoding="utf-8",
+        )
+
+        # argparse defaults to ``sys.argv[1:]`` — clear it so pytest's own
+        # CLI args (``-v``, paths, ``::``-selectors) don't leak into main().
+        monkeypatch.setattr(sys, "argv", [str(script_copy)])
+
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_path(str(script_copy), run_name="__main__")
+        assert excinfo.value.code == 0
+
+        status_file = repo / "data" / "doc-regulation-mentions.json"
+        assert status_file.is_file()
+        payload = json.loads(status_file.read_text(encoding="utf-8"))
+        assert isinstance(payload.get("_meta"), dict)
+        assert payload["_meta"]["tool"] == "scripts/audit_doc_regulations.py"
+        assert isinstance(payload.get("unknown_acronyms"), dict)
+        assert isinstance(payload.get("clause_overshoots"), list)
