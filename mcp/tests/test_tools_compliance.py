@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from splunk_uc_mcp.catalog import Catalog, CatalogNotFoundError
 from splunk_uc_mcp.tools.compliance import (
     FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
@@ -520,3 +519,126 @@ class TestListUncoveredClausesValidation:
                 regulations=["*"],
                 include_common_only="yes",  # type: ignore[arg-type]
             )
+
+
+# =====================================================================
+# Private-helper coverage closure
+# =====================================================================
+
+
+class TestEquipmentOverlayHelper:
+    """Pin the four partial branches inside ``_equipment_overlay`` /
+    ``_project_clause_entry`` that the broader fixture-driven suites do
+    not naturally exercise.
+
+    Without these tests:
+
+    * branch 239->237 — the False arm of ``if clause:`` inside the
+      ``clauseMappings`` loop (a mapping with a missing or empty
+      ``clause`` field that the loop must skip silently).
+    * branch 687->695 — the False arm of ``if clause_id:`` in
+      ``_project_clause_entry``; ``deep_link`` stays ``None`` and the
+      caller falls through without emitting a ``deepLink`` key.
+    * branch 711->713 — the False arm of ``if endpoint:``; the
+      ``clauseEndpoint`` key is omitted for entries with no endpoint.
+    * branch 713->718 — the False arm of ``if deep_link:`` (same
+      condition as 687 surfacing at the second emission site).
+    """
+
+    def test_clauseless_mapping_is_skipped(self) -> None:
+        # Imports the private helper directly so the test stays
+        # focused on the loop's branch matrix without dragging the
+        # whole ``find_compliance_gap`` request shape into the fixture.
+        from splunk_uc_mcp.tools.compliance import _equipment_overlay
+
+        equipment_doc: dict[str, Any] = {
+            "id": "azure",
+            "regulations": [
+                {
+                    "regulationId": "gdpr",
+                    "clauseMappings": [
+                        {"clause": "Art.5"},
+                        {"clause": ""},  # branch 239->237 (falsy clause)
+                        {},  # also falsy via .get default
+                        {"clause": "Art.32"},
+                    ],
+                }
+            ],
+        }
+        gap_entry = {"commonClausesUncovered": ["Art.5", "Art.17", "Art.32"]}
+        out = _equipment_overlay(equipment_doc, "gdpr", gap_entry)
+        # The two non-empty clauses are accepted; the two falsy
+        # mappings are silently skipped by the ``if clause:`` guard.
+        assert out["clausesCoveredByEquipment"] == ["Art.32", "Art.5"]
+        assert out["uncoveredClausesStillUncovered"] == ["Art.17"]
+
+    def test_legacy_endpoint_fallback_when_regulation_id_missing(
+        self,
+    ) -> None:
+        # Adjacent contract: when ``regulationId`` is missing on the
+        # equipment regulation, the helper must derive it from
+        # ``regulationEndpoint``. Pinning here so the fallback parser
+        # does not silently regress.
+        from splunk_uc_mcp.tools.compliance import _equipment_overlay
+
+        equipment_doc: dict[str, Any] = {
+            "id": "azure",
+            "regulations": [
+                {
+                    "regulationEndpoint": (
+                        "/api/v1/compliance/regulations/gdpr@2016-679.json"
+                    ),
+                    "clauseMappings": [{"clause": "Art.5"}],
+                }
+            ],
+        }
+        gap_entry = {"commonClausesUncovered": ["Art.5"]}
+        out = _equipment_overlay(equipment_doc, "gdpr", gap_entry)
+        assert out["clausesCoveredByEquipment"] == ["Art.5"]
+
+    def test_project_entry_omits_deeplink_when_clause_id_missing(
+        self,
+    ) -> None:
+        # Closes branches 687->695 (no clauseId means no deep_link)
+        # AND 713->718 (deep_link is None, so the second emission site
+        # is skipped). The returned payload must still be valid and
+        # must NOT contain ``deepLink``.
+        from splunk_uc_mcp.tools.compliance import _project_clause_entry
+
+        entry = {
+            "regulationId": "gdpr",
+            "regulationShortName": "GDPR",
+            "clause": "Art.5",
+            # clauseId omitted on purpose
+            "coverageState": "covered-full",
+            "coveringUcs": ["UC-22.5.1"],
+            "coveringUcCount": 1,
+        }
+        out = _project_clause_entry(entry)
+        assert out["clause"] == "Art.5"
+        assert out["coverageState"] == "covered-full"
+        assert "deepLink" not in out
+        # ``clauseId`` was None so the None-stripping pass should
+        # remove it from the response payload entirely.
+        assert "clauseId" not in out
+
+    def test_project_entry_omits_endpoint_when_missing(self) -> None:
+        # Closes branch 711->713 — when ``endpoint`` is missing the
+        # ``clauseEndpoint`` key must NOT appear in the response.
+        # We deliberately keep ``clauseId`` populated so the deep_link
+        # branch still emits, isolating the endpoint-only False arm.
+        from splunk_uc_mcp.tools.compliance import _project_clause_entry
+
+        entry = {
+            "regulationId": "gdpr",
+            "regulationShortName": "GDPR",
+            "clause": "Art.5",
+            "clauseId": "gdpr@2016/679#Art.5",
+            # endpoint omitted on purpose
+            "coverageState": "covered-full",
+            "coveringUcs": ["UC-22.5.1"],
+            "coveringUcCount": 1,
+        }
+        out = _project_clause_entry(entry)
+        assert "clauseEndpoint" not in out
+        assert out["deepLink"].startswith("clause-navigator.html#clause=")
