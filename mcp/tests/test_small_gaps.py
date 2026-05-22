@@ -39,7 +39,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from splunk_uc_mcp.catalog import Catalog, CatalogError
 from splunk_uc_mcp.resources.uri_scheme import (
     ResourceUriError,
@@ -56,7 +55,6 @@ from splunk_uc_mcp.tools.regulation import (
     list_regulations,
 )
 from splunk_uc_mcp.tools.search import search_use_cases
-
 
 # --------------------------------------------------------------------- #
 # catalog.py — _resolve_catalog_root fall-through to None
@@ -211,6 +209,72 @@ def test_fetch_remote_raises_catalog_error_on_corrupt_remote_json(
 
         with pytest.raises(CatalogError, match="Corrupt JSON"):
             cat._fetch_remote(["api", "v1", "stub.json"])
+
+
+def test_load_json_falls_through_to_remote_when_catalog_root_is_none(
+    tmp_path: Path,
+) -> None:
+    """Pin catalog.py branch 239->244: when ``_catalog_root`` is
+    ``None`` (remote-only mode), ``load_json`` must skip the local
+    short-circuit entirely and dispatch to ``_fetch_remote``.
+
+    The local short-circuit covers the True arm of
+    ``if self._catalog_root is not None:`` — every test that runs
+    against the live or synthetic catalogues exercises that arm.
+    The False arm only fires when the catalogue is initialised
+    without a local root, which is the deploy shape for the
+    Cloudflare-Pages-hosted MCP server. Without this test the False
+    arm was uncovered and a regression that accidentally guarded
+    ``_fetch_remote`` behind ``_catalog_root`` would silently break
+    every remote-only deployment.
+
+    ``Catalog._resolve_catalog_root`` probes ``Path.cwd()`` and
+    ``__file__.parents`` for ``api/v1/manifest.json``; both probes
+    succeed in this repo's test runner, so we forcibly overwrite
+    ``_catalog_root`` after construction to simulate the deploy
+    shape rather than chase a sandbox-fragile cwd patch.
+    """
+
+    payload = {"hello": "world", "n": 42}
+
+    with Catalog(
+        catalog_root=None,
+        base_url="https://fenre.github.io/splunk-monitoring-use-cases",
+    ) as cat:
+        # Force remote-only mode regardless of the test runner's cwd.
+        cat._catalog_root = None  # type: ignore[attr-defined]
+
+        class _StubResp:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def iter_bytes(self) -> Any:
+                # Two-chunk emit to also exercise the chunk-loop's
+                # extend path even though that branch is already
+                # covered elsewhere — costs nothing, locks the
+                # contract.
+                yield b'{"hello": "world"'
+                yield b', "n": 42}'
+
+        class _StubStreamCtx:
+            def __enter__(self) -> _StubResp:
+                return _StubResp()
+
+            def __exit__(self, *exc: Any) -> None:
+                return None
+
+        client = MagicMock()
+        client.stream.return_value = _StubStreamCtx()
+        cat._http_client = client  # type: ignore[attr-defined]
+
+        out = cat.load_json("api", "v1", "stub.json")
+        assert out == payload
+        # Sanity: the stub HTTP client was actually invoked, which
+        # proves we went through ``_fetch_remote`` and not some
+        # cached local short-circuit.
+        assert client.stream.called
 
 
 # --------------------------------------------------------------------- #
