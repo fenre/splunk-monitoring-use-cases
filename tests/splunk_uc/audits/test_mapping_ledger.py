@@ -495,9 +495,9 @@ def test_signature_envelope_invokes_gh_verify_when_attested_and_verify_true(
     entry, _ = _entry()
     ledger = _ledger([entry], state="attested", commit="abc1234")
 
-    calls: list[tuple[dict[str, Any], dict[str, Any], pathlib.Path]] = []
+    calls: list[tuple[dict[str, Any], dict[str, Any], Path]] = []
 
-    def _stub(sig: dict[str, Any], lg: dict[str, Any], lf: pathlib.Path) -> list[str]:
+    def _stub(sig: dict[str, Any], lg: dict[str, Any], lf: Path) -> list[str]:
         calls.append((sig, lg, lf))
         return ["signature: bundle missing — synthetic"]
 

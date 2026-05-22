@@ -504,6 +504,10 @@ def _ingest_cim_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
 
             # Walk the (possibly nested) object hierarchy collecting
             # every ``objectName`` as a dataset path (Model.dataset).
+            # ``path_prefix`` is always non-empty: the top-level call
+            # below passes ``model_name`` (guaranteed non-empty by the
+            # ``or jpath.stem`` fallback above) and recursive calls pass
+            # ``full`` which is also non-empty by construction.
             def _walk_objects(objs: Any, path_prefix: str) -> None:
                 if not isinstance(objs, list):
                     return
@@ -513,7 +517,7 @@ def _ingest_cim_corpus(state: dict[str, Any]) -> dict[str, Any] | None:
                     name = obj.get("objectName")
                     if not isinstance(name, str) or not name:
                         continue
-                    full = f"{path_prefix}.{name}" if path_prefix else f"{model_name}.{name}"
+                    full = f"{path_prefix}.{name}"
                     state["datamodel_paths"].add(full)
                     counters["datasets"] += 1
                     _walk_objects(obj.get("children"), full)

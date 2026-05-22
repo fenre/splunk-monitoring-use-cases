@@ -159,14 +159,6 @@ REGULATION_WISDOM = {
         "Minor consent (13-16): affirmative opt-in required for sale/share of minor data. Detections on data sharing must intersect with age assertion; lack of age data on shared minor info is itself a finding.",
     ],
 
-    "FDA Part 11": [
-        "Predicate rule context: 21 CFR Part 11 overlays a predicate rule (e.g. 21 CFR Part 211 for pharma GMP). Detections must reference the predicate rule — Part 11 alone doesn't define what must be recorded, only how electronic records are treated.",
-        "Signature semantics: Part 11 distinguishes between 'electronic signature' (legally equivalent to wet ink) and 'electronic approval.' Detections on signature integrity must identify WHICH signature type an event represents; generic 'approval recorded' is not evidence of 11-compliant signing.",
-        "Audit trail independence (§11.10(e)): the audit trail must be independent of operator action. A detection measuring 'audit trail presence' must test for independence — if operators can modify the audit trail, the system fails Part 11 regardless of what events were captured.",
-        "Time source authority: §11.10(d) requires operator actions to be 'time-stamped.' The time source must be documented and auditable (not the user's desktop clock). Detections must verify events use the authoritative time source; clock drift >5 seconds is a deviation.",
-        "Closed vs open system: §11.10 (closed) and §11.30 (open) have different requirements. The detection must know which regime applies — an open system (internet-connected) requires additional integrity controls that closed systems do not.",
-    ],
-
     "CMMC": [
         "Level 1/2/3 distinction: CMMC 2.0 has three levels (Foundational/Advanced/Expert). Detections must specify level — Level 1 is self-assessed against basic cyber hygiene; Level 3 requires NIST SP 800-172 enhanced controls plus triennial assessment.",
         "FCI vs CUI boundary: CMMC applies only to systems handling Federal Contract Information (FCI) or Controlled Unclassified Information (CUI). Detections scoped to 'entire organisation' fire on out-of-boundary systems, wasting audit effort.",
