@@ -376,7 +376,14 @@ def _check_links(text: str) -> list[_Issue]:
         if href.startswith(("http://", "https://", "mailto:", "#")):
             continue
         target_str = href.split("#", 1)[0]
-        if not target_str:
+        if not target_str:  # pragma: no cover - unreachable; ``_LINK_RE``
+            # requires href to be ``[^)\s]+`` (one or more non-space,
+            # non-``)`` chars), so href is always non-empty. The only
+            # way ``target_str`` (= everything before the first ``#``)
+            # is empty is if href starts with ``#``, which is caught by
+            # the startswith check on the prior line. Preserved as a
+            # defensive fall-through in case a future regex relaxation
+            # ever permits empty-hash hrefs.
             continue
         if target_str in seen:
             continue

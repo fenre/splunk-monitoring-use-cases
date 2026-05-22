@@ -224,7 +224,13 @@ def _cross_reference_errors(
             )
 
     # warnings surfaced alongside errors but don't fail the run
-    for w in warnings:
+    for w in warnings:  # pragma: no cover - unreachable; the `warnings`
+        # list is initialised empty at line 154 and never appended to
+        # inside `_cross_reference_errors` (only `_staleness_findings`
+        # populates a `warnings` list, and that one is returned to the
+        # caller rather than printed here). The loop is preserved so a
+        # future refactor that surfaces cross-reference warnings can
+        # populate the list without re-introducing the print scaffold.
         print(f"  warning: {w}", file=sys.stderr)
     return errors
 

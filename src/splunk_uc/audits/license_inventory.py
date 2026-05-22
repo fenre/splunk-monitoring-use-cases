@@ -90,9 +90,14 @@ class _MetadataLike(Protocol):
     drives those methods without sacrificing the runtime contract.
     """
 
-    def get(self, key: str) -> str | None: ...
+    def get(self, key: str) -> str | None: ...  # pragma: no cover
+    # — Protocol method bodies are ``...`` (Ellipsis literals); they are
+    # never executed at runtime because Protocols are purely structural
+    # typing constructs. ``coverage.py`` reports them as partial
+    # branches because the function body is treated as a single
+    # statement that may "exit" via the implicit return.
 
-    def get_all(self, key: str) -> list[str] | None: ...
+    def get_all(self, key: str) -> list[str] | None: ...  # pragma: no cover
 
 
 # ``parents[3]`` resolves: license_inventory.py -> audits/ ->

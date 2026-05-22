@@ -160,7 +160,14 @@ def audit_sort_order(ledger: dict[str, Any]) -> list[str]:
     """mappingIds must be sorted lexicographically."""
     mids = [e.get("mappingId", "") for e in ledger.get("entries", [])]
     if mids != sorted(mids):
-        for i, (a, b) in enumerate(zip(mids, sorted(mids), strict=True)):
+        for i, (a, b) in enumerate(  # pragma: no branch - loop always
+            # returns. We are inside ``if mids != sorted(mids)`` so the
+            # two lists differ at SOME index; the first ``a != b``
+            # always fires and returns. The fall-through to ``return []``
+            # below is therefore unreachable from this loop (the outer
+            # function still returns ``[]`` for the already-sorted case).
+            zip(mids, sorted(mids), strict=True)
+        ):
             if a != b:
                 return [
                     f"sort: entries are not sorted by mappingId "

@@ -187,6 +187,58 @@ def test_parse_inputs_default_type_is_text() -> None:
     assert spec.expand() == "v"
 
 
+def test_parse_inputs_ignores_unrecognised_child_elements() -> None:
+    """Pin the branch 170->153 in dashboard_spl.py: when an ``<input>``
+    carries a child whose tag is not in the recognised set
+    (``default`` / ``delimiter`` / ``prefix`` / ``suffix`` /
+    ``valuePrefix`` / ``valueSuffix``), ``_parse_inputs`` must fall
+    through every ``elif`` and continue iterating the remaining
+    children without raising.
+
+    The Splunk Simple-XML grammar permits ``<label>``, ``<choice>``,
+    ``<initialValue>``, ``<populatingSearch>`` and several other
+    children on ``<input>`` that ``_parse_inputs`` doesn't model
+    (they don't influence token expansion). Without this test, the
+    False arm of the last ``elif`` is uncovered and a future edit
+    that turns the chain into ``if/elif/else: raise`` would silently
+    break every dashboard that carries these legitimate-but-unmodelled
+    children.
+    """
+
+    xml = (
+        "<form>"
+        '<input token="host" type="dropdown">'
+        # Recognised children — exercise the True arms.
+        "<default>srv01</default>"
+        # Unrecognised children — exercise the implicit False arm
+        # of the final ``elif cname == 'valueSuffix'``. These are
+        # legitimate Splunk Simple-XML constructs that the parser
+        # simply doesn't consume.
+        "<label>Host</label>"
+        "<choice value=\"srv01\">Server 01</choice>"
+        "<choice value=\"srv02\">Server 02</choice>"
+        "<initialValue>srv01</initialValue>"
+        "<populatingSearch>search index=os | stats count BY host</populatingSearch>"
+        "</input>"
+        "</form>"
+    )
+    root = ET.fromstring(xml)
+    specs = audit._parse_inputs(root)
+    assert "host" in specs
+    spec = specs["host"]
+    # The recognised child populated ``default``; the unrecognised
+    # children left every other slot at its dataclass-default value.
+    assert spec.default == "srv01"
+    assert spec.delimiter == ","
+    assert spec.prefix == ""
+    assert spec.suffix == ""
+    assert spec.value_prefix == ""
+    assert spec.value_suffix == ""
+    # And expansion still works correctly — the unrecognised
+    # children produced no side effects.
+    assert spec.expand() == "srv01"
+
+
 # --------------------------------------------------------------------- #
 # _expand_tokens
 # --------------------------------------------------------------------- #

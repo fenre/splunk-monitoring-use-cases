@@ -182,7 +182,16 @@ def _build_graph(
             if dep not in uc_index:
                 errors.append(f"unknown-prereq: {uid} references {dep} which does not exist")
                 continue
-            if dep not in forward[dep]:
+            if dep not in forward[dep]:  # pragma: no branch - the False
+                # arm is unreachable: ``forward[dep]`` is the list of
+                # UC IDs that depend on ``dep``, so for ``dep`` itself
+                # to appear there we would need a prior iteration where
+                # ``uid == dep`` (i.e. a self-reference), which is
+                # caught by the explicit ``if dep == uid`` guard a few
+                # lines above (line 175). The True arm is therefore
+                # always taken; the check is preserved as a defensive
+                # dedupe in case a future edit weakens the self-reference
+                # guard.
                 forward[dep].append(uid)
             reverse[uid].append(dep)
             src_wave = uc.get("wv")

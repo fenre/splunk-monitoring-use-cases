@@ -115,7 +115,15 @@ def audit(primer_text: str) -> list[Finding]:
                 continue
             sub_id = f"22.{sub_m.group(1)}"
             claimed = int(m.group(3))
-        else:
+        else:  # pragma: no cover - unreachable; the regex above is an
+            # alternation between two named branches: alt-A captures
+            # groups 1+2 ("§22.X ships N "), alt-B captures group 3
+            # ("(N dedicated|native UCs)"). Every successful match
+            # populates one branch exclusively, so the else arm only
+            # fires if a future edit adds a third alternation that
+            # captures none of the three groups. Preserved as a
+            # defensive fall-through so adding such an alternation
+            # later does not silently break the audit.
             continue
 
         actual = uc_counts.get(sub_id)

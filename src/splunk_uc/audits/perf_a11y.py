@@ -409,7 +409,17 @@ def _evaluate_a11y(
                 file_hard += 1
             elif disposition == "warning":
                 file_warn += 1
-            elif disposition == "allowlisted":
+            elif disposition == "allowlisted":  # pragma: no branch -
+                # the elif chain exhaustively covers all values
+                # ``disposition`` can hold. It is assigned to one of
+                # exactly three literals — "hard-fail", "warning",
+                # "allowlisted" — by the if/elif chain at lines
+                # 396-406; no other value is possible. The implicit
+                # fall-through (skip every branch) is therefore
+                # unreachable. Preserved as an explicit ``elif`` for
+                # readability and to fail loudly if a future
+                # disposition value is added without updating this
+                # accounting block.
                 allowlist_hits.append(
                     {
                         "file": file,
@@ -745,7 +755,15 @@ def main(argv: list[str] | None = None) -> int:
                     n=2,
                 )
             )
-            if diff:
+            if diff:  # pragma: no branch - the False arm is unreachable
+                # because we are inside ``if existing_norm !=
+                # regenerated_norm:``, which means the two inputs to
+                # ``difflib.unified_diff`` differ; ``unified_diff``
+                # is therefore guaranteed to produce at least one
+                # output line. The guard is preserved so that a
+                # future normalisation tweak that accidentally
+                # collapses the inputs to equal-but-not-identical
+                # strings does not blow up on a non-list ``diff``.
                 sys.stderr.write("--- diff (first 200 lines) ---\n")
                 sys.stderr.writelines(diff[:200])
                 sys.stderr.write("--- end diff ---\n")

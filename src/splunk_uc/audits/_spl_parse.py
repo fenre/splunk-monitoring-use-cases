@@ -264,7 +264,14 @@ def _blank_quoted_strings(text: str) -> str:
 
     def _scrub(m: re.Match[str]) -> str:
         s = m.group(0)
-        if len(s) < 2:
+        if len(s) < 2:  # pragma: no cover - unreachable; ``_QUOTED_STR_RE``
+            # always matches at least two characters (an opening quote
+            # plus a matching closing quote — see lines 234-245). The
+            # minimum-length match is ``""`` or ``''``, both two bytes.
+            # This guard is preserved as a defensive no-op in case a
+            # future edit to the regex relaxes the closing-quote
+            # requirement (which would otherwise cause an ``IndexError``
+            # on ``s[-1]`` below).
             return s
         # Keep the opening + closing quote, replace inner bytes with
         # spaces so the substring no longer carries any identifier

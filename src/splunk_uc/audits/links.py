@@ -156,7 +156,18 @@ def collect_urls() -> dict[str, list[str]]:
                 continue
             for raw in URL_PATTERN.findall(v):
                 url = normalize_url(raw)
-                if url.startswith(("http://", "https://")):
+                if url.startswith(  # pragma: no branch - False arm
+                    # unreachable. ``URL_PATTERN`` (line 42) anchors on
+                    # ``https?://``, and ``normalize_url`` (line 78)
+                    # only strips trailing decoration — it never
+                    # touches the prefix. So every ``url`` yielded by
+                    # ``URL_PATTERN.findall`` always starts with one
+                    # of these schemes. The guard is preserved as a
+                    # defence-in-depth contract in case a future
+                    # refactor of ``normalize_url`` ever rewrites
+                    # the head of the URL.
+                    ("http://", "https://")
+                ):
                     url_sources.setdefault(url, []).append(loc)
 
     return url_sources

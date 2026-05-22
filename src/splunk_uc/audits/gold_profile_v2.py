@@ -359,7 +359,18 @@ def check_pack_drift(uc: dict[str, Any], pack: dict[str, Any]) -> list[str]:
             for token in re.split(r"\s+", ta_lower):
                 if len(token) >= 6 and token in text:
                     # Found a partial match — check if the full canonical name is present
-                    if not any(canon in text for canon in (ta_lower,)):
+                    if not any(  # pragma: no branch - False arm
+                        # unreachable. ``any(canon in text for canon in
+                        # (ta_lower,))`` is equivalent to ``ta_lower in
+                        # text``, which the enclosing ``if ta_lower not
+                        # in text`` (line 358) has already established to
+                        # be False. ``not <False>`` is always True, so
+                        # the False arm of this guard can never fire.
+                        # Preserved as a defensive double-check in case a
+                        # future edit extends the canonicals tuple to
+                        # include alternative names.
+                        canon in text for canon in (ta_lower,)
+                    ):
                         drift.append(
                             f"Pack `{pname}`: text mentions `{token}` but not the canonical TA name (`{ta_lower}`)"
                         )
