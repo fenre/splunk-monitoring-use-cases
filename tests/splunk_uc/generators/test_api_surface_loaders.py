@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 from typing import Any
@@ -869,6 +870,58 @@ class TestOscalPayloads:
         assert idx["componentDefinitions"] == []
         assert comp_idx["count"] == 0
         assert payload == {"catalogs": {}, "components": {}}
+
+    def test_skips_non_matching_component_definition_filenames(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pin branch 798->793 in ``_oscal_payloads``: a file matching
+        the outer glob ``component-definition-*.json`` but NOT matching
+        the inner ``component-definition-(?:uc-)?(X.Y.Z).json`` regex
+        must be silently ignored — not added to ``source_paths`` and
+        not surfaced anywhere in the OSCAL payloads. The False arm of
+        ``if m:`` returns to the for-loop without recording a key.
+
+        Without this test the False arm is uncovered and a future
+        refactor that re-routes non-matching files into ``source_paths``
+        (e.g. with a fallback like ``"unknown"``) would silently
+        corrupt the provenance map for every consumer that joins
+        ``componentDefinitions[].source`` against the actual files
+        on disk.
+        """
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        d = tmp_path / "oscal"
+        d.mkdir()
+        # A file that matches the OUTER glob but not the INNER regex.
+        # The body of ``if m:`` (line 798-799) must NOT fire.
+        (d / "component-definition-overview.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        # And a well-formed sibling so we can prove the loop still
+        # advances and records the matching files normally.
+        (d / "component-definition-1.1.1.json").write_text(
+            json.dumps({"id": "1.1.1"}), encoding="utf-8"
+        )
+        monkeypatch.setattr(M, "OSCAL_DIR", d)
+        monkeypatch.setattr(M, "REPO_ROOT", tmp_path)
+
+        idx, comp_idx, _payload = M._oscal_payloads()
+        # The garbage filename must NOT appear in componentDefinitions.
+        cd_endpoints = [c.get("endpoint", "") for c in idx["componentDefinitions"]]
+        assert not any(
+            "overview" in ep for ep in cd_endpoints
+        ), f"garbage-filename leaked into componentDefinitions: {cd_endpoints!r}"
+        # And every recorded component definition must be a UC ID,
+        # not the garbage name.
+        for c in idx["componentDefinitions"]:
+            uc_id_str = c.get("ucId", "")
+            assert re.match(r"^\d+\.\d+\.\d+$", uc_id_str), (
+                f"componentDefinitions leaked non-UC id: {uc_id_str!r}"
+            )
+        # Only 1.1.1 should make it through.
+        assert comp_idx["count"] == 1
+        assert comp_idx["items"][0]["ucId"] == "1.1.1"
 
 
 # ---------------------------------------------------------------------------

@@ -120,7 +120,17 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 # UCs) or catalog.json (full catalogue).
 _LEGACY_SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(_LEGACY_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_LEGACY_SCRIPTS_DIR))
+    sys.path.insert(0, str(_LEGACY_SCRIPTS_DIR))  # pragma: no cover -
+    # the guard is defensive against import ordering: by the time the
+    # test suite imports ``splunk_uc.generators.api_surface`` the
+    # ``scripts/`` directory has already been added to ``sys.path`` by
+    # the pytest collector (one of dozens of other scripts/tests
+    # imports ``equipment_lib`` first). The body therefore never
+    # executes under coverage. It is preserved because the module is
+    # also entered directly via ``python -m`` in production builds,
+    # where ``sys.path`` does NOT yet include ``scripts/`` and the
+    # ``from equipment_lib import load_equipment`` on the next line
+    # would fail without this insertion.
 from equipment_lib import load_equipment  # noqa: E402  (post-sys.path hack)
 
 API_VERSION = "v1"
@@ -1079,7 +1089,14 @@ def _looks_like_app_label(token: str) -> bool:
             return False
     if lower.startswith("splunkbase ") and lower[-1] in (")", "."):
         return False
-    if lower.startswith("[splunkbase "):
+    if lower.startswith("[splunkbase "):  # pragma: no cover -
+        # unreachable. The leading-character guard at line 1040
+        # (``token.startswith(("**", "__", "[", "<", "*", "/", "$",
+        # "#"))``) already returns False for any token whose first
+        # character is ``[``, so a token starting with ``[splunkbase ``
+        # never reaches this line. Preserved as a defence-in-depth
+        # contract in case the earlier guard is ever relaxed to allow
+        # markdown-link-style tokens through.
         return False
     # Reject tokens with low alphanumeric ratio — these are almost
     # always punctuation/markup leftovers ("...$", "/>"), not real
@@ -1117,9 +1134,26 @@ def _recommender_apps(uc: Mapping[str, Any]) -> list[str]:
     #    have no spaces and aren't pure version numbers.
     for backticked in re.findall(r"`([A-Za-z][A-Za-z0-9_\-\.]{2,79})`", raw_t):
         token = backticked.strip()
-        if not token or " " in token:
+        if not token or " " in token:  # pragma: no cover - unreachable.
+            # The capture group on the preceding line requires the
+            # match to start with ``[A-Za-z]`` and contain only
+            # ``[A-Za-z0-9_\-\.]`` for 2-79 more chars; spaces are
+            # excluded from that character class. ``token`` is also
+            # guaranteed at least 3 chars long. Stripping cannot
+            # introduce a space. Preserved as a belt-and-braces guard
+            # in case the regex is ever broadened to accept additional
+            # punctuation classes.
             continue
-        if re.fullmatch(r"\d+(\.\d+)*", token):
+        if re.fullmatch(  # pragma: no cover - unreachable. The same
+            # capture group anchors the first character on ``[A-Za-z]``,
+            # so ``token`` can never start with a digit; a
+            # ``\d+(\.\d+)*`` fullmatch is therefore impossible.
+            # Preserved so that loosening the capture-group regex
+            # later (e.g. to admit ``[0-9]`` heads) does not silently
+            # let pure version-number tokens like ``1.2.3`` reach the
+            # app-index.
+            r"\d+(\.\d+)*", token
+        ):
             continue
         # Folder names trivially pass _looks_like_app_label, but route
         # them through it anyway for defence-in-depth.
@@ -1558,7 +1592,13 @@ def _equipment_payloads(
     def _resolve_regulation_ids(uc_id: str) -> list[str]:
         """Return canonical framework ids the UC tags (cat-22 only)."""
         sidecar = compliance_by_id.get(uc_id)
-        if not sidecar:
+        if not sidecar:  # pragma: no cover - unreachable. The only
+            # callers of ``_resolve_regulation_ids`` iterate the keys
+            # of ``compliance_by_id`` itself, so ``sidecar`` is always
+            # the dict that produced ``uc_id``. The guard is a
+            # defence-in-depth no-op preserved so a future caller that
+            # passes a non-cat-22 UC id (e.g. from ``ucs`` directly)
+            # does not blow up with a KeyError-style chain failure.
             return []
         ids: set[str] = set()
         for c in sidecar.get("compliance") or []:
@@ -1573,7 +1613,12 @@ def _equipment_payloads(
     def _resolve_regulation_clauses(uc_id: str) -> list[dict[str, Any]]:
         """Return ``[{regulationId, version, clause}, ...]`` for the UC."""
         sidecar = compliance_by_id.get(uc_id)
-        if not sidecar:
+        if not sidecar:  # pragma: no cover - unreachable for the same
+            # reason as ``_resolve_regulation_ids`` above: every
+            # caller iterates ``compliance_by_id`` keys, so the
+            # corresponding ``sidecar`` is guaranteed non-empty.
+            # Preserved as a defensive symmetry with the sibling
+            # helper.
             return []
         out: list[dict[str, Any]] = []
         for c in sidecar.get("compliance") or []:
@@ -2270,7 +2315,13 @@ def _render(out_root: pathlib.Path) -> None:
     sidecar_sb_map: dict[str, list[dict[str, Any]]] = {}
     for uc in ucs:
         uc_id = uc.get("id")
-        if not isinstance(uc_id, str):
+        if not isinstance(uc_id, str):  # pragma: no cover - unreachable.
+            # ``ucs`` are produced by ``_load_ucs`` which validates each
+            # sidecar against ``schemas/uc.schema.json``; the schema
+            # makes ``id`` a required string. The guard is preserved as
+            # a defence-in-depth no-op in case the schema is ever
+            # loosened or this loop is reused with an unvalidated
+            # iterable.
             continue
         sb_field = uc.get("splunkbaseApps")
         if isinstance(sb_field, list):

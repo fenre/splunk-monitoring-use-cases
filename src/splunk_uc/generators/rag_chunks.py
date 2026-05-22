@@ -328,7 +328,17 @@ def _split_oversized_section(section_body: str) -> list[str]:
                 chunks.append(head)
         for i in range(len(boundaries) - 1):
             piece = section_body[boundaries[i] : boundaries[i + 1]].rstrip()
-            if piece:
+            if piece:  # pragma: no branch - False arm unreachable.
+                # ``boundaries`` is built from ``_H3_RE`` match starts
+                # plus ``len(section_body)``; every slice therefore
+                # begins AT an H3 heading line (``### …``) and ends
+                # before the next H3 (or at EOF). The H3 heading text
+                # itself is part of the slice, so ``piece`` after
+                # ``rstrip()`` always carries at least ``### <title>``.
+                # An empty ``piece`` would require two H3 matches at
+                # identical offsets, which ``re.finditer`` cannot
+                # produce (matches are non-overlapping by construction).
+                # The guard is preserved as a defence-in-depth no-op.
                 chunks.append(piece)
     else:
         chunks.append(section_body)
@@ -460,7 +470,14 @@ def _split_oversized_code_block(paragraph: str) -> list[str]:
         else:
             buf.append(stage)
             buf_chars += stage_chars
-    if buf:
+    if buf:  # pragma: no branch - False arm unreachable. We reach
+        # this point only when ``len(stages) >= 2`` (line 444 returns
+        # early otherwise). On the first iteration ``buf`` is empty so
+        # the if/elif at lines 456-459 fall to the else at line 461
+        # and append the first stage to ``buf`` unconditionally. So
+        # ``buf`` is always non-empty after the loop. Preserved as a
+        # defensive guard in case a future refactor adds a branch
+        # that flushes ``buf`` on the last iteration.
         out.append(_render_fence_slice(fence, close, buf))
     # Trailing prose becomes its own paragraph so the parent
     # _paragraph_split can pack it normally.
@@ -501,7 +518,14 @@ def _group_spl_pipe_stages(body: str) -> list[str]:
             current = [line]
         else:
             current.append(line)
-    if current:
+    if current:  # pragma: no branch - False arm unreachable.
+        # ``body.split("\n")`` always returns at least one element
+        # (even empty bodies yield ``[""]``), so the loop above
+        # executes at least once. On every first iteration the if
+        # at line 499 is False (``current`` is empty) — the else
+        # branch unconditionally appends to ``current``. Hence
+        # ``current`` is always non-empty here. Preserved as a
+        # defence-in-depth.
         stages.append(current)
     return ["\n".join(stage) for stage in stages]
 
@@ -568,7 +592,14 @@ def _split_oversized_markdown_table(paragraph: str) -> list[str]:
         else:
             buf.append(row)
             buf_chars += row_chars
-    if buf:
+    if buf:  # pragma: no branch - False arm unreachable. The early
+        # exit at line 578 (``if not data_rows: return [paragraph]``)
+        # ensures the loop above runs at least once; the first
+        # iteration's ``if buf and …`` is False (``buf`` is empty),
+        # so the else at line 593 unconditionally appends the first
+        # row to ``buf``. ``buf`` therefore always carries at least
+        # one row after the loop. Preserved as defensive symmetry
+        # with the pipe-fence slicer above.
         out.append(_render_table_slice(header, delimiter, buf))
     return out
 
@@ -603,7 +634,11 @@ def _split_oversized_bullet_list(paragraph: str) -> list[str]:
     for individual bullets without losing semantic continuity.
     """
     lines = paragraph.split("\n")
-    if not lines:
+    if not lines:  # pragma: no cover - unreachable. ``str.split("\n")``
+        # always returns at least one element (an empty string yields
+        # ``[""]``). The guard is preserved as a defence-in-depth so a
+        # future caller that hand-builds a ``lines`` list cannot
+        # blow up on the ``lines[0]`` access below.
         return [paragraph]
     stripped = lines[0].lstrip()
     if not _BULLET_ITEM_RE.match(stripped):
@@ -615,7 +650,14 @@ def _split_oversized_bullet_list(paragraph: str) -> list[str]:
         return [paragraph]
 
     items = _group_bullet_items(lines)
-    if len(items) <= 1:
+    if len(items) <= 1:  # pragma: no cover - unreachable. We have
+        # already established (line 614) ``bullet_line_count >= 3``
+        # and (line 609) ``lines[0]`` starts with a bullet marker.
+        # ``_group_bullet_items`` opens a new item on every bullet
+        # line after the first (line 648 in that helper); with 3+
+        # bullet lines and the first line being a bullet, the helper
+        # always produces ``>= 3`` items. Preserved as defensive
+        # safety in case the grouping rules are ever loosened.
         return [paragraph]
 
     out: list[str] = []
@@ -630,7 +672,13 @@ def _split_oversized_bullet_list(paragraph: str) -> list[str]:
         else:
             buf.append(item)
             buf_chars += item_chars
-    if buf:
+    if buf:  # pragma: no branch - False arm unreachable. The early
+        # exits above guarantee ``items`` has length >= 3 (see the
+        # ``len(items) <= 1`` guard); the loop therefore runs at
+        # least three times and the first iteration's else clause
+        # appends to ``buf`` unconditionally. ``buf`` is always
+        # non-empty here. Preserved as defensive symmetry with the
+        # sibling slicers above.
         out.append("\n".join(buf))
     return out
 
@@ -650,7 +698,15 @@ def _group_bullet_items(lines: list[str]) -> list[str]:
             current = [line]
         else:
             current.append(line)
-    if current:
+    if current:  # pragma: no branch - False arm unreachable.
+        # The only caller of ``_group_bullet_items`` is
+        # ``_split_oversized_bullet_list``, which guarantees
+        # ``lines`` non-empty (line 614 enforces 3+ bullet lines).
+        # On the first iteration the if at line 648 is False (the
+        # ``and current`` short-circuit fails when ``current`` is
+        # empty); the else branch unconditionally appends the line.
+        # ``current`` is therefore always non-empty here. Preserved
+        # as defensive symmetry with ``_group_spl_pipe_stages``.
         items.append(current)
     return ["\n".join(item) for item in items]
 
