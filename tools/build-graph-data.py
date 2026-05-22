@@ -112,7 +112,10 @@ def extract_cross_refs(uc):
 def cat_id_from_uc_id(uc_id):
     """Extract category number from UC id like '1.1.1' -> 1."""
     parts = uc_id.split(".")
-    if parts:
+    if parts:  # pragma: no branch - False arm unreachable.
+        # ``str.split(".")`` always returns at least one element
+        # (an empty input yields ``[""]``), so ``parts`` is always
+        # truthy. The guard is preserved as a defensive sentinel.
         try:
             return int(parts[0])
         except ValueError:
@@ -284,7 +287,16 @@ def build_graph(categories, ucs):
                 continue
             seen_pairs.add(pair)
             total = cat_cross[src_cat].get(tgt_cat, 0) + cat_cross[tgt_cat].get(src_cat, 0)
-            if total >= 1:
+            if total >= 1:  # pragma: no branch - False arm unreachable.
+                # We only reach this loop body via
+                # ``for tgt_cat, count in list(targets.items())``,
+                # which iterates over ``cat_cross[src_cat]``. Every
+                # value in that Counter is necessarily >= 1 (Counters
+                # are only populated on ``+= 1``), so
+                # ``cat_cross[src_cat].get(tgt_cat, 0)`` already
+                # contributes >= 1 to ``total``. The reverse
+                # ``cat_cross[tgt_cat].get(src_cat, 0)`` only adds
+                # more. ``total < 1`` is therefore impossible.
                 edges.append({
                     "source": f"cat-{pair[0]}",
                     "target": f"cat-{pair[1]}",

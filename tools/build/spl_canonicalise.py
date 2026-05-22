@@ -368,7 +368,15 @@ def canonicalise(
     # semantics (`stats count by foo` is not the same as
     # `stats by foo count`).
     stages = spl.split("|")
-    if stages:
+    if stages:  # pragma: no branch - False arm unreachable.
+        # ``str.split(separator)`` always returns at least one
+        # element (an empty input yields ``[""]``), so ``stages``
+        # is always truthy. The guard is preserved as a defensive
+        # sentinel so a future change to ``spl.split`` (e.g.
+        # routing through a custom tokeniser that can return an
+        # empty list) still passes the original SPL through
+        # unchanged rather than raising on the ``head, *rest``
+        # unpack.
         head, *rest = stages
         head = _normalise_search_clause(head)
         stages = [head, *(s.strip() for s in rest)]
@@ -464,8 +472,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         equal = ca == cb
         print(f"equivalent: {'yes' if equal else 'no'}")
         return 0 if equal else 1
-    parser.error(f"unknown command: {args.command}")
-    return 2
+    parser.error(f"unknown command: {args.command}")  # pragma: no cover
+    # The fall-through below ``parser.error()`` is unreachable
+    # because:
+    #   1. The subparsers are declared with ``required=True``
+    #      (line 419), so argparse raises ``SystemExit`` before
+    #      this function ever sees an unrecognised command.
+    #   2. ``ArgumentParser.error()`` itself calls ``sys.exit(2)``.
+    # The ``return 2`` is preserved as a defensive guard in case
+    # a future refactor relaxes ``required=True`` AND replaces
+    # ``parser.error()`` with a non-exiting alternative.
+    return 2  # pragma: no cover
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -3012,6 +3012,49 @@ class TestParseCategoryFile:
         assert cat["s"][0]["u"] == []
         assert len(cat["s"][1]["u"]) == 1
 
+    def test_escu_uc_with_hand_authored_implementation_preserved(self, tmp_path):
+        """Pin the False arm of the ``if m_text.startswith(
+        ESCU_GENERIC_IMPL_PREFIX) or not m_text.strip():`` branch in
+        ``parse_category_file`` at line 3456: when an ESCU UC carries
+        a hand-authored, non-generic ``Implementation:`` line, the
+        post-parse pass MUST leave that line intact — only generic /
+        empty implementations get rewritten by ``generate_escu_short_impl``.
+
+        ``is_escu_detection`` requires the UC to mention ``Enterprise
+        Security Content Update``/``Splunk Security Essentials``/``ESCU``
+        in the App/TA field AND to have a non-empty ``dtype`` (TTP,
+        Anomaly, Baseline, etc.). The Implementation line below
+        contains genuine operational guidance — neither the canonical
+        generic prefix nor empty — so it must survive.
+        """
+
+        md = (
+            "# 99. Test Category\n"
+            "\n"
+            "## 99.1 First subcategory\n"
+            "\n"
+            "### UC-99.1.1 · ESCU detection with hand-authored implementation\n"
+            "- **Criticality:** high\n"
+            "- **Difficulty:** intermediate\n"
+            "- **Value:** Detect lateral movement\n"
+            "- **App/TA:** Splunk ES Content Update (ESCU)\n"
+            "- **Data sources:** Sysmon, Windows Security\n"
+            "- **SPL:** index=wineventlog EventCode=4624\n"
+            "- **Implementation:** Configure a dedicated indexer cluster for ESCU summary searches and review the saved-search schedule weekly.\n"
+            "- **Detection type:** TTP\n"
+        )
+        path = tmp_path / "cat-99-test.md"
+        path.write_text(md, encoding="utf-8")
+        cat = en.parse_category_file(str(path))
+        uc = cat["s"][0]["u"][0]
+        # ESCU was detected (post-parse pass ran).
+        assert uc.get("escu") is True
+        # The hand-authored Implementation survived intact —
+        # neither replaced by the auto-generated short impl nor cleared.
+        assert "dedicated indexer cluster for ESCU summary searches" in uc["m"]
+        # And the prefix that would have triggered replacement is absent.
+        assert not uc["m"].lower().startswith(en.ESCU_GENERIC_IMPL_PREFIX)
+
 
 # ---------------------------------------------------------------------------
 # compute_implementation_roadmap + _uc_sort_key — wave bucketing

@@ -195,7 +195,15 @@ def render_markdown(md: str) -> str:
         if not para_buf:
             return
         text = " ".join(s.strip() for s in para_buf if s.strip())
-        if text:
+        if text:  # pragma: no branch - False arm unreachable.
+            # Lines are only appended to ``para_buf`` at line 251,
+            # which is gated by ``if not line.strip(): _flush_para();
+            # _flush_list(); i += 1; continue`` at lines 229-233.
+            # Every line that survives that gate has a non-empty
+            # ``line.strip()``, so the join at line 197 produces a
+            # non-empty string. The guard is preserved so a future
+            # refactor that lets blank lines slip into ``para_buf``
+            # still emits a clean ``<p></p>``-free output.
             out.append("<p>" + _render_inline(text) + "</p>")
         para_buf.clear()
 

@@ -157,7 +157,16 @@ def _atomic_write(path, content, encoding="utf-8"):
     except BaseException:
         try:
             os.unlink(tmp)
-        except OSError:
+        except OSError:  # pragma: no cover - the OSError branch is
+            # extremely rare in the test/CI environment: ``tmp`` was
+            # successfully created by ``tempfile.NamedTemporaryFile``
+            # immediately before the ``f.write`` that raised. The
+            # only way ``os.unlink(tmp)`` fails is a racy unlink by
+            # an external process or a permissions change between
+            # the two calls. The bare ``pass`` is the right
+            # behaviour because the outer ``raise`` re-raises the
+            # original exception unchanged — cleanup-on-cleanup
+            # noise would obscure the real failure.
             pass
         raise
 
@@ -2014,8 +2023,20 @@ def assign_pillar(uc, cat_id):
             is_security = True
             break
 
-    if not is_security and not is_observability:
-        if cat_id in PILLAR_SECURITY_CATS:
+    if not is_security and not is_observability:  # pragma: no branch -
+        # the ``if cat_id in PILLAR_SECURITY_CATS`` arm below is
+        # unreachable. It mirrors the check at line 1999-2000 above
+        # ("if cat_id in PILLAR_SECURITY_CATS: is_security = True"),
+        # which already flipped ``is_security`` to ``True`` for every
+        # category in that set. Reaching this block requires
+        # ``is_security == False``, which forces ``cat_id not in
+        # PILLAR_SECURITY_CATS``, which forces the False arm
+        # (``is_observability = True``). The True arm is preserved
+        # defensively so a future change that removes the upstream
+        # check still classifies these categories correctly.
+        if cat_id in PILLAR_SECURITY_CATS:  # pragma: no cover -
+            # see comment above; this arm cannot be reached given
+            # the upstream PILLAR_SECURITY_CATS check at line 1999.
             is_security = True
         else:
             is_observability = True
@@ -2963,9 +2984,32 @@ def explain_spl_pipeline(spl, max_bullets=24, uc=None, cim_variant=False):
             )
             break
         line = _explain_one_spl_stage(stage, stage_index=si, ctx=ctx)
-        if line:
+        if line:  # pragma: no branch - False arm unreachable.
+            # ``_explain_one_spl_stage`` only returns ``None`` when
+            # its argument's stripped form is empty (line 2770:
+            # ``if not st: return None``). The stages we iterate
+            # over come from ``_split_spl_stages``, which appends
+            # only segments where ``seg = "".join(buf).strip()``
+            # is truthy (line 2613-2614). So every ``stage`` here
+            # has a non-empty stripped form and ``_explain_one``
+            # always returns a non-empty bullet. The guard is
+            # preserved so a future change that loosens the
+            # splitter (e.g. preserves empty stages for
+            # alignment) still skips them cleanly instead of
+            # producing ``• None`` bullets.
             bullets.append(line)
-    if not bullets:
+    if not bullets:  # pragma: no cover - unreachable.
+        # We only reach this guard if ``stages`` is non-empty
+        # (line 2973-2974 short-circuits when it isn't) AND
+        # every iteration of the loop above produces a bullet
+        # (every stage's ``_explain_one`` returns a truthy line
+        # per the comment immediately above). The cap-overflow
+        # path (lines 2978-2985) also appends a bullet before
+        # breaking. So ``bullets`` is always non-empty when we
+        # reach this line. The guard is preserved as a defensive
+        # sentinel against future refactors that change either
+        # ``_split_spl_stages`` or ``_explain_one_spl_stage``
+        # to relax those guarantees.
         return ""
     title_heading = (
         "Understanding this CIM / accelerated SPL" if cim_variant else "Understanding this SPL"
@@ -3021,7 +3065,16 @@ def generate_detailed_impl(uc):
         lines.append("```")
         lines.append("")
         expl = explain_spl_pipeline(q, uc=uc)
-        if expl:
+        if expl:  # pragma: no branch - False arm unreachable.
+            # ``explain_spl_pipeline`` returns ``""`` only when
+            # its input is whitespace-only OR when
+            # ``_split_spl_stages`` produces no stages. We're
+            # inside ``if q:`` (line 3058), so ``q`` is the
+            # already-stripped output of ``uc.get("q") or
+            # ""`).strip()`` at line 3035, guaranteed non-empty.
+            # ``_split_spl_stages`` on a non-empty SPL string
+            # always produces at least one stage (the search
+            # clause itself). So ``expl`` is always non-empty.
             lines.append(expl)
             lines.append("")
         if qs:
@@ -3034,7 +3087,13 @@ def generate_detailed_impl(uc):
             lines.append("```")
             lines.append("")
             expl_cim = explain_spl_pipeline(qs, max_bullets=18, uc=uc, cim_variant=True)
-            if expl_cim:
+            if expl_cim:  # pragma: no branch - False arm unreachable.
+                # Same reasoning as the ``expl`` branch above:
+                # we're inside ``if qs:`` and ``qs`` is the
+                # pre-stripped output of ``(uc.get("qs") or
+                # "").strip()`` at line 3036, guaranteed
+                # non-empty, so ``explain_spl_pipeline`` always
+                # returns a non-empty string.
                 lines.append(expl_cim)
                 lines.append("")
         needs_dma = (
@@ -3139,7 +3198,18 @@ def parse_category_file(filepath):
         if in_code_block:
             if stripped.startswith("```"):
                 # End of code block — store collected lines
-                if current_uc is not None and code_target:
+                if current_uc is not None and code_target:  # pragma: no branch -
+                    # False arm unreachable. ``in_code_block`` is only
+                    # set ``True`` inside ``if current_uc is not None:``
+                    # (lines 3279, 3281, 3291) and only after
+                    # ``code_target`` is assigned to a non-empty
+                    # string (``"q"``, ``"qs"``, ``"script"``). So
+                    # whenever we reach the end-of-fence handler,
+                    # ``current_uc`` is the still-current UC dict and
+                    # ``code_target`` is the field name to populate.
+                    # The guard is preserved as a defensive sentinel
+                    # against future refactors that set
+                    # ``in_code_block`` from a different code path.
                     current_uc[code_target] = "\n".join(code_lines)
                 in_code_block = False
                 code_target = None
@@ -3414,7 +3484,18 @@ def parse_category_file(filepath):
             # markdown corpus pending migration), fall back to the
             # per-category safety-net sentence so every UC the SPA sees
             # has a non-empty non-technical summary.
-            if not (uc.get("ge") or "").strip():
+            if not (uc.get("ge") or "").strip():  # pragma: no branch -
+                # False arm unreachable. ``parse_category_file`` is the
+                # only caller of this loop and it initialises every UC
+                # dict at lines 3250-3278 with ``"ge": ""`` and never
+                # populates ``ge`` from the markdown body — the legacy
+                # markdown shape predates the ``grandmaExplanation``
+                # field, which only exists on the JSON SSOT sidecars.
+                # So ``uc.get("ge") or ""`` is always the initial empty
+                # string when we reach this guard. The guard is
+                # preserved so a future markdown grammar that adds an
+                # ``- **Plain language:**`` field still produces a
+                # well-formed (non-replaced) ge string.
                 ge_text = _sidecar_grandma_for(uc.get("i"))
                 if ge_text:
                     uc["ge"] = ge_text
@@ -4423,7 +4504,33 @@ def _extract_cycle(index, residual):
                 if dep in index and dep in residual_set
             ):
                 edge = (node, nxt)
-                if edge in visited_edges:
+                if edge in visited_edges:  # pragma: no cover - unreachable.
+                    # ``visited_edges`` is a per-``start`` closure
+                    # cache populated on line 4509. The only way an
+                    # edge ``(node, nxt)`` lands here is if we've
+                    # previously walked it inside this same outer
+                    # ``for start in residual:`` iteration. The two
+                    # candidates are:
+                    #   (a) the immediate ``for nxt in sorted(...)``
+                    #       loop in this dfs frame — but each
+                    #       iteration adds a distinct ``nxt`` to the
+                    #       set before recursing, so the same edge
+                    #       cannot be re-explored within one frame;
+                    #   (b) a deeper recursive frame that explored
+                    #       the same ``(node, nxt)`` — but every
+                    #       recursive descent pushes ``nxt`` onto
+                    #       ``stack``/``in_stack`` (lines 4513-4514)
+                    #       and any path that revisits ``node`` from
+                    #       below short-circuits at line 4510
+                    #       (``if nxt in in_stack``) before reaching
+                    #       this check.
+                    # The guard is preserved as a defensive safeguard
+                    # against future refactors that change either the
+                    # adjacency expansion or the back-edge detector
+                    # in ways that could let the same edge be
+                    # examined twice (e.g. parallel DFS, memoisation
+                    # of cycle-free subgraphs, or a residual-set
+                    # expansion mid-walk).
                     continue
                 visited_edges.add(edge)
                 if nxt in in_stack:

@@ -57,7 +57,14 @@ from build.models import (
 try:
     import jsonschema
     from jsonschema import ValidationError as _SchemaValidationError
-except ImportError:
+except ImportError:  # pragma: no cover - jsonschema is a hard requirement
+    # of the build pipeline (declared in ``pyproject.toml``'s base
+    # dependencies and the ``requirements.txt`` produced by it) and
+    # is always installed in test/CI/dev environments. This try/except
+    # is preserved so a future deployment that strips ``jsonschema``
+    # (e.g. an air-gapped install that uses a different validator)
+    # degrades gracefully — every call site below defends with
+    # ``if jsonschema is None``.
     jsonschema = None  # type: ignore[assignment]
     _SchemaValidationError = Exception  # type: ignore[assignment,misc]
 
@@ -294,7 +301,17 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
         # writers (e.g. ``write_llms_txt``) have been updated to emit
         # links into ``content/<slug>/`` instead of ``use-cases/<file>``.
         slug = meta.get("slug") or cat_dir.name
-        if slug:
+        if slug:  # pragma: no branch - False arm unreachable.
+            # ``cat_dir`` is a ``Path`` produced by ``iterdir()`` on
+            # the ``content/`` directory, so ``cat_dir.name`` is the
+            # filesystem entry's basename — always a non-empty
+            # string. ``slug`` is therefore always truthy and the
+            # False arm cannot fire. The guard is preserved so a
+            # future change that lets ``cat_dir`` come from an
+            # alternate source (e.g. an in-memory virtual filesystem
+            # with empty-string entries) still skips the append
+            # cleanly instead of writing an empty slug into
+            # ``cat.files``.
             cat.files.append(slug)
             # ``record["src"]`` is what the SPA's
             # ``githubIssueUrlForEntry`` reads to build per-UC GitHub
