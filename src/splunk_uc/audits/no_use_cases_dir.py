@@ -122,6 +122,13 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         # ── Tests with intentional comments referencing migration ─────────
         "tests/golden/compliance-mappings.yaml",
         "tests/sandbox/validate.test.mjs",
+        # Coverage tests for the legacy repo-root ``./validate_md.py``
+        # (kept at 100% to seal the v6 contract for downstream forks
+        # that have not yet migrated to per-UC JSON sidecars). The
+        # tests reference ``use-cases/`` in docstrings and a single
+        # tmp_path fixture name; no live ``use-cases/`` directory is
+        # ever created at the repo root.
+        "tests/test_validate_md_legacy.py",
         # PR-5 (2026-05-12) added a ``"Legacy use-cases/ guard"`` critical
         # step name to this partition test contract. The literal substring
         # has to be the contract because that is exactly what is matched
