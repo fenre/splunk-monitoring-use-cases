@@ -902,6 +902,59 @@ class TestRunUcTest:
         assert any("/positive" in s for s in sources)
         assert any("/negative" in s for s in sources)
 
+    def test_full_run_exits_polling_loop_via_deadline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pin the 333->342 partial branch: when the probe never returns
+        enough events, the polling loop must exit via ``while time.time()
+        < deadline:`` becoming False (i.e. the loop times out without
+        any ``break``). Without this test, the False arm of the loop
+        guard is uncovered — only the break-path is exercised by the
+        sibling tests in this class.
+
+        We mock ``time.time`` to advance past ``deadline`` after a few
+        iterations and keep the probe returning ``n=0`` so the
+        ``if probe and int(probe[0].get("n", 0)) >= len(positive_events)``
+        check never trips. The final ``client.run_oneshot(spl, ...)``
+        call still runs and returns the SPL results, which we make
+        empty so the test path stays deterministic.
+        """
+        _seed_catalog(monkeypatch, tmp_path)
+        sample_dir = _seed_sample(
+            tmp_path, "1.1.1",
+            positive="2025-04-16T08:00:00Z user=alice\n",
+        )
+
+        ticks = iter([1_000.0, 1_001.0, 1_002.0, 1_999.0, 2_000.0, 2_001.0])
+        import time as _time
+        monkeypatch.setattr(M.time, "sleep", lambda s: None)
+        monkeypatch.setattr(
+            M.time,
+            "time",
+            lambda: next(ticks, 2_999.0),
+        )
+
+        def _h(req: urllib.request.Request) -> bytes:
+            url = req.full_url
+            if "/auth/login" in url:
+                return b'{"sessionKey": "K"}'
+            if "/collector/event" in url:
+                return b""
+            if "/search/jobs" in url:
+                if b"stats+count+as+n" in (req.data or b""):
+                    return b'{"results": [{"n": "0"}]}'
+                return b'{"results": []}'
+            raise AssertionError(f"unexpected URL: {url}")
+
+        _stub_urlopen(monkeypatch, handler=_h)
+        client = M.SplunkClient(
+            "https://h:8089", "https://h:8088", "tok",
+            "admin", "pwd", verify_tls=False,
+        )
+        out = M.run_uc_test(client, "1.1.1", sample_dir, dry_run=False)
+        assert out.passed is False
+        assert out.duration_s >= 0
+
 
 # ----------------------------------------------------- write_junit
 

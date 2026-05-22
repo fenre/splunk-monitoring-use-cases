@@ -22,9 +22,9 @@ What this suite locks
   on stat() are silently skipped (the ``except OSError: pass``
   branch).
 * ``_count_files`` returns the number of recursive matches.
-* ``_count_uc_headings`` returns 0 when ``use-cases/`` is absent,
-  counts lines starting with ``"### UC-"`` across every
-  ``cat-*.md`` file when present.
+* ``_count_uc_headings`` returns 0 when the legacy
+  per-category markdown root is absent, counts lines starting
+  with ``"### UC-"`` across every ``cat-*.md`` file when present.
 * ``_validate_yml_steps`` returns None when the workflow file is
   absent and the count of lines starting with ``- name:`` when
   present.
