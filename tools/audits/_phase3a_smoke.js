@@ -209,6 +209,19 @@ assert(
 );
 
 // ---------------------------------------------------------------
+// Assertion 1b — regulation dropdown keys are case-insensitively sorted
+// ---------------------------------------------------------------
+const cachedRegKeys = sandbox._cachedRegKeys || [];
+assert(cachedRegKeys.length > 0, "_cachedRegKeys is non-empty");
+const sortedCopy = cachedRegKeys.slice().sort((a, b) =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+);
+assert(
+  cachedRegKeys.every((k, i) => k === sortedCopy[i]),
+  "_cachedRegKeys is sorted case-insensitively (numeric, base sensitivity)",
+);
+
+// ---------------------------------------------------------------
 // Assertion 2 — reg + clause filter narrows results
 // ---------------------------------------------------------------
 // Pick GDPR Art.5 if available (most authoritative test fixture);
@@ -265,6 +278,49 @@ const mismatch = narrowed.find((e) => {
 assert(
   !mismatch,
   "every narrowed UC has a matching cmp row for " + testReg + " / " + testClause,
+);
+
+// Case-insensitive regulation filter: alternate casing yields same UC set.
+const altCaseReg =
+  testReg === testReg.toLowerCase()
+    ? testReg.toUpperCase()
+    : testReg.toLowerCase();
+sandbox.currentRegulationFilter = altCaseReg;
+sandbox.currentClauseFilter = "all";
+const regOnlyAltCase = sandbox.getFilteredUCs();
+assert(
+  regOnlyAltCase.length === regOnly.length,
+  "case-insensitive regulation filter matches canonical casing (reg=" +
+    regOnly.length +
+    " alt=" +
+    regOnlyAltCase.length +
+    ")",
+);
+
+// Case-insensitive clause filter: alternate regulation casing still narrows.
+sandbox.currentClauseFilter = testClause;
+const narrowedAltCase = sandbox.getFilteredUCs();
+assert(
+  narrowedAltCase.length === narrowed.length,
+  "case-insensitive clause filter matches canonical casing (narrowed=" +
+    narrowed.length +
+    " alt=" +
+    narrowedAltCase.length +
+    ")",
+);
+
+// resolveRegClauseKey finds clause map entry regardless of casing.
+assert(
+  typeof sandbox.resolveRegClauseKey === "function",
+  "01-state.js exports resolveRegClauseKey()",
+);
+const resolvedClauseKey = sandbox.resolveRegClauseKey(altCaseReg);
+assert(
+  resolvedClauseKey === testReg,
+  "resolveRegClauseKey(" +
+    altCaseReg +
+    ") resolves to canonical key " +
+    testReg,
 );
 
 // ---------------------------------------------------------------

@@ -50,7 +50,8 @@ function getFilteredUCs() {
     // ``cmp[]`` array still match here because build.py mirrors every
     // ``cmp`` row's regulation id into the flat ``regs[]`` union.
     result = result.filter(function(e) {
-      return Array.isArray(e.uc.regs) && e.uc.regs.indexOf(currentRegulationFilter) !== -1;
+      if (!Array.isArray(e.uc.regs)) return false;
+      return e.uc.regs.some(function(r) { return regKeyMatches(r, currentRegulationFilter); });
     });
     if (currentClauseFilter && currentClauseFilter !== 'all') {
       // Second-level clause filter: only applicable when the top-level
@@ -69,7 +70,7 @@ function getFilteredUCs() {
           if (!Array.isArray(e.uc.cmp)) return false;
           return e.uc.cmp.some(function(row) {
             return row
-              && row.r === currentRegulationFilter
+              && regKeyMatches(row.r, currentRegulationFilter)
               && row.v === wantVer
               && row.cl === wantClause;
           });
@@ -728,7 +729,8 @@ function filterStrip() {
     // simply don't show the second dropdown, so the UX degrades to
     // "regulation only" instead of breaking.
     if (currentRegulationFilter !== 'all') {
-      var clauses = _cachedClausesByReg[currentRegulationFilter] || [];
+      var regClauseKey = resolveRegClauseKey(currentRegulationFilter);
+      var clauses = regClauseKey ? (_cachedClausesByReg[regClauseKey] || []) : [];
       if (clauses.length) {
         html += '<select class="c-select" onchange="setClauseFilter(this.value)" title="Specific clause or article">';
         html += '<option value="all">All Clauses (' + clauses.length + ')</option>';
