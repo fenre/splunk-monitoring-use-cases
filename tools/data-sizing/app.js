@@ -27,6 +27,84 @@
   const SECONDS_PER_DAY = 86400;
   const BYTES_PER_GB    = 1e9;
 
+  // ── v2 engine pipeline (spec §7) ──────────────────────────────────────
+  // The catalogue file (`ot-data-sources.js`) became pure data after the
+  // Task 2 migration. Every helper that v1 used to expose from there
+  // (`getCategories`, `getSourcesByCategory`, `SPLUNK_LICENSE_TIERS`,
+  // `recommendLicenseTier`) is owned by app.js from v2 onward.
+  const PROFILE = "typical";        // Task 8 wires the UI control.
+
+  const CLUSTER = {
+    rf: 2, sf: 2, smartstore: false, indexerCount: 3,
+    burst: 1.5, headroom: 1.25, retentionDays: 30
+  };
+
+  const SPLUNK_LICENSE_TIERS = [
+    { gb_per_day: 0.5,  label: "0.5 GB/day", tier: "Entry",       typical_use: "Pilot, lab, or single small service" },
+    { gb_per_day: 1,    label: "1 GB/day",   tier: "Entry",       typical_use: "Single-site pilot or proof-of-concept" },
+    { gb_per_day: 2,    label: "2 GB/day",   tier: "Entry",       typical_use: "Small team / single department" },
+    { gb_per_day: 5,    label: "5 GB/day",   tier: "Small",       typical_use: "Single site, limited sources" },
+    { gb_per_day: 10,   label: "10 GB/day",  tier: "Small",       typical_use: "Single site with moderate visibility" },
+    { gb_per_day: 25,   label: "25 GB/day",  tier: "Medium",      typical_use: "Multi-site or full single-site deployment" },
+    { gb_per_day: 50,   label: "50 GB/day",  tier: "Medium",      typical_use: "Multi-site with full security + ops telemetry" },
+    { gb_per_day: 100,  label: "100 GB/day", tier: "Large",       typical_use: "Enterprise with firewalls + flow data" },
+    { gb_per_day: 200,  label: "200 GB/day", tier: "Large",       typical_use: "Enterprise multi-site with full IT/OT/security" },
+    { gb_per_day: 500,  label: "500 GB/day", tier: "Enterprise",  typical_use: "Large enterprise with full telemetry" },
+    { gb_per_day: 1000, label: "1 TB/day",   tier: "Enterprise+", typical_use: "Major enterprise with NetFlow + full logging" },
+    { gb_per_day: 2000, label: "2 TB/day",   tier: "Enterprise+", typical_use: "Global enterprise, maximum visibility" }
+  ];
+
+  function recommendLicenseTier(totalGBPerDay) {
+    for (var i = 0; i < SPLUNK_LICENSE_TIERS.length; i++) {
+      if (totalGBPerDay <= SPLUNK_LICENSE_TIERS[i].gb_per_day) return SPLUNK_LICENSE_TIERS[i];
+    }
+    return SPLUNK_LICENSE_TIERS[SPLUNK_LICENSE_TIERS.length - 1];
+  }
+
+  function getCategories() {
+    var sources = window.OT_DATA_SOURCES || [];
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < sources.length; i++) {
+      var c = sources[i].category;
+      if (!seen[c]) { seen[c] = true; out.push(c); }
+    }
+    return out;
+  }
+
+  function getSourcesByCategory(category) {
+    var sources = window.OT_DATA_SOURCES || [];
+    return sources.filter(function (s) { return s.category === category; });
+  }
+
+  function runComputeForInstance(entry, profile) {
+    profile = profile || PROFILE;
+    var src = entry.source;
+    var fn = (window.COMPUTE_FUNCTIONS || {})[src.compute];
+    if (typeof fn !== "function") {
+      console.error("Unknown compute function: " + src.compute + " on source " + src.id);
+      return { eps: 0, bytesPerEvent: 0 };
+    }
+    // Merge driver defaults <- profile presets <- user overrides.
+    var driverValues = {};
+    (src.drivers || []).forEach(function (d) {
+      var presets = d.profilePresets || {};
+      var override = entry.driverValues && entry.driverValues[d.id];
+      var v;
+      if (override !== undefined) {
+        v = override;
+      } else if (presets[profile] !== undefined) {
+        v = presets[profile];
+      } else {
+        v = d.default;
+      }
+      driverValues[d.id] = v;
+    });
+    var out = fn(driverValues, profile);
+    var u = (src.uncertainty || {})[profile] || 1.0;
+    return { eps: out.eps * u, bytesPerEvent: out.bytesPerEvent };
+  }
+
   // ── DOM refs ──
   const $catalog       = document.getElementById("catalogAccordion");
   const $configBody    = document.getElementById("configBody");
@@ -144,28 +222,16 @@
   // ═══════════════════════════════════════════════════════════
 
   function addSource(id) {
-    const src = OT_DATA_SOURCES.find(s => s.id === id);
+    var src = (window.OT_DATA_SOURCES || []).find(function (s) { return s.id === id; });
     if (!src) return;
-
-    if (isProtocol(src)) {
-      instances.push({
-        instanceId: nextInstanceId++,
-        source: src,
-        tags: src.default_tags,
-        pollSec: src.default_poll_sec,
-        customBytes: src.bytes_per_tag.typical
-      });
-    } else {
-      if (hasEndpointInstance(id)) return;
-      instances.push({
-        instanceId: nextInstanceId++,
-        source: src,
-        endpoints: src.default_endpoints,
-        epsProfile: "typical",
-        customEps: src.eps_per_endpoint.typical,
-        customBytes: src.bytes_per_event.typical
-      });
-    }
+    // v2: every entry carries a driverValues bag. Empty = use the
+    // driver's `profilePresets[PROFILE]` (or `default` as a last
+    // resort). Task 7's per-source card writes into this bag.
+    instances.push({
+      instanceId: nextInstanceId++,
+      source: src,
+      driverValues: {}
+    });
     refreshAll();
   }
 
@@ -178,23 +244,22 @@
   //  INSTANCE CALCULATIONS
   // ═══════════════════════════════════════════════════════════
 
-  function getInstanceEps(entry) {
-    if (isProtocol(entry.source)) {
-      return entry.tags / Math.max(entry.pollSec, 0.001);
-    }
-    if (entry.epsProfile === "custom") return entry.customEps * entry.endpoints;
-    const epsPerEp = entry.source.eps_per_endpoint[entry.epsProfile] || entry.source.eps_per_endpoint.typical;
-    return epsPerEp * entry.endpoints;
-  }
+  // v2: raw EPS (after uncertainty, before filterable_fraction).
+  function getInstanceEps(entry)   { return runComputeForInstance(entry).eps; }
+  function getInstanceBytes(entry) { return runComputeForInstance(entry).bytesPerEvent; }
 
-  function getInstanceBytes(entry) {
-    if (isProtocol(entry.source)) return entry.customBytes;
-    if (entry.epsProfile === "custom") return entry.customBytes;
-    return entry.source.bytes_per_event[entry.epsProfile] || entry.source.bytes_per_event.typical;
+  // v2: effective EPS = raw × (1 - filterable_fraction). This is what
+  // matters for license sizing (filtered events never hit indexers).
+  function getInstanceEffectiveEps(entry) {
+    var r = runComputeForInstance(entry);
+    var f = (entry.source.realism || {}).filterable_fraction_typical || 0;
+    return r.eps * (1 - f);
   }
 
   function getInstanceGBDay(entry) {
-    return (getInstanceEps(entry) * SECONDS_PER_DAY * getInstanceBytes(entry)) / BYTES_PER_GB;
+    var eps = getInstanceEffectiveEps(entry);
+    var bpe = getInstanceBytes(entry);
+    return (eps * SECONDS_PER_DAY * bpe) / BYTES_PER_GB;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -272,63 +337,113 @@
   //  TOTALS + SUMMARY
   // ═══════════════════════════════════════════════════════════
 
+  // v2 cluster math (spec §7.3). Returns both v2 totals (totalRawEps,
+  // totalEffectiveEps, totalDailyRawGB, totalClusterRawGB, …) and v1-named
+  // aliases (totalEps, totalGBDay) so the legacy export path and any
+  // not-yet-rewritten callers still get a number while Tasks 7–10 land.
   function computeTotals() {
-    let totalEps = 0, totalGBDay = 0;
-    const byCat = {}, byIngest = {};
+    var totalRawEps = 0;
+    var totalEffectiveEps = 0;
+    var totalDailyRawGB = 0;
+    var totalClusterRawGB = 0;
+    var totalClusterTsidxGB = 0;
+    var byCat = {}, byIngest = {};
 
-    instances.forEach(entry => {
-      const s = entry.source;
-      const eps = getInstanceEps(entry);
-      const gbDay = getInstanceGBDay(entry);
+    instances.forEach(function (entry) {
+      var s = entry.source;
+      var r = runComputeForInstance(entry);
+      var filt = (s.realism || {}).filterable_fraction_typical || 0;
+      var effEps = r.eps * (1 - filt);
+      var gbDay = (effEps * SECONDS_PER_DAY * r.bytesPerEvent) / BYTES_PER_GB;
 
-      totalEps += eps;
-      totalGBDay += gbDay;
+      var rawdataC = (s.realism || {}).rawdata_compression_typical || 0.15;
+      var tsidxC   = (s.realism || {}).tsidx_overhead_typical      || 0.35;
+      var rfMul = CLUSTER.smartstore ? 1 : CLUSTER.rf;
+      var clusterRaw   = gbDay * rawdataC * rfMul;
+      var clusterTsidx = gbDay * tsidxC   * CLUSTER.sf;
+
+      totalRawEps         += r.eps;
+      totalEffectiveEps   += effEps;
+      totalDailyRawGB     += gbDay;
+      totalClusterRawGB   += clusterRaw;
+      totalClusterTsidxGB += clusterTsidx;
+
       byCat[s.category] = (byCat[s.category] || 0) + gbDay;
-
-      const method = s.ingest_method.split(",")[0].split("/")[0].trim();
+      var method = ((s.ingest_method || "Unknown").split(",")[0].split("/")[0]).trim();
       byIngest[method] = (byIngest[method] || 0) + gbDay;
     });
-    return { totalEps, totalGBDay, byCat, byIngest };
+
+    var diurnalPeakEps  = totalEffectiveEps * CLUSTER.burst;
+    var headroomPeakEps = diurnalPeakEps    * CLUSTER.headroom;
+    var totalClusterGB  = totalClusterRawGB + totalClusterTsidxGB;
+    var perIndexerGB    = totalClusterGB / Math.max(1, CLUSTER.indexerCount);
+
+    return {
+      // v2 surface (spec §7.3)
+      totalRawEps: totalRawEps,
+      totalEffectiveEps: totalEffectiveEps,
+      totalDailyRawGB: totalDailyRawGB,
+      diurnalPeakEps: diurnalPeakEps,
+      headroomPeakEps: headroomPeakEps,
+      totalClusterRawGB: totalClusterRawGB,
+      totalClusterTsidxGB: totalClusterTsidxGB,
+      totalClusterGB: totalClusterGB,
+      perIndexerGB: perIndexerGB,
+      byCat: byCat,
+      byIngest: byIngest,
+      // v1 aliases (kept so the not-yet-rewritten exportReport still runs)
+      totalEps: totalEffectiveEps,
+      totalGBDay: totalDailyRawGB
+    };
   }
 
   function renderSummary() {
-    const { totalEps, totalGBDay, byCat, byIngest } = computeTotals();
-    const retDays = parseInt($retentionDays.value);
-    const burst   = parseFloat($burstFactor.value);
-    const peakGB  = totalGBDay * burst;
-    const rawGB   = totalGBDay * retDays;
-    const diskGB  = rawGB * 0.5;
-    const license = recommendLicenseTier(peakGB);
-    const eventsDay = totalEps * SECONDS_PER_DAY;
+    var t = computeTotals();
+    // The existing retention/burst dropdowns are still in the DOM until
+    // Task 8 redesigns the assumptions panel; honour them as overrides
+    // so users see consistent numbers across the engine swap.
+    if ($retentionDays) {
+      var rd = parseInt($retentionDays.value, 10);
+      if (rd > 0) CLUSTER.retentionDays = rd;
+    }
+    if ($burstFactor) {
+      var bf = parseFloat($burstFactor.value);
+      if (bf > 0) CLUSTER.burst = bf;
+    }
 
-    $kpiTotalGB.textContent        = totalGBDay.toFixed(2);
-    $kpiTotalEPS.textContent       = formatNumber(totalEps, 1);
-    $kpiTotalEventsDay.textContent = formatCompact(eventsDay);
+    var rawGB  = t.totalDailyRawGB * CLUSTER.retentionDays;
+    var diskGB = t.totalClusterGB * CLUSTER.retentionDays;
+    var peakGB = t.totalDailyRawGB * CLUSTER.burst;
+    var license = recommendLicenseTier(t.totalDailyRawGB);
+
+    $kpiTotalGB.textContent        = t.totalDailyRawGB.toFixed(2);
+    $kpiTotalEPS.textContent       = formatNumber(t.totalEffectiveEps, 1);
+    $kpiTotalEventsDay.textContent = formatCompact(t.totalEffectiveEps * SECONDS_PER_DAY);
     $kpiLicense.textContent        = license.label;
-    $kpiLicenseTier.textContent    = license.tier + " — " + license.typical_use;
+    $kpiLicenseTier.textContent    = license.tier + " \u2014 " + license.typical_use;
     $kpiRawStorage.textContent     = formatCompact(rawGB);
     $kpiDiskStorage.textContent    = formatCompact(diskGB);
     $kpiPeakGB.textContent         = peakGB.toFixed(2);
 
     $catBreakdown.innerHTML = "";
-    Object.entries(byCat).sort((a, b) => b[1] - a[1]).forEach(([cat, gb]) => {
-      const dotClass = CATEGORY_DOT_CLASS[cat] || "";
-      const pct = totalGBDay > 0 ? (gb / totalGBDay * 100).toFixed(1) : 0;
-      $catBreakdown.innerHTML += `
-        <div class="breakdown-item">
-          <span class="bd-label"><span class="cat-dot ${dotClass}"></span>${cat}</span>
-          <span class="bd-value">${gb.toFixed(2)} GB (${pct}%)</span>
-        </div>`;
+    Object.entries(t.byCat).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
+      var cat = e[0], gb = e[1];
+      var dotClass = CATEGORY_DOT_CLASS[cat] || "";
+      var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
+      $catBreakdown.innerHTML += '<div class="breakdown-item">' +
+        '<span class="bd-label"><span class="cat-dot ' + dotClass + '"></span>' + cat + '</span>' +
+        '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
+        '</div>';
     });
 
     $ingestBreakdown.innerHTML = "";
-    Object.entries(byIngest).sort((a, b) => b[1] - a[1]).forEach(([method, gb]) => {
-      const pct = totalGBDay > 0 ? (gb / totalGBDay * 100).toFixed(1) : 0;
-      $ingestBreakdown.innerHTML += `
-        <div class="breakdown-item">
-          <span class="bd-label">${method}</span>
-          <span class="bd-value">${gb.toFixed(2)} GB (${pct}%)</span>
-        </div>`;
+    Object.entries(t.byIngest).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
+      var method = e[0], gb = e[1];
+      var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
+      $ingestBreakdown.innerHTML += '<div class="breakdown-item">' +
+        '<span class="bd-label">' + method + '</span>' +
+        '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
+        '</div>';
     });
   }
 
@@ -528,35 +643,34 @@
     if (infoBtn) showSourceDetail(infoBtn.dataset.id);
   });
 
+  // v2: writes the coerced value into entry.driverValues[fieldName].
+  // The field name comes straight from the driver `id` in the catalogue,
+  // so Task 7's renderer only has to emit `data-field="<driver.id>"` on
+  // each input. Coercion + min/max clamping happens here so the engine
+  // can stay pure.
   function applyFieldToState(el) {
-    const iid = parseInt(el.dataset.iid);
-    const field = el.dataset.field;
+    var iid = parseInt(el.dataset.iid, 10);
+    var field = el.dataset.field;
     if (!iid || !field) return null;
-
-    const entry = findInstance(iid);
+    var entry = findInstance(iid);
     if (!entry) return null;
-
-    if (field === "endpoints") {
-      entry.endpoints = Math.max(1, parseInt(el.value) || 1);
-    } else if (field === "tags") {
-      entry.tags = Math.max(1, parseInt(el.value) || 1);
-    } else if (field === "eps") {
-      entry.customEps = Math.max(0.001, parseFloat(el.value) || 0.001);
-      entry.epsProfile = "custom";
-    } else if (field === "bytes") {
-      entry.customBytes = Math.max(10, parseInt(el.value) || 10);
-      if (!isProtocol(entry.source)) entry.epsProfile = "custom";
-    } else if (field === "pollSec") {
-      entry.pollSec = parseFloat(el.value);
-    } else if (field === "epsProfile") {
-      entry.epsProfile = el.value;
-      if (el.value !== "custom") {
-        entry.customEps = entry.source.eps_per_endpoint[el.value];
-        entry.customBytes = entry.source.bytes_per_event[el.value];
-      }
+    var driver = (entry.source.drivers || []).find(function (d) { return d.id === field; });
+    if (!driver) return null;
+    var raw = el.value;
+    var v;
+    if (driver.type === "number") {
+      v = parseFloat(raw);
+      if (Number.isNaN(v)) v = driver.default;
+      if (driver.min !== undefined && v < driver.min) v = driver.min;
+      if (driver.max !== undefined && v > driver.max) v = driver.max;
     } else {
-      return null;
+      // enum — coerce to number if the option value parses cleanly so
+      // numeric option values (e.g. poll_interval_sec 1/5/10/60) stay
+      // numeric for the compute function.
+      v = (raw !== "" && !isNaN(Number(raw))) ? Number(raw) : raw;
     }
+    if (!entry.driverValues) entry.driverValues = {};
+    entry.driverValues[field] = v;
     return entry;
   }
 
