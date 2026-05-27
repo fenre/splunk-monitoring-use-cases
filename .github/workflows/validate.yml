@@ -1324,3 +1324,42 @@ jobs:
             data/regulations-watch.json
             reports/regulatory-change-watch.json
           if-no-files-found: ignore
+
+  data-sizing-catalogue:
+    # 2026-05-27 (Realism refresh Task 5): gates the v2 data-sizing
+    # catalogue. Runs three independent checks:
+    #   1. Schema validation of every source object in
+    #      tools/data-sizing/ot-data-sources.js against
+    #      tools/data-sizing/schemas/data-source.schema.json.
+    #   2. Node unit tests for tools/data-sizing/compute-functions.js
+    #      (legacy v1 functions today; vendor-cited functions land in
+    #      Tasks 11–35).
+    #   3. Advisory calibration coverage report (always exit 0 — no
+    #      gating until the catalogue reaches the threshold described
+    #      in docs/superpowers/specs/2026-05-22-data-sizing-realism-design.md
+    #      §11). The advisory mode lets reviewers track calibration
+    #      progress release-over-release without blocking unrelated PRs.
+    # The job uses ./.github/actions/setup-python and ./.github/actions/setup-node
+    # per the repo-wide policy enforced by
+    # tests/build/test_composite_actions.py (no raw setup-{python,node}@<sha>
+    # pins in workflow files).
+    name: data-sizing-catalogue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+      - name: Set up Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          install-deps: "false"
+      - name: Validate v2 catalogue against schema
+        run: python3 tools/data-sizing/scripts/validate-catalogue.py
+      - name: Compute function unit tests
+        run: node --test tools/data-sizing/__tests__/*.test.js
+      - name: Calibration coverage (advisory)
+        run: python3 tools/data-sizing/scripts/calibration-coverage.py
