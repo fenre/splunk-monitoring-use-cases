@@ -82,7 +82,9 @@ sources gain citations.
 
 1. Open `index.html` directly in a browser.
 2. Add "Palo Alto NGFW" → throughput `1.0` Gbps, profile `Traffic + Threat`
-   → confirm ~4,500 EPS and ~0.7 GB/day in the per-source card.
+   → confirm ~4,500 EPS (raw) / ~3,600 EPS (effective, after filterable
+   fraction) / ~560 GB/day in the per-source card. The total ingest matches
+   PAN-OS log-storage tables for 1 Gbps inspected traffic.
 3. Toggle SmartStore in Sizing Assumptions → confirm compressed-raw line in
    the Storage block drops by the RF multiplier.
 4. Click "Why these numbers?" on a calibrated source → 3 citations render
@@ -92,6 +94,13 @@ sources gain citations.
 6. Click "Share link" → paste the URL in a new tab → scenario reloads
    identically (sources + driver values).
 7. Click "Export Report" → confirm CSV contains a `Drivers (k=v)` column.
+
+The pure-compute portion of the checklist (EPS, GB/day, storage math,
+share-URL round-trip, CSV synthesis, release-notes overlay) is
+automated as `__tests__/headless-smoke.test.js` and runs in CI alongside
+`compute-functions.test.js` and `catalogue-snapshot.test.js`. The DOM /
+file-download / clipboard / colour-rendering aspects of the checklist
+above still require an eyeball pass in a real browser before a release tag.
 
 ## Adding a new calibrated source
 
