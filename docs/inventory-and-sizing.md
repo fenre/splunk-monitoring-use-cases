@@ -138,8 +138,8 @@ seed driver defaults; user overrides take precedence.
 Every source carries one of two badges:
 
 - **Calibrated** (green) — drivers, formulas, and realism numbers
-  derived from a primary citation (vendor sizing docs, the Splunkbase
-  TA's `props.conf` defaults, or Splunk Lantern). Click **"Why these
+  derived from a primary citation (vendor sizing docs, the Splunkbase<sup class="ref">[<a href="#ref-10">10</a>]</sup>
+  TA's `props.conf` defaults, or Splunk Lantern<sup class="ref">[<a href="#ref-9">9</a>]</sup>). Click **"Why these
   numbers?"** on the card to read the citation list and the realism
   factors used.
 - **Pending** (yellow) — mechanically ported from v1. Numbers stay
@@ -266,7 +266,7 @@ backend to track what you selected. Same for DSA.
 
 <a id="ref-1"></a>**[1]** Broadcom Inc. / VMware. (2026). *VMware vSphere Documentation*. Broadcom Inc. Retrieved May 11, 2026, from https://docs.vmware.com/en/VMware-vSphere/
 
-<a id="ref-2"></a>**[2]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
+<a id="ref-2"></a>**[2]** Fortinet, Inc. (2026). *Fortinet FortiOS Documentation*. Retrieved May 11, 2026, from https://docs.fortinet.com/product/fortigate
 
 <a id="ref-3"></a>**[3]** The Kubernetes Authors. (2026). *Kubernetes Documentation*. Cloud Native Computing Foundation. Retrieved May 11, 2026, from https://kubernetes.io/docs/
 
@@ -279,6 +279,10 @@ backend to track what you selected. Same for DSA.
 <a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk Edge Hub Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/EdgeHub
 
 <a id="ref-8"></a>**[8]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
+
+<a id="ref-9"></a>**[9]** Splunk Inc. (2026). *Splunk Lantern — customer success knowledge base*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://lantern.splunk.com/
+
+<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 ### Related repository documents
 
