@@ -28,13 +28,13 @@ window.OT_DATA_SOURCES = [
         "label": "Sustained throughput",
         "unit": "Gbps",
         "type": "number",
-        "default": 1.0,
+        "default": 1,
         "min": 0.01,
         "max": 100,
         "profilePresets": {
           "low": 0.3,
-          "typical": 1.0,
-          "high": 4.0
+          "typical": 1,
+          "high": 4
         },
         "help": "Sustained inspected throughput across all virtual systems. Drives base EPS via PAN-OS log-storage table."
       },
@@ -44,10 +44,22 @@ window.OT_DATA_SOURCES = [
         "type": "enum",
         "default": "traffic+threat",
         "options": [
-          { "value": "traffic-only",                    "label": "Traffic only" },
-          { "value": "traffic+threat",                  "label": "Traffic + Threat" },
-          { "value": "traffic+threat+url",              "label": "Traffic + Threat + URL" },
-          { "value": "traffic+threat+url+dns+wildfire", "label": "Traffic + Threat + URL + DNS-Security + WildFire" }
+          {
+            "value": "traffic-only",
+            "label": "Traffic only"
+          },
+          {
+            "value": "traffic+threat",
+            "label": "Traffic + Threat"
+          },
+          {
+            "value": "traffic+threat+url",
+            "label": "Traffic + Threat + URL"
+          },
+          {
+            "value": "traffic+threat+url+dns+wildfire",
+            "label": "Traffic + Threat + URL + DNS-Security + WildFire"
+          }
         ],
         "help": "Enabled log streams. Each additional subscription adds a distinct sourcetype and grows EPS + bytes/event."
       }
@@ -55,13 +67,13 @@ window.OT_DATA_SOURCES = [
     "compute": "fw_palo_alto_ngfw_v1",
     "uncertainty": {
       "low": 0.6,
-      "typical": 1.0,
+      "typical": 1,
       "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.18,
-      "tsidx_overhead_typical": 0.40,
-      "filterable_fraction_typical": 0.20
+      "tsidx_overhead_typical": 0.4,
+      "filterable_fraction_typical": 0.2
     },
     "citations": [
       {
@@ -101,63 +113,74 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / CEF",
     "ingest_method": "SC4S → HEC",
     "splunk_sourcetype": "fgt_traffic, fgt_utm, fgt_event",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "throughput_gbps",
+        "label": "Sustained throughput",
+        "unit": "Gbps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 1,
+        "min": 0.01,
+        "max": 100,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
-        }
+          "low": 0.3,
+          "typical": 1,
+          "high": 4
+        },
+        "help": "Sustained inspected throughput across all VDOMs. Drives base EPS via FortiAnalyzer sizing table."
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 150,
-        "min": 0,
-        "profilePresets": {
-          "low": 10,
-          "typical": 150,
-          "high": 2000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 1200,
-        "min": 0,
-        "profilePresets": {
-          "low": 400,
-          "typical": 1200,
-          "high": 3000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "utm_features",
+        "label": "UTM inspection bundle enabled",
+        "type": "enum",
+        "default": "+ips",
+        "options": [
+          {
+            "value": "base",
+            "label": "Base (traffic only)"
+          },
+          {
+            "value": "+ips",
+            "label": "+ IPS"
+          },
+          {
+            "value": "+ips+webfilter",
+            "label": "+ IPS + Web Filter"
+          },
+          {
+            "value": "+ips+webfilter+av",
+            "label": "+ IPS + Web Filter + AV"
+          }
+        ],
+        "help": "Each additional inspection module adds a distinct event stream and grows bytes/event."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "sec_ngfw_fortinet_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.2
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://docs.fortinet.com/document/fortianalyzer/latest/administration-guide/",
+        "accessed": "2026-05-27",
+        "note": "Fortinet FortiAnalyzer sizing guide (logs per Gbps tables)"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/2846",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Fortinet FortiGate default CEF parser rates"
+      }
+    ],
     "related_uc_ids": [
       "5.2.44",
       "5.2.45",
@@ -176,63 +199,75 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / eStreamer",
     "ingest_method": "SC4S (syslog) or eStreamer TA (HF)",
     "splunk_sourcetype": "cisco:asa, cisco:firepower:syslog",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "throughput_gbps",
+        "label": "Sustained throughput",
+        "unit": "Gbps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 1,
+        "min": 0.01,
+        "max": 100,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 0.3,
+          "typical": 1,
+          "high": 4
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 200,
-        "min": 0,
-        "profilePresets": {
-          "low": 20,
-          "typical": 200,
-          "high": 2000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 800,
-        "min": 0,
-        "profilePresets": {
-          "low": 150,
-          "typical": 800,
-          "high": 3000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "mode",
+        "label": "Logging mode",
+        "type": "enum",
+        "default": "ftd-syslog",
+        "options": [
+          {
+            "value": "asa-syslog",
+            "label": "ASA classic syslog (compact CSV)"
+          },
+          {
+            "value": "ftd-syslog",
+            "label": "FTD security syslog"
+          },
+          {
+            "value": "ftd-estreamer",
+            "label": "FTD eStreamer (full detail)"
+          }
+        ],
+        "help": "ASA syslog is famously compact (~200 B); FTD security events are 1.2–2.5 KB depending on transport."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "sec_fw_cisco_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.2
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/td/docs/security/firepower/quick_start/sizing/firewall-sizing.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco Secure Firewall logging best practices and sizing"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/1620",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Cisco ASA — default sourcetype rates"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/3450",
+        "accessed": "2026-05-27",
+        "note": "Splunk_TA_cisco_firepower — eStreamer parser defaults"
+      }
+    ],
     "related_uc_ids": [
       "5.2.1",
       "5.2.3",
@@ -476,63 +511,64 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / REST API",
     "ingest_method": "Splunk TA (API) + SC4S",
     "splunk_sourcetype": "cisco:cybervision:event",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
+        "id": "monitored_devices",
+        "label": "Monitored OT devices",
         "unit": "devices",
         "type": "number",
-        "default": 1,
+        "default": 100,
         "min": 1,
         "max": 100000,
         "profilePresets": {
-          "low": 1,
-          "typical": 1,
-          "high": 10
+          "low": 25,
+          "typical": 100,
+          "high": 1000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 10,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 10,
-          "high": 50
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 1500,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 1500,
-          "high": 4000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "dpi_mode",
+        "label": "DPI depth",
+        "type": "enum",
+        "default": "summary",
+        "options": [
+          {
+            "value": "summary",
+            "label": "Summary (components + state changes)"
+          },
+          {
+            "value": "full",
+            "label": "Full (per-flow telemetry)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "sec_ids_cybervision_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
+      "rawdata_compression_typical": 0.18,
+      "tsidx_overhead_typical": 0.4,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/products/security/cyber-vision/index.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco Cyber Vision sensor performance and event-density guide"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/5979",
+        "accessed": "2026-05-27",
+        "note": "Cisco Cyber Vision Add-on for Splunk — default component + flow emission rates"
+      }
+    ],
     "related_uc_ids": [
       "14.9.1",
       "14.9.3",
@@ -551,63 +587,75 @@ window.OT_DATA_SOURCES = [
     "protocol": "REST API / Streaming API",
     "ingest_method": "Splunk TA (API) → HEC",
     "splunk_sourcetype": "crowdstrike:events, msdefender:events",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
         "id": "endpoints",
         "label": "Number of endpoints",
-        "unit": "devices",
+        "unit": "endpoints",
         "type": "number",
-        "default": 50,
+        "default": 100,
         "min": 1,
-        "max": 100000,
+        "max": 1000000,
         "profilePresets": {
           "low": 25,
-          "typical": 50,
-          "high": 500
+          "typical": 100,
+          "high": 1000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 0.1,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.01,
-          "typical": 0.1,
-          "high": 1
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 3000,
-        "min": 0,
-        "profilePresets": {
-          "low": 500,
-          "typical": 3000,
-          "high": 8000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "telemetry_profile",
+        "label": "Telemetry depth",
+        "type": "enum",
+        "default": "behavioural",
+        "options": [
+          {
+            "value": "summary",
+            "label": "Summary (detections only)"
+          },
+          {
+            "value": "behavioural",
+            "label": "Behavioural events"
+          },
+          {
+            "value": "full-process",
+            "label": "Full process telemetry (raw)"
+          }
+        ],
+        "help": "Cross-vendor average (CrowdStrike Falcon, SentinelOne, Microsoft Defender for Endpoint, Carbon Black). Per-endpoint volume varies 100x across profiles."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "sec_edr_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.18,
+      "tsidx_overhead_typical": 0.4,
+      "filterable_fraction_typical": 0.3
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.crowdstrike.com/falcon-platform/data-protection/",
+        "accessed": "2026-05-27",
+        "note": "CrowdStrike Falcon raw telemetry sizing — full-process mode"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.sentinelone.com/platform/singularity-data-lake/",
+        "accessed": "2026-05-27",
+        "note": "SentinelOne Singularity data-lake sizing reference"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://learn.microsoft.com/en-us/defender-endpoint/api/advanced-hunting-overview",
+        "accessed": "2026-05-27",
+        "note": "Microsoft Defender for Endpoint advanced-hunting telemetry sizes (E5 audit volumes)"
+      }
+    ],
     "related_uc_ids": [
       "10.7.277",
       "10.11.41",
@@ -626,63 +674,70 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / pxGrid",
     "ingest_method": "SC4S (syslog) + pxGrid TA",
     "splunk_sourcetype": "cisco:ise:syslog",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "authentications_per_hour",
+        "label": "Authentications per hour",
+        "unit": "auths/h",
         "type": "number",
-        "default": 1,
-        "min": 1,
-        "max": 100000,
+        "default": 5000,
+        "min": 0,
+        "max": 10000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 1,
-          "high": 10
+          "low": 500,
+          "typical": 5000,
+          "high": 50000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 50,
-        "min": 0,
-        "profilePresets": {
-          "low": 5,
-          "typical": 50,
-          "high": 500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 1200,
-        "min": 0,
-        "profilePresets": {
-          "low": 400,
-          "typical": 1200,
-          "high": 2500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "accounting_enabled",
+        "label": "RADIUS accounting enabled",
+        "type": "enum",
+        "default": "yes",
+        "options": [
+          {
+            "value": "yes",
+            "label": "Yes (interim updates ~4x event volume)"
+          },
+          {
+            "value": "no",
+            "label": "No (auth-only events)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "sec_ise_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/td/docs/security/ise/performance_and_scalability/b_ise_perf_and_scale.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco ISE Performance & Scalability Guide (authentications and accounting volume)"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/1915",
+        "accessed": "2026-05-27",
+        "note": "Cisco ISE Add-on for Splunk default parser rates"
+      },
+      {
+        "type": "lantern",
+        "url": "https://lantern.splunk.com/Splunk_Platform/Use_Cases/Authentication_and_Access_Management",
+        "accessed": "2026-05-27",
+        "note": "Splunk Lantern auth/IAM sizing patterns"
+      }
+    ],
     "related_uc_ids": [
       "17.1.1",
       "17.1.3",
@@ -776,52 +831,44 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / CEF / LEEF",
     "ingest_method": "SC4S or Syslog → HEC",
     "splunk_sourcetype": "snort, suricata, cisco:firepower:syslog",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "inspected_throughput_gbps",
+        "label": "Inspected throughput",
+        "unit": "Gbps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 1,
+        "min": 0.01,
+        "max": 100,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 0.3,
+          "typical": 1,
+          "high": 4
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 3,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 3,
-          "high": 50
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 600,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 600,
-          "high": 1500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "ruleset",
+        "label": "Ruleset profile",
+        "type": "enum",
+        "default": "balanced",
+        "options": [
+          {
+            "value": "connectivity",
+            "label": "Connectivity (~50 alerts/Gbps/h)"
+          },
+          {
+            "value": "balanced",
+            "label": "Balanced (~200 alerts/Gbps/h)"
+          },
+          {
+            "value": "security",
+            "label": "Security (~800 alerts/Gbps/h)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_sec_ips_ids_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
@@ -830,9 +877,28 @@ window.OT_DATA_SOURCES = [
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-blog",
+        "url": "https://docs.suricata.io/en/latest/performance/tuning-considerations.html",
+        "accessed": "2026-05-27",
+        "note": "Suricata performance / tuning guide (alert density per Gbps)"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://www.snort.org/documents/snort-3-user-manual",
+        "accessed": "2026-05-27",
+        "note": "Snort 3 manual — rule profile densities"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/td/docs/security/firepower/quick_start/sizing/firewall-sizing.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco FTD IPS sizing — Talos-tuned rule sets"
+      }
+    ],
     "related_uc_ids": [
       "10.2.1",
       "10.2.2",
@@ -1001,63 +1067,75 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / CEF / REST API",
     "ingest_method": "SC4S or TA (API poll)",
     "splunk_sourcetype": "imperva:waf, f5:bigip:asm",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "requests_per_sec",
+        "label": "HTTP requests per second",
+        "unit": "rps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 100,
+        "min": 0,
+        "max": 1000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 10,
+          "typical": 100,
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 4,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 4,
-          "high": 50
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 800,
-        "min": 0,
-        "profilePresets": {
-          "low": 400,
-          "typical": 800,
-          "high": 2000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "log_mode",
+        "label": "Logging mode",
+        "type": "enum",
+        "default": "denied-only",
+        "options": [
+          {
+            "value": "denied-only",
+            "label": "Denied / blocked only (~1%)"
+          },
+          {
+            "value": "denied+sampled-allowed",
+            "label": "Denied + sampled allowed (~10%)"
+          },
+          {
+            "value": "full",
+            "label": "Full (every request)"
+          }
+        ],
+        "help": "Cross-vendor average (F5 ASM, ModSecurity, AWS WAF, Cloudflare). Logged fraction is the dominant volume driver."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_sec_waf_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.12,
+      "tsidx_overhead_typical": 0.3,
+      "filterable_fraction_typical": 0.2
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://my.f5.com/manage/s/article/K000131653",
+        "accessed": "2026-05-27",
+        "note": "F5 ASM / Advanced WAF logging best-practices"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://github.com/owasp-modsecurity/ModSecurity/wiki/Reference-Manual-(v3.x)#SecAuditEngine",
+        "accessed": "2026-05-27",
+        "note": "ModSecurity SecAuditEngine defaults and logged-event sizing"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://developers.cloudflare.com/logs/logpush/logpush-job/datasets/zone/http_requests/",
+        "accessed": "2026-05-27",
+        "note": "Cloudflare HTTP request logs (logpush dataset size)"
+      }
+    ],
     "related_uc_ids": [
       "10.5.1",
       "10.5.2",
@@ -1601,52 +1679,44 @@ window.OT_DATA_SOURCES = [
     "protocol": "Windows Event Log (WEL)",
     "ingest_method": "Universal Forwarder",
     "splunk_sourcetype": "WinEventLog:Security, WinEventLog:System",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
         "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "label": "Windows endpoints",
+        "unit": "hosts",
         "type": "number",
-        "default": 10,
+        "default": 100,
         "min": 1,
-        "max": 100000,
+        "max": 1000000,
         "profilePresets": {
-          "low": 5,
-          "typical": 10,
-          "high": 100
+          "low": 25,
+          "typical": 100,
+          "high": 1000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 5,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.5,
-          "typical": 5,
-          "high": 50
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 800,
-        "min": 0,
-        "profilePresets": {
-          "low": 200,
-          "typical": 800,
-          "high": 2500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "audit_policy",
+        "label": "Audit policy",
+        "type": "enum",
+        "default": "default",
+        "options": [
+          {
+            "value": "default",
+            "label": "Default (Security + System)"
+          },
+          {
+            "value": "advanced",
+            "label": "Advanced audit policy"
+          },
+          {
+            "value": "advanced+ps-transcript",
+            "label": "Advanced + PowerShell transcript (10–40x volume)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "it_windows_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
@@ -1657,7 +1727,20 @@ window.OT_DATA_SOURCES = [
       "tsidx_overhead_typical": 0.35,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/742",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Microsoft Windows — default WinEventLog inputs"
+      },
+      {
+        "type": "lantern",
+        "url": "https://lantern.splunk.com/Splunk_Platform/Use_Cases/Windows_Logging",
+        "accessed": "2026-05-27",
+        "note": "Splunk Lantern Windows logging sizing patterns"
+      }
+    ],
     "related_uc_ids": [
       "1.2.1",
       "1.2.4",
@@ -1676,63 +1759,64 @@ window.OT_DATA_SOURCES = [
     "protocol": "Windows Event Log (WEL)",
     "ingest_method": "Universal Forwarder",
     "splunk_sourcetype": "WinEventLog:Security, WinEventLog:Directory Service",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "users_authenticated_per_hour",
+        "label": "Users authenticated per hour",
+        "unit": "auths/h",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 5000,
+        "min": 0,
+        "max": 10000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 500,
+          "typical": 5000,
+          "high": 50000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 200,
-        "min": 0,
-        "profilePresets": {
-          "low": 20,
-          "typical": 200,
-          "high": 3000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 1000,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 1000,
-          "high": 3000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "audit_logon_level",
+        "label": "Audit Logon level",
+        "type": "enum",
+        "default": "success+failure",
+        "options": [
+          {
+            "value": "success-only",
+            "label": "Success only"
+          },
+          {
+            "value": "success+failure",
+            "label": "Success + Failure (+50% events)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "it_windows_dc_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/742",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Microsoft Windows — 4624/4625/4768/4769 inputs"
+      },
+      {
+        "type": "lantern",
+        "url": "https://lantern.splunk.com/Splunk_Platform/Use_Cases/Active_Directory_Monitoring",
+        "accessed": "2026-05-27",
+        "note": "Splunk Lantern Active Directory monitoring sizing"
+      }
+    ],
     "related_uc_ids": [
       "1.2.1",
       "1.2.4",
@@ -1751,52 +1835,61 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / journald",
     "ingest_method": "Universal Forwarder or SC4S",
     "splunk_sourcetype": "linux_secure, syslog",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
         "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "label": "Linux endpoints",
+        "unit": "hosts",
         "type": "number",
-        "default": 10,
+        "default": 100,
         "min": 1,
-        "max": 100000,
+        "max": 1000000,
         "profilePresets": {
-          "low": 5,
-          "typical": 10,
-          "high": 100
+          "low": 25,
+          "typical": 100,
+          "high": 1000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 2,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.1,
-          "typical": 2,
-          "high": 10
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "auditd_enabled",
+        "label": "auditd enabled",
+        "type": "enum",
+        "default": "no",
+        "options": [
+          {
+            "value": "yes",
+            "label": "Yes"
+          },
+          {
+            "value": "no",
+            "label": "No (syslog only)"
+          }
+        ]
       },
       {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 350,
-        "min": 0,
-        "profilePresets": {
-          "low": 100,
-          "typical": 350,
-          "high": 800
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "auditd_ruleset_size",
+        "label": "auditd ruleset",
+        "type": "enum",
+        "default": "cis",
+        "options": [
+          {
+            "value": "minimal",
+            "label": "Minimal (~0.5 EPS/host)"
+          },
+          {
+            "value": "cis",
+            "label": "CIS hardened (~2 EPS/host)"
+          },
+          {
+            "value": "full",
+            "label": "Full (~8 EPS/host)"
+          }
+        ],
+        "help": "Only applies when auditd is enabled."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "it_linux_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
@@ -1807,7 +1900,26 @@ window.OT_DATA_SOURCES = [
       "tsidx_overhead_typical": 0.35,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/833",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Unix and Linux — default sourcetypes"
+      },
+      {
+        "type": "lantern",
+        "url": "https://lantern.splunk.com/Splunk_Platform/Use_Cases/Linux_Endpoint_Monitoring",
+        "accessed": "2026-05-27",
+        "note": "Splunk Lantern Linux endpoint monitoring sizing"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://github.com/splunk/splunk-connect-for-syslog",
+        "accessed": "2026-05-27",
+        "note": "SC4S reference configurations for Linux syslog ingestion"
+      }
+    ],
     "related_uc_ids": [
       "1.1.1",
       "1.1.2",
@@ -2275,63 +2387,69 @@ window.OT_DATA_SOURCES = [
     "protocol": "REST API / S3 / Event Hub",
     "ingest_method": "TA (Splunk Add-on for AWS/Azure/GCP)",
     "splunk_sourcetype": "aws:cloudtrail, azure:aad:signin, google:gcp:pubsub:message",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "monthly_api_calls",
+        "label": "Monthly API calls",
+        "unit": "calls",
         "type": "number",
-        "default": 1,
-        "min": 1,
-        "max": 100000,
+        "default": 1000000,
+        "min": 0,
+        "max": 1000000000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 1,
-          "high": 10
+          "low": 100000,
+          "typical": 1000000,
+          "high": 1000000000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
+        "id": "data_event_pct",
+        "label": "Data-plane events",
+        "unit": "%",
         "type": "number",
-        "default": 3,
+        "default": 5,
         "min": 0,
+        "max": 100,
         "profilePresets": {
-          "low": 1,
-          "typical": 3,
-          "high": 15
+          "low": 0,
+          "typical": 5,
+          "high": 30
         },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 1000,
-        "min": 0,
-        "profilePresets": {
-          "low": 500,
-          "typical": 1000,
-          "high": 3000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "help": "Percentage of total events that are S3/Storage/BigQuery data-plane (~4x larger than management events)."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_it_cloud_iaas_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.25,
+      "filterable_fraction_typical": 0.2
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-pricing.html",
+        "accessed": "2026-05-27",
+        "note": "AWS CloudTrail pricing & sizing — management + data event ratios"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log",
+        "accessed": "2026-05-27",
+        "note": "Azure Monitor Activity log volumes"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://cloud.google.com/logging/docs/audit",
+        "accessed": "2026-05-27",
+        "note": "GCP Cloud Audit logs — admin/data/system event sizing"
+      }
+    ],
     "related_uc_ids": [
       "4.1.1",
       "4.1.2",
@@ -2500,63 +2618,64 @@ window.OT_DATA_SOURCES = [
     "protocol": "REST API (Management Activity API)",
     "ingest_method": "Splunk Add-on for Microsoft 365",
     "splunk_sourcetype": "o365:management:activity, ms:aad:signin",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "seats",
+        "label": "Licensed seats",
+        "unit": "users",
         "type": "number",
         "default": 100,
-        "min": 1,
-        "max": 100000,
+        "min": 0,
+        "max": 10000000,
         "profilePresets": {
-          "low": 50,
+          "low": 25,
           "typical": 100,
-          "high": 1000
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 0.06,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.01,
-          "typical": 0.06,
-          "high": 0.2
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 800,
-        "min": 0,
-        "profilePresets": {
-          "low": 400,
-          "typical": 800,
-          "high": 2000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "tier",
+        "label": "M365 license tier",
+        "type": "enum",
+        "default": "e3",
+        "options": [
+          {
+            "value": "e3",
+            "label": "E3 (Unified Audit Log base)"
+          },
+          {
+            "value": "e5",
+            "label": "E5 (+ Defender XDR + ATP audit)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_it_office365_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://learn.microsoft.com/en-us/purview/audit-log-activities",
+        "accessed": "2026-05-27",
+        "note": "Microsoft Purview Unified Audit Log activities reference (seat × tier volumes)"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/4055",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Microsoft Office 365 — Unified Audit Log defaults"
+      }
+    ],
     "related_uc_ids": [
       "11.1.1",
       "11.1.2",
@@ -2649,52 +2768,40 @@ window.OT_DATA_SOURCES = [
     "protocol": "REST API / Webhook",
     "ingest_method": "Splunk Add-on for Okta / TA",
     "splunk_sourcetype": "OktaIM2:log, ping:audit",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
-        "type": "number",
-        "default": 100,
-        "min": 1,
-        "max": 100000,
-        "profilePresets": {
-          "low": 50,
-          "typical": 100,
-          "high": 1000
-        }
-      },
-      {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 0.06,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.01,
-          "typical": 0.06,
-          "high": 0.2
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
+        "id": "daily_active_users",
+        "label": "Daily active users",
+        "unit": "users",
         "type": "number",
         "default": 1000,
         "min": 0,
+        "max": 10000000,
         "profilePresets": {
-          "low": 500,
+          "low": 100,
           "typical": 1000,
-          "high": 2500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+          "high": 100000
+        }
+      },
+      {
+        "id": "mfa_enabled",
+        "label": "MFA enabled",
+        "type": "enum",
+        "default": "yes",
+        "options": [
+          {
+            "value": "yes",
+            "label": "Yes (~12 events/user/day)"
+          },
+          {
+            "value": "no",
+            "label": "No (~6 events/user/day)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_it_sso_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
@@ -2703,9 +2810,28 @@ window.OT_DATA_SOURCES = [
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://developer.okta.com/docs/reference/api/system-log/",
+        "accessed": "2026-05-27",
+        "note": "Okta System Log API — per-user event volumes"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://docs.pingidentity.com/r/en-us/pingfederate-121/help_pingfederate-administrators-reference-guide",
+        "accessed": "2026-05-27",
+        "note": "PingFederate audit log reference"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-sign-ins",
+        "accessed": "2026-05-27",
+        "note": "Microsoft Entra ID sign-in log sizing (interactive + non-interactive)"
+      }
+    ],
     "related_uc_ids": [
       "9.3.1",
       "9.3.2",
@@ -2874,52 +3000,44 @@ window.OT_DATA_SOURCES = [
     "protocol": "DB Connect / Syslog / File",
     "ingest_method": "Splunk DB Connect or UF (file monitor)",
     "splunk_sourcetype": "oracle:audit, mssql:audit, mysql:error",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "transactions_per_sec",
+        "label": "Database transactions per second",
+        "unit": "tps",
         "type": "number",
-        "default": 3,
-        "min": 1,
-        "max": 100000,
+        "default": 100,
+        "min": 0,
+        "max": 1000000,
         "profilePresets": {
-          "low": 2,
-          "typical": 3,
-          "high": 30
+          "low": 10,
+          "typical": 100,
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 2,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.5,
-          "typical": 2,
-          "high": 10
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 800,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 800,
-          "high": 2000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "audit_level",
+        "label": "Audit level",
+        "type": "enum",
+        "default": "dml-only",
+        "options": [
+          {
+            "value": "dml-only",
+            "label": "DML only (~1% logged)"
+          },
+          {
+            "value": "dml+ddl",
+            "label": "DML + DDL (~5% logged)"
+          },
+          {
+            "value": "full+select",
+            "label": "Full + SELECT (every txn)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_it_database_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
@@ -2928,9 +3046,28 @@ window.OT_DATA_SOURCES = [
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/dbseg/auditing-overview.html",
+        "accessed": "2026-05-27",
+        "note": "Oracle Unified Audit volume reference"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://learn.microsoft.com/en-us/sql/relational-databases/extended-events/extended-events",
+        "accessed": "2026-05-27",
+        "note": "Microsoft SQL Server Extended Events sizing"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://github.com/pgaudit/pgaudit",
+        "accessed": "2026-05-27",
+        "note": "PostgreSQL pgAudit reference and event density"
+      }
+    ],
     "related_uc_ids": [
       "7.1.1",
       "7.1.2",
@@ -2949,63 +3086,74 @@ window.OT_DATA_SOURCES = [
     "protocol": "File / Syslog",
     "ingest_method": "Universal Forwarder (UF)",
     "splunk_sourcetype": "access_combined, iis, nginx:access",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "requests_per_sec",
+        "label": "HTTP requests per second",
+        "unit": "rps",
         "type": "number",
-        "default": 3,
-        "min": 1,
-        "max": 100000,
+        "default": 100,
+        "min": 0,
+        "max": 1000000,
         "profilePresets": {
-          "low": 2,
-          "typical": 3,
-          "high": 30
+          "low": 10,
+          "typical": 100,
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 5,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 5,
-          "high": 50
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 600,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 600,
-          "high": 1500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "log_format",
+        "label": "Access-log format",
+        "type": "enum",
+        "default": "combined",
+        "options": [
+          {
+            "value": "combined",
+            "label": "Apache combined / nginx default (~350 B)"
+          },
+          {
+            "value": "combined+vhost",
+            "label": "Combined + vhost (~450 B)"
+          },
+          {
+            "value": "json-rich",
+            "label": "JSON rich (~1100 B)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_it_webserver_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.3,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://httpd.apache.org/docs/2.4/logs.html",
+        "accessed": "2026-05-27",
+        "note": "Apache mod_log_config combined log format reference"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://nginx.org/en/docs/http/ngx_http_log_module.html",
+        "accessed": "2026-05-27",
+        "note": "nginx ngx_http_log_module default access log format"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://learn.microsoft.com/en-us/iis/configuration/system.applicationhost/sites/site/logfile/",
+        "accessed": "2026-05-27",
+        "note": "IIS W3C extended log format reference"
+      }
+    ],
     "related_uc_ids": [
       "8.1.1",
       "8.1.2",
@@ -5411,63 +5559,73 @@ window.OT_DATA_SOURCES = [
     "protocol": "UDP (flow export)",
     "ingest_method": "Flow collector → UF/HEC, or Splunk Stream",
     "splunk_sourcetype": "netflow, sflow",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "aggregated_flows_per_sec",
+        "label": "Aggregated flows per second",
+        "unit": "fps",
         "type": "number",
-        "default": 3,
-        "min": 1,
-        "max": 100000,
-        "profilePresets": {
-          "low": 2,
-          "typical": 3,
-          "high": 30
-        }
-      },
-      {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 2000,
+        "default": 1000,
         "min": 0,
+        "max": 10000000,
         "profilePresets": {
           "low": 100,
-          "typical": 2000,
+          "typical": 1000,
           "high": 50000
         },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "help": "Flow rate emitted toward the collector AFTER aggregation (typical 10:1 dedup at exporter)."
       },
       {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 200,
-        "min": 0,
-        "profilePresets": {
-          "low": 80,
-          "typical": 200,
-          "high": 500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "format",
+        "label": "Flow format",
+        "type": "enum",
+        "default": "netflow-v9",
+        "options": [
+          {
+            "value": "netflow-v5",
+            "label": "NetFlow v5 (~100 B)"
+          },
+          {
+            "value": "netflow-v9",
+            "label": "NetFlow v9 (~150 B)"
+          },
+          {
+            "value": "ipfix",
+            "label": "IPFIX (~180 B)"
+          },
+          {
+            "value": "sflow",
+            "label": "sFlow (~200 B)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "net_netflow_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.15,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/489",
+        "accessed": "2026-05-27",
+        "note": "Splunk_TA_netflow / NetFlow Logic Splunk Add-on — collector defaults"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/fnetflow/configuration/15-mt/fnf-15-mt-book/cfg-fnflow-data-expts.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco Flexible NetFlow data exporter sizing"
+      }
+    ],
     "related_uc_ids": [
       "5.7.1",
       "5.7.2",
@@ -5486,63 +5644,68 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / REST API / Webhooks",
     "ingest_method": "SC4S (syslog) or TA (API) → HEC",
     "splunk_sourcetype": "meraki:events, meraki:api",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
+        "id": "devices",
+        "label": "Meraki devices (MX/MR/MS/MV)",
         "unit": "devices",
         "type": "number",
-        "default": 10,
-        "min": 1,
+        "default": 50,
+        "min": 0,
         "max": 100000,
         "profilePresets": {
-          "low": 5,
-          "typical": 10,
-          "high": 100
+          "low": 10,
+          "typical": 50,
+          "high": 1000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 2,
-        "min": 0,
-        "profilePresets": {
-          "low": 0.1,
-          "typical": 2,
-          "high": 20
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 600,
-        "min": 0,
-        "profilePresets": {
-          "low": 200,
-          "typical": 600,
-          "high": 1500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "syslog_features",
+        "label": "Enabled syslog features",
+        "type": "enum",
+        "default": "events+flows",
+        "options": [
+          {
+            "value": "events-only",
+            "label": "Events only"
+          },
+          {
+            "value": "events+flows",
+            "label": "Events + flows"
+          },
+          {
+            "value": "events+flows+url",
+            "label": "Events + flows + URL/content filter"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "net_meraki_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
+      "rawdata_compression_typical": 0.12,
+      "tsidx_overhead_typical": 0.3,
       "filterable_fraction_typical": 0.15
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://documentation.meraki.com/General_Administration/Other_Topics/Syslog_Server_Overview_and_Configuration",
+        "accessed": "2026-05-27",
+        "note": "Meraki syslog server configuration and per-feature event mix"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/3018",
+        "accessed": "2026-05-27",
+        "note": "Splunk Add-on for Cisco Meraki — Dashboard API + syslog parsers"
+      }
+    ],
     "related_uc_ids": [
       "5.1.36",
       "5.2.19",
@@ -5561,63 +5724,70 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / RADIUS",
     "ingest_method": "SC4S or TA",
     "splunk_sourcetype": "cisco:asa, pan:globalprotect",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "concurrent_sessions",
+        "label": "Concurrent VPN sessions",
+        "unit": "sessions",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 100,
+        "min": 0,
+        "max": 1000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 10,
+          "typical": 100,
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 5,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 5,
-          "high": 30
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 600,
-        "min": 0,
-        "profilePresets": {
-          "low": 300,
-          "typical": 600,
-          "high": 1500
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "disconnect_alerts_enabled",
+        "label": "Disconnect / heartbeat alerts",
+        "type": "enum",
+        "default": "yes",
+        "options": [
+          {
+            "value": "yes",
+            "label": "Yes (+heartbeat / tear-down events)"
+          },
+          {
+            "value": "no",
+            "label": "No (connect / disconnect only)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_net_vpn_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
-      "high": 2
+      "high": 1.8
     },
     "realism": {
       "rawdata_compression_typical": 0.15,
       "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "filterable_fraction_typical": 0.05
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://www.cisco.com/c/en/us/td/docs/security/vpn_client/anyconnect/anyconnect49/administration/guide/b_AnyConnect_Administrator_Guide_4-9.html",
+        "accessed": "2026-05-27",
+        "note": "Cisco AnyConnect VPN logging reference"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://community.openvpn.net/openvpn/wiki/HOWTO#Logging",
+        "accessed": "2026-05-27",
+        "note": "OpenVPN logging defaults"
+      },
+      {
+        "type": "vendor-sizing",
+        "url": "https://help.ivanti.com/ps/help/en_US/PCS/9.1R12/AG/troubleshooting/logging.htm",
+        "accessed": "2026-05-27",
+        "note": "Ivanti/Pulse Connect Secure logging guide"
+      }
+    ],
     "related_uc_ids": [
       "5.2.1",
       "5.2.3",
@@ -5636,63 +5806,74 @@ window.OT_DATA_SOURCES = [
     "protocol": "Syslog / REST API / iRules",
     "ingest_method": "SC4S or TA (iControl REST)",
     "splunk_sourcetype": "f5:bigip:syslog, citrix:netscaler:syslog",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "requests_per_sec",
+        "label": "Requests per second",
+        "unit": "rps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 100,
+        "min": 0,
+        "max": 1000000,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
+          "low": 10,
+          "typical": 100,
+          "high": 10000
         }
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 2.5,
-        "min": 0,
-        "profilePresets": {
-          "low": 1,
-          "typical": 2.5,
-          "high": 15
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 500,
-        "min": 0,
-        "profilePresets": {
-          "low": 200,
-          "typical": 500,
-          "high": 1200
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "log_level",
+        "label": "Log verbosity",
+        "type": "enum",
+        "default": "summary",
+        "options": [
+          {
+            "value": "denied-only",
+            "label": "Denied only (~0.5%)"
+          },
+          {
+            "value": "summary",
+            "label": "Summary (~10%)"
+          },
+          {
+            "value": "full-detail",
+            "label": "Full detail (every request)"
+          }
+        ]
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "dsa_net_loadbalancer_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.12,
+      "tsidx_overhead_typical": 0.3,
+      "filterable_fraction_typical": 0.2
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-blog",
+        "url": "https://my.f5.com/manage/s/article/K12131",
+        "accessed": "2026-05-27",
+        "note": "F5 BIG-IP logging best practices"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://docs.netscaler.com/en-us/citrix-adc/current-release/system/audit-logging.html",
+        "accessed": "2026-05-27",
+        "note": "Citrix NetScaler ADC audit logging configuration"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://avinetworks.com/docs/latest/log-settings/",
+        "accessed": "2026-05-27",
+        "note": "VMware NSX Advanced LB (AVI) logging settings"
+      }
+    ],
     "related_uc_ids": [
       "5.3.1",
       "5.3.2",
@@ -7051,48 +7232,36 @@ window.OT_DATA_SOURCES = [
     "protocol": "Modbus TCP / Modbus RTU",
     "ingest_method": "Edge Hub / Cisco EI → HEC",
     "splunk_sourcetype": "modbus:register, edge_hub:modbus",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
         "id": "tag_count",
-        "label": "Number of tags / topics / OIDs",
+        "label": "Registers polled",
         "unit": "tags",
         "type": "number",
-        "default": 50,
+        "default": 500,
         "min": 1,
-        "max": 1000000,
+        "max": 100000,
         "profilePresets": {
-          "low": 10,
-          "typical": 50,
-          "high": 500
+          "low": 100,
+          "typical": 500,
+          "high": 5000
         }
       },
       {
         "id": "poll_interval_sec",
-        "label": "Polling / publish interval",
+        "label": "Polling interval",
         "unit": "seconds",
         "type": "enum",
-        "default": 10,
+        "default": 30,
         "options": [
           {
-            "value": 0.25,
-            "label": "0.25 s"
-          },
-          {
-            "value": 0.5,
-            "label": "0.5 s"
-          },
-          {
             "value": 1,
-            "label": "1 s"
-          },
-          {
-            "value": 2,
-            "label": "2 s"
+            "label": "1 s (control-loop)"
           },
           {
             "value": 5,
-            "label": "5 s"
+            "label": "5 s (fast metrics)"
           },
           {
             "value": 10,
@@ -7100,60 +7269,59 @@ window.OT_DATA_SOURCES = [
           },
           {
             "value": 30,
-            "label": "30 s"
+            "label": "30 s (typical historian)"
           },
           {
             "value": 60,
-            "label": "1 min"
+            "label": "60 s (slow trending)"
           },
           {
             "value": 300,
-            "label": "5 min"
+            "label": "5 min (batch reporting)"
           }
         ]
       },
       {
         "id": "deadband_ratio",
-        "label": "Value-change filter (deadband)",
+        "label": "Gateway value-change filter",
         "unit": "fraction",
         "type": "number",
-        "default": 0,
+        "default": 0.4,
         "min": 0,
         "max": 0.95,
         "profilePresets": {
-          "low": 0,
-          "typical": 0,
-          "high": 0
+          "low": 0.1,
+          "typical": 0.4,
+          "high": 0.8
         },
-        "help": "Fraction of polls deduplicated at the gateway when register value didn’t change. Default 0 for pending sources; calibrated sources tune per protocol."
-      },
-      {
-        "id": "bytes_per_tag",
-        "label": "Bytes per tag (per poll cycle)",
-        "unit": "bytes",
-        "type": "number",
-        "default": 280,
-        "min": 0,
-        "profilePresets": {
-          "low": 120,
-          "typical": 280,
-          "high": 520
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "help": "Fraction of polls dropped when the register value hasn't changed."
       }
     ],
-    "compute": "protocol_legacy_v1",
+    "compute": "proto_modbus_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.7,
       "typical": 1,
-      "high": 2
+      "high": 1.6
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.2,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://modbus.org/specs.php",
+        "accessed": "2026-05-27",
+        "note": "Modbus.org — Modbus TCP frame size and register data format"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/6048",
+        "accessed": "2026-05-27",
+        "note": "Splunk Edge Hub Connect for Modbus — default emission shape"
+      }
+    ],
     "related_uc_ids": [
       "14.1.8",
       "14.2.7",
@@ -7170,105 +7338,94 @@ window.OT_DATA_SOURCES = [
     "protocol": "OPC UA (TCP binary / HTTPS)",
     "ingest_method": "Edge Hub / Cisco EI → HEC",
     "splunk_sourcetype": "opcua:metric, edge_hub:opcua",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
         "id": "tag_count",
-        "label": "Number of tags / topics / OIDs",
+        "label": "Subscribed tags",
         "unit": "tags",
         "type": "number",
-        "default": 100,
+        "default": 500,
         "min": 1,
-        "max": 1000000,
+        "max": 100000,
         "profilePresets": {
-          "low": 20,
-          "typical": 100,
-          "high": 1000
+          "low": 100,
+          "typical": 500,
+          "high": 5000
         }
       },
       {
-        "id": "poll_interval_sec",
-        "label": "Polling / publish interval",
-        "unit": "seconds",
+        "id": "publish_interval_ms",
+        "label": "Publish interval",
+        "unit": "ms",
         "type": "enum",
-        "default": 5,
+        "default": 1000,
         "options": [
           {
-            "value": 0.1,
-            "label": "0.1 s"
+            "value": 100,
+            "label": "100 ms (control-loop)"
           },
           {
-            "value": 0.5,
-            "label": "0.5 s"
+            "value": 500,
+            "label": "500 ms (fast metrics)"
           },
           {
-            "value": 1,
-            "label": "1 s"
+            "value": 1000,
+            "label": "1 s (typical historian)"
           },
           {
-            "value": 2,
-            "label": "2 s"
-          },
-          {
-            "value": 5,
-            "label": "5 s"
-          },
-          {
-            "value": 10,
-            "label": "10 s"
-          },
-          {
-            "value": 30,
-            "label": "30 s"
-          },
-          {
-            "value": 60,
-            "label": "1 min"
+            "value": 5000,
+            "label": "5 s (slow trending)"
           }
         ]
       },
       {
         "id": "deadband_ratio",
-        "label": "Value-change filter (deadband)",
+        "label": "Server-side deadband",
         "unit": "fraction",
         "type": "number",
-        "default": 0,
+        "default": 0.6,
         "min": 0,
         "max": 0.95,
         "profilePresets": {
-          "low": 0,
-          "typical": 0,
-          "high": 0
+          "low": 0.2,
+          "typical": 0.6,
+          "high": 0.85
         },
-        "help": "Fraction of polls deduplicated at the gateway when register value didn’t change. Default 0 for pending sources; calibrated sources tune per protocol."
-      },
-      {
-        "id": "bytes_per_tag",
-        "label": "Bytes per tag (per poll cycle)",
-        "unit": "bytes",
-        "type": "number",
-        "default": 360,
-        "min": 0,
-        "profilePresets": {
-          "low": 160,
-          "typical": 360,
-          "high": 720
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "help": "Fraction of publish slots filtered at the server (no change)."
       }
     ],
-    "compute": "protocol_legacy_v1",
+    "compute": "proto_opcua_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
-      "high": 2
+      "high": 2.5
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.2,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://reference.opcfoundation.org/Core/Part4/v105/docs/",
+        "accessed": "2026-05-27",
+        "note": "OPC UA Part 4 services reference (subscription, deadband)"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://documentation.unified-automation.com/uaserversdk/1.9.0/html/index.html",
+        "accessed": "2026-05-27",
+        "note": "Unified Automation OPC UA Server SDK performance notes"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/6049",
+        "accessed": "2026-05-27",
+        "note": "Splunk Edge Hub Connect for OPC UA — default subscription event shape"
+      }
+    ],
     "related_uc_ids": [
       "14.1.9",
       "14.2.8",
@@ -7286,105 +7443,88 @@ window.OT_DATA_SOURCES = [
     "protocol": "MQTT 3.1.1 / 5.0 (TCP/TLS)",
     "ingest_method": "MQTT TA / Edge Hub → HEC",
     "splunk_sourcetype": "mqtt:message",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "tag_count",
-        "label": "Number of tags / topics / OIDs",
-        "unit": "tags",
+        "id": "topic_count",
+        "label": "Subscribed topics",
+        "unit": "topics",
         "type": "number",
         "default": 100,
         "min": 1,
         "max": 1000000,
         "profilePresets": {
-          "low": 20,
+          "low": 10,
           "typical": 100,
-          "high": 1000
+          "high": 10000
         }
       },
       {
-        "id": "poll_interval_sec",
-        "label": "Polling / publish interval",
-        "unit": "seconds",
+        "id": "messages_per_topic_per_sec",
+        "label": "Messages per topic per second",
+        "unit": "msgs/s",
+        "type": "number",
+        "default": 1,
+        "min": 0,
+        "max": 1000,
+        "profilePresets": {
+          "low": 0.1,
+          "typical": 1,
+          "high": 10
+        }
+      },
+      {
+        "id": "qos",
+        "label": "QoS level",
         "type": "enum",
-        "default": 10,
+        "default": 0,
         "options": [
           {
-            "value": 0.1,
-            "label": "0.1 s"
-          },
-          {
-            "value": 0.5,
-            "label": "0.5 s"
+            "value": 0,
+            "label": "QoS 0 (fire-and-forget, ~250 B)"
           },
           {
             "value": 1,
-            "label": "1 s"
+            "label": "QoS 1 (at-least-once, ~280 B)"
           },
           {
-            "value": 5,
-            "label": "5 s"
-          },
-          {
-            "value": 10,
-            "label": "10 s"
-          },
-          {
-            "value": 30,
-            "label": "30 s"
-          },
-          {
-            "value": 60,
-            "label": "1 min"
-          },
-          {
-            "value": 300,
-            "label": "5 min"
+            "value": 2,
+            "label": "QoS 2 (exactly-once, ~310 B)"
           }
         ]
-      },
-      {
-        "id": "deadband_ratio",
-        "label": "Value-change filter (deadband)",
-        "unit": "fraction",
-        "type": "number",
-        "default": 0,
-        "min": 0,
-        "max": 0.95,
-        "profilePresets": {
-          "low": 0,
-          "typical": 0,
-          "high": 0
-        },
-        "help": "Fraction of polls deduplicated at the gateway when register value didn’t change. Default 0 for pending sources; calibrated sources tune per protocol."
-      },
-      {
-        "id": "bytes_per_tag",
-        "label": "Bytes per tag (per poll cycle)",
-        "unit": "bytes",
-        "type": "number",
-        "default": 320,
-        "min": 0,
-        "profilePresets": {
-          "low": 140,
-          "typical": 320,
-          "high": 650
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
       }
     ],
-    "compute": "protocol_legacy_v1",
+    "compute": "proto_mqtt_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.12,
+      "tsidx_overhead_typical": 0.25,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html",
+        "accessed": "2026-05-27",
+        "note": "OASIS MQTT v5.0 spec — packet sizes and QoS semantics"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "https://www.hivemq.com/docs/hivemq/4.30/user-guide/configuration.html",
+        "accessed": "2026-05-27",
+        "note": "HiveMQ broker default configuration and event sizes"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/6051",
+        "accessed": "2026-05-27",
+        "note": "Splunk Edge Hub Connect for MQTT"
+      }
+    ],
     "related_uc_ids": [
       "14.3.5",
       "14.3.24",
@@ -7401,97 +7541,85 @@ window.OT_DATA_SOURCES = [
     "protocol": "SNMP v2c / v3 (UDP)",
     "ingest_method": "Edge Hub / SNMP TA → HEC",
     "splunk_sourcetype": "snmp:metric, edge_hub:snmp",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "tag_count",
-        "label": "Number of tags / topics / OIDs",
-        "unit": "tags",
+        "id": "oid_count",
+        "label": "Polled OIDs",
+        "unit": "OIDs",
         "type": "number",
-        "default": 30,
+        "default": 100,
         "min": 1,
-        "max": 1000000,
+        "max": 100000,
         "profilePresets": {
-          "low": 6,
-          "typical": 30,
-          "high": 300
+          "low": 25,
+          "typical": 100,
+          "high": 5000
         }
       },
       {
         "id": "poll_interval_sec",
-        "label": "Polling / publish interval",
+        "label": "Polling interval",
         "unit": "seconds",
         "type": "enum",
         "default": 60,
         "options": [
           {
-            "value": 10,
-            "label": "10 s"
-          },
-          {
             "value": 30,
-            "label": "30 s"
+            "label": "30 s (fast metrics)"
           },
           {
             "value": 60,
-            "label": "1 min"
-          },
-          {
-            "value": 120,
-            "label": "2 min"
+            "label": "60 s (typical)"
           },
           {
             "value": 300,
-            "label": "5 min"
-          },
-          {
-            "value": 600,
-            "label": "10 min"
+            "label": "5 min (trend)"
           }
         ]
       },
       {
-        "id": "deadband_ratio",
-        "label": "Value-change filter (deadband)",
-        "unit": "fraction",
-        "type": "number",
-        "default": 0,
-        "min": 0,
-        "max": 0.95,
-        "profilePresets": {
-          "low": 0,
-          "typical": 0,
-          "high": 0
-        },
-        "help": "Fraction of polls deduplicated at the gateway when register value didn’t change. Default 0 for pending sources; calibrated sources tune per protocol."
-      },
-      {
-        "id": "bytes_per_tag",
-        "label": "Bytes per tag (per poll cycle)",
-        "unit": "bytes",
-        "type": "number",
-        "default": 300,
-        "min": 0,
-        "profilePresets": {
-          "low": 130,
-          "typical": 300,
-          "high": 550
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "version",
+        "label": "SNMP version",
+        "type": "enum",
+        "default": "v2c",
+        "options": [
+          {
+            "value": "v2c",
+            "label": "SNMPv2c (compact varbinds, ~120 B)"
+          },
+          {
+            "value": "v3",
+            "label": "SNMPv3 (+ auth/priv headers, ~180 B)"
+          }
+        ]
       }
     ],
-    "compute": "protocol_legacy_v1",
+    "compute": "proto_snmp_v1",
     "uncertainty": {
-      "low": 0.5,
+      "low": 0.6,
       "typical": 1,
       "high": 2
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.1,
+      "tsidx_overhead_typical": 0.2,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://datatracker.ietf.org/doc/html/rfc3411",
+        "accessed": "2026-05-27",
+        "note": "IETF RFC 3411 — SNMPv3 architecture (varbind framing)"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/5347",
+        "accessed": "2026-05-27",
+        "note": "Splunk Connect for SNMP — default poller emission rates"
+      }
+    ],
     "related_uc_ids": [
       "14.1.10",
       "14.1.11",
@@ -7510,40 +7638,46 @@ window.OT_DATA_SOURCES = [
     "protocol": "BACnet/IP (UDP)",
     "ingest_method": "Edge Hub → HEC",
     "splunk_sourcetype": "bacnet:point, edge_hub:bacnet",
-    "calibration": "pending",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "tag_count",
-        "label": "Number of tags / topics / OIDs",
-        "unit": "tags",
+        "id": "device_count",
+        "label": "BACnet devices",
+        "unit": "devices",
         "type": "number",
-        "default": 200,
+        "default": 50,
         "min": 1,
-        "max": 1000000,
+        "max": 10000,
         "profilePresets": {
-          "low": 40,
-          "typical": 200,
-          "high": 2000
+          "low": 10,
+          "typical": 50,
+          "high": 500
+        }
+      },
+      {
+        "id": "polled_objects_per_device",
+        "label": "Polled objects per device",
+        "unit": "objects",
+        "type": "number",
+        "default": 20,
+        "min": 1,
+        "max": 1000,
+        "profilePresets": {
+          "low": 5,
+          "typical": 20,
+          "high": 100
         }
       },
       {
         "id": "poll_interval_sec",
-        "label": "Polling / publish interval",
+        "label": "Polling interval",
         "unit": "seconds",
         "type": "enum",
         "default": 60,
         "options": [
           {
-            "value": 5,
-            "label": "5 s"
-          },
-          {
             "value": 10,
-            "label": "10 s"
-          },
-          {
-            "value": 15,
-            "label": "15 s"
+            "label": "10 s (fast HVAC loop)"
           },
           {
             "value": 30,
@@ -7551,60 +7685,60 @@ window.OT_DATA_SOURCES = [
           },
           {
             "value": 60,
-            "label": "1 min"
-          },
-          {
-            "value": 120,
-            "label": "2 min"
+            "label": "60 s (typical building)"
           },
           {
             "value": 300,
-            "label": "5 min"
+            "label": "5 min (trend report)"
           }
         ]
       },
       {
         "id": "deadband_ratio",
-        "label": "Value-change filter (deadband)",
+        "label": "Gateway value-change filter",
         "unit": "fraction",
         "type": "number",
-        "default": 0,
+        "default": 0.6,
         "min": 0,
         "max": 0.95,
         "profilePresets": {
-          "low": 0,
-          "typical": 0,
-          "high": 0
-        },
-        "help": "Fraction of polls deduplicated at the gateway when register value didn’t change. Default 0 for pending sources; calibrated sources tune per protocol."
-      },
-      {
-        "id": "bytes_per_tag",
-        "label": "Bytes per tag (per poll cycle)",
-        "unit": "bytes",
-        "type": "number",
-        "default": 340,
-        "min": 0,
-        "profilePresets": {
-          "low": 150,
-          "typical": 340,
-          "high": 600
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+          "low": 0.2,
+          "typical": 0.6,
+          "high": 0.85
+        }
       }
     ],
-    "compute": "protocol_legacy_v1",
+    "compute": "proto_bacnet_v1",
     "uncertainty": {
       "low": 0.5,
       "typical": 1,
-      "high": 2
+      "high": 2.5
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.12,
+      "tsidx_overhead_typical": 0.25,
+      "filterable_fraction_typical": 0.1
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "rfc",
+        "url": "https://www.ashrae.org/technical-resources/standards-and-guidelines/standards-addenda/standard-135-2020-addenda",
+        "accessed": "2026-05-27",
+        "note": "ASHRAE 135 (BACnet) standard — object types and property data sizes"
+      },
+      {
+        "type": "vendor-blog",
+        "url": "http://www.bacnet.org/Bibliography/index.html",
+        "accessed": "2026-05-27",
+        "note": "BACnet/IP object-property reference (BTL implementation guide)"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/6050",
+        "accessed": "2026-05-27",
+        "note": "Splunk Edge Hub Connect for BACnet — default emission shape"
+      }
+    ],
     "related_uc_ids": [
       "14.1.1",
       "14.1.45",
