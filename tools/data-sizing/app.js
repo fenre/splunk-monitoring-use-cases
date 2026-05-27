@@ -32,7 +32,13 @@
   // Task 2 migration. Every helper that v1 used to expose from there
   // (`getCategories`, `getSourcesByCategory`, `SPLUNK_LICENSE_TIERS`,
   // `recommendLicenseTier`) is owned by app.js from v2 onward.
-  const PROFILE = "typical";        // Task 8 wires the UI control.
+  //
+  // Task 8: the global profile is now user-changeable. It lives in
+  // `PROFILE_REF.value` and is read via the `PROFILE()` getter so the
+  // engine + renderers stay agnostic of who mutated it. The Profile
+  // dropdown in the Sizing Assumptions panel writes it.
+  const PROFILE_REF = { value: "typical" };
+  function PROFILE() { return PROFILE_REF.value; }
 
   const CLUSTER = {
     rf: 2, sf: 2, smartstore: false, indexerCount: 3,
@@ -78,7 +84,7 @@
   }
 
   function runComputeForInstance(entry, profile) {
-    profile = profile || PROFILE;
+    profile = profile || PROFILE();
     var src = entry.source;
     var fn = (window.COMPUTE_FUNCTIONS || {})[src.compute];
     if (typeof fn !== "function") {
@@ -116,6 +122,12 @@
   const $selectedCount = document.getElementById("selectedCount");
   const $searchInput   = document.getElementById("catalogSearch");
 
+  // The four legacy KPI cards at the top of the summary panel still
+  // exist in the DOM and are written by `renderSummary` until Task 9
+  // tears them down. The three Storage Estimate / Peak Headroom KPIs
+  // (`kpiRawStorage`, `kpiDiskStorage`, `kpiPeakGB`) were *removed*
+  // by Task 8's HTML rewrite; `renderSummary` null-guards them so it
+  // still runs cleanly in the meantime.
   const $kpiTotalGB       = document.getElementById("kpiTotalGB");
   const $kpiTotalEPS      = document.getElementById("kpiTotalEPS");
   const $kpiTotalEventsDay= document.getElementById("kpiTotalEventsDay");
@@ -126,8 +138,17 @@
   const $kpiPeakGB        = document.getElementById("kpiPeakGB");
   const $catBreakdown     = document.getElementById("categoryBreakdown");
   const $ingestBreakdown  = document.getElementById("ingestBreakdown");
-  const $retentionDays    = document.getElementById("retentionDays");
-  const $burstFactor      = document.getElementById("burstFactor");
+
+  // Task 8: sizing-assumptions panel controls.
+  const $globalProfile = document.getElementById("globalProfile");
+  const $burstFactor   = document.getElementById("burstFactor");
+  const $headroom      = document.getElementById("headroomFactor");
+  const $retentionDays = document.getElementById("retentionDays");
+  const $rf            = document.getElementById("rfFactor");
+  const $sf            = document.getElementById("sfFactor");
+  const $smartStore    = document.getElementById("smartStore");
+  const $indexerCount  = document.getElementById("indexerCount");
+  const $resultsBlock  = document.getElementById("resultsBlock");
 
   const $modalOverlay = document.getElementById("sourceModal");
   const $modalTitle   = document.getElementById("modalTitle");
@@ -283,7 +304,7 @@
 
     instances.forEach(function (entry) {
       var s = entry.source;
-      var r = runComputeForInstance(entry, PROFILE);
+      var r = runComputeForInstance(entry, PROFILE());
       var filt = (s.realism || {}).filterable_fraction_typical || 0;
       var effEps = r.eps * (1 - filt);
       var gbDay = (effEps * SECONDS_PER_DAY * r.bytesPerEvent) / BYTES_PER_GB;
@@ -331,7 +352,7 @@
       var presets = d.profilePresets || {};
       var override = entry.driverValues && entry.driverValues[d.id];
       var cur = (override !== undefined) ? override
-              : (presets[PROFILE] !== undefined ? presets[PROFILE] : d.default);
+              : (presets[PROFILE()] !== undefined ? presets[PROFILE()] : d.default);
       var labelExtra = d.unit ? ' <span class="driver-unit">' + d.unit + '</span>' : '';
       var help = d.help
                   ? ' <span class="driver-help" title="' + String(d.help).replace(/"/g, "&quot;") + '">\u24D8</span>'
@@ -340,7 +361,7 @@
       if (d.type === "number") {
         var minAttr = d.min !== undefined ? ' min="' + d.min + '"' : '';
         var maxAttr = d.max !== undefined ? ' max="' + d.max + '"' : '';
-        var preset = presets[PROFILE];
+        var preset = presets[PROFILE()];
         var hint = preset !== undefined
                     ? '<span class="driver-hint">(typical: ' + preset + ')</span>'
                     : '<span class="driver-hint"></span>';
@@ -454,53 +475,52 @@
   }
 
   function renderSummary() {
+    // Task 8: CLUSTER is now driven exclusively by syncClusterFromUI()
+    // which fires on every dropdown change. Reading values here is
+    // redundant — left as a no-op until Task 9 deletes this whole
+    // function in favour of renderResultsBlock().
     var t = computeTotals();
-    // The existing retention/burst dropdowns are still in the DOM until
-    // Task 8 redesigns the assumptions panel; honour them as overrides
-    // so users see consistent numbers across the engine swap.
-    if ($retentionDays) {
-      var rd = parseInt($retentionDays.value, 10);
-      if (rd > 0) CLUSTER.retentionDays = rd;
-    }
-    if ($burstFactor) {
-      var bf = parseFloat($burstFactor.value);
-      if (bf > 0) CLUSTER.burst = bf;
-    }
 
     var rawGB  = t.totalDailyRawGB * CLUSTER.retentionDays;
     var diskGB = t.totalClusterGB * CLUSTER.retentionDays;
     var peakGB = t.totalDailyRawGB * CLUSTER.burst;
     var license = recommendLicenseTier(t.totalDailyRawGB);
 
-    $kpiTotalGB.textContent        = t.totalDailyRawGB.toFixed(2);
-    $kpiTotalEPS.textContent       = formatNumber(t.totalEffectiveEps, 1);
-    $kpiTotalEventsDay.textContent = formatCompact(t.totalEffectiveEps * SECONDS_PER_DAY);
-    $kpiLicense.textContent        = license.label;
-    $kpiLicenseTier.textContent    = license.tier + " \u2014 " + license.typical_use;
-    $kpiRawStorage.textContent     = formatCompact(rawGB);
-    $kpiDiskStorage.textContent    = formatCompact(diskGB);
-    $kpiPeakGB.textContent         = peakGB.toFixed(2);
+    // Surviving KPI cards.
+    if ($kpiTotalGB)        $kpiTotalGB.textContent        = t.totalDailyRawGB.toFixed(2);
+    if ($kpiTotalEPS)       $kpiTotalEPS.textContent       = formatNumber(t.totalEffectiveEps, 1);
+    if ($kpiTotalEventsDay) $kpiTotalEventsDay.textContent = formatCompact(t.totalEffectiveEps * SECONDS_PER_DAY);
+    if ($kpiLicense)        $kpiLicense.textContent        = license.label;
+    if ($kpiLicenseTier)    $kpiLicenseTier.textContent    = license.tier + " \u2014 " + license.typical_use;
+    // KPIs removed by Task 8 — guard for null so renderSummary keeps working.
+    if ($kpiRawStorage)     $kpiRawStorage.textContent     = formatCompact(rawGB);
+    if ($kpiDiskStorage)    $kpiDiskStorage.textContent    = formatCompact(diskGB);
+    if ($kpiPeakGB)         $kpiPeakGB.textContent         = peakGB.toFixed(2);
 
-    $catBreakdown.innerHTML = "";
-    Object.entries(t.byCat).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
-      var cat = e[0], gb = e[1];
-      var dotClass = CATEGORY_DOT_CLASS[cat] || "";
-      var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
-      $catBreakdown.innerHTML += '<div class="breakdown-item">' +
-        '<span class="bd-label"><span class="cat-dot ' + dotClass + '"></span>' + cat + '</span>' +
-        '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
-        '</div>';
-    });
+    if ($catBreakdown) {
+      $catBreakdown.innerHTML = "";
+      Object.entries(t.byCat).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
+        var cat = e[0], gb = e[1];
+        var dotClass = CATEGORY_DOT_CLASS[cat] || "";
+        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
+        $catBreakdown.innerHTML += '<div class="breakdown-item">' +
+          '<span class="bd-label"><span class="cat-dot ' + dotClass + '"></span>' + cat + '</span>' +
+          '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
+          '</div>';
+      });
+    }
 
-    $ingestBreakdown.innerHTML = "";
-    Object.entries(t.byIngest).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
-      var method = e[0], gb = e[1];
-      var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
-      $ingestBreakdown.innerHTML += '<div class="breakdown-item">' +
-        '<span class="bd-label">' + method + '</span>' +
-        '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
-        '</div>';
-    });
+    if ($ingestBreakdown) {
+      $ingestBreakdown.innerHTML = "";
+      Object.entries(t.byIngest).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
+        var method = e[0], gb = e[1];
+        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
+        $ingestBreakdown.innerHTML += '<div class="breakdown-item">' +
+          '<span class="bd-label">' + method + '</span>' +
+          '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
+          '</div>';
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -737,7 +757,7 @@
     if (!card) return;
     var est = card.querySelector(".card-estimate");
     if (!est) return;
-    var r = runComputeForInstance(entry, PROFILE);
+    var r = runComputeForInstance(entry, PROFILE());
     var filt = (entry.source.realism || {}).filterable_fraction_typical || 0;
     var effEps = r.eps * (1 - filt);
     var gbDay = (effEps * SECONDS_PER_DAY * r.bytesPerEvent) / BYTES_PER_GB;
@@ -791,8 +811,61 @@
     if (e.key === "Escape" && $modalOverlay.style.display !== "none") closeModal();
   });
 
-  $retentionDays.addEventListener("change", renderSummary);
-  $burstFactor.addEventListener("change", renderSummary);
+  // ═══════════════════════════════════════════════════════════
+  //  SIZING-ASSUMPTIONS PANEL — Cluster + Profile + Burst/Headroom
+  // ═══════════════════════════════════════════════════════════
+
+  // Pull every assumption value out of the DOM and mutate CLUSTER in
+  // place. Called on every dropdown / checkbox / numeric change so the
+  // engine sees the new values on the next render.
+  function syncClusterFromUI() {
+    if ($rf)            CLUSTER.rf            = parseInt($rf.value, 10) || 2;
+    // SF must never exceed RF — Splunk core requirement. Clamp here so
+    // even an out-of-range value loaded from a share URL stays sane.
+    if ($sf)            CLUSTER.sf            = Math.min(CLUSTER.rf, parseInt($sf.value, 10) || 2);
+    if ($smartStore)    CLUSTER.smartstore    = !!$smartStore.checked;
+    if ($indexerCount)  CLUSTER.indexerCount  = Math.max(1, parseInt($indexerCount.value, 10) || 1);
+    if ($burstFactor)   CLUSTER.burst         = parseFloat($burstFactor.value) || 1.0;
+    if ($headroom)      CLUSTER.headroom      = parseFloat($headroom.value)    || 1.0;
+    if ($retentionDays) CLUSTER.retentionDays = parseInt($retentionDays.value, 10) || 30;
+  }
+
+  // Disable SF options > RF and snap the current SF back to RF if needed.
+  function clampSFOptionsToRF() {
+    if (!$rf || !$sf) return;
+    var rf = parseInt($rf.value, 10) || 2;
+    Array.prototype.forEach.call($sf.options, function (o) {
+      o.disabled = parseInt(o.value, 10) > rf;
+    });
+    if ((parseInt($sf.value, 10) || 2) > rf) $sf.value = String(rf);
+  }
+
+  [$burstFactor, $headroom, $retentionDays, $rf, $sf, $smartStore, $indexerCount].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener("change", function () {
+      syncClusterFromUI();
+      refreshAll();
+    });
+  });
+
+  if ($rf) {
+    $rf.addEventListener("change", function () {
+      clampSFOptionsToRF();
+      syncClusterFromUI();
+      refreshAll();
+    });
+  }
+
+  if ($globalProfile) {
+    $globalProfile.addEventListener("change", function () {
+      PROFILE_REF.value = $globalProfile.value;
+      refreshAll();
+    });
+  }
+
+  // Establish the initial UI state on page load.
+  clampSFOptionsToRF();
+  syncClusterFromUI();
 
   document.getElementById("btnClearAll").addEventListener("click", () => {
     instances = [];
