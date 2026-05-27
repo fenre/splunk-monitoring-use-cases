@@ -16,6 +16,8 @@
 
 **Amendment 1 (applied during Task 1 execution):** Removed the originally-planned `_v1_tables` source-level field. The v1 lookup tables for pending sources (`eps_per_endpoint`, `bytes_per_event`, `bytes_per_tag`) are now expressed as ordinary numeric drivers with `profilePresets` instead. This keeps every value flowing through the standard driver pipeline (no engine-side carve-out, no transient schema property), and the JSON Schema in spec §10 stays unchanged. Calibrating a pending source becomes a single coherent operation: replace the entire entry's `drivers`/`compute`/`uncertainty`/`realism`/`citations` with the vendor-cited version. See Task 2 Step 1 (compute functions), Task 2 Step 4 (migrator), and Task 11 Step 4 (calibration recipe) for the worked design.
 
+**Amendment 2 (applied during Task 2 execution):** `node --test <directory>` auto-discovery was removed in Node 22+ (deprecated) and fully gone in Node 25. Replaced every `node --test tools/data-sizing/__tests__/` invocation with `node --test tools/data-sizing/__tests__/*.test.js` (shell glob form). Touches Tasks 2 Step 3, 5 Step 2 (CI YAML), 6/7/9/10 unit-test smoke checks, 11 Step 3, 36 Step 4, 39 Step 1. The CI YAML uses unquoted glob expansion via the underlying shell (works on `bash` and `sh`).
+
 ---
 
 ## File structure
@@ -320,7 +322,7 @@ test('protocol_legacy_v1 deadband halves output at 0.5 ratio', () => {
 Run:
 
 ```bash
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 ```
 
 Expected: `# pass 7` (or equivalent). All seven tests pass.
@@ -886,7 +888,7 @@ Add this YAML block to `.github/workflows/validate.yml` at the end of the `jobs:
       - name: Validate v2 catalogue against schema
         run: python3 tools/data-sizing/scripts/validate-catalogue.py
       - name: Compute function unit tests
-        run: node --test tools/data-sizing/__tests__/
+        run: node --test tools/data-sizing/__tests__/*.test.js
       - name: Calibration coverage (advisory)
         run: python3 tools/data-sizing/scripts/calibration-coverage.py
 ```
@@ -1148,7 +1150,7 @@ The existing UI table will mis-render because Task 7 hasn't rewritten the row HT
 Run:
 
 ```bash
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 ```
 
 Expected: still 7 tests pass. (No new tests in this task; the compute functions are unchanged.)
@@ -2005,7 +2007,7 @@ test('fw_palo_alto_ngfw_v1 unknown log_profile defaults to traffic+threat', () =
 Run tests:
 
 ```bash
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 ```
 
 Expected: `# pass 11` (4 new + 7 existing).
@@ -2069,7 +2071,7 @@ Run:
 ```bash
 python3 tools/data-sizing/scripts/validate-catalogue.py
 python3 tools/data-sizing/scripts/calibration-coverage.py
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 ```
 
 Expected: validator PASSes; coverage shows `1 / 206 (0.5%)`; tests still all pass.
@@ -2369,7 +2371,7 @@ test('catalogue snapshot — every source produces frozen {eps, bytesPerEvent}',
 ### Step 4: Run tests
 
 ```bash
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 ```
 
 Expected: all tests pass (the new snapshot test plus all the compute-function tests).
@@ -2505,7 +2507,7 @@ sources gain citations.
 6. Run the local validators:
    ```
    python3 tools/data-sizing/scripts/validate-catalogue.py
-   node --test tools/data-sizing/__tests__/
+   node --test tools/data-sizing/__tests__/*.test.js
    ```
 7. Commit.
 
@@ -2688,7 +2690,7 @@ Run:
 
 ```bash
 python3 tools/data-sizing/scripts/validate-catalogue.py
-node --test tools/data-sizing/__tests__/
+node --test tools/data-sizing/__tests__/*.test.js
 python3 tools/data-sizing/scripts/calibration-coverage.py
 ```
 
