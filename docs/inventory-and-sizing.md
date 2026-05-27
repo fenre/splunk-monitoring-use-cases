@@ -82,11 +82,13 @@ Once an inventory is active, the catalogue:
 Inventory is opt-in — until you apply it, the catalogue shows
 everything.
 
-## Data Sizing Assessment (DSA)
+## Data Sizing Assessment (DSA) — v2
 
 A standalone web app under `tools/data-sizing/` that estimates the
 ingest volume (events-per-second, GB/day, indexer/storage) of a Splunk
-deployment for a given set of data sources.
+deployment for a given set of data sources. The v2 release (catalogue
+v8.7.0) replaces v1's flat `eps_per_endpoint × bytes_per_event` model
+with a vendor-cited driver-based engine.
 
 ### Two ways in
 
@@ -97,34 +99,98 @@ deployment for a given set of data sources.
    **Data Sizing** link in the catalogue footer. You'll start with an
    empty workload and add sources by hand.
 
+### Per-source driver inputs
+
+Every source renders as a card whose inputs are the *real-world* knobs
+practitioners actually know:
+
+- **Firewalls** — sustained throughput (Gbps), log subscriptions enabled
+  (traffic / +threat / +URL / +DNS / +WildFire).
+- **EDR** — endpoint count, telemetry mode (summary vs full-process tree).
+- **OT/IoT protocols** — polled tag count, poll interval, deadband (the
+  change-only filter that crushes EPS in steady state).
+- **Cloud SaaS** — seats / DAU / API call rate, SKU tier (M365 E3 vs E5,
+  Okta MFA on/off).
+- **Network** — flows per second, NetFlow vs IPFIX vs sFlow.
+
+The UI exposes three "what-if" profiles (low / typical / high) that
+seed driver defaults; user overrides take precedence.
+
 ### What it computes
 
-- **Events per second (EPS)** per source and aggregated.
-- **GB / day** of raw ingest at typical event sizes.
-- **Indexer count** and **hot-storage / cold-storage** at the retention
-  you specify.
-- A **summary report** that you can copy to clipboard or download as a
-  shareable file.
+- **Events per second (EPS)** per source, then aggregated across the
+  workload with diurnal **burst** factor (sizes the indexer pipeline)
+  and capacity-planning **headroom** factor (sizes the cluster).
+- **GB / day** of raw ingest, separated into **rawdata** (compressed
+  with the source's `rawdata_compression` factor) and **tsidx** (sized
+  by the source's `tsidx_overhead` factor) — no more single `×0.5`
+  constant.
+- **Cluster storage** — multiplied by Replication Factor, Search Factor
+  and the SmartStore toggle (when on, hot+warm carry RF copies but cold
+  is offloaded to object storage, so the per-indexer footprint drops).
+- **Per-indexer storage** at the indexer count and retention days you
+  specify in Sizing Assumptions.
+- **Splunk Cloud license tier** suggestion driven by the daily-ingest
+  number.
+
+### Calibration tiers
+
+Every source carries one of two badges:
+
+- **Calibrated** (green) — drivers, formulas, and realism numbers
+  derived from a primary citation (vendor sizing docs, the Splunkbase
+  TA's `props.conf` defaults, or Splunk Lantern). Click **"Why these
+  numbers?"** on the card to read the citation list and the realism
+  factors used.
+- **Pending** (yellow) — mechanically ported from v1. Numbers stay
+  close to v1 via legacy compute functions, but no vendor citations
+  yet. The disclosure shows a "no citations yet" warning.
+
+At v8.7.0 launch, 25 of 206 sources (≈ 12%) are calibrated: the Tier-1
+firewalls (Palo Alto NGFW, Fortinet, Cisco), EDR, Cyber Vision, ISE,
+WAF, IPS/IDS, Cloud IaaS, M365, SSO, Windows/Linux server families,
+databases, web servers, NetFlow, Meraki, load balancers, VPN, OPC UA,
+Modbus, MQTT, BACnet, SNMP. Coverage grows release-over-release; the
+CI advisory step `calibration-coverage.py` tracks the headline figure.
+
+### Methodology pane
+
+A collapsible **Methodology** panel at the bottom of the summary
+documents every assumption: the compression model, cluster math,
+license logic, realism inputs, profile presets — and the things
+explicitly **not** in scope (Splunk Workload Pricing / SVC,
+search-tier sizing, indexer hardware).
+
+### Share & export
+
+- **Share link** — copies a URL of the form
+  `?sources=fw_pan:throughput_gbps=2,log_profile=traffic+threat|sec_edr:endpoints=500`
+  that round-trips the source list plus any non-default driver values.
+  v1 source-ID-only URLs (`?sources=fw_pan`) continue to work and seed
+  defaults.
+- **Export Report** — CSV with one row per source, including the
+  driver `k=v` pairs, calibration tier, compute function, raw and
+  effective EPS, bytes/event and GB/day.
 
 ### What it knows about
 
 The source catalogue covers:
 
-- **Security**: AD, EDR, firewalls, IDS/IPS, DNS/DHCP, email security, VPN.
-- **IT**: Linux, Windows, vSphere<sup class="ref">[<a href="#ref-1">1</a>]</sup>, Kubernetes<sup class="ref">[<a href="#ref-3">3</a>]</sup>, Docker, OpenShift, application servers.
+- **Security**: AD, EDR, firewalls, IDS/IPS, DNS/DHCP, email security, VPN, WAF.
+- **IT**: Linux, Windows, vSphere<sup class="ref">[<a href="#ref-1">1</a>]</sup>, Kubernetes<sup class="ref">[<a href="#ref-3">3</a>]</sup>, Docker, OpenShift, application servers, databases, web servers.
 - **OT**: Modbus, OPC-UA, MQTT, SNMP, BACnet, Edge Hub.
-- **Network**: NetFlow, IPFIX, Zeek, Stream, packet capture.
-- **Protocols**: syslog, JSON-over-TCP, HEC.
-- **Business**: SaaS audit logs, ITSM events, identity events.
+- **Network**: NetFlow, IPFIX, Meraki, Zeek, Stream, packet capture.
+- **Cloud / SaaS**: AWS, Azure, GCP, M365, SSO providers, identity events.
 - **Cisco vendor stack** and **OT vendor stack** — pre-loaded with sane
-  per-endpoint rates derived from typical field deployments.
+  drivers derived from typical field deployments.
 
 ### Interpreting the output
 
 The numbers are *reference defaults*. They're useful for:
 
 - Initial proposals and design documents.
-- Comparing alternative collection strategies.
+- Comparing alternative collection strategies (e.g. raw OPC UA vs
+  deadband-filtered).
 - Scoping a Splunk Cloud subscription tier.
 - Spotting the dominant source in a workload (it's almost never what
   customers expect).
@@ -136,9 +202,13 @@ production. The tool says so prominently in its footer for a reason.
 
 The mapping between catalogue equipment slugs and DSA data sources
 lives in `tools/data-sizing/mapping.js` (catalogue side) and
-`tools/data-sizing/ot-data-sources.js` (OT side). When a new equipment
-slug is added to the catalogue, it should also be added there so the
-"Estimate Sizing →" hand-off seeds the right defaults.
+`tools/data-sizing/ot-data-sources.js` (the v2 source catalogue —
+filename retained for backwards-compatible bookmarks). Compute
+functions live in `tools/data-sizing/compute-functions.js`. When a new
+equipment slug is added to the catalogue, it should also be added to
+`mapping.js` so the "Estimate Sizing →" hand-off seeds the right
+defaults. See `tools/data-sizing/README.md` for the full architecture
+and the recipe for adding a new calibrated source.
 
 ## Sizing tray (catalogue → DSA)
 
@@ -162,8 +232,9 @@ I want, what does it cost to ingest them?".
 | Per-UC equipment tagging | `equipment[]` and `equipmentModels[]` in `content/cat-NN-*/UC-X.Y.Z.json` |
 | Catalogue-side counts and filtering | Build-time enrichment in `tools/build/enrichment.py` (writes `EQUIPMENT` block of `catalog.json`) |
 | Per-equipment API | `api/v1/equipment/index.json` and `api/v1/equipment/<slug>.json` |
-| DSA source catalogue | `tools/data-sizing/mapping.js` and `ot-data-sources.js` |
-| DSA sizing math | `tools/data-sizing/app.js` |
+| DSA source catalogue (v2) | `tools/data-sizing/ot-data-sources.js` (206 sources, driver-based) + `tools/data-sizing/mapping.js` (catalogue ↔ source ↔ equipment cross-refs) |
+| DSA compute functions | `tools/data-sizing/compute-functions.js` (pure `(drivers, profile) → {eps, bytesPerEvent}` registry, schema-gated by `tools/data-sizing/schemas/data-source.schema.json`) |
+| DSA sizing math (engine + UI) | `tools/data-sizing/app.js` |
 
 ## Privacy
 
