@@ -698,6 +698,11 @@ def test_gh_verify_reports_subprocess_failure(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(audit.shutil, "which", lambda name: "/usr/bin/gh")
+    # NOTE: setting GITHUB_REPOSITORY short-circuits `_resolve_repo_slug`
+    # so the `subprocess.run` mock below only has to handle the `gh
+    # attestation verify` call (added 2026-05-27 when `_resolve_repo_slug`
+    # was added to fix the `[owner repo]` flag-group requirement in gh 2.50+).
+    monkeypatch.setenv("GITHUB_REPOSITORY", "fenre/splunk-monitoring-use-cases")
     bundle = tmp_path / "b.bundle"
     bundle.touch()
     ledger_file = tmp_path / "ledger.json"
@@ -720,6 +725,7 @@ def test_gh_verify_reports_rejection(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(audit.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "fenre/splunk-monitoring-use-cases")
     bundle = tmp_path / "b.bundle"
     bundle.touch()
     ledger_file = tmp_path / "ledger.json"
@@ -747,20 +753,106 @@ def test_gh_verify_passes_silently_on_success(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(audit.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "fenre/splunk-monitoring-use-cases")
     bundle = tmp_path / "b.bundle"
     bundle.touch()
     ledger_file = tmp_path / "ledger.json"
     ledger_file.touch()
-    monkeypatch.setattr(
-        audit.subprocess,
-        "run",
-        lambda *a, **k: subprocess.CompletedProcess(args=a[0], returncode=0, stdout="ok", stderr=""),
-    )
+    captured_args: list[list[str]] = []
+
+    def _ok(*a: object, **k: object) -> subprocess.CompletedProcess[str]:
+        captured_args.append(list(a[0]))  # type: ignore[arg-type]
+        return subprocess.CompletedProcess(args=a[0], returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(audit.subprocess, "run", _ok)
     assert audit._run_gh_attestation_verify(
         sig={"bundlePath": "b.bundle"},
         ledger={},
         ledger_file=ledger_file,
     ) == []
+    # Regression guard for the 2026-05-27 release failure: the audit MUST
+    # pass --repo so `gh attestation verify` (CLI 2.50+) does not reject the
+    # call with "at least one of the flags in the group [owner repo] is
+    # required". Without this flag the release.yml workflow's "Verify
+    # attested ledger end-to-end" step fails before publishing.
+    assert captured_args, "subprocess.run was never called"
+    assert "--repo" in captured_args[0]
+    assert "fenre/splunk-monitoring-use-cases" in captured_args[0]
+
+
+def test_gh_verify_fails_when_repo_slug_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When neither GITHUB_REPOSITORY nor the origin git remote yields a
+    GitHub ``owner/repo`` slug, the audit must surface that as an explicit
+    error rather than silently invoking ``gh`` without --owner/--repo
+    (which would fail with a confusing CLI-level error message)."""
+
+    monkeypatch.setattr(audit.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    # Simulate `git remote get-url origin` failing (no origin, not in a
+    # git repo, or non-GitHub URL).
+    monkeypatch.setattr(
+        audit.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(args=a[0], returncode=128, stdout="", stderr="No such remote"),
+    )
+    bundle = tmp_path / "b.bundle"
+    bundle.touch()
+    ledger_file = tmp_path / "ledger.json"
+    ledger_file.touch()
+    errors = audit._run_gh_attestation_verify(
+        sig={"bundlePath": "b.bundle"},
+        ledger={},
+        ledger_file=ledger_file,
+    )
+    assert errors and "cannot derive --owner/--repo" in errors[0]
+
+
+def test_resolve_repo_slug_prefers_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY", "octocat/Hello-World")
+    # subprocess.run should NOT be invoked when the env var is set.
+    def _boom(*a: object, **k: object) -> None:  # pragma: no cover - guard
+        raise AssertionError("subprocess.run called despite GITHUB_REPOSITORY set")
+
+    monkeypatch.setattr(audit.subprocess, "run", _boom)
+    assert audit._resolve_repo_slug() == "octocat/Hello-World"
+
+
+@pytest.mark.parametrize(
+    "remote_url, expected",
+    [
+        ("https://github.com/fenre/splunk-monitoring-use-cases.git", "fenre/splunk-monitoring-use-cases"),
+        ("https://github.com/fenre/splunk-monitoring-use-cases", "fenre/splunk-monitoring-use-cases"),
+        ("git@github.com:fenre/splunk-monitoring-use-cases.git", "fenre/splunk-monitoring-use-cases"),
+        ("git@github.com:fenre/splunk-monitoring-use-cases", "fenre/splunk-monitoring-use-cases"),
+    ],
+)
+def test_resolve_repo_slug_parses_git_remote(
+    monkeypatch: pytest.MonkeyPatch,
+    remote_url: str,
+    expected: str,
+) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setattr(
+        audit.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(args=a[0], returncode=0, stdout=remote_url, stderr=""),
+    )
+    assert audit._resolve_repo_slug() == expected
+
+
+def test_resolve_repo_slug_returns_none_for_non_github_remote(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setattr(
+        audit.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(
+            args=a[0], returncode=0, stdout="https://gitlab.example.com/team/repo.git", stderr=""
+        ),
+    )
+    assert audit._resolve_repo_slug() is None
 
 
 # --------------------------------------------------------------------- #

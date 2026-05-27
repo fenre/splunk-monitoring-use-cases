@@ -14,6 +14,11 @@ Optionally, with --verify-signature, invokes `gh attestation verify` when the
 ledger is in the 'attested' state. The verification is non-fatal by default;
 pass --require-signature to treat absence or failure as an error.
 
+`gh attestation verify` (CLI 2.50+) requires one of ``--owner`` or ``--repo``
+to disambiguate which attestation store to query; this audit derives the
+``owner/repo`` slug from ``GITHUB_REPOSITORY`` (CI) or the ``origin`` git
+remote (local) and passes ``--repo``. See ``_resolve_repo_slug``.
+
 Modes
 -----
     --check         Treat any drift, hash mismatch, missing ledger entry, or
@@ -34,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -345,6 +351,53 @@ def _resolve_bundle_path(bundle_path: str, ledger_file: pathlib.Path) -> pathlib
     return None
 
 
+def _resolve_repo_slug() -> str | None:
+    """Resolve the ``owner/repo`` slug for ``gh attestation verify --repo``.
+
+    ``gh`` CLI 2.50+ requires one of ``--owner`` or ``--repo`` to disambiguate
+    which attestation store to query against; calls without either fail with
+    ``at least one of the flags in the group [owner repo] is required``.
+
+    Two resolution paths, in order:
+
+    1. ``GITHUB_REPOSITORY`` environment variable — set automatically in
+       GitHub Actions runners (``${{ github.repository }}``).
+    2. ``git remote get-url origin`` — parsed from the SSH or HTTPS GitHub
+       remote URL. Covers the local-dev case where a contributor runs
+       ``--verify-signature`` outside CI.
+
+    Returns ``None`` if neither path succeeds (no env var AND no GitHub
+    remote). The caller surfaces this as an explicit error rather than
+    silently dropping the flag, because dropping it would let the CLI
+    error masquerade as a real signature-verification failure.
+    """
+    env = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if env and "/" in env:
+        return env
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    # Match HTTPS (``https://github.com/owner/repo[.git]``) and SSH
+    # (``git@github.com:owner/repo[.git]``) remote forms.
+    match = re.search(
+        r"github\.com[:/]([^/:]+)/([^/]+?)(?:\.git)?$",
+        result.stdout.strip(),
+    )
+    if match:
+        return f"{match.group(1)}/{match.group(2)}"
+    return None
+
+
 def _run_gh_attestation_verify(
     sig: dict[str, Any],
     ledger: dict[str, Any],
@@ -368,6 +421,12 @@ def _run_gh_attestation_verify(
             f"signature: bundlePath={bundle_path!r} not found "
             f"(searched repo root, {ledger_file.parent.relative_to(ROOT) if ledger_file.is_relative_to(ROOT) else ledger_file.parent}/, and dist/)."
         ]
+    repo_slug = _resolve_repo_slug()
+    if not repo_slug:
+        return [
+            "signature: cannot derive --owner/--repo for `gh attestation verify`; "
+            "set the GITHUB_REPOSITORY env var (CI) or run from a GitHub-tracked clone (local)."
+        ]
     try:
         result = subprocess.run(
             [
@@ -379,6 +438,8 @@ def _run_gh_attestation_verify(
                 str(full),
                 "--predicate-type",
                 "https://slsa.dev/provenance/v1",
+                "--repo",
+                repo_slug,
             ],
             cwd=ROOT,
             capture_output=True,
