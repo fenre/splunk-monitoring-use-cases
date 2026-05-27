@@ -106,8 +106,11 @@
   }
 
   // ── DOM refs ──
+  // v2: the per-source `<table>` is gone — `#cardList` (a flex column
+  // of `.config-card` divs) replaces it. `$cardList` itself is bound
+  // later, after the renderer is defined, so the event-handler block
+  // can sit alongside the listeners it owns.
   const $catalog       = document.getElementById("catalogAccordion");
-  const $configBody    = document.getElementById("configBody");
   const $configWrap    = document.getElementById("configTableWrap");
   const $emptyState    = document.getElementById("emptyState");
   const $selectedCount = document.getElementById("selectedCount");
@@ -266,71 +269,124 @@
   //  RENDER CONFIG TABLE
   // ═══════════════════════════════════════════════════════════
 
-  function renderConfigTable() {
-    const count = instances.length;
+  // v2: per-source cards. One card per instance; driver inputs come
+  // straight from `source.drivers` so adding a calibrated source with
+  // new drivers (e.g. `tls_fraction`) auto-renders without UI work.
+  function renderCardList() {
+    var count = instances.length;
     $selectedCount.textContent = count + " source" + (count !== 1 ? "s" : "");
     $emptyState.style.display = count === 0 ? "" : "none";
     $configWrap.style.display = count === 0 ? "none" : "";
 
-    $configBody.innerHTML = "";
-    instances.forEach(entry => {
-      const s = entry.source;
-      const proto = isProtocol(s);
-      const totalEps = getInstanceEps(entry);
-      const bpe = getInstanceBytes(entry);
-      const gbDay = getInstanceGBDay(entry);
-      const dotClass = CATEGORY_DOT_CLASS[s.category] || "";
-      const iid = entry.instanceId;
+    var cards = document.getElementById("cardList");
+    cards.innerHTML = "";
 
-      const tr = document.createElement("tr");
-      if (proto) tr.className = "proto-row";
+    instances.forEach(function (entry) {
+      var s = entry.source;
+      var r = runComputeForInstance(entry, PROFILE);
+      var filt = (s.realism || {}).filterable_fraction_typical || 0;
+      var effEps = r.eps * (1 - filt);
+      var gbDay = (effEps * SECONDS_PER_DAY * r.bytesPerEvent) / BYTES_PER_GB;
+      var iid = entry.instanceId;
+      var dotClass = CATEGORY_DOT_CLASS[s.category] || "";
+      var calBadge = (s.calibration === "calibrated")
+          ? '<span class="cal-badge cal-ok">Calibrated \u00B7 ' + (s.citations || []).length + ' src</span>'
+          : '<span class="cal-badge cal-pending">\u26A0 Calibration pending</span>';
 
-      if (proto) {
-        const pollOptions = (s.poll_presets || [1, 5, 10, 30, 60]).map(v => {
-          const label = v >= 60 ? (v / 60) + "m" : v + "s";
-          return `<option value="${v}" ${entry.pollSec === v ? "selected" : ""}>${label}</option>`;
-        }).join("");
-
-        tr.innerHTML = `
-          <td class="source-name-cell">${s.name}<span class="proto-label">Protocol</span></td>
-          <td><span class="cat-dot ${dotClass}"></span><span class="cat-label">${s.subcategory}</span></td>
-          <td class="num"><input type="number" min="1" max="1000000" value="${entry.tags}" data-iid="${iid}" data-field="tags" title="Number of tags / topics / OIDs"></td>
-          <td class="num">
-            <select data-iid="${iid}" data-field="pollSec">${pollOptions}</select>
-            <span class="poll-unit">interval</span>
-          </td>
-          <td>—</td>
-          <td class="num"><input type="number" min="10" max="100000" step="10" value="${bpe}" data-iid="${iid}" data-field="bytes"></td>
-          <td class="num eps-value num-cell">${formatNumber(totalEps, 1)}</td>
-          <td class="num gb-value num-cell">${gbDay.toFixed(2)}</td>
-          <td><button class="btn btn-remove" data-iid="${iid}" title="Remove">&times;</button></td>
-        `;
-      } else {
-        const eps = entry.epsProfile === "custom"
-          ? entry.customEps
-          : (s.eps_per_endpoint[entry.epsProfile] || s.eps_per_endpoint.typical);
-
-        tr.innerHTML = `
-          <td class="source-name-cell">${s.name}</td>
-          <td><span class="cat-dot ${dotClass}"></span><span class="cat-label">${s.subcategory}</span></td>
-          <td class="num"><input type="number" min="1" max="100000" value="${entry.endpoints}" data-iid="${iid}" data-field="endpoints"></td>
-          <td class="num"><input type="number" min="0.001" max="100000" step="0.1" value="${eps}" data-iid="${iid}" data-field="eps"></td>
-          <td>
-            <select data-iid="${iid}" data-field="epsProfile">
-              <option value="low" ${entry.epsProfile === "low" ? "selected" : ""}>Low</option>
-              <option value="typical" ${entry.epsProfile === "typical" ? "selected" : ""}>Typical</option>
-              <option value="high" ${entry.epsProfile === "high" ? "selected" : ""}>High</option>
-              <option value="custom" ${entry.epsProfile === "custom" ? "selected" : ""}>Custom</option>
-            </select>
-          </td>
-          <td class="num"><input type="number" min="10" max="100000" step="10" value="${bpe}" data-iid="${iid}" data-field="bytes"></td>
-          <td class="num eps-value num-cell">${formatNumber(totalEps, 1)}</td>
-          <td class="num gb-value num-cell">${gbDay.toFixed(2)}</td>
-          <td><button class="btn btn-remove" data-iid="${iid}" title="Remove">&times;</button></td>
-        `;
-      }
-      $configBody.appendChild(tr);
+      var card = document.createElement("div");
+      // NB: `config-card` not `source-card` — the catalog browser already
+      // owns `.source-card` for its picker tiles and the two stylings
+      // collide.
+      card.className = "config-card";
+      card.dataset.iid = iid;
+      card.innerHTML =
+        '<div class="card-header">' +
+          '<div class="card-title">' +
+            '<span class="cat-dot ' + dotClass + '"></span>' + s.name + ' ' + calBadge +
+            '<button class="btn-card-remove" data-iid="' + iid + '" title="Remove">&times;</button>' +
+          '</div>' +
+          '<div class="card-sub">' + s.category + ' \u203A ' + s.subcategory + '</div>' +
+        '</div>' +
+        '<div class="card-drivers">' + renderDriverInputs(entry) + '</div>' +
+        '<div class="card-estimate">' +
+          '\u2192 Estimate: ' +
+          '<span class="est-num">' + formatNumber(effEps, 0) + '</span> EPS \u00B7 ' +
+          '<span class="est-num">' + formatBytes(r.bytesPerEvent) + '</span>/event \u00B7 ' +
+          '<span class="est-num">' + gbDay.toFixed(2) + '</span> GB/day' +
+        '</div>' +
+        '<details class="card-disclosure">' +
+          '<summary>\u25B8 Why these numbers? <span class="ds-meta">' +
+            (s.calibration === "calibrated"
+              ? (s.citations || []).length + ' citations \u00B7 formula \u00B7 realism'
+              : 'no citations yet \u00B7 formula \u00B7 realism') +
+          '</span></summary>' +
+          '<div class="ds-body">' + renderDisclosure(entry) + '</div>' +
+        '</details>';
+      cards.appendChild(card);
     });
+  }
+
+  function renderDriverInputs(entry) {
+    return (entry.source.drivers || []).map(function (d) {
+      var presets = d.profilePresets || {};
+      var override = entry.driverValues && entry.driverValues[d.id];
+      var cur = (override !== undefined) ? override
+              : (presets[PROFILE] !== undefined ? presets[PROFILE] : d.default);
+      var labelExtra = d.unit ? ' <span class="driver-unit">' + d.unit + '</span>' : '';
+      var help = d.help
+                  ? ' <span class="driver-help" title="' + String(d.help).replace(/"/g, "&quot;") + '">\u24D8</span>'
+                  : '';
+
+      if (d.type === "number") {
+        var minAttr = d.min !== undefined ? ' min="' + d.min + '"' : '';
+        var maxAttr = d.max !== undefined ? ' max="' + d.max + '"' : '';
+        var preset = presets[PROFILE];
+        var hint = preset !== undefined
+                    ? '<span class="driver-hint">(typical: ' + preset + ')</span>'
+                    : '<span class="driver-hint"></span>';
+        return '<label class="driver-row">' +
+                 '<span class="driver-label">' + d.label + labelExtra + help + '</span>' +
+                 '<input type="number"' + minAttr + maxAttr + ' step="any" value="' + cur + '"' +
+                       ' data-iid="' + entry.instanceId + '" data-field="' + d.id + '">' +
+                 hint +
+               '</label>';
+      }
+      // enum
+      var opts = (d.options || []).map(function (o) {
+        var sel = String(o.value) === String(cur) ? ' selected' : '';
+        return '<option value="' + o.value + '"' + sel + '>' + o.label + '</option>';
+      }).join('');
+      return '<label class="driver-row">' +
+               '<span class="driver-label">' + d.label + labelExtra + help + '</span>' +
+               '<select data-iid="' + entry.instanceId + '" data-field="' + d.id + '">' + opts + '</select>' +
+               '<span class="driver-hint"></span>' +
+             '</label>';
+    }).join('');
+  }
+
+  function renderDisclosure(entry) {
+    var s = entry.source;
+    var html = '<div class="ds-formula">Formula (<code>' + s.compute + '</code>): see <code>compute-functions.js</code></div>';
+    if (s.calibration === "calibrated" && (s.citations || []).length > 0) {
+      html += '<div class="ds-section-title">Citations</div><ol class="ds-citations">';
+      s.citations.forEach(function (c) {
+        var note = c.note ? '<div class="ds-note">' + c.note + '</div>' : '';
+        html += '<li><strong>' + c.type + '</strong> \u2014 ' +
+                '<a href="' + c.url + '" target="_blank" rel="noopener">' + c.url + '</a> ' +
+                '<span class="ds-accessed">(accessed ' + c.accessed + ')</span>' + note + '</li>';
+      });
+      html += '</ol>';
+    } else {
+      html += '<div class="ds-warning">\u26A0 Calibration pending \u2014 these numbers are a best-effort port from the v1 catalogue. No vendor citations have been gathered yet.</div>';
+    }
+    var r = s.realism || {};
+    var rc = Math.round((r.rawdata_compression_typical || 0) * 100);
+    var ts = Math.round((r.tsidx_overhead_typical || 0) * 100);
+    var ff = Math.round((r.filterable_fraction_typical || 0) * 100);
+    html += '<div class="ds-section-title">Realism factors</div>' +
+            '<div>Compression on-disk: rawdata ' + rc + '% + tsidx ' + ts + '% = ' + (rc + ts) + '% of raw</div>' +
+            '<div>Filtering at ingest: ~' + ff + '% of events droppable at SC4S / Edge Processor</div>';
+    return html;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -452,7 +508,7 @@
   // ═══════════════════════════════════════════════════════════
 
   function refreshAll() {
-    renderConfigTable();
+    renderCardList();
     renderSummary();
     buildCatalog($searchInput.value);
   }
@@ -674,42 +730,56 @@
     return entry;
   }
 
-  function updateRowCells(entry) {
-    const row = $configBody.querySelector(`button[data-iid="${entry.instanceId}"]`);
-    if (!row) return;
-    const tr = row.closest("tr");
-    if (!tr) return;
-    const epsCell = tr.querySelector(".eps-value");
-    const gbCell  = tr.querySelector(".gb-value");
-    if (epsCell) epsCell.textContent = formatNumber(getInstanceEps(entry), 1);
-    if (gbCell)  gbCell.textContent  = getInstanceGBDay(entry).toFixed(2);
+  // v2: re-render only the `.card-estimate` line of one card. Keeps
+  // typing in number inputs snappy without disturbing focus / cursor.
+  function rerenderOneCardEstimate(entry) {
+    var card = $cardList.querySelector('.config-card[data-iid="' + entry.instanceId + '"]');
+    if (!card) return;
+    var est = card.querySelector(".card-estimate");
+    if (!est) return;
+    var r = runComputeForInstance(entry, PROFILE);
+    var filt = (entry.source.realism || {}).filterable_fraction_typical || 0;
+    var effEps = r.eps * (1 - filt);
+    var gbDay = (effEps * SECONDS_PER_DAY * r.bytesPerEvent) / BYTES_PER_GB;
+    est.innerHTML =
+      '\u2192 Estimate: ' +
+      '<span class="est-num">' + formatNumber(effEps, 0) + '</span> EPS \u00B7 ' +
+      '<span class="est-num">' + formatBytes(r.bytesPerEvent) + '</span>/event \u00B7 ' +
+      '<span class="est-num">' + gbDay.toFixed(2) + '</span> GB/day';
   }
 
-  $configBody.addEventListener("input", (e) => {
-    const el = e.target;
-    if (el.tagName === "SELECT") return;
-    const entry = applyFieldToState(el);
+  var $cardList = document.getElementById("cardList");
+
+  $cardList.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.tagName === "SELECT") return;       // change fires on select
+    if (!el.dataset || !el.dataset.field) return;
+    var entry = applyFieldToState(el);
     if (entry) {
-      updateRowCells(entry);
+      rerenderOneCardEstimate(entry);
       renderSummary();
     }
   });
 
-  $configBody.addEventListener("change", (e) => {
-    const el = e.target;
-    const entry = applyFieldToState(el);
+  $cardList.addEventListener("change", function (e) {
+    var el = e.target;
+    if (!el.dataset || !el.dataset.field) return;
+    var entry = applyFieldToState(el);
     if (!entry) return;
     if (el.tagName === "SELECT") {
-      refreshAll();
+      // enum changes can flip downstream presets (e.g. cipher_strength
+      // → bytes_per_event), so a full re-render is safest.
+      renderCardList();
+      renderSummary();
     } else {
-      updateRowCells(entry);
+      rerenderOneCardEstimate(entry);
       renderSummary();
     }
   });
 
-  $configBody.addEventListener("click", (e) => {
-    const btn = e.target.closest(".btn-remove");
-    if (btn) removeInstance(parseInt(btn.dataset.iid));
+  $cardList.addEventListener("click", function (e) {
+    var btn = e.target.closest(".btn-card-remove");
+    if (btn) removeInstance(parseInt(btn.dataset.iid, 10));
   });
 
   function closeModal() { $modalOverlay.style.display = "none"; }
