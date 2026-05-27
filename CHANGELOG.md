@@ -12,6 +12,151 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.7.0] - 2026-05-27
+
+### Added — Data Sizing tool v2 (driver-based engine + calibrated catalogue)
+
+`tools/data-sizing/` ships a full v2 rewrite that replaces the
+v1 flat `eps_per_endpoint × bytes_per_event` heuristic with a
+driver-based model. Every source declares its real-world parameters
+(throughput, log profile, polled tag count, poll interval, deadband,
+SKU tier, …) and routes through a registry of pure
+`(driverValues, profile) → {eps, bytesPerEvent}` functions in
+`tools/data-sizing/compute-functions.js`.
+
+The v2 engine adds:
+
+- **Two-component compression** — separate `rawdata_compression` and
+  `tsidx_overhead` per source replace the single `×0.5` constant.
+- **Cluster-aware storage math** — Replication Factor, Search Factor,
+  SmartStore toggle, and indexer count multiply through to per-indexer
+  storage estimates.
+- **Burst vs headroom split** — diurnal peak (sizes the indexer
+  pipeline) is separated from capacity-planning safety margin (sizes
+  the cluster).
+- **Per-source "Why these numbers?" disclosure** — surfaces the
+  formula, vendor citations, and realism factors used to produce the
+  estimate. Calibrated sources carry ≥ 1 citation drawn from a
+  whitelist of vendor sizing docs, Splunkbase TA defaults, Splunk
+  Lantern guidance, RFCs, and industry reports — never field-SE
+  experience or AI guesses.
+- **Methodology pane** — collapsible bottom-of-summary panel
+  documents the compression model, cluster math, license logic,
+  realism inputs, profile presets, and the things explicitly NOT in
+  scope (Workload Pricing / SVC, search-tier sizing, indexer
+  hardware).
+
+**Calibration coverage at launch:** 25 of 206 sources (12.1%) are
+hand-calibrated against vendor sizing docs:
+
+- **Security (8):** Palo Alto NGFW, Fortinet FortiGate, Cisco Secure
+  Firewall (FTD/ASA), EDR (CrowdStrike/SentinelOne/Defender),
+  Cisco Cyber Vision, Cisco ISE, WAF, IPS/IDS Network.
+- **IT (8):** Cloud IaaS, Office 365, SSO / IAM, Windows Server,
+  Windows Domain Controller, Linux Server, databases, web servers.
+- **Network (4):** NetFlow / IPFIX / sFlow, Cisco Meraki, load
+  balancers / ADC, VPN concentrators.
+- **Protocols (5):** OPC UA, Modbus TCP / RTU, MQTT, BACnet/IP, SNMP.
+
+Pending sources stay numerically close to v1 via two legacy compute
+functions (`endpoint_legacy_v1`, `protocol_legacy_v1`) that wrap their
+old per-endpoint / per-poll rates as ordinary `profilePresets` on
+generic numeric drivers — no carve-out fields, no two-tier engine.
+
+**Backwards compatibility:** v1 share URLs (`?sources=fw_pan`) continue
+to resolve and seed defaults. The new v2 URL format
+(`?sources=fw_pan:throughput_gbps=2,log_profile=traffic+threat|sec_edr:endpoints=500`)
+encodes per-source driver overrides; **"Share link"** in the UI
+generates the new format. **"Export Report"** ships a CSV with one row
+per source carrying the driver `k=v` pairs, calibration tier, compute
+function, raw and effective EPS, bytes/event, and GB/day.
+
+**CI integration** (`.github/workflows/validate.yml` →
+`data-sizing-catalogue` job):
+
+- `tools/data-sizing/scripts/validate-catalogue.py` (gating) —
+  every source validates against
+  `tools/data-sizing/schemas/data-source.schema.json` (JSON Schema
+  2020-12), references a registered compute function, and only quotes
+  UC IDs that exist in the catalogue.
+- `node --test tools/data-sizing/__tests__/*.test.js` (gating) —
+  49 unit tests cover the 27-function registry plus a snapshot
+  regression guard that freezes the `{eps, bytesPerEvent}` tuple every
+  source produces under the "typical" profile (regenerate via
+  `tools/data-sizing/scripts/generate-snapshot.js`).
+- `tools/data-sizing/scripts/calibration-coverage.py` (advisory) —
+  reports per-category coverage; release-over-release trend, not a
+  blocking gate.
+
+Cross-tool compatibility verified: every source ID referenced by
+`tools/data-sizing/mapping.js` (`DSA_EQUIPMENT_MAP` and `DSA_UC_MAP`)
+resolves in the v2 catalogue. The catalogue-snapshot test now guards
+against future renames or deletions that would silently break the
+"Estimate Sizing →" hand-offs from the inventory modal and the
+sizing tray.
+
+Docs: `tools/data-sizing/README.md` (architecture + recipe for adding
+a new calibrated source), `docs/inventory-and-sizing.md` (refreshed
+DSA section), `docs/superpowers/specs/2026-05-22-data-sizing-realism-design.md`
+(design rationale), `docs/superpowers/plans/2026-05-27-data-sizing-realism.md`
+(41-task implementation plan).
+
+### Fixed — "Premium Apps" advanced-filter dropdown collapses to one entry per product
+
+The collapsible **Advanced Filters** panel under the main filter strip
+exposed a "Premium Apps" dropdown built from the unique values of each
+UC's `uc.premium` string. Because that string is an author-written,
+comma-joined product list with parenthetical qualifiers
+(`"Splunk Enterprise Security (ES) (optional; tier-1 breach raises an ES
+notable…)"`), the dropdown listed **225** distinct entries — one for
+every UC-specific note — instead of one entry per Splunk premium
+product. Selecting any entry filtered to a single UC.
+
+`tools/build/enrichment.py` now ships a small premium-app
+canonicalisation layer:
+
+- `_split_premium_apps()` — splits on top-level commas (commas inside
+  `(…)` qualifiers are preserved, so SPL stage lists embedded in a
+  qualifier no longer become extra entries).
+- `_strip_trailing_parens()` — strips balanced trailing `(…)` groups so
+  `"Splunk Enterprise Security (ES) (optional; tier-1 breach)"` reduces
+  to `"Splunk Enterprise Security"`.
+- `canonicalize_premium_app_name()` — case-insensitive
+  longest-substring match against a hand-curated alias table that
+  collapses every observed variant (`"Splunk ITSI"`,
+  `"Splunk IT Service Intelligence"`,
+  `"Splunk IT Service Intelligence (ITSI)"`,
+  `"Splunk Phantom"` → `"Splunk SOAR"`, etc.) onto a small set of
+  canonical labels. Unknown products fall back to their de-noted form so
+  newly introduced products surface in the dropdown before the alias
+  table is updated.
+- `extract_premium_app_keys()` — public entry point that turns one UC's
+  `premium` string into a deduped, alphabetically sorted list of
+  canonical labels.
+
+`extract_filter_facets()` now feeds the canonical labels into
+`filterFacets.premium` and stashes the resolved list on each UC as
+the abbreviated wire-format key `uc.pk` (`premiumAppKeys` in the long
+form, registered in `_CATALOG_FIELD_MAP`). `index.html` switches the
+advanced-filter predicate from `uc.premium === currentPremiumFilter`
+(exact string equality on the full author-written label) to a
+membership check against `uc.pk`; older catalog snapshots without `pk`
+still fall back to the exact-string match for backwards compatibility.
+
+Net effect: the dropdown drops from **225 → 10** entries — one row per
+real Splunk premium product (ES, ITSI, UBA, MLTK, SOAR, Edge Hub, OT
+Intelligence, OT Security Add-on, App for Fraud Analytics, Airport
+Ground Operations App) — and selecting one correctly filters every UC
+whose canonical product set includes it, including UCs that listed the
+product as one item in a comma-joined string.
+
+New test class `TestExtractFilterFacetsPremiumCanonical` (plus
+`TestStripTrailingParens`, `TestSplitPremiumApps`,
+`TestCanonicalizePremiumAppName`, `TestExtractPremiumAppKeys` in
+`tests/build/test_enrichment_helpers.py`) pins the qualifier-stripping,
+synonym-collapsing, paren-aware splitting, and per-UC `pk` population
+behaviour.
+
 ### Changed — P8 close (reclassified to align with P14 lean-mode revert)
 
 Repo-health phase **P8** (Observability + content metrics) closes

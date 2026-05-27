@@ -1605,6 +1605,20 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
     <div class="c-modal-hd" id="rn-title">Release Notes</div>
     <div class="c-modal-bd" id="rn-body">
 <!-- BEGIN RELEASE_NOTES -->
+    <div class="rn-version"><span class="rn-version-tag minor">8.7.0</span><span class="rn-version-date">May 27, 2026</span></div>
+    <div class="rn-section">
+      <h3 class="rn-section-title">Data Sizing tool v2 &mdash; driver-based engine + 25 calibrated sources</h3>
+      <ul class="rn-list">
+        <li><strong>Driver-based sizing</strong> &mdash; v8.7.0 ships a full v2 rewrite of the Data Sizing tool. Each data source now declares its real-world parameters (throughput, log subscriptions, polled tags, deadband, &hellip;) and routes through a registry of pure <code>compute()</code> functions. Replaces the flat per-endpoint heuristic with vendor-cited math.</li>
+        <li><strong>Two-component compression + cluster math</strong> &mdash; Storage estimates now split <code>rawdata_compression</code> and <code>tsidx_overhead</code> per source, multiplied by Replication Factor / Search Factor / SmartStore toggle / indexer count. The old single &times;0.5 constant is gone.</li>
+        <li><strong>Burst vs headroom split</strong> &mdash; Diurnal peak (sizes the indexer pipeline) is now separated from the capacity-planning safety margin (sizes the cluster). Configurable in the new Sizing Assumptions panel alongside RF / SF / SmartStore / indexer count.</li>
+        <li><strong>Calibration badges &amp; "Why these numbers?"</strong> &mdash; Every source carries a green &laquo;Calibrated&raquo; or yellow &laquo;Pending&raquo; badge. Expand any card to see the formula, the citations (vendor sizing docs, Splunkbase TA defaults, Splunk Lantern posts) and the realism factors that produced the estimate.</li>
+        <li><strong>25 Tier-1 sources calibrated at launch</strong> &mdash; Palo Alto NGFW, Fortinet, Cisco Secure Firewall, EDR (CrowdStrike / SentinelOne / Defender avg), Cisco Cyber Vision, Cisco ISE, WAF, IPS/IDS, Cloud IaaS, M365, SSO, Windows / Linux server families, databases, web servers, NetFlow, Meraki, load balancers, VPN, OPC UA, Modbus, MQTT, BACnet, SNMP. The other 181 sources stay numerically close to v1 via two generic legacy compute functions until they too pick up vendor citations.</li>
+        <li><strong>Share links encode driver values</strong> &mdash; <code>?sources=fw_pan:throughput_gbps=2,log_profile=traffic+threat+url</code>. v1 source-ID-only URLs still work and seed defaults.</li>
+        <li><strong>Methodology pane</strong> &mdash; A collapsible bottom-of-summary panel documents the compression model, cluster math, license logic, realism inputs and the things explicitly NOT in scope (Workload Pricing / SVC, search-tier sizing, indexer hardware).</li>
+        <li><strong>CI gates</strong> &mdash; A new <code>data-sizing-catalogue</code> job validates every source against a JSON Schema 2020-12 contract, runs 49 Node unit tests over the compute-function registry, freezes the <code>{eps, bytesPerEvent}</code> tuple per source with a snapshot regression guard, and emits an advisory per-category calibration-coverage report.</li>
+      </ul>
+    </div>
     <div class="rn-version"><span class="rn-version-tag patch">8.6.4</span><span class="rn-version-date">May 15, 2026</span></div>
     <div class="rn-section">
       <h3 class="rn-section-title">Phase 4 primer back-fill &mdash; three new tier-1 deep dives close the OT-regulation primer gap (TSA Surface &sect;4.18, SG Cyber Act 2018 &sect;4.19, France LPM &sect;4.20)</h3>
@@ -4069,7 +4083,15 @@ function getFilteredUCs() {
     }
   }
   if (currentPremiumFilter !== 'all') {
-    result = result.filter(function(e) { return (e.uc.premium || '') === currentPremiumFilter; });
+    // ``e.uc.pk`` is the build-emitted list of canonical Splunk premium-app
+    // product labels (see ``extract_premium_app_keys`` in
+    // ``tools/build/enrichment.py``). Filter matches when the selected
+    // dropdown value is in the UC's resolved list. Legacy fallback:
+    // older catalog snapshots without ``pk`` still match exact strings.
+    result = result.filter(function(e) {
+      if (Array.isArray(e.uc.pk)) return e.uc.pk.indexOf(currentPremiumFilter) !== -1;
+      return (e.uc.premium || '') === currentPremiumFilter;
+    });
   }
   if (currentCimFilter !== 'all') {
     result = result.filter(function(e) {
