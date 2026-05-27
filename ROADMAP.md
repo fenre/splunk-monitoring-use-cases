@@ -6,11 +6,73 @@
 
 ## Current release
 
+**v8.7.0 — Data Sizing tool v2: driver-based realism refresh, 24-source calibration, two-component compression, cluster-aware sizing** *(shipped 2026-05-27)*
+
+Theme: **decisive realism upgrade to `tools/data-sizing/`** — the
+estimator that customers, prospects, and SEs use to size Splunk
+ingestion and storage from this catalogue. v8.7.0 replaces the v1
+flat `eps_per_endpoint × bytes_per_event` heuristic with a
+driver-based engine where every source declares its real-world
+parameters (throughput, log profile, polled tag count, poll interval,
+deadband, SKU tier, …) and routes through a registry of pure
+`(driverValues, profile) → {eps, bytesPerEvent}` functions in
+`tools/data-sizing/compute-functions.js`. The 206-source catalogue
+ships with 24 fully-calibrated drivers (every driver carries ≥ 1
+vendor / Splunkbase / Lantern citation drawn from a curated
+whitelist); the remaining sources route through a generic
+fall-through with explicit "pending calibration" provenance so the UI
+can mark them and the regression test snapshot can track them.
+
+### Shipped outcomes
+
+- **Driver-based compute engine.** v1's flat heuristic replaced with
+  a typed `(driverValues, profile) → {eps, bytesPerEvent}` registry;
+  24 sources fully calibrated, every calibration carries ≥ 1 vendor
+  /Splunkbase /Lantern citation; 206-source catalogue snapshot acts
+  as a regression guard at `tools/data-sizing/__tests__/catalogue-snapshot.test.js`.
+- **Two-component compression model.** v1's single `×0.5` constant
+  replaced with separate `rawdata_compression` and `tsidx_overhead`
+  per source — Splunk's real on-disk physics, not a folk constant.
+- **Cluster-aware storage math.** Replication Factor, Search Factor,
+  SmartStore toggle, and indexer count multiply through to
+  per-indexer storage estimates.
+- **Burst vs headroom split.** Diurnal peak (sizes the indexer
+  pipeline) is now separated from capacity-planning safety margin
+  (sizes the cluster) — two different decisions, two different inputs.
+- **Per-source "Why these numbers?" disclosure.** Every estimate
+  surfaces the formula, vendor citations, and realism factors used to
+  produce it.
+- **Headless smoke test.** New `tools/data-sizing/__tests__/headless-smoke.test.js`
+  runs the full data-sizing app in a Node `vm` context and asserts 12
+  invariants per release (caught a 1000× unit typo in the PAN NGFW
+  example doc during this very release).
+- **Premium Apps dropdown fix.** UC catalogue browser correctly
+  filters against the new typed `premiumAppKeys` field with
+  fallback; new `extract_premium_app_keys()` enrichment helper +
+  test coverage.
+- **Release-pipeline hardening.** First-ever v\*.\*.\* tag in repo
+  history surfaced two latent bugs: `gh attestation verify` 2.50+
+  flag-group requirement (fixed in `audit-mapping-ledger` via runtime
+  `--repo` derivation from `GITHUB_REPOSITORY` / `git remote`), and
+  `Path.stat()` Python 3.12+ signature change (fixed in `TestDuKb`
+  monkeypatch). Both fixes ship with regression tests.
+- **`sync-generated` umbrella now includes `generate-recommender-app`.**
+  Step count grows from 13 to 14, closing a silent drift loophole in
+  the `splunk-uc-recommender` app's version stamping.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.7.0 release
+notes including the complete data-sizing v2 model spec, calibration
+methodology, and per-source citation set.
+
+---
+
+## Previous releases
+
 **v8.6.4 — Phase 4 primer back-fill — three new tier-1 deep dives close the OT-regulation primer gap (TSA Surface §4.18, SG Cyber Act 2018 §4.19, France LPM §4.20)** *(shipped 2026-05-15)*
 
-Theme: **plan-gap closure for the six-phase OT regulation deep-dive
-arc shipped through v8.5.0 → v8.6.3.** The Phase 4 batch (TSA Surface
-+ SG Cyber Act + France LPM) had registered each framework in
+Plan-gap closure for the six-phase OT regulation deep-dive arc
+shipped through v8.5.0 → v8.6.3. The Phase 4 batch (TSA Surface +
+SG Cyber Act + France LPM) had registered each framework in
 `data/regulations.json`, populated subcategories 22.56 / 22.57 / 22.58,
 authored 51 gold-tier UCs and three evidence packs, and added three
 areas to `non-technical-view.js` — but the corresponding deep-dive
@@ -18,79 +80,11 @@ primer sections in `docs/regulatory-primer.md` had been skipped, so
 the `non-technical-view.js` entries pointed at `#tsa-surface`,
 `#sg-cyber-act`, and `#fr-lpm` anchors that did not yet exist. v8.6.4
 lands those three primer sections, renumbers the subsequent §4.x
-deep-dives by three positions to keep numerical and subcategory order
-aligned, fixes a one-line introductory count-drift in §1 of the
-primer, and back-fills the `evidencePack` field on three
-`non-technical-view.js` areas. No new UCs, no new regulations, no
-schema changes — strictly a documentation patch.
-
-Three new tier-1 primer deep dives:
-
-1. **§4.18 TSA Surface Cybersecurity Security Directives** (US
-   Pipeline + Freight Rail + Passenger Rail + Aviation) — the TSA SD
-   family issued under expedited authority at 49 U.S.C. §
-   114(l)(2)(A) after the May 2021 Colonial Pipeline incident.
-   Covers the four CIP control families, the 24-hour CISA-reporting
-   clock with PHMSA / FRA / FAA dual-clock parallel notification,
-   the Cybersecurity Coordinator role, the CIRP annual exercise,
-   the Cybersecurity Assessment Programme (CAP), and the *Enhancing
-   Surface Cyber Risk Management* NPRM as the pending durable Final
-   Rule. Cross-refs NERC CIP<sup class="ref">[<a href="#ref-5">5</a>]</sup> / AWIA / CIRCIA.
-2. **§4.19 SG Cybersecurity Act 2018 + CCoP 2.0 + CSA CII
-   Regulations** (Singapore) — the *Cybersecurity Act 2018* (Act 9
-   of 2018, amended 2024) and its implementing instruments
-   (CCoP 2.0, CII Regulations 2018). Covers the CSA designation
-   process, **the 2-hour prescribed-incident reporting clock — the
-   tightest statutory clock in this catalogue**, annual audit and
-   biennial risk assessment, the CSA-directed exercise programme,
-   and the 2024 amendment scope expansion to FDI / STCC / SCI.
-3. **§4.20 France LPM OIV Regime + Décret 2015-351 + ANSSI
-   Implementing Decrees** (France) — the *Loi de Programmation
-   Militaire* (LPM 2014–2019 / 2018 / 2024) and the *Code de la
-   Défense* L1332-6-1 et seq., operationalised through Décret
-   2015-351 and the **twenty ANSSI cybersecurity rules** bound to
-   designated SIIVs operated by ~240 OIVs across 12 SAIV sectors.
-   Covers OIV / SIIV designation, the Cybersecurity Officer (RSSI)
-   role, SIIV asset inventory, identity + access control + MFA,
-   ANSSI-mandated detection capability with mandatory **PDIS
-   qualification** for any third-party detection provider, and
-   CERT-FR incident reporting.
-
-Section renumbering (anchors preserved):
-
-| Anchor | v8.6.3 number | v8.6.4 number | Subcategory |
-|---|---|---|---|
-| `#imo-msc-428-98` | §4.18 | §4.21 | §22.59 |
-| `#do-326a` | §4.19 | §4.22 | §22.60 |
-| `#cn-csl` | §4.20 | §4.23 | §22.61 |
-| `#cert-in` | §4.21 | §4.24 | §22.62 |
-| `#iec-61511` | §4.22 | §4.25 | §22.63 |
-
-### Shipped outcomes
-
-- **22 tier-1 frameworks now all covered to gold-tier primer depth.**
-  Before v8.6.4, only 19 of the 22 tier-1 frameworks had deep-dive
-  primer sections; TSA Surface / SG Cyber Act / France LPM had every
-  other artefact (data, UCs, evidence packs, non-technical areas) but
-  no primer §4.x. v8.6.4 closes that gap.
-- **Primer §1 count drift fixed** from "18 tier-1 frameworks covered
-  deeply" to "22 tier-1 frameworks covered deeply" — matching the
-  actual tier-1 count in `data/regulations.json`.
-- **`non-technical-view.js` `evidencePack` back-filled** on three
-  tier-1 cat-22 areas. Evidence packs themselves have existed on
-  disk since v8.6.0; v8.6.4 surfaces them through the non-technical
-  mode per `non-technical-sync.mdc`.
-- **Catalogue counts unchanged.** 23 categories · 265 subcategories
-  · 7,929 UCs · 82 regulations (22 tier-1, 58 tier-2, 2 tier-3).
-- **All 14 CI gates pass.** No new UCs, no new regulations, no
-  schema changes; this is strictly a documentation patch.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.6.4 release
-notes.
-
----
-
-## Previous releases
+deep-dives by three positions, fixes a one-line introductory
+count-drift in §1 of the primer, and back-fills the `evidencePack`
+field on three `non-technical-view.js` areas. No new UCs, no new
+regulations, no schema changes. See [`CHANGELOG.md`](CHANGELOG.md)
+for the full v8.6.4 entry.
 
 **v8.6.3 — OT Regulation Deep-Dive (Phase 6: China CSL / DSL / PIPL<sup class="ref">[<a href="#ref-8">8</a>]</sup> / CII + CERT-In Directions 2022 / DPDP Act 2023 + IEC 61511 / 61508 functional-safety cybersecurity overlay) — closes the six-phase OT regulation deep-dive arc** *(shipped 2026-05-14)*
 
