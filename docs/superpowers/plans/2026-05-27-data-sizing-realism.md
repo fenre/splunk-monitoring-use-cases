@@ -14,6 +14,8 @@
 
 **Cadence:** Frequent intermediate commits during development (one per task = 40 commits on the branch is acceptable); the user squash-merges to one commit on `main` if they prefer one-PR shape, or merges all commits if they prefer detailed history.
 
+**Amendment 1 (applied during Task 1 execution):** Removed the originally-planned `_v1_tables` source-level field. The v1 lookup tables for pending sources (`eps_per_endpoint`, `bytes_per_event`, `bytes_per_tag`) are now expressed as ordinary numeric drivers with `profilePresets` instead. This keeps every value flowing through the standard driver pipeline (no engine-side carve-out, no transient schema property), and the JSON Schema in spec §10 stays unchanged. Calibrating a pending source becomes a single coherent operation: replace the entire entry's `drivers`/`compute`/`uncertainty`/`realism`/`citations` with the vendor-cited version. See Task 2 Step 1 (compute functions), Task 2 Step 4 (migrator), and Task 11 Step 4 (calibration recipe) for the worked design.
+
 ---
 
 ## File structure
@@ -185,37 +187,29 @@ Create `tools/data-sizing/compute-functions.js`:
  */
 window.COMPUTE_FUNCTIONS = (function () {
   // ── Legacy fallbacks used by `calibration: "pending"` sources ────────
-  // These mechanically re-implement v1's math so the migrator produces a
-  // v2 catalogue that numerically matches v1 for un-calibrated entries.
+  // These re-implement v1's math by reading the ex-v1 lookup tables as
+  // ORDINARY drivers with `profilePresets`. The migrator emits drivers
+  // `endpoints`, `eps_per_endpoint`, `bytes_per_event` (endpoint sources)
+  // or `tag_count`, `poll_interval_sec`, `deadband_ratio`, `bytes_per_tag`
+  // (protocol sources). Profile switching is handled engine-side by
+  // reading `driver.profilePresets[profile]`, so the compute function
+  // itself is profile-agnostic. No `_v1_tables` field exists — this
+  // matches the uniform-driver design (see plan post-Task-1 amendment).
 
-  function endpoint_legacy_v1(d, profile) {
-    // v1 endpoint math: totalEps = endpoints * eps_per_endpoint[profile]
-    //                   bytesPerEvent = bytes_per_event[profile]
-    // The pending entries store the profile table in the `default` of an
-    // `enum` driver named `eps_profile`, and the per-endpoint bytes/eps
-    // tables in a custom `_v1_tables` driver hint (see migrator output).
-    var t = d._v1_tables || {};
-    var p = d.eps_profile || profile || "typical";
-    var epsPer = (t.eps_per_endpoint || {})[p];
-    var bpe    = (t.bytes_per_event   || {})[p];
-    if (epsPer === undefined) epsPer = (t.eps_per_endpoint || {}).typical || 1;
-    if (bpe    === undefined) bpe    = (t.bytes_per_event   || {}).typical || 500;
-    var endpoints = (d.endpoints !== undefined ? d.endpoints : 1);
-    return { eps: endpoints * epsPer, bytesPerEvent: bpe };
+  function endpoint_legacy_v1(d) {
+    var endpoints      = (d.endpoints        !== undefined ? d.endpoints        : 1);
+    var epsPerEndpoint = (d.eps_per_endpoint !== undefined ? d.eps_per_endpoint : 1);
+    var bytesPerEvent  = (d.bytes_per_event  !== undefined ? d.bytes_per_event  : 500);
+    return { eps: endpoints * epsPerEndpoint, bytesPerEvent: bytesPerEvent };
   }
 
-  function protocol_legacy_v1(d, profile) {
-    // v1 protocol math: EPS = tags / poll_interval_sec
-    //                   bytesPerEvent = bytes_per_tag[profile]
-    var t = d._v1_tables || {};
-    var p = profile || "typical";
-    var bpe = (t.bytes_per_tag || {})[p];
-    if (bpe === undefined) bpe = (t.bytes_per_tag || {}).typical || 300;
-    var tags = (d.tag_count !== undefined ? d.tag_count : 1);
-    var poll = (d.poll_interval_sec !== undefined && d.poll_interval_sec > 0
-                  ? d.poll_interval_sec : 60);
-    var dedup = (d.deadband_ratio !== undefined ? (1 - d.deadband_ratio) : 1.0);
-    return { eps: (tags / poll) * dedup, bytesPerEvent: bpe };
+  function protocol_legacy_v1(d) {
+    var tags         = (d.tag_count         !== undefined ? d.tag_count         : 1);
+    var poll         = (d.poll_interval_sec !== undefined && d.poll_interval_sec > 0
+                         ? d.poll_interval_sec : 60);
+    var bytesPerTag  = (d.bytes_per_tag     !== undefined ? d.bytes_per_tag     : 300);
+    var dedup        = (d.deadband_ratio    !== undefined ? (1 - d.deadband_ratio) : 1.0);
+    return { eps: (tags / poll) * dedup, bytesPerEvent: bytesPerTag };
   }
 
   return {
@@ -247,40 +241,34 @@ require(path.join(__dirname, '..', 'compute-functions.js'));
 const COMPUTE = global.window.COMPUTE_FUNCTIONS;
 
 test('endpoint_legacy_v1 typical', () => {
+  // Engine applies driver.profilePresets[profile] before calling the
+  // compute function, so the test passes the profile-resolved values
+  // directly as driver inputs (no `_v1_tables`, no profile arg).
   const out = COMPUTE.endpoint_legacy_v1({
     endpoints: 10,
-    eps_profile: 'typical',
-    _v1_tables: {
-      eps_per_endpoint: { low: 1, typical: 5, high: 50 },
-      bytes_per_event:  { low: 200, typical: 800, high: 3000 }
-    }
-  }, 'typical');
+    eps_per_endpoint: 5,
+    bytes_per_event: 800
+  });
   assert.equal(out.eps, 50);
   assert.equal(out.bytesPerEvent, 800);
 });
 
-test('endpoint_legacy_v1 edge-low (1 endpoint, low profile)', () => {
+test('endpoint_legacy_v1 edge-low (1 endpoint, low profile-resolved values)', () => {
   const out = COMPUTE.endpoint_legacy_v1({
     endpoints: 1,
-    eps_profile: 'low',
-    _v1_tables: {
-      eps_per_endpoint: { low: 1, typical: 5, high: 50 },
-      bytes_per_event:  { low: 200, typical: 800, high: 3000 }
-    }
-  }, 'low');
+    eps_per_endpoint: 1,
+    bytes_per_event: 200
+  });
   assert.equal(out.eps, 1);
   assert.equal(out.bytesPerEvent, 200);
 });
 
-test('endpoint_legacy_v1 edge-high (100 endpoints, high profile)', () => {
+test('endpoint_legacy_v1 edge-high (100 endpoints, high profile-resolved values)', () => {
   const out = COMPUTE.endpoint_legacy_v1({
     endpoints: 100,
-    eps_profile: 'high',
-    _v1_tables: {
-      eps_per_endpoint: { low: 1, typical: 5, high: 50 },
-      bytes_per_event:  { low: 200, typical: 800, high: 3000 }
-    }
-  }, 'high');
+    eps_per_endpoint: 50,
+    bytes_per_event: 3000
+  });
   assert.equal(out.eps, 5000);
   assert.equal(out.bytesPerEvent, 3000);
 });
@@ -290,8 +278,8 @@ test('protocol_legacy_v1 typical', () => {
     tag_count: 100,
     poll_interval_sec: 10,
     deadband_ratio: 0.0,
-    _v1_tables: { bytes_per_tag: { low: 100, typical: 250, high: 500 } }
-  }, 'typical');
+    bytes_per_tag: 250
+  });
   assert.equal(out.eps, 10);
   assert.equal(out.bytesPerEvent, 250);
 });
@@ -299,8 +287,8 @@ test('protocol_legacy_v1 typical', () => {
 test('protocol_legacy_v1 edge-low (1 tag, 5-min poll, no dedup)', () => {
   const out = COMPUTE.protocol_legacy_v1({
     tag_count: 1, poll_interval_sec: 300, deadband_ratio: 0.0,
-    _v1_tables: { bytes_per_tag: { low: 100, typical: 250, high: 500 } }
-  }, 'low');
+    bytes_per_tag: 100
+  });
   assert.ok(out.eps > 0 && out.eps < 0.01);
   assert.equal(out.bytesPerEvent, 100);
 });
@@ -308,8 +296,8 @@ test('protocol_legacy_v1 edge-low (1 tag, 5-min poll, no dedup)', () => {
 test('protocol_legacy_v1 edge-high (10k tags, 1-s poll, no dedup)', () => {
   const out = COMPUTE.protocol_legacy_v1({
     tag_count: 10000, poll_interval_sec: 1, deadband_ratio: 0.0,
-    _v1_tables: { bytes_per_tag: { low: 100, typical: 250, high: 500 } }
-  }, 'high');
+    bytes_per_tag: 500
+  });
   assert.equal(out.eps, 10000);
   assert.equal(out.bytesPerEvent, 500);
 });
@@ -317,12 +305,12 @@ test('protocol_legacy_v1 edge-high (10k tags, 1-s poll, no dedup)', () => {
 test('protocol_legacy_v1 deadband halves output at 0.5 ratio', () => {
   const base = COMPUTE.protocol_legacy_v1({
     tag_count: 100, poll_interval_sec: 10, deadband_ratio: 0.0,
-    _v1_tables: { bytes_per_tag: { typical: 250 } }
-  }, 'typical');
+    bytes_per_tag: 250
+  });
   const halved = COMPUTE.protocol_legacy_v1({
     tag_count: 100, poll_interval_sec: 10, deadband_ratio: 0.5,
-    _v1_tables: { bytes_per_tag: { typical: 250 } }
-  }, 'typical');
+    bytes_per_tag: 250
+  });
   assert.equal(halved.eps, base.eps / 2);
 });
 ```
@@ -370,27 +358,70 @@ function commaList(opts) {
   ).join(',\n');
 }
 
+// Uniform-driver approach: the v1 lookup tables (eps_per_endpoint,
+// bytes_per_event, bytes_per_tag) become regular numeric drivers with
+// `profilePresets`. The engine resolves per-profile values from the
+// presets before calling the compute function. No `_v1_tables` field
+// is emitted — the schema's `additionalProperties: false` rule stays
+// strictly enforced and no transient-field carve-out is needed.
+
+// Pure defaults used when a v1 source did not declare a particular table.
+const DEFAULT_EPS_PER_ENDPOINT = { low: 1,   typical: 1,   high: 1 };
+const DEFAULT_BYTES_PER_EVENT  = { low: 500, typical: 500, high: 500 };
+const DEFAULT_BYTES_PER_TAG    = { low: 100, typical: 250, high: 500 };
+
+function pickPreset(table, key, fallback) {
+  if (!table || table[key] === undefined) return fallback;
+  return table[key];
+}
+
 function migrateEndpoint(s) {
+  const epsTable = s.eps_per_endpoint || DEFAULT_EPS_PER_ENDPOINT;
+  const byTable  = s.bytes_per_event  || DEFAULT_BYTES_PER_EVENT;
+  const epsTyp   = pickPreset(epsTable, 'typical', DEFAULT_EPS_PER_ENDPOINT.typical);
+  const byTyp    = pickPreset(byTable,  'typical', DEFAULT_BYTES_PER_EVENT.typical);
+  const defaultEndpoints = s.default_endpoints || 1;
   const drivers = [
     {
       id: 'endpoints',
       label: 'Number of endpoints',
       unit: 'devices',
       type: 'number',
-      default: s.default_endpoints || 1,
+      default: defaultEndpoints,
       min: 1, max: 100000,
-      profilePresets: { low: 1, typical: s.default_endpoints || 1, high: (s.default_endpoints || 1) * 10 }
+      profilePresets: {
+        low: Math.max(1, Math.round(defaultEndpoints * 0.5)),
+        typical: defaultEndpoints,
+        high: defaultEndpoints * 10
+      }
     },
     {
-      id: 'eps_profile',
-      label: 'Activity profile',
-      type: 'enum',
-      default: 'typical',
-      options: [
-        { value: 'low',     label: 'Low' },
-        { value: 'typical', label: 'Typical' },
-        { value: 'high',    label: 'High' }
-      ]
+      id: 'eps_per_endpoint',
+      label: 'EPS per endpoint',
+      unit: 'eps',
+      type: 'number',
+      default: epsTyp,
+      min: 0,
+      profilePresets: {
+        low:     pickPreset(epsTable, 'low',     epsTyp),
+        typical: epsTyp,
+        high:    pickPreset(epsTable, 'high',    epsTyp)
+      },
+      help: 'Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs.'
+    },
+    {
+      id: 'bytes_per_event',
+      label: 'Bytes per event',
+      unit: 'bytes',
+      type: 'number',
+      default: byTyp,
+      min: 0,
+      profilePresets: {
+        low:     pickPreset(byTable, 'low',     byTyp),
+        typical: byTyp,
+        high:    pickPreset(byTable, 'high',    byTyp)
+      },
+      help: 'Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs.'
     }
   ];
   return {
@@ -408,27 +439,26 @@ function migrateEndpoint(s) {
       filterable_fraction_typical: 0.15
     },
     citations: [],
-    related_uc_ids: s.related_uc_ids || [],
-    _v1_tables: {
-      eps_per_endpoint: s.eps_per_endpoint,
-      bytes_per_event:  s.bytes_per_event
-    }
+    related_uc_ids: s.related_uc_ids || []
   };
 }
 
 function migrateProtocol(s) {
+  const tagTable = s.bytes_per_tag || DEFAULT_BYTES_PER_TAG;
+  const tagTyp   = pickPreset(tagTable, 'typical', DEFAULT_BYTES_PER_TAG.typical);
+  const defaultTags = s.default_tags || 100;
   const drivers = [
     {
       id: 'tag_count',
       label: 'Number of tags / topics / OIDs',
       unit: 'tags',
       type: 'number',
-      default: s.default_tags || 100,
+      default: defaultTags,
       min: 1, max: 1000000,
       profilePresets: {
-        low: Math.max(1, Math.round((s.default_tags || 100) * 0.2)),
-        typical: s.default_tags || 100,
-        high: (s.default_tags || 100) * 10
+        low: Math.max(1, Math.round(defaultTags * 0.2)),
+        typical: defaultTags,
+        high: defaultTags * 10
       }
     },
     {
@@ -451,6 +481,20 @@ function migrateProtocol(s) {
       min: 0.0, max: 0.95,
       profilePresets: { low: 0.0, typical: 0.0, high: 0.0 },
       help: 'Fraction of polls deduplicated at the gateway when register value didn\u2019t change. Default 0 for pending sources; calibrated sources tune per protocol.'
+    },
+    {
+      id: 'bytes_per_tag',
+      label: 'Bytes per tag (per poll cycle)',
+      unit: 'bytes',
+      type: 'number',
+      default: tagTyp,
+      min: 0,
+      profilePresets: {
+        low:     pickPreset(tagTable, 'low',     tagTyp),
+        typical: tagTyp,
+        high:    pickPreset(tagTable, 'high',    tagTyp)
+      },
+      help: 'Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs.'
     }
   ];
   return {
@@ -468,8 +512,7 @@ function migrateProtocol(s) {
       filterable_fraction_typical: 0.15
     },
     citations: [],
-    related_uc_ids: s.related_uc_ids || [],
-    _v1_tables: { bytes_per_tag: s.bytes_per_tag }
+    related_uc_ids: s.related_uc_ids || []
   };
 }
 
@@ -483,8 +526,10 @@ const out =
  *   - "calibrated": vendor-cited drivers + dedicated compute function in
  *     compute-functions.js. Citations array must be non-empty (CI gate).
  *   - "pending":    mechanically ported from v1; numbers approximate.
- *                   Uses endpoint_legacy_v1 or protocol_legacy_v1 with the
- *                   original v1 tables preserved in the _v1_tables field.
+ *                   Uses endpoint_legacy_v1 or protocol_legacy_v1 driving
+ *                   ordinary numeric drivers with profilePresets, so the
+ *                   v1 lookup tables flow through the standard driver
+ *                   pipeline (no carve-out fields).
  */
 window.OT_DATA_SOURCES = ${JSON.stringify(v2, null, 2)};
 
@@ -897,8 +942,6 @@ Replace the `getInstanceEps`, `getInstanceBytes`, `getInstanceGBDay` helpers (cu
                   : (presets[profile] !== undefined ? presets[profile] : d.default);
       driverValues[d.id] = v;
     });
-    // Legacy compute functions read v1 tables stashed in source._v1_tables
-    if (src._v1_tables) driverValues._v1_tables = src._v1_tables;
     const out = fn(driverValues, profile);
     // Apply uncertainty multiplier (spec §7.1 step 3)
     const u = (src.uncertainty || {})[profile] || 1.0;
@@ -2017,7 +2060,7 @@ Find `sec_ngfw_paloalto` in `ot-data-sources.js` (search for `"id": "sec_ngfw_pa
   },
 ```
 
-Replace `<TODAY>` with the current ISO date (e.g. `2026-05-27`). Remove the `_v1_tables` field — calibrated sources don't need it.
+Replace `<TODAY>` with the current ISO date (e.g. `2026-05-27`). Note: under the uniform-driver design there is no `_v1_tables` field on any source — calibration simply replaces the entire entry (drivers + compute reference + uncertainty + realism + citations) with the vendor-cited version shown above. The legacy `eps_per_endpoint` / `bytes_per_event` / `bytes_per_tag` drivers from the pending entry are gone; calibrated drivers like `throughput_gbps` and `log_profile` take their place.
 
 ### Step 5: Validate the catalogue
 
@@ -2236,7 +2279,6 @@ function defaultDriverValues(src) {
     const preset = (d.profilePresets || {})[PROFILE];
     out[d.id] = preset !== undefined ? preset : d.default;
   });
-  if (src._v1_tables) out._v1_tables = src._v1_tables;
   return out;
 }
 
@@ -2297,7 +2339,6 @@ function defaultDriverValues(src) {
     const preset = (d.profilePresets || {})[PROFILE];
     out[d.id] = preset !== undefined ? preset : d.default;
   });
-  if (src._v1_tables) out._v1_tables = src._v1_tables;
   return out;
 }
 
