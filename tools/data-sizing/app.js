@@ -741,20 +741,41 @@
     });
     csv += '\r\n';
 
-    csv += csvRow(['Source','Category','Subcategory','Type','Protocol','Ingest Method','Endpoints/Tags','EPS or Poll Interval','Bytes/Event','Total EPS','GB/Day','Sourcetype']);
-    instances.forEach(entry => {
-      const s = entry.source;
-      const proto = isProtocol(s);
-      const totalSrcEps = getInstanceEps(entry);
-      const bpe = getInstanceBytes(entry);
-      const gbDay = getInstanceGBDay(entry);
-
-      if (proto) {
-        csv += csvRow([s.name, s.category, s.subcategory, 'protocol', s.protocol, s.ingest_method, entry.tags + ' tags', entry.pollSec + 's interval', bpe, totalSrcEps.toFixed(1), gbDay.toFixed(2), s.splunk_sourcetype]);
-      } else {
-        const epsPerEp = entry.epsProfile === "custom" ? entry.customEps : (s.eps_per_endpoint[entry.epsProfile] || s.eps_per_endpoint.typical);
-        csv += csvRow([s.name, s.category, s.subcategory, 'endpoint', s.protocol, s.ingest_method, entry.endpoints + ' endpoints', epsPerEp + ' EPS/ep', bpe, totalSrcEps.toFixed(1), gbDay.toFixed(2), s.splunk_sourcetype]);
-      }
+    // v2 per-source rows. `Drivers (k=v)` enumerates every driver with
+    // its effective value (override → profile preset → default), so the
+    // CSV is self-describing for review without the catalogue in hand.
+    csv += csvRow(['Source','Category','Subcategory','Calibration','Compute','Drivers (k=v)','Raw EPS','Effective EPS','Bytes/Event','GB/Day','Sourcetype']);
+    var profile = PROFILE();
+    instances.forEach(function (entry) {
+      var s = entry.source;
+      var out = runComputeForInstance(entry, profile);
+      var filt = (s.realism || {}).filterable_fraction_typical || 0;
+      var effEps = out.eps * (1 - filt);
+      var gbDay  = (effEps * SECONDS_PER_DAY * out.bytesPerEvent) / BYTES_PER_GB;
+      var kv = (s.drivers || []).map(function (d) {
+        var v;
+        if (entry.driverValues && entry.driverValues[d.id] !== undefined) {
+          v = entry.driverValues[d.id];
+        } else if (d.profilePresets && d.profilePresets[profile] !== undefined) {
+          v = d.profilePresets[profile];
+        } else {
+          v = d.default;
+        }
+        return d.id + "=" + v;
+      }).join("; ");
+      csv += csvRow([
+        s.name,
+        s.category,
+        s.subcategory,
+        s.calibration || "pending",
+        s.compute || "",
+        kv,
+        out.eps.toFixed(1),
+        effEps.toFixed(1),
+        out.bytesPerEvent,
+        gbDay.toFixed(2),
+        s.splunk_sourcetype || ""
+      ]);
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -964,6 +985,47 @@
 
   document.getElementById("btnExport").addEventListener("click", exportReport);
 
+  // v2: encode current selection as `?sources=ID:k=v,k=v|ID2:…`.
+  // Only emit driver overrides that actually differ from the active
+  // profile preset / default; otherwise the URL stays short and
+  // self-describing.
+  var btnShare = document.getElementById("btnShare");
+  if (btnShare) {
+    btnShare.addEventListener("click", function () {
+      if (instances.length === 0) {
+        alert("No sources selected. Add at least one source to share a link.");
+        return;
+      }
+      var profile = PROFILE();
+      var encoded = instances.map(function (entry) {
+        var pairs = [];
+        (entry.source.drivers || []).forEach(function (d) {
+          if (!entry.driverValues || entry.driverValues[d.id] === undefined) return;
+          var current = entry.driverValues[d.id];
+          var preset = (d.profilePresets && d.profilePresets[profile] !== undefined)
+                         ? d.profilePresets[profile]
+                         : d.default;
+          if (current !== preset) pairs.push(d.id + "=" + current);
+        });
+        return entry.source.id + (pairs.length ? ":" + pairs.join(",") : "");
+      }).join("|");
+      var url = window.location.origin + window.location.pathname
+              + "?sources=" + encodeURIComponent(encoded);
+      var done = function (ok) {
+        if (ok) alert("Share link copied to clipboard.");
+        else window.prompt("Copy this link:", url);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(
+          function () { done(true); },
+          function () { done(false); }
+        );
+      } else {
+        done(false);
+      }
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  THEME TOGGLE (shared key with main catalog)
   // ═══════════════════════════════════════════════════════════
@@ -1013,9 +1075,33 @@
       if (summaryH2) summaryH2.parentNode.insertBefore(banner, summaryH2.nextSibling);
     }
   }
+  // v2 share-URL format. Instances are separated by '|' (was ',' in v1).
+  // Per instance, optional ':k1=v1,k2=v2' overrides driver defaults.
+  // Numeric drivers are coerced; unknown driver IDs are silently dropped
+  // so a future catalogue can rename drivers without breaking old URLs.
   var sourcesParam = params.get('sources');
   if (sourcesParam) {
-    sourcesParam.split(',').filter(Boolean).forEach(function(id) { addSource(id.trim()); });
+    sourcesParam.split('|').filter(Boolean).forEach(function (entry) {
+      var parts = entry.split(':');
+      var sid = parts[0].trim();
+      addSource(sid);
+      if (parts[1]) {
+        var added = instances[instances.length - 1];
+        if (added) {
+          parts[1].split(',').forEach(function (kv) {
+            var eq = kv.indexOf('=');
+            if (eq <= 0) return;
+            var k = kv.slice(0, eq).trim();
+            var v = kv.slice(eq + 1).trim();
+            var driver = (added.source.drivers || []).find(function (d) { return d.id === k; });
+            if (!driver) return;
+            var coerced = (driver.type === "number") ? parseFloat(v) : v;
+            if (!added.driverValues) added.driverValues = {};
+            added.driverValues[k] = coerced;
+          });
+        }
+      }
+    });
     refreshAll();
   }
 
