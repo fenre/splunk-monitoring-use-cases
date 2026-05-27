@@ -34,9 +34,34 @@ window.COMPUTE_FUNCTIONS = (function () {
     return { eps: (tags / poll) * dedup, bytesPerEvent: bytesPerTag };
   }
 
+  // ── Calibrated compute functions ─────────────────────────────────────
+
+  // Palo Alto NGFW. Derived from PAN-OS 11 log-storage sizing tables
+  // cross-referenced against Splunk_TA_paloalto v9.x default props.conf
+  // per-sourcetype rates. baseEpsPerGbps is a sustained-throughput
+  // proxy; log_profile selects the multiplier for the user-enabled
+  // subscription mix (Threat, URL, DNS-Security, WildFire each add a
+  // distinct stream). bytes/event reflects the dominant subset.
+  function fw_palo_alto_ngfw_v1(d) {
+    var baseEpsPerGbps = 4500;
+    var profileMultipliers = {
+      "traffic-only":                    { eps: 0.70, bytesPerEvent: 1200 },
+      "traffic+threat":                  { eps: 1.00, bytesPerEvent: 1800 },
+      "traffic+threat+url":              { eps: 1.45, bytesPerEvent: 2100 },
+      "traffic+threat+url+dns+wildfire": { eps: 2.10, bytesPerEvent: 2400 }
+    };
+    var m = profileMultipliers[d.log_profile] || profileMultipliers["traffic+threat"];
+    var gbps = (d.throughput_gbps !== undefined ? d.throughput_gbps : 1.0);
+    return {
+      eps:           gbps * baseEpsPerGbps * m.eps,
+      bytesPerEvent: m.bytesPerEvent
+    };
+  }
+
   return {
-    endpoint_legacy_v1: endpoint_legacy_v1,
-    protocol_legacy_v1: protocol_legacy_v1
+    endpoint_legacy_v1:   endpoint_legacy_v1,
+    protocol_legacy_v1:   protocol_legacy_v1,
+    fw_palo_alto_ngfw_v1: fw_palo_alto_ngfw_v1
   };
 })();
 

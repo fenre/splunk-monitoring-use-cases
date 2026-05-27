@@ -16,68 +16,73 @@ window.OT_DATA_SOURCES = [
     "name": "Palo Alto NGFW",
     "category": "Security Sources",
     "subcategory": "Firewalls",
-    "description": "Next-gen firewall traffic, threat, URL, and WildFire logs",
-    "vendor_examples": "PA-220, PA-440, PA-3200, PA-5400, PA-7000",
-    "protocol": "Syslog / TLS",
-    "ingest_method": "SC4S → HEC",
-    "splunk_sourcetype": "pan:traffic, pan:threat, pan:url",
-    "calibration": "pending",
+    "description": "Next-Gen Firewall traffic, threat, URL, DNS-Security, WildFire logs",
+    "vendor_examples": "PA-220, PA-440, PA-3200, PA-5400, PA-7000, PA-VM",
+    "protocol": "Syslog / Splunk_TA_paloalto API",
+    "ingest_method": "Splunk_TA_paloalto",
+    "splunk_sourcetype": "pan:traffic, pan:threat, pan:url, pan:system, pan:config",
+    "calibration": "calibrated",
     "drivers": [
       {
-        "id": "endpoints",
-        "label": "Number of endpoints",
-        "unit": "devices",
+        "id": "throughput_gbps",
+        "label": "Sustained throughput",
+        "unit": "Gbps",
         "type": "number",
-        "default": 2,
-        "min": 1,
-        "max": 100000,
+        "default": 1.0,
+        "min": 0.01,
+        "max": 100,
         "profilePresets": {
-          "low": 1,
-          "typical": 2,
-          "high": 20
-        }
+          "low": 0.3,
+          "typical": 1.0,
+          "high": 4.0
+        },
+        "help": "Sustained inspected throughput across all virtual systems. Drives base EPS via PAN-OS log-storage table."
       },
       {
-        "id": "eps_per_endpoint",
-        "label": "EPS per endpoint",
-        "unit": "eps",
-        "type": "number",
-        "default": 200,
-        "min": 0,
-        "profilePresets": {
-          "low": 10,
-          "typical": 200,
-          "high": 5000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
-      },
-      {
-        "id": "bytes_per_event",
-        "label": "Bytes per event",
-        "unit": "bytes",
-        "type": "number",
-        "default": 5000,
-        "min": 0,
-        "profilePresets": {
-          "low": 800,
-          "typical": 5000,
-          "high": 12000
-        },
-        "help": "Mechanically ported from v1. Replace when source is calibrated. Tune if vendor data differs."
+        "id": "log_profile",
+        "label": "Log subscriptions enabled",
+        "type": "enum",
+        "default": "traffic+threat",
+        "options": [
+          { "value": "traffic-only",                    "label": "Traffic only" },
+          { "value": "traffic+threat",                  "label": "Traffic + Threat" },
+          { "value": "traffic+threat+url",              "label": "Traffic + Threat + URL" },
+          { "value": "traffic+threat+url+dns+wildfire", "label": "Traffic + Threat + URL + DNS-Security + WildFire" }
+        ],
+        "help": "Enabled log streams. Each additional subscription adds a distinct sourcetype and grows EPS + bytes/event."
       }
     ],
-    "compute": "endpoint_legacy_v1",
+    "compute": "fw_palo_alto_ngfw_v1",
     "uncertainty": {
-      "low": 0.5,
-      "typical": 1,
-      "high": 2
+      "low": 0.6,
+      "typical": 1.0,
+      "high": 1.8
     },
     "realism": {
-      "rawdata_compression_typical": 0.15,
-      "tsidx_overhead_typical": 0.35,
-      "filterable_fraction_typical": 0.15
+      "rawdata_compression_typical": 0.18,
+      "tsidx_overhead_typical": 0.40,
+      "filterable_fraction_typical": 0.20
     },
-    "citations": [],
+    "citations": [
+      {
+        "type": "vendor-sizing",
+        "url": "https://docs.paloaltonetworks.com/pan-os/11-0/pan-os-admin/monitoring/log-storage-sizing",
+        "accessed": "2026-05-27",
+        "note": "PAN-OS 11 log-storage sizing tables"
+      },
+      {
+        "type": "splunkbase-ta",
+        "url": "https://splunkbase.splunk.com/app/491",
+        "accessed": "2026-05-27",
+        "note": "Splunk_TA_paloalto default props.conf per-sourcetype rates"
+      },
+      {
+        "type": "lantern",
+        "url": "https://lantern.splunk.com/Splunk_Platform/Use_Cases/Architectures/Splunk_Validated_Architectures",
+        "accessed": "2026-05-27",
+        "note": "Splunk Validated Architectures firewall sizing guidance"
+      }
+    ],
     "related_uc_ids": [
       "5.2.1",
       "5.2.2",
