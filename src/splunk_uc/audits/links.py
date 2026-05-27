@@ -293,8 +293,8 @@ def main(argv: list[str] | None = None) -> int:
             "that ``urlsplit`` rejected — first 5 shown:",
             file=sys.stderr,
         )
-        for u, exc in malformed[:5]:
-            print(f"  - {u!r}: {exc}", file=sys.stderr)
+        for u, msg in malformed[:5]:
+            print(f"  - {u!r}: {msg}", file=sys.stderr)
         malformed_set = {u for u, _ in malformed}
         urls = [u for u in urls if u not in malformed_set]
 
