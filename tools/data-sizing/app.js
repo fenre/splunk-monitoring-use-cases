@@ -122,22 +122,9 @@
   const $selectedCount = document.getElementById("selectedCount");
   const $searchInput   = document.getElementById("catalogSearch");
 
-  // The four legacy KPI cards at the top of the summary panel still
-  // exist in the DOM and are written by `renderSummary` until Task 9
-  // tears them down. The three Storage Estimate / Peak Headroom KPIs
-  // (`kpiRawStorage`, `kpiDiskStorage`, `kpiPeakGB`) were *removed*
-  // by Task 8's HTML rewrite; `renderSummary` null-guards them so it
-  // still runs cleanly in the meantime.
-  const $kpiTotalGB       = document.getElementById("kpiTotalGB");
-  const $kpiTotalEPS      = document.getElementById("kpiTotalEPS");
-  const $kpiTotalEventsDay= document.getElementById("kpiTotalEventsDay");
-  const $kpiLicense       = document.getElementById("kpiLicense");
-  const $kpiLicenseTier   = document.getElementById("kpiLicenseTier");
-  const $kpiRawStorage    = document.getElementById("kpiRawStorage");
-  const $kpiDiskStorage   = document.getElementById("kpiDiskStorage");
-  const $kpiPeakGB        = document.getElementById("kpiPeakGB");
-  const $catBreakdown     = document.getElementById("categoryBreakdown");
-  const $ingestBreakdown  = document.getElementById("ingestBreakdown");
+  // Task 9: the v1 KPI cards + "Breakdown by Category" /
+  // "Ingest Method Summary" sections have been deleted from the DOM
+  // and replaced by `#resultsBlock` populated from `renderResultsBlock`.
 
   // Task 8: sizing-assumptions panel controls.
   const $globalProfile = document.getElementById("globalProfile");
@@ -166,6 +153,40 @@
   //  BUILD CATALOG ACCORDION
   // ═══════════════════════════════════════════════════════════
 
+  // Task 9: catalogue browser now respects a calibration filter and
+  // shows a coverage stat. Stored at module scope so the change handler
+  // can mutate it without leaving the IIFE.
+  var CATALOGUE_FILTER = { calibrated: true, pending: true };
+
+  function renderCatalogueHeader() {
+    var all = window.OT_DATA_SOURCES || [];
+    var cal = all.filter(function (s) { return s.calibration === "calibrated"; }).length;
+    var pct = all.length ? Math.round(cal / all.length * 100) : 0;
+    var $h = document.querySelector(".catalog-header");
+    if (!$h) return;
+    var $stat = document.getElementById("calStat");
+    if (!$stat) {
+      $stat = document.createElement("div");
+      $stat.id = "calStat";
+      $stat.className = "cal-stat";
+      $h.appendChild($stat);
+    }
+    $stat.innerHTML =
+      '<div class="cal-stat-bar">Calibration ' + cal + ' / ' + all.length + ' (' + pct + '%)</div>' +
+      '<div class="cal-filter">' +
+        '<label><input type="checkbox" id="filtCal" ' + (CATALOGUE_FILTER.calibrated ? 'checked' : '') + '> Calibrated</label>' +
+        '<label><input type="checkbox" id="filtPend" ' + (CATALOGUE_FILTER.pending ? 'checked' : '') + '> Pending</label>' +
+      '</div>';
+    document.getElementById("filtCal").addEventListener("change", function (e) {
+      CATALOGUE_FILTER.calibrated = e.target.checked;
+      buildCatalog($searchInput.value);
+    });
+    document.getElementById("filtPend").addEventListener("change", function (e) {
+      CATALOGUE_FILTER.pending = e.target.checked;
+      buildCatalog($searchInput.value);
+    });
+  }
+
   function buildCatalog(filter) {
     $catalog.innerHTML = "";
     const categories = getCategories();
@@ -182,6 +203,14 @@
           s.subcategory.toLowerCase().includes(lowerFilter)
         );
       }
+      // Calibration filter applies after the text filter so the search
+      // box still finds calibration-filtered sources by name; if the
+      // user hides everything we just render an empty list.
+      sources = sources.filter(function (s) {
+        if (s.calibration === "calibrated" && !CATALOGUE_FILTER.calibrated) return false;
+        if (s.calibration === "pending"    && !CATALOGUE_FILTER.pending)    return false;
+        return true;
+      });
       if (sources.length === 0) return;
 
       const dotClass = CATEGORY_DOT_CLASS[cat] || "";
@@ -213,9 +242,14 @@
         const commBadge = proto && src.comm_model
           ? `<span class="tag tag-protocol">${src.comm_model}</span>` : "";
 
+        // Per-source calibration badge — single-letter form to fit
+        // beside the source name without overflowing the catalog tile.
+        const calBadgeLabel = src.calibration === "calibrated" ? "Calib" : "Pend";
+        const calBadgeCls   = src.calibration === "calibrated" ? "cal-ok" : "cal-pending";
+
         card.innerHTML = `
           <div class="source-info">
-            <div class="source-name">${src.name}${proto ? '<span class="proto-label">Protocol</span>' : ""}</div>
+            <div class="source-name">${src.name}<span class="cal-badge cal-mini ${calBadgeCls}">${calBadgeLabel}</span>${proto ? '<span class="proto-label">Protocol</span>' : ""}</div>
             <div class="source-sub">${src.subcategory} — ${src.description.length > 80 ? src.description.substring(0, 80) + '\u2026' : src.description}</div>
             <div class="source-meta">
               <span class="tag tag-protocol">${src.protocol}</span>
@@ -237,6 +271,8 @@
 
       $catalog.appendChild(group);
     });
+
+    renderCatalogueHeader();
   }
 
   $searchInput.addEventListener("input", () => buildCatalog($searchInput.value));
@@ -474,53 +510,107 @@
     };
   }
 
-  function renderSummary() {
-    // Task 8: CLUSTER is now driven exclusively by syncClusterFromUI()
-    // which fires on every dropdown change. Reading values here is
-    // redundant — left as a no-op until Task 9 deletes this whole
-    // function in favour of renderResultsBlock().
+  // Task 9: renderSummary is now a thin alias for renderResultsBlock so
+  // existing call sites (addSource / removeInstance / refreshAll /
+  // assumptions-panel listeners) keep working without churn.
+  function renderSummary() { renderResultsBlock(); }
+
+  // Weighted-by-GB-day rawdata-compression average across the selected
+  // instances. Used in the Results block's "Compressed raw" line so the
+  // summary reflects whatever the user has in front of them rather
+  // than a global default. Falls back to 0.15 when nothing is selected.
+  function averageRawdata() {
+    if (instances.length === 0) return 0.15;
+    var tot = 0, w = 0;
+    instances.forEach(function (e) {
+      var gb = getInstanceGBDay(e);
+      tot += gb * ((e.source.realism || {}).rawdata_compression_typical || 0.15);
+      w   += gb;
+    });
+    return w > 0 ? tot / w : 0.15;
+  }
+
+  // Render the Results block in the Sizing Summary panel.
+  // Reads totals from `computeTotals()` (spec §7.3) and renders five
+  // sub-sections: Ingest, License, Storage (cluster-wide), Breakdown by
+  // Category, and Ingest Method Summary.
+  function renderResultsBlock() {
+    if (!$resultsBlock) return;
+
+    if (instances.length === 0) {
+      $resultsBlock.innerHTML = '<div class="rb-empty">Add one or more sources from the catalog to see ingest, license, and storage estimates.</div>';
+      return;
+    }
+
     var t = computeTotals();
+    var lic = recommendLicenseTier(t.totalDailyRawGB);
+    var licIdx = SPLUNK_LICENSE_TIERS.indexOf(lic);
+    var nextTier = licIdx >= 0 ? SPLUNK_LICENSE_TIERS[licIdx + 1] : null;
+    var utilPct = lic.gb_per_day > 0 ? Math.round(t.totalDailyRawGB / lic.gb_per_day * 100) : 0;
+    var headroomToNext = nextTier ? (nextTier.gb_per_day - t.totalDailyRawGB).toFixed(1) : "\u2014";
 
-    var rawGB  = t.totalDailyRawGB * CLUSTER.retentionDays;
-    var diskGB = t.totalClusterGB * CLUSTER.retentionDays;
-    var peakGB = t.totalDailyRawGB * CLUSTER.burst;
-    var license = recommendLicenseTier(t.totalDailyRawGB);
+    var eff = formatCompact(t.totalEffectiveEps);
+    var raw = formatCompact(t.totalRawEps);
+    var dailyEv = formatCompact(t.totalEffectiveEps * SECONDS_PER_DAY);
 
-    // Surviving KPI cards.
-    if ($kpiTotalGB)        $kpiTotalGB.textContent        = t.totalDailyRawGB.toFixed(2);
-    if ($kpiTotalEPS)       $kpiTotalEPS.textContent       = formatNumber(t.totalEffectiveEps, 1);
-    if ($kpiTotalEventsDay) $kpiTotalEventsDay.textContent = formatCompact(t.totalEffectiveEps * SECONDS_PER_DAY);
-    if ($kpiLicense)        $kpiLicense.textContent        = license.label;
-    if ($kpiLicenseTier)    $kpiLicenseTier.textContent    = license.tier + " \u2014 " + license.typical_use;
-    // KPIs removed by Task 8 — guard for null so renderSummary keeps working.
-    if ($kpiRawStorage)     $kpiRawStorage.textContent     = formatCompact(rawGB);
-    if ($kpiDiskStorage)    $kpiDiskStorage.textContent    = formatCompact(diskGB);
-    if ($kpiPeakGB)         $kpiPeakGB.textContent         = peakGB.toFixed(2);
+    var peak = t.totalEffectiveEps * CLUSTER.burst;
+    var peakHr = peak * CLUSTER.headroom;
 
-    if ($catBreakdown) {
-      $catBreakdown.innerHTML = "";
-      Object.entries(t.byCat).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
-        var cat = e[0], gb = e[1];
-        var dotClass = CATEGORY_DOT_CLASS[cat] || "";
-        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
-        $catBreakdown.innerHTML += '<div class="breakdown-item">' +
-          '<span class="bd-label"><span class="cat-dot ' + dotClass + '"></span>' + cat + '</span>' +
-          '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
-          '</div>';
-      });
-    }
+    var tsidxDay = t.totalClusterTsidxGB.toFixed(1);
+    var totDay = t.totalClusterGB.toFixed(1);
+    var totRet = (t.totalClusterGB * CLUSTER.retentionDays).toFixed(0);
+    var perIdxDay = t.perIndexerGB.toFixed(1);
+    var perIdxRet = (t.perIndexerGB * CLUSTER.retentionDays).toFixed(0);
+    // averageRawdata() returns the user-weighted compression; included as a
+    // tooltip on the Compressed-raw row so callers can audit the implied %.
+    var avgRaw = Math.round(averageRawdata() * 100);
 
-    if ($ingestBreakdown) {
-      $ingestBreakdown.innerHTML = "";
-      Object.entries(t.byIngest).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (e) {
-        var method = e[0], gb = e[1];
-        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : 0;
-        $ingestBreakdown.innerHTML += '<div class="breakdown-item">' +
-          '<span class="bd-label">' + method + '</span>' +
-          '<span class="bd-value">' + gb.toFixed(2) + ' GB (' + pct + '%)</span>' +
-          '</div>';
-      });
-    }
+    var catRows = Object.entries(t.byCat).sort(function (a, b) { return b[1] - a[1]; })
+      .map(function (entry) {
+        var cat = entry[0], gb = entry[1];
+        var dot = CATEGORY_DOT_CLASS[cat] || "";
+        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : "0";
+        return '<div class="rb-row"><span><span class="cat-dot ' + dot + '"></span>' + cat + '</span>' +
+               '<span>' + gb.toFixed(2) + ' GB (' + pct + '%)</span></div>';
+      }).join("");
+
+    var ingestRows = Object.entries(t.byIngest).sort(function (a, b) { return b[1] - a[1]; })
+      .map(function (entry) {
+        var m = entry[0], gb = entry[1];
+        var pct = t.totalDailyRawGB > 0 ? (gb / t.totalDailyRawGB * 100).toFixed(1) : "0";
+        return '<div class="rb-row"><span>' + m + '</span>' +
+               '<span>' + gb.toFixed(2) + ' GB (' + pct + '%)</span></div>';
+      }).join("");
+
+    $resultsBlock.innerHTML =
+      '<div class="rb-section">' +
+        '<div class="rb-title">Ingest</div>' +
+        '<div class="rb-row"><span>Sources selected</span><span>' + instances.length + '</span></div>' +
+        '<div class="rb-row"><span>Effective EPS (post-filter)</span><span>' + eff + ' <em>raw pre-filter ' + raw + '</em></span></div>' +
+        '<div class="rb-row"><span>Daily events</span><span>' + dailyEv + '</span></div>' +
+        '<div class="rb-row"><span>Daily raw ingest</span><span>' + t.totalDailyRawGB.toFixed(2) + ' GB/day</span></div>' +
+        '<div class="rb-row"><span>Diurnal peak EPS</span><span>' + formatCompact(peak) + ' <em>(burst \u00D7' + CLUSTER.burst + ')</em></span></div>' +
+        '<div class="rb-row"><span>Peak EPS w/ headroom</span><span>' + formatCompact(peakHr) + ' <em>(\u00D7' + CLUSTER.headroom + ')</em></span></div>' +
+      '</div>' +
+      '<div class="rb-section">' +
+        '<div class="rb-title">License</div>' +
+        '<div class="rb-row"><span>Recommended tier</span><span>' + lic.label + ' <em>(' + lic.tier + ')</em></span></div>' +
+        '<div class="rb-row"><span>Utilization</span><span>' + utilPct + '% of recommended tier</span></div>' +
+        '<div class="rb-row"><span>Headroom to next tier</span><span>' + (headroomToNext === "\u2014" ? "\u2014" : headroomToNext + ' GB/day') + '</span></div>' +
+      '</div>' +
+      '<div class="rb-section">' +
+        '<div class="rb-title">Storage (cluster-wide \u00B7 RF=' + CLUSTER.rf + ' \u00B7 SF=' + CLUSTER.sf + (CLUSTER.smartstore ? ' \u00B7 SmartStore' : '') + ')</div>' +
+        '<div class="rb-row" title="' + avgRaw + '% weighted-average rawdata compression"><span>Compressed raw</span>' +
+          '<span>' + t.totalClusterRawGB.toFixed(1) + ' GB/day \u2192 ' + (t.totalClusterRawGB * CLUSTER.retentionDays).toFixed(0) + ' GB / ' + CLUSTER.retentionDays + ' d</span></div>' +
+        '<div class="rb-row"><span>TSIDX</span>' +
+          '<span>' + tsidxDay + ' GB/day \u2192 ' + (t.totalClusterTsidxGB * CLUSTER.retentionDays).toFixed(0) + ' GB / ' + CLUSTER.retentionDays + ' d</span></div>' +
+        '<div class="rb-row rb-total"><span>Total cluster-wide</span>' +
+          '<span>' + totDay + ' GB/day \u2192 ' + totRet + ' GB / ' + CLUSTER.retentionDays + ' d</span></div>' +
+        '<div class="rb-row"><span>Per indexer (' + CLUSTER.indexerCount + ' idx)</span>' +
+          '<span>' + perIdxDay + ' GB/day \u2192 ' + perIdxRet + ' GB / ' + CLUSTER.retentionDays + ' d</span></div>' +
+      '</div>' +
+      (catRows ? '<div class="rb-section"><div class="rb-title">Breakdown by Category</div>' + catRows + '</div>' : '') +
+      (ingestRows ? '<div class="rb-section"><div class="rb-title">Ingest Method Summary</div>' + ingestRows + '</div>' : '');
   }
 
   // ═══════════════════════════════════════════════════════════
