@@ -160,10 +160,26 @@ class TestDuKb:
 
         original_stat = Path.stat
 
-        def _selective_boom(self: Path) -> os.stat_result:
+        # NOTE: the mock MUST mirror the real ``Path.stat`` signature
+        # (``self, *, follow_symlinks=True``) so it stays transparent to
+        # internal pathlib uses. In Python 3.12+, ``Path.lstat()`` is
+        # implemented as ``self.stat(follow_symlinks=False)``; if the mock
+        # only accepts ``self``, pytest's ``cleanup_dead_symlinks`` in
+        # ``pytest_sessionfinish`` (which walks tmpdir trees and calls
+        # ``is_symlink()`` → ``lstat()`` → ``stat(follow_symlinks=False)``)
+        # explodes with ``TypeError: _selective_boom() got an unexpected
+        # keyword argument 'follow_symlinks'`` — an INTERNALERROR that
+        # masks all test results in the module. Forwarding the kwarg keeps
+        # the boom selective (still raises on ``good.txt``) AND lets any
+        # other ``stat()``/``lstat()`` call through unchanged.
+        def _selective_boom(
+            self: Path,
+            *,
+            follow_symlinks: bool = True,
+        ) -> os.stat_result:
             if self.name == "good.txt":
                 raise OSError("simulated stat failure")
-            return original_stat(self)
+            return original_stat(self, follow_symlinks=follow_symlinks)
 
         monkeypatch.setattr(Path, "stat", _selective_boom)
         # The single tracked file raises OSError and is skipped ->
