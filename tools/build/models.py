@@ -360,6 +360,7 @@ class CatalogUC(TypedDict, total=False):
     sapp: list[SplunkbaseAppEntry]
     ta_link: TaLinkEntry
     premium: list[str | PremiumAppEntry]
+    pk: list[str]  # Canonical premium-app product labels (drives advanced filter).
 
     # SPL.
     q: str

@@ -5531,3 +5531,236 @@ class TestRemainingEnrichmentBranches:
         # ge should be set to SOMETHING — either sidecar-resolved or
         # category-level fallback.
         assert (uc.get("ge") or "").strip(), "ge should be populated"
+
+
+# ---------------------------------------------------------------------------
+# Premium-app canonicalisation — drives the "Premium Apps" advanced filter.
+# Without canonicalisation, the dropdown lists 200+ author-written variants
+# (each comma-joined permutation and parenthetical note becomes a separate
+# entry). The helpers below collapse every variant to a small set of
+# canonical Splunk product labels.
+# ---------------------------------------------------------------------------
+
+
+class TestStripTrailingParens:
+    def test_no_parens_returns_input(self):
+        assert en._strip_trailing_parens("Splunk Enterprise Security") == \
+            "Splunk Enterprise Security"
+
+    def test_single_trailing_paren_stripped(self):
+        assert en._strip_trailing_parens(
+            "Splunk Enterprise Security (ES)"
+        ) == "Splunk Enterprise Security"
+
+    def test_chained_trailing_parens_stripped(self):
+        assert en._strip_trailing_parens(
+            "Splunk Enterprise Security (ES) (optional; tier-1)"
+        ) == "Splunk Enterprise Security"
+
+    def test_nested_parens_balanced(self):
+        # The nested ``(8.0)`` is consumed as part of the outer group, so
+        # the whole trailing parenthetical block is removed atomically.
+        assert en._strip_trailing_parens(
+            "Splunk ITSI (Glass Tables (8.0) — service health)"
+        ) == "Splunk ITSI"
+
+    def test_leading_paren_preserved(self):
+        # Parens that aren't trailing must stay (the registry includes
+        # canonical labels like ``Splunk IT Service Intelligence (ITSI)``
+        # whose abbreviation we never want to strip mid-string).
+        assert en._strip_trailing_parens("(prefix) Splunk ES") == \
+            "(prefix) Splunk ES"
+
+    def test_empty_input(self):
+        assert en._strip_trailing_parens("") == ""
+        assert en._strip_trailing_parens(None) == ""  # type: ignore[arg-type]
+
+    def test_only_parens_returns_input(self):
+        # Stripping would leave an empty string; we preserve the input
+        # instead so downstream code can detect the malformed value.
+        assert en._strip_trailing_parens("(notes only)") == "(notes only)"
+
+
+class TestSplitPremiumApps:
+    def test_single_app(self):
+        assert en._split_premium_apps("Splunk Enterprise Security") == \
+            ["Splunk Enterprise Security"]
+
+    def test_two_apps_split_on_top_level_comma(self):
+        assert en._split_premium_apps(
+            "Splunk Enterprise Security, Splunk SOAR"
+        ) == ["Splunk Enterprise Security", "Splunk SOAR"]
+
+    def test_commas_inside_parens_are_not_split_points(self):
+        # The parenthetical note "(notable index fusion, ESCU stories, ...)" contains
+        # commas — they must not split the entry into three pieces.
+        text = (
+            "Splunk Enterprise Security (notable index fusion, ESCU stories, "
+            "CIM Alerts correlation), Splunk User Behavior Analytics"
+        )
+        assert en._split_premium_apps(text) == [
+            "Splunk Enterprise Security (notable index fusion, ESCU stories, "
+            "CIM Alerts correlation)",
+            "Splunk User Behavior Analytics",
+        ]
+
+    def test_three_apps_with_trailing_whitespace(self):
+        assert en._split_premium_apps(
+            " ES , ITSI ,  UBA "
+        ) == ["ES", "ITSI", "UBA"]
+
+    def test_empty_input(self):
+        assert en._split_premium_apps("") == []
+        assert en._split_premium_apps(None) == []  # type: ignore[arg-type]
+
+
+class TestCanonicalizePremiumAppName:
+    @pytest.mark.parametrize("raw, canonical", [
+        # Plain canonical names round-trip.
+        ("Splunk Enterprise Security", "Splunk Enterprise Security"),
+        ("Splunk IT Service Intelligence (ITSI)",
+         "Splunk IT Service Intelligence (ITSI)"),
+        ("Splunk SOAR", "Splunk SOAR"),
+        # Trailing notes are stripped to reveal the canonical product.
+        ("Splunk Enterprise Security (ES) (optional; tier-1 breach)",
+         "Splunk Enterprise Security"),
+        ("Splunk Enterprise Security (notable index fusion, ESCU stories)",
+         "Splunk Enterprise Security"),
+        # Short forms map to the canonical label with abbreviation.
+        ("Splunk ITSI", "Splunk IT Service Intelligence (ITSI)"),
+        ("Splunk ITSI (optional)", "Splunk IT Service Intelligence (ITSI)"),
+        ("Splunk UBA", "Splunk User Behavior Analytics (UBA)"),
+        ("Splunk MLTK", "Splunk Machine Learning Toolkit (MLTK)"),
+        # Long form without abbreviation maps to the canonical label too.
+        ("Splunk IT Service Intelligence",
+         "Splunk IT Service Intelligence (ITSI)"),
+        ("Splunk User Behavior Analytics",
+         "Splunk User Behavior Analytics (UBA)"),
+        ("Splunk Machine Learning Toolkit",
+         "Splunk Machine Learning Toolkit (MLTK)"),
+        # Legacy product name (Phantom) maps to current SOAR brand.
+        ("Splunk Phantom", "Splunk SOAR"),
+        # OT family
+        ("Splunk OT Intelligence", "Splunk OT Intelligence"),
+        ("Splunk OTI", "Splunk OT Intelligence"),
+        ("Splunk OT Security Add-on", "Splunk OT Security Add-on"),
+    ])
+    def test_canonical_mapping(self, raw, canonical):
+        assert en.canonicalize_premium_app_name(raw) == canonical
+
+    def test_case_insensitive(self):
+        assert en.canonicalize_premium_app_name("splunk enterprise security") == \
+            "Splunk Enterprise Security"
+        assert en.canonicalize_premium_app_name("SPLUNK ITSI") == \
+            "Splunk IT Service Intelligence (ITSI)"
+
+    def test_unknown_product_falls_back_to_de_noted_input(self):
+        # The fallback path keeps newly observed products visible in the
+        # dropdown before the alias table is updated.
+        assert en.canonicalize_premium_app_name(
+            "Splunk Brand New Premium App (beta)"
+        ) == "Splunk Brand New Premium App"
+
+    def test_empty_returns_empty(self):
+        assert en.canonicalize_premium_app_name("") == ""
+        assert en.canonicalize_premium_app_name(None) == ""  # type: ignore[arg-type]
+
+
+class TestExtractPremiumAppKeys:
+    def test_empty_input(self):
+        assert en.extract_premium_app_keys("") == []
+        assert en.extract_premium_app_keys(None) == []  # type: ignore[arg-type]
+
+    def test_single_canonical_app(self):
+        assert en.extract_premium_app_keys("Splunk Enterprise Security") == \
+            ["Splunk Enterprise Security"]
+
+    def test_comma_joined_apps_collapsed(self):
+        assert en.extract_premium_app_keys(
+            "Splunk Enterprise Security, Splunk SOAR"
+        ) == ["Splunk Enterprise Security", "Splunk SOAR"]
+
+    def test_parenthetical_notes_stripped_and_dedup(self):
+        # Two entries with different qualifiers but the same underlying
+        # product collapse to a single canonical label.
+        assert en.extract_premium_app_keys(
+            "Splunk Enterprise Security (ES) (optional), "
+            "Splunk Enterprise Security (notable correlation)"
+        ) == ["Splunk Enterprise Security"]
+
+    def test_long_real_world_string_from_catalog(self):
+        # Real string observed in the production catalog before the fix.
+        raw = (
+            "Splunk Enterprise Security (notable index fusion, ESCU analytic "
+            "stories, CIM Alerts tstats correlation), Splunk User Behavior "
+            "Analytics (optional peer grouping on user_id)"
+        )
+        assert en.extract_premium_app_keys(raw) == [
+            "Splunk Enterprise Security",
+            "Splunk User Behavior Analytics (UBA)",
+        ]
+
+    def test_three_apps_alphabetical_order(self):
+        result = en.extract_premium_app_keys(
+            "Splunk SOAR, Splunk Enterprise Security, Splunk ITSI"
+        )
+        assert result == [
+            "Splunk Enterprise Security",
+            "Splunk IT Service Intelligence (ITSI)",
+            "Splunk SOAR",
+        ]
+
+
+class TestExtractFilterFacetsPremiumCanonical:
+    """The advanced ``Premium Apps`` dropdown should list one entry per
+    canonical Splunk product, not one entry per author-written string."""
+
+    def _data(self, premiums):
+        ucs = [{"i": f"1.1.{i}", "premium": p} for i, p in enumerate(premiums, 1)]
+        return [{"i": 1, "s": [{"i": "1.1", "u": ucs}]}]
+
+    def test_collapses_qualifiers_to_one_facet_per_product(self):
+        data = self._data([
+            "Splunk Enterprise Security",
+            "Splunk Enterprise Security (ES) (optional; tier-1 breach)",
+            "Splunk Enterprise Security (notable index fusion, ESCU stories)",
+        ])
+        out = en.extract_filter_facets(data)
+        assert out["premium"] == ["Splunk Enterprise Security"]
+
+    def test_comma_joined_string_contributes_multiple_facets(self):
+        data = self._data([
+            "Splunk Enterprise Security, Splunk SOAR",
+            "Splunk SOAR",
+        ])
+        out = en.extract_filter_facets(data)
+        assert out["premium"] == ["Splunk Enterprise Security", "Splunk SOAR"]
+
+    def test_synonym_variants_collapse(self):
+        # "Splunk ITSI", "Splunk IT Service Intelligence", and
+        # "Splunk IT Service Intelligence (ITSI)" all refer to ITSI.
+        data = self._data([
+            "Splunk ITSI",
+            "Splunk IT Service Intelligence",
+            "Splunk IT Service Intelligence (ITSI)",
+        ])
+        out = en.extract_filter_facets(data)
+        assert out["premium"] == ["Splunk IT Service Intelligence (ITSI)"]
+
+    def test_uc_pk_is_populated_on_each_uc(self):
+        data = self._data([
+            "Splunk Enterprise Security (ES) (optional)",
+            "Splunk SOAR, Splunk ITSI",
+        ])
+        en.extract_filter_facets(data)
+        ucs = data[0]["s"][0]["u"]
+        assert ucs[0]["pk"] == ["Splunk Enterprise Security"]
+        assert ucs[1]["pk"] == [
+            "Splunk IT Service Intelligence (ITSI)",
+            "Splunk SOAR",
+        ]
+
+    def test_uc_pk_absent_when_premium_empty(self):
+        data = self._data([""])
+        en.extract_filter_facets(data)
+        assert "pk" not in data[0]["s"][0]["u"][0]

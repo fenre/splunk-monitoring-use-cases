@@ -101,7 +101,15 @@ function getFilteredUCs() {
     }
   }
   if (currentPremiumFilter !== 'all') {
-    result = result.filter(function(e) { return (e.uc.premium || '') === currentPremiumFilter; });
+    // ``e.uc.pk`` is the build-emitted list of canonical Splunk premium-app
+    // product labels (see ``extract_premium_app_keys`` in
+    // ``tools/build/enrichment.py``). Filter matches when the selected
+    // dropdown value is in the UC's resolved list. Legacy fallback:
+    // older catalog snapshots without ``pk`` still match exact strings.
+    result = result.filter(function(e) {
+      if (Array.isArray(e.uc.pk)) return e.uc.pk.indexOf(currentPremiumFilter) !== -1;
+      return (e.uc.premium || '') === currentPremiumFilter;
+    });
   }
   if (currentCimFilter !== 'all') {
     result = result.filter(function(e) {

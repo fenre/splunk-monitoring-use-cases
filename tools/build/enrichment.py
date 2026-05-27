@@ -1462,6 +1462,148 @@ def assign_premium(uc):
     return ", ".join(sorted(set(matched)))
 
 
+# ---------------------------------------------------------------------------
+# Premium-app canonicalisation — collapses author-written ``uc.premium``
+# strings (often comma-joined products plus parenthetical notes like
+# ``"(optional — risk notables …)"``) into the small set of canonical
+# Splunk premium-product labels that drive the "Premium Apps" advanced-filter
+# dropdown in ``index.html``. Without this collapse the dropdown lists every
+# distinct full string (200+ entries, one per UC-specific qualifier) instead
+# of one entry per Splunk premium product.
+# ---------------------------------------------------------------------------
+
+# (alias_substring → canonical_label). Matching is case-insensitive
+# substring contains against the de-parened input. The runtime-built
+# ``_PREMIUM_APP_ALIASES_BY_LENGTH`` re-sorts these longest-first so the
+# most-specific alias always wins (e.g. ``splunk it service intelligence``
+# before ``splunk itsi`` before ``splunk it``).
+_PREMIUM_APP_ALIASES: tuple[tuple[str, str], ...] = (
+    # Splunk Enterprise Security
+    ("splunk enterprise security", "Splunk Enterprise Security"),
+    # IT Service Intelligence (ITSI)
+    ("splunk it service intelligence", "Splunk IT Service Intelligence (ITSI)"),
+    ("splunk itsi", "Splunk IT Service Intelligence (ITSI)"),
+    # User Behavior Analytics (UBA)
+    ("splunk user behavior analytics", "Splunk User Behavior Analytics (UBA)"),
+    ("splunk uba", "Splunk User Behavior Analytics (UBA)"),
+    # Machine Learning Toolkit (MLTK)
+    ("splunk machine learning toolkit", "Splunk Machine Learning Toolkit (MLTK)"),
+    ("splunk mltk", "Splunk Machine Learning Toolkit (MLTK)"),
+    # SOAR (formerly Phantom)
+    ("splunk soar", "Splunk SOAR"),
+    ("splunk phantom", "Splunk SOAR"),
+    # Edge Hub
+    ("splunk edge hub", "Splunk Edge Hub"),
+    # OT family
+    ("splunk ot security add-on", "Splunk OT Security Add-on"),
+    ("splunk ot security add on", "Splunk OT Security Add-on"),
+    ("splunk ot security addon", "Splunk OT Security Add-on"),
+    ("splunk ot intelligence", "Splunk OT Intelligence"),
+    ("splunk oti", "Splunk OT Intelligence"),
+    # Domain / industry apps
+    ("splunk app for fraud analytics", "Splunk App for Fraud Analytics"),
+    ("splunk behavioral profiling", "Splunk Behavioral Profiling App"),
+    ("splunk airport ground operations", "Splunk Airport Ground Operations App"),
+    ("splunk intelligence management", "Splunk Intelligence Management"),
+    ("splunk attack analyzer", "Splunk Attack Analyzer"),
+    ("splunk asset and risk intelligence", "Splunk Asset and Risk Intelligence"),
+)
+
+_PREMIUM_APP_ALIASES_BY_LENGTH: tuple[tuple[str, str], ...] = tuple(
+    sorted(_PREMIUM_APP_ALIASES, key=lambda kv: -len(kv[0]))
+)
+
+
+def _strip_trailing_parens(name: str) -> str:
+    """Strip any balanced trailing ``(...)`` groups from a product name."""
+    s = (name or "").strip()
+    while s.endswith(")"):
+        depth = 0
+        i = len(s) - 1
+        while i >= 0:
+            if s[i] == ")":
+                depth += 1
+            elif s[i] == "(":
+                depth -= 1
+            if depth == 0:
+                break
+            i -= 1
+        if i <= 0:
+            break
+        new = s[:i].rstrip()
+        if not new:
+            break
+        s = new
+    return s
+
+
+def _split_premium_apps(text: str) -> list[str]:
+    """Split a premium-apps string on top-level commas (commas outside parens)."""
+    if not isinstance(text, str):
+        return []
+    out: list[str] = []
+    depth = 0
+    buf: list[str] = []
+    for ch in text:
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch == "," and depth == 0:
+            piece = "".join(buf).strip()
+            if piece:
+                out.append(piece)
+            buf = []
+        else:
+            buf.append(ch)
+    piece = "".join(buf).strip()
+    if piece:
+        out.append(piece)
+    return out
+
+
+def canonicalize_premium_app_name(name: str) -> str:
+    """Map an arbitrary premium-app name to a canonical Splunk product label.
+
+    The input ``name`` is one piece of a UC's ``premium`` string (already
+    split on top-level commas). Trailing parenthetical notes are stripped,
+    then a case-insensitive substring match runs against the longest-first
+    alias table. Falls back to the de-noted input when no alias matches so
+    newly introduced products surface in the dropdown even before they are
+    added to the alias table.
+    """
+    if not isinstance(name, str):
+        return ""
+    bare = _strip_trailing_parens(name).strip()
+    if not bare:
+        return ""
+    low = bare.lower()
+    for alias_sub, canonical in _PREMIUM_APP_ALIASES_BY_LENGTH:
+        if alias_sub in low:
+            return canonical
+    return bare
+
+
+def extract_premium_app_keys(text: str) -> list[str]:
+    """Parse a legacy ``uc['premium']`` string into a deduped, sorted list of
+    canonical premium-app product labels.
+
+    Returns ``[]`` for empty input. The returned list is always sorted
+    alphabetically so it matches the dropdown facet order.
+    """
+    if not text:
+        return []
+    seen: list[str] = []
+    for piece in _split_premium_apps(text):
+        name = canonicalize_premium_app_name(piece)
+        if name and name not in seen:
+            seen.append(name)
+    seen.sort()
+    return seen
+
+
 # --- ESCU Detection Classification ------------------------------------------------
 # Detection types from ESCU that represent the methodology
 ESCU_METHODOLOGY_TYPES = {"ttp", "anomaly", "hunting", "baseline", "correlation"}
@@ -3861,7 +4003,15 @@ def extract_filter_facets(data):
                 if uc.get("dtype") and uc["dtype"] in FILTER_DTYPE_ALLOW:
                     dtypes.add(uc["dtype"])
                 if uc.get("premium"):
-                    premiums.add(uc["premium"])
+                    # Collapse the author-written ``premium`` string into its
+                    # canonical Splunk product labels and surface only those
+                    # in the dropdown. Also stash the resolved list on the
+                    # UC as ``pk`` so the client-side filter can do a cheap
+                    # membership check without re-parsing the legacy string.
+                    keys = extract_premium_app_keys(uc["premium"])
+                    if keys:
+                        uc["pk"] = keys
+                        premiums.update(keys)
                 if isinstance(uc.get("a"), list):
                     for m in uc["a"]:
                         if m and m != "N/A":
