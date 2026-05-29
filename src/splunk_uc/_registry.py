@@ -393,7 +393,7 @@ register(
     Verb(
         name="audit-content-quality",
         module="audits.content_quality",
-        help="Flag description==value, jargon in grandmaExplanation, broken fixtureRefs.",
+        help="Flag description==value, jargon in grandmaExplanation, broken fixtureRefs, and description/value heuristic gaps.",
         category="audits",
     )
 )
