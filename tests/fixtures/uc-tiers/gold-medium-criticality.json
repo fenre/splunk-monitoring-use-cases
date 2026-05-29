@@ -1,0 +1,90 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "99.99.2",
+  "subcategory": "99.99",
+  "title": "Fixture: Gold-tier medium-criticality UC for tests",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "wave": "crawl",
+  "prerequisiteUseCases": [],
+  "monitoringType": ["Performance", "Capacity"],
+  "splunkPillar": "Observability",
+  "industry": "Synthetic test fixtures",
+  "owner": "Head of Platform",
+  "controlFamily": "log-source-completeness",
+  "exclusions": "Does not cover disk I/O saturation or memory pressure — fixture scope only.",
+  "evidence": "Saved search fixture_gold_medium_mem.json with weekly PDF export to operations index.",
+  "evidenceSigning": {
+    "method": "none",
+    "signer": "fixture-ci-bot"
+  },
+  "compliance": [
+    {
+      "regulation": "iso-27001",
+      "version": "2022",
+      "clause": "A.8.15",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Fixture demonstrates partial logging coverage mapping for gold-tier completeness tests.",
+      "controlObjective": "Shows that memory pressure events are logged and reviewed on a defined cadence.",
+      "evidenceArtifact": "Dashboard fixture_gold_medium_mem.xml plus saved search export archived weekly.",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Host reports mem_used_pct above 85 for 30 minutes; search returns the host row.",
+    "negativeScenario": "Brief page-cache spike during backup stays under 30-minute average threshold; search returns zero rows.",
+    "fixtureRef": "tests/fixtures/uc-tiers/gold-medium-criticality.json",
+    "fixtureStatus": "approved"
+  },
+  "dataSources": "index=os sourcetype=vmstat from Splunk_TA_nix vmstat.sh (60s). Fields: mem_used_pct, host, _time.",
+  "app": "Splunk Add-on for Unix and Linux (Splunkbase 833), 9.x.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "minVersion": "8.0.0",
+      "role": "primary"
+    }
+  ],
+  "premiumApps": ["Splunk ITSI"],
+  "spl": "index=os sourcetype=vmstat host=*\n| eval mem_used_pct=100-mem_free_pct\n| timechart span=30m avg(mem_used_pct) AS avg_mem BY host\n| where avg_mem > 85",
+  "cimSpl": "| tstats summariesonly=t avg(Performance.mem_used) AS avg_mem FROM datamodel=Performance WHERE nodename=Performance.Memory BY Performance.host span=30m\n| where avg_mem > 85\n| rename Performance.host AS host",
+  "cimModels": ["Performance"],
+  "schema": "CIM",
+  "dataModelAcceleration": "Accelerate Performance.Memory for 14 days minimum.",
+  "description": "Tracks Linux hosts whose memory utilization averages above 85 percent for thirty minutes, highlighting pressure that precedes swapping and application restarts.",
+  "value": "Memory pressure degrades batch jobs and web tiers long before OOM kills appear in logs. Early visibility lets operators recycle leaky services or right-size instances during business hours.",
+  "grandmaExplanation": "We keep an eye on how full each server's memory gets over half-hour windows. When one stays too full for too long, we tell the team so they can free space before programs start crashing.",
+  "implementation": "Enable vmstat scripted input on Splunk_TA_nix forwarders, route to index=os, schedule search every 10 minutes over 30 minutes, alert when any host exceeds threshold.",
+  "detailedImplementation": "Prerequisites\n• Splunk_TA_nix on Linux UFs; mem_free_pct field extracted via TA props.conf.\n• Role with index=os search permission.\n\nStep 1 — Configure data collection\nEnable `[script://./bin/vmstat.sh]` interval=60, index=os, sourcetype=vmstat. Validate one event per host per minute.\n\nStep 2 — Create the search\nUse 30m span averages to ignore brief cache spikes. Understanding this SPL: mem_used_pct derives from TA-normalised free percentage.\n\nStep 3 — Validate\nCompare avg_mem to `free -m` on a sample host during steady state. Spot-check `_time` lag under 120 seconds.\n\nStep 4 — Operationalize\nAdd panel to Linux Health dashboard; default Last 24 hours; link runbook for service restart approval.\n\nStep 5 — Troubleshooting\nMissing mem_free_pct: upgrade TA or verify props.conf merge. Flat 100%: check vmstat.sh permissions on hardened hosts.",
+  "scriptExample": "#!/bin/bash\n# Fixture reference — vmstat wrapper stub for tests.\nvmstat 1 1 | tail -1",
+  "visualization": "Single-value hosts over 85% memory; timechart avg_mem by host; table with host, avg_mem, owning team from lookup.",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-05-19"
+    },
+    {
+      "title": "Splunk documentation: vmstat inputs",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/UnixLinux/Sourcetypes",
+      "retrieved": "2026-05-19"
+    }
+  ],
+  "knownFalsePositives": "Backup agents and database cache warming can elevate memory without user impact; filter known batch hosts via lookup.",
+  "mitreAttack": ["N/A (operational monitoring fixture)"],
+  "detectionType": "Baseline",
+  "securityDomain": "endpoint",
+  "requiredFields": ["host", "mem_free_pct"],
+  "equipment": ["linux"],
+  "equipmentModels": ["linux_ubuntu"],
+  "hardware": "VM and bare-metal Linux in fixture lab.",
+  "telcoUseCase": "Not applicable — synthetic fixture.",
+  "status": "verified",
+  "lastReviewed": "2026-05-19",
+  "splunkVersions": ["9.1+", "Cloud"],
+  "reviewer": "fixture-maintainer",
+  "dataDomain": ["infrastructure"]
+}
