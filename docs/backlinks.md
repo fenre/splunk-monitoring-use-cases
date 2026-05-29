@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_225 pages indexed; 129 have at least one inbound link; 432 unique source→target edges._
+_228 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
 
 ---
 
@@ -345,6 +345,10 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/content-quality-audit.md`
+
+_No inbound links yet._
+
 ## `docs/coverage-methodology.md`
 
 - [`docs/clause-navigator-guide.md`](clause-navigator-guide.md)
@@ -474,6 +478,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/evidence-packs/uk-gdpr.md`
+
+_No inbound links yet._
+
+## `docs/evidence-signing.md`
 
 _No inbound links yet._
 
@@ -1107,6 +1115,10 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/spl-anti-patterns.md`
+
+_No inbound links yet._
+
 ## `docs/spl-reference-validation.md`
 
 _No inbound links yet._
@@ -1150,7 +1162,7 @@ _No inbound links yet._
 
 ## `docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`
 
-_No inbound links yet._
+- [`docs/content-quality-audit.md`](content-quality-audit.md)
 
 ## `docs/superpowers/specs/2026-05-22-data-sizing-realism-design.md`
 
