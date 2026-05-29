@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_223 pages indexed; 128 have at least one inbound link; 431 unique source→target edges._
+_224 pages indexed; 128 have at least one inbound link; 431 unique source→target edges._
 
 ---
 
@@ -474,6 +474,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/evidence-packs/uk-gdpr.md`
+
+_No inbound links yet._
+
+## `docs/exclusions-coverage.md`
 
 _No inbound links yet._
 

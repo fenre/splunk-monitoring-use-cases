@@ -479,6 +479,14 @@ register(
 )
 register(
     Verb(
+        name="audit-exclusions-coverage",
+        module="audits.exclusions_coverage",
+        help="Report UC sidecars missing useful exclusions scope text (string field).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-spl-grammar",
         module="audits.spl_grammar",
         help="Catch SPL grammar bugs (stats span, leading pipe, glued indexes, case wildcards).",
