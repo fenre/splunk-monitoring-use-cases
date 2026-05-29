@@ -5,23 +5,31 @@ Resolve src/splunk_uc/_registry.py merge conflicts of the shape:
     register(
         Verb(
     <<<<<<< HEAD
-            name="<pr-verb>",
-            module="<pr-module>",
-            help="<pr-help>",
+            name="<side-a-verb>",
+            module="<side-a-module>",
+            help="<side-a-help>",
     =======
-            name="<main-verb>",
-            module="<main-module>",
+            name="<side-b-verb>",
+            module="<side-b-module>",
             help=(
-                "<main-help>"
+                "<side-b-help>"
             ),
-    >>>>>>> origin/main
+    >>>>>>> origin/main          # merge: the other side is origin/main
+    >>>>>>> 4f5de607d (feat: ...) # rebase: the other side is the replayed commit
             category="<cat>",
         )
     )
 
-Both branches added a Verb at the same anchor slot. Resolution: keep main's
-Verb in place, then append a NEW register() block for the PR's verb
-immediately after, preserving the shared category= tail.
+Both branches added a Verb at the same anchor slot. Resolution: keep BOTH
+verbs by emitting two separate register() blocks, each preserving the shared
+category= tail. Works for either direction:
+
+  * `git merge origin/main`  -> closing marker is `>>>>>>> origin/main`
+  * `git rebase origin/main`  -> closing marker is `>>>>>>> <sha> (subject)`
+
+Registration order is not semantically significant (the dispatcher keys on
+verb name), so the HEAD-side verb is emitted first and the incoming-side verb
+second regardless of merge/rebase direction.
 """
 from __future__ import annotations
 
@@ -33,10 +41,10 @@ CONFLICT_RE = re.compile(
     r"register\(\n"
     r"    Verb\(\n"
     r"<<<<<<< HEAD\n"
-    r"(?P<pr_lines>(?:.*\n)+?)"
+    r"(?P<head_lines>(?:.*\n)+?)"
     r"=======\n"
-    r"(?P<main_lines>(?:.*\n)+?)"
-    r">>>>>>> origin/main\n"
+    r"(?P<incoming_lines>(?:.*\n)+?)"
+    r">>>>>>> .*\n"  # origin/main (merge) or <sha> (subject) (rebase)
     r"(?P<tail>(?:    +.*\n)*?)"
     r"    \)\n"
     r"\)\n",
@@ -58,28 +66,28 @@ def main(argv: list[str]) -> int:
         print("no conflict to resolve")
         return 0
 
-    pr_lines = match.group("pr_lines")
-    main_lines = match.group("main_lines")
+    head_lines = match.group("head_lines")
+    incoming_lines = match.group("incoming_lines")
     tail = match.group("tail")
 
-    main_block = (
+    head_block = (
         "register(\n"
         "    Verb(\n"
-        f"{main_lines}"
+        f"{head_lines}"
         f"{tail}"
         "    )\n"
         ")\n"
     )
-    pr_block = (
+    incoming_block = (
         "register(\n"
         "    Verb(\n"
-        f"{pr_lines}"
+        f"{incoming_lines}"
         f"{tail}"
         "    )\n"
         ")\n"
     )
 
-    replacement = main_block + pr_block
+    replacement = head_block + incoming_block
     new_text = text[: match.start()] + replacement + text[match.end():]
     path.write_text(new_text)
     if "<<<<<<<" in new_text or ">>>>>>>" in new_text:
