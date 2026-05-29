@@ -3846,6 +3846,26 @@ var _cachedMtypes = [];
 // ``uc.cmp[]`` array materialised by build.py's sidecar merge.
 var _cachedClausesByReg = {};
 
+// Normalize regulation identifiers for case-insensitive sort/filter.
+function normalizeRegKey(r) {
+  return String(r == null ? '' : r).trim().toLowerCase();
+}
+
+function regKeyMatches(stored, selected) {
+  return normalizeRegKey(stored) === normalizeRegKey(selected);
+}
+
+// Resolve a selected regulation to the canonical key in _cachedClausesByReg.
+function resolveRegClauseKey(selectedReg) {
+  if (!selectedReg || selectedReg === 'all') return null;
+  var want = normalizeRegKey(selectedReg);
+  var keys = Object.keys(_cachedClausesByReg);
+  for (var i = 0; i < keys.length; i++) {
+    if (normalizeRegKey(keys[i]) === want) return keys[i];
+  }
+  return null;
+}
+
 function __bootstrapCatalogState() {
   allUCs.length = 0;
   Object.keys(ucIndex).forEach(function(k) { delete ucIndex[k]; });
@@ -3878,7 +3898,9 @@ function __bootstrapCatalogState() {
 function __recomputeCachedFacets() {
   var regSet = {};
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.regs)) e.uc.regs.forEach(function(r) { regSet[r] = 1; }); });
-  _cachedRegKeys = Object.keys(regSet).sort();
+  _cachedRegKeys = Object.keys(regSet).sort(function(a, b) {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   // Rebuild the per-regulation clause facet from the compact
   // ``uc.cmp[]`` rows. Each row carries regulation + version + clause so
@@ -4032,7 +4054,8 @@ function getFilteredUCs() {
     // ``cmp[]`` array still match here because build.py mirrors every
     // ``cmp`` row's regulation id into the flat ``regs[]`` union.
     result = result.filter(function(e) {
-      return Array.isArray(e.uc.regs) && e.uc.regs.indexOf(currentRegulationFilter) !== -1;
+      if (!Array.isArray(e.uc.regs)) return false;
+      return e.uc.regs.some(function(r) { return regKeyMatches(r, currentRegulationFilter); });
     });
     if (currentClauseFilter && currentClauseFilter !== 'all') {
       // Second-level clause filter: only applicable when the top-level
@@ -4051,7 +4074,7 @@ function getFilteredUCs() {
           if (!Array.isArray(e.uc.cmp)) return false;
           return e.uc.cmp.some(function(row) {
             return row
-              && row.r === currentRegulationFilter
+              && regKeyMatches(row.r, currentRegulationFilter)
               && row.v === wantVer
               && row.cl === wantClause;
           });
@@ -4718,7 +4741,8 @@ function filterStrip() {
     // simply don't show the second dropdown, so the UX degrades to
     // "regulation only" instead of breaking.
     if (currentRegulationFilter !== 'all') {
-      var clauses = _cachedClausesByReg[currentRegulationFilter] || [];
+      var regClauseKey = resolveRegClauseKey(currentRegulationFilter);
+      var clauses = regClauseKey ? (_cachedClausesByReg[regClauseKey] || []) : [];
       if (clauses.length) {
         html += '<select class="c-select" onchange="setClauseFilter(this.value)" title="Specific clause or article">';
         html += '<option value="all">All Clauses (' + clauses.length + ')</option>';

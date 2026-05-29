@@ -146,6 +146,26 @@ var _cachedMtypes = [];
 // ``uc.cmp[]`` array materialised by build.py's sidecar merge.
 var _cachedClausesByReg = {};
 
+// Normalize regulation identifiers for case-insensitive sort/filter.
+function normalizeRegKey(r) {
+  return String(r == null ? '' : r).trim().toLowerCase();
+}
+
+function regKeyMatches(stored, selected) {
+  return normalizeRegKey(stored) === normalizeRegKey(selected);
+}
+
+// Resolve a selected regulation to the canonical key in _cachedClausesByReg.
+function resolveRegClauseKey(selectedReg) {
+  if (!selectedReg || selectedReg === 'all') return null;
+  var want = normalizeRegKey(selectedReg);
+  var keys = Object.keys(_cachedClausesByReg);
+  for (var i = 0; i < keys.length; i++) {
+    if (normalizeRegKey(keys[i]) === want) return keys[i];
+  }
+  return null;
+}
+
 function __bootstrapCatalogState() {
   allUCs.length = 0;
   Object.keys(ucIndex).forEach(function(k) { delete ucIndex[k]; });
@@ -178,7 +198,9 @@ function __bootstrapCatalogState() {
 function __recomputeCachedFacets() {
   var regSet = {};
   allUCs.forEach(function(e) { if (Array.isArray(e.uc.regs)) e.uc.regs.forEach(function(r) { regSet[r] = 1; }); });
-  _cachedRegKeys = Object.keys(regSet).sort();
+  _cachedRegKeys = Object.keys(regSet).sort(function(a, b) {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   // Rebuild the per-regulation clause facet from the compact
   // ``uc.cmp[]`` rows. Each row carries regulation + version + clause so
