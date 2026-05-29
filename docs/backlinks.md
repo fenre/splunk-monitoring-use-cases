@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_224 pages indexed; 128 have at least one inbound link; 431 unique source→target edges._
+_225 pages indexed; 129 have at least one inbound link; 432 unique source→target edges._
 
 ---
 
@@ -1013,7 +1013,7 @@ _No inbound links yet._
 
 ## `docs/parallel-execution-substrate.md`
 
-_No inbound links yet._
+- [`docs/subagent-firewall.md`](subagent-firewall.md)
 
 ## `docs/peer-review-guide.md`
 
@@ -1135,6 +1135,10 @@ _No inbound links yet._
 ## `docs/stewardship-digest.md`
 
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
+
+## `docs/subagent-firewall.md`
+
+_No inbound links yet._
 
 ## `docs/superpowers/plans/2026-05-17-content-quality-lift-loop.md`
 
