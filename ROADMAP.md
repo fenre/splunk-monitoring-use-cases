@@ -18,7 +18,7 @@ deadband, SKU tier, …) and routes through a registry of pure
 `(driverValues, profile) → {eps, bytesPerEvent}` functions in
 `tools/data-sizing/compute-functions.js`. The 206-source catalogue
 ships with 24 fully-calibrated drivers (every driver carries ≥ 1
-vendor / Splunkbase / Lantern citation drawn from a curated
+vendor / Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Lantern citation drawn from a curated
 whitelist); the remaining sources route through a generic
 fall-through with explicit "pending calibration" provenance so the UI
 can mark them and the regression test snapshot can track them.
@@ -524,7 +524,7 @@ rises to 14 frameworks.
   quality with curated `equipmentModels[]` for the US surface-
   transportation stack (ServiceNow CMDB, Microsoft AD, Cisco ISE for
   OT segmentation, Claroty / Dragos / Nozomi for pipeline and rail
-  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-7">7</a>]</sup> for
+  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-6">6</a>]</sup> for
   CISA submission, ServiceNow Records Management for the TSA 5-year
   retention regime, CyberArk PSM / BeyondTrust for vendor remote
   access, Tenable / Qualys for vulnerability scoring), the Singapore
@@ -933,11 +933,11 @@ See [`GOVERNANCE.md`](GOVERNANCE.md) for the full decision-making process.
 
 <a id="ref-4"></a>**[4]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-5"></a>**[5]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
-<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
 
-<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
