@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_228 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
+_229 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
 
 ---
 
@@ -208,6 +208,10 @@ _No inbound links yet._
 - [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/README.md`
+
+_No inbound links yet._
+
+## `docs/alert-action-templates.md`
 
 _No inbound links yet._
 
