@@ -30,6 +30,13 @@ from splunk_uc.audits._content_quality_dimensions import (
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
 CONTENT_DIR = PROJECT_ROOT / "content"
 REPORT_PATH = PROJECT_ROOT / "reports" / "content-quality-audit.json"
+# Back-compat alias preserved for P16 wave GG tests (test_content_quality.py)
+# which monkeypatch ``cq.SAMPLE_DATA`` to redirect fixtureRef resolution into
+# a hermetic ``tmp_path / "sample-data"`` tree. B-6 source resolves
+# ``fixtureRef`` against ``PROJECT_ROOT`` (which is also monkeypatched), so
+# this symbol is documentation-only — its presence keeps
+# ``monkeypatch.setattr(cq, "SAMPLE_DATA", ...)`` from raising AttributeError.
+SAMPLE_DATA = PROJECT_ROOT / "sample-data"
 
 JARGON_TERMS = [
     "tstats",
@@ -369,7 +376,10 @@ def main(argv: list[str] | None = None) -> int:
     if legacy:
         return _print_legacy_result(legacy, len(legacy))
 
-    print(f"Content quality: OK ({scanned} sidecars scanned, 0 legacy violations).")
+    print(
+        f"Content quality: OK ({scanned} sidecars scanned, "
+        "0 existing violation(s))."
+    )
     return 0
 
 
