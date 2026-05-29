@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_218 pages indexed; 128 have at least one inbound link; 431 unique source→target edges._
+_220 pages indexed; 128 have at least one inbound link; 431 unique source→target edges._
 
 ---
 
@@ -1124,7 +1124,15 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/superpowers/plans/2026-05-27-data-sizing-realism.md`
+
+_No inbound links yet._
+
 ## `docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`
+
+_No inbound links yet._
+
+## `docs/superpowers/specs/2026-05-22-data-sizing-realism-design.md`
 
 _No inbound links yet._
 
