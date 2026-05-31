@@ -1,0 +1,97 @@
+# Lane D — SARIF emission for GitHub Code Scanning and DevSecOps pipelines.
+#
+# Converts catalogue audit JSON reports into SARIF 2.1.0 logs and uploads
+# the combined ``dist/sarif/catalogue.sarif`` to GitHub Code Scanning.
+# A lightweight roundtrip smoke also runs in ``validate.yml`` on every PR;
+# this workflow is the full-fidelity path with upload permissions.
+
+name: SARIF
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: sarif-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sarif:
+    name: generate-and-upload-sarif
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
+      - name: Build catalogue (prerequisite graph + dist/ SSOT)
+        run: python3 tools/build/build.py --out dist
+
+      - name: Collect audit JSON reports
+        run: |
+          set -euo pipefail
+          mkdir -p dist/audits
+          PYTHONPATH=src python3 -m splunk_uc audit-spl-references --json \
+            > dist/audits/spl-references.json || true
+          PYTHONPATH=src python3 -m splunk_uc audit-spl-grammar --json \
+            > dist/audits/spl-grammar.json || true
+          if [ -f reports/prerequisites-audit.json ]; then
+            cp reports/prerequisites-audit.json dist/audits/prerequisites.json
+          else
+            PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --write-report
+            cp reports/prerequisites-audit.json dist/audits/prerequisites.json
+          fi
+          PYTHONPATH=src python3 <<'PY'
+          import json
+          import glob
+          import os
+          from pathlib import Path
+          from splunk_uc.audits.spl_hallucinations import audit_json_file
+
+          repo = Path(".").resolve()
+          content = repo / "content"
+          findings = []
+          for fp in sorted(glob.glob(str(content / "cat-*" / "UC-*.json"))):
+              for f in audit_json_file(fp):
+                  findings.append({
+                      "file": os.path.relpath(fp, repo),
+                      "uc_id": f.uc_id.removeprefix("UC-"),
+                      "severity": f.severity,
+                      "category": f.category,
+                      "message": f.message,
+                  })
+          out = repo / "dist" / "audits" / "spl-hallucinations.json"
+          out.write_text(json.dumps({"findings": findings}, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Generate SARIF logs
+        run: PYTHONPATH=src python3 -m splunk_uc generate-sarif --out dist/sarif
+
+      - name: Validate SARIF logs
+        run: PYTHONPATH=src python3 -m splunk_uc audit-sarif --check
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: dist/sarif/catalogue.sarif
+          category: splunk-uc-catalogue
+
+      - name: Upload SARIF artefact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: sarif-logs
+          path: dist/sarif/
+          if-no-files-found: ignore

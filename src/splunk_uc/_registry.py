@@ -587,6 +587,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-sarif",
+        module="audits.sarif",
+        help="Validate SARIF 2.1.0 logs emitted by generate-sarif (--check).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -750,6 +758,14 @@ register(
         name="generate-dashboards",
         module="generators.dashboards",
         help="Emit per-UC Splunk dashboard scaffolds (Simple XML + Dashboard Studio).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-sarif",
+        module="generators.sarif_emit",
+        help="Emit SARIF 2.1.0 logs from dist/audits/*.json for DevSecOps tooling.",
         category="generators",
     )
 )
