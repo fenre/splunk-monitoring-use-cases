@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_233 pages indexed; 131 have at least one inbound link; 434 unique source→target edges._
+_234 pages indexed; 131 have at least one inbound link; 434 unique source→target edges._
 
 ---
 
@@ -1225,6 +1225,10 @@ _No inbound links yet._
 ## `docs/v7.1-release-report.md`
 
 - [`README.md`](../README.md)
+
+## `docs/vendor-changelog.md`
+
+_No inbound links yet._
 
 ## `eventgen_data/README.md`
 

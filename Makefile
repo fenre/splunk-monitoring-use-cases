@@ -9,6 +9,7 @@
        audit-regulation-alignment audit-nis2-no-gap audit-oscal \
        audit-regulatory-change-watch \
 	audit-compliance-gaps audit-compliance-mappings audit-evidence-signatures \
+	audit-vendor-changelog \
 	audit-doc-counts audit-openapi-drift audit-content-quality audit-exclusions-coverage \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
@@ -71,7 +72,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -162,6 +163,12 @@ audit-oscal: ## NIST OSCAL component-definition schema + canonical-byte gate
 
 audit-regulatory-change-watch: ## Hermetic regulatory change-watch ledger audit (no network)
 	$(SPLUNK_UC) audit-regulatory-change-watch --check
+
+audit-vendor-changelog: ## Validate vendor changelogs (schema, freshness, UC impact advisory)
+	$(SPLUNK_UC) audit-vendor-changelog --check --max-age-days 180
+
+add-vendor-changelog-entry: ## Append an entry to data/vendor-changelog/<vendor>.json (pass CLI flags)
+	$(SPLUNK_UC) add-vendor-changelog-entry --help
 
 audit-compliance-gaps: ## Per-regulation clause-level gap analysis (--check ensures no drift)
 	$(SPLUNK_UC) audit-compliance-gaps --check
