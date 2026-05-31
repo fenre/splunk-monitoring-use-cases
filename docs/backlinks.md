@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_232 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
+_233 pages indexed; 131 have at least one inbound link; 434 unique source→target edges._
 
 ---
 
@@ -204,6 +204,10 @@ _No inbound links yet._
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
 
 ## `docs/adr/0014-per-uc-thresholds-field.md`
+
+- [`docs/adr/README.md`](adr/README.md)
+
+## `docs/adr/0015-cost-field-group.md`
 
 - [`docs/adr/README.md`](adr/README.md)
 
