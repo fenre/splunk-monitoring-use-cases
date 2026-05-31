@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_229 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
+_230 pages indexed; 130 have at least one inbound link; 433 unique source→target edges._
 
 ---
 
@@ -359,6 +359,10 @@ _No inbound links yet._
 - [`docs/compliance-story-guide.md`](compliance-story-guide.md)
 - [`docs/guides/regulatory-compliance-master.md`](guides/regulatory-compliance-master.md)
 - [`docs/regulatory-primer.md`](regulatory-primer.md)
+
+## `docs/dashboard-templates.md`
+
+_No inbound links yet._
 
 ## `docs/embedding.md`
 

@@ -579,6 +579,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-dashboards",
+        module="audits.dashboards",
+        help="Validate per-UC dashboard scaffolds under dist/dashboards/ (--check).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -734,6 +742,14 @@ register(
         name="generate-alert-actions",
         module="generators.alert_actions",
         help="Emit per-UC SOAR + email alert action templates under dist/alert-actions/.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-dashboards",
+        module="generators.dashboards",
+        help="Emit per-UC Splunk dashboard scaffolds (Simple XML + Dashboard Studio).",
         category="generators",
     )
 )
