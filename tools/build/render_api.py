@@ -2,6 +2,7 @@
 
 Owns ``dist/api/``:
 
+* ``index.json``          (category table-of-contents; CategorySummary[] per openapi.yaml)
 * ``catalog-index.json``  (UC stubs for browse bootstrap; lazy-loads cat-N.json)
 * ``cat-N.json``          (per-category lazy payload; emitted by legacy build today)
 * ``manifest.json``       (global path index for machine consumers)
@@ -31,6 +32,7 @@ adds the v7-native artefacts on top:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -119,9 +121,53 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
     api_dir = out_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
     _write_catalog_index(catalog, api_dir, reproducible=reproducible)
+    _write_category_index(catalog, api_dir, reproducible=reproducible)
     _write_category_shards(catalog, api_dir, reproducible=reproducible)
     _write_path_manifest(catalog, api_dir, reproducible=reproducible)
     _write_shortlinks_placeholder(api_dir, reproducible=reproducible)
+
+
+# ---------------------------------------------------------------------------
+# index.json — category table-of-contents (CategorySummary[])
+# ---------------------------------------------------------------------------
+
+def _write_category_index(catalog: Catalog, api_dir: Path, *, reproducible: bool) -> None:
+    """Emit ``dist/api/index.json`` — the category table-of-contents.
+
+    A compact ``CategorySummary[]`` (one entry per category: ``number``,
+    ``name``, ``subcategory_count``, ``uc_count``) for building a top-level
+    navigation or table of contents without fetching the full catalogue.
+    Documented in the root ``openapi.yaml`` as ``GET /api/index.json`` and
+    advertised in the in-page API help (index.html). This surface was dropped
+    when the legacy ``build.py`` was retired in v8.2.0, causing a production
+    404 (issue #68); it is restored here from the same Catalog data that
+    ``catalog-index.json`` already carries, so the two stay consistent.
+
+    Output is pretty-printed with a stable category order (ascending number)
+    and fixed key order, so it is byte-identical across ``--reproducible``
+    builds.
+    """
+    summaries: list[dict[str, Any]] = []
+    for cat in sorted(catalog.categories, key=lambda c: c.get("i", 0)):
+        cat_id = cat.get("i")
+        if cat_id is None:
+            continue
+        subs = cat.get("s", []) or []
+        uc_count = 0
+        for sub in subs:
+            uc_count += sum(1 for uc in (sub.get("u", []) or []) if uc.get("i"))
+        summaries.append({
+            "number": cat_id,
+            "name": cat.get("n", ""),
+            "subcategory_count": len(subs),
+            "uc_count": uc_count,
+        })
+
+    out_path = api_dir / "index.json"
+    out_path.write_text(
+        json.dumps(summaries, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -484,9 +530,24 @@ def _slug(name: str) -> str:
 
 
 def _ts(reproducible: bool) -> str:
-    if reproducible:
-        return "1970-01-01T00:00:00Z"
     from datetime import datetime, timezone
+
+    if reproducible:
+        # Honour SOURCE_DATE_EPOCH so /api/manifest.json and
+        # /api/catalog-index.json carry the real commit timestamp instead of
+        # the Unix epoch (issue #68: production reported
+        # generatedAt: 1970-01-01T00:00:00Z). tools/build/build.py always
+        # exports SOURCE_DATE_EPOCH in --reproducible mode (git commit time,
+        # or "0" when git is unavailable), so two consecutive builds stay
+        # byte-identical and the "0" fallback reproduces the prior 1970 value
+        # exactly. Mirrors api_surface._deterministic_timestamp() so the
+        # legacy and v1 surfaces report the same instant.
+        sde = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
+        if sde.isdigit():
+            return datetime.fromtimestamp(int(sde), tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+        return "1970-01-01T00:00:00Z"
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

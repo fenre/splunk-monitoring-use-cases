@@ -59,29 +59,44 @@ jobs:
       - name: Pre-build audits — asset drift (src/ ↔ legacy index.html)
         run: python3 tools/audits/asset_drift.py --verbose
 
+      # ---------------------------------------------------------------------
+      # api/v1 generation order — load-bearing (fix for issue #68, 2026-06-03)
+      # ---------------------------------------------------------------------
       # The ``api/`` tree is gitignored (every file under ``api/*`` except
       # ``api/README.md`` — see ``.gitignore``). ``tools/build/build.py``
-      # does not regenerate it; it mirrors whatever is on disk via
-      # ``_mirror_legacy_root_into_dist``. If we skip regeneration here,
-      # ``dist/api/v1/compliance/*`` (clauses/, story/, regulations/ — the
-      # back-end for clause-navigator.html, compliance-story.html, and
-      # regulatory-primer.html's clause autolinker) and
-      # ``dist/api/v1/evidence-packs/*`` never ship, and those pages 404
-      # on every fetch. ``validate.yml`` only runs on ``pull_request``,
-      # so a direct push to main (what pages.yml triggers on) gets none
-      # of the drift checks either. We therefore invoke the two
-      # generators that own the api/v1/ tree directly before the build:
-      #   * ``generate-api-surface`` — owns api/v1/ (compliance/, equipment/,
-      #     mitre/, oscal/, recommender/, openapi.yaml, context.jsonld,
-      #     manifest.json). Internally invokes generate_clause_index.py,
-      #     augment_regulation_api.py, and generate_story_payload.py for
-      #     the full compliance/ subtree.
-      #   * ``generate-evidence-packs`` — owns api/v1/evidence-packs/
-      #     (listed in api_surface::_EXTERNAL_SUBTREES so the first
-      #     generator leaves it alone).
-      # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): both routed
-      # through the dispatcher.
-      - name: Regenerate api/v1/ (static JSON surface)
+      # MIRRORS whatever ``api/`` is on disk into ``dist/api/`` (``api`` is
+      # listed in ``_PROJECT_CONTENT_DIRS``); it does NOT itself populate
+      # ``api/v1/``. Two facts make the ORDER critical:
+      #
+      #   1. ``generate-api-surface`` loads the catalogue via
+      #      ``_resolve_catalog_path()`` → ``dist/catalog.json`` (SSOT) or
+      #      the legacy root ``catalog.json``. BOTH are gitignored, so on a
+      #      fresh CI checkout neither exists until ``build.py`` has run. If
+      #      we generate BEFORE building, ``_load_catalog()`` returns ``[]``
+      #      and every recommender/equipment index is written EMPTY
+      #      (useCaseCount: 0, sourcetypeCount: 0, all equipment counts 0) —
+      #      precisely the production regression reported in issue #68.
+      #   2. ``build.py`` mirrors ``api/v1/`` into ``dist`` during the build,
+      #      so the surface must already be populated on disk when the
+      #      PUBLISH build runs, or ``dist/api/v1/compliance/*`` and
+      #      ``dist/api/v1/evidence-packs/*`` never ship and 404.
+      #
+      # The only ordering that satisfies both is build → generate → build,
+      # mirroring validate.yml's audits-build job:
+      #   * Build #1 produces ``dist/catalog.json`` (the SSOT the generators
+      #     read). Its api/v1 mirror is incomplete and is wiped by Build #2.
+      #   * ``generate-api-surface`` + ``generate-evidence-packs`` populate
+      #     the working-tree ``api/v1/`` from the now-present catalogue.
+      #   * Build #2 (rmtree's dist first) re-renders and mirrors the
+      #     POPULATED ``api/v1/`` into ``dist/api/v1/`` for publish.
+      # The non-empty guard further below fails the deploy if the
+      # regression ever recurs. P6: generators routed through the dispatcher.
+      - name: Build catalog (Build #1 — produces dist/catalog.json for the generators)
+        run: |
+          python3 tools/build/build.py --out dist --reproducible
+          test -s dist/catalog.json || { echo "::error::dist/catalog.json missing/empty after build — generators would emit empty api/v1 indexes (issue #68)"; exit 1; }
+
+      - name: Regenerate api/v1/ (static JSON surface — reads dist/catalog.json)
         run: |
           PYTHONPATH=src python3 -m splunk_uc generate-api-surface
           PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs
@@ -92,8 +107,10 @@ jobs:
           echo "compliance/story:   $(find api/v1/compliance/story -type f 2>/dev/null | wc -l)"
           echo "compliance/regs:    $(find api/v1/compliance/regulations -type f 2>/dev/null | wc -l)"
           echo "evidence-packs:     $(find api/v1/evidence-packs -type f 2>/dev/null | wc -l)"
+          echo "recommender:        $(find api/v1/recommender -type f 2>/dev/null | wc -l)"
+          echo "equipment:          $(find api/v1/equipment -type f 2>/dev/null | wc -l)"
 
-      - name: Build dist/ (reproducible)
+      - name: Build dist/ (Build #2 — mirrors the populated api/v1 tree; reproducible)
         run: |
           python3 tools/build/build.py --out dist --reproducible
           echo "---"
@@ -113,6 +130,15 @@ jobs:
           fi
           echo "OK: two consecutive --reproducible builds are byte-identical"
           rm -rf dist-rebuild
+
+      # Guard against issue #68 recurring: if the recommender/equipment
+      # indexes ever ship empty again (e.g. a future reorder regresses the
+      # build → generate → build sequence, or _load_catalog() breaks), fail
+      # the deploy BEFORE publishing rather than serving zero-record JSON
+      # with HTTP 200. Compares the v1 recommender + equipment counts
+      # against the populated dist/api/catalog-index.json.
+      - name: Guard — api/v1 recommender + equipment indexes are non-empty
+        run: python3 tools/audits/api_surface_nonempty.py dist
 
       # Budgets, Lighthouse, axe, schema-diff and url-freeze run pre-merge
       # in validate.yml. pages.yml only runs on main, after merge,

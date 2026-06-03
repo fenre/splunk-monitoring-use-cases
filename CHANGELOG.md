@@ -12,6 +12,47 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.7.1] - 2026-06-03
+
+### Fixed
+
+Production GitHub Pages shipped **empty `/api/v1/recommender/*` and
+`/api/v1/equipment/*` indexes** (HTTP 200 with valid envelopes but zero
+records) for v8.7.0 — reported in issue #68. Three distinct defects are
+fixed here:
+
+- **Empty v1 recommender + equipment indexes (root cause).** The
+  `pages.yml` deploy workflow ran `generate-api-surface` *before*
+  `dist/catalog.json` existed, so the recommender / equipment generators
+  read an empty catalogue and emitted empty-but-valid payloads. Both
+  `pages.yml` and the `validate.yml` `audits-build` job now follow a
+  **build → `generate-api-surface` → rebuild** sequence so the generators
+  always see the populated catalogue. After the fix the indexes report
+  `uc-thin` 7,929 UCs, `sourcetype-index` 3,912 sourcetypes, `cim-index`
+  14 CIM models, `app-index` 3,157 apps, and every equipment entry a
+  non-zero `useCaseCount` (e.g. `paloalto.json` → 260 UCs).
+- **`/api/index.json` 404.** The category table-of-contents
+  (`CategorySummary[]`) documented in `openapi.yaml` and the in-page API
+  help was dropped when the legacy build was retired in v8.2.0. It is
+  restored by a new `_write_category_index()` writer in
+  `tools/build/render_api.py`, rebuilt from the same `Catalog` data that
+  backs `catalog-index.json` (23 categories).
+- **`/api/manifest.json` 1970 epoch.** `render_api._ts()` hard-coded the
+  Unix epoch under `--reproducible`, stamping
+  `generatedAt: 1970-01-01T00:00:00Z`. It now honours `SOURCE_DATE_EPOCH`
+  (set from the git commit time during reproducible builds), matching the
+  v1 manifest while staying byte-reproducible.
+
+### Added
+
+- **CI guard — `tools/audits/api_surface_nonempty.py`.** Fails the build
+  when any published v1 recommender / equipment index ships zero records
+  while `catalog-index.json` reports a populated catalogue, and asserts
+  `/api/index.json` is a non-empty `CategorySummary[]`. Wired into both
+  `pages.yml` (pre-deploy) and `validate.yml` (`audits-build`), with unit
+  coverage in `tests/build/test_tools_audits_api_surface_nonempty.py`.
+  Closes the publish-time blind spot described in issue #68.
+
 ## [8.7.0] - 2026-05-27
 
 ### Added — Data Sizing tool v2 (driver-based engine + calibrated catalogue)
