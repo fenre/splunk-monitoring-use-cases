@@ -931,6 +931,31 @@ def _canonicalise_cim(name: str) -> str | None:
     return _CIM_MODEL_LOOKUP.get(root.lower())
 
 
+def _assert_recommender_catalog_loaded(catalog_ucs: Sequence[Mapping[str, Any]]) -> None:
+    """Fail fast when recommender/equipment indexes would be empty.
+
+    Compliance and MITRE payloads load UC sidecars directly, so a missing
+    ``dist/catalog.json`` still produces plausible-looking API output with
+    zero-row recommender indexes (fenre/splunk-monitoring-use-cases#68).
+    """
+    if catalog_ucs:
+        return
+    catalog_path = _resolve_catalog_path()
+    build_hint = (
+        "Run `python3 tools/build/build.py --out dist` (or `--only parse meta`) "
+        "before `python -m splunk_uc generate-api-surface`. "
+        "On GitHub Pages deploy, the catalog build step must precede api/v1 "
+        "regeneration (see .github/workflows/pages.yml)."
+    )
+    if catalog_path is None:
+        raise SystemExit(f"ERROR: dist/catalog.json not found. {build_hint}")
+    try:
+        catalog_label = str(catalog_path.relative_to(REPO_ROOT))
+    except ValueError:
+        catalog_label = str(catalog_path)
+    raise SystemExit(f"ERROR: {catalog_label} contains no UCs. {build_hint}")
+
+
 def _load_catalog() -> list[dict[str, Any]]:
     """Return every use-case from ``catalog.json`` as a flat list.
 
@@ -2234,6 +2259,9 @@ and operator runbooks.
 
 
 def _render(out_root: pathlib.Path) -> None:
+    catalog_ucs = _load_catalog()
+    _assert_recommender_catalog_loaded(catalog_ucs)
+
     regs = _load_json(REGS_PATH)
     coverage = _load_json(COVERAGE_REPORT)
     ucs = _load_ucs()
@@ -2311,7 +2339,6 @@ def _render(out_root: pathlib.Path) -> None:
     _write_json(out_root / "mitre" / "d3fend.json", d3fend_payload)
 
     # Recommender (drives splunk-apps/splunk-uc-recommender)
-    catalog_ucs = _load_catalog()
     sidecar_sb_map: dict[str, list[dict[str, Any]]] = {}
     for uc in ucs:
         uc_id = uc.get("id")

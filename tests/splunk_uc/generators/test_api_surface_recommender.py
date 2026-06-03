@@ -41,6 +41,27 @@ from splunk_uc.generators import api_surface as M  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
+class TestAssertRecommenderCatalogLoaded:
+    def test_exits_when_catalog_missing(self) -> None:
+        with pytest.raises(SystemExit, match="dist/catalog.json not found"):
+            M._assert_recommender_catalog_loaded([])
+
+    def test_exits_when_catalog_file_has_no_ucs(
+        self,
+        tmp_path: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        empty_cat = tmp_path / "catalog.json"
+        empty_cat.write_text(json.dumps({"DATA": []}), encoding="utf-8")
+        monkeypatch.setattr(M, "CATALOG_PATH_PRIMARY", empty_cat)
+        monkeypatch.setattr(M, "CATALOG_PATH_LEGACY", tmp_path / "missing.json")
+        with pytest.raises(SystemExit, match="contains no UCs"):
+            M._assert_recommender_catalog_loaded([])
+
+    def test_noop_when_catalog_has_ucs(self) -> None:
+        M._assert_recommender_catalog_loaded([{"i": "1.1.1"}])
+
+
 class TestLoadCatalog:
     def test_returns_empty_when_no_catalog_found(
         self,
