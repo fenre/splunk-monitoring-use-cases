@@ -289,7 +289,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("is_configured", "0"),
                 ("state", "enabled"),
-                ("build", "14"),
+                ("build", "15"),
             ],
         ),
         (
@@ -297,7 +297,7 @@ def _primary_app_conf(version: str) -> str:
             [
                 ("name", PRIMARY_APP_ID),
                 ("version", version),
-                ("build", "14"),
+                ("build", "15"),
             ],
         ),
         (
@@ -739,10 +739,10 @@ def _savedsearches_conf() -> str:
             [
                 (
                     "description",
-                    "Inventories active sourcetypes and writes them to the uc_recommender_inventory KV store. Low-cost: uses | metadata type=sourcetypes index=*.",
+                    "Inventories active sourcetypes and writes them to the uc_recommender_inventory KV store. Runs hourly. Low-cost: uses | metadata type=sourcetypes index=*.",
                 ),
                 ("search", sourcetype_spl),
-                ("cron_schedule", "*/30 * * * *"),
+                ("cron_schedule", "7 * * * *"),
                 ("dispatch.earliest_time", "-1d@d"),
                 ("dispatch.latest_time", "now"),
                 ("enableSched", "1"),
@@ -758,10 +758,10 @@ def _savedsearches_conf() -> str:
             [
                 (
                     "description",
-                    "Inventories active indexes via | eventcount. Runs every 30 minutes; cheaper than metadata when many sourcetypes share indexes.",
+                    "Inventories active indexes via | eventcount. Runs hourly; cheaper than metadata when many sourcetypes share indexes.",
                 ),
                 ("search", index_spl),
-                ("cron_schedule", "*/30 * * * *"),
+                ("cron_schedule", "12 * * * *"),
                 ("dispatch.earliest_time", "-1d@d"),
                 ("dispatch.latest_time", "now"),
                 ("enableSched", "1"),
@@ -818,9 +818,9 @@ def _savedsearches_conf() -> str:
 
 
 def _implementation_tracking_savedsearches() -> list[tuple[str, list[tuple[str, str]]]]:
-    """Four v9.0 saved searches — fingerprint scan, drift, audit, retention.
+    """Three v9.0 saved searches — fingerprint scan, drift, retention.
 
-    All four follow the v9.0 productionisation guards:
+    All three follow the v9.0 productionisation guards:
 
     * ``dispatch.max_count = 50000`` and ``dispatch.max_time = 600`` to
       cap runaway searches (per § 12c).
@@ -829,6 +829,16 @@ def _implementation_tracking_savedsearches() -> list[tuple[str, list[tuple[str, 
     * No outbound HTTP — every dependency is an in-app lookup
       (``uc_fingerprints.csv``) or KV collection
       (``uc_recommender_implementations`` / ``uc_recommender_audit``).
+
+    A fourth search — "Recommender — Audit append" — was removed in
+    8.7.2. It ran every 5 minutes (~70% of the app's scheduled-search
+    load) and diffed ``uc_recommender_implementations`` against a
+    ``uc_recommender_implementations_prev`` snapshot that nothing ever
+    wrote, so it never produced an audit row and only logged a
+    lookup-not-found error on each run. Destructive transitions are
+    already audited atomically by the ``uc_implementation_decommission``
+    wrapper; the async audit of non-destructive transitions is left as
+    future work that must ship its own ``_prev`` snapshot step.
 
     The fingerprint scan is the auto-detect side of the hybrid
     implementation-tracking pattern (§ 6a). It joins canonicalised
@@ -861,23 +871,6 @@ def _implementation_tracking_savedsearches() -> list[tuple[str, list[tuple[str, 
         'detection_source="auto-drift", '
         'marked_at=strftime(now(),"%Y-%m-%dT%H:%M:%S%z") '
         "| outputlookup uc_recommender_implementations append=t key_field=_key"
-    )
-    audit_append_spl = (
-        "| inputlookup uc_recommender_implementations "
-        "| eval kv_seen=1 "
-        "| inputlookup append=t uc_recommender_implementations_prev "
-        "| stats values(status) AS statuses, values(uc_id) AS uc_ids, "
-        "values(marked_by) AS users BY _key "
-        "| where mvcount(statuses)=2 "
-        "| eval old_status=mvindex(statuses,0), "
-        "new_status=mvindex(statuses,1), "
-        "uc_id=mvindex(uc_ids,0), "
-        'user=coalesce(mvindex(users,0), "system"), '
-        'timestamp=strftime(now(),"%Y-%m-%dT%H:%M:%S%z"), '
-        "request_id=md5(_key . tostring(now())) "
-        "| where old_status!=new_status "
-        "| table uc_id user old_status new_status timestamp request_id "
-        "| outputlookup uc_recommender_audit append=t "
     )
     audit_retention_spl = (
         "| inputlookup uc_recommender_audit "
@@ -922,20 +915,6 @@ def _implementation_tracking_savedsearches() -> list[tuple[str, list[tuple[str, 
                 ("search", drift_spl),
                 ("cron_schedule", "37 4 * * *"),
                 ("dispatch.earliest_time", "-2d@d"),
-                ("dispatch.latest_time", "now"),
-                *common_caps,
-            ],
-        ),
-        (
-            "Recommender — Audit append",
-            [
-                (
-                    "description",
-                    "Diffs uc_recommender_implementations against the previous snapshot every 5 minutes and writes one audit row per detected change for the fast-path (JS-only) writes. Destructive transitions write atomically through the saved-search-wrapper, so this 5-min cadence covers only non-destructive transitions (in_progress, implemented).",
-                ),
-                ("search", audit_append_spl),
-                ("cron_schedule", "*/5 * * * *"),
-                ("dispatch.earliest_time", "-15m@m"),
                 ("dispatch.latest_time", "now"),
                 *common_caps,
             ],

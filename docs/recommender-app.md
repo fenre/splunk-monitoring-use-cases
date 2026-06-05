@@ -110,7 +110,8 @@ scripts/package_splunk_apps.sh dist/
 Upload via **Settings → Manage apps → Install app from file**. Restart
 Splunk Web only if the installer asks for it (normally not required).
 
-The first inventory refresh runs 30 minutes after install. Hit
+The first inventory refresh runs within the hour after install (the
+sourcetype/index scans fire hourly at `:07` / `:12`). Hit
 **Recommender → Settings → Manual scan** to trigger one sooner.
 
 ### Splunk Cloud
@@ -234,8 +235,8 @@ Cadence:
 
 | Scan | Cron | Typical cost |
 | ---- | ---- | ------------ |
-| Sourcetypes | `*/30 * * * *` | seconds — `| metadata type=sourcetypes` is metadata-only |
-| Indexes | `*/30 * * * *` | seconds — `| eventcount summarize=false` |
+| Sourcetypes | `7 * * * *` (hourly) | seconds — `| metadata type=sourcetypes` is metadata-only |
+| Indexes | `12 * * * *` (hourly) | seconds — `| eventcount summarize=false` |
 | CIM acceleration | `0 * * * *` | sub-second — REST probe of `/services/data/models` |
 | Installed apps | `13 3 * * *` (once/day) | sub-second — REST probe of `/services/apps/local` |
 
@@ -397,7 +398,7 @@ alongside the generator's `--check` run.
 | ------- | ------------ | --- |
 | Recommend page spins forever | Browser cannot reach `https://fenre.github.io` | Confirm egress; the UI will surface the fetch error after the first timeout. |
 | "Refusing to fetch …" error | Settings override points outside the allow-list | Clear the override in Settings or choose a URL under `https://fenre.github.io`. |
-| Empty inventory tables | Scans not yet run | Wait 30 minutes after install, or trigger **Manual scan** from the Settings page. |
+| Empty inventory tables | Scans not yet run | Wait up to an hour after install, or trigger **Manual scan** from the Settings page. |
 | "Recommender could not load: HTTP 404" | GitHub Pages hasn't published the latest API | Run `python3 -m splunk_uc generate-api-surface` locally and commit. |
 | TA modular input fails on Cloud | Modular inputs are blocked on Splunk Cloud Classic | Install the TA only on Enterprise search heads. |
 

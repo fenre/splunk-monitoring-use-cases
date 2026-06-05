@@ -12,6 +12,33 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.7.2] - 2026-06-05
+
+### Changed
+
+- **`splunk-uc-recommender` — reduced scheduled-search load (administrator
+  noise).** The bundled recommender app dispatched ~415 scheduled searches per
+  day, ~70% of them from a single search firing every 5 minutes. v8.7.2 cuts
+  the enabled scheduled searches from 8 to 7 and the daily dispatch count to
+  ~50. The two inventory scans (`Recommender — Sourcetype inventory`,
+  `Recommender — Index inventory`) now run **hourly** (`7 * * * *` /
+  `12 * * * *`) instead of every 30 minutes — sourcetype/index inventory is
+  slow-changing and the **Settings → Manual scan** button still triggers an
+  on-demand refresh. App `build` bumped 14 → 15.
+
+### Removed
+
+- **`splunk-uc-recommender` — deleted the broken `Recommender — Audit append`
+  saved search.** It ran every 5 minutes and diffed
+  `uc_recommender_implementations` against a
+  `uc_recommender_implementations_prev` snapshot that **nothing in the app ever
+  wrote** (no `collections.conf` / `transforms.conf` stanza, no `outputlookup`
+  anywhere), so it never produced an audit row and only logged a
+  lookup-not-found error on each run — pure scheduler noise. Destructive
+  transitions remain fully audited by the atomic
+  `uc_implementation_decommission` wrapper; the async audit of non-destructive
+  transitions is deferred until it can ship its own `_prev` snapshot step.
+
 ## [8.7.1] - 2026-06-03
 
 ### Fixed
