@@ -44,7 +44,13 @@ BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
-HEAD_FALLBACK_CODES = frozenset({400, 403, 405, 501})
+# Status codes where a HEAD response is unreliable and we must confirm with a
+# GET before declaring the URL broken. Many otherwise-healthy servers mishandle
+# HEAD: www.rfc-editor.org returns 404 to HEAD but 200/302 to GET; others 405
+# (method not allowed), 400, 406 (content negotiation), or 501. GET is the
+# authoritative probe — a genuinely missing resource still 404s on GET and
+# stays broken, so adding 404/406 here only rescues false positives.
+HEAD_FALLBACK_CODES = frozenset({400, 403, 404, 405, 406, 501})
 RATE_LIMIT_CODES = frozenset({429, 503})
 TIMEOUT_SEC = 10
 MAX_WORKERS = 8
@@ -97,8 +103,9 @@ def normalize_url(raw: str) -> str:
 
     # 1. Strip sentence punctuation and markdown / JSON / code-fence
     #    decoration that never belongs in a URL. Loop because the
-    #    catalogue carries chains like ``http://x/y\`.,;!``.
-    decoration = ".,;!`\"'}\\"
+    #    catalogue carries chains like ``http://x/y\`.,;!`` and markdown
+    #    bold leakage like ``**https://x/y**`` (trailing ``*``).
+    decoration = ".,;!*`\"'}\\"
     while url and url[-1] in decoration:
         url = url[:-1]
 
