@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -186,9 +188,62 @@ def _resolve_bundle_path(bundle_path: str, subject_path: Path) -> Path | None:
     return None
 
 
+def _resolve_repo_slug() -> str | None:
+    """Resolve the ``owner/repo`` slug for ``gh attestation verify --repo``.
+
+    ``gh`` CLI 2.50+ requires one of ``--owner`` or ``--repo`` to disambiguate
+    which attestation store to query against; calls without either fail with
+    ``at least one of the flags in the group [owner repo] is required`` (which
+    previously surfaced as a spurious "rejected bundle" signature failure).
+
+    Two resolution paths, in order:
+
+    1. ``GITHUB_REPOSITORY`` environment variable — set automatically in
+       GitHub Actions runners (``${{ github.repository }}``).
+    2. ``git remote get-url origin`` — parsed from the SSH or HTTPS GitHub
+       remote URL. Covers the local-dev case where a contributor runs
+       ``--verify-signature`` outside CI.
+
+    Returns ``None`` if neither path succeeds. Mirrors the helper of the same
+    name in ``mapping_ledger.py`` so both signature gates resolve the slug
+    identically.
+    """
+    env = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if env and "/" in env:
+        return env
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    # Match HTTPS (``https://github.com/owner/repo[.git]``) and SSH
+    # (``git@github.com:owner/repo[.git]``) remote forms.
+    match = re.search(
+        r"github\.com[:/]([^/:]+)/([^/]+?)(?:\.git)?$",
+        result.stdout.strip(),
+    )
+    if match:
+        return f"{match.group(1)}/{match.group(2)}"
+    return None
+
+
 def verify_sigstore_bundle(subject_path: Path, bundle_path: Path) -> list[str]:
     if shutil.which("gh") is None:
         return ["gh CLI not installed; skipping Sigstore verification"]
+    repo_slug = _resolve_repo_slug()
+    if not repo_slug:
+        return [
+            "cannot derive --owner/--repo for `gh attestation verify`; set the "
+            "GITHUB_REPOSITORY env var (CI) or run from a GitHub-tracked clone (local)."
+        ]
     try:
         result = subprocess.run(
             [
@@ -200,6 +255,8 @@ def verify_sigstore_bundle(subject_path: Path, bundle_path: Path) -> list[str]:
                 str(bundle_path),
                 "--predicate-type",
                 "https://slsa.dev/provenance/v1",
+                "--repo",
+                repo_slug,
             ],
             cwd=ROOT,
             capture_output=True,
