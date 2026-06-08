@@ -315,8 +315,8 @@ def test_probe_once_returns_true_on_head_success(
 def test_probe_once_falls_back_to_get_on_head_fallback_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A HEAD that returns one of the FALLBACK codes (400, 403,
-    405, 501) triggers a GET retry — pin the resulting tuple."""
+    """A HEAD that returns one of the FALLBACK codes (400, 403, 404,
+    405, 406, 501) triggers a GET retry — pin the resulting tuple."""
 
     monkeypatch.setattr(audit, "_head_code", lambda url: 405)
     monkeypatch.setattr(audit, "_get_code", lambda url: 200)
@@ -327,14 +327,37 @@ def test_probe_once_falls_back_to_get_on_head_fallback_code(
     assert code == 405
 
 
+def test_probe_once_falls_back_to_get_on_head_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """404 and 406 were added to ``HEAD_FALLBACK_CODES`` on
+    2026-06-08: some servers (e.g. www.rfc-editor.org) answer a bare
+    HEAD with 404/405/406 but a GET with 200. A HEAD 404 must
+    therefore trigger a GET retry rather than be reported as broken.
+    Pins the new fallback contract so a future revert is caught."""
+
+    assert 404 in audit.HEAD_FALLBACK_CODES
+    assert 406 in audit.HEAD_FALLBACK_CODES
+    monkeypatch.setattr(audit, "_head_code", lambda url: 404)
+    monkeypatch.setattr(audit, "_get_code", lambda url: 200)
+    ok, detail, code = audit._probe_once("https://x/")
+    assert ok is True
+    assert "GET 200" in detail
+    assert "HEAD 404" in detail
+    assert code == 404
+
+
 def test_probe_once_returns_false_on_head_4xx_outside_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(audit, "_head_code", lambda url: 404)
+    # 410 Gone is a 4xx that is NOT in HEAD_FALLBACK_CODES, so it is
+    # reported directly with no GET retry. (404/406 were moved INTO
+    # the fallback set on 2026-06-08 — see the test above.)
+    monkeypatch.setattr(audit, "_head_code", lambda url: 410)
     ok, detail, code = audit._probe_once("https://x/")
     assert ok is False
-    assert detail == "HEAD 404"
-    assert code == 404
+    assert detail == "HEAD 410"
+    assert code == 410
 
 
 def test_probe_once_falls_back_on_head_httperror_in_fallback_set(
