@@ -269,6 +269,15 @@ def generate_all(*, gpg: bool = False, gpg_key: str | None = None, packs: bool =
 
     pack_count = 0
     if packs:
+        # shutil.copy2() below does NOT create the destination directory, and
+        # it is the first artefact emitted into PACKS_OUT_DIR (the descriptor
+        # write_json() that mkdirs its parent only runs afterwards). On a clean
+        # checkout dist/evidence-packs/ does not exist yet — dist/ is gitignored
+        # and rebuilt fresh, and generate-evidence-packs writes the sources to
+        # api/v1/evidence-packs/, not here — so the very first copy raised
+        # FileNotFoundError (surfaced once the alphabetically-first pack, awia,
+        # was added). Create the directory up front so the first copy succeeds.
+        PACKS_OUT_DIR.mkdir(parents=True, exist_ok=True)
         for regulation_id, source in collect_pack_sources():
             descriptor = build_pack_descriptor(regulation_id, source)
             dest = PACKS_OUT_DIR / f"{regulation_id}.json"
