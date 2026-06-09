@@ -1,14 +1,14 @@
 # Compliance coverage report
 
-_Generated: 2026-06-05T19:20:58Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-06-08T20:26:36Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
 ## Summary
 
-* UC files checked: **7929**
-* UC files valid:   **7929**
-* Compliance entries: **2790**
+* UC files checked: **7930**
+* UC files valid:   **7930**
+* Compliance entries: **2791**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
@@ -16,13 +16,13 @@ Status: **passed**
 
 * Clause coverage %: **92.9878**
 * Priority-weighted %: **93.187**
-* Assurance-adjusted %: **71.0244**
+* Assurance-adjusted %: **71.187**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 90.8889 | 90.8982 | 74.9462 |
+| tier-1 | 90.8889 | 90.8982 | 75.1851 |
 | tier-2 | 97.549 | 98.0483 | 62.7761 |
 | tier-3 | 100.0 | 100.0 | 50.0 |
 
@@ -64,7 +64,7 @@ Status: **passed**
 | gdpr | 100.0 | 100.0 | 68.6111 |
 | glba | 100.0 | 100.0 | 50.0 |
 | hipaa-privacy | 100.0 | 100.0 | 44.8529 |
-| hipaa-security | 100.0 | 100.0 | 64.8551 |
+| hipaa-security | 100.0 | 100.0 | 72.1014 |
 | hitrust | 100.0 | 100.0 | 75.0 |
 | hkma-tm-g-2 | 100.0 | 100.0 | 50.0 |
 | iec-61511 | 83.3333 | 81.8182 | 75.0 |
@@ -148,7 +148,7 @@ Status: **passed**
 | GDPR@2016/679 | 1 | 100.0 | 100.0 | 73.2659 |
 | GLBA@16 CFR 314 (2023 amendments) | 2 | 100.0 | 100.0 | 50.0 |
 | HIPAA Privacy@current | 2 | 100.0 | 100.0 | 44.8529 |
-| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 64.8551 |
+| HIPAA Security@2013-final | 1 | 100.0 | 100.0 | 72.1014 |
 | HITRUST@v11 | 2 | 100.0 | 100.0 | 75.0 |
 | HKMA TM-G-2@current | 2 | 100.0 | 100.0 | 50.0 |
 | IEC 61511 + ISA TR84.00.09@2016-iec-61511-ed-2-with-isa-tr84-00-09 | 1 | 83.3333 | 81.8182 | 75.0 |

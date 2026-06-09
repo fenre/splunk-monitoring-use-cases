@@ -347,11 +347,11 @@ _HIPAA Security Rule_
 | `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | partial | 22.10.9 |
 | `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | partial | 22.10.31 |
 | `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 4 | full | 17.1.50, 22.10.29, 22.49.1, 22.49.2 |
-| `§164.312(a)(1)` | Access control | 1.00 | ✔ 3 | contributing | 22.10.21, 22.10.24, 22.10.25 |
+| `§164.312(a)(1)` | Access control | 1.00 | ✔ 3 | partial | 22.10.21, 22.10.24, 22.10.25 |
 | `§164.312(a)(2)(iv)` | Encryption and decryption | 0.70 | ✔ 2 | full | 22.10.16, 22.41.1 |
-| `§164.312(b)` | Audit controls | 1.00 | ✔ 5 | partial | 10.12.16, 17.1.43, 22.10.17, 22.10.36, 22.10.58 |
+| `§164.312(b)` | Audit controls | 1.00 | ✔ 6 | full | 10.12.16, 17.1.43, 22.10.17, 22.10.36, 22.10.58, 22.10.59 |
 | `§164.312(c)(1)` | Integrity | 1.00 | ✔ 3 | full | 22.10.18, 22.10.27, 22.35.2 |
-| `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 4 | contributing | 17.1.38, 22.10.19, 22.10.23, 22.10.42 |
+| `§164.312(d)` | Person or entity authentication | 1.00 | ✔ 4 | partial | 17.1.38, 22.10.19, 22.10.23, 22.10.42 |
 | `§164.312(e)(1)` | Transmission security | 1.00 | ✔ 8 | full | 17.1.31, 22.10.20, 22.10.22, 22.10.26, 22.41.2, 22.45.4, 22.8.31, 22.8.38 |
 
 ### IEC 61511 + ISA TR84.00.09 — `iec-61511`
