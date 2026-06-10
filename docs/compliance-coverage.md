@@ -1,6 +1,6 @@
 # Compliance coverage report
 
-_Generated: 2026-06-09T14:54:04Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-06-10T07:38:29Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
@@ -8,7 +8,7 @@ Status: **passed**
 
 * UC files checked: **7937**
 * UC files valid:   **7937**
-* Compliance entries: **2806**
+* Compliance entries: **2808**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
@@ -16,13 +16,13 @@ Status: **passed**
 
 * Clause coverage %: **92.9878**
 * Priority-weighted %: **93.187**
-* Assurance-adjusted %: **72.4472**
+* Assurance-adjusted %: **72.5854**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 90.8889 | 90.8982 | 76.3199 |
+| tier-1 | 90.8889 | 90.8982 | 76.5229 |
 | tier-2 | 97.549 | 98.0483 | 64.0601 |
 | tier-3 | 100.0 | 100.0 | 79.4118 |
 
@@ -81,7 +81,7 @@ Status: **passed**
 | nesa-uae-ias | 100.0 | 100.0 | 50.0 |
 | nis2 | 100.0 | 100.0 | 49.4444 |
 | nist-800-53 | 100.0 | 100.0 | 81.3853 |
-| nist-csf | 100.0 | 100.0 | 72.7749 |
+| nist-csf | 100.0 | 100.0 | 75.3927 |
 | no-kbf-nve | 100.0 | 100.0 | 50.0 |
 | no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
 | no-petroleumsforskriften | 100.0 | 100.0 | 50.0 |
@@ -99,7 +99,7 @@ Status: **passed**
 | sg-pdpa | 100.0 | 100.0 | 50.0 |
 | soc-2 | 100.0 | 100.0 | 91.1871 |
 | soci | 75.0 | 77.7328 | 71.6599 |
-| sox-itgc | 100.0 | 100.0 | 96.8468 |
+| sox-itgc | 100.0 | 100.0 | 100.0 |
 | swift-csp | 100.0 | 100.0 | 50.0 |
 | tsa-sd | 100.0 | 100.0 | 50.0 |
 | tsa-surface | 35.7143 | 36.4964 | 36.4964 |
@@ -168,7 +168,7 @@ Status: **passed**
 | NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 49.4444 |
 | NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 81.3853 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
-| NIST CSF@2.0 | 1 | 100.0 | 100.0 | 67.7019 |
+| NIST CSF@2.0 | 1 | 100.0 | 100.0 | 70.8075 |
 | NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 50.0 |
 | NO Personopplysningsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |
 | NO Petroleumsforskriften@1997 as amended | 2 | 100.0 | 100.0 | 50.0 |
@@ -187,7 +187,7 @@ Status: **passed**
 | SG PDPA@2020 amended | 2 | 100.0 | 100.0 | 50.0 |
 | SOC 2@2017 TSC | 1 | 100.0 | 100.0 | 91.1871 |
 | SOCI Act@2022-SLACIP+CIRMP-2023 | 1 | 75.0 | 77.7328 | 71.6599 |
-| SOX ITGC@PCAOB AS 2201 | 1 | 100.0 | 100.0 | 96.8468 |
+| SOX ITGC@PCAOB AS 2201 | 1 | 100.0 | 100.0 | 100.0 |
 | SWIFT CSP@CSCF v2025 | 2 | 100.0 | 100.0 | 50.0 |
 | Swiss nFADP@2020 revision | 2 | 100.0 | 100.0 | 50.0 |
 | TSA SD@SD02C | 2 | 100.0 | 100.0 | 50.0 |

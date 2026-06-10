@@ -623,7 +623,7 @@ _NIST Cybersecurity Framework_
 | `PR.PS-04` | Log generation | 1.00 | ✔ 1 | full | 22.7.32 |
 | `DE.AE-02` | Anomalies and events analysis | 1.00 | ✔ 2 | full | 22.7.37, 22.7.51 |
 | `DE.CM-01` | Network monitoring | 1.00 | ✔ 2 | full | 22.7.31, 22.7.51 |
-| `DE.CM-03` | Personnel activity monitoring | 1.00 | ✔ 1 | partial | 22.7.33 |
+| `DE.CM-03` | Personnel activity monitoring | 1.00 | ✔ 2 | full | 22.14.82, 22.7.33 |
 | `DE.CM-09` | Environment monitoring | 0.70 | ✔ 1 | full | 22.7.5 |
 | `RS.MA-01` | Incident management | 1.00 | ✔ 1 | partial | 22.7.39 |
 | `RS.AN-03` | Incident analysis | 1.00 | ✔ 1 | full | 22.7.6 |
@@ -837,7 +837,7 @@ _SOX — PCAOB AS 2201 ITGCs_
 | `ITGC.Operations.JobSchedule` | Batch scheduling and monitoring | 0.70 | ✔ 1 | full | 22.12.40 |
 | `ITGC.Operations.Backup` | Backup and restore | 1.00 | ✔ 1 | full | 22.45.3 |
 | `ITGC.Logging.Continuity` | Audit trail completeness | 1.00 | ✔ 4 | full | 22.35.2, 22.35.6, 22.9.8, 7.1.40 |
-| `ITGC.Logging.Review` | Log review | 0.70 | ✔ 3 | partial | 22.47.2, 22.49.3, 5.13.45 |
+| `ITGC.Logging.Review` | Log review | 0.70 | ✔ 4 | full | 22.14.82, 22.47.2, 22.49.3, 5.13.45 |
 
 ### TSA Surface SDs — `tsa-surface`
 

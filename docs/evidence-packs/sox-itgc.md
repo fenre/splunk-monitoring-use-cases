@@ -42,7 +42,7 @@ All public companies registered with the SEC (US issuers and foreign private iss
 - **Clauses tracked**: 12
 - **Clauses covered by at least one UC**: 12 / 12 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 51
+- **Contributing UCs**: 52
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -63,7 +63,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`ITGC.Operations.JobSchedule`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.JobSchedule) | Batch scheduling and monitoring | 0.7 | `full` | [UC-22.12.40](#uc-22-12-40) |
 | [`ITGC.Operations.Backup`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.Backup) | Backup and restore | 1.0 | `full` | [UC-22.45.3](#uc-22-45-3) |
 | [`ITGC.Logging.Continuity`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Continuity) | Audit trail completeness | 1.0 | `full` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.6](#uc-22-35-6), [UC-22.9.8](#uc-22-9-8), [UC-7.1.40](#uc-7-1-40) |
-| [`ITGC.Logging.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Review) | Log review | 0.7 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.49.3](#uc-22-49-3), [UC-5.13.45](#uc-5-13-45) |
+| [`ITGC.Logging.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Review) | Log review | 0.7 | `full` | [UC-22.14.82](#uc-22-14-82), [UC-22.47.2](#uc-22-47-2), [UC-22.49.3](#uc-22-49-3), [UC-5.13.45](#uc-5-13-45) |
 
 ### 4.1 Contributing UC detail
 
@@ -259,6 +259,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.12.5.json`](../../content/cat-22-regulatory-compliance/UC-22.12.5.json)
+<a id='uc-22-14-82'></a>
+- **UC-22.14.82** — Enterprise Audit Review, Analysis & Reporting
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.14.82.json`](../../content/cat-22-regulatory-compliance/UC-22.14.82.json)
 <a id='uc-22-35-2'></a>
 - **UC-22.35.2** — Log tamper detection via write-once-read-many chain-of-custody
   - Control family: `evidence-continuity`

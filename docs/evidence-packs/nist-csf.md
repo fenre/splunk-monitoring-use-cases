@@ -42,7 +42,7 @@ Any organisation seeking a structured, outcome-focused approach to cybersecurity
 - **Clauses tracked**: 17
 - **Clauses covered by at least one UC**: 17 / 17 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 19
+- **Contributing UCs**: 20
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -64,7 +64,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
 | [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `full` | [UC-22.7.37](#uc-22-7-37), [UC-22.7.51](#uc-22-7-51) |
 | [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `full` | [UC-22.7.31](#uc-22-7-31), [UC-22.7.51](#uc-22-7-51) |
-| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `partial` | [UC-22.7.33](#uc-22-7-33) |
+| [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `full` | [UC-22.14.82](#uc-22-14-82), [UC-22.7.33](#uc-22-7-33) |
 | [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09) | Environment monitoring | 0.7 | `full` | [UC-22.7.5](#uc-22-7-5) |
 | [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01) | Incident management | 1.0 | `partial` | [UC-22.7.39](#uc-22-7-39) |
 | [`RS.AN-03`](https://csrc.nist.gov/pubs/cswp/29/final#RS.AN-03) | Incident analysis | 1.0 | `full` | [UC-22.7.6](#uc-22-7-6) |
@@ -72,6 +72,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-22-14-82'></a>
+- **UC-22.14.82** — Enterprise Audit Review, Analysis & Reporting
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.14.82.json`](../../content/cat-22-regulatory-compliance/UC-22.14.82.json)
 <a id='uc-22-7-1'></a>
 - **UC-22.7.1** — NIST CSF Maturity Posture Dashboard
   - Control family: `—`
