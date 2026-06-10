@@ -482,6 +482,7 @@ comes from *better drift tooling* (below), not from deleting artefacts.
 | `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, full build, `api/v1`, splunk-cloud-compat, version-matrix, control-test, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
 | `make preflight-check` | **CI-faithful drift mirror** — runs the same set in `--check` mode (or `git diff` for writers without a `--check` flag). Read-only. | ~3–5 min | Reproduce a CI drift failure locally. |
 | `make preflight-fast` | The ~30s subset: `sync-generated-check` + the `non-technical-view.js` legacy-emit guard. | ~30 s | Pre-push hook (below). |
+| `make ci` | **Full local mirror of the merge gate** — `preflight-check` (drift) + `test-unit` (pytest) + `audit-full` (content audits). Aggregates failures instead of stopping at the first, mirroring the un-masked CI gates. | ~5–8 min | Reproduce the *whole* `validate.yml` verdict before pushing a large or risky change. |
 
 `make bootstrap` provisions a Python ≥ 3.11 environment (the
 `_require-py311` guard refuses older interpreters — `datetime.UTC` and
@@ -499,6 +500,24 @@ Both jobs now mark their independent drift checks with
 `if: ${{ !cancelled() }}` so a single CI run reports **all** stale
 artefacts at once. (The umbrella cascade gate in `audits-content`
 already had this property via `make sync-generated-check`.)
+
+When any of `audits-content` / `audits-build` / `frontend` fails, a final
+`Drift summary (on failure)` step (`.github/scripts/drift-summary.sh`)
+writes an actionable recovery block to the run's **Job Summary** — the
+`make preflight` fix command surfaces at the top of the run page instead
+of buried in a collapsed step log.
+
+### Concurrency: superseded PR runs are cancelled
+
+`validate.yml` carries a `concurrency` group keyed on the PR number (or
+ref). On a **pull request**, `cancel-in-progress` is `true`, so a
+push-push-push to a branch cancels the older, now-stale runs instead of
+stacking three full ~13-min, 6-job validations. On **`main` pushes**
+`cancel-in-progress` is `false`, so every commit that lands on `main`
+(including rapid bot pushes) is fully validated. `uc-manifest.yml` and
+`uc-tests.yml` use the same PR-cancel / main-protect idiom; the latter's
+main-only `splunk-e2e` service-container job therefore always runs to
+completion.
 
 ### Mapping-ledger commit-lag
 

@@ -31,7 +31,7 @@
 	generate-observability-metrics audit-observability-drift \
        generate-backlinks generate-doc-references \
        sync-generated sync-generated-check \
-       preflight preflight-check preflight-fast \
+       preflight preflight-check preflight-fast ci \
        bootstrap check-python _require-py311 \
        check-source-links audit-auto-gen-provenance \
        splunk-uc splunk-uc-help \
@@ -189,7 +189,13 @@ audit-auto-gen-provenance: ## Verify every auto-generated doc carries a 'Generat
 	$(PYTHON) scripts/audit_auto_gen_provenance.py --check
 
 audit-ids: ## Validate UC IDs (duplicates, ordering, category match)
-	$(SPLUNK_UC) audit-uc-ids
+	# CI parity: validate.yml runs ``audit-uc-ids --warn-gaps`` (gap-free
+	# ordering is reported as a WARNING, not a hard failure, because the
+	# catalogue carries known historical index gaps). Without ``--warn-gaps``
+	# this local target was *stricter* than CI and false-failed ``make
+	# audit-full`` on those pre-existing gaps. Duplicates and category
+	# mismatches are still hard failures either way.
+	$(SPLUNK_UC) audit-uc-ids --warn-gaps
 
 audit-monitoring-type: ## Validate monitoringType values and MITRE consistency
 	$(SPLUNK_UC) audit-monitoring-type
@@ -564,6 +570,31 @@ preflight-check: _require-py311 ## CI-faithful drift mirror: fail if any committ
 	  exit 1; \
 	fi; \
 	echo "==> preflight-check: clean — safe to push"
+
+ci: _require-py311 ## Full local mirror of the validate.yml merge gate: drift + unit tests + content audits (~5-8 min)
+	# One command to reproduce the merge gate before pushing. Unlike
+	# ``preflight-check`` (drift-only, ~fast), ``make ci`` also runs the unit
+	# tests and the content-audit suite, so it mirrors all five validate.yml
+	# jobs (lint/audits-content/audits-build/mcp/frontend) as closely as a
+	# local run can. Like the un-masked CI drift gates, it runs every phase
+	# and aggregates failures instead of stopping at the first. Assumes a
+	# bootstrapped env (``make bootstrap`` installs pytest + audit extras).
+	@set -e; failed=0; \
+	echo "==> make ci [1/3] drift mirror (preflight-check: build + cascade + api + reports + legacy)"; \
+	$(MAKE) --no-print-directory preflight-check || failed=1; \
+	echo "==> make ci [2/3] unit tests (pytest tests/build)"; \
+	$(MAKE) --no-print-directory test-unit || failed=1; \
+	echo "==> make ci [3/3] content audits (audit-full)"; \
+	$(MAKE) --no-print-directory audit-full || failed=1; \
+	if [ $$failed -ne 0 ]; then \
+	  echo ""; \
+	  echo "FAIL: make ci found problems above (drift, tests, or audits)."; \
+	  echo "      This mirrors the validate.yml merge gate — fix before pushing."; \
+	  echo "      For stale generated artefacts specifically: run \`make preflight\`."; \
+	  exit 1; \
+	fi; \
+	echo ""; \
+	echo "==> make ci: clean — local mirror of the merge gate is green"
 
 audit-reproducibility: ## Two consecutive --reproducible builds must match (~90s)
 	$(SPLUNK_UC) audit-reproducibility

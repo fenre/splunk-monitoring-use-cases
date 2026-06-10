@@ -107,6 +107,18 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded *PR* runs so a rapid push-push-push to a branch
+# doesn't stack three full ~13-min, 6-job validations (the merge gate is
+# the most expensive workflow in the tree and was the only PR-triggered
+# gate without a concurrency group — codeql / gitleaks / sarif /
+# dependency-review / build-reproducibility all have one). Pushes to
+# ``main`` are deliberately NOT cancelled (``cancel-in-progress`` is
+# false for the ``push`` event) so every commit that lands on ``main``
+# is fully validated even when bots push in quick succession.
+concurrency:
+  group: validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # ============================================================================
   # Job 1: lint (~5 min budget)
@@ -857,6 +869,16 @@ jobs:
           PYTHONPATH=src python3 -m splunk_uc generate-observability-metrics --limit 200
           PYTHONPATH=src python3 -m splunk_uc audit-observability-drift --check
 
+      - name: Drift summary (on failure)
+        # Surfaces the recovery hint in the run's Job Summary so a red
+        # drift/audit run shows the fix at the TOP of the page instead of
+        # buried in step logs. Fires only when an earlier step in this job
+        # failed; pairs with the un-masked ``if: ${{ !cancelled() }}`` gates
+        # so all stale artefacts surface in one run.
+        if: ${{ failure() }}
+        shell: bash
+        run: bash .github/scripts/drift-summary.sh "${{ github.job }}"
+
   # ============================================================================
   # Job 3: audits-build (~30 min budget)
   # ============================================================================
@@ -1175,6 +1197,15 @@ jobs:
             dist/SHA256SUMS.txt
             dist/splunk-apps-manifest.md
           if-no-files-found: ignore
+
+      - name: Drift summary (on failure)
+        # See audits-content for rationale. audits-build is the job that
+        # runs the full build + byte-budget / URL-freeze / API-surface /
+        # Splunk-Cloud drift gates, so its red runs benefit most from a
+        # single recovery block in the Job Summary.
+        if: ${{ failure() }}
+        shell: bash
+        run: bash .github/scripts/drift-summary.sh "${{ github.job }}"
 
   # ============================================================================
   # Job 4: mcp (~10 min budget)
@@ -1558,6 +1589,15 @@ jobs:
         run: |
           PYTHONPATH=src python3 -m splunk_uc generate-dashboards
           PYTHONPATH=src python3 -m splunk_uc audit-dashboards --check
+
+      - name: Drift summary (on failure)
+        # See audits-content for rationale. frontend runs the Phase 4.5
+        # Node drift guards (scorecard / sandbox / ATT&CK / OSCAL / perf+a11y)
+        # and the non-technical-view.js SOT guard, all un-masked, so a red
+        # run can carry several independent drift failures at once.
+        if: ${{ failure() }}
+        shell: bash
+        run: bash .github/scripts/drift-summary.sh "${{ github.job }}"
 
   data-sizing-catalogue:
     # 2026-05-27 (Realism refresh — Tasks 5, 11–35, 36, 39): gates the v2
