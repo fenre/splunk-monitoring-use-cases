@@ -1,0 +1,97 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.14.82",
+  "title": "Enterprise Audit Review, Analysis & Reporting",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the audit-record review/analysis/reporting control (NIST 800-53 AU-6, inherited by FedRAMP AU-6). It reviews and analyses already-collected audit records across actors and reports review-worthy activity. It does NOT cover whether records are being generated/collected (AU-2/AU-12 coverage — UC-22.35.6), the integrity/immutability of stored logs (UC-22.35.2), or automated response/containment. Service and machine accounts are scoped via the actor allowlist so routine automation does not dominate the review.",
+  "evidence": "Saved search 'UC-22.14.82 — audit review, analysis & reporting' runs on the documented review cadence, writes each review-worthy actor record to the restricted audit_evidence index (7-year retention), and feeds the 'Audit review & reporting' dashboard — the timestamped operating evidence an assessor reads to confirm AU-6 review and reporting are actually happening.",
+  "compliance": [
+    {
+      "regulation": "nist-800-53",
+      "version": "Rev. 5",
+      "clause": "AU-6",
+      "clauseUrl": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "AU-6 requires that the organization reviews and analyses audit records for indications of inappropriate or unusual activity and reports findings. This UC is the operating implementation of that obligation: on a fixed cadence it aggregates audit records across every actor and source, applies review heuristics (failed-action clusters, activity spikes via per-population z-score, high-volume actors), and emits a dated review record for follow-up and reporting. Splunk is the sole-sufficient detective control that performs and evidences the review/analysis/reporting cycle, so the grade is full; the human adjudication of a flagged item is the documented follow-up step, not a separate logging system.",
+      "controlObjective": "Proves AU-6 audit review, analysis and reporting operates — audit records are reviewed across actors, anomalies are surfaced, and a dated review record is produced for reporting.",
+      "evidenceArtifact": "Saved search 'UC-22.14.82' review records archived to the restricted audit_evidence index with the review_flag rationale an assessor can read directly.",
+      "obligationRef": "nist-800-53@Rev. 5#AU-6",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "fedramp",
+      "version": "Rev.5 Baselines",
+      "clause": "AU-6",
+      "clauseUrl": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "FedRAMP baselines inherit NIST 800-53 AU-6 verbatim, requiring continuous review, analysis and reporting of audit records for in-scope cloud systems. This same scheduled control performs that review across the FedRAMP system boundary and produces the dated review evidence a 3PAO examines. Because the FedRAMP control text is the NIST AU-6 control, and Splunk is the sole-sufficient mechanism performing and evidencing the review, the grade is full.",
+      "controlObjective": "Evidence that FedRAMP AU-6 (inherited from NIST 800-53) operates for the authorized cloud boundary — audit records are reviewed/analysed and findings reported.",
+      "evidenceArtifact": "Saved search 'UC-22.14.82' review record archived to audit_evidence for 3PAO/continuous-monitoring review.",
+      "obligationRef": "fedramp@Rev.5 Baselines#AU-6",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Drive a burst of failed authentications or denied actions for one account (e.g. 75 failed access attempts) within the review window. On the next scheduled run that account appears with failed_actions>50 and review_flag='failed-action-cluster', and the row is archived to the audit_evidence index for analyst follow-up and reporting.",
+    "negativeScenario": "During a normal window where every actor stays within roughly three standard deviations of the population baseline, has fewer than 50 failed actions and under 5000 events, the search produces no review_flag rows and the review record is archived as a clean AU-6 review for the period.",
+    "attackTechnique": "T1078"
+  },
+  "dataSources": "All in-scope audit/security indexes carrying an actor field (e.g. `WinEventLog:Security`, `linux_secure`, `aws:cloudtrail`, `o365:management:activity`, database and application audit logs). The optional actor allowlist lookup `audit_review_allowlist.csv` scopes out routine service/automation accounts.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform (native). Splunk Enterprise Security optional for notable/risk routing of flagged actors.",
+  "spl": "index=* sourcetype=* (action=* OR status=* OR signature=*) earliest=-7d\n| stats count as events, count(eval(match(coalesce(action,status,signature),\"(?i)fail|deny|denied|error\"))) as failed_actions, dc(host) as hosts, values(sourcetype) as sourcetypes, latest(_time) as last_event by user\n| where isnotnull(user) AND user!=\"\" AND user!=\"-\"\n| eventstats avg(events) as avg_events, stdev(events) as sd_events\n| eval zscore=round((events-avg_events)/(sd_events+1), 2)\n| eval review_flag=case(failed_actions>50, \"failed-action-cluster\", zscore>3, \"activity-spike\", events>5000, \"high-volume-actor\", true(), \"nominal\")\n| where review_flag!=\"nominal\"\n| eval reviewed_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| table reviewed_at, user, events, failed_actions, hosts, sourcetypes, zscore, review_flag\n| sort - events",
+  "description": "Operates the AU-6 audit review/analysis/reporting cycle: on a fixed cadence it aggregates audit records across every actor and source, baselines per-population activity, and flags review-worthy actors (failed-action clusters, statistical activity spikes, high-volume actors) into a single dated review record. This turns 'we review our logs' into replayable, timestamped evidence that the review actually ran and what it found.",
+  "value": "Auditors do not accept 'we look at the logs' — AU-6 wants evidence the review happened and produced findings. This control produces exactly that: a dated, per-actor review record showing the population was analysed, which actors were flagged and why. It also gives the SOC a ranked triage list instead of raw audit volume, and satisfies the NIST and FedRAMP review obligation from one scheduled search.",
+  "implementation": "(1) Confirm the in-scope audit sources carry a normalised actor field (FIELDALIAS to `user` where needed); (2) maintain audit_review_allowlist.csv for known service/automation accounts; (3) schedule to the documented review cadence (e.g. daily with a weekly reporting roll-up); (4) route flagged rows to the restricted audit_evidence index and email the review to the audit owner; (5) tune the failed-action, z-score and volume thresholds during a 30-day baseline. Indexes required: all in-scope audit indexes; Lookups: audit_review_allowlist.csv.",
+  "visualization": "Table (user, events, failed_actions, zscore, review_flag) with flagged rows highlighted; single-value 'actors flagged for review'; time chart of flagged actors over the reporting period. Key fields: `user`, `review_flag`, `zscore`.",
+  "cimModels": [],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5 — AU-6 Audit Record Review, Analysis, and Reporting"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "title": "MITRE ATT&CK — T1078 Valid Accounts"
+    },
+    {
+      "url": "https://docs.splunk.com/Documentation/ES/latest",
+      "title": "Splunk Enterprise Security Documentation"
+    }
+  ],
+  "knownFalsePositives": "1. **Service / automation accounts** — High-volume machine accounts can repeatedly trip the volume and z-score flags; list them in audit_review_allowlist.csv so they are annotated rather than dominating the review.\n\n2. **Scheduled batch windows** — Nightly jobs and bulk operations can spike an actor's event count legitimately; the per-population z-score plus the allowlist limit this, and the weekly roll-up smooths single-window spikes.\n\n3. **Onboarding / migration bursts** — Mass provisioning can raise failed-action counts transiently; correlate with change records before treating as a finding.\n\n**Suppression mechanism:** Maintain audit_review_allowlist.csv; allowlisted actors are excluded from flagging while remaining in the analysed evidence population so coverage is preserved.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "user",
+    "review_flag",
+    "events",
+    "reviewed_at"
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud. Splunk Enterprise Security optional (flagged actors become notables/risk).\n• **Normalised actor field**: in-scope audit sources must expose a consistent `user` field — add `FIELDALIAS` in props.conf where a vendor uses a different key. AU-6 review is by actor, so this is the control's pivot.\n• **Allowlist lookup**: `audit_review_allowlist.csv` (column `user`) lists routine service/automation accounts to annotate out of the review.\n• **Evidence index**: provision the restricted `audit_evidence` index with retention meeting the strictest applicable obligation and role-based access for auditors.\n• **Regulatory mapping**: this control evidences NIST 800-53 `AU-6` and FedRAMP `AU-6` (inherited). Every result carries `review_flag` and `reviewed_at` so the review evidence is directly readable.\n\n## Step 1 — Confirm the review population\n\nAU-6 reviews *all* audit records, so the base search deliberately spans `index=* sourcetype=*` filtered to events carrying an action/status/signature. Validate the population is what you expect: `| metadata type=sourcetypes index=*` and reconcile against the audit-source inventory used by UC-22.35.6 so the review and the coverage control agree on scope.\n\n## Step 2 — Implement the search\n\nThe search aggregates per actor, then applies three review heuristics: a failed-action cluster (operational misuse / brute force), a per-population activity z-score (statistical outlier), and an absolute high-volume band. Use `eventstats` (not `stats` join) so the baseline is computed in-stream. Schedule it:\n\n```ini\n[UC-22.14.82: Enterprise Audit Review, Analysis & Reporting]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -7d\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.14.82,controls=AU-6;FedRAMP-AU-6\n```\n\n## Step 3 — Calibrate thresholds\n\nProfile the population before alerting: run the aggregation without the final `where` over 30 days and set the z-score between p90 and p99 and the volume band above legitimate heavy users. Document the calibration date — an assessor will ask how the review thresholds were derived.\n\n## Step 4 — Operationalize (dashboard + reporting)\n\nBuild 'Audit review & reporting': a single-value 'actors flagged for review', a flagged-actor table (user, events, failed_actions, zscore, review_flag), and a reporting trend of flagged actors per period. Enable scheduled PDF export on the reporting cadence and archive to audit_evidence — that export is the AU-6 reporting artdefact.\n\n## Step 5 — Troubleshooting and caveats\n\n• **One account dominates every run:** it is almost certainly a service account — add it to audit_review_allowlist.csv.\n\n• **No actor field on a source:** add the FIELDALIAS; a source with no actor cannot contribute to an actor-based review and should be flagged as a review gap.\n\n• **Scope discipline:** reconcile the reviewed sourcetypes against the audit-source inventory periodically so the review population stays complete.",
+  "grandmaExplanation": "Every day we go through the records of who did what across all our systems, and we automatically pick out the people whose activity looks unusual — lots of failures or a sudden spike — so a person can take a closer look. We keep a dated note proving the review happened."
+}

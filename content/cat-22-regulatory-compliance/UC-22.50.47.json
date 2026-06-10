@@ -1,0 +1,104 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.47",
+  "title": "Internal Network Security Monitoring for the Electric OT Environment",
+  "criticality": "critical",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the internal (east-west) network security-monitoring control for the electric OT environment, common to NERC CIP-007-6 R4 (security event monitoring) and FERC Order 887 (internal network security monitoring for the bulk electric system). It baselines OT host network behaviour and flags traffic spikes and east-west fan-out inside the trust zone. It is read-only and passive (no active probing of SIS/control assets — see OT safety rules). It does NOT cover endpoint/host integrity, perimeter/IDS alerting alone, or response. Out-of-scope segments are excluded via the OT asset categorisation.",
+  "evidence": "Saved search 'UC-22.50.47 — OT internal network monitoring' runs on a short cadence over the Network_Traffic model scoped to OT-categorised assets, writes scored east-west anomalies to the security_monitoring summary index, and feeds the 'OT internal network monitoring' dashboard — the operating evidence a NERC auditor or FERC-aligned reviewer reads to confirm internal network monitoring operates.",
+  "compliance": [
+    {
+      "regulation": "nerc-cip",
+      "version": "current",
+      "clause": "CIP-007-6 R4",
+      "clauseUrl": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "NERC CIP-007-6 R4 requires security event monitoring of BES Cyber Systems — logging events, generating alerts for detected security events, and reviewing them. This UC is the network security-event-monitoring implementation for the OT environment: it continuously baselines east-west traffic to and from OT-categorised assets and surfaces anomalous activity (volume spikes, lateral fan-out) as dated, reviewable records. Splunk performing continuous passive network security monitoring is the sole-sufficient detective control for the network-monitoring obligation of R4, so the grade is full; host-level event logging is layered by the endpoint UCs.",
+      "controlObjective": "Evidence that CIP-007-6 R4 security event monitoring operates on the OT network — east-west activity to/from BES cyber assets is monitored, anomalies surfaced and reviewed.",
+      "evidenceArtifact": "Saved search 'UC-22.50.47' scored OT network anomalies archived to the security_monitoring summary index for NERC CIP review.",
+      "obligationRef": "nerc-cip@current#CIP-007-6 R4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "ferc-cip",
+      "version": "current",
+      "clause": "Order887",
+      "clauseUrl": "https://www.ferc.gov/industries-data/electric/industry-activities/",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "FERC Order 887 directs internal network security monitoring (INSM) within trusted CIP networked environments for the bulk electric system, to detect malicious activity that has bypassed the perimeter. This UC is precisely an INSM control: it monitors east-west traffic inside the OT trust zone, baselines per-asset behaviour, and surfaces lateral movement / anomalous internal flows that perimeter controls miss. Splunk performing passive internal network monitoring is the sole-sufficient detective control Order 887 calls for, so the grade is full.",
+      "controlObjective": "Evidence that FERC Order 887 INSM operates — internal (east-west) network traffic in the CIP trust zone is monitored and anomalies indicative of post-perimeter activity are surfaced.",
+      "evidenceArtifact": "Saved search 'UC-22.50.47' east-west anomaly record archived to the security_monitoring summary index for FERC/NERC INSM evidence.",
+      "obligationRef": "ferc-cip@current#Order887",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Simulate lateral movement from one OT-categorised host (e.g. an engineering workstation scanning many PLCs/HMIs) so it contacts more than 20 distinct internal destinations or its hourly flow count exceeds three standard deviations of its baseline. On the next run the source appears with monitor_status='east-west fan-out' (or 'traffic-spike') and the record is archived to security_monitoring for OT-engineering review.",
+    "negativeScenario": "During normal operation where each OT asset talks to its usual small set of peers within its flow baseline, the search produces no rows and the interval is recorded as clean internal-monitoring evidence.",
+    "attackTechnique": "T1071"
+  },
+  "dataSources": "Network_Traffic CIM model populated passively from OT network telemetry (SPAN/TAP/diode-fed sensors, e.g. Cisco Cyber Vision, Zeek, NetFlow/IPFIX from OT switches). OT assets are identified via the asset-categorisation lookup setting `src_category`/`dest_category` to 'ot'. Collection is passive/read-only per OT safety rules.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform where the Network_Traffic model is populated from OT sensors; Splunk Enterprise Security recommended for notable/risk routing in the OT SOC.",
+  "spl": "| tstats summariesonly=f count as flows, sum(All_Traffic.bytes) as bytes, dc(All_Traffic.dest) as distinct_dests, values(All_Traffic.dest_port) as dest_ports from datamodel=Network_Traffic where (All_Traffic.src_category=\"ot\" OR All_Traffic.dest_category=\"ot\") earliest=-24h by All_Traffic.src, _time span=1h\n| rename All_Traffic.* as *\n| eventstats avg(flows) as avg_flows, stdev(flows) as sd_flows by src\n| eval zscore=round((flows-avg_flows)/(sd_flows+1), 2)\n| where zscore>3 OR distinct_dests>20\n| stats max(zscore) as zscore, sum(flows) as flows, sum(bytes) as bytes, max(distinct_dests) as distinct_dests by src\n| eval monitor_status=case(distinct_dests>20, \"east-west fan-out\", true(), \"traffic-spike\")\n| eval detected_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| table detected_at, src, flows, bytes, distinct_dests, zscore, monitor_status\n| sort - zscore",
+  "description": "Operates internal (east-west) network security monitoring for the electric OT environment: it continuously baselines traffic to and from OT-categorised assets through the Network_Traffic model and surfaces anomalous internal activity (per-asset volume spikes and lateral fan-out across many destinations) as dated, reviewable records — the post-perimeter visibility NERC CIP-007-6 R4 and FERC Order 887 require.",
+  "value": "Perimeter controls miss an attacker already inside the OT trust zone. This control gives the bulk-electric operator dated evidence that internal network monitoring is operating and surfaces the lateral movement (an engineering workstation suddenly scanning controllers) that precedes an OT incident — satisfying the NERC R4 network-monitoring obligation and the FERC Order 887 INSM mandate from one passive, read-only search that respects OT safety boundaries.",
+  "implementation": "(1) Onboard OT network telemetry passively (SPAN/TAP/diode; never active probing of control/SIS assets) into the Network_Traffic model; (2) categorise OT assets so src_category/dest_category='ot' (asset lookup); (3) schedule on a short cadence; (4) route scored anomalies to the security_monitoring summary index and to the OT SOC / OT-engineering review queue; (5) calibrate the z-score and fan-out thresholds per zone over a baseline. Data model: Network_Traffic; Summary index: security_monitoring; Asset categorisation lookup required.",
+  "visualization": "Table (src, flows, bytes, distinct_dests, zscore, monitor_status) with fan-out rows highlighted; single-value 'OT network anomalies (24h)'; time chart of east-west anomalies per zone. Key fields: `src`, `distinct_dests`, `monitor_status`.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "url": "https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx",
+      "title": "NERC CIP Standards — CIP-007-6 R4 Security Event Monitoring"
+    },
+    {
+      "url": "https://www.ferc.gov/industries-data/electric/industry-activities/",
+      "title": "FERC — Internal Network Security Monitoring (Order 887)"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1071/",
+      "title": "MITRE ATT&CK — T1071 Application Layer Protocol"
+    }
+  ],
+  "knownFalsePositives": "1. **Engineering / maintenance activity** — Legitimate commissioning or maintenance can fan out to many assets; correlate with the OT change-window lookup before treating as a finding.\n\n2. **Polling masters / historians** — SCADA historians and polling servers contact many endpoints by design; baseline them per-asset and/or allowlist their src.\n\n3. **New or re-imaged OT hosts** — A host without a baseline can score high until the window matures; the per-asset baseline limits this to first activity.\n\n**Suppression mechanism:** Maintain the OT asset lookup with an allowlist for known many-peer roles (historians, polling masters) and a maintenance-window lookup; matching sources are annotated and excluded from alerting while remaining in the analysed evidence.",
+  "mitreAttack": [
+    "T1071"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "src",
+    "distinct_dests",
+    "zscore",
+    "monitor_status"
+  ],
+  "equipment": [
+    "cisco",
+    "netflow"
+  ],
+  "equipmentModels": [
+    "netflow_netflow"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud; Splunk Enterprise Security recommended for the OT SOC.\n• **Passive OT telemetry**: Network_Traffic must be populated from passive sources only (SPAN/TAP/diode-fed sensors such as Cisco Cyber Vision, Zeek, OT-switch NetFlow). Per the OT safety rules, NEVER use active probing against Level 0/1/2 or SIS assets.\n• **OT asset categorisation**: an asset lookup must set `src_category`/`dest_category='ot'` for in-scope BES cyber assets so the monitoring is scoped to the OT trust zone.\n• **Summary index**: provision `security_monitoring`.\n• **Regulatory mapping**: evidences NERC `CIP-007-6 R4` and FERC `Order 887` (INSM). Every result carries `monitor_status` and `detected_at`.\n\n## Step 1 — Establish the OT monitoring scope (passively)\n\nConfirm the OT segments are instrumented by passive sensors and that the asset lookup categorises BES cyber assets as 'ot'. A segment with no passive sensor is an INSM blind spot and must be recorded as a gap — do not close it with active scanning.\n\n## Step 2 — Implement the search\n\n`tstats` over the accelerated Network_Traffic model summarises east-west flows per OT source per hour; `eventstats` baselines each asset; a z-score plus a distinct-destination fan-out gate flag anomalies indicative of lateral movement. Schedule it:\n\n```ini\n[UC-22.50.47: Internal Network Security Monitoring for the Electric OT Environment]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = security_monitoring\naction.summary_index.marker = uc=22.50.47,controls=CIP-007-6-R4;FERC-Order887\n```\n\n## Step 3 — Calibrate per zone\n\nOT traffic is more deterministic than IT; profile the z-score and fan-out distribution per zone over a baseline and set the fan-out threshold above legitimate polling-master behaviour. Document the calibration for the auditor.\n\n## Step 4 — Operationalize\n\nBuild 'OT internal network monitoring': single-value anomaly count, an east-west anomaly table (fan-out highlighted), and a per-zone anomaly trend. Route anomalies to the OT SOC and the OT-engineering review queue (human-in-the-loop; no automated action on OT assets). Schedule the evidence export to security_monitoring.\n\n## Step 5 — Troubleshooting and caveats\n\n• **Historians dominate:** baseline/allowlist known many-peer roles.\n\n• **No OT flows:** confirm sensors feed Network_Traffic and the OT asset categorisation is applied; an empty OT view means INSM is blind, which is itself a finding.\n\n• **Safety discipline:** all collection is passive and all response is human-in-the-loop per the OT safety boundary; this control reads telemetry and never writes to control assets.",
+  "grandmaExplanation": "Inside the power-grid control network we quietly watch how the equipment normally talks to each other, so if one machine suddenly starts reaching out to lots of others — a classic sign someone has sneaked in — we notice and raise it for the engineers, without ever touching the equipment itself."
+}

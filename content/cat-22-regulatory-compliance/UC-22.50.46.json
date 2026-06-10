@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.50.46",
+  "title": "Continuous Security Monitoring Across the Information System",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the continuous-security-monitoring posture control common to FedRAMP SI-4 (system monitoring) and the GLBA Safeguards Rule §314.4(d)(2) (continuous monitoring). It proves monitoring is operating across every in-scope index/feed and surfaces high-severity activity and any monitored feed that has gone quiet. It does NOT cover deep per-surface detection (network UC-22.7.51, auth UC-22.8.41), audit-log generation coverage (UC-22.35.6), or response. Out-of-scope feeds are excluded via the monitored-index inventory.",
+  "evidence": "Saved search 'UC-22.50.46 — continuous monitoring posture' runs on a short cadence, writes a per-index monitoring record to the restricted audit_evidence index, and feeds the 'Continuous security monitoring' dashboard — the dated evidence a 3PAO (FedRAMP) or qualified assessor (GLBA) reads to confirm continuous monitoring operates without gaps.",
+  "compliance": [
+    {
+      "regulation": "fedramp",
+      "version": "Rev.5 Baselines",
+      "clause": "SI-4",
+      "clauseUrl": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "FedRAMP SI-4 (inheriting NIST 800-53 SI-4) requires monitoring the information system to detect attacks, indicators of potential attacks and unauthorized activity across the authorization boundary. This UC is the operating posture control: it confirms every in-scope monitored feed is live (no feed gone quiet), surfaces high-severity activity, and produces a dated per-index monitoring record across the boundary. Splunk is the sole-sufficient mechanism evidencing that continuous system monitoring operates, so the grade is full; specific detections (SI-4 enhancements) are layered by the per-surface UCs.",
+      "controlObjective": "Evidence that FedRAMP SI-4 operates — the information system is continuously monitored across the boundary, with high-severity activity and silent feeds surfaced.",
+      "evidenceArtifact": "Saved search 'UC-22.50.46' per-index monitoring record archived to audit_evidence for FedRAMP continuous monitoring.",
+      "obligationRef": "fedramp@Rev.5 Baselines#SI-4",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "glba",
+      "version": "16 CFR 314 (2023 amendments)",
+      "clause": "§314.4(d)(2)",
+      "clauseUrl": "https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "The GLBA Safeguards Rule §314.4(d)(2) requires, in lieu of annual penetration testing plus semi-annual vulnerability assessments, continuous monitoring or periodic testing designed to detect actual and attempted attacks on or intrusions into information systems. This UC is the continuous-monitoring implementation that permits that election: it proves monitoring is operating across every in-scope feed, surfaces high-severity events, and flags any monitored feed that has gone quiet, producing dated evidence. Splunk is the sole-sufficient mechanism evidencing continuous monitoring under §314.4(d)(2), so the grade is full.",
+      "controlObjective": "Evidence that GLBA §314.4(d)(2) continuous monitoring operates — information systems are continuously monitored to detect attempted and actual attacks, with silent feeds flagged.",
+      "evidenceArtifact": "Saved search 'UC-22.50.46' monitoring posture record archived to audit_evidence for the GLBA Safeguards examination.",
+      "obligationRef": "glba@16 CFR 314 (2023 amendments)#§314.4(d)(2)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Pause a monitored feed listed in monitored_indexes.csv for longer than the freshness budget. On the next run that index appears with gap_minutes>120 and monitor_status='STALE - monitored feed quiet >2h', and the row routes to audit_evidence for follow-up — demonstrating the posture control detects a monitoring gap.",
+    "negativeScenario": "When every in-scope feed is live within its freshness budget and no high-severity events are present, all indexes show monitor_status='monitoring', no STALE rows are produced, and the monitoring record is archived as clean continuous-monitoring evidence.",
+    "attackTechnique": "T1562.008"
+  },
+  "dataSources": "All in-scope security/audit indexes across the authorization boundary (or GLBA information systems), reconciled against the monitored-index inventory lookup `monitored_indexes.csv` (columns `index`, `owner`, `required`). Severity is read from the normalised `severity` field where present.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform (native). Splunk Enterprise Security optional for notable/risk on high-severity rows.",
+  "spl": "index=* sourcetype=* (severity=* OR signature=* OR action=*) earliest=-24h\n| eval sev=lower(coalesce(severity, \"informational\"))\n| stats count as events, count(eval(match(sev,\"(?i)crit|high|sev[12]|emergenc\"))) as high_sev, dc(host) as hosts, values(sourcetype) as sourcetypes, latest(_time) as last_event by index\n| eval gap_minutes=round((now()-last_event)/60, 1)\n| eval monitor_status=case(gap_minutes>120, \"STALE - monitored feed quiet >2h\", high_sev>0, \"high-severity events present\", true(), \"monitoring\")\n| eval reviewed_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| table reviewed_at, index, events, high_sev, hosts, sourcetypes, gap_minutes, monitor_status\n| sort monitor_status, - high_sev",
+  "description": "Operates the continuous-security-monitoring posture control common to FedRAMP SI-4 and the GLBA Safeguards Rule §314.4(d)(2): on a short cadence it confirms every in-scope monitored feed is live, surfaces high-severity activity per index, and flags any feed that has gone quiet — producing a single dated per-index monitoring record an assessor can read.",
+  "value": "Both FedRAMP and the amended GLBA Safeguards Rule let an organization evidence security through continuous monitoring — but only if it can prove the monitoring is actually operating. This control produces that proof: every in-scope feed, whether it is live, whether high-severity activity is present, and an explicit flag when a feed goes silent (the classic blind-spot an attacker creates). One scheduled search satisfies the FedRAMP SI-4 and GLBA continuous-monitoring obligations together.",
+  "implementation": "(1) Maintain monitored_indexes.csv as the version-controlled inventory of in-scope feeds (index, owner, required); (2) normalise a `severity` field across sources where possible; (3) schedule on a short cadence (e.g. every 15 minutes) with a daily evidence snapshot; (4) route the per-index record to the restricted audit_evidence index and open a ticket for STALE feeds; (5) tune the freshness budget per feed class. Indexes required: all in-scope monitored indexes; Lookups: monitored_indexes.csv.",
+  "visualization": "Table (index, owner, events, high_sev, gap_minutes, monitor_status) with STALE/high-severity rows highlighted; single-value '% of in-scope feeds live'; time chart of high-severity events per index. Key fields: `index`, `monitor_status`, `high_sev`.",
+  "cimModels": [],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5 — SI-4 System Monitoring (FedRAMP baseline)"
+    },
+    {
+      "url": "https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-314",
+      "title": "GLBA Safeguards Rule — 16 CFR Part 314 §314.4(d)(2)"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1562/008/",
+      "title": "MITRE ATT&CK — T1562.008 Impair Defenses: Disable or Modify Cloud Logs"
+    }
+  ],
+  "knownFalsePositives": "1. **Low-activity feeds** — A genuinely quiet feed can approach the freshness budget; set a per-feed `required`/budget in monitored_indexes.csv so low-traffic sources use a longer budget.\n\n2. **Planned maintenance** — Patching can pause a feed; annotate the window in a maintenance lookup so the STALE flag is contextual.\n\n3. **Severity field absent** — Sources without a normalised severity default to 'informational' and never trip high_sev; ensure severity is mapped where attack detection depends on it.\n\n**Suppression mechanism:** Maintain monitored_indexes.csv and an optional maintenance_windows.csv; feeds in an approved maintenance window are annotated, and out-of-scope feeds are omitted from the inventory so they do not count toward posture.",
+  "mitreAttack": [
+    "T1562.008"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "soc_operations",
+  "requiredFields": [
+    "index",
+    "monitor_status",
+    "high_sev",
+    "reviewed_at"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud. Splunk Enterprise Security optional for notable/risk on high-severity rows.\n• **Monitored-index inventory**: `monitored_indexes.csv` (index, owner, required) is the authoritative scope statement for what 'continuous monitoring' covers — version it in source control.\n• **Severity normalisation**: map a `severity` field across sources where attack detection depends on it (CIM alignment).\n• **Evidence index**: restricted `audit_evidence` with retention meeting the strictest applicable obligation.\n• **Regulatory mapping**: evidences FedRAMP `SI-4` and GLBA `§314.4(d)(2)`. Every result carries `monitor_status` and `reviewed_at`.\n\n## Step 1 — Own the monitored-feed inventory\n\nThe posture control can only prove 'continuous' if it knows what should be flowing. Populate monitored_indexes.csv from the authorization-boundary / information-system inventory; set `required=true` for feeds that must always be live and assign a named owner for STALE follow-up. Treat changes as change-controlled — a feed removed here drops out of the coverage denominator.\n\n## Step 2 — Implement the search\n\nThe search rolls events per index, counts high-severity events, and derives freshness (`gap_minutes`) from the latest event. `monitor_status` encodes the posture: STALE when a feed is quiet beyond budget, high-severity present, or nominal monitoring. Schedule on a short cadence with a daily snapshot:\n\n```ini\n[UC-22.50.46: Continuous Security Monitoring Across the Information System]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.50.46,controls=FedRAMP-SI-4;GLBA-314.4d2\n```\n\n## Step 3 — Validate\n\nPositive: pause a required feed and confirm a STALE row. Negative: with all feeds live and no high-severity events, confirm all rows show 'monitoring'.\n\n## Step 4 — Operationalize\n\nBuild 'Continuous security monitoring': single-value '% of in-scope feeds live', a per-index posture table (STALE/high-severity highlighted), and a high-severity trend. Schedule the daily evidence export to audit_evidence — that is the FedRAMP/GLBA continuous-monitoring artefact.\n\n## Step 5 — Troubleshooting and caveats\n\n• **A live feed shows STALE:** its events may be delayed or mis-timestamped; check ingestion latency and the freshness budget for that feed class.\n\n• **No high-severity ever:** confirm the severity field is normalised on sources where it matters.\n\n• **Scope discipline:** reconcile monitored_indexes.csv against the boundary inventory so the posture denominator stays complete.",
+  "grandmaExplanation": "We keep a master list of every system we're supposed to be watching and check every few minutes that each one is still sending us its security information — and we raise a flag the moment any of them goes quiet, which is exactly what an intruder would try to make happen."
+}

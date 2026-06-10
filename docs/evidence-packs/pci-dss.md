@@ -42,7 +42,7 @@ All merchants, service providers, issuers, and acquirers that handle primary acc
 - **Clauses tracked**: 22
 - **Clauses covered by at least one UC**: 22 / 22 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 30
+- **Contributing UCs**: 31
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -65,7 +65,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`8.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.3) | Strong authentication | 1.0 | `full` | [UC-22.11.96](#uc-22-11-96) |
 | [`8.4`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.4) | MFA | 1.0 | `full` | [UC-22.11.97](#uc-22-11-97) |
 | [`8.6`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=8.6) | Application and system accounts | 1.0 | `full` | [UC-22.11.98](#uc-22-11-98) |
-| [`10.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2) | Audit logs captured for all system components | 1.0 | `partial` | [UC-17.1.43](#uc-17-1-43), [UC-17.1.48](#uc-17-1-48), [UC-22.40.1](#uc-22-40-1) |
+| [`10.2`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.2) | Audit logs captured for all system components | 1.0 | `full` | [UC-17.1.43](#uc-17-1-43), [UC-17.1.48](#uc-17-1-48), [UC-22.35.6](#uc-22-35-6), [UC-22.40.1](#uc-22-40-1) |
 | [`10.3`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.3) | Audit logs protected from modification | 1.0 | `full` | [UC-22.11.99](#uc-22-11-99) |
 | [`10.4`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.4) | Time synchronised | 1.0 | `full` | [UC-22.11.100](#uc-22-11-100) |
 | [`10.6`](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4_0.pdf#clause=10.6) | Logs reviewed | 1.0 | `full` | [UC-22.11.101](#uc-22-11-101) |
@@ -215,6 +215,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.11.99.json`](../../content/cat-22-regulatory-compliance/UC-22.11.99.json)
+<a id='uc-22-35-6'></a>
+- **UC-22.35.6** — Audit-Log Generation Coverage & Continuity Across All In-Scope Systems
+  - Control family: `evidence-continuity`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.35.6.json`](../../content/cat-22-regulatory-compliance/UC-22.35.6.json)
 <a id='uc-22-40-1'></a>
 - **UC-22.40.1** — Privileged session recording — missing recordings for elevated sessions
   - Control family: `privileged-session-recording`

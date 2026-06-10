@@ -42,7 +42,7 @@ Any organisation seeking a structured, outcome-focused approach to cybersecurity
 - **Clauses tracked**: 17
 - **Clauses covered by at least one UC**: 17 / 17 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 18
+- **Contributing UCs**: 19
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -62,8 +62,8 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01) | Data-at-rest protection | 1.0 | `partial` | [UC-22.7.26](#uc-22-7-26) |
 | [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02) | Data-in-transit protection | 1.0 | `partial` | [UC-22.7.27](#uc-22-7-27) |
 | [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
-| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `partial` | [UC-22.7.37](#uc-22-7-37) |
-| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `partial` | [UC-22.7.31](#uc-22-7-31) |
+| [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `full` | [UC-22.7.37](#uc-22-7-37), [UC-22.7.51](#uc-22-7-51) |
+| [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `full` | [UC-22.7.31](#uc-22-7-31), [UC-22.7.51](#uc-22-7-51) |
 | [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `partial` | [UC-22.7.33](#uc-22-7-33) |
 | [`DE.CM-09`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-09) | Environment monitoring | 0.7 | `full` | [UC-22.7.5](#uc-22-7-5) |
 | [`RS.MA-01`](https://csrc.nist.gov/pubs/cswp/29/final#RS.MA-01) | Incident management | 1.0 | `partial` | [UC-22.7.39](#uc-22-7-39) |
@@ -168,6 +168,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.7.5.json`](../../content/cat-22-regulatory-compliance/UC-22.7.5.json)
+<a id='uc-22-7-51'></a>
+- **UC-22.7.51** — Continuous Network & Security-Event Monitoring with Anomaly Analysis
+  - Control family: `regulation-specific`
+  - Owner: `Head of IR`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.51.json`](../../content/cat-22-regulatory-compliance/UC-22.7.51.json)
 <a id='uc-22-7-6'></a>
 - **UC-22.7.6** — NIST CSF Respond — Incident Response Playbook Execution and Stage Timestamps
   - Control family: `—`

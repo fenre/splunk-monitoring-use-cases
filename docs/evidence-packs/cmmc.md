@@ -42,7 +42,7 @@ All DoD contractors and subcontractors handling FCI or CUI. Level 1: 15 basic sa
 - **Clauses tracked**: 9
 - **Clauses covered by at least one UC**: 9 / 9 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 29
+- **Contributing UCs**: 30
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -56,7 +56,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`AC.L2-3.1.5`](https://dodcio.defense.gov/CMMC/#AC.L2-3.1.5) | Least privilege | 1.0 | `partial` | [UC-22.20.14](#uc-22-20-14), [UC-22.20.2](#uc-22-20-2) |
 | [`AU.L2-3.3.1`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.1) | Create audit records | 1.0 | `full` | [UC-10.12.40](#uc-10-12-40), [UC-17.1.43](#uc-17-1-43), [UC-22.20.3](#uc-22-20-3) |
 | [`AU.L2-3.3.2`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.2) | Ensure unique user traceability | 1.0 | `full` | [UC-22.20.4](#uc-22-20-4) |
-| [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `partial` | [UC-22.20.16](#uc-22-20-16), [UC-22.20.18](#uc-22-20-18), [UC-22.20.20](#uc-22-20-20), [UC-22.20.5](#uc-22-20-5), [UC-22.32.18](#uc-22-32-18), [UC-22.32.19](#uc-22-32-19) |
+| [`AU.L2-3.3.5`](https://dodcio.defense.gov/CMMC/#AU.L2-3.3.5) | Audit reporting and correlation | 1.0 | `full` | [UC-22.20.16](#uc-22-20-16), [UC-22.20.18](#uc-22-20-18), [UC-22.20.20](#uc-22-20-20), [UC-22.20.22](#uc-22-20-22), [UC-22.20.5](#uc-22-20-5), [UC-22.32.18](#uc-22-32-18) (+1 more) |
 | [`CM.L2-3.4.1`](https://dodcio.defense.gov/CMMC/#CM.L2-3.4.1) | Baseline configurations | 1.0 | `full` | [UC-22.20.10](#uc-22-20-10), [UC-22.20.17](#uc-22-20-17), [UC-22.20.6](#uc-22-20-6) |
 | [`IR.L2-3.6.1`](https://dodcio.defense.gov/CMMC/#IR.L2-3.6.1) | Incident handling capability | 1.0 | `full` | [UC-22.20.19](#uc-22-20-19), [UC-22.20.7](#uc-22-20-7), [UC-22.32.20](#uc-22-32-20) |
 | [`SC.L2-3.13.8`](https://dodcio.defense.gov/CMMC/#SC.L2-3.13.8) | Cryptographic mechanisms for CUI in transit | 1.0 | `full` | [UC-22.20.8](#uc-22-20-8) |
@@ -166,6 +166,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.20.21.json`](../../content/cat-22-regulatory-compliance/UC-22.20.21.json)
+<a id='uc-22-20-22'></a>
+- **UC-22.20.22** — Audit Record Review, Analysis & Cross-Source Correlation (CUI)
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.20.22.json`](../../content/cat-22-regulatory-compliance/UC-22.20.22.json)
 <a id='uc-22-20-3'></a>
 - **UC-22.20.3** — CMMC AU.L2-3.3.1 — Audit record creation verification on CUI systems
   - Control family: `—`

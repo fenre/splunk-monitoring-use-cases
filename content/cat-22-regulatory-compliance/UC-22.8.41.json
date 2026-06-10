@@ -1,0 +1,88 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.8.41",
+  "title": "System Monitoring for Authentication Anomalies (SOC 2 CC7.2)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the SOC 2 CC7.2 system-monitoring-for-anomalies control for the authentication surface. It baselines each principal's authentication behaviour and flags anomalies (volume spikes, high failure ratios). It does NOT cover network-flow anomalies (UC-22.7.51), audit-log generation coverage (UC-22.35.6), or incident response (CC7.3/CC7.4). New principals without a baseline are handled by the maturing-baseline window.",
+  "evidence": "Saved search 'UC-22.8.41 — auth anomaly monitoring' runs every 15 minutes over the Authentication CIM model, writes scored anomalies to the security_monitoring summary index, and feeds the 'CC7.2 — system monitoring (auth)' dashboard — the operating evidence a SOC 2 auditor reviews to confirm anomaly monitoring is in place and running.",
+  "compliance": [
+    {
+      "regulation": "soc-2",
+      "version": "2017 TSC",
+      "clause": "CC7.2",
+      "clauseUrl": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "CC7.2 requires the entity to monitor system components and the operation of controls to detect anomalies indicative of malicious acts, natural disasters, and errors. This UC is that monitoring control for the authentication surface: it continuously consumes authentication telemetry through the CIM Authentication model, baselines each principal, and surfaces anomalies (statistical volume spikes and high failure ratios) as dated, analyst-ready records. A SIEM performing continuous anomaly monitoring is the sole-sufficient technical control for CC7.2 on this surface, so the grade is full.",
+      "controlObjective": "Evidence that CC7.2 anomaly monitoring operates — authentication activity is continuously monitored, baselined and anomalies surfaced for evaluation.",
+      "evidenceArtifact": "Saved search 'UC-22.8.41' scored anomaly stream archived to the security_monitoring summary index with per-principal baselines.",
+      "obligationRef": "soc-2@2017 TSC#CC7.2",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Generate a password-spray or credential-stuffing burst against one principal so failures dominate (failure_ratio>0.5) or attempts exceed three standard deviations of its baseline. On the next interval the principal appears with the matching anomaly_type and the record is written to security_monitoring for triage.",
+    "negativeScenario": "During normal authentication where each principal stays within ~3 standard deviations of its hourly baseline and failure_ratio stays low, the search produces no anomaly rows and the monitoring control records a clean interval.",
+    "attackTechnique": "T1110"
+  },
+  "dataSources": "CIM Authentication data model populated from identity providers, OS, VPN and application auth logs (e.g. `WinEventLog:Security`, `linux_secure`, Okta/Entra ID, VPN). Acceleration recommended for performant tstats.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform where the Authentication data model is populated; Splunk Enterprise Security recommended for notable/risk routing.",
+  "spl": "| tstats summariesonly=f count as attempts, count(eval('Authentication.action'=\"failure\")) as failures from datamodel=Authentication where earliest=-24h by Authentication.user, _time span=1h\n| rename Authentication.* as *\n| eventstats avg(attempts) as avg_attempts, stdev(attempts) as sd_attempts by user\n| eval zscore=round((attempts-avg_attempts)/(sd_attempts+1), 2)\n| eval failure_ratio=round(failures/(attempts+1), 2)\n| where zscore>3 OR failure_ratio>0.5\n| stats max(zscore) as zscore, sum(attempts) as attempts, sum(failures) as failures, max(failure_ratio) as failure_ratio, values(_time) as windows by user\n| eval anomaly_type=case(failure_ratio>0.5, \"high-failure-ratio\", true(), \"volume-spike\")\n| eval detected_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| table detected_at, user, attempts, failures, failure_ratio, zscore, anomaly_type\n| sort - zscore",
+  "description": "Operates SOC 2 CC7.2 anomaly monitoring on the authentication surface: it continuously consumes authentication telemetry through the CIM Authentication model, baselines each principal's hourly behaviour, and flags statistical volume spikes and high failure ratios as dated, analyst-ready anomaly records.",
+  "value": "CC7.2 asks for evidence the entity actually monitors for anomalies, not just that logs exist. This control produces a dated anomaly stream per principal an auditor can read to confirm monitoring operates, and gives the SOC immediate, ranked leads on credential attacks (spray, stuffing, brute force) instead of raw auth volume.",
+  "implementation": "(1) Ensure the Authentication CIM model is populated and accelerated from all identity sources; (2) schedule every 15 minutes; (3) route scored anomalies to the security_monitoring summary index and (where ES is present) raise notables/risk; (4) calibrate the z-score and failure-ratio thresholds over a 30-day baseline; (5) handle new principals via the maturing-baseline window. Data model: Authentication; Summary index: security_monitoring.",
+  "visualization": "Table (user, attempts, failures, failure_ratio, zscore, anomaly_type) with high-score rows highlighted; single-value 'auth anomalies (24h)'; time chart of anomalies by type. Key fields: `user`, `zscore`, `anomaly_type`.",
+  "cimModels": [
+    "Authentication"
+  ],
+  "references": [
+    {
+      "url": "https://www.aicpa-cima.com/resources/landing/system-and-organization-controls-soc-suite-of-services",
+      "title": "AICPA SOC 2 — 2017 Trust Services Criteria (CC7.2)"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1110/",
+      "title": "MITRE ATT&CK — T1110 Brute Force"
+    },
+    {
+      "url": "https://docs.splunk.com/Documentation/ES/latest",
+      "title": "Splunk Enterprise Security Documentation"
+    }
+  ],
+  "knownFalsePositives": "1. **New or re-provisioned principals** — An account with no baseline can score high until the window matures; the per-principal eventstats and a maturing-baseline grace period limit this to first activity.\n\n2. **Legitimate bulk auth** — SSO migrations, MDM enrolment waves and load tests raise attempts broadly; annotate the window or allowlist the source during planned events.\n\n3. **Shared service principals** — High-volume service identities can spike; baseline them separately or allowlist.\n\n**Suppression mechanism:** Maintain an optional auth_monitor_allowlist.csv for service principals and planned-event windows; matching rows are annotated and excluded from alerting while remaining in the analysed evidence.",
+  "mitreAttack": [
+    "T1110"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "user",
+    "zscore",
+    "failure_ratio",
+    "anomaly_type"
+  ],
+  "equipment": [
+    "m365",
+    "okta"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud; Splunk Enterprise Security recommended.\n• **CIM Authentication populated and accelerated** from all identity sources (IdP, OS, VPN, application). Confirm with `| tstats count from datamodel=Authentication by Authentication.action`.\n• **Summary index**: provision `security_monitoring` for the anomaly evidence stream.\n• **Regulatory mapping**: evidences SOC 2 `CC7.2`. Every result carries `anomaly_type` and `detected_at`.\n\n## Step 1 — Confirm the monitored surface\n\nCC7.2 monitoring is only credible over instrumented systems. Confirm every authentication source is mapped to the Authentication model; a source absent from the model is a monitoring blind spot and must be recorded as a gap.\n\n## Step 2 — Implement the search\n\n`tstats` over the accelerated model summarises attempts and failures per principal per hour; `eventstats` baselines each principal; a z-score plus a failure-ratio gate flag anomalies. Schedule every 15 minutes:\n\n```ini\n[UC-22.8.41: System Monitoring for Authentication Anomalies (SOC 2 CC7.2)]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = security_monitoring\naction.summary_index.marker = uc=22.8.41,controls=CC7.2\n```\n\n## Step 3 — Calibrate\n\nProfile the z-score and failure-ratio distribution over 30 days and set thresholds between p90 and p99; document the calibration date for the auditor.\n\n## Step 4 — Operationalize\n\nBuild 'CC7.2 — system monitoring (auth)': single-value anomaly count, anomaly table, and an anomaly-by-type trend. Schedule the evidence export to security_monitoring on the monitoring cadence.\n\n## Step 5 — Troubleshooting and caveats\n\n• **No events:** the Authentication model is not populated/accelerated — fix onboarding; an empty model means CC7.2 monitoring is blind.\n\n• **Everything scores high:** recalibrate on a representative window.\n\n• **Scope discipline:** reconcile auth sources against the identity inventory so monitoring coverage is complete.",
+  "grandmaExplanation": "We keep a constant watch on how people sign in and learn what's normal for each account, so if someone suddenly has a flood of failed logins or far more attempts than usual, we spot it within minutes and look into it."
+}

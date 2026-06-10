@@ -42,7 +42,7 @@ All public companies registered with the SEC (US issuers and foreign private iss
 - **Clauses tracked**: 12
 - **Clauses covered by at least one UC**: 12 / 12 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 50
+- **Contributing UCs**: 51
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -62,7 +62,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`ITGC.ChangeMgmt.Approval`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.ChangeMgmt.Approval) | Change approved | 1.0 | `full` | [UC-12.2.17](#uc-12-2-17), [UC-22.12.10](#uc-22-12-10), [UC-22.12.11](#uc-22-12-11), [UC-22.12.39](#uc-22-12-39), [UC-22.6.55](#uc-22-6-55), [UC-5.13.46](#uc-5-13-46) |
 | [`ITGC.Operations.JobSchedule`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.JobSchedule) | Batch scheduling and monitoring | 0.7 | `full` | [UC-22.12.40](#uc-22-12-40) |
 | [`ITGC.Operations.Backup`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Operations.Backup) | Backup and restore | 1.0 | `full` | [UC-22.45.3](#uc-22-45-3) |
-| [`ITGC.Logging.Continuity`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Continuity) | Audit trail completeness | 1.0 | `partial` | [UC-22.35.2](#uc-22-35-2), [UC-22.9.8](#uc-22-9-8), [UC-7.1.40](#uc-7-1-40) |
+| [`ITGC.Logging.Continuity`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Continuity) | Audit trail completeness | 1.0 | `full` | [UC-22.35.2](#uc-22-35-2), [UC-22.35.6](#uc-22-35-6), [UC-22.9.8](#uc-22-9-8), [UC-7.1.40](#uc-7-1-40) |
 | [`ITGC.Logging.Review`](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201#ITGC.Logging.Review) | Log review | 0.7 | `partial` | [UC-22.47.2](#uc-22-47-2), [UC-22.49.3](#uc-22-49-3), [UC-5.13.45](#uc-5-13-45) |
 
 ### 4.1 Contributing UC detail
@@ -265,6 +265,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.35.2.json`](../../content/cat-22-regulatory-compliance/UC-22.35.2.json)
+<a id='uc-22-35-6'></a>
+- **UC-22.35.6** — Audit-Log Generation Coverage & Continuity Across All In-Scope Systems
+  - Control family: `evidence-continuity`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.35.6.json`](../../content/cat-22-regulatory-compliance/UC-22.35.6.json)
 <a id='uc-22-40-1'></a>
 - **UC-22.40.1** — Privileged session recording — missing recordings for elevated sessions
   - Control family: `privileged-session-recording`

@@ -155,7 +155,7 @@ _Cybersecurity Maturity Model Certification_
 | `AC.L2-3.1.5` | Least privilege | 1.00 | ✔ 2 | partial | 22.20.14, 22.20.2 |
 | `AU.L2-3.3.1` | Create audit records | 1.00 | ✔ 3 | full | 10.12.40, 17.1.43, 22.20.3 |
 | `AU.L2-3.3.2` | Ensure unique user traceability | 1.00 | ✔ 1 | full | 22.20.4 |
-| `AU.L2-3.3.5` | Audit reporting and correlation | 1.00 | ✔ 6 | partial | 22.20.16, 22.20.18, 22.20.20, 22.20.5, 22.32.18, 22.32.19 |
+| `AU.L2-3.3.5` | Audit reporting and correlation | 1.00 | ✔ 7 | full | 22.20.16, 22.20.18, 22.20.20, 22.20.22, 22.20.5, 22.32.18, 22.32.19 |
 | `CM.L2-3.4.1` | Baseline configurations | 1.00 | ✔ 3 | full | 22.20.10, 22.20.17, 22.20.6 |
 | `IR.L2-3.6.1` | Incident handling capability | 1.00 | ✔ 3 | full | 22.20.19, 22.20.7, 22.32.20 |
 | `SC.L2-3.13.8` | Cryptographic mechanisms for CUI in transit | 1.00 | ✔ 1 | full | 22.20.8 |
@@ -563,12 +563,12 @@ _NIST SP 800-53 Rev. 5_
 | `AC-2` | Account management | 1.00 | ✔ 4 | full | 17.1.51, 22.14.16, 22.40.3, 5.13.49 |
 | `AC-3` | Access enforcement | 1.00 | ✔ 3 | contributing | 17.1.55, 17.1.68, 22.14.17 |
 | `AC-6` | Least privilege | 1.00 | ✔ 5 | full | 17.1.79, 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
-| `AU-2` | Event logging | 1.00 | ✔ 5 | partial | 17.1.43, 22.14.1, 22.40.6, 5.13.45, 5.13.47 |
+| `AU-2` | Event logging | 1.00 | ✔ 6 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 5.13.45, 5.13.47 |
 | `AU-3` | Content of audit records | 1.00 | ✔ 2 | partial | 22.14.2, 5.13.50 |
-| `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 3 | partial | 17.1.42, 22.14.5, 5.13.50 |
+| `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 4 | full | 17.1.42, 22.14.5, 22.14.82, 5.13.50 |
 | `AU-8` | Time stamps | 1.00 | ✔ 2 | full | 22.11.100, 22.14.7 |
 | `AU-9` | Protection of audit information | 1.00 | ✔ 2 | full | 22.14.8, 22.35.3 |
-| `AU-12` | Audit record generation | 1.00 | ✔ 4 | contributing | 17.1.30, 17.1.43, 17.1.58, 22.14.11 |
+| `AU-12` | Audit record generation | 1.00 | ✔ 5 | full | 17.1.30, 17.1.43, 17.1.58, 22.14.11, 22.35.6 |
 | `CM-2` | Baseline configuration | 1.00 | ✔ 4 | full | 22.14.52, 22.42.2, 5.13.56, 5.13.57 |
 | `CM-6` | Configuration settings | 1.00 | ✔ 8 | full | 22.11.92, 22.14.56, 22.42.2, 5.13.28, 5.13.29, 5.13.30, 5.13.31, 5.13.33 |
 | `CP-9` | System backup | 1.00 | ✔ 4 | full | 17.1.47, 22.14.79, 22.45.1, 22.45.3 |
@@ -621,8 +621,8 @@ _NIST Cybersecurity Framework_
 | `PR.DS-01` | Data-at-rest protection | 1.00 | ✔ 1 | partial | 22.7.26 |
 | `PR.DS-02` | Data-in-transit protection | 1.00 | ✔ 1 | partial | 22.7.27 |
 | `PR.PS-04` | Log generation | 1.00 | ✔ 1 | full | 22.7.32 |
-| `DE.AE-02` | Anomalies and events analysis | 1.00 | ✔ 1 | partial | 22.7.37 |
-| `DE.CM-01` | Network monitoring | 1.00 | ✔ 1 | partial | 22.7.31 |
+| `DE.AE-02` | Anomalies and events analysis | 1.00 | ✔ 2 | full | 22.7.37, 22.7.51 |
+| `DE.CM-01` | Network monitoring | 1.00 | ✔ 2 | full | 22.7.31, 22.7.51 |
 | `DE.CM-03` | Personnel activity monitoring | 1.00 | ✔ 1 | partial | 22.7.33 |
 | `DE.CM-09` | Environment monitoring | 0.70 | ✔ 1 | full | 22.7.5 |
 | `RS.MA-01` | Incident management | 1.00 | ✔ 1 | partial | 22.7.39 |
@@ -672,7 +672,7 @@ _Payment Card Industry Data Security Standard_
 | `8.3` | Strong authentication | 1.00 | ✔ 1 | full | 22.11.96 |
 | `8.4` | MFA | 1.00 | ✔ 1 | full | 22.11.97 |
 | `8.6` | Application and system accounts | 1.00 | ✔ 1 | full | 22.11.98 |
-| `10.2` | Audit logs captured for all system components | 1.00 | ✔ 3 | partial | 17.1.43, 17.1.48, 22.40.1 |
+| `10.2` | Audit logs captured for all system components | 1.00 | ✔ 4 | full | 17.1.43, 17.1.48, 22.35.6, 22.40.1 |
 | `10.3` | Audit logs protected from modification | 1.00 | ✔ 1 | full | 22.11.99 |
 | `10.4` | Time synchronised | 1.00 | ✔ 1 | full | 22.11.100 |
 | `10.6` | Logs reviewed | 1.00 | ✔ 1 | full | 22.11.101 |
@@ -748,7 +748,7 @@ _SOC 2 Trust Services Criteria_
 | `CC6.6` | Encryption in transit | 1.00 | ✔ 4 | full | 17.1.44, 22.11.91, 22.8.18, 22.8.31 |
 | `CC6.7` | System boundaries and data transmission | 1.00 | ✔ 1 | full | 22.8.32 |
 | `CC7.1` | System operations monitoring | 1.00 | ✔ 6 | full | 22.11.101, 22.11.104, 22.12.40, 22.6.49, 22.8.1, 22.8.33 |
-| `CC7.2` | System monitoring for anomalies | 1.00 | ✔ 10 | partial | 22.11.99, 22.35.2, 22.8.13, 22.8.14, 22.8.17, 22.8.20, 22.8.24, 22.8.25 |
+| `CC7.2` | System monitoring for anomalies | 1.00 | ✔ 11 | full | 22.11.99, 22.35.2, 22.8.13, 22.8.14, 22.8.17, 22.8.20, 22.8.24, 22.8.25 |
 | `CC7.3` | Evaluated events and incidents | 1.00 | ✔ 2 | full | 22.6.52, 22.8.34 |
 | `CC7.4` | Incident response | 1.00 | ✔ 5 | full | 17.1.42, 17.1.82, 22.11.105, 22.8.35, 22.8.40 |
 | `CC8.1` | Change management | 1.00 | ✔ 9 | full | 22.11.92, 22.11.95, 22.12.38, 22.12.39, 22.42.1, 22.6.55, 22.8.1, 22.8.21 |
@@ -836,7 +836,7 @@ _SOX — PCAOB AS 2201 ITGCs_
 | `ITGC.ChangeMgmt.Approval` | Change approved | 1.00 | ✔ 6 | full | 12.2.17, 22.12.10, 22.12.11, 22.12.39, 22.6.55, 5.13.46 |
 | `ITGC.Operations.JobSchedule` | Batch scheduling and monitoring | 0.70 | ✔ 1 | full | 22.12.40 |
 | `ITGC.Operations.Backup` | Backup and restore | 1.00 | ✔ 1 | full | 22.45.3 |
-| `ITGC.Logging.Continuity` | Audit trail completeness | 1.00 | ✔ 3 | partial | 22.35.2, 22.9.8, 7.1.40 |
+| `ITGC.Logging.Continuity` | Audit trail completeness | 1.00 | ✔ 4 | full | 22.35.2, 22.35.6, 22.9.8, 7.1.40 |
 | `ITGC.Logging.Review` | Log review | 0.70 | ✔ 3 | partial | 22.47.2, 22.49.3, 5.13.45 |
 
 ### TSA Surface SDs — `tsa-surface`
@@ -1305,8 +1305,8 @@ _Federal Risk and Authorization Management Program_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `AC-2` | Account management | 1.00 | ✔ 8 | full | 13.1.39, 17.1.8, 4.1.4, 5.2.2, 7.1.21, 9.1.3, 9.4.1, 9.5.15 |
-| `AU-6` | Audit review, analysis, reporting | 1.00 | ✔ 3 | partial | 13.1.35, 13.1.37, 4.1.1 |
-| `SI-4` | System monitoring | 1.00 | ✔ 4 | partial | 1.1.65, 1.1.76, 1.2.51, 4.1.1 |
+| `AU-6` | Audit review, analysis, reporting | 1.00 | ✔ 4 | full | 13.1.35, 13.1.37, 22.14.82, 4.1.1 |
+| `SI-4` | System monitoring | 1.00 | ✔ 5 | full | 1.1.65, 1.1.76, 1.2.51, 22.50.46, 4.1.1 |
 
 ### FERPA — `ferpa`
 
@@ -1355,7 +1355,7 @@ _Gramm-Leach-Bliley Act — Safeguards Rule_
 |--------|-------|---------:|----:|---------------|------------|
 | `§314.4(b)` | Risk assessment | 1.00 | ✔ 1 | partial | 22.50.37 |
 | `§314.4(c)(1)` | Access controls | 1.00 | ✔ 1 | partial | 22.50.38 |
-| `§314.4(d)(2)` | Continuous monitoring | 1.00 | ✔ 1 | partial | 22.50.39 |
+| `§314.4(d)(2)` | Continuous monitoring | 1.00 | ✔ 2 | full | 22.50.39, 22.50.46 |
 
 ### HIPAA Privacy — `hipaa-privacy`
 
@@ -1388,7 +1388,7 @@ _HITRUST CSF_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `09.aa` | Audit logging | 1.00 | ✔ 8 | partial | 1.1.65, 1.2.33, 1.2.51, 12.1.4, 13.1.35, 13.1.36, 13.1.37, 7.1.40 |
+| `09.aa` | Audit logging | 1.00 | ✔ 9 | full | 1.1.65, 1.2.33, 1.2.51, 12.1.4, 13.1.35, 13.1.36, 13.1.37, 22.35.6 |
 | `01.b` | User access management | 1.00 | ✔ 9 | full | 1.1.108, 13.1.39, 4.1.4, 7.1.21, 9.1.1, 9.1.3, 9.3.1, 9.4.1 |
 
 ### HKMA TM-G-2 — `hkma-tm-g-2`
@@ -1562,7 +1562,7 @@ _NERC Critical Infrastructure Protection_
 |--------|-------|---------:|----:|---------------|------------|
 | `CIP-002-5.1a R1` | BES cyber system identification | 1.00 | ✔ 1 | partial | 14.2.11 |
 | `CIP-005-7 R1` | Electronic security perimeter | 1.00 | ✔ 6 | full | 10.14.16, 14.2.14, 14.2.4, 14.9.22, 15.3.1, 17.3.3 |
-| `CIP-007-6 R4` | Security event monitoring | 1.00 | ✔ 3 | partial | 14.2.11, 14.2.14, 14.9.14 |
+| `CIP-007-6 R4` | Security event monitoring | 1.00 | ✔ 4 | full | 14.2.11, 14.2.14, 14.9.14, 22.50.47 |
 | `CIP-008-6 R1` | Incident response | 1.00 | ✔ 2 | partial | 10.14.19, 22.50.6 |
 | `CIP-010-4 R1` | Configuration change management | 1.00 | ✔ 8 | full | 1.2.9, 13.1.36, 14.2.9, 14.6.6, 16.4.1, 5.1.24, 5.1.7, 7.1.13 |
 
@@ -1945,7 +1945,7 @@ _FERC Critical Infrastructure Protection (beyond NERC CIP)_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Order887` | Internal network security monitoring for bulk electric systems | 1.00 | ✔ 1 | partial | 22.50.44 |
+| `Order887` | Internal network security monitoring for bulk electric systems | 1.00 | ✔ 2 | full | 22.50.44, 22.50.47 |
 | `Order893` | Supply chain risk management for BES systems | 0.70 | ✔ 1 | partial | 22.50.45 |
 
 ### Multiple — `meta-multi`

@@ -1,0 +1,83 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.20.22",
+  "title": "Audit Record Review, Analysis & Cross-Source Correlation (CUI)",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Audit",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the CMMC AU.L2-3.3.5 audit review/analysis and cross-source correlation control for the CUI environment. It correlates different audit-event categories for the same actor across sources to surface activity that no single log shows. It does NOT cover audit-record generation/collection (AU.L2-3.3.1 / UC-22.35.6), log protection/integrity (AU.L2-3.3.8), or response. Service accounts are scoped via the actor allowlist.",
+  "evidence": "Saved search 'UC-22.20.22 — audit correlation (CUI)' runs on the review cadence, writes each correlated-actor record to the restricted audit_evidence index, and feeds the 'CUI audit correlation' dashboard — the dated evidence a C3PAO assessor reads to confirm AU.L2-3.3.5 review and correlation operate.",
+  "compliance": [
+    {
+      "regulation": "cmmc",
+      "version": "2.0",
+      "clause": "AU.L2-3.3.5",
+      "clauseUrl": "https://dodcio.defense.gov/CMMC/",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "AU.L2-3.3.5 requires correlating audit record review, analysis and reporting processes for investigation of and response to indications of unlawful, unauthorized, suspicious or unusual activity. This UC implements that correlation directly: it normalises audit events from every source into categories (failed access, privilege change, configuration change) and surfaces actors exhibiting two or more categories within a window — the cross-source correlation the practice calls for — as a dated review record. Splunk is the sole-sufficient mechanism that performs and evidences the correlated review, so the grade is full.",
+      "controlObjective": "Proves AU.L2-3.3.5 operates — audit records from multiple sources are correlated per actor and review-worthy multi-category activity is surfaced and reported for the CUI environment.",
+      "evidenceArtifact": "Saved search 'UC-22.20.22' correlated-actor records archived to the restricted audit_evidence index for C3PAO review.",
+      "obligationRef": "cmmc@2.0#AU.L2-3.3.5",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "For one account, generate a failed-access cluster and, within the same window, a privilege-change event (e.g. add to an admin group) on a different host/source. On the next run the account appears with distinct_event_types>=2 and event_types containing both 'failed_access' and 'privilege_change', and the correlated record is archived to audit_evidence.",
+    "negativeScenario": "During normal operation where actors generate at most one audit-event category in the window, the search yields no rows (distinct_event_types<2) and the period is recorded as a clean correlated review.",
+    "attackTechnique": "T1078"
+  },
+  "dataSources": "All in-scope CUI-environment audit sources carrying an actor field across access, privilege and configuration domains (e.g. `WinEventLog:Security`, `linux_secure`, endpoint/EDR audit, directory and configuration-management logs). Optional `audit_review_allowlist.csv` scopes service accounts.",
+  "app": "Splunk Enterprise / Splunk Cloud Platform (native). Splunk Enterprise Security recommended for notable/risk correlation in the CUI enclave.",
+  "spl": "index=* sourcetype=* (action=* OR status=* OR signature=*) earliest=-24h\n| eval evt=case(match(coalesce(action,status,signature),\"(?i)fail|denied|lockout\"), \"failed_access\", match(coalesce(action,signature),\"(?i)privilege|escalat|sudo|role|group add|added to|admin\"), \"privilege_change\", match(coalesce(action,signature),\"(?i)config|policy|registry|gpo|baseline\"), \"config_change\", true(), null())\n| where isnotnull(evt) AND isnotnull(user) AND user!=\"\" AND user!=\"-\"\n| stats count as events, dc(evt) as distinct_event_types, values(evt) as event_types, values(sourcetype) as sourcetypes, dc(host) as hosts, min(_time) as first_seen, max(_time) as last_seen by user\n| where distinct_event_types>=2\n| eval correlation_window_min=round((last_seen-first_seen)/60, 1)\n| eval correlated_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| table correlated_at, user, event_types, distinct_event_types, events, hosts, sourcetypes, correlation_window_min\n| sort - distinct_event_types, - events",
+  "description": "Operates the CMMC AU.L2-3.3.5 correlation practice: it normalises audit events from every in-scope source into categories (failed access, privilege change, configuration change) and surfaces any actor exhibiting two or more categories within a time window — the multi-source correlation that reveals activity no single log shows — as a dated, analyst-ready review record.",
+  "value": "Single-log review misses the actor who fails to log in, then is granted privilege, then changes a configuration — each event looks benign alone. This control correlates those categories per actor across sources, giving the assessor dated evidence that correlated review operates and giving the SOC a high-signal lead. One scheduled search satisfies the CMMC correlation practice for the CUI environment.",
+  "implementation": "(1) Ensure access, privilege and configuration audit sources for the CUI enclave carry a normalised `user` field; (2) maintain audit_review_allowlist.csv for service accounts; (3) schedule on the review cadence (e.g. hourly correlation with a daily roll-up); (4) route correlated rows to the restricted audit_evidence index and (where ES is present) raise a notable; (5) extend the category regexes to match your audit vocabulary. Indexes required: all in-scope CUI audit indexes; Lookups: audit_review_allowlist.csv.",
+  "visualization": "Table (user, event_types, distinct_event_types, correlation_window_min) with multi-category rows highlighted; single-value 'correlated actors (24h)'; column chart of correlated actors by category mix. Key fields: `user`, `event_types`, `distinct_event_types`.",
+  "cimModels": [],
+  "references": [
+    {
+      "url": "https://dodcio.defense.gov/CMMC/",
+      "title": "CMMC 2.0 — AU.L2-3.3.5 Audit Record Review, Analysis and Reporting"
+    },
+    {
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "title": "NIST SP 800-53 Rev. 5 — AU-6 (basis for CMMC AU.L2-3.3.5)"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "title": "MITRE ATT&CK — T1078 Valid Accounts"
+    }
+  ],
+  "knownFalsePositives": "1. **Administrators doing legitimate work** — A sysadmin may legitimately authenticate, change a role and edit a configuration in one window; correlate with the change-ticket lookup before treating as a finding.\n\n2. **Service / automation accounts** — Orchestration tools touch multiple categories routinely; list them in audit_review_allowlist.csv.\n\n3. **Category over-match** — Broad regexes can mis-categorise an event; tune the category patterns to your audit vocabulary during rollout.\n\n**Suppression mechanism:** Maintain audit_review_allowlist.csv and (optionally) a change-window lookup; allowlisted actors and approved-change windows are annotated and excluded from alerting while remaining in the analysed evidence.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "detectionType": "Correlation",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "user",
+    "event_types",
+    "distinct_event_types",
+    "correlated_at"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud; Splunk Enterprise Security recommended for the CUI enclave so correlated actors become notables.\n• **Normalised actor field** across access, privilege and configuration sources (FIELDALIAS to `user`).\n• **Category coverage**: at least two of the three event categories (failed access, privilege change, configuration change) must be onboarded for correlation to be meaningful.\n• **Allowlist**: `audit_review_allowlist.csv` (column `user`).\n• **Evidence index**: restricted `audit_evidence` with CUI-appropriate access controls and retention.\n• **Regulatory mapping**: evidences CMMC `AU.L2-3.3.5`. Every result carries `event_types` and `correlated_at`.\n\n## Step 1 — Define the audit categories\n\nAU.L2-3.3.5 is about *correlation*, so the control's value depends on the category mapping. Review the `eval evt=case(...)` patterns against your actual audit vocabulary; add patterns for any access/privilege/configuration event types specific to your estate. Keep the three-category model so the `distinct_event_types>=2` correlation stays interpretable.\n\n## Step 2 — Implement the search\n\nThe search categorises every audit event, then `stats ... by user` collapses an actor's window into the set of categories they touched and the time span. The `where distinct_event_types>=2` is the correlation gate. Schedule it:\n\n```ini\n[UC-22.20.22: Audit Record Review, Analysis & Cross-Source Correlation (CUI)]\ncron_schedule = 15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.20.22,controls=AU.L2-3.3.5\n```\n\n## Step 3 — Validate\n\nRun the positive test (one actor, two categories) and confirm a correlated row; run the negative test (single-category activity) and confirm zero rows. Confirm allowlisted service accounts are excluded.\n\n## Step 4 — Operationalize\n\nBuild 'CUI audit correlation': single-value correlated-actor count, a correlated-actor table, and a category-mix chart. Schedule the evidence export to audit_evidence on the review cadence for C3PAO review.\n\n## Step 5 — Troubleshooting and caveats\n\n• **Everything correlates:** category regexes are over-broad — tighten them.\n\n• **Nothing correlates:** confirm at least two categories are onboarded and the actor field resolves across them.\n\n• **Scope discipline:** reconcile categories against the CUI audit-source inventory so correlation coverage is complete.",
+  "grandmaExplanation": "We watch for people whose activity ties together across different systems — like someone who fails to log in, then suddenly gets extra access, then changes a setting. Any one of those alone looks fine, so we connect the dots and keep a dated note for the auditor."
+}

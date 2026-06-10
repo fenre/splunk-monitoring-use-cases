@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.7.51",
+  "title": "Continuous Network & Security-Event Monitoring with Anomaly Analysis",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "owner": "Head of IR",
+  "controlFamily": "regulation-specific",
+  "exclusions": "This is the continuous network/security-event monitoring and adverse-event analysis control (NIST CSF Detect function). It does NOT cover personnel/insider activity monitoring (DE.CM-03, a distinct user-behaviour surface), endpoint/host integrity monitoring, or the response/recovery functions (RS/RC). Test, lab, and formally out-of-scope network segments are excluded via the monitored-segment inventory.",
+  "evidence": "Saved search 'UC-22.7.51 — continuous monitoring & anomaly analysis' runs every 15 minutes over the Network_Traffic CIM model, writes scored adverse-event records to the security_monitoring summary index, and feeds the 'Continuous monitoring — adverse events (Detect)' dashboard that demonstrates the network is being monitored and analysed without gaps.",
+  "compliance": [
+    {
+      "regulation": "nist-csf",
+      "version": "2.0",
+      "clause": "DE.CM-01",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DE.CM-01 requires that networks and network services are monitored to find potentially adverse events. This UC is the operating implementation of that outcome: it continuously consumes network telemetry through the Network_Traffic CIM model, baselines per-source behaviour, and surfaces adverse events for triage. A SIEM performing continuous network monitoring is the sole-sufficient technical control for DE.CM-01, so the grade is full.",
+      "controlObjective": "Evidence that DE.CM-01 (network monitoring) operates — network telemetry is continuously monitored and adverse events are surfaced for analysis.",
+      "evidenceArtifact": "Saved search 'UC-22.7.51' scored adverse-event stream archived to the security_monitoring summary index with detection coverage and per-segment monitoring confirmation.",
+      "obligationRef": "nist-csf@2.0#DE.CM-01",
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "nist-csf",
+      "version": "2.0",
+      "clause": "DE.AE-02",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "DE.AE-02 requires that potentially adverse events are analysed to better understand associated activities. This UC performs that analysis directly: it baselines traffic per source, computes a deviation score, correlates the contributing actions, and emits an enriched, analyst-ready record for each adverse event. Splunk is the sole-sufficient analytic engine for this outcome, so the grade is full.",
+      "controlObjective": "Evidence that DE.AE-02 (adverse-event analysis) operates — detected anomalies are analysed and enriched to characterise the associated activity.",
+      "evidenceArtifact": "Saved search 'UC-22.7.51' analysis records (deviation score, contributing actions, src/dest context) archived to the security_monitoring summary index.",
+      "obligationRef": "nist-csf@2.0#DE.AE-02",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Generate a burst of outbound connections from a single internal source well above its established baseline (e.g. a simulated beacon or data-staging transfer). On the next interval the source appears with zscore greater than 3 (or count above the volume ceiling), an enriched record is written to the security_monitoring index, and it is available for analyst triage.",
+    "negativeScenario": "During normal business traffic where every source stays within roughly three standard deviations of its own hourly baseline and under the volume ceiling, the search produces no adverse-event rows and the monitoring control records a clean interval.",
+    "attackTechnique": "T1071"
+  },
+  "dataSources": "Network_Traffic CIM data model populated from firewall, proxy, NetFlow/IPFIX, and load-balancer telemetry (e.g. `pan:traffic`, `cisco:asa`, `stream:tcp`, `aws:cloudwatchlogs:vpcflow`). The monitored-segment inventory lookup `monitored_segments.csv` defines in-scope networks.",
+  "app": "Splunk Enterprise Security (Splunkbase 263) recommended for notable/risk integration; runs on Splunk Enterprise / Splunk Cloud Platform core where the Network_Traffic data model is populated.",
+  "spl": "| tstats summariesonly=f count, values(All_Traffic.action) as actions, sum(All_Traffic.bytes_out) as bytes_out from datamodel=Network_Traffic where earliest=-24h by All_Traffic.src, All_Traffic.dest, _time span=1h\n| rename All_Traffic.* as *\n| eventstats avg(count) as avg_count, stdev(count) as sd_count by src\n| eval zscore=round((count-avg_count)/(sd_count+1), 2)\n| where zscore>3 OR count>10000\n| eval detected_at=strftime(now(), \"%Y-%m-%dT%H:%M:%S\")\n| stats max(zscore) as zscore, sum(count) as count, sum(bytes_out) as bytes_out, values(actions) as actions, values(dest) as dest, max(detected_at) as detected_at by src\n| eval coverage_status=\"analysed\"\n| table detected_at, src, dest, count, bytes_out, zscore, actions, coverage_status\n| sort - zscore",
+  "description": "Operates the NIST CSF Detect function for the network surface: it continuously consumes network telemetry through the Network_Traffic CIM model, baselines each source's hourly behaviour, scores deviations, and emits an analyst-ready adverse-event record correlating the contributing actions and destinations. This is the monitoring-and-analysis loop DE.CM-01 and DE.AE-02 describe.",
+  "value": "Replaces 'we have a firewall' with replayable evidence that the network is actively monitored and that adverse events are analysed, not just logged. Each interval produces a record an auditor can read to confirm the Detect function operated, and each scored anomaly gives the SOC a triage-ready starting point instead of raw traffic.",
+  "implementation": "(1) Ensure the Network_Traffic CIM model is populated and accelerated from firewall/proxy/flow sources; (2) maintain monitored_segments.csv as the in-scope network inventory; (3) schedule every 15 minutes; (4) route scored adverse events to the security_monitoring summary index and (where ES is present) raise notables/risk; (5) tune the zscore and volume thresholds per segment during a 30-day baseline. Indexes required: network/security indexes feeding Network_Traffic; Data model: Network_Traffic; Lookups: monitored_segments.csv.",
+  "visualization": "Table (src, dest, count, bytes_out, zscore) with high-score rows highlighted; single-value 'adverse events analysed (24h)'; time chart of scored events per segment. Key fields: `src`, `zscore`, `coverage_status`.",
+  "cimModels": [
+    "Network_Traffic"
+  ],
+  "references": [
+    {
+      "url": "https://csrc.nist.gov/pubs/cswp/29/the-nist-cybersecurity-framework-csf-20/final",
+      "title": "NIST Cybersecurity Framework (CSF) 2.0 — Detect (DE) function"
+    },
+    {
+      "url": "https://attack.mitre.org/techniques/T1071/",
+      "title": "MITRE ATT&CK — T1071 Application Layer Protocol"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled bulk transfers** — Backup jobs, replication, and large data syncs legitimately exceed per-source baselines; tag their source hosts in monitored_segments.csv (or an allowlist) so the deviation is annotated rather than treated as a finding.\n\n2. **New or re-imaged hosts** — A host with no established baseline can score high until the eventstats window matures; the 24h baseline window and per-source statistics limit this to the first day of activity.\n\n3. **Seasonal business peaks** — Month-end or campaign-driven traffic spikes can raise volumes broadly; review the volume ceiling each quarter and prefer the zscore signal (relative) over the absolute ceiling for elastic workloads.\n\n**Suppression mechanism:** Maintain monitored_segments.csv with an optional allowlist column for known high-volume sources; rows matching an approved allowlist entry within its validity window are annotated and excluded from alerting while remaining in the analysed evidence record.",
+  "mitreAttack": [
+    "T1071"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "src",
+    "zscore",
+    "count",
+    "coverage_status"
+  ],
+  "equipment": [
+    "aws",
+    "cisco",
+    "netflow"
+  ],
+  "equipmentModels": [
+    "cisco_asa",
+    "netflow_netflow"
+  ],
+  "status": "verified",
+  "lastReviewed": "2026-06-09",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud. Splunk Enterprise Security is recommended so adverse events become notables/risk objects, but the control runs on core where the Network_Traffic CIM model is populated.\n• **CIM Network_Traffic populated and accelerated**: firewall, proxy, NetFlow/IPFIX, and load-balancer feeds must be mapped to the Network_Traffic model (Splunk Add-on for the relevant vendors + CIM Add-on). Confirm acceleration is enabled for performant `tstats`.\n• **Segment inventory**: `monitored_segments.csv` lists the in-scope networks/segments (and an optional allowlist for known high-volume sources). This is the scope statement for the monitoring control — version it in source control.\n• **Indexes**: the network/security indexes feeding Network_Traffic must exist with retention meeting the applicable monitoring/retention obligation and a provisioned summary index (`security_monitoring`).\n• **Regulatory mapping**: this control evidences NIST CSF `DE.CM-01` (network monitoring) and `DE.AE-02` (adverse-event analysis). Every result row carries `coverage_status` and `detected_at` so downstream consumers can read the Detect-function evidence directly.\n\n## Step 1 — Confirm the monitoring surface\n\nThe Detect function can only be evidenced over networks that are actually instrumented. Reconcile `monitored_segments.csv` against the network asset inventory so the control's scope is explicit; a segment with no feed into Network_Traffic is a monitoring blind spot and must be recorded as a gap, not silently omitted.\n\n## Step 2 — Implement the search\n\nThe search has two halves that together implement 'monitor and analyse':\n\n1. **Monitor (DE.CM-01):** `tstats` over the accelerated Network_Traffic model summarises per-source, per-destination activity each hour — continuous, low-cost network monitoring across every instrumented segment.\n2. **Analyse (DE.AE-02):** `eventstats` baselines each source and a deviation `zscore` plus a volume ceiling identify adverse events; the final `stats` rolls contributing actions, destinations, and byte volume into one analyst-ready record per source.\n\nSchedule every 15 minutes:\n\n```ini\n[UC-22.7.51: Continuous Network & Security-Event Monitoring with Anomaly Analysis]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = security_monitoring\naction.summary_index.marker = uc=22.7.51,controls=DE.CM-01;DE.AE-02\n```\n\n## Step 3 — Calibrate thresholds\n\nBefore enabling as an alert, profile the deviation distribution over 30 days and set the `zscore` threshold between p90 and p99, and the volume ceiling above the legitimate bulk-transfer band:\n\n```spl\n<base search without the where> earliest=-30d\n| stats perc90(zscore) as p90, perc99(zscore) as p99, max(count) as peak by src\n```\n\nDocument the chosen thresholds and the calibration date — an auditor will ask how the Detect thresholds were derived.\n\n## Step 4 — Operationalize (dashboard and reporting)\n\nBuild the dashboard 'Continuous monitoring — adverse events (Detect)':\n\n**Panel 1 — Single value:** 'adverse events analysed (24h)'.\n\n**Panel 2 — Adverse-event table:** src, dest, count, bytes_out, zscore — high-score rows highlighted.\n\n**Panel 3 — Coverage trend:** `timechart` of scored events per segment so a quiet segment (possible feed loss) is visible.\n\nEnable scheduled PDF export on the monitoring cadence and archive to the summary index.\n\n## Step 5 — Troubleshooting and caveats\n\n• **No events at all:** confirm the Network_Traffic model is accelerated and populated (`| tstats count from datamodel=Network_Traffic by sourcetype`); an empty model means the monitoring control is blind, which is itself a finding.\n\n• **Everything scores high:** thresholds are miscalibrated for your estate — re-run the percentile calibration on a representative window.\n\n• **Scope discipline:** the control's credibility rests on the segment inventory. A segment missing from `monitored_segments.csv` is invisible; reconcile periodically against the authoritative network inventory.",
+  "grandmaExplanation": "We keep a constant watch on the network traffic and learn what normal looks like for each system, so when something starts behaving oddly we notice and look into it right away instead of waiting for a problem to grow."
+}
