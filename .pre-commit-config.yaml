@@ -12,6 +12,15 @@
 #
 # Hooks are intentionally fast (<5s on a typical PR). Heavyweight checks
 # (full audits, build regeneration, link-check) live in CI.
+#
+# A pre-push hook (``make preflight-fast``, ~30s) additionally catches the
+# most common "stale generated artefact" failures before they cost a CI
+# round-trip. It only runs on ``git push`` (not every commit). Register
+# both stages once with:
+#
+#     pre-commit install --hook-type pre-commit --hook-type pre-push
+#
+# (``make bootstrap`` does this for you.)
 
 minimum_pre_commit_version: "3.5.0"
 
@@ -81,3 +90,25 @@ repos:
         language: system
         files: '^content/cat-.+/UC-.+\.json$'
         pass_filenames: true
+
+  # ---------- Local: pre-push drift guard ----------
+  # The single most common CI failure on this repo is a stale committed
+  # *generated* artefact (cascade reports, non-technical-view.js). This
+  # hook runs the ~30s ``make preflight-fast`` subset on ``git push`` so
+  # that class of failure is caught before a CI round-trip. The full
+  # drift sweep (build, api/v1, perf/a11y, oscal, version-matrix, …)
+  # stays in CI and in the on-demand ``make preflight-check``.
+  #
+  # Only fires at the pre-push stage; commits stay fast. Register it with
+  # ``pre-commit install --hook-type pre-push`` (``make bootstrap`` does
+  # this). Requires Python >= 3.11 on PATH — the Makefile guard prints
+  # actionable guidance if not.
+  - repo: local
+    hooks:
+      - id: preflight-fast
+        name: Cascade + legacy-emit drift guard (pre-push, ~30s)
+        entry: make preflight-fast
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true

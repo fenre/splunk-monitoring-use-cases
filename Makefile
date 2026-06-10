@@ -31,6 +31,8 @@
 	generate-observability-metrics audit-observability-drift \
        generate-backlinks generate-doc-references \
        sync-generated sync-generated-check \
+       preflight preflight-check preflight-fast \
+       bootstrap check-python _require-py311 \
        check-source-links audit-auto-gen-provenance \
        splunk-uc splunk-uc-help \
        inventory manifest test test-unit help worktree-new
@@ -45,6 +47,46 @@ DIST   := dist
 # and the legacy ``python3 scripts/<name>.py`` shims work; this
 # variable is the canonical way Makefile targets reach the new CLI.
 SPLUNK_UC := PYTHONPATH=src $(PYTHON) -m splunk_uc
+
+# --- Python floor guard (>=3.11) ---
+#
+# The build pipeline and the cascade generators import ``datetime.UTC``
+# and ``tomllib``, both of which require Python 3.11+. Running them under
+# an older interpreter (e.g. the macOS system ``python3.9``) fails deep
+# inside a generator with a cryptic ``ImportError: cannot import name
+# 'UTC' from 'datetime'`` — a footgun that has cost real CI round-trips.
+# ``_require-py311`` fails fast with actionable guidance instead. It is a
+# prerequisite of the "do everything" targets (preflight*, bootstrap)
+# and of the cascade umbrella so the footgun can never reach a generator.
+_require-py311:
+	@$(PYTHON) -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 11) else 1)' || { \
+	  echo "ERROR: '$(PYTHON)' is too old — this repo needs Python >= 3.11 (datetime.UTC, tomllib)."; \
+	  echo "       Active: $$($(PYTHON) --version 2>&1)"; \
+	  echo "       Fix:   make bootstrap        # set up a 3.11+ env + deps + git hooks"; \
+	  echo "       Or:    source .venv/bin/activate   # if you already created one with uv/venv"; \
+	  exit 1; \
+	}
+
+check-python: _require-py311 ## Verify the active interpreter satisfies the Python >=3.11 floor
+	@echo "OK: $$($(PYTHON) --version 2>&1) satisfies the >=3.11 floor."
+
+bootstrap: ## One-command dev setup: install splunk_uc + extras and register git hooks (pre-commit + pre-push)
+	@echo "→ [1/3] Checking Python floor (>=3.11)…"
+	@$(PYTHON) -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 11) else 1)' || { \
+	  echo "ERROR: '$(PYTHON)' is Python <3.11. Create/activate a 3.11+ environment first, e.g.:"; \
+	  echo "         uv venv --python 3.12 && source .venv/bin/activate"; \
+	  echo "       then re-run 'make bootstrap'."; \
+	  exit 1; \
+	}
+	@echo "→ [2/3] Installing splunk-uc (editable) with [audits,dev,test] extras…"
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install -e ".[audits,dev,test]"
+	@echo "→ [3/3] Registering git hooks (pre-commit + pre-push)…"
+	pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push
+	@echo ""
+	@echo "✓ Bootstrap complete."
+	@echo "  Drift sweep before pushing:  make preflight-check"
+	@echo "  Fast cascade-only check:     make preflight-fast"
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -249,8 +291,8 @@ devcontainer-init: ## Bootstrap a fresh devcontainer (called by .devcontainer/de
 	@echo "→ [1/3] Installing splunk-uc (editable) with [audits,dev,test] extras…"
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -e ".[audits,dev,test]"
-	@echo "→ [2/3] Registering pre-commit git hooks (pre-commit already in [dev])…"
-	pre-commit install --install-hooks
+	@echo "→ [2/3] Registering git hooks (pre-commit + pre-push; pre-commit already in [dev])…"
+	pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push
 	@echo "→ [3/3] Warm-building dist/ so 'make serve' works immediately…"
 	$(BUILD)
 	@echo ""
@@ -362,7 +404,7 @@ audit-observability-drift: generate-observability-metrics ## Validate dist/obser
 #     `audit-known-fp`, `audit-regulatory-change-watch`, etc.) keep
 #     their own CI steps because their failure messages carry
 #     useful per-domain context.
-sync-generated: ## Run every cascade-style generator (write-mode) in dependency-safe order
+sync-generated: _require-py311 ## Run every cascade-style generator (write-mode) in dependency-safe order
 	@echo "==> [1/14] sidecar mutator: phase3-1 backfill"
 	@$(SPLUNK_UC) generate-phase3-1-backfill
 	@echo "==> [2/14] sidecar mutator: phase3-2 cross-cutting"
@@ -393,7 +435,7 @@ sync-generated: ## Run every cascade-style generator (write-mode) in dependency-
 	@$(PYTHON) scripts/generate_doc_references.py
 	@echo "==> sync-generated: done"
 
-sync-generated-check: ## CI drift gate — run every cascade generator with --check (exits non-zero on drift)
+sync-generated-check: _require-py311 ## CI drift gate — run every cascade generator with --check (exits non-zero on drift)
 	@set -e; \
 	failed=0; \
 	for step in \
@@ -423,6 +465,105 @@ sync-generated-check: ## CI drift gate — run every cascade generator with --ch
 	  exit 1; \
 	fi; \
 	echo "==> sync-generated-check: clean"
+
+# --- Preflight (local "make CI green before you push") ---
+#
+# The drift gates in .github/workflows/validate.yml are partitioned across
+# five parallel jobs and most are fail-fast, so a single push can surface
+# stale committed artefacts one-CI-round-trip at a time. These three
+# targets collapse that loop into a local command so you commit a clean
+# tree the first time.
+#
+#   make preflight        regenerate EVERY committed derived artefact, then
+#                          `git status` so you can review + commit the diff.
+#   make preflight-check   CI-faithful drift mirror — writes nothing you must
+#                          keep; exits non-zero if any committed artefact is
+#                          stale (what the pre-push hook + a careful dev run).
+#   make preflight-fast    the ~30s subset (cascade generators + legacy emit)
+#                          the pre-push hook runs on every push.
+#
+# Ordering matters and is enforced below:
+#   1. sync-generated      sidecar mutators rewrite content/ FIRST, then the
+#                          cascade derived reports read the mutated sidecars.
+#   2. build               dist/ (catalog.json, dist/reports/*) reflects (1).
+#   3. api-surface         api/v1/* is regenerated from dist/.
+#   4. report writers      cloud-compat, version-matrix, attack-sim,
+#                          oscal-roundtrip (needs api/v1), perf-a11y (needs
+#                          dist/) — each writes one committed report/doc.
+#   5. emit:legacy         non-technical-view.js is re-emitted from the TS SOT.
+preflight: _require-py311 ## Regenerate every committed derived artefact, then show the diff to commit
+	@echo "==> preflight [1/5] cascade generators (sidecar mutators + derived reports)"
+	@$(MAKE) --no-print-directory sync-generated
+	@echo "==> preflight [2/5] full site build → dist/"
+	@$(BUILD)
+	@echo "==> preflight [3/5] api/v1 static surface"
+	@$(SPLUNK_UC) generate-api-surface
+	@echo "==> preflight [4/5] standalone report writers"
+	@echo "    → docs/splunk-cloud-compat.md"
+	@$(SPLUNK_UC) audit-splunk-cloud-compat
+	@echo "    → data/splunk-version-matrix.json + docs/splunk-version-matrix.md"
+	@$(SPLUNK_UC) audit-splunk-version-matrix
+	@echo "    → reports/attack-simulation.json"
+	@$(PYTHON) scripts/simulate_controltest.py
+	@echo "    → reports/oscal-roundtrip.json"
+	@$(SPLUNK_UC) audit-oscal-roundtrip
+	@echo "    → reports/perf-a11y.json"
+	@$(SPLUNK_UC) audit-perf-a11y
+	@echo "==> preflight [5/5] legacy non-technical-view.js"
+	@if command -v npm >/dev/null 2>&1; then \
+	  ( cd apps/web && npm run --silent emit:legacy ); \
+	else \
+	  echo "    SKIP: npm not found — non-technical-view.js not re-emitted (the CI frontend job still guards it)."; \
+	fi
+	@echo ""
+	@echo "==> preflight: done. Review and commit the diff below:"
+	@git status --short
+
+preflight-fast: _require-py311 ## Fast pre-push drift subset: cascade --check + legacy emit guard (~30s)
+	@$(MAKE) --no-print-directory sync-generated-check
+	@echo "==> preflight-fast: legacy non-technical-view.js drift guard"
+	@if command -v npm >/dev/null 2>&1; then \
+	  ( cd apps/web && npm run --silent emit:legacy ); \
+	  if ! git diff --exit-code non-technical-view.js >/dev/null 2>&1; then \
+	    echo "FAIL: non-technical-view.js is stale — run \`cd apps/web && npm run emit:legacy\` and commit."; \
+	    git --no-pager diff --stat -- non-technical-view.js; \
+	    exit 1; \
+	  fi; \
+	  echo "==> non-technical-view.js: clean"; \
+	else \
+	  echo "    SKIP: npm not found — legacy emit guard skipped (the CI frontend job still guards it)."; \
+	fi
+	@echo "==> preflight-fast: clean"
+
+preflight-check: _require-py311 ## CI-faithful drift mirror: fail if any committed derived artefact is stale
+	@set -e; failed=0; \
+	echo "==> preflight-check [1/5] cascade generators (--check)"; \
+	$(MAKE) --no-print-directory sync-generated-check || failed=1; \
+	echo "==> preflight-check [2/5] full site build → dist/"; \
+	$(BUILD); \
+	echo "==> preflight-check [3/5] api/v1 static surface (--check)"; \
+	$(SPLUNK_UC) generate-api-surface --check || { failed=1; echo "    DRIFT: api/v1"; }; \
+	echo "==> preflight-check [4/5] standalone report writers"; \
+	$(SPLUNK_UC) audit-splunk-cloud-compat; \
+	if ! git diff --exit-code docs/splunk-cloud-compat.md >/dev/null 2>&1; then failed=1; echo "    DRIFT: docs/splunk-cloud-compat.md"; fi; \
+	$(SPLUNK_UC) audit-splunk-version-matrix --check || { failed=1; echo "    DRIFT: splunk-version-matrix"; }; \
+	python3 scripts/simulate_controltest.py --check || { failed=1; echo "    DRIFT: reports/attack-simulation.json"; }; \
+	$(SPLUNK_UC) audit-oscal-roundtrip --check || { failed=1; echo "    DRIFT: reports/oscal-roundtrip.json"; }; \
+	$(SPLUNK_UC) audit-perf-a11y --check || { failed=1; echo "    DRIFT: reports/perf-a11y.json"; }; \
+	echo "==> preflight-check [5/5] legacy non-technical-view.js"; \
+	if command -v npm >/dev/null 2>&1; then \
+	  ( cd apps/web && npm run --silent emit:legacy ); \
+	  if ! git diff --exit-code non-technical-view.js >/dev/null 2>&1; then failed=1; echo "    DRIFT: non-technical-view.js"; fi; \
+	else \
+	  echo "    SKIP: npm not found — legacy emit guard skipped."; \
+	fi; \
+	if [ $$failed -ne 0 ]; then \
+	  echo ""; \
+	  echo "FAIL: preflight-check found stale committed artefacts above."; \
+	  echo "      Fix: run \`make preflight\`, then commit the diff."; \
+	  exit 1; \
+	fi; \
+	echo "==> preflight-check: clean — safe to push"
 
 audit-reproducibility: ## Two consecutive --reproducible builds must match (~90s)
 	$(SPLUNK_UC) audit-reproducibility

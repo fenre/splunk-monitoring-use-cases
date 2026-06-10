@@ -435,6 +435,84 @@ filtered to the build pipeline itself (`tools/build/**`,
 know we didn't break reproducibility. On failure both build trees
 are uploaded as artefacts so the maintainer can diff them locally.
 
+## Committed generated artefacts & the drift gates
+
+The single most common red build on this repo is **a stale committed
+*generated* file** — you edit a JSON sidecar (or the typed
+non-technical source) and forget to regenerate one of its many
+downstream artefacts, and a `--check` drift gate fails in CI. This
+section documents (a) why those artefacts are committed in the first
+place rather than generated only in CI, and (b) the local tooling that
+catches the drift before a CI round-trip.
+
+### Why we don't de-commit the derived reports
+
+It is tempting to delete the committed `reports/*.json`,
+`docs/*-coverage.md`, `data/provenance/mapping-ledger.json`, etc. and
+regenerate them only in CI — no committed artefact, no drift gate, no
+failure. We deliberately **do not** do this. Three hard constraints
+make de-committing unsafe:
+
+1. **GitHub Pages runtime dependencies.** `scorecard.html` fetches
+   `reports/compliance-coverage.json` and `reports/compliance-gaps.json`
+   *client-side at runtime*. `pages.yml` does **not** regenerate
+   reports — `tools/build/build.py` copies the committed files into
+   `dist/`. De-committing them yields a 404 on the live scorecard.
+2. **Signed provenance.** `data/provenance/mapping-ledger.json` is the
+   signed-provenance artefact (`canonicalHash` per entry, top-level
+   `merkleRoot`; `release.yml` stamps it with
+   `--require-signature --verify-signature`). It must be committed and
+   diffable — it is evidence, not a cache.
+3. **PR-reviewable diffs.** The drift-checked reports
+   (`attack-simulation.json`, `oscal-roundtrip.json`, `perf-a11y.json`,
+   `prerequisites-audit.json`, the compliance reports) are committed so
+   a reviewer sees the *semantic* delta of a content change in the PR,
+   and so CI can detect "you changed X but not its regen footprint".
+   Moving regeneration entirely into CI removes that review signal.
+
+The Pages-safe de-commit subset that would actually reduce build
+failures is therefore effectively **empty** — the files that cause the
+drift gates are exactly the files something else depends on. The win
+comes from *better drift tooling* (below), not from deleting artefacts.
+
+### The local drift tooling
+
+| Target | Scope | Cost | Use |
+|--------|-------|-----:|-----|
+| `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, full build, `api/v1`, splunk-cloud-compat, version-matrix, control-test, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
+| `make preflight-check` | **CI-faithful drift mirror** — runs the same set in `--check` mode (or `git diff` for writers without a `--check` flag). Read-only. | ~3–5 min | Reproduce a CI drift failure locally. |
+| `make preflight-fast` | The ~30s subset: `sync-generated-check` + the `non-technical-view.js` legacy-emit guard. | ~30 s | Pre-push hook (below). |
+
+`make bootstrap` provisions a Python ≥ 3.11 environment (the
+`_require-py311` guard refuses older interpreters — `datetime.UTC` and
+`tomllib` are hard requirements) and registers the git hooks, including
+the **pre-push** hook that runs `make preflight-fast`. That hook catches
+the highest-frequency drift class (cascade reports + the emitted
+`non-technical-view.js`) on `git push`, before CI ever sees the branch.
+
+### Un-masked drift gates (report every stale file in one run)
+
+`audits-build` and `frontend` historically failed *fast*: the first
+stale artefact aborted the job and masked every later one, so fixing a
+drift failure became a slow "fix one → push → discover the next" loop.
+Both jobs now mark their independent drift checks with
+`if: ${{ !cancelled() }}` so a single CI run reports **all** stale
+artefacts at once. (The umbrella cascade gate in `audits-content`
+already had this property via `make sync-generated-check`.)
+
+### Mapping-ledger commit-lag
+
+`data/provenance/mapping-ledger.json` carries per-entry
+`firstSeenCommit` / `lastModifiedCommit`, derived from `git log` over
+each UC path. When the ledger is regenerated in the *same* commit as a
+UC edit, `git log` still reports commit N-1 (the edit isn't committed
+yet), so the committed ledger lags by one commit and the next CI run's
+`--check` fails with no semantic change. `_structural_diff`
+(`src/splunk_uc/generators/mapping_ledger.py`) strips those two volatile
+fields — plus `generatedAt` / `catalogueCommit` — before comparing.
+This is integrity-safe: `canonicalHash` and `merkleRoot` stay in the
+comparison, so any *real* mapping change is still caught.
+
 ## Test coverage
 
 The tests under `tests/build/test_composite_actions.py` (19 tests)
@@ -460,6 +538,7 @@ hard — the tests are the contract.
 
 | Symptom                                         | Diagnostic                                                                       |
 |-------------------------------------------------|----------------------------------------------------------------------------------|
+| Any "generated file out-of-date" / `--check` drift gate fails | Run `make preflight` to regenerate every committed artefact in one shot, then `git add -A` and commit. Use `make preflight-check` to reproduce CI's read-only drift verdict first. |
 | `audit_action_pins.py` fails on PR              | Run locally with `GITHUB_TOKEN=$(gh auth token)` to bypass rate-limit warnings. |
 | `Build check` fails — generated files out-of-date | Run `make build` and commit the diff.                                            |
 | `Cascade-generator drift gate (umbrella)` fails | Run `make sync-generated && git add -A && git diff --staged` and commit the regenerated tree. |

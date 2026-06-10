@@ -939,6 +939,11 @@ jobs:
           node tools/audits/_phase5_primer_smoke.js
 
       - name: API surface (api/v1) regeneration check
+        # Drift gate: run even if an earlier gate failed (``!cancelled()``)
+        # so one CI round-trip surfaces every stale committed artefact
+        # instead of one-per-push. The prerequisite build + api/v1 gen
+        # steps above stay fail-fast, so this only runs on a built tree.
+        if: ${{ !cancelled() }}
         # Phase 1.7 deliverable. ``generate-api-surface`` is the single
         # source of truth for /api/v1/*: it reads the UC sidecars,
         # data/regulations.json, data/crosswalks/*, and the compliance
@@ -949,6 +954,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface --check
 
       - name: Splunk UC Recommender generator regeneration check
+        if: ${{ !cancelled() }}
         # The ``generate-recommender-app`` verb is the single source of
         # truth for splunk-apps/splunk-uc-recommender/. --check
         # regenerates the tree into a tempdir and diffs it against the
@@ -961,6 +967,10 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc generate-recommender-app --check
 
       - name: Build check (catalog regeneration)
+        # Drift gate + dist/ rebuild: ``!cancelled()`` keeps it running even
+        # after an earlier gate failed, which also guarantees the dist/-
+        # consuming audits below see a freshly-built tree.
+        if: ${{ !cancelled() }}
         # Verifies that the committed derivative artefacts match what the
         # build pipeline regenerates from the SSOT under content/. The
         # legacy root-level artefacts (catalog.json / llms*.txt /
@@ -984,15 +994,15 @@ jobs:
         # before dist/catalog.json exists, _load_catalog() returns [] and the
         # recommender/equipment indexes ship empty (HTTP 200, zero records).
         # This audit fails the PR here instead of letting that reach Pages.
-        if: success()
+        if: ${{ !cancelled() }}
         run: python3 tools/audits/api_surface_nonempty.py dist
 
       - name: Audit — byte budgets
-        if: success()
+        if: ${{ !cancelled() }}
         run: python3 tools/audits/budgets.py --dist dist --json
 
       - name: Audit — URL freeze
-        if: success()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           BASELINE_TAG="$(git tag -l 'v*' --sort=-version:refname | head -n1 || true)"
@@ -1003,6 +1013,7 @@ jobs:
           python3 tools/audits/url_freeze.py --baseline-tag "${BASELINE_TAG}" --head dist/api/manifest.json
 
       - name: Prerequisite audit report (post-build drift)
+        if: ${{ !cancelled() }}
         # After the build regenerates catalog.json, re-run the prereq
         # audit's --check so the committed report stays in lockstep with
         # the freshly regenerated catalogue. This is a belt-and-braces
@@ -1014,6 +1025,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check
 
       - name: Quality metadata coverage (warn-only)
+        if: ${{ !cancelled() }}
         # Reports coverage of References, Known false positives, Status,
         # Last reviewed, Splunk versions and Reviewer fields. Runs after
         # ``build.py`` so catalog.json is fresh. Currently warn-only;
@@ -1023,6 +1035,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-quality-metadata
 
       - name: Splunk Cloud compatibility audit
+        if: ${{ !cancelled() }}
         # Scans every UC's SPL and every packaged .conf for patterns that
         # fail Splunk Cloud vetting (custom commands, scripted inputs,
         # deprecated SPL, etc.). Regenerates docs/splunk-cloud-compat.md
@@ -1032,6 +1045,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-cloud-compat
 
       - name: Splunk Cloud audit — generated report is committed
+        if: ${{ !cancelled() }}
         run: |
           CHANGED=$(git diff --name-only -- docs/splunk-cloud-compat.md)
           if [ -n "$CHANGED" ]; then
@@ -1041,6 +1055,7 @@ jobs:
           fi
 
       - name: Splunk version-matrix audit (P18)
+        if: ${{ !cancelled() }}
         # 2-D rollup of every UC's ``splunkVersions`` declarations vs.
         # the canonical vocabulary in
         # ``data/splunk-version-vocabulary.json``. ``--check`` exits
@@ -1053,6 +1068,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix --check
 
       - name: Splunk version-matrix audit — generated artefacts are committed
+        if: ${{ !cancelled() }}
         # The audit, run in *write* mode, must produce byte-identical
         # output to what's on disk. A diff means a maintainer changed
         # ``splunkVersions`` on a sidecar (or the vocabulary file) and
@@ -1067,6 +1083,7 @@ jobs:
           fi
 
       - name: Generate RAG chunked corpus (P17)
+        if: ${{ !cancelled() }}
         # Walks every ``dist/uc/UC-*/uc.md`` produced by the build and
         # emits the LLM-eval-ready chunked corpus under ``dist/rag/``:
         # one frontmatter-stamped chunk per markdown section + the
@@ -1081,6 +1098,7 @@ jobs:
           PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks --check
 
       - name: Retrieval-eval drift gate (P17 wave D)
+        if: ${{ !cancelled() }}
         # Runs the curated 30-query BM25 retrieval-eval harness
         # over the chunked corpus produced by the previous step
         # and drift-guards the aggregate metrics (mean recall@k,
@@ -1093,10 +1111,12 @@ jobs:
           PYTHONPATH=src python3 -m splunk_uc audit-retrieval-eval --check
 
       - name: Alert actions generator drift (Task H-4)
+        if: ${{ !cancelled() }}
         run: |
           PYTHONPATH=src python3 -m splunk_uc generate-alert-actions --check --limit 20
 
       - name: Package recommender .spl
+        if: ${{ !cancelled() }}
         # Builds the deployable ``splunk-uc-recommender-vX.Y.Z.spl``
         # bundle (plus ``.sha256`` + ``SHA256SUMS.txt`` +
         # ``splunk-apps-manifest.md``) from the regenerated
@@ -1306,6 +1326,10 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
 
       - name: Recommender frontend unit tests
+        # Drift/QA gate: ``!cancelled()`` lets every frontend gate report
+        # in one CI round-trip. The prerequisite build + api/v1 gen +
+        # ``npm ci`` steps above stay fail-fast.
+        if: ${{ !cancelled() }}
         # Node --test runs tests/recommender/match.test.mjs which
         # loads the generated recommender.js under node:vm and
         # exercises the scoring and URL-sanitiser helpers. This
@@ -1328,6 +1352,7 @@ jobs:
         run: npm ci
 
       - name: apps/web — typecheck (tsc --noEmit, strict)
+        if: ${{ !cancelled() }}
         # Strict TypeScript typecheck against the apps/web/ tree.
         # The tsconfig.json there enables noUncheckedIndexedAccess,
         # exactOptionalPropertyTypes, verbatimModuleSyntax and the
@@ -1339,6 +1364,7 @@ jobs:
         run: npm run typecheck
 
       - name: apps/web — Vitest shape invariants over non-technical-view.js
+        if: ${{ !cancelled() }}
         # First real consumer of the apps/web/ scaffold. The
         # vitest suite under apps/web/src/__tests__/ loads the
         # legacy non-technical-view.js via node:vm in a jsdom
@@ -1364,6 +1390,7 @@ jobs:
         run: npm test
 
       - name: apps/web — non-technical-view.js SOT drift guard
+        if: ${{ !cancelled() }}
         # P5 / F16 source-of-truth inversion (2026-05-17). The
         # canonical surface for the non-technical catalogue is now
         # ``apps/web/src/data/non-technical-view.data.ts`` and the
@@ -1385,6 +1412,7 @@ jobs:
           git diff --exit-code non-technical-view.js
 
       - name: Phase 4.4 scorecard.html render test
+        if: ${{ !cancelled() }}
         # Phase 4.4 deliverable. scorecard.html boots client-side
         # JavaScript that fetches reports/compliance-coverage.json,
         # reports/compliance-gaps.json, scorecard.json, and
@@ -1403,6 +1431,7 @@ jobs:
         run: node --test tests/scorecard/render.test.mjs
 
       - name: Phase 4.5c sandbox validation Node drift guard
+        if: ${{ !cancelled() }}
         # Independent structural check: tests/sandbox/validate.test.mjs
         # parses reports/sandbox-validation.json and asserts that
         # every UC sidecar with a controlTest block has exactly one
@@ -1414,6 +1443,7 @@ jobs:
         run: node --test tests/sandbox/validate.test.mjs
 
       - name: Phase 4.5d ATT&CK simulation gate
+        if: ${{ !cancelled() }}
         # scripts/simulate_controltest.py is a structural simulator —
         # it does NOT run SPL against a live Splunk. It verifies
         # (a) every ATT&CK technique cited by a controlTest parses as
@@ -1425,6 +1455,7 @@ jobs:
         run: python3 scripts/simulate_controltest.py --check
 
       - name: Phase 4.5d ATT&CK simulation Node drift guard
+        if: ${{ !cancelled() }}
         # tests/attack/simulate.test.mjs is the Node-only twin of the
         # ATT&CK simulator: it walks the UC sidecars and asserts the
         # committed reports/attack-simulation.json has one record per
@@ -1434,6 +1465,7 @@ jobs:
         run: node --test tests/attack/simulate.test.mjs
 
       - name: Phase 4.5e OSCAL round-trip gate
+        if: ${{ !cancelled() }}
         # python3 -m splunk_uc audit-oscal-roundtrip validates every
         # api/v1/oscal/component-definitions/*.json against the NIST
         # OSCAL JSON schema (via ajv under the hood) and asserts that
@@ -1445,6 +1477,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-oscal-roundtrip --check
 
       - name: Phase 4.5e OSCAL round-trip Node drift guard
+        if: ${{ !cancelled() }}
         # tests/oscal/roundtrip.test.mjs uses @splunk-free ajv to
         # re-validate a sampled subset of the component-definitions
         # against the NIST schema bundled under
@@ -1454,6 +1487,7 @@ jobs:
         run: node --test tests/oscal/roundtrip.test.mjs
 
       - name: Phase 4.5f perf + a11y audit gate
+        if: ${{ !cancelled() }}
         # audit-perf-a11y enforces two dimensions: per-file
         # byte budgets on critical-path + generated-data assets, and
         # axe-core v4 accessibility audits (WCAG 2.1 A + AA +
@@ -1466,6 +1500,7 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-perf-a11y --check
 
       - name: Phase 4.5f perf + a11y Node drift guard
+        if: ${{ !cancelled() }}
         # tests/a11y/perfa11y.test.mjs asserts
         # reports/perf-a11y.json's top-level shape, that every perf
         # budget's actual_bytes matches the on-disk size, that every
@@ -1475,6 +1510,7 @@ jobs:
         run: node --test tests/a11y/perfa11y.test.mjs
 
       - name: Vendor changelog freshness gate (J-5 Cisco v1)
+        if: ${{ !cancelled() }}
         # audit-vendor-changelog validates hand-curated vendor release
         # notes under data/vendor-changelog/, checks schema + freshness,
         # and scans UC SPL for renamed/removed vendor fields. v1 is
@@ -1514,6 +1550,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Per-UC dashboard scaffold gate (Lane H)
+        if: ${{ !cancelled() }}
         # generate-dashboards emits dist/dashboards/UC-X.Y.Z/{simple,studio}.xml
         # pairs that query real index=/sourcetype= tokens from each UC sidecar SPL
         # (never | makeresults). audit-dashboards --check validates XML + JSON,

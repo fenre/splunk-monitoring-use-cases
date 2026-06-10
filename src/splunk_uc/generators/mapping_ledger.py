@@ -818,15 +818,40 @@ def main(argv: list[str] | None = None) -> int:
 def _structural_diff(current: str, regenerated: str) -> bool:
     """Return True when the two ledger texts differ structurally.
 
-    The top-level ``generatedAt`` field is anchored to the HEAD commit
-    date, so it changes after every push.  Strip it (and the derived
-    ``catalogueCommit``) from both sides before comparing so that the
-    CI drift check only fires on real content changes.
+    Four fields are *volatile* — they track the repository's git history
+    rather than the mapping content — so they are stripped from both
+    sides before comparing. Without this, the CI ``--check`` gate fails
+    on changes that carry no semantic drift:
+
+    * ``generatedAt`` — anchored to the HEAD commit date; changes on
+      every push.
+    * ``catalogueCommit`` — the HEAD SHA at generation time.
+    * ``firstSeenCommit`` / ``lastModifiedCommit`` (per entry) — derived
+      from ``git log`` over each UC's path. These exhibit *commit lag*:
+      when the ledger is regenerated in the same commit as a UC edit,
+      ``git log`` still reports the previous commit (the edit isn't
+      committed yet), so the committed ledger carries commit N-1. On the
+      next CI run ``git log`` reports commit N and the byte comparison
+      fails even though no mapping changed. This was a recurring,
+      content-free CI failure.
+
+    Stripping these is integrity-safe: the signed provenance is anchored
+    in each entry's ``canonicalHash`` (computed in ``build_ledger_entry``
+    *before* the commit fields are attached — see lines around the
+    ``canonical_hash = sha256_hex(...)`` call) and in the top-level
+    ``merkleRoot`` (a rolling hash over those ``canonicalHash`` values).
+    Neither volatile field participates in either hash, and both hashes
+    are left in the comparison — so any *real* mapping change still flips
+    ``canonicalHash`` + ``merkleRoot`` and correctly fails the gate.
     """
-    _TS_RE = re.compile(r'^\s*"(generatedAt|catalogueCommit)":\s*".*",?\s*$', re.MULTILINE)
+    _VOLATILE_RE = re.compile(
+        r'^\s*"(generatedAt|catalogueCommit|firstSeenCommit|lastModifiedCommit)":'
+        r'\s*".*",?\s*$',
+        re.MULTILINE,
+    )
 
     def _strip(s: str) -> str:
-        return _TS_RE.sub("", s)
+        return _VOLATILE_RE.sub("", s)
 
     return _strip(current) != _strip(regenerated)
 

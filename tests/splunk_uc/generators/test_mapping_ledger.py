@@ -1638,6 +1638,64 @@ class TestStructuralDiffAndPreview:
         )
         assert gen._structural_diff(a, b) is False
 
+    def test_commit_lag_in_per_entry_fields_is_ignored(self) -> None:
+        # Regression guard for the mapping-ledger "commit lag" CI failure:
+        # ``firstSeenCommit`` / ``lastModifiedCommit`` are derived from
+        # ``git log`` and therefore point at commit N-1 in the committed
+        # ledger but commit N when CI re-runs the generator. The diff gate
+        # must ignore these volatile fields (they are NOT part of
+        # canonicalHash / merkleRoot) so a content-free regeneration does
+        # not fail ``--check``.
+        a = (
+            "{\n"
+            '  "entries": [\n'
+            "    {\n"
+            '      "canonicalHash": "abc123",\n'
+            '      "firstSeenCommit": "0000000",\n'
+            '      "lastModifiedCommit": "0000000"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        )
+        b = (
+            "{\n"
+            '  "entries": [\n'
+            "    {\n"
+            '      "canonicalHash": "abc123",\n'
+            '      "firstSeenCommit": "1111111",\n'
+            '      "lastModifiedCommit": "2222222"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        )
+        assert gen._structural_diff(a, b) is False
+
+    def test_canonical_hash_change_is_still_detected(self) -> None:
+        # Integrity guard: stripping the volatile commit fields must NOT
+        # weaken the gate. A real mapping change flips ``canonicalHash``
+        # (and the top-level ``merkleRoot``), both of which stay in the
+        # comparison, so genuine drift is still caught even when the
+        # commit fields differ too.
+        a = (
+            "{\n"
+            '  "merkleRoot": "root-aaa",\n'
+            '  "entries": [\n'
+            '    {\n      "canonicalHash": "abc123",\n'
+            '      "lastModifiedCommit": "0000000"\n    }\n'
+            "  ]\n"
+            "}\n"
+        )
+        b = (
+            "{\n"
+            '  "merkleRoot": "root-bbb",\n'
+            '  "entries": [\n'
+            '    {\n      "canonicalHash": "def456",\n'
+            '      "lastModifiedCommit": "1111111"\n    }\n'
+            "  ]\n"
+            "}\n"
+        )
+        assert gen._structural_diff(a, b) is True
+
     def test_preview_diff_emits_unified_diff_on_drift(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
