@@ -177,7 +177,27 @@ jobs:
             exit 0
           fi
           git commit -m "chore(roadmap): refresh roadmap-export.json $(date -u +%Y-%m-%d)"
-          git push
+          # Other automated bots (regulatory-watch, traffic, Dependabot
+          # merges, etc.) push to ``main`` on overlapping schedules, so the
+          # remote ref frequently advances between this job's checkout and
+          # its push. A bare ``git push`` loses that race and fails the run
+          # (``! [rejected] main -> main (fetch first)``). Rebase onto the
+          # freshly-fetched remote and retry a few times so a concurrent
+          # push is absorbed instead of red-failing the workflow. The
+          # snapshot touches only ``reports/roadmap-export.json``, so a
+          # rebase can never conflict with an unrelated bot commit.
+          push_attempts=0
+          max_attempts=5
+          until git push origin HEAD:main; do
+            push_attempts=$((push_attempts + 1))
+            if [ "$push_attempts" -ge "$max_attempts" ]; then
+              echo "::error::Failed to push roadmap snapshot after $max_attempts attempts (remote kept advancing)."
+              exit 1
+            fi
+            echo "Push rejected (remote advanced); rebasing and retrying ($push_attempts/$max_attempts)…"
+            git fetch origin main
+            git rebase origin/main
+          done
 
       - name: Upload artifact
         # Secondary hand-off surface for maintainers running the
