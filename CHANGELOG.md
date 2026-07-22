@@ -12,6 +12,39 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.8.0] - 2026-07-22
+
+### New Category
+
+- **cat-24 "Business Intelligence & Analytics Platforms" (Phase 0).** A new
+  flagship category that monitors the BI-tooling and modern-data-stack layer —
+  the tools that *produce* the numbers the business trusts. It sits cleanly
+  between cat-07 (databases/warehouses) and cat-23 (Splunk-as-BI business
+  outcomes) with no overlap. All 13 subcategories are declared up front:
+  Tableau, Microsoft Power BI, Google Looker/Looker Studio, Qlik, open-source &
+  embedded BI, other enterprise BI, Data Orchestration & Transformation
+  (Airflow/dbt/Dagster/Prefect), Data Ingestion & ELT (Fivetran/Airbyte/Glue),
+  Data Quality & Observability, Data Catalog/Lineage & Governance, Semantic /
+  Metrics Layer, Reverse ETL & Activation, and cross-platform BI trending.
+
+### New Use Cases
+
+- **99 use cases across all 13 cat-24 subcategories.** First vertical slice
+  weighted toward the highest-value buckets (Tableau, Power BI, Airflow/dbt,
+  data quality/observability), with SPL sourced from vendor admin/audit logs,
+  REST/admin APIs, and repository databases. Monitoring angles span
+  availability/health, refresh & extract SLAs, pipeline failure/retry, data
+  freshness, capacity/cost/FinOps, adoption, license utilization, and access
+  audit. Later phases deepen data-engineering, BI-tool breadth, governance &
+  activation, and per-leader depth toward the 500+ target.
+
+### Changed
+
+- Catalogue now spans **24 categories** (was 23). Registration metadata
+  updated across the build pipeline (category groups, index macros, log-family
+  defaults, IT-ops relevance, grandma-explanation fallbacks) and the curated
+  SPL sourcetype vocabulary was extended with the new BI/data-stack sourcetypes.
+
 ## [8.7.2] - 2026-06-05
 
 ### Changed
