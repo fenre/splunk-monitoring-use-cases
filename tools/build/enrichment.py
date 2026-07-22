@@ -83,6 +83,7 @@ CAT_GROUPS = {
     "industry": [21],
     "compliance": [22],
     "business": [23, 24],
+    "personal": [25],
 }
 
 # Splunk two-pillar strategy: Security / Observability
@@ -2675,6 +2676,8 @@ _GE_RUNTIME_FALLBACK = {
     21: "We watch the systems that run your industry's daily operations — so the things customers and regulators care about stay running and accountable.",
     22: "We make it easy to prove, at audit time, that the rules are being followed — so you can show exactly what is being watched and when something went wrong.",
     23: "We watch the business metrics that matter to the board — so revenue, usage, and customer trends are visible in near-real-time.",
+    24: "We watch your reporting and analytics tools — so broken dashboards, late data, and failed refreshes are caught before people rely on the wrong numbers.",
+    25: "We turn the same monitoring on your own life — your fitness, health, car, smart home, energy, and hobbies — so the fun stuff gets dashboards and alerts too.",
 }
 
 

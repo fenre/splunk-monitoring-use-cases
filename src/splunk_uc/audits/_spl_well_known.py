@@ -660,6 +660,85 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "segment:delivery",
     "polytomic:sync",
     "grouparoo:run",
+    # ------------------------------------------------------------------
+    # cat-25 Personal & Hobbyist Monitoring (the fun category)
+    # ------------------------------------------------------------------
+    # Fitness & activity
+    "strava:activity",
+    "garmin:activity",
+    "fitbit:activity",
+    "peloton:workout",
+    "zwift:activity",
+    # Health, sleep & wearables
+    "apple:health",
+    "oura:daily",
+    "whoop:cycle",
+    "withings:measure",
+    "dexcom:egv",
+    # Connected cars & EVs
+    "tesla:vehicle",
+    "tesla:charge",
+    "obd:pid",
+    "evcharger:session",
+    # Smart home platforms & automation
+    "homeassistant:event",
+    "homey:flow",
+    "nodered:event",
+    # Smart home devices & sensors
+    "zigbee2mqtt:device",
+    "shelly:status",
+    "ecobee:thermostat",
+    # Home energy & solar
+    "solaredge:power",
+    "enphase:production",
+    "powerwall:aggregate",
+    "dsmr:telegram",
+    "emporia:circuit",
+    # Media, gaming & entertainment
+    "tautulli:play",
+    "jellyfin:activity",
+    "spotify:play",
+    "steam:player",
+    "sonarr:event",
+    # Home lab & self-hosting
+    "truenas:pool",
+    "docker:stats",
+    "proxmox:metric",
+    "nut:ups",
+    "uptime:probe",
+    "rpi:metric",
+    "synology:disk",
+    # Home network & connectivity
+    "speedtest:result",
+    "pihole:query",
+    "unifi:event",
+    # Weather, environment & garden
+    "airgradient:sensor",
+    "purpleair:aqi",
+    "ecowitt:obs",
+    "weatherflow:obs",
+    "plant:sensor",
+    "aquarium:sensor",
+    # Pets & home life
+    "whistle:activity",
+    "tractive:position",
+    "petfeeder:event",
+    "litterrobot:cycle",
+    "birdfeeder:detection",
+    "doorbell:event",
+    # Personal finance & crypto
+    "crypto:price",
+    "coinbase:txn",
+    "firefly:txn",
+    "wallet:balance",
+    # Digital life & productivity
+    "rescuetime:activity",
+    "screentime:usage",
+    "github:personal",
+    "habit:entry",
+    "calendar:event",
+    "passwordmanager:audit",
+    "email:metadata",
 }
 
 

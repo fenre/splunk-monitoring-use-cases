@@ -40,7 +40,7 @@ if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:
 RE_CAT_HEADER = re.compile(r"^##\s+(\d+)\.\s+(.+)$")
 RE_ICON = re.compile(r"^-\s+\*\*Icon:\*\*\s*(.+)$")
 RE_STARTER = re.compile(r"^-\s+UC-(\d+\.\d+\.\d+)\s*[·•]\s*(.+?)\s*\((\w+)(?:,\s*(.+?))?\)\s*$")
-EXPECTED_CATS = set(range(1, 25))
+EXPECTED_CATS = set(range(1, 26))
 REQUIRED_SPLUNK_APP_KEYS = ("name", "id", "url", "tas", "desc")
 
 
@@ -211,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
         for n in counts:
             if n not in EXPECTED_CATS:
-                issues.append(f"CAT_GROUPS: Unexpected category id {n} (expected 1–24 only)")  # noqa: RUF001
+                issues.append(f"CAT_GROUPS: Unexpected category id {n} (expected 1–25 only)")  # noqa: RUF001
         for gname, ids in cat_groups.items():
             for x in ids:
                 if x not in EXPECTED_CATS:
@@ -249,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 uc_cat = int(mm.group(1))
                 if uc_cat not in EXPECTED_CATS:
-                    issues.append(f"content/{base}/{fn}: UC-{uc_id} category {uc_cat} not in 1-24")
+                    issues.append(f"content/{base}/{fn}: UC-{uc_id} category {uc_cat} not in 1-25")
                 elif uc_cat not in cat_ids_in_groups:
                     issues.append(
                         f"content/{base}/{fn}: UC-{uc_id} category {uc_cat} not in CAT_GROUPS"

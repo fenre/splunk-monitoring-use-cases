@@ -86,8 +86,8 @@ class TestModuleConstants:
         assert ge._MIN_LEN == 20
         assert ge._MAX_LEN == 400
 
-    def test_category_fallback_covers_all_24_categories(self) -> None:
-        for i in range(1, 25):
+    def test_category_fallback_covers_all_25_categories(self) -> None:
+        for i in range(1, 26):
             assert i in ge._CATEGORY_FALLBACK, f"category {i} missing fallback"
 
     def test_compiled_replacements_match_jargon_table(self) -> None:

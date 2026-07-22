@@ -64,6 +64,7 @@ _ITOPS_RELEVANCE = {
     22: 0.3,   # Regulatory and Compliance Frameworks
     23: 0.1,   # Business Analytics & Executive Intelligence
     24: 0.6,   # Business Intelligence & Analytics Platforms (tooling/data-stack monitoring)
+    25: 0.05,  # Personal & Hobbyist Monitoring — the fun category, not enterprise IT Ops
 }
 
 
