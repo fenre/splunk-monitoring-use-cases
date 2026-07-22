@@ -6,43 +6,51 @@
 
 ## Current release
 
-**v8.9.0 — Personal & Hobbyist Monitoring (cat-25): the fun category — Splunk turned on your own life (117 use cases across 13 subcategories)** *(shipped 2026-07-22)*
+**v8.10.0 — Personal & Hobbyist Monitoring (cat-25) Wave 1: personal monitoring goes physical — travel, kitchen, brewing, workshop, security, and water (186 use cases across 19 subcategories)** *(shipped 2026-07-22)*
 
-Theme: **make monitoring fun and personal.** v8.9.0 adds cat-25
-"Personal & Hobbyist Monitoring" — the same SPL, dashboards, and
-anomaly detection you use at work, pointed at your fitness, health,
-car, smart home, energy, media, home lab, network, garden, pets,
-finances, and digital habits instead of the corporate data centre. It
-lives in its own `personal` domain group, entirely outside enterprise
-IT, and is built out to **117 use cases** across 13 subcategories.
+Theme: **push the fun category off the screen and into the physical
+world.** v8.10.0 grows cat-25 from 117 to **186 use cases** by adding
+six new subcategories — Travel/Commute & Flight-Spotting, Kitchen/
+Cooking & Fermentation, Homebrewing/Beer & Wine, Making/3D Printing &
+Workshop, Home Security & Surveillance, and Water/Plumbing & Utilities —
+the first of several planned waves toward a 1,000+ UC personal-
+monitoring category.
 
 ### Shipped outcomes
 
-- **New category cat-25, 117 UCs across 13 subcategories.** Fitness &
-  Activity Tracking (12), Health/Sleep & Wearables (11), Connected Cars
-  & EVs (10), Smart Home Platforms & Automation (10), Smart Home Devices
-  & Sensors (10), Home Energy & Solar (8), Media/Gaming & Entertainment
-  (8), Home Lab & Self-Hosting (9), Home Network & Connectivity (8),
-  Weather/Environment & Garden (8), Pets & Home Life (7), Personal
-  Finance & Crypto (8), and Digital Life & Productivity (8).
-- **Real consumer data sources.** Every UC runs against Strava, Apple
-  Health, Tesla, Home Assistant, Zigbee2MQTT, SolarEdge/Enphase, Plex,
-  Proxmox/Docker, UniFi/Pi-hole, weather stations, pet trackers, crypto
-  APIs, and more — ingested via REST APIs, webhooks, MQTT bridges, and
-  file exports into `index=personal`.
-- **Catalogue now spans 25 categories.** Registration metadata updated
-  across the build pipeline (a new `personal` category group and
-  landing-page domain, index macros, log-family defaults, IT-ops
-  relevance, grandma-explanation fallbacks, a new `heartPulse` icon) and
-  the curated SPL sourcetype vocabulary gained 63 consumer sourcetypes.
-- **Non-technical view coverage.** The plain-language outcomes view
-  gained a cat-25 block spanning all 13 subcategories.
+- **69 new UCs across 6 new subcategories (25.14–25.19).** Travel,
+  Commute & Flight-Spotting (12), Kitchen, Cooking & Fermentation (12),
+  Homebrewing, Beer & Wine (10), Making, 3D Printing & Workshop (12),
+  Home Security & Surveillance (12), and Water, Plumbing & Utilities (11).
+- **Real physical-world data sources.** Home ADS-B receivers, ESP32/
+  ESPHome sensors, OctoPrint/Klipper print servers, Frigate/Blue Iris
+  NVRs, and smart water meters — all ingested via Splunk HEC into
+  `index=personal`.
+- **Registration + vocabulary updates.** 36 new consumer sourcetypes
+  added to the curated SPL reference vocabulary; the non-technical view
+  gained six new plain-language areas covering the new subcategories.
+- **Mega-expansion plan published.** A master plan
+  (`docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md`) charts
+  the road to 1,000+ personal-monitoring UCs across ~40 subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.9.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.10.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.9.0 — Personal & Hobbyist Monitoring (cat-25): the fun category — Splunk turned on your own life (117 use cases across 13 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **make monitoring fun and personal.** v8.9.0 adds cat-25
+"Personal & Hobbyist Monitoring" — the same SPL, dashboards, and anomaly
+detection you use at work, pointed at your fitness, health, car, smart
+home, energy, media, home lab, network, garden, pets, finances, and
+digital habits instead of the corporate data centre. It lives in its own
+`personal` domain group, entirely outside enterprise IT, built out to
+**117 use cases** across 13 subcategories.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.9.0 release entry.
+
+---
 
 **v8.8.0 — Business Intelligence & Analytics Platforms (cat-24): a new flagship category monitoring the BI-tooling and modern-data-stack layer (508 use cases across 13 subcategories)** *(shipped 2026-07-22)*
 

@@ -1412,6 +1412,28 @@ window.NON_TECHNICAL = {
         { id: "25.12.5", why: "Find all your monthly subscriptions and show what they cost per year, so you can cancel the ones you forgot about." },
         { id: "25.13.1", why: "Show how much of your day was real focused work versus distractions — often eye-opening." },
         { id: "25.13.2", why: "Track how long you spend on your phone each day compared to your goal, so the habit doesn't creep up on you." }
+      ]},
+      { name: "Travel & flight-spotting", description: "We turn your travels, commutes, and even the planes overhead into simple dashboards — so you catch a slow commute, a fare drop, or an expiring passport in good time.", ucs: [
+        { id: "25.14.1", why: "Keep a list of every plane your little radio receiver hears and highlight the unusual ones you almost never see." },
+        { id: "25.14.7", why: "Learn how long your commute normally takes and tell you when a trip was much slower than usual." },
+        { id: "25.14.10", why: "Count down to when your passport or visa runs out, so a trip is never ruined by an expired document." }
+      ]},
+      { name: "Kitchen, food & fermentation", description: "We watch the fun and finicky parts of the kitchen — sourdough starters, the smoker, the fridge, and homebrew — so food comes out right and nothing spoils.", ucs: [
+        { id: "25.15.1", why: "Watch your sourdough grow after feeding and tell you the exact best moment to start baking." },
+        { id: "25.15.5", why: "Warn you if the fridge or freezer gets too warm, which usually means a door left open or a fault." },
+        { id: "25.16.4", why: "Count beer pours and estimate the pints left in the keg, so it never runs dry mid-party." }
+      ]},
+      { name: "Workshop & 3D printing", description: "We keep an eye on your printers, tools, and workshop air — so prints succeed, filament doesn't run out mid-job, and the air stays safe to breathe.", ucs: [
+        { id: "25.17.1", why: "Work out how often each 3D printer finishes a print successfully, so you know which one to trust." },
+        { id: "25.17.6", why: "Estimate how much printing plastic is left on each reel and warn you before it runs out during a print." }
+      ]},
+      { name: "Home security & surveillance", description: "We turn your cameras, alarms, and locks into calm summaries — so a package left too long, a camera gone offline, or a life-safety alarm never slips past you.", ucs: [
+        { id: "25.18.4", why: "Warn you if a security camera goes offline, so you aren't relying on one that has quietly stopped working." },
+        { id: "25.18.6", why: "Record every smoke and carbon-monoxide alarm and warn of low batteries, keeping the most important home alarms working." }
+      ]},
+      { name: "Water & plumbing", description: "We watch the water in and around your home — leaks, the sump pump, the pool, and the sprinklers — so a small drip never becomes an expensive flood.", ucs: [
+        { id: "25.19.1", why: "Spot water running non-stop for a long time — usually a running toilet or a leak — so you can act fast." },
+        { id: "25.19.4", why: "Keep an eye on the pump that keeps your basement dry and warn you if the water rises or the pump stops." }
       ]}
     ]
   }

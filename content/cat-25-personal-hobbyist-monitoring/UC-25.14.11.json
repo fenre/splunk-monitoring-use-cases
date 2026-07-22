@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.14.11",
+  "title": "Airfare Price-Drop Watch",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
+  "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
+  "spl": "index=personal sourcetype=airprice:quote\n| stats latest(price) as current, min(price) as lowest, avg(price) as typical by route\n| eval drop_pct=round(100*(typical-current)/typical,1)\n| where current<=lowest OR drop_pct>=15\n| sort - drop_pct",
+  "description": "Tracks fare quotes for routes you care about and flags a genuine price drop against the recent typical fare.",
+  "value": "Fares swing constantly; comparing the current quote to your own recent history catches a real deal instead of marketing hype.",
+  "implementation": "Poll a fare source into `index=personal` on a schedule; alert when the current price hits a new low or falls well below typical.",
+  "visualization": "Table of watched routes with current, lowest, and percent-below-typical.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "OpenSky Network — REST API",
+      "url": "https://opensky-network.org/apidoc/rest.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It keeps an eye on flight prices for the trips you want and tells you when they drop enough to be worth booking."
+}

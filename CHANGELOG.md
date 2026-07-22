@@ -12,6 +12,63 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.10.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 1 expansion — 69 new use cases across 6 new subcategories,
+  taking the fun category to 186 UCs across 19 subcategories.** The expansion
+  pushes personal monitoring off the screen and into the physical world:
+  - **Travel, Commute & Flight-Spotting (12)** — home ADS-B receiver overhead-
+    aircraft logging and rare-type spotting, military/emergency squawk alerts,
+    closest-approach-of-the-day, receiver coverage/range trending, a personal
+    flight logbook (miles/countries), airline on-time record, commute-time
+    anomaly detection, transit-delay tracking, geofence arrival/departure logs,
+    passport/visa expiry countdown, airfare price-drop watch, and monthly travel
+    spend/distance rollups.
+  - **Kitchen, Cooking & Fermentation (12)** — sourdough peak-rise "bake now"
+    alerts and fermentation-environment trending, BBQ smoker stall detection,
+    sous-vide doneness timing, fridge/freezer food-safety excursion alerts, oven
+    preheat readiness, espresso-shot consistency, daily caffeine vs limit, pantry
+    low-stock/reorder forecasting and expiry/food-waste reduction, kombucha batch
+    progress, and coffee-bean freshness.
+  - **Homebrewing, Beer & Wine (10)** — fermentation gravity/attenuation curves,
+    temperature-stability and fermentation-complete detection, kegerator pour-
+    count/keg-level forecasting and temperature/CO2 health, cost-per-pint vs
+    store-bought, wine-cellar climate stability, cellar inventory/drink-by
+    windows, brew-day cadence, and peak-fermentation ranking.
+  - **Making, 3D Printing & Workshop (12)** — print success rates and failure-
+    reason breakdowns, long-print progress/ETA, hotend/bed temperature stability,
+    enclosure air quality, filament remaining/runout and cost-per-print, print-
+    farm utilization, CNC/laser runtime/queue, workshop dust/noise exposure,
+    cordless-tool battery status, and machine-maintenance intervals.
+  - **Home Security & Surveillance (12)** — camera object-detection counts,
+    package/porch-pirate watch, per-camera false-positive rates, camera offline
+    health, alarm arm/disarm audit, smoke/CO life-safety logging, keypad-lock
+    access history, repeat-vehicle/stranger-car plate alerts, night-time motion
+    anomaly baselines, doorbell visitor classification, false-alarm rates, and
+    NVR storage retention/capacity.
+  - **Water, Plumbing & Utilities (11)** — continuous-flow leak detection, daily
+    usage/fixture breakdown, monthly bill estimates, sump-pump activation/failure
+    and cycle-frequency flood warnings, well-pump short-cycle health, pool/spa
+    chemistry balance and pump energy cost, water-softener salt reminders, and
+    irrigation runtime/rain-skip plus water-budget-vs-rainfall.
+
+  Every UC ships runnable SPL against realistic consumer data sources (ADS-B
+  feeds, ESP32/ESPHome sensors, OctoPrint/Klipper, Frigate/Blue Iris NVRs, smart
+  water meters) ingested via Splunk HEC into `index=personal`, a plain-language
+  `grandmaExplanation`, and real vendor/reference documentation.
+
+### Added
+
+- 36 new consumer/hobbyist sourcetypes added to the curated SPL reference
+  vocabulary (`_spl_well_known.py`) for the six new subcategories.
+- Non-technical view coverage extended with six new plain-language areas
+  (travel, kitchen, workshop, security, water) covering the new subcategories.
+- Master mega-expansion plan added at
+  `docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md` charting the road
+  to a 1,000+ UC personal-monitoring category.
+
 ## [8.9.0] - 2026-07-22
 
 ### New Category

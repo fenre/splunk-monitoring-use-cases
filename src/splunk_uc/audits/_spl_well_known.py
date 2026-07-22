@@ -739,6 +739,45 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "calendar:event",
     "passwordmanager:audit",
     "email:metadata",
+    # Travel, commute & flight-spotting
+    "adsb:aircraft",
+    "flight:log",
+    "commute:trip",
+    "transit:arrival",
+    "geofence:event",
+    "travel:document",
+    "airprice:quote",
+    # Kitchen, cooking & fermentation
+    "sourdough:reading",
+    "bbq:probe",
+    "kitchen:appliance",
+    "espresso:shot",
+    "pantry:item",
+    "kombucha:reading",
+    # Homebrewing, beer & wine
+    "brew:fermentation",
+    "kegerator:pour",
+    "winecellar:reading",
+    # Making, 3D printing & workshop
+    "octoprint:job",
+    "printer:telemetry",
+    "filament:spool",
+    "cnc:job",
+    "workshop:air",
+    "tool:battery",
+    # Home security & surveillance
+    "frigate:event",
+    "camera:health",
+    "alarm:event",
+    "lock:access",
+    "plate:detection",
+    # Water, plumbing & utilities
+    "watermeter:flow",
+    "sumppump:event",
+    "wellpump:event",
+    "pool:chemistry",
+    "watersoftener:status",
+    "irrigation:zone",
 }
 
 
