@@ -6,45 +6,54 @@
 
 ## Current release
 
-**v8.8.0 — Business Intelligence & Analytics Platforms (cat-24): a new flagship category monitoring the BI-tooling and modern-data-stack layer (508 use cases across 13 subcategories)** *(shipped 2026-07-22)*
+**v8.9.0 — Personal & Hobbyist Monitoring (cat-25): the fun category — Splunk turned on your own life (117 use cases across 13 subcategories)** *(shipped 2026-07-22)*
 
-Theme: **close the BI/analytics-tooling monitoring gap.** v8.8.0 adds
-cat-24 "Business Intelligence & Analytics Platforms" — monitoring for
-the tools that *produce* the numbers the business trusts. It sits
-cleanly between [`cat-07 Database & Data Platforms`](content/cat-07-database-data-platforms/_category.json)
-(databases/warehouses) and [`cat-23 Business Analytics`](content/cat-23-business-analytics/_category.json)
-(Splunk-as-BI business outcomes) with no overlap. All 13 subcategories
-are built out to **508 use cases** via a consistent monitoring-angle
-matrix applied across ~40 BI and data-stack platforms.
+Theme: **make monitoring fun and personal.** v8.9.0 adds cat-25
+"Personal & Hobbyist Monitoring" — the same SPL, dashboards, and
+anomaly detection you use at work, pointed at your fitness, health,
+car, smart home, energy, media, home lab, network, garden, pets,
+finances, and digital habits instead of the corporate data centre. It
+lives in its own `personal` domain group, entirely outside enterprise
+IT, and is built out to **117 use cases** across 13 subcategories.
 
 ### Shipped outcomes
 
-- **New category cat-24, 508 UCs across 13 subcategories.** Tableau
-  (29), Power BI (32), Looker/Looker Studio (23), Qlik (32),
-  open-source & embedded BI (49), other enterprise BI (58), Data
-  Orchestration & Transformation (77), Data Ingestion & ELT (74), Data
-  Quality & Observability (37), Data Catalog/Lineage & Governance (33),
-  Semantic/Metrics Layer (23), Reverse ETL & Activation (33), and
-  cross-platform BI trending (8).
-- **Monitoring-angle matrix.** Availability/health, query/extract/render
-  latency, capacity & scaling, cost/FinOps, refresh/schedule SLA,
-  job/pipeline failure & retry, data freshness, data quality/tests,
-  usage & adoption, license utilization, access & security audit,
-  config/change, error/crash, and lineage/impact — applied only where
-  each realistically fits each platform.
-- **Catalogue now spans 24 categories.** Registration metadata updated
-  across the build pipeline (category groups, index macros, log-family
-  defaults, IT-ops relevance, grandma-explanation fallbacks) and the
-  curated SPL sourcetype vocabulary was extended with the new BI /
-  data-stack sourcetypes.
+- **New category cat-25, 117 UCs across 13 subcategories.** Fitness &
+  Activity Tracking (12), Health/Sleep & Wearables (11), Connected Cars
+  & EVs (10), Smart Home Platforms & Automation (10), Smart Home Devices
+  & Sensors (10), Home Energy & Solar (8), Media/Gaming & Entertainment
+  (8), Home Lab & Self-Hosting (9), Home Network & Connectivity (8),
+  Weather/Environment & Garden (8), Pets & Home Life (7), Personal
+  Finance & Crypto (8), and Digital Life & Productivity (8).
+- **Real consumer data sources.** Every UC runs against Strava, Apple
+  Health, Tesla, Home Assistant, Zigbee2MQTT, SolarEdge/Enphase, Plex,
+  Proxmox/Docker, UniFi/Pi-hole, weather stations, pet trackers, crypto
+  APIs, and more — ingested via REST APIs, webhooks, MQTT bridges, and
+  file exports into `index=personal`.
+- **Catalogue now spans 25 categories.** Registration metadata updated
+  across the build pipeline (a new `personal` category group and
+  landing-page domain, index macros, log-family defaults, IT-ops
+  relevance, grandma-explanation fallbacks, a new `heartPulse` icon) and
+  the curated SPL sourcetype vocabulary gained 63 consumer sourcetypes.
 - **Non-technical view coverage.** The plain-language outcomes view
-  gained a cat-24 block spanning all 13 subcategories.
+  gained a cat-25 block spanning all 13 subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.8.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.9.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.8.0 — Business Intelligence & Analytics Platforms (cat-24): a new flagship category monitoring the BI-tooling and modern-data-stack layer (508 use cases across 13 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **close the BI/analytics-tooling monitoring gap.** v8.8.0 adds
+cat-24 "Business Intelligence & Analytics Platforms" — monitoring for
+the tools that *produce* the numbers the business trusts, built out to
+**508 use cases** across 13 subcategories via a consistent
+monitoring-angle matrix applied across ~40 BI and data-stack platforms.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.8.0 release entry.
+
+---
 
 **v8.7.0 — Data Sizing tool v2: driver-based realism refresh, 24-source calibration, two-component compression, cluster-aware sizing** *(shipped 2026-05-27)*
 

@@ -12,6 +12,50 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.9.0] - 2026-07-22
+
+### New Category
+
+- **cat-25 "Personal & Hobbyist Monitoring" — the fun category.** A new flagship
+  category that turns the same monitoring discipline on your own life instead of
+  the corporate data centre. It sits entirely outside enterprise IT (its own
+  `personal` domain group on the landing page) and covers 13 subcategories:
+  Fitness & Activity Tracking (Strava/Garmin/Fitbit/Peloton/Zwift), Health, Sleep
+  & Wearables (Apple Watch/Oura/Whoop/Withings/Dexcom), Connected Cars & EVs
+  (Tesla/OBD-II/EV charging), Smart Home Platforms & Automation (Home
+  Assistant/Homey/SmartThings/Node-RED), Smart Home Devices & Sensors
+  (Zigbee2MQTT/Shelly/Hue/Ecobee), Home Energy & Solar
+  (SolarEdge/Enphase/Powerwall/smart meters), Media, Gaming & Entertainment
+  (Plex/Jellyfin/Spotify/Steam/*arr), Home Lab & Self-Hosting
+  (Proxmox/Docker/TrueNAS/UPS), Home Network & Connectivity
+  (UniFi/Pi-hole/speedtest), Weather, Environment & Garden
+  (Ecowitt/PurpleAir/soil/aquarium), Pets & Home Life
+  (Tractive/Whistle/smart feeders/litter boxes), Personal Finance & Crypto
+  (portfolio/budget/subscriptions), and Digital Life & Productivity
+  (RescueTime/screen time/GitHub/habits).
+
+### New Use Cases
+
+- **117 use cases across all 13 cat-25 subcategories.** Each ships genuinely
+  runnable SPL against realistic consumer data sources (REST APIs, webhooks, MQTT
+  bridges, and file exports ingested via Splunk HEC into `index=personal`), a
+  plain-language `grandmaExplanation`, and real vendor/reference documentation.
+  Highlights include Strava weekly-distance-vs-goal, resting-heart-rate anomaly
+  detection, Tesla battery-degradation trending, Home Assistant automation-failure
+  tracking, instant water-leak alerts, solar-vs-consumption self-sufficiency,
+  Plex transcode-overload warnings, home-lab disk-runway and backup-freshness
+  checks, internet-speed-vs-paid-plan, indoor/outdoor air-quality alerts,
+  pet-left-the-safe-zone geofencing, subscription-creep detection, and
+  focus-vs-distraction time.
+
+### Added
+
+- New `heartPulse` icon registered in the SVG icon set for the cat-25 tile.
+- New `personal` domain group on the landing page grouping the fun category
+  separately from enterprise IT domains.
+- 63 consumer/hobbyist sourcetypes added to the curated SPL reference vocabulary
+  (`_spl_well_known.py`) so `audit-spl-references` stays clean.
+
 ## [8.8.0] - 2026-07-22
 
 ### New Category
