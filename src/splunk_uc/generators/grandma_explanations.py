@@ -388,6 +388,10 @@ _CATEGORY_FALLBACK: dict[int, tuple[str, str]] = {
         "We watch the business metrics that matter to the board",
         "so revenue, usage, and customer trends are visible in near-real-time.",
     ),
+    24: (
+        "We watch your reporting and analytics tools",
+        "so broken dashboards, late data, and failed refreshes are caught before people rely on the wrong numbers.",
+    ),
 }
 
 # ---------------------------------------------------------------------------

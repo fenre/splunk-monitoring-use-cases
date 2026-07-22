@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.8",
+  "title": "Tableau Content Usage and Adoption",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Analytics",
+    "Inventory"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:httpd uri_path=\"/views/*\"\n| rex field=uri_path \"/views/(?<workbook>[^/]+)/\"\n| stats count as views, dc(user) as unique_users, latest(_time) as last_viewed by workbook\n| eval days_since=round((now()-last_viewed)/86400,0)\n| sort - views",
+  "description": "Ranks published workbooks by view count and unique viewers and flags stale content nobody has opened recently, informing rationalisation of the Tableau estate.",
+  "value": "Unused dashboards still consume refresh capacity and license cost; adoption metrics let teams retire dead content and double down on what the business actually uses.",
+  "implementation": "Ingest `tableau:httpd`; schedule weekly. Share the least-used list with content owners for archival; combine with refresh-cost data to quantify savings.",
+  "visualization": "Bar chart of top workbooks by views, table of stale content, adoption trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We show which Tableau reports people really use and which sit untouched, so you can clean up the clutter and focus on what matters."
+}

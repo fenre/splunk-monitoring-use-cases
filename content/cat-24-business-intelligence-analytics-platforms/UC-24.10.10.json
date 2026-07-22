@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.10.10",
+  "title": "Microsoft Purview Scan Coverage and Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Collibra audit (`collibra:audit`), Alation/Atlan audit, DataHub events, OpenLineage runs (`openlineage:event`), Unity Catalog audit (`unity_catalog:audit`), Purview scans (`purview:scan`).",
+  "app": "Catalog/governance audit exports (Collibra, Alation, Atlan, DataHub, Unity Catalog, Microsoft Purview) via REST APIs and OpenLineage events to HEC scripted inputs.",
+  "spl": "index=bi sourcetype=purview:scan\n| stats count as runs, sum(eval(status=\"Failed\")) as failures, latest(_time) as last_scan by data_source, scan_name\n| eval days_since=round((now()-last_scan)/86400,1)\n| where failures>0 OR days_since>7\n| sort - days_since",
+  "description": "Tracks Microsoft Purview scan runs to flag both outright failures and data sources that have not been scanned recently, since stale scans mean the catalog misses new or changed assets.",
+  "value": "A catalog is only as current as its last scan; combining failure and staleness detection keeps Purview's classification and lineage trustworthy.",
+  "implementation": "Poll Purview scan history via API into HEC; schedule daily and alert on failed or overdue scans for governed sources.",
+  "visualization": "Table of data source by failures and days since scan.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "OpenLineage — Specification",
+      "url": "https://openlineage.io/docs/spec/object-model"
+    },
+    {
+      "title": "Databricks — Unity Catalog audit logs",
+      "url": "https://docs.databricks.com/aws/en/admin/account-settings/audit-logs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "dell_emc"
+  ],
+  "grandmaExplanation": "We make sure the tool that catalogues your data keeps scanning on schedule so nothing new slips through uncatalogued."
+}

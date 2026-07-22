@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.3.13",
+  "title": "Looker Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`).",
+  "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC.",
+  "spl": "index=bi sourcetype=looker:system_activity\n| bin _time span=1h\n| stats count as events, sum(eval(source=\"history\" status=\"error\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Looker and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Looker is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Looker logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Looker error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Looker — System Activity",
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+    },
+    {
+      "title": "Looker — API 4.0 reference",
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Looker errors looks like and warn you only when something is genuinely going wrong."
+}

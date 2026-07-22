@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.3",
+  "title": "Airbyte Job Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=airbyte:job event=job_completed\n| stats count as jobs, sum(eval(status=\"failed\")) as failures by connection_name, source_name\n| eval failure_rate=round(100*failures/jobs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks Airbyte sync job outcomes and ranks connections by failure rate so broken open-source ELT pipelines are caught quickly.",
+  "value": "Airbyte failures stop data reaching the warehouse just like any ELT tool; failure-rate ranking focuses effort on the least reliable connections.",
+  "implementation": "Ship Airbyte job logs to HEC; schedule hourly; alert on failures for critical connections.",
+  "visualization": "Table by failure rate, timechart of job failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the open-source data-copy jobs and flag when one keeps failing so the feed gets fixed."
+}

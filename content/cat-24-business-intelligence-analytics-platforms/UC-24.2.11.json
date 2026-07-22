@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.11",
+  "title": "Power BI Gateway Cluster Node Health",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:gateway:info\n| stats dc(gatewayName) as nodes, sum(eval(gatewayStatus=\"Live\")) as live_nodes by gatewayClusterName\n| eval offline=nodes-live_nodes\n| where offline>0\n| sort - offline",
+  "description": "Reports the number of live versus total nodes in each on-prem gateway cluster so a partially degraded cluster is caught before it becomes a full outage.",
+  "value": "A gateway cluster running on one surviving node is one failure from an outage; node-level health enables proactive repair while redundancy remains.",
+  "implementation": "Poll gateway cluster status; schedule every 10 minutes; alert when any node is offline. Restore redundancy promptly.",
+  "visualization": "Table of clusters with live/total nodes, alert on degraded clusters.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Track user activities (audit log)",
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+    },
+    {
+      "title": "Power BI REST Admin API",
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ],
+  "grandmaExplanation": "We check that each backup copy of the Power BI data bridge is running, so one failure does not leave you with no connection at all."
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.13",
+  "title": "Airbyte Bytes-Synced Volume Drop",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airbyte API job/connection status (`airbyte:job`), worker logs (`airbyte:worker`), and normalization logs.",
+  "app": "Airbyte API (`/api/v1/jobs`, `/api/v1/connections`) and Airbyte worker/server logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=airbyte:job job_type=\"sync\" attempt_status=\"succeeded\"\n| timechart span=1d sum(bytes_synced) as bytes by connection_name\n| untable _time connection_name bytes\n| eventstats avg(bytes) as avg_b, stdev(bytes) as sd_b by connection_name\n| where bytes<avg_b-3*sd_b\n| sort bytes",
+  "description": "Watches successful Airbyte syncs for connections whose bytes-synced drops far below baseline, catching silent upstream data loss even when the job reports success.",
+  "value": "A sync can succeed while moving almost no data (a broken source filter); volume-drop detection catches the incident that status flags miss.",
+  "implementation": "Ingest bytes_synced from job events; schedule daily and alert on 3-sigma downward volume anomalies per connection.",
+  "visualization": "Timechart of bytes per connection, anomaly table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — API documentation",
+      "url": "https://reference.airbyte.com/reference/start"
+    },
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We notice when a sync succeeds but barely any data came through, which usually means something upstream quietly broke."
+}

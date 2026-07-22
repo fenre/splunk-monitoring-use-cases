@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.58",
+  "title": "Google Cloud Composer Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cloud Composer Airflow logs (`gcp:composer`).",
+  "app": "Cloud Composer (managed Airflow) logs and metrics via the Google Cloud Add-on / Pub-Sub to HEC.",
+  "spl": "index=bi sourcetype=gcp:composer\n| bin _time span=1h\n| stats count as events, sum(eval(state=\"failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Google Cloud Composer and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Google Cloud Composer is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Google Cloud Composer logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Google Cloud Composer error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cloud Composer — Monitoring",
+      "url": "https://cloud.google.com/composer/docs/monitor-environments"
+    },
+    {
+      "title": "Cloud Composer — Airflow logs",
+      "url": "https://cloud.google.com/composer/docs/composer-2/view-logs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "gcp"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Google Cloud Composer errors looks like and warn you only when something is genuinely going wrong."
+}

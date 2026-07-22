@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.6",
+  "title": "Airflow Worker Pool Saturation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:scheduler metric=pool_running_slots\n| bin _time span=5m\n| stats max(running_slots) as used, max(total_slots) as total by pool, _time\n| eval pct=round(100*used/total,0)\n| where pct>=100\n| sort - _time",
+  "description": "Tracks Airflow pool/slot utilisation and flags when pools are fully saturated, the point at which tasks queue and pipelines fall behind schedule.",
+  "value": "Saturated worker pools are why pipelines run late even when nothing failed; catching saturation tells you to add capacity or rebalance schedules.",
+  "implementation": "Emit pool metrics via StatsD/HEC; schedule every 5 minutes; alert on sustained saturation. Add workers or stagger DAG schedules.",
+  "visualization": "Timechart of pool utilisation, alert on saturation.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We watch whether your data-workflow workers are maxed out, which is why jobs sometimes wait in line and finish late."
+}

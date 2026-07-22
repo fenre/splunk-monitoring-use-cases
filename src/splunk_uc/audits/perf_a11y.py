@@ -173,12 +173,14 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/llms-full.txt",
-        "budget_bytes": 655_360,  # 640 KiB
+        "budget_bytes": 786_432,  # 768 KiB
         "tier": "generated-data",
         "note": (
             "Long-form AI-agent manifest (per llms.txt spec).  Budget "
             "sized for routine UC content growth. Path moved from "
-            "project-root to dist/ in P1 step 5c (ADR-0009)."
+            "project-root to dist/ in P1 step 5c (ADR-0009). Budget raised "
+            "640 -> 768 KiB when cat-24 (Business Intelligence & Analytics "
+            "Platforms, 500+ UCs) pushed the manifest past 640 KiB."
         ),
     },
 ]

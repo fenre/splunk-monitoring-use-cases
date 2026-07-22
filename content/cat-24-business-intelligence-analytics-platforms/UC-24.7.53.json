@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.53",
+  "title": "AWS Step Functions State Machine Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Step Functions executions (`aws:states:execution`).",
+  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS.",
+  "spl": "index=bi sourcetype=aws:states:execution status=\"SUCCEEDED\"\n| stats latest(_time) as last_success by stateMachineName\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each AWS Step Functions state machine and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A state machine can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for AWS Step Functions.",
+  "implementation": "Ingest AWS Step Functions success events; schedule hourly and alert when a critical state machine exceeds its freshness window.",
+  "visualization": "Table of state machine by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS Step Functions — Monitoring with CloudWatch",
+      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "grandmaExplanation": "We check that each part of AWS Step Functions has updated recently so nobody relies on old data."
+}

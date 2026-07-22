@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.8",
+  "title": "Metric Value Distribution Outliers",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "spl": "index=dataops sourcetype=dbx:metric_probe\n| bin _time span=1d\n| stats avg(metric_value) as daily_avg by metric_name, _time\n| eventstats avg(daily_avg) as base_avg, stdev(daily_avg) as base_sd by metric_name\n| eval z=round((daily_avg-base_avg)/base_sd,2)\n| where abs(z)>3\n| sort - _time",
+  "description": "Baselines key business-metric values sampled from the warehouse and flags days where a metric deviates sharply from its norm, catching data errors that pass structural checks.",
+  "value": "Structurally valid data can still be wrong; distribution monitoring catches the day revenue or order counts look impossible before the number reaches the board.",
+  "implementation": "Sample metric values via DB Connect; schedule daily; tune the z-score; alert and involve the metric owner on anomalies.",
+  "visualization": "Table of metric outliers, metric-value trend with bands.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn what your key numbers normally look like and flag the days they look impossible, catching errors before they reach leadership."
+}

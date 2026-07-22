@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.18",
+  "title": "Referential Integrity Orphan-Key Rate",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs.",
+  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC.",
+  "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), failures=spath(results,\"failures\")\n| where match(node,\"relationships_\") AND isnotnull(failures)\n| stats sum(failures) as orphan_keys by node\n| where orphan_keys>0\n| sort - orphan_keys",
+  "description": "Extracts failure row counts from dbt relationships tests to quantify orphaned foreign keys, a direct measure of joins that will silently drop rows.",
+  "value": "Orphan keys break fact-dimension joins and undercount metrics; quantifying them protects the accuracy of every downstream aggregate.",
+  "implementation": "Ensure relationships tests are defined; forward run_results; schedule after each build and alert on rising orphan-key counts.",
+  "visualization": "Table of relationship test by orphan-key count, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — Tests",
+      "url": "https://docs.getdbt.com/docs/build/data-tests"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "servicenow",
+    "snowflake"
+  ],
+  "grandmaExplanation": "We count the records that point to something missing, which is a common reason report totals come out wrong."
+}

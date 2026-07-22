@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.4",
+  "title": "Airbyte Records-Synced Volume Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=airbyte:job event=job_completed status=succeeded\n| bin _time span=1d\n| stats sum(records_synced) as rows by connection_name, _time\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows by connection_name\n| eval z=round((rows-avg_rows)/sd_rows,2)\n| where abs(z)>3\n| sort - _time",
+  "description": "Baselines the daily record count per Airbyte connection and flags sudden jumps or drops, a classic sign of an upstream schema or filter change.",
+  "value": "A sync that succeeds but moves a fraction of the usual rows is a silent data-loss bug; volume anomaly detection catches what a pass/fail check misses.",
+  "implementation": "Ingest job completion events with record counts; schedule daily; tune the z-score threshold; investigate anomalies.",
+  "visualization": "Table of anomalies by z-score, volume trend per connection.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We learn how much data normally arrives each day and flag sudden jumps or drops, which often mean something upstream changed."
+}

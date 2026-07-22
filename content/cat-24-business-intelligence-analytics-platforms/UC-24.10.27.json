@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.10.27",
+  "title": "OpenMetadata Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "OpenMetadata audit (`openmetadata:audit`).",
+  "app": "OpenMetadata audit and activity events via the OpenMetadata API to HEC.",
+  "spl": "index=bi sourcetype=openmetadata:audit\n| bin _time span=1h\n| stats count as events, sum(eval(responseCode>=400)) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for OpenMetadata and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that OpenMetadata is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest OpenMetadata logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of OpenMetadata error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "OpenMetadata — Documentation",
+      "url": "https://docs.open-metadata.org/"
+    },
+    {
+      "title": "OpenMetadata — Auditing",
+      "url": "https://docs.open-metadata.org/latest/how-to-guides/admin-guide"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of OpenMetadata errors looks like and warn you only when something is genuinely going wrong."
+}

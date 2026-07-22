@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.19",
+  "title": "Airflow SLA Miss Rate by DAG",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:scheduler \"SLA miss\"\n| rex \"dag_id=(?<dag_id>\\S+)\"\n| timechart span=1d count as sla_misses by dag_id\n| addtotals",
+  "description": "Aggregates Airflow SLA-miss callbacks per DAG over time so teams can see which pipelines chronically breach their agreed completion windows.",
+  "value": "One-off SLA misses are noise; a rising trend for a specific DAG signals capacity or upstream-dependency problems worth an engineering investment.",
+  "implementation": "Ensure DAGs define `sla` on tasks; ingest scheduler SLA-miss logs; schedule daily and review the worst DAGs weekly.",
+  "visualization": "Timechart of SLA misses per DAG, ranked table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We track which regularly-scheduled data jobs keep finishing late so the worst offenders can be fixed first."
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.9",
+  "title": "Data SLA Breach Tracking",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Reliability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "spl": "index=dataops (sourcetype=dbx:warehouse_freshness OR sourcetype=dbt:sources OR sourcetype=montecarlo:incident)\n| stats latest(_time) as last_signal, values(status) as statuses by data_product\n| lookup data_sla data_product OUTPUT sla_hours\n| eval hours_since=round((now()-last_signal)/3600,1), breached=if(hours_since>sla_hours,1,0)\n| where breached=1\n| sort - hours_since",
+  "description": "Combines freshness, source, and incident signals against per-data-product SLAs so breaches of committed data-delivery times are tracked in one view.",
+  "value": "Data teams increasingly commit to SLAs with the business; a single breach view holds the platform accountable and surfaces at-risk data products.",
+  "implementation": "Maintain a `data_sla` lookup of data products and their SLA hours; schedule hourly; alert on breaches; report compliance to stakeholders.",
+  "visualization": "Table of breached data products, SLA-compliance trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We track the promises made about when data will be ready and flag when those deadlines are missed."
+}

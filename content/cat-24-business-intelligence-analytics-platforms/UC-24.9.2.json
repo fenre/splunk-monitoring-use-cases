@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.2",
+  "title": "Row-Volume Anomaly Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "spl": "index=dataops sourcetype=dbx:warehouse_rowcounts\n| bin _time span=1d\n| stats latest(row_count) as rows by table_name, _time\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows by table_name\n| eval z=round((rows-avg_rows)/sd_rows,2)\n| where abs(z)>3\n| sort - _time",
+  "description": "Baselines daily row counts per table and flags statistically significant jumps or drops, catching partial loads, duplicate loads, and upstream filter changes.",
+  "value": "A load that succeeds but writes half the rows is a silent data-loss bug; volume anomaly detection catches what pass/fail checks miss.",
+  "implementation": "Probe row counts via DB Connect on a schedule; run this daily; tune the z-score threshold; alert and route to the data-quality queue.",
+  "visualization": "Table of anomalies by z-score, volume trend per table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn how much data each table normally holds and flag sudden jumps or drops, which usually mean a load went wrong."
+}

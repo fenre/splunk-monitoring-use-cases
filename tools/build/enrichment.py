@@ -82,7 +82,7 @@ CAT_GROUPS = {
     "app": [7, 8, 11, 12, 13, 14, 16],
     "industry": [21],
     "compliance": [22],
-    "business": [23],
+    "business": [23, 24],
 }
 
 # Splunk two-pillar strategy: Security / Observability
@@ -2800,7 +2800,7 @@ def _extract_base_search_terms(stage):
         if val and val not in seen_i:
             seen_i.add(val)
             out["indexes"].append(val)
-    for m in re.finditer(r'sourcetype\s*=\s*("(?:\\.|[^"])*"|[^\s\)]+)', st, re.I):
+    for m in re.finditer(r'sourcetype\s*=\s*("(?:\\.|[^"\\])*"|[^\s\)]+)', st, re.I):
         val = m.group(1).strip('"')
         if val and val not in seen_s:
             seen_s.add(val)

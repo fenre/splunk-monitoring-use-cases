@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.13",
+  "title": "Tableau Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect.",
+  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=tableau:httpd\n| bin _time span=1h\n| stats count as events, sum(eval(status>=500)) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Tableau and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Tableau is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Tableau logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Tableau error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau — REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Tableau errors looks like and warn you only when something is genuinely going wrong."
+}

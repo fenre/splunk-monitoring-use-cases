@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.6.20",
+  "title": "SAP BusinessObjects Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "BusinessObjects audit (`businessobjects:audit`) and CMS logs.",
+  "app": "SAP BusinessObjects auditing data store via DB Connect and CMS/APS logs via UF.",
+  "spl": "index=bi sourcetype=businessobjects:audit\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for SAP BusinessObjects and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that SAP BusinessObjects is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest SAP BusinessObjects logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of SAP BusinessObjects error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "SAP — BusinessObjects BI Platform admin",
+      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM"
+    },
+    {
+      "title": "SAP — BI Platform auditing",
+      "url": "https://help.sap.com/docs/SAP_BUSINESSOBJECTS_BUSINESS_INTELLIGENCE_PLATFORM/auditing"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of SAP BusinessObjects errors looks like and warn you only when something is genuinely going wrong."
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.5.1",
+  "title": "Superset Async Query Worker Backlog",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC.",
+  "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=superset:app logger=celery\n| bin _time span=5m\n| stats sum(eval(task_state=\"PENDING\")) as pending, sum(eval(task_state=\"STARTED\")) as running by _time\n| where pending>25\n| sort - _time",
+  "description": "Watches the Celery task queue that runs Superset async and cached queries and flags backlog growth that delays chart loads and scheduled reports.",
+  "value": "A backed-up Celery queue makes every Superset chart feel broken; catching backlog early tells you to scale workers before users notice.",
+  "implementation": "Ship Superset/Celery logs; schedule every 5 minutes; alert on sustained backlog. Scale worker replicas or Redis broker.",
+  "visualization": "Timechart of pending vs running tasks, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Superset documentation",
+      "url": "https://superset.apache.org/docs/intro"
+    },
+    {
+      "title": "Metabase documentation",
+      "url": "https://www.metabase.com/docs/latest/"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "redis"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We watch the background workers that draw Superset charts so you know when they fall behind and charts start loading slowly."
+}

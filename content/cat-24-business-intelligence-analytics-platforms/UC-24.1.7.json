@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.7",
+  "title": "Tableau License and Core Utilization",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Cost"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:licensing OR source=dbx:tableau_licensing\n| stats latest(licenses_used) as used, latest(licenses_total) as total by license_type\n| eval pct_used=round(100*used/total,1)\n| where pct_used>85\n| sort - pct_used",
+  "description": "Reports Creator/Explorer/Viewer license consumption against entitlement and flags license types nearing exhaustion so procurement can act before users are blocked.",
+  "value": "Running out of Tableau licenses blocks onboarding and forces emergency purchases at list price; early warning enables planned, cost-effective capacity buys.",
+  "implementation": "Query the `licensing` repository table via DB Connect (or ingest licensing logs); schedule daily and alert at 85%. Feed into the trending use case for forecasting.",
+  "visualization": "Single-value gauges per license type, trend line of utilization.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We keep track of how many Tableau seats are in use versus how many you paid for, so you get a heads-up before you run out."
+}

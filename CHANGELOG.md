@@ -12,6 +12,44 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.8.0] - 2026-07-22
+
+### New Category
+
+- **cat-24 "Business Intelligence & Analytics Platforms".** A new flagship
+  category that monitors the BI-tooling and modern-data-stack layer — the tools
+  that *produce* the numbers the business trusts. It sits cleanly between cat-07
+  (databases/warehouses) and cat-23 (Splunk-as-BI business outcomes) with no
+  overlap. All 13 subcategories are covered: Tableau, Microsoft Power BI, Google
+  Looker/Looker Studio, Qlik, open-source & embedded BI, other enterprise BI,
+  Data Orchestration & Transformation (Airflow/dbt/Dagster/Prefect), Data
+  Ingestion & ELT (Fivetran/Airbyte/Glue), Data Quality & Observability, Data
+  Catalog/Lineage & Governance, Semantic / Metrics Layer, Reverse ETL &
+  Activation, and cross-platform BI trending.
+
+### New Use Cases
+
+- **508 use cases across all 13 cat-24 subcategories**, built out via a
+  consistent monitoring-angle matrix (availability/health, query/extract/render
+  latency, capacity & scaling, cost/FinOps, refresh/schedule SLA, job/pipeline
+  failure & retry, data freshness, data quality/tests, usage & adoption, license
+  utilization, access & security audit, config/change, error/crash, and
+  lineage/impact) applied across ~40 BI and data-stack platforms. SPL is sourced
+  from vendor admin/audit logs, REST/admin APIs, and repository databases.
+  Coverage by subcategory: Tableau (29), Power BI (32), Looker/Looker Studio
+  (23), Qlik (32), open-source & embedded BI (49), other enterprise BI (58),
+  Data Orchestration & Transformation (77), Data Ingestion & ELT (74), Data
+  Quality & Observability (37), Data Catalog/Lineage & Governance (33), Semantic
+  / Metrics Layer (23), Reverse ETL & Activation (33), and BI & analytics-
+  platform trending (8).
+
+### Changed
+
+- Catalogue now spans **24 categories** (was 23). Registration metadata
+  updated across the build pipeline (category groups, index macros, log-family
+  defaults, IT-ops relevance, grandma-explanation fallbacks) and the curated
+  SPL sourcetype vocabulary was extended with the new BI/data-stack sourcetypes.
+
 ## [8.7.2] - 2026-06-05
 
 ### Changed

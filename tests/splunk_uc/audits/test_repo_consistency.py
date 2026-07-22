@@ -30,8 +30,8 @@ class TestConstants:
         assert rc.INDEX_PATH == os.path.join(rc.REPO_ROOT, "content", "INDEX.md")
         assert rc.INDEX_HTML == os.path.join(rc.REPO_ROOT, "index.html")
 
-    def test_expected_cats_1_through_23(self) -> None:
-        assert rc.EXPECTED_CATS == set(range(1, 24))
+    def test_expected_cats_1_through_24(self) -> None:
+        assert rc.EXPECTED_CATS == set(range(1, 25))
 
     def test_required_splunk_app_keys(self) -> None:
         assert rc.REQUIRED_SPLUNK_APP_KEYS == ("name", "id", "url", "tas", "desc")
@@ -383,8 +383,8 @@ def isolated_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Build a minimal-but-valid repo skeleton with all expected categories."""
     content = tmp_path / "content"
     content.mkdir()
-    # Create all 23 expected category folders.
-    for n in range(1, 24):
+    # Create all 24 expected category folders.
+    for n in range(1, 25):
         (content / f"cat-{n:02d}-test").mkdir()
 
     index_html = tmp_path / "index.html"
@@ -396,7 +396,7 @@ def isolated_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     index_md = content / "INDEX.md"
     md_lines = []
-    for n in range(1, 24):
+    for n in range(1, 25):
         md_lines.append(f"## {n}. Category {n}")
         md_lines.append("- **Icon:** shield")
     index_md.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
@@ -418,7 +418,7 @@ class TestMainHappyPath:
         # Stub extract_build_assignments to return valid registries
         # covering every expected cat.
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, [
+            return {"core": list(range(1, 25))}, [
                 {
                     "name": "Splunk ES",
                     "id": "263",
@@ -460,7 +460,7 @@ class TestMainFailureModes:
         (isolated_repo / "index.html").write_text("// no SI block\n", encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, [
+            return {"core": list(range(1, 25))}, [
                 {"name": "X", "id": "1", "url": "u", "tas": [], "desc": "d"}
             ]
 
@@ -483,7 +483,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "INDEX.md").write_text(md, encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -499,7 +499,7 @@ class TestMainFailureModes:
     ) -> None:
         # Write an INDEX.md missing category 5
         md_lines = []
-        for n in range(1, 24):
+        for n in range(1, 25):
             if n == 5:
                 continue
             md_lines.append(f"## {n}. Category {n}")
@@ -509,7 +509,7 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -528,7 +528,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "INDEX.md").write_text(md, encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -548,7 +548,7 @@ class TestMainFailureModes:
         shutil.rmtree(isolated_repo / "content" / "cat-01-test")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -565,7 +565,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "cat-01-duplicate").mkdir()
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -584,7 +584,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "INDEX.md").write_text(md, encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -607,7 +607,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "INDEX.md").write_text(md, encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -635,7 +635,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "INDEX.md").write_text(md, encoding="utf-8")
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -666,7 +666,7 @@ class TestMainFailureModes:
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
             # Cover everything but category 5
-            return {"core": [n for n in range(1, 24) if n != 5]}, []
+            return {"core": [n for n in range(1, 25) if n != 5]}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -681,7 +681,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24)), "extra": [5, 5]}, []
+            return {"core": list(range(1, 25)), "extra": [5, 5]}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -697,7 +697,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": [*list(range(1, 24)), 99]}, []
+            return {"core": [*list(range(1, 25)), 99]}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -716,7 +716,7 @@ class TestMainFailureModes:
         (isolated_repo / "content" / "cat-bad-name").mkdir()
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -732,7 +732,7 @@ class TestMainFailureModes:
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
             # Cover everything but cat 5; but the cat-05 folder still exists on disk.
-            return {"core": [n for n in range(1, 24) if n != 5]}, []
+            return {"core": [n for n in range(1, 25) if n != 5]}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc.main([])
@@ -752,12 +752,12 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
         out = capsys.readouterr().out
-        assert "UC-99.1.1 category 99 not in 1-23" in out
+        assert "UC-99.1.1 category 99 not in 1-24" in out
         assert rc_code == 2
 
     def test_uc_file_with_category_not_in_cat_groups(
@@ -771,7 +771,7 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": [n for n in range(1, 24) if n != 5]}, []
+            return {"core": [n for n in range(1, 25) if n != 5]}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -792,7 +792,7 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -814,7 +814,7 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -836,7 +836,7 @@ class TestMainFailureModes:
         )
 
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, []
+            return {"core": list(range(1, 25))}, []
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -851,7 +851,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, [
+            return {"core": list(range(1, 25))}, [
                 {"name": "Incomplete app", "id": "999"}  # missing url/tas/desc
             ]
 
@@ -868,7 +868,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, ["not a dict"]
+            return {"core": list(range(1, 25))}, ["not a dict"]
 
         monkeypatch.setattr(rc, "extract_build_assignments", fake_extract)
         rc_code = rc.main([])
@@ -883,7 +883,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, [
+            return {"core": list(range(1, 25))}, [
                 {
                     "name": "A",
                     "id": "100",
@@ -913,7 +913,7 @@ class TestMainFailureModes:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         def fake_extract() -> tuple[dict[str, list[int]], list[Any]]:
-            return {"core": list(range(1, 24))}, [
+            return {"core": list(range(1, 25))}, [
                 {"name": "No-id A", "url": "u", "tas": [], "desc": "d"},
                 {"name": "No-id B", "url": "u", "tas": [], "desc": "d"},
             ]

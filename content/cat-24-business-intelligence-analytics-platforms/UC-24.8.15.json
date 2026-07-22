@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.15",
+  "title": "Kafka Connect Dead-Letter Queue Growth",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`).",
+  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics.",
+  "spl": "index=bi sourcetype=kafkaconnect:jmx metric=\"deadletterqueue-produce-requests\" OR metric=\"total-record-errors\"\n| timechart span=10m sum(value) as dlq_records by connector\n| untable _time connector dlq_records\n| where dlq_records>0\n| sort - dlq_records",
+  "description": "Tracks records routed to the Kafka Connect dead-letter queue per connector, surfacing malformed messages that are silently dropped from the sink.",
+  "value": "DLQ growth means data is being lost from the pipeline without a job failure; monitoring it protects completeness of the landed data.",
+  "implementation": "Expose Connect JMX error/DLQ metrics via HEC; schedule every 15 minutes and alert on rising DLQ volume for critical connectors.",
+  "visualization": "Timechart of DLQ records per connector, table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Kafka Connect — REST API",
+      "url": "https://kafka.apache.org/documentation/#connect_rest"
+    },
+    {
+      "title": "Kafka Connect — Monitoring",
+      "url": "https://kafka.apache.org/documentation/#connect_monitoring"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ],
+  "grandmaExplanation": "We count the messages that a streaming connector had to set aside because they were malformed, so silent data loss is noticed."
+}

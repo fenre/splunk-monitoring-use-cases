@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.2",
+  "title": "Fivetran Sync Latency and Lag",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=fivetran:log event=sync_end status=SUCCESS\n| eval lag_min=round(sync_duration/60,1)\n| stats avg(lag_min) as avg_min, p95(lag_min) as p95_min, latest(_time) as last_sync by connector_name\n| eval mins_since=round((now()-last_sync)/60,0)\n| where p95_min>60 OR mins_since>180\n| sort - mins_since",
+  "description": "Measures Fivetran sync duration and time since last successful sync, flagging connectors whose data is lagging behind its expected freshness.",
+  "value": "Even successful connectors can fall behind schedule; lag tracking catches data that is quietly getting stale before users notice.",
+  "implementation": "Ingest sync events; schedule hourly; tune thresholds to each connector's sync frequency; alert on excessive lag.",
+  "visualization": "Table by lag/last-sync, timechart of sync latency.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Fivetran — Logs",
+      "url": "https://fivetran.com/docs/logs"
+    },
+    {
+      "title": "Fivetran REST API",
+      "url": "https://fivetran.com/docs/rest-api"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We measure how fresh each incoming data feed is so you know when one is falling behind, even if it has not failed."
+}

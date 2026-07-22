@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.22",
+  "title": "Great Expectations Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Great Expectations validations (`greatexpectations:validation`).",
+  "app": "Great Expectations checkpoint results forwarded as JSON to HEC.",
+  "spl": "index=bi sourcetype=greatexpectations:validation\n| bin _time span=1h\n| stats count as events, sum(eval(success=\"false\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Great Expectations and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Great Expectations is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Great Expectations logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Great Expectations error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Great Expectations — Validate data",
+      "url": "https://docs.greatexpectations.io/docs/core/trigger_actions_based_on_results/"
+    },
+    {
+      "title": "Great Expectations — Validation results",
+      "url": "https://docs.greatexpectations.io/docs/reference/learn/terms/validation_result/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "checkpoint"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Great Expectations errors looks like and warn you only when something is genuinely going wrong."
+}

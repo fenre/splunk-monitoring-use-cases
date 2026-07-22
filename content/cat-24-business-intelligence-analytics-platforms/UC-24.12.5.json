@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.12.5",
+  "title": "Audience Refresh Latency",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Hightouch sync run events (`hightouch:sync`), Census sync history (`census:sync`), Segment/RudderStack destination delivery and error events, audience-refresh latency metrics via REST.",
+  "app": "Hightouch / Census sync webhooks and REST APIs via HEC; Segment/RudderStack delivery events via HEC scripted inputs.",
+  "spl": "index=dataops (sourcetype=hightouch:sync OR sourcetype=census:sync) event=sync_completed status=success\n| eval latency_min=round(sync_duration/60,1)\n| stats p95(latency_min) as p95_min, latest(_time) as last_run by sync_name\n| eval mins_since=round((now()-last_run)/60,0)\n| where p95_min>30 OR mins_since>120\n| sort - mins_since",
+  "description": "Measures how long reverse-ETL syncs take and how recently they ran, flagging audiences and segments that are lagging behind their expected freshness.",
+  "value": "A stale audience means marketing targets the wrong people; latency and recency tracking keeps activated data as fresh as the campaigns need.",
+  "implementation": "Ingest sync events; schedule hourly; tune thresholds per sync; alert on excessive latency or staleness.",
+  "visualization": "Table by latency/recency, sync-latency trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Hightouch — documentation",
+      "url": "https://hightouch.com/docs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We measure how fresh the customer lists pushed to your marketing tools are, so campaigns do not target out-of-date audiences."
+}

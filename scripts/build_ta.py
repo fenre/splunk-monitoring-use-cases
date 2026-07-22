@@ -78,6 +78,7 @@ CAT_INDEX_MACRO: dict[int, str] = {
     21: "uc_index_vertical",
     22: "uc_index_compliance",
     23: "uc_index_ba",
+    24: "uc_index_bi",
 }
 
 

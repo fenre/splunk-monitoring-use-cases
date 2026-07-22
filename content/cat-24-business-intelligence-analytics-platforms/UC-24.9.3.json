@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.3",
+  "title": "Schema Drift Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Change",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "spl": "index=dataops sourcetype=dbx:warehouse_columns\n| stats latest(column_signature) as current_sig by table_name\n| eval prev_sig=coalesce(current_sig,\"\")\n| lookup schema_baseline table_name OUTPUT column_signature as baseline_sig\n| where isnotnull(baseline_sig) AND current_sig!=baseline_sig\n| sort table_name",
+  "description": "Compares each table's current column set against a stored baseline and flags added, dropped, or retyped columns before they break downstream models and reports.",
+  "value": "Unannounced schema changes are a leading cause of broken pipelines; detecting drift gives data teams a chance to adapt before dashboards fail.",
+  "implementation": "Probe column metadata via DB Connect; maintain a `schema_baseline` lookup; schedule daily; alert on drift and refresh the baseline after review.",
+  "visualization": "Table of drifted tables, timeline of schema changes.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We watch the shape of your data tables and flag when columns are added, removed, or changed, before it breaks a report."
+}

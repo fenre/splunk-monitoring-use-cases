@@ -1359,5 +1359,43 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
         { id: "23.9.5", why: "We check whether your ESG data is complete before reporting deadlines — so there are no last-minute scrambles." }
       ]}
     ]
+  },
+  "24": {
+    outcomes: [
+      "Know the moment a report or dashboard stops updating, so people don't make decisions on stale numbers.",
+      "Catch failed data refreshes, broken pipelines, and late data before the business notices.",
+      "See which reports people actually use, what they cost to run, and who has access to them."
+    ],
+    areas: [
+      { name: "Reports & dashboards", description: "We watch your business-intelligence tools — Tableau, Power BI, Looker, Qlik, Superset/Metabase, and the enterprise suites — so broken refreshes, slow dashboards, and unused reports are visible before anyone complains.", ucs: [
+        { id: "24.1.2", why: "Alert when a Tableau data refresh fails, so a dashboard doesn't quietly show yesterday's numbers." },
+        { id: "24.2.1", why: "Catch failed Power BI dataset refreshes so reports stay current and trustworthy." },
+        { id: "24.3.3", why: "Know when a Looker scheduled report fails to deliver, so people aren't left waiting on numbers that never arrived." },
+        { id: "24.4.1", why: "Flag failed Qlik reload tasks so a dashboard doesn't silently fall behind." },
+        { id: "24.5.4", why: "Catch failed Metabase subscriptions so scheduled emails of key numbers keep landing." },
+        { id: "24.6.2", why: "Alert on Cognos report failures so enterprise reporting stays reliable." },
+        { id: "24.1.8", why: "See which reports people actually open, so you retire the ones nobody uses and protect the ones they rely on." }
+      ]},
+      { name: "Data pipelines", description: "We monitor the behind-the-scenes jobs that move and prepare data — so when a pipeline breaks, you find out before the numbers go wrong.", ucs: [
+        { id: "24.7.1", why: "Know immediately when a scheduled data workflow fails instead of discovering it in a broken report." },
+        { id: "24.7.8", why: "Flag failed data-quality tests so bad data is caught before it reaches a dashboard." },
+        { id: "24.8.1", why: "Alert when a data-ingestion connector stops syncing, so no source silently goes stale." },
+        { id: "24.12.1", why: "Catch failed syncs that push data back into the tools your teams use, so sales and marketing act on current numbers." }
+      ]},
+      { name: "Data trust & freshness", description: "We check that the data feeding your reports is fresh, complete, and shaped the way it should be — so you can trust what you see.", ucs: [
+        { id: "24.9.1", why: "Detect when a table stops updating on time, so stale data never masquerades as current." },
+        { id: "24.9.2", why: "Spot sudden jumps or drops in how much data arrives, a classic sign something upstream broke." },
+        { id: "24.9.3", why: "Catch unexpected changes to the shape of the data before they break downstream reports." },
+        { id: "24.11.1", why: "Flag errors in the shared metric definitions, so every team's numbers add up the same way." },
+        { id: "24.13.3", why: "Roll up how often data arrives on time across every platform, so freshness problems are obvious at a glance." }
+      ]},
+      { name: "Cost, capacity & access", description: "We track what your analytics platforms cost to run, whether they have enough capacity, and who can see sensitive reports.", ucs: [
+        { id: "24.2.5", why: "Warn when a Power BI capacity is overloaded and throttling reports for everyone on it." },
+        { id: "24.1.7", why: "Track BI license and capacity usage so you buy what you need and no more." },
+        { id: "24.13.4", why: "Trend the cost and capacity of your whole BI and data stack, so budget surprises don't sneak up on you." },
+        { id: "24.10.1", why: "Audit who is accessing sensitive data assets, so governed data stays governed." },
+        { id: "24.1.9", why: "Audit failed logins and permission changes on your reporting platform, so access stays under control." }
+      ]}
+    ]
   }
 };

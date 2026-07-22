@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.24",
+  "title": "Power BI Dataflows Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI dataflow refresh events (`powerbi:dataflow`).",
+  "app": "Power BI dataflow refresh events from the M365/Purview audit log and Admin API via HEC.",
+  "spl": "index=bi sourcetype=powerbi:dataflow\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Power BI Dataflows and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Power BI Dataflows is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Power BI Dataflows logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Power BI Dataflows error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Dataflows",
+      "url": "https://learn.microsoft.com/en-us/power-bi/transform-model/dataflows/dataflows-introduction-self-service"
+    },
+    {
+      "title": "Power BI — Admin REST APIs",
+      "url": "https://learn.microsoft.com/en-us/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "m365"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Power BI Dataflows errors looks like and warn you only when something is genuinely going wrong."
+}

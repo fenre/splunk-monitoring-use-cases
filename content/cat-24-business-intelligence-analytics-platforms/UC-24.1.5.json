@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.5",
+  "title": "Tableau Subscription and Alert Delivery Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:backgrounder (job_type=single_subscription_notify OR job_type=data_alerts)\n| stats count as runs, sum(eval(finish_code!=0)) as failures by job_type, subscription_name\n| where failures>0\n| sort - failures",
+  "description": "Tracks scheduled subscription emails and data-driven alerts and surfaces those failing to deliver, which otherwise fail silently and erode trust in Tableau notifications.",
+  "value": "Executives relying on a morning subscription email never know when it silently fails; catching delivery failures keeps stakeholders informed and preserves confidence in the platform.",
+  "implementation": "Ingest Backgrounder logs; schedule hourly; alert on repeated failures for the same subscription. Verify SMTP configuration when delivery failures spike.",
+  "visualization": "Table of failing subscriptions, timechart of delivery failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We check that the scheduled report emails and alerts from Tableau actually go out, so people are not left waiting for a message that never arrived."
+}

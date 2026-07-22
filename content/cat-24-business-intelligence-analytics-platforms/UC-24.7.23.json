@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.23",
+  "title": "Dagster Run Duration Regression",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), GraphQL run/asset queries, and structured event-log JSON (`dagster:event`).",
+  "app": "Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=dagster:event event_type=\"RUN_SUCCESS\"\n| eval duration_min=round(duration_ms/60000,1)\n| stats avg(duration_min) as avg_min, p95(duration_min) as p95_min by job_name\n| where p95_min>20\n| sort - p95_min",
+  "description": "Tracks successful Dagster run durations and flags jobs whose 95th-percentile runtime crosses an SLA, indicating growing data volumes or inefficient ops.",
+  "value": "Steadily slower jobs eventually miss their windows; early detection lets teams optimise before a hard failure.",
+  "implementation": "Compute duration from run start/end events; schedule daily over a trailing week and review regressions with owners.",
+  "visualization": "Table of job by p95 duration, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Dagster — Monitoring & alerting",
+      "url": "https://docs.dagster.io/guides/monitor-alert"
+    },
+    {
+      "title": "Dagster — GraphQL API",
+      "url": "https://docs.dagster.io/guides/operate/graphql"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We measure how long each Dagster job takes and warn you when they get slow enough to eventually run late."
+}

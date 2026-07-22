@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.3",
+  "title": "Power BI On-Prem Data Gateway Availability",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:gateway:info\n| stats latest(gatewayStatus) as status, latest(_time) as last_seen by gatewayName, gatewayClusterName\n| eval mins_since=round((now()-last_seen)/60,0)\n| where status!=\"Live\" OR mins_since>10\n| sort - mins_since",
+  "description": "Monitors the on-premises data gateways that connect Power BI to internal data and flags gateways that are offline or have stopped reporting in.",
+  "value": "If the on-prem gateway goes down, every refresh and DirectQuery report depending on internal data fails; monitoring gateway liveness prevents a silent, widespread outage.",
+  "implementation": "Ingest gateway logs or poll gateway status via the REST API; schedule every 5 minutes; alert on offline or stale gateways. Deploy gateway clusters for resilience.",
+  "visualization": "Table of gateway status, single-value count of offline gateways, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Track user activities (audit log)",
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+    },
+    {
+      "title": "Power BI REST Admin API",
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ],
+  "grandmaExplanation": "We check that the bridge connecting Power BI to your internal data is up, so reports that rely on it do not suddenly stop working."
+}

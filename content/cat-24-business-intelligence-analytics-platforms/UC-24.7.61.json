@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.61",
+  "title": "Google Cloud Composer Dag Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Cloud Composer Airflow logs (`gcp:composer`).",
+  "app": "Cloud Composer (managed Airflow) logs and metrics via the Google Cloud Add-on / Pub-Sub to HEC.",
+  "spl": "index=bi sourcetype=gcp:composer state=\"success\"\n| stats latest(_time) as last_success by dag_id\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Google Cloud Composer DAG and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A DAG can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Google Cloud Composer.",
+  "implementation": "Ingest Google Cloud Composer success events; schedule hourly and alert when a critical DAG exceeds its freshness window.",
+  "visualization": "Table of DAG by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cloud Composer — Monitoring",
+      "url": "https://cloud.google.com/composer/docs/monitor-environments"
+    },
+    {
+      "title": "Cloud Composer — Airflow logs",
+      "url": "https://cloud.google.com/composer/docs/composer-2/view-logs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "gcp"
+  ],
+  "grandmaExplanation": "We check that each part of Google Cloud Composer has updated recently so nobody relies on old data."
+}

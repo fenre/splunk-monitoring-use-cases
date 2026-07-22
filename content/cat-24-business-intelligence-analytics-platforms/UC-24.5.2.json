@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.5.2",
+  "title": "Superset SQL Lab Query Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC.",
+  "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=superset:app (event=sqllab_query OR event=explore_json)\n| stats count as queries, sum(eval(status=\"failed\")) as failures by database_name\n| eval failure_rate=round(100*failures/queries,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks Superset query execution and ranks the databases with the highest query failure rates, pointing at connection or SQL issues.",
+  "value": "High query failure rates against a database signal a broken connection or overloaded source; source-level rates guide the fix.",
+  "implementation": "Ingest Superset app logs; schedule hourly; alert on rising failure rate per database.",
+  "visualization": "Table by failure rate, timechart of query failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Superset documentation",
+      "url": "https://superset.apache.org/docs/intro"
+    },
+    {
+      "title": "Metabase documentation",
+      "url": "https://www.metabase.com/docs/latest/"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We watch the queries Superset runs and flag which databases keep failing so the problem source gets fixed."
+}

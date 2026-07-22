@@ -489,6 +489,177 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     # OPNsense / pfSense — community add-ons
     "opnsense:filterlog",
     "pfsense:filterlog",
+    # ------------------------------------------------------------------
+    # cat-24 Business Intelligence & Analytics Platforms — BI tooling and
+    # modern-data-stack sourcetypes. These are the canonical ingest names
+    # for the admin/audit logs, REST-API scripted inputs, and DB Connect
+    # probes documented in each UC's ``dataSources`` field.
+    # ------------------------------------------------------------------
+    # BI tools
+    "tableau:backgrounder",
+    "tableau:vizqlserver",
+    "tableau:dataserver",
+    "tableau:httpd",
+    "tableau:vizportal",
+    "tableau:licensing",
+    "tableau:tsm:metrics",
+    "powerbi:admin:refreshes",
+    "powerbi:admin:api",
+    "powerbi:gateway:info",
+    "powerbi:gateway:mashup",
+    "powerbi:capacity:metrics",
+    "looker:system_activity",
+    "looker:api",
+    "looker:lookml_validation",
+    "qlik:scheduler",
+    "qlik:engine",
+    "qlik:proxy",
+    "superset:app",
+    "metabase:app",
+    "redash:app",
+    "bi:embed:client",
+    "microstrategy:dsserror",
+    "cognos:audit",
+    "businessobjects:audit",
+    "oracle:analytics:usage",
+    "thoughtspot:audit",
+    # Data orchestration / transformation
+    "airflow:scheduler",
+    "airflow:task",
+    "dbt:run_results",
+    "dbt:sources",
+    "dbt:semantic_layer",
+    # Data ingestion / ELT
+    "fivetran:log",
+    "airbyte:job",
+    "kafka:connect",
+    "aws:cloudwatch:glue",
+    "azure:monitor:adf",
+    # Data quality & observability
+    "montecarlo:incident",
+    "great_expectations:validation",
+    "soda:scan",
+    "dbx:warehouse_freshness",
+    "dbx:warehouse_rowcounts",
+    "dbx:warehouse_columns",
+    "dbx:warehouse_nullrates",
+    "dbx:metric_probe",
+    # Catalog / lineage / governance
+    "collibra:audit",
+    "atlan:audit",
+    "openlineage:event",
+    "unity_catalog:audit",
+    "purview:scan",
+    # Semantic / metrics layer
+    "cube:api",
+    # Reverse ETL & activation
+    "hightouch:sync",
+    "census:sync",
+    "segment:delivery",
+    "rudderstack:delivery",
+    # ------------------------------------------------------------------
+    # Phase 1 — data-engineering depth (24.7 / 24.8 / 24.9)
+    # ------------------------------------------------------------------
+    # Orchestration
+    "airflow:worker",
+    "airflow:statsd",
+    "dagster:daemon",
+    "dagster:run",
+    "dagster:event",
+    "prefect:worker",
+    "prefect:agent",
+    "prefect:api",
+    "dbtcloud:run",
+    "controlm:job",
+    "controlm:em",
+    "controlm:agent",
+    # Ingestion / ELT
+    "fivetran:connector",
+    "airbyte:worker",
+    "kafkaconnect:status",
+    "kafkaconnect:worker",
+    "kafkaconnect:jmx",
+    "aws:glue:jobrun",
+    "azure:datafactory",
+    "matillion:task",
+    "informatica:session",
+    # Data quality & observability
+    "greatexpectations:validation",
+    "bigeye:issue",
+    # ------------------------------------------------------------------
+    # Phase 2 — BI-tool breadth (24.3 / 24.4 / 24.5 / 24.6)
+    # ------------------------------------------------------------------
+    "qlik:qrs",
+    "domo:activity",
+    # ------------------------------------------------------------------
+    # Phase 3 — governance & activation (24.10 / 24.11 / 24.12 / 24.13)
+    # ------------------------------------------------------------------
+    "semantic_layer:query",
+    # ------------------------------------------------------------------
+    # Phase 4 — monitoring-angle matrix (breadth across the roster)
+    # ------------------------------------------------------------------
+    # BI tools
+    "tableau:cloud:activity",
+    "tableau:prep:flow",
+    "fabric:capacity:metrics",
+    "powerbi:dataflow",
+    "powerbi:reportserver",
+    "lookerstudio:usage",
+    "qlik:cloud:audit",
+    "qlik:nprinting",
+    "qlikview:distribution",
+    "preset:audit",
+    "lightdash:app",
+    "sigma:audit",
+    "mode:audit",
+    "hex:audit",
+    "evidence:build",
+    "sas:viya:audit",
+    "sac:audit",
+    "yellowfin:audit",
+    "gooddata:audit",
+    "sisense:audit",
+    # Orchestration
+    "argo:workflow",
+    "astronomer:dag",
+    "databricks:jobs",
+    "aws:states:execution",
+    "gcp:composer",
+    "azure:synapse:pipeline",
+    "mage:pipeline",
+    "kestra:execution",
+    # Ingestion / ELT
+    "aws:dms:task",
+    "gcp:dataflow",
+    "stitch:extraction",
+    "meltano:run",
+    "hevo:pipeline",
+    "dlt:load",
+    "rivery:run",
+    "informatica:iics",
+    "talend:job",
+    # Data quality & observability
+    "elementary:test",
+    "datafold:diff",
+    "anomalo:check",
+    "metaplane:monitor",
+    "acceldata:policy",
+    "lightup:check",
+    # Catalog / lineage / governance
+    "alation:audit",
+    "atlan:audit",
+    "datahub:event",
+    "openmetadata:audit",
+    "immuta:audit",
+    "amundsen:event",
+    "secoda:audit",
+    # Semantic / metrics layer
+    "atscale:query",
+    "kyvos:query",
+    # Reverse ETL & activation
+    "segment:delivery",
+    "polytomic:sync",
+    "grouparoo:run",
 }
 
 

@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.10",
+  "title": "dbt Model Run Duration",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=dbt:run_results resource_type=model status=success\n| eval duration_s=round(execution_time,1)\n| stats avg(duration_s) as avg_s, p95(duration_s) as p95_s by model\n| where p95_s>300\n| sort - p95_s",
+  "description": "Measures dbt model execution time and flags the slowest models, which drive warehouse cost and push the build past its window.",
+  "value": "Slow dbt models inflate warehouse spend and delay data; the slowest models are the best targets for optimisation.",
+  "implementation": "Emit run results to HEC; schedule daily; tune the threshold. Optimise SQL or materialisation for offenders.",
+  "visualization": "Table by p95 duration, model-runtime trend.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — run_results.json artifact",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "dbt — Monitor jobs",
+      "url": "https://docs.getdbt.com/docs/deploy/monitor-jobs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We measure how long each data-transformation step takes so the slow, expensive ones can be improved."
+}

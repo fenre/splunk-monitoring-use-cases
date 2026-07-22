@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.3.8",
+  "title": "Looker Datagroup Trigger Lag",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Looker System Activity Explores (`looker:system_activity`), Looker API (`looker:api`), and instance logs.",
+  "app": "Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=looker:system_activity source=\"datagroup\"\n| eval lag_min=round((trigger_time-data_time)/60,1)\n| stats max(lag_min) as max_lag, avg(lag_min) as avg_lag by datagroup_name\n| where max_lag>60\n| sort - max_lag",
+  "description": "Measures the delay between when a Looker datagroup's underlying data changed and when its caching trigger fired, which governs how fresh PDTs and cached results are.",
+  "value": "Datagroup lag means Looker serves stale cached data even though the warehouse is current; monitoring it protects the freshness contract behind every dashboard.",
+  "implementation": "Ingest datagroup events from System Activity; schedule hourly and alert when lag exceeds the datagroup's `max_cache_age`.",
+  "visualization": "Table of datagroup by lag, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Looker — System Activity dashboards",
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+    },
+    {
+      "title": "Looker — API 4.0 reference",
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We check that Looker refreshes its saved results on time so dashboards do not show yesterday's numbers."
+}

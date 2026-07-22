@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.14",
+  "title": "Kafka Connect Task Failed State",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`).",
+  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics.",
+  "spl": "index=bi sourcetype=kafkaconnect:status\n| stats latest(connector_state) as conn_state, sum(eval(task_state=\"FAILED\")) as failed_tasks, count as total_tasks by connector\n| where failed_tasks>0 OR conn_state=\"FAILED\"\n| sort - failed_tasks",
+  "description": "Polls the Kafka Connect status API and flags connectors with any task in FAILED state, which stops that partition of the data flow until restarted.",
+  "value": "A single failed task silently halts part of a streaming pipeline; status polling catches it because failed tasks are not auto-restarted by default.",
+  "implementation": "Poll `/connectors/{name}/status` into HEC; schedule every 5 minutes and alert on any FAILED task for a production connector.",
+  "visualization": "Table of connector by failed tasks, status panel.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Kafka Connect — REST API",
+      "url": "https://kafka.apache.org/documentation/#connect_rest"
+    },
+    {
+      "title": "Kafka Connect — Monitoring",
+      "url": "https://kafka.apache.org/documentation/#connect_monitoring"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ],
+  "grandmaExplanation": "We watch the streaming data connectors and flag any part that has failed, since it will stay stopped until someone restarts it."
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.17",
+  "title": "AWS Glue Job DPU-Hour Cost Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Cost",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "AWS Glue job runs (`aws:glue:jobrun`), crawler events (`aws:cloudwatch`), and CloudTrail Glue API calls (`aws:cloudtrail`).",
+  "app": "AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=aws:glue:jobrun\n| eval dpu_hours=(max_capacity*execution_time)/3600\n| timechart span=1d sum(dpu_hours) as dpu_hours by job_name\n| untable _time job_name dpu_hours\n| eventstats avg(dpu_hours) as avg_dpu, stdev(dpu_hours) as sd_dpu by job_name\n| where dpu_hours>avg_dpu+3*sd_dpu",
+  "description": "Estimates DPU-hour consumption per Glue job from capacity and execution time and flags days that spike above baseline, the main driver of Glue spend.",
+  "value": "Runaway Glue jobs (data skew, bad joins) inflate DPU-hours; per-job anomaly detection catches cost overruns before the monthly bill lands.",
+  "implementation": "Ingest Glue job runs with max_capacity and execution_time; schedule daily and alert on 3-sigma DPU-hour spikes.",
+  "visualization": "Timechart of DPU-hours per job, anomaly table, cost estimate.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS Glue — Monitoring with CloudWatch",
+      "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-cloudwatch.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "grandmaExplanation": "We estimate what each cloud data job costs to run and flag surprise spikes so the bill holds no surprises."
+}

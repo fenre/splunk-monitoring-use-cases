@@ -1,13 +1,13 @@
 # Compliance coverage report
 
-_Generated: 2026-06-10T07:38:29Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-07-22T16:25:29Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
 ## Summary
 
-* UC files checked: **7937**
-* UC files valid:   **7937**
+* UC files checked: **8445**
+* UC files valid:   **8445**
 * Compliance entries: **2808**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)

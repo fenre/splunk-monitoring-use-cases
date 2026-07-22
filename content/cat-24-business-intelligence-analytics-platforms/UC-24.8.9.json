@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.9",
+  "title": "Fivetran Monthly Active Rows Cost Spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports.",
+  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`).",
+  "spl": "index=bi sourcetype=fivetran:log event=\"records_modified\"\n| timechart span=1d sum(count) as mar by connector_id\n| untable _time connector_id mar\n| eventstats avg(mar) as avg_mar, stdev(mar) as sd_mar by connector_id\n| where mar>avg_mar+3*sd_mar\n| sort - mar",
+  "description": "Tracks Fivetran monthly-active-rows (MAR) per connector and flags days where a connector's row volume spikes far above its own baseline, the primary driver of Fivetran cost.",
+  "value": "Fivetran bills on MAR; an unexpected spike (a bad re-sync or an upstream backfill) can blow the monthly budget, and per-connector anomaly detection catches it within a day.",
+  "implementation": "Ingest Fivetran log-service records_modified events; schedule daily and alert on 3-sigma MAR spikes for any connector.",
+  "visualization": "Timechart of MAR per connector, anomaly table, cost projection.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Fivetran — REST API reference",
+      "url": "https://fivetran.com/docs/rest-api"
+    },
+    {
+      "title": "Fivetran — Platform Connector / logs",
+      "url": "https://fivetran.com/docs/logs/fivetran-platform"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We watch how many rows each data connector moves so a surprise spike that would inflate the bill is caught the same day."
+}

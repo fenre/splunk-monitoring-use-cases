@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.23",
+  "title": "Fivetran Connector Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran connectors (`fivetran:connector`), log-service (`fivetran:log`).",
+  "app": "Fivetran REST API and log-service events via HEC.",
+  "spl": "index=bi sourcetype=fivetran:log event=\"sync_end\"\n| stats latest(_time) as last_success by connector_id\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Fivetran connector and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A connector can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Fivetran.",
+  "implementation": "Ingest Fivetran success events; schedule hourly and alert when a critical connector exceeds its freshness window.",
+  "visualization": "Table of connector by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Fivetran — REST API",
+      "url": "https://fivetran.com/docs/rest-api"
+    },
+    {
+      "title": "Fivetran — Platform logs",
+      "url": "https://fivetran.com/docs/logs/fivetran-platform"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We check that each part of Fivetran has updated recently so nobody relies on old data."
+}

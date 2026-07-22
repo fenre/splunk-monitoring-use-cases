@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.29",
+  "title": "Tableau Prep Flow Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Prep flow runs (`tableau:prep:flow`) and Backgrounder logs.",
+  "app": "Tableau Prep Conductor flow-run events from the `workgroup` repository via DB Connect and Backgrounder logs via UF.",
+  "spl": "index=bi sourcetype=tableau:prep:flow finish_code=0\n| stats latest(_time) as last_success by flow_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>24\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Tableau Prep flow and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A flow can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Tableau Prep.",
+  "implementation": "Ingest Tableau Prep success events; schedule hourly and alert when a critical flow exceeds its freshness window.",
+  "visualization": "Table of flow by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Prep — Conductor",
+      "url": "https://help.tableau.com/current/prep/en-us/prep_conductor_overview.htm"
+    },
+    {
+      "title": "Tableau — Server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We check that each part of Tableau Prep has updated recently so nobody relies on old data."
+}

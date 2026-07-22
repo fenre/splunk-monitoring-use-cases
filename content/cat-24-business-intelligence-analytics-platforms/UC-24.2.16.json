@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.16",
+  "title": "Power BI Bulk Export and Download Audit",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Audit",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI admin refreshes (`powerbi:admin:refreshes`), admin API (`powerbi:admin:api`), gateway logs, and capacity metrics.",
+  "app": "Power BI activity events from the Microsoft 365 / Purview audit log and the Power BI Admin & Fabric Capacity Metrics APIs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:admin:api (activity=\"ExportReport\" OR activity=\"ExportArtifact\" OR activity=\"AnalyzedByExternalApplication\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user_email\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
+  "description": "Watches Power BI for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
+  "value": "Large exports move governed data out of Power BI where it can no longer be controlled; anomaly detection flags the risky ones for review.",
+  "implementation": "Ingest Power BI export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
+  "visualization": "Table of user by export volume, anomaly markers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Admin REST APIs",
+      "url": "https://learn.microsoft.com/en-us/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Power BI — Track user activities / audit log",
+      "url": "https://learn.microsoft.com/en-us/power-bi/admin/service-admin-auditing"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "grandmaExplanation": "We notice when someone pulls an unusually large amount of data out of Power BI so it can be checked."
+}
