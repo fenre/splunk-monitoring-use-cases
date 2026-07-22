@@ -2800,7 +2800,7 @@ def _extract_base_search_terms(stage):
         if val and val not in seen_i:
             seen_i.add(val)
             out["indexes"].append(val)
-    for m in re.finditer(r'sourcetype\s*=\s*("(?:\\.|[^"])*"|[^\s\)]+)', st, re.I):
+    for m in re.finditer(r'sourcetype\s*=\s*("(?:\\.|[^"\\])*"|[^\s\)]+)', st, re.I):
         val = m.group(1).strip('"')
         if val and val not in seen_s:
             seen_s.add(val)

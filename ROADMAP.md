@@ -6,6 +6,46 @@
 
 ## Current release
 
+**v8.8.0 — Business Intelligence & Analytics Platforms (cat-24): a new flagship category monitoring the BI-tooling and modern-data-stack layer (508 use cases across 13 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **close the BI/analytics-tooling monitoring gap.** v8.8.0 adds
+cat-24 "Business Intelligence & Analytics Platforms" — monitoring for
+the tools that *produce* the numbers the business trusts. It sits
+cleanly between [`cat-07 Database & Data Platforms`](content/cat-07-database-data-platforms/_category.json)
+(databases/warehouses) and [`cat-23 Business Analytics`](content/cat-23-business-analytics/_category.json)
+(Splunk-as-BI business outcomes) with no overlap. All 13 subcategories
+are built out to **508 use cases** via a consistent monitoring-angle
+matrix applied across ~40 BI and data-stack platforms.
+
+### Shipped outcomes
+
+- **New category cat-24, 508 UCs across 13 subcategories.** Tableau
+  (29), Power BI (32), Looker/Looker Studio (23), Qlik (32),
+  open-source & embedded BI (49), other enterprise BI (58), Data
+  Orchestration & Transformation (77), Data Ingestion & ELT (74), Data
+  Quality & Observability (37), Data Catalog/Lineage & Governance (33),
+  Semantic/Metrics Layer (23), Reverse ETL & Activation (33), and
+  cross-platform BI trending (8).
+- **Monitoring-angle matrix.** Availability/health, query/extract/render
+  latency, capacity & scaling, cost/FinOps, refresh/schedule SLA,
+  job/pipeline failure & retry, data freshness, data quality/tests,
+  usage & adoption, license utilization, access & security audit,
+  config/change, error/crash, and lineage/impact — applied only where
+  each realistically fits each platform.
+- **Catalogue now spans 24 categories.** Registration metadata updated
+  across the build pipeline (category groups, index macros, log-family
+  defaults, IT-ops relevance, grandma-explanation fallbacks) and the
+  curated SPL sourcetype vocabulary was extended with the new BI /
+  data-stack sourcetypes.
+- **Non-technical view coverage.** The plain-language outcomes view
+  gained a cat-24 block spanning all 13 subcategories.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.8.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.7.0 — Data Sizing tool v2: driver-based realism refresh, 24-source calibration, two-component compression, cluster-aware sizing** *(shipped 2026-05-27)*
 
 Theme: **decisive realism upgrade to `tools/data-sizing/`** — the
@@ -63,10 +103,6 @@ can mark them and the regression test snapshot can track them.
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.7.0 release
 notes including the complete data-sizing v2 model spec, calibration
 methodology, and per-source citation set.
-
----
-
-## Previous releases
 
 **v8.6.4 — Phase 4 primer back-fill — three new tier-1 deep dives close the OT-regulation primer gap (TSA Surface §4.18, SG Cyber Act 2018 §4.19, France LPM §4.20)** *(shipped 2026-05-15)*
 
