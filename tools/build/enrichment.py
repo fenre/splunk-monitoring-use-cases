@@ -82,7 +82,7 @@ CAT_GROUPS = {
     "app": [7, 8, 11, 12, 13, 14, 16],
     "industry": [21],
     "compliance": [22],
-    "business": [23],
+    "business": [23, 24],
 }
 
 # Splunk two-pillar strategy: Security / Observability

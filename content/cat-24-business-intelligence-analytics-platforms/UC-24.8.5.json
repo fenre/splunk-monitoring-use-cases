@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.5",
+  "title": "Kafka Connect Connector Task Failures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=kafka:connect\n| stats latest(state) as state by connector, task\n| where state=\"FAILED\"\n| sort connector, task",
+  "description": "Polls Kafka Connect connector and task status and flags tasks in the FAILED state, which stall streaming ingestion into or out of the data platform.",
+  "value": "A failed Connect task silently halts a streaming pipeline; task-level status is the only reliable way to catch it before data gaps appear.",
+  "implementation": "Poll the Connect REST `/connectors/*/status` endpoint into HEC; schedule every 5 minutes; alert on FAILED tasks. Auto-restart where safe.",
+  "visualization": "Table of failed connectors/tasks, timechart of failures, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Kafka Connect — Monitoring",
+      "url": "https://docs.confluent.io/platform/current/connect/monitoring.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the always-on data-streaming jobs and flag any that have failed, so streaming data does not quietly stop."
+}

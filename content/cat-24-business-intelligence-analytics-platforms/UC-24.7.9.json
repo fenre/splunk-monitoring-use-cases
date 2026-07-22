@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.9",
+  "title": "dbt Model Build Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=dbt:run_results resource_type=model\n| stats count as builds, sum(eval(status=\"error\")) as failures by model\n| eval failure_rate=round(100*failures/builds,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks dbt model build outcomes and ranks models by failure rate, exposing broken transformations that starve downstream tables.",
+  "value": "A failed dbt model breaks every table and dashboard built on it; ranking by failure rate targets the transformations to fix first.",
+  "implementation": "Emit run results to HEC; schedule after each run; alert on model build failures. Map models to consuming dashboards.",
+  "visualization": "Table by failure rate, timechart of model failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — run_results.json artifact",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "dbt — Monitor jobs",
+      "url": "https://docs.getdbt.com/docs/deploy/monitor-jobs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We watch the steps that reshape your raw data into report-ready tables and flag the ones that fail."
+}

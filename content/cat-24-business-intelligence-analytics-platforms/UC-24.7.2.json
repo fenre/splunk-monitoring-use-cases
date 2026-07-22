@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.2",
+  "title": "Airflow Task Instance Retries and Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:task\n| stats sum(eval(state=\"up_for_retry\")) as retries, sum(eval(state=\"failed\")) as failures by dag_id, task_id\n| where retries>3 OR failures>0\n| sort - failures, - retries",
+  "description": "Surfaces individual Airflow tasks that fail or retry excessively, pinpointing the flaky step inside an otherwise-passing DAG.",
+  "value": "A task that retries constantly wastes resources and delays data even when the DAG eventually passes; task-level visibility finds the weak link.",
+  "implementation": "Ingest task logs; schedule hourly; alert on chronic retriers. Investigate flaky operators or upstream dependencies.",
+  "visualization": "Table by task with retries/failures, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We spot the individual steps in a data workflow that keep stumbling, so the flaky one gets fixed instead of slowing everything."
+}

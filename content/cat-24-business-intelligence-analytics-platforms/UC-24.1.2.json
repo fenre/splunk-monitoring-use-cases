@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.2",
+  "title": "Tableau Extract Refresh Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:backgrounder job_type=refresh_extracts\n| stats count as runs, sum(eval(finish_code!=0)) as failures by job_name\n| eval failure_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Counts scheduled extract-refresh jobs run by the Backgrounder and surfaces the workbooks and data sources whose refreshes are failing, ranked by failure rate.",
+  "value": "A failed extract refresh means a published dashboard silently serves stale data; ranking by failure rate points teams at the specific content eroding trust in Tableau.",
+  "implementation": "Ingest `tableau:backgrounder` logs (or query the `background_jobs` repository table via DB Connect); schedule hourly and alert when failure_rate crosses your tolerance. Add a lookup of business-critical workbooks to prioritise.",
+  "visualization": "Table of job_name with runs/failures/failure_rate, timechart of failures, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We watch the overnight jobs that pull fresh numbers into your Tableau reports and let you know when one fails so a dashboard does not quietly show old data."
+}

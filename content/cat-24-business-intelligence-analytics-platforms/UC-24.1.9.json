@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.9",
+  "title": "Tableau Failed Logins and Access Audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Audit",
+    "Security"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:vizportal (action=login OR action=logout OR action=access_denied)\n| stats count as attempts, sum(eval(result=\"failure\")) as failures by user, action\n| where failures>5\n| sort - failures",
+  "description": "Summarises Tableau sign-in activity and surfaces users with repeated failed logins or access-denied events, supporting both troubleshooting and abuse detection.",
+  "value": "Repeated failed logins can mean a locked-out executive before a board meeting or a credential-stuffing attempt; auditing access keeps the platform both usable and secure.",
+  "implementation": "Ingest vizportal/application logs; schedule hourly; alert on bursts of failures per user or source. Route security-relevant patterns to your SOC.",
+  "visualization": "Table of users by failures, timechart of failed logins, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We keep a record of who signs in to your reporting tool and flag lots of failed attempts, which could be someone locked out or someone who should not be trying."
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.3",
+  "title": "Airflow DAG SLA Misses",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:scheduler event=sla_miss\n| stats count as misses, latest(_time) as last_miss by dag_id, task_id\n| where misses>0\n| sort - misses",
+  "description": "Captures Airflow SLA-miss events so pipelines that finish late (even if they finish) are caught against their business deadline.",
+  "value": "A pipeline that lands data after the morning report is effectively failed; SLA-miss tracking enforces the deadline that matters to the business.",
+  "implementation": "Enable SLAs on critical tasks and ingest sla_miss events; schedule hourly; alert on misses for deadline-bound DAGs.",
+  "visualization": "Table of SLA misses by DAG, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We flag when data workflows finish too late for the people waiting on the numbers, even if they eventually finish."
+}

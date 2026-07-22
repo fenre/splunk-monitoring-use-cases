@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.1",
+  "title": "Tableau Server Process Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:vizqlserver OR sourcetype=tableau:backgrounder OR sourcetype=tableau:dataserver\n| stats count as events, latest(status) as last_status by process, host\n| where last_status!=\"Active\"\n| sort process, host",
+  "description": "Tracks the core Tableau Server processes (VizQL Server, Backgrounder, Data Server) and flags any process reporting a non-active status so operators can restart it before users hit errors.",
+  "value": "When a Tableau process degrades, dashboards fail to render or extracts stop refreshing across the whole site; catching a single non-active process early prevents a site-wide outage during business hours.",
+  "implementation": "Forward the Tableau Server log directory with the Universal Forwarder and set the sourcetypes; schedule this search every 5 minutes and alert on any row. Correlate with TSM status for confirmation.",
+  "visualization": "Table of process/host with status, single-value count of unhealthy processes, timechart of process availability.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We keep an eye on the engine behind your Tableau dashboards so if a part stops working we tell you before people see broken reports."
+}

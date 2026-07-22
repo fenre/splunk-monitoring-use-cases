@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.4",
+  "title": "Tableau VizQL View Render Latency",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:httpd\n| rex field=uri_path \"/views/(?<workbook>[^/]+)/(?<view>[^/?]+)\"\n| where isnotnull(view)\n| stats count as loads, avg(time_taken) as avg_ms, p95(time_taken) as p95_ms by workbook, view\n| eval p95_s=round(p95_ms/1000,2)\n| where p95_s>10\n| sort - p95_s",
+  "description": "Parses the Tableau gateway access log to compute per-view render latency and flags dashboards whose 95th-percentile load time exceeds 10 seconds.",
+  "value": "Slow dashboards drive users away from self-service analytics; per-view latency shows exactly which content frustrates users so it can be optimised or re-architected.",
+  "implementation": "Ingest `tableau:httpd`; extract workbook/view from the request path. Schedule daily and review the slowest views with content owners; correlate with VizQL session counts.",
+  "visualization": "Table of workbook/view with p95 latency, heat map of slow views, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We time how long each Tableau dashboard takes to open for people so the sluggish ones can be fixed before users give up on them."
+}

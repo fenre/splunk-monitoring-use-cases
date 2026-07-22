@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.5",
+  "title": "Airflow Task Duration Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:task state=success\n| eval duration_min=round(duration/60,1)\n| eventstats avg(duration_min) as avg_min, stdev(duration_min) as sd_min by dag_id, task_id\n| eval z=round((duration_min-avg_min)/sd_min,2)\n| where z>3\n| sort - z",
+  "description": "Baselines each Airflow task's runtime and flags runs that take far longer than normal, an early sign of data-volume growth or an upstream slowdown.",
+  "value": "A task that suddenly runs 3x longer warns of growing data or a struggling source before it becomes an SLA miss; anomaly detection catches drift early.",
+  "implementation": "Ingest successful task durations; schedule daily; tune the z-score threshold. Investigate anomalies with the task owner.",
+  "visualization": "Table of anomalous runs by z-score, duration trend per task.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We learn how long each data step normally takes and flag when one suddenly takes much longer, an early warning of trouble."
+}

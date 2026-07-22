@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.7",
+  "title": "Airflow Import and DAG Parse Errors",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:scheduler event=dag_import_error\n| stats count as errors, latest(error_message) as last_error by filename\n| where errors>0\n| sort - errors",
+  "description": "Detects Airflow DAG import/parse errors, which silently prevent a pipeline from being scheduled at all after a bad code deploy.",
+  "value": "A DAG that fails to import never runs and never fails visibly; catching parse errors after deploys prevents pipelines from vanishing unnoticed.",
+  "implementation": "Ingest scheduler import-error events; schedule every 15 minutes; alert on new errors. Gate DAG deploys with CI parsing (cat-12).",
+  "visualization": "Table of files with import errors, timechart after deploys.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We catch when a change to a data workflow stops it from loading at all, so it does not silently disappear after an update."
+}

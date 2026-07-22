@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.7",
+  "title": "Azure Data Factory Pipeline Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=azure:monitor:adf category=PipelineRuns\n| stats count as runs, sum(eval(status=\"Failed\")) as failures by pipeline_name\n| eval failure_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks Azure Data Factory pipeline runs and ranks pipelines by failure rate so cloud ELT failures are surfaced with their impact.",
+  "value": "Failed ADF pipelines stop data reaching Synapse and downstream reports; failure-rate ranking focuses attention where it matters.",
+  "implementation": "Ingest ADF diagnostics via `Splunk_TA_microsoft-cloudservices`; schedule hourly; alert on failures for critical pipelines.",
+  "visualization": "Table by failure rate, timechart of pipeline failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Azure Data Factory — Monitor pipelines",
+      "url": "https://learn.microsoft.com/azure/data-factory/monitor-visually"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the cloud data pipelines in Azure and flag the ones that keep failing."
+}

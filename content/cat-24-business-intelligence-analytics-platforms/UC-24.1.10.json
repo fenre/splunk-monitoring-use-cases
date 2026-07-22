@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.10",
+  "title": "Tableau Prep Conductor Flow Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:backgrounder job_type=run_flow\n| stats count as runs, sum(eval(finish_code!=0)) as failures, latest(finish_code) as last_code by flow_name\n| where failures>0\n| sort - failures",
+  "description": "Tracks Tableau Prep Conductor flow runs and flags data-prep flows that fail, which break the extracts and dashboards downstream of them.",
+  "value": "A failed Prep flow starves every dashboard built on its output; catching flow failures protects the whole downstream chain of Tableau content.",
+  "implementation": "Ingest Backgrounder run_flow events; schedule hourly and alert. Map each flow to the workbooks it feeds for impact analysis.",
+  "visualization": "Table of failing flows, timechart of flow failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We watch the data-preparation steps that feed your Tableau reports so a broken one is caught before it spoils everything built on top of it."
+}

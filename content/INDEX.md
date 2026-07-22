@@ -259,3 +259,14 @@ build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined 
   - UC-23.8.1 · CEO/CFO Business Health Scorecard (critical, Executive Dashboards & Business KPIs)
   - UC-23.9.1 · Carbon Footprint Tracking and Reduction Progress (high, ESG & Sustainability Reporting)
 
+## 24. Business Intelligence & Analytics Platforms
+- **Icon:** monitorChart
+- **Description:** Monitoring the BI-tooling and modern-data-stack layer — Tableau, Power BI, Looker, Qlik, Airflow/dbt, Fivetran/Airbyte, data quality & observability, catalog/lineage/governance, semantic layers, and reverse ETL. Extract/refresh SLAs, pipeline failures, data freshness, capacity/cost, adoption, and access audit for the platforms that produce the numbers the business trusts.
+- **Quick Tip:** Most BI and data-stack tools expose admin/audit logs, REST admin APIs, and repository databases — ingest them via HEC, scripted REST inputs, or Splunk DB Connect and correlate refresh, pipeline, and usage signals in one place.
+- **Quick Start:**
+  - UC-24.1.2 · Tableau Extract Refresh Failures (high, Tableau)
+  - UC-24.2.1 · Power BI Dataset Refresh Failures (high, Microsoft Power BI)
+  - UC-24.7.1 · Airflow DAG Run Failures (critical, Data Orchestration & Transformation)
+  - UC-24.7.8 · dbt Test Failures (high, Data Orchestration & Transformation)
+  - UC-24.9.1 · Table Freshness Anomaly Detection (high, Data Quality & Observability)
+

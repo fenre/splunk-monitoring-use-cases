@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.1",
+  "title": "Power BI Dataset Refresh Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:admin:refreshes\n| stats count as runs, sum(eval(status=\"Failed\")) as failures, latest(serviceExceptionJson) as last_error by datasetId, datasetName\n| eval failure_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Pulls scheduled dataset-refresh history from the Power BI Admin API and ranks datasets by refresh failure rate, exposing the reports serving stale data.",
+  "value": "A failed Power BI refresh means every report on that dataset shows yesterday's numbers; ranking by failure rate directs attention to the highest-impact datasets.",
+  "implementation": "Poll the REST Admin `/datasets/refreshes` endpoint via a scripted HEC input; schedule hourly and alert when failures occur for business-critical datasets.",
+  "visualization": "Table of dataset by failure_rate, timechart of failures, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Track user activities (audit log)",
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+    },
+    {
+      "title": "Power BI REST Admin API",
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the scheduled data updates behind your Power BI reports and tell you when one fails so a report does not quietly show old numbers."
+}

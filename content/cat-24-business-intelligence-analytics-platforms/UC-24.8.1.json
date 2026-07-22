@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.1",
+  "title": "Fivetran Connector Sync Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=fivetran:log event=sync_end\n| stats count as syncs, sum(eval(status=\"FAILURE\")) as failures by connector_name, schema_name\n| eval failure_rate=round(100*failures/syncs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks Fivetran connector sync outcomes and ranks connectors by failure rate, exposing the ingestion sources that have stopped delivering data.",
+  "value": "A failed Fivetran sync means a source stops flowing into the warehouse and every downstream model goes stale; failure rate points at the worst connectors.",
+  "implementation": "Send the Fivetran log service to HEC (or poll the REST API); schedule hourly; alert on failures for critical connectors.",
+  "visualization": "Table by failure rate, timechart of sync failures, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Fivetran — Logs",
+      "url": "https://fivetran.com/docs/logs"
+    },
+    {
+      "title": "Fivetran REST API",
+      "url": "https://fivetran.com/docs/rest-api"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the connectors that copy data from your apps into the warehouse and flag when one stops working."
+}

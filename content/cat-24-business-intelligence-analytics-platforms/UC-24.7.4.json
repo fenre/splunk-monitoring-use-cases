@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.4",
+  "title": "Airflow Scheduler Health",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=airflow:scheduler metric=scheduler_heartbeat\n| stats latest(_time) as last_beat by host\n| eval secs_since=round(now()-last_beat,0)\n| where secs_since>120\n| sort - secs_since",
+  "description": "Monitors the Airflow scheduler heartbeat and flags when it stalls, since a dead scheduler quietly stops every pipeline from being triggered.",
+  "value": "If the scheduler dies, nothing runs and nothing alerts unless you watch the scheduler itself; heartbeat monitoring is the safety net for the whole platform.",
+  "implementation": "Emit scheduler heartbeat metrics via StatsD/HEC; schedule every minute; alert when the heartbeat goes stale.",
+  "visualization": "Single-value seconds-since-heartbeat, timechart, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We check the heartbeat of the system that starts all your data workflows, so if it stops we tell you before everything silently stalls."
+}

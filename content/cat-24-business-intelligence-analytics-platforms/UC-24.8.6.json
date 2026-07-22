@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.6",
+  "title": "AWS Glue Job Run Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "spl": "index=dataops sourcetype=aws:cloudwatch:glue\n| stats count as runs, sum(eval(job_run_state=\"FAILED\")) as failures by job_name\n| eval failure_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Tracks AWS Glue ETL job runs and ranks jobs by failure rate so cloud data-preparation failures are caught and diagnosed.",
+  "value": "Failed Glue jobs break the pipelines that populate the lake and warehouse; failure-rate ranking targets the least reliable jobs.",
+  "implementation": "Ingest Glue metrics/events via `Splunk_TA_aws`; schedule hourly; alert on failures for critical jobs.",
+  "visualization": "Table by failure rate, timechart of Glue failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS Glue — Monitoring with CloudWatch",
+      "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-cloudwatch.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    }
+  ],
+  "equipment": [
+    "aws",
+    "azure",
+    "kafka",
+    "m365"
+  ],
+  "grandmaExplanation": "We watch the cloud data-preparation jobs and flag the ones that keep failing so the feed gets fixed."
+}

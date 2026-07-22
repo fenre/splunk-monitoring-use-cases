@@ -46,7 +46,7 @@ import type {
 
 const UC_ID_RE = /^\d+\.\d+\.\d+$/;
 const EXPECTED_CATEGORIES: readonly string[] = Array.from(
-  { length: 23 },
+  { length: 24 },
   (_, i) => String(i + 1),
 );
 

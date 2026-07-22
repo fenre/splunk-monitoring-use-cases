@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.1",
+  "title": "Table Freshness Anomaly Detection",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "spl": "index=dataops sourcetype=dbx:warehouse_freshness\n| stats latest(last_loaded_epoch) as last_load by database, table_name\n| eval hours_since=round((now()-last_load)/3600,1)\n| where hours_since>24\n| sort - hours_since",
+  "description": "Probes the warehouse for the last load time of each monitored table and flags tables that have not updated within their expected window, the core freshness check of data observability.",
+  "value": "Stale tables are the most common cause of wrong dashboards; freshness monitoring catches data that stopped updating before anyone builds a decision on it.",
+  "implementation": "Run a scheduled DB Connect query against `INFORMATION_SCHEMA`/metadata for max load timestamps; schedule hourly; set per-table thresholds via a lookup; alert on breaches.",
+  "visualization": "Table of stale tables by hours-since-load, freshness heat map, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We check that the data behind your reports is being refreshed on time, so nobody makes a decision on numbers that quietly stopped updating."
+}

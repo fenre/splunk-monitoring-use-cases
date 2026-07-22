@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.8",
+  "title": "dbt Test Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "spl": "index=dataops sourcetype=dbt:run_results resource_type=test\n| stats count as tests, sum(eval(status IN (\"fail\",\"error\"))) as failures by test_name, model\n| where failures>0\n| sort - failures",
+  "description": "Parses dbt run results to surface failing data tests (uniqueness, not-null, relationships, accepted values), the front line of data-quality enforcement.",
+  "value": "dbt tests are where bad data is meant to be caught; surfacing failures ensures broken data is stopped before it reaches dashboards.",
+  "implementation": "Emit `run_results.json` to HEC after each dbt build; schedule after each run; alert on failures for critical models.",
+  "visualization": "Table of failing tests by model, timechart of test failures, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — run_results.json artifact",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "dbt — Monitor jobs",
+      "url": "https://docs.getdbt.com/docs/deploy/monitor-jobs"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We watch the automatic data-quality checks in your pipeline and flag failures so bad data is caught before it reaches a report."
+}

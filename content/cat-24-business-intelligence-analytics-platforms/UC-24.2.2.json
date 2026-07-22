@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.2",
+  "title": "Power BI Dataset Refresh Duration SLA",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:admin:refreshes status=Completed\n| eval duration_min=round((strptime(endTime,\"%Y-%m-%dT%H:%M:%S\")-strptime(startTime,\"%Y-%m-%dT%H:%M:%S\"))/60,1)\n| stats avg(duration_min) as avg_min, p95(duration_min) as p95_min by datasetName\n| where p95_min>30\n| sort - p95_min",
+  "description": "Computes how long successful dataset refreshes take and flags datasets whose 95th-percentile duration breaches an SLA, indicating models that need optimisation or incremental refresh.",
+  "value": "Long refreshes consume Premium capacity and risk overrunning the refresh window; spotting the slowest datasets enables targeted model tuning.",
+  "implementation": "Compute duration from refresh start/end times; schedule daily; tune the threshold to your window. Recommend incremental refresh for repeat offenders.",
+  "visualization": "Table by p95 duration, refresh-duration trend per dataset.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Track user activities (audit log)",
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+    },
+    {
+      "title": "Power BI REST Admin API",
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure",
+    "m365"
+  ],
+  "grandmaExplanation": "We measure how long Power BI takes to refresh each report's data so the slow ones can be improved before they run late."
+}

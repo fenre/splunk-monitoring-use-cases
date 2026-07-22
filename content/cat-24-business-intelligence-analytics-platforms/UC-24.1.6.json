@@ -1,0 +1,44 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.6",
+  "title": "Tableau Backgrounder Queue Backlog",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
+  "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=tableau:backgrounder\n| bin _time span=15m\n| stats sum(eval(job_status=\"Pending\")) as pending, sum(eval(job_status=\"Running\")) as running by _time\n| eval backlog=pending\n| where backlog>50\n| sort - _time",
+  "description": "Buckets Backgrounder job status over time to reveal when the pending-job queue grows faster than workers can drain it, the leading indicator of missed refresh windows.",
+  "value": "A growing Backgrounder backlog is the earliest sign you need more Backgrounder capacity; catching it prevents cascading refresh delays and late dashboards.",
+  "implementation": "Schedule every 15 minutes; tune the backlog threshold to your worker count. When backlog is chronic, add Backgrounder processes or stagger schedules.",
+  "visualization": "Timechart of pending vs running jobs, alert on sustained backlog.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau Server — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk DB Connect",
+      "url": "https://splunkbase.splunk.com/app/2686"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect",
+    "postgresql"
+  ],
+  "equipmentModels": [
+    "apache_httpd",
+    "postgresql_pg"
+  ],
+  "grandmaExplanation": "We watch the waiting line of Tableau's background jobs so you know when it is getting too long and reports are about to run late."
+}

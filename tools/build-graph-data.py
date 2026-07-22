@@ -63,6 +63,7 @@ _ITOPS_RELEVANCE = {
     21: 0.5,   # Industry Verticals
     22: 0.3,   # Regulatory and Compliance Frameworks
     23: 0.1,   # Business Analytics & Executive Intelligence
+    24: 0.6,   # Business Intelligence & Analytics Platforms (tooling/data-stack monitoring)
 }
 
 

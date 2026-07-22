@@ -489,6 +489,74 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     # OPNsense / pfSense — community add-ons
     "opnsense:filterlog",
     "pfsense:filterlog",
+    # ------------------------------------------------------------------
+    # cat-24 Business Intelligence & Analytics Platforms — BI tooling and
+    # modern-data-stack sourcetypes. These are the canonical ingest names
+    # for the admin/audit logs, REST-API scripted inputs, and DB Connect
+    # probes documented in each UC's ``dataSources`` field.
+    # ------------------------------------------------------------------
+    # BI tools
+    "tableau:backgrounder",
+    "tableau:vizqlserver",
+    "tableau:dataserver",
+    "tableau:httpd",
+    "tableau:vizportal",
+    "tableau:licensing",
+    "tableau:tsm:metrics",
+    "powerbi:admin:refreshes",
+    "powerbi:admin:api",
+    "powerbi:gateway:info",
+    "powerbi:gateway:mashup",
+    "powerbi:capacity:metrics",
+    "looker:system_activity",
+    "looker:api",
+    "looker:lookml_validation",
+    "qlik:scheduler",
+    "qlik:engine",
+    "qlik:proxy",
+    "superset:app",
+    "metabase:app",
+    "redash:app",
+    "bi:embed:client",
+    "microstrategy:dsserror",
+    "cognos:audit",
+    "businessobjects:audit",
+    "oracle:analytics:usage",
+    "thoughtspot:audit",
+    # Data orchestration / transformation
+    "airflow:scheduler",
+    "airflow:task",
+    "dbt:run_results",
+    "dbt:sources",
+    "dbt:semantic_layer",
+    # Data ingestion / ELT
+    "fivetran:log",
+    "airbyte:job",
+    "kafka:connect",
+    "aws:cloudwatch:glue",
+    "azure:monitor:adf",
+    # Data quality & observability
+    "montecarlo:incident",
+    "great_expectations:validation",
+    "soda:scan",
+    "dbx:warehouse_freshness",
+    "dbx:warehouse_rowcounts",
+    "dbx:warehouse_columns",
+    "dbx:warehouse_nullrates",
+    "dbx:metric_probe",
+    # Catalog / lineage / governance
+    "collibra:audit",
+    "atlan:audit",
+    "openlineage:event",
+    "unity_catalog:audit",
+    "purview:scan",
+    # Semantic / metrics layer
+    "cube:api",
+    # Reverse ETL & activation
+    "hightouch:sync",
+    "census:sync",
+    "segment:delivery",
+    "rudderstack:delivery",
 }
 
 
