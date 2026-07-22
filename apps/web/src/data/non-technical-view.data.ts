@@ -1397,5 +1397,55 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
         { id: "24.1.9", why: "Audit failed logins and permission changes on your reporting platform, so access stays under control." }
       ]}
     ]
+  },
+  "25": {
+    outcomes: [
+      "Turn the same monitoring you use at work on the fun parts of your life — fitness, health, your car, your home, and your hobbies.",
+      "Get a friendly nudge when something needs attention: a low sensor battery, a leaking pipe, an underperforming solar panel, or a pet that wandered off.",
+      "Build your own dashboards for the numbers you actually care about, without handing your personal data to yet another app."
+    ],
+    areas: [
+      { name: "Fitness & health", description: "We turn your fitness trackers and health wearables into simple, motivating dashboards — progress toward goals, honest trends, and early warnings when your body needs rest.", ucs: [
+        { id: "25.1.1", why: "Add up your weekly running distance against a goal, so you know whether to squeeze in one more run." },
+        { id: "25.1.3", why: "Get a gentle reminder when you haven't exercised in a few days, before a skipped session becomes a skipped week." },
+        { id: "25.2.1", why: "Learn your normal resting heartbeat and get a heads-up on days it's unusually high — often a sign you're getting run down." },
+        { id: "25.2.2", why: "See how much you actually slept each night against your target, so sleep debt stops sneaking up on you." }
+      ]},
+      { name: "Cars & getting around", description: "We keep an eye on your car and EV — battery health, charging costs, tyres, and faults — so surprises on the road and the bill are rare.", ucs: [
+        { id: "25.3.1", why: "Work out how much your electric car's battery has worn down, so you know the real range you can count on." },
+        { id: "25.3.2", why: "Add up what it costs to charge in different places, so you charge where it's cheapest." },
+        { id: "25.3.4", why: "Get told when a tyre is going soft, before it becomes a flat." }
+      ]},
+      { name: "Smart home & devices", description: "We watch your smart-home hub, automations, and sensors — so the lights, locks, and routines keep working, and dead batteries or leaks are caught fast.", ucs: [
+        { id: "25.4.1", why: "Notice when your home's automatic routines stop working, like lights that should have come on but didn't." },
+        { id: "25.4.2", why: "See which smart-home gadgets have gone quiet, so you can fix dead batteries or lost connections." },
+        { id: "25.5.6", why: "Shout the moment a leak sensor gets wet, so a small leak doesn't wreck the floor." },
+        { id: "25.5.7", why: "Remind you when a door or window has been left open too long, like the garage before bed." }
+      ]},
+      { name: "Energy, solar & the home", description: "We track your solar panels, home battery, and energy use — so you can see your self-sufficiency, catch an underperforming panel, and keep the bill under control.", ucs: [
+        { id: "25.6.1", why: "Compare how much power your solar panels made with how much your home used, so you see how self-sufficient you are." },
+        { id: "25.6.2", why: "Compare each solar panel to the others and flag any that are lazy — usually dirt, shade, or a fault." }
+      ]},
+      { name: "Media, gaming & home lab", description: "We monitor your media server, games, home lab, and internet — so streaming stays smooth, your self-hosted apps stay up, and your connection delivers what you pay for.", ucs: [
+        { id: "25.7.1", why: "See who watched the most on your home movie server each month — a fun family leaderboard." },
+        { id: "25.7.2", why: "Warn when too many people are streaming in a way that overloads your server and causes buffering." },
+        { id: "25.8.1", why: "Warn when the storage in your home server is filling up, before it gets full and things break." },
+        { id: "25.8.2", why: "Spot when one of your self-hosted apps keeps crashing and restarting, so you can fix it." },
+        { id: "25.9.1", why: "Regularly check your internet speed against what you pay for, giving you proof when it's too slow." },
+        { id: "25.9.3", why: "Show what share of ads and trackers your network blocker stopped — very satisfying to watch." }
+      ]},
+      { name: "Weather, garden & pets", description: "We watch the weather at your own location, the air in your home, your garden, and your pets — so you can act on frost, smoke, dry soil, or a pet that wandered off.", ucs: [
+        { id: "25.10.1", why: "Watch the air inside your home and tell you when a room is stuffy or unhealthy and needs a window opened." },
+        { id: "25.10.3", why: "Warn you when it's about to freeze so you can cover plants and protect pipes." },
+        { id: "25.11.2", why: "Alert you the instant a pet wanders out of the safe area, with a map so you can go straight to them." },
+        { id: "25.11.3", why: "Make sure the automatic feeder really fed your pet, and warn you if it jammed or missed a meal." }
+      ]},
+      { name: "Money & digital life", description: "We help you keep an eye on your own finances and habits — spending, subscriptions, crypto, screen time, and focus — without sharing it all with another app.", ucs: [
+        { id: "25.12.1", why: "Add up what your crypto is worth right now, in one place, without sharing your details with an app." },
+        { id: "25.12.5", why: "Find all your monthly subscriptions and show what they cost per year, so you can cancel the ones you forgot about." },
+        { id: "25.13.1", why: "Show how much of your day was real focused work versus distractions — often eye-opening." },
+        { id: "25.13.2", why: "Track how long you spend on your phone each day compared to your goal, so the habit doesn't creep up on you." }
+      ]}
+    ]
   }
 };
