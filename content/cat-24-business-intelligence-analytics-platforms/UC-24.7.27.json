@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.27",
+  "title": "dbt Cloud Job Run Failures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt Cloud Admin API runs (`dbtcloud:run`), Discovery API, and dbt artifacts (`dbt:run_results`, `dbt:manifest`).",
+  "app": "dbt Cloud Admin API (`/api/v2/accounts/{id}/runs`) and Metadata (Discovery) API via HEC scripted inputs; dbt run artifacts (`run_results.json`, `manifest.json`) forwarded as `dbt:run_results`.",
+  "spl": "index=bi sourcetype=dbtcloud:run\n| stats count as runs, sum(eval(status=\"error\" OR is_error=\"true\")) as failures by job_name\n| eval failure_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - failure_rate",
+  "description": "Counts dbt Cloud job runs and ranks jobs by failure rate using the Admin API run status, covering the managed-dbt path distinct from dbt Core CLI runs.",
+  "value": "dbt Cloud jobs power scheduled transformations; ranking failures by job pinpoints the transformations breaking downstream marts.",
+  "implementation": "Poll the dbt Cloud Admin API runs endpoint into HEC; schedule hourly and alert on failures for production jobs.",
+  "visualization": "Table of job by failure rate, timechart of failures.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt Cloud — Administrative API",
+      "url": "https://docs.getdbt.com/dbt-cloud/api-v2"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We watch your managed dbt jobs and flag the ones that keep failing so the tables they build stay correct."
+}

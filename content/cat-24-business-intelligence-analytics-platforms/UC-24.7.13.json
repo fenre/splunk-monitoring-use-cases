@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.13",
+  "title": "Airflow Pool Slot Exhaustion",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:statsd metric_name=\"pool.open_slots.*\"\n| rex field=metric_name \"pool\\.open_slots\\.(?<pool>.+)\"\n| timechart span=5m min(value) as open_slots by pool\n| untable _time pool open_slots\n| where open_slots<=0",
+  "description": "Tracks Airflow pool open-slot gauges and flags pools that hit zero available slots, meaning tasks are queueing behind a concurrency limit rather than running.",
+  "value": "When a pool runs out of slots, downstream tasks silently wait and DAG SLAs slip with no error; catching slot exhaustion lets teams re-balance pools or add workers before pipelines run late.",
+  "implementation": "Emit Airflow StatsD metrics to a StatsD-to-HEC bridge; schedule every 5 minutes and alert when a business-critical pool sits at zero slots for consecutive intervals.",
+  "visualization": "Timechart of open slots per pool, single-value of exhausted pools, alert.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We watch the waiting line inside your data-pipeline scheduler and tell you when jobs are stuck queueing so they do not run late."
+}

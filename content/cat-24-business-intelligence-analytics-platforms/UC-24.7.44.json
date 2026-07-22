@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.44",
+  "title": "dbt Cloud Job Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt Cloud runs (`dbtcloud:run`), artifacts (`dbt:run_results`).",
+  "app": "dbt Cloud Admin API runs and dbt artifacts via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=dbtcloud:run status=\"success\"\n| stats latest(_time) as last_success by job_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each dbt Cloud job and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A job can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for dbt Cloud.",
+  "implementation": "Ingest dbt Cloud success events; schedule hourly and alert when a critical job exceeds its freshness window.",
+  "visualization": "Table of job by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt Cloud — Administrative API",
+      "url": "https://docs.getdbt.com/dbt-cloud/api-v2"
+    },
+    {
+      "title": "dbt — run_results.json",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We check that each part of dbt Cloud has updated recently so nobody relies on old data."
+}

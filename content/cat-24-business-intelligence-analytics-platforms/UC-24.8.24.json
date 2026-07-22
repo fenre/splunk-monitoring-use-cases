@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.24",
+  "title": "Airbyte Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airbyte jobs (`airbyte:job`), worker logs (`airbyte:worker`).",
+  "app": "Airbyte API and worker logs via HEC.",
+  "spl": "index=bi sourcetype=airbyte:job\n| bin _time span=1h\n| stats count as events, sum(eval(attempt_status=\"failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Airbyte and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Airbyte is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Airbyte logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Airbyte error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — API",
+      "url": "https://reference.airbyte.com/reference/start"
+    },
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Airbyte errors looks like and warn you only when something is genuinely going wrong."
+}

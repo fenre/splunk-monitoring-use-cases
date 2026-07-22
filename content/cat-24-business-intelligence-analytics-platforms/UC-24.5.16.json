@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.5.16",
+  "title": "Metabase Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Metabase logs (`metabase:app`) and API/audit events.",
+  "app": "Metabase application logs via UF; Metabase API and audit events via HEC.",
+  "spl": "index=bi sourcetype=metabase:app\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"failed\" OR level=\"ERROR\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Metabase and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Metabase is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Metabase logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Metabase error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Metabase — Observability",
+      "url": "https://www.metabase.com/docs/latest/installation-and-operation/observability"
+    },
+    {
+      "title": "Metabase — Audit logs",
+      "url": "https://www.metabase.com/docs/latest/usage-and-performance-tools/audit"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Metabase errors looks like and warn you only when something is genuinely going wrong."
+}

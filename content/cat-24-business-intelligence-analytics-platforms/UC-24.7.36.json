@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.36",
+  "title": "Dagster Job Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), event log (`dagster:event`).",
+  "app": "Dagster daemon/run logs via UF; GraphQL API and event-log records via HEC.",
+  "spl": "index=bi sourcetype=dagster:event event_type=\"RUN_SUCCESS\"\n| stats latest(_time) as last_success by job_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Dagster job and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A job can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Dagster.",
+  "implementation": "Ingest Dagster success events; schedule hourly and alert when a critical job exceeds its freshness window.",
+  "visualization": "Table of job by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Dagster — Monitoring & alerting",
+      "url": "https://docs.dagster.io/guides/monitor-alert"
+    },
+    {
+      "title": "Dagster — GraphQL API",
+      "url": "https://docs.dagster.io/guides/operate/graphql"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We check that each part of Dagster has updated recently so nobody relies on old data."
+}

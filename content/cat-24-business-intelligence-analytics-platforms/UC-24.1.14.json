@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.1.14",
+  "title": "Tableau Workbook Load Time p95",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Tableau logs (`tableau:httpd`, `tableau:vizportal`, `tableau:backgrounder`), REST API, and `workgroup` repository tables via DB Connect.",
+  "app": "Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC; `workgroup` repository via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=tableau:httpd status=200\n| eval dur_s=round(time_taken/1000,2)\n| stats avg(dur_s) as avg_s, p95(dur_s) as p95_s, count as runs by workbook\n| where p95_s>8\n| sort - p95_s",
+  "description": "Computes the 95th-percentile load time for each workbook in Tableau and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
+  "value": "Tail latency, not the average, is what users feel; ranking Tableau workbooks by p95 focuses tuning effort where it removes the most pain.",
+  "implementation": "Ingest Tableau timing data; schedule daily over a trailing week and review the slowest workbooks with their owners.",
+  "visualization": "Table of workbook by p95 load time, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tableau — View server logs",
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+    },
+    {
+      "title": "Tableau — REST API reference",
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "apache",
+    "db_connect"
+  ],
+  "equipmentModels": [
+    "apache_httpd"
+  ],
+  "grandmaExplanation": "We measure how slow the worst cases are in Tableau so the sluggish ones get fixed before people give up on them."
+}

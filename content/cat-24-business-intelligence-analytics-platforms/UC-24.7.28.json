@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.28",
+  "title": "dbt Cloud Run Queue Time",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt Cloud Admin API runs (`dbtcloud:run`), Discovery API, and dbt artifacts (`dbt:run_results`, `dbt:manifest`).",
+  "app": "dbt Cloud Admin API (`/api/v2/accounts/{id}/runs`) and Metadata (Discovery) API via HEC scripted inputs; dbt run artifacts (`run_results.json`, `manifest.json`) forwarded as `dbt:run_results`.",
+  "spl": "index=bi sourcetype=dbtcloud:run\n| eval queue_s=coalesce(queued_seconds, duration_queued)\n| stats avg(queue_s) as avg_q, p95(queue_s) as p95_q by job_name\n| eval p95_min=round(p95_q/60,1)\n| where p95_min>5\n| sort - p95_min",
+  "description": "Measures how long dbt Cloud runs wait in the queue before an available run slot picks them up, revealing account-level concurrency limits.",
+  "value": "Queue time eats into pipeline windows and is invisible in job duration; surfacing it justifies more run slots or better scheduling.",
+  "implementation": "Extract queued seconds from the runs API; schedule daily and alert when queue time crosses your tolerance.",
+  "visualization": "Table of job by p95 queue time, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt Cloud — Administrative API",
+      "url": "https://docs.getdbt.com/dbt-cloud/api-v2"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We measure how long dbt jobs wait their turn before running so you can add capacity before they start finishing late."
+}

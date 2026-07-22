@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.11",
+  "title": "Fivetran Sync Duration Trend",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports.",
+  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`).",
+  "spl": "index=bi sourcetype=fivetran:log event=\"sync_end\"\n| eval dur_min=round(duration_ms/60000,1)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min by connector_id\n| where p95_min>60\n| sort - p95_min",
+  "description": "Measures Fivetran per-connector sync durations and flags connectors whose 95th-percentile sync is long enough to threaten downstream schedule dependencies.",
+  "value": "Slow syncs push freshness SLAs and can overlap the next scheduled sync; trending duration lets teams adjust frequency or investigate source slowness.",
+  "implementation": "Compute duration from sync_start/sync_end events; schedule daily and review the slowest connectors.",
+  "visualization": "Table of connector by p95 duration, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Fivetran — REST API reference",
+      "url": "https://fivetran.com/docs/rest-api"
+    },
+    {
+      "title": "Fivetran — Platform Connector / logs",
+      "url": "https://fivetran.com/docs/logs/fivetran-platform"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We track how long each data sync takes so the slow ones get attention before they make data arrive late."
+}

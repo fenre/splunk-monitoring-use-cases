@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.5.12",
+  "title": "Superset Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Superset logs (`superset:app`) and REST API events.",
+  "app": "Superset application and Celery worker logs via UF; Superset REST API via HEC.",
+  "spl": "index=bi sourcetype=superset:app\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"error\" OR level=\"ERROR\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Superset and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Superset is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Superset logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Superset error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Superset — Configuration",
+      "url": "https://superset.apache.org/docs/configuration/configuring-superset/"
+    },
+    {
+      "title": "Apache Superset — REST API",
+      "url": "https://superset.apache.org/docs/api/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Superset errors looks like and warn you only when something is genuinely going wrong."
+}

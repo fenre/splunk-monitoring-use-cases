@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.67",
+  "title": "Informatica IICS Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Informatica IICS runs (`informatica:iics`).",
+  "app": "Informatica Intelligent Cloud Services monitor logs via the IICS REST API to HEC.",
+  "spl": "index=bi sourcetype=informatica:iics\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"FAILED\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Informatica IICS and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Informatica IICS is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Informatica IICS logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Informatica IICS error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Informatica — Intelligent Cloud Services",
+      "url": "https://docs.informatica.com/integration-cloud/data-integration.html"
+    },
+    {
+      "title": "Informatica — Monitor / REST API",
+      "url": "https://docs.informatica.com/integration-cloud/cloud-platform/current-version/rest-api-reference.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Informatica IICS errors looks like and warn you only when something is genuinely going wrong."
+}

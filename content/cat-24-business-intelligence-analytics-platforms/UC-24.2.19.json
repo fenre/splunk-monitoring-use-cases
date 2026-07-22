@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.19",
+  "title": "Power BI Consumption Cost Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Cost",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI admin refreshes (`powerbi:admin:refreshes`), admin API (`powerbi:admin:api`), gateway logs, and capacity metrics.",
+  "app": "Power BI activity events from the Microsoft 365 / Purview audit log and the Power BI Admin & Fabric Capacity Metrics APIs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:admin:api\n| timechart span=1d sum(cu_seconds) as consumption by report_name\n| untable _time report_name consumption\n| eventstats avg(consumption) as avg_c, stdev(consumption) as sd_c by report_name\n| where consumption>avg_c+3*sd_c\n| sort - consumption",
+  "description": "Baselines daily Power BI consumption per report and flags spikes far above normal, the main early-warning signal for a runaway bill.",
+  "value": "Power BI cost is usage-driven and can spike overnight from a bad job or backfill; per-report anomaly detection catches overruns within a day rather than at invoice time.",
+  "implementation": "Ingest Power BI consumption metrics; schedule daily and alert on 3-sigma consumption spikes per report.",
+  "visualization": "Timechart of consumption per report, anomaly table, cost projection.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Admin REST APIs",
+      "url": "https://learn.microsoft.com/en-us/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Power BI — Track user activities / audit log",
+      "url": "https://learn.microsoft.com/en-us/power-bi/admin/service-admin-auditing"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "grandmaExplanation": "We watch what Power BI costs to run each day so a surprise spike is caught before the bill arrives."
+}

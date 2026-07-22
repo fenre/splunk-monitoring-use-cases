@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.19",
+  "title": "Cross-Platform Data Freshness SLA Rollup",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs.",
+  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC.",
+  "spl": "index=bi (sourcetype=dbt:run_results OR sourcetype=montecarlo:incident OR sourcetype=soda:scan)\n| eval signal=case(sourcetype=\"dbt:run_results\",\"dbt\",sourcetype=\"montecarlo:incident\",\"monte_carlo\",sourcetype=\"soda:scan\",\"soda\")\n| stats count as events, sum(eval(match(status,\"(?i)fail|breach|new\"))) as breaches by dataset, signal\n| eval breach_rate=round(100*breaches/events,1)\n| where breaches>0\n| sort - breach_rate",
+  "description": "Unifies freshness/quality breach signals from dbt, Monte Carlo and Soda into a single per-dataset SLA rollup so leaders see one reliability number per table regardless of tool.",
+  "value": "Data teams run several observability tools; a cross-tool rollup gives a single source of truth for which datasets are unreliable, cutting through per-vendor dashboards.",
+  "implementation": "Normalise dataset names across sources with a lookup; schedule daily and publish the rollup to a reliability scorecard.",
+  "visualization": "Table of dataset by cross-tool breach rate, reliability scorecard.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — Tests",
+      "url": "https://docs.getdbt.com/docs/build/data-tests"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "servicenow",
+    "snowflake"
+  ],
+  "grandmaExplanation": "We combine the alerts from all your data-quality tools into one score per table so everyone agrees on which data to trust."
+}

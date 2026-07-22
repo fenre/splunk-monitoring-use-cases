@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.10.12",
+  "title": "Unity Catalog Bulk Export and Download Audit",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Audit",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Unity Catalog audit (`unity_catalog:audit`).",
+  "app": "Unity Catalog audit logs via cloud storage / HEC.",
+  "spl": "index=bi sourcetype=unity_catalog:audit (action_name=\"generateTemporaryTableCredential\" OR action_name=\"getTable\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user_identity.email\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
+  "description": "Watches Unity Catalog for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
+  "value": "Large exports move governed data out of Unity Catalog where it can no longer be controlled; anomaly detection flags the risky ones for review.",
+  "implementation": "Ingest Unity Catalog export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
+  "visualization": "Table of user by export volume, anomaly markers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Databricks — Unity Catalog audit logs",
+      "url": "https://docs.databricks.com/aws/en/admin/account-settings/audit-logs"
+    },
+    {
+      "title": "Databricks — Unity Catalog",
+      "url": "https://docs.databricks.com/aws/en/data-governance/unity-catalog/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "dell_emc"
+  ],
+  "grandmaExplanation": "We notice when someone pulls an unusually large amount of data out of Unity Catalog so it can be checked."
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.3.7",
+  "title": "Looker Query Queue and Concurrency Saturation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Looker System Activity Explores (`looker:system_activity`), Looker API (`looker:api`), and instance logs.",
+  "app": "Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=looker:system_activity source=\"history\"\n| bin _time span=5m\n| stats avg(runtime) as avg_runtime, sum(eval(status=\"error\")) as errors, count as queries by _time\n| eventstats avg(queries) as baseline\n| where queries>baseline*1.5\n| sort - _time",
+  "description": "Watches Looker query throughput from the System Activity history Explore and flags windows where concurrent query volume spikes beyond baseline, driving queue waits and connection-pool contention.",
+  "value": "Concurrency spikes make every Looker dashboard slow at once; catching them lets teams add query slots or tune connections before users complain.",
+  "implementation": "Query the System Activity history Explore via API or DB Connect; schedule every 5 minutes and alert on sustained above-baseline concurrency.",
+  "visualization": "Timechart of queries and runtime, saturation markers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Looker — System Activity dashboards",
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+    },
+    {
+      "title": "Looker — API 4.0 reference",
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We watch how many reports Looker is running at once so we can add capacity before everything slows down together."
+}

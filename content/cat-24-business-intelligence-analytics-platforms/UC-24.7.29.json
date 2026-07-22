@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.29",
+  "title": "dbt Model Timing Regression",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt Cloud Admin API runs (`dbtcloud:run`), Discovery API, and dbt artifacts (`dbt:run_results`, `dbt:manifest`).",
+  "app": "dbt Cloud Admin API (`/api/v2/accounts/{id}/runs`) and Metadata (Discovery) API via HEC scripted inputs; dbt run artifacts (`run_results.json`, `manifest.json`) forwarded as `dbt:run_results`.",
+  "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), exec=spath(results,\"execution_time\")\n| stats avg(exec) as avg_s, p95(exec) as p95_s by node\n| where p95_s>60\n| sort - p95_s",
+  "description": "Parses per-model execution_time from dbt run_results artifacts and flags models whose 95th-percentile build time is slow, pointing at queries needing optimisation or incremental strategies.",
+  "value": "A few slow models dominate transformation windows; model-level timing tells engineers exactly where to add incremental logic or better SQL.",
+  "implementation": "Forward run_results.json after each run; schedule daily over a trailing week and review the slowest models.",
+  "visualization": "Table of model by p95 execution time, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt Cloud — Administrative API",
+      "url": "https://docs.getdbt.com/dbt-cloud/api-v2"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We measure how long each dbt table takes to build so the slowest ones can be sped up before they hold up the batch."
+}

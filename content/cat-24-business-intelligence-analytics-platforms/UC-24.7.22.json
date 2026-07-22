@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.22",
+  "title": "Dagster Sensor and Schedule Tick Failures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), GraphQL run/asset queries, and structured event-log JSON (`dagster:event`).",
+  "app": "Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=dagster:daemon (\"sensor\" OR \"schedule\") (\"tick\" AND (\"failure\" OR \"error\"))\n| rex \"(sensor|schedule)=(?<trigger>\\S+)\"\n| stats count as failed_ticks by trigger\n| where failed_ticks>0\n| sort - failed_ticks",
+  "description": "Detects failed sensor and schedule ticks in the Dagster daemon, which silently prevent jobs from being launched at all.",
+  "value": "A broken sensor means a pipeline never starts and no failure appears on any run; catching tick failures closes that blind spot.",
+  "implementation": "Ingest daemon logs; schedule every 15 minutes and alert when ticks for a business-critical sensor fail repeatedly.",
+  "visualization": "Table of trigger by failed ticks, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Dagster — Monitoring & alerting",
+      "url": "https://docs.dagster.io/guides/monitor-alert"
+    },
+    {
+      "title": "Dagster — GraphQL API",
+      "url": "https://docs.dagster.io/guides/operate/graphql"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We make sure the automatic triggers that kick off your data jobs are working, so a job never silently fails to start."
+}

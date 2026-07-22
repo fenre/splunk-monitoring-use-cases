@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.19",
+  "title": "ADF Data Flow Duration Regression",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ADF pipeline/activity run diagnostics (`azure:datafactory`), integration-runtime metrics, and REST API run history.",
+  "app": "Azure Data Factory diagnostic logs to Splunk via the Azure Monitor Add-on / Event Hub; ADF REST API pipeline-run queries via HEC.",
+  "spl": "index=bi sourcetype=azure:datafactory category=\"ActivityRuns\" activity_type=\"ExecuteDataFlow\" status=\"Succeeded\"\n| eval dur_min=round(duration_ms/60000,1)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min by pipeline_name, activity_name\n| where p95_min>30\n| sort - p95_min",
+  "description": "Tracks ADF mapping data-flow activity durations and flags flows whose 95th-percentile runtime is slow, indicating cluster-size or transformation-logic issues.",
+  "value": "Slow data flows extend pipeline windows and Spark-cluster billing; timing regression detection drives right-sizing and optimisation.",
+  "implementation": "Ingest ActivityRuns diagnostics; schedule daily over a trailing week and review the slowest data flows.",
+  "visualization": "Table of data flow by p95 duration, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Azure Data Factory — Monitor with Azure Monitor",
+      "url": "https://learn.microsoft.com/en-us/azure/data-factory/monitor-using-azure-monitor"
+    },
+    {
+      "title": "Microsoft Add-on for Splunk / Azure Monitor",
+      "url": "https://splunkbase.splunk.com/app/3757"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure"
+  ],
+  "grandmaExplanation": "We measure how long the heavy Azure data transformations take so slow ones get tuned before they run late or cost more."
+}

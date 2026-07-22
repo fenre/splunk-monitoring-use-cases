@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.12",
+  "title": "Power BI Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI admin refreshes (`powerbi:admin:refreshes`), admin API (`powerbi:admin:api`), gateway logs, and capacity metrics.",
+  "app": "Power BI activity events from the Microsoft 365 / Purview audit log and the Power BI Admin & Fabric Capacity Metrics APIs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=powerbi:admin:api\n| bin _time span=1h\n| stats count as events, sum(eval(activity=\"*Failed*\" OR result=\"Failure\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Power BI and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Power BI is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Power BI logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Power BI error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI — Admin REST APIs",
+      "url": "https://learn.microsoft.com/en-us/rest/api/power-bi/admin"
+    },
+    {
+      "title": "Power BI — Track user activities / audit log",
+      "url": "https://learn.microsoft.com/en-us/power-bi/admin/service-admin-auditing"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Power BI errors looks like and warn you only when something is genuinely going wrong."
+}

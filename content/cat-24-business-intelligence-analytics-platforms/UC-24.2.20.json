@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.20",
+  "title": "Microsoft Fabric Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Fabric capacity metrics (`fabric:capacity:metrics`) and admin API.",
+  "app": "Microsoft Fabric Capacity Metrics app exports and the Fabric Admin API via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=fabric:capacity:metrics\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failure\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Microsoft Fabric and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Microsoft Fabric is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Microsoft Fabric logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Microsoft Fabric error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Microsoft Fabric — Monitor capacities",
+      "url": "https://learn.microsoft.com/en-us/fabric/enterprise/metrics-app"
+    },
+    {
+      "title": "Microsoft Fabric — Admin APIs",
+      "url": "https://learn.microsoft.com/en-us/rest/api/fabric/admin/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_aci"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Microsoft Fabric errors looks like and warn you only when something is genuinely going wrong."
+}

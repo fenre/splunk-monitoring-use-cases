@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.9.17",
+  "title": "dbt Test Failures by Test Type",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs.",
+  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC.",
+  "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), status=spath(results,\"status\")\n| where match(node,\"^test\\.\") AND status=\"fail\"\n| rex field=node \"test\\.[^.]+\\.(?<test_type>not_null|unique|accepted_values|relationships|[a-z_]+)_\"\n| stats count as failures by test_type\n| sort - failures",
+  "description": "Parses dbt run_results to classify failing tests by generic type (not_null, unique, accepted_values, relationships) so teams see the dominant class of data-quality breakage.",
+  "value": "Knowing whether failures are mostly uniqueness vs. referential-integrity problems guides systemic fixes rather than one-off patches.",
+  "implementation": "Forward run_results.json; schedule after each dbt build and alert when failures for a test type spike.",
+  "visualization": "Table of test type by failures, timechart, breakdown pie.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "dbt — Tests",
+      "url": "https://docs.getdbt.com/docs/build/data-tests"
+    },
+    {
+      "title": "dbt — Artifacts (run_results.json)",
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "servicenow",
+    "snowflake"
+  ],
+  "grandmaExplanation": "We sort the failed data checks by what kind of rule they broke so recurring problems can be fixed at the root."
+}

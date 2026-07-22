@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.16",
+  "title": "AWS Glue Crawler Failures",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "AWS Glue job runs (`aws:glue:jobrun`), crawler events (`aws:cloudwatch`), and CloudTrail Glue API calls (`aws:cloudtrail`).",
+  "app": "AWS Glue job run and crawler events via CloudWatch/CloudTrail to the Splunk Add-on for AWS; Glue API `GetJobRuns` via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=aws:cloudwatch source=\"*glue*\" (state=\"Failed\" OR crawlerState=\"Failed\")\n| stats count as failures, latest(_time) as last_fail by crawler_name\n| sort - failures",
+  "description": "Detects AWS Glue crawler runs that fail, which leaves the Glue Data Catalog with stale or missing partitions that break downstream Athena/Spark reads.",
+  "value": "A failed crawler means new partitions are invisible to queries; catching it keeps the catalog in sync with the underlying data lake.",
+  "implementation": "Route Glue CloudWatch events through the Splunk Add-on for AWS; schedule hourly and alert on crawler failures for governed databases.",
+  "visualization": "Table of crawler by failures, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS Glue — Monitoring with CloudWatch",
+      "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-cloudwatch.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "grandmaExplanation": "We watch the jobs that keep the data lake's index up to date and flag failures so queries do not miss new data."
+}

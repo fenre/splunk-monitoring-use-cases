@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.33",
+  "title": "Airflow Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), REST API, StatsD (`airflow:statsd`).",
+  "app": "Airflow logs via UF; Airflow REST API and StatsD metrics via HEC; metadata DB via DB Connect.",
+  "spl": "index=bi sourcetype=airflow:task\n| bin _time span=1h\n| stats count as events, sum(eval(state=\"failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Airflow and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Airflow is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Airflow logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Airflow error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Airflow errors looks like and warn you only when something is genuinely going wrong."
+}

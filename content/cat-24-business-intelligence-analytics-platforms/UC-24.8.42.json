@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.42",
+  "title": "AWS DMS Task Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "AWS DMS replication tasks (`aws:dms:task`).",
+  "app": "AWS Database Migration Service task events via CloudWatch to the Splunk Add-on for AWS.",
+  "spl": "index=bi sourcetype=aws:dms:task status=\"running\"\n| stats latest(_time) as last_success by replication_task\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>6\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each AWS DMS task and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A task can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for AWS DMS.",
+  "implementation": "Ingest AWS DMS success events; schedule hourly and alert when a critical task exceeds its freshness window.",
+  "visualization": "Table of task by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS DMS — Monitoring",
+      "url": "https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Monitoring.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "grandmaExplanation": "We check that each part of AWS DMS has updated recently so nobody relies on old data."
+}

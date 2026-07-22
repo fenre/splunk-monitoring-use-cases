@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.25",
+  "title": "Prefect Work Pool Late Runs",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Prefect logs (`prefect:worker`, `prefect:agent`), REST API flow-run and work-pool queries (`prefect:api`).",
+  "app": "Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted.",
+  "spl": "index=bi sourcetype=prefect:api endpoint=\"flow_runs\" state_name=\"Late\"\n| stats count as late_runs, dc(flow_name) as flows by work_pool_name\n| where late_runs>0\n| sort - late_runs",
+  "description": "Surfaces flow runs stuck in the Late state per work pool, which means no worker polled the pool in time to start scheduled work.",
+  "value": "Late runs indicate a starved or offline work pool; catching them prevents whole schedules from silently stalling.",
+  "implementation": "Query flow runs filtered to Late state; schedule every 10 minutes and alert when late runs accumulate for a pool.",
+  "visualization": "Table of work pool by late runs, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Prefect — REST API reference",
+      "url": "https://docs.prefect.io/v3/api-ref/rest-api"
+    },
+    {
+      "title": "Prefect — Automations & alerts",
+      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We notice when Prefect jobs are stuck waiting because no worker is available, so you can bring capacity back before they miss their slot."
+}

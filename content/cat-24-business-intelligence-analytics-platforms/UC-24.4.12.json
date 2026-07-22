@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.4.12",
+  "title": "Qlik Sense Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Qlik logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API (`qlik:qrs`).",
+  "app": "Qlik Sense logs via UF; QRS API and Qlik Cloud REST API via HEC.",
+  "spl": "index=bi sourcetype=qlik:proxy\n| bin _time span=1h\n| stats count as events, sum(eval(status>=500 OR result=\"Error\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Qlik Sense and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Qlik Sense is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Qlik Sense logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Qlik Sense error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Qlik Sense — Monitoring",
+      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitoring-intro.htm"
+    },
+    {
+      "title": "Qlik — QRS API",
+      "url": "https://help.qlik.com/en-US/sense-developer/Subsystems/RepositoryServiceAPI/Content/Sense_RepositoryServiceAPI/RepositoryServiceAPI-Introduction.htm"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Qlik Sense errors looks like and warn you only when something is genuinely going wrong."
+}

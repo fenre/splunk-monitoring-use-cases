@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.38",
+  "title": "Kafka Connect Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Kafka Connect status (`kafkaconnect:status`), JMX (`kafkaconnect:jmx`).",
+  "app": "Kafka Connect REST status API and worker logs/JMX via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=kafkaconnect:status\n| bin _time span=1h\n| stats count as events, sum(eval(task_state=\"FAILED\" OR connector_state=\"FAILED\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Kafka Connect and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Kafka Connect is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Kafka Connect logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Kafka Connect error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Kafka Connect — REST API",
+      "url": "https://kafka.apache.org/documentation/#connect_rest"
+    },
+    {
+      "title": "Kafka Connect — Monitoring",
+      "url": "https://kafka.apache.org/documentation/#connect_monitoring"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Kafka Connect errors looks like and warn you only when something is genuinely going wrong."
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.17",
+  "title": "Airflow Metadata Database Growth",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "| dbxquery connection=\"airflow_meta\" query=\"SELECT 'task_instance' AS tbl, count(*) AS rows FROM task_instance UNION ALL SELECT 'dag_run', count(*) FROM dag_run UNION ALL SELECT 'log', count(*) FROM log\"\n| eval rows=tonumber(rows)\n| sort - rows",
+  "description": "Queries the Airflow metadata database row counts for the fastest-growing tables so operators can schedule `airflow db clean` before the database bloats and slows the scheduler.",
+  "value": "An unpruned metadata database degrades scheduler and UI performance over time; tracking table growth turns a slow-burning outage into a routine maintenance task.",
+  "implementation": "Configure DB Connect against the Airflow metadata DB; schedule daily and alert when row counts exceed a retention target. Pair with a scheduled `db clean`.",
+  "visualization": "Table of table row counts, trend line per table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We keep an eye on the pipeline system's own record-keeping database so it gets cleaned up before it grows big enough to slow everything down."
+}

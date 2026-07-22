@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.49",
+  "title": "Databricks Workflows Job Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Databricks job runs (`databricks:jobs`).",
+  "app": "Databricks Jobs API and system.lakeflow tables via HEC/DB Connect.",
+  "spl": "index=bi sourcetype=databricks:jobs result_state=\"SUCCESS\"\n| stats latest(_time) as last_success by job_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Databricks Workflows job and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A job can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Databricks Workflows.",
+  "implementation": "Ingest Databricks Workflows success events; schedule hourly and alert when a critical job exceeds its freshness window.",
+  "visualization": "Table of job by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Databricks — Jobs & orchestration",
+      "url": "https://docs.databricks.com/aws/en/jobs/"
+    },
+    {
+      "title": "Databricks — Monitor jobs",
+      "url": "https://docs.databricks.com/aws/en/jobs/monitor"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We check that each part of Databricks Workflows has updated recently so nobody relies on old data."
+}

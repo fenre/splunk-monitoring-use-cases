@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.15",
+  "title": "Airflow DAG Parse Time Regression",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:statsd metric_name=\"dag_processing.last_duration.*\"\n| rex field=metric_name \"dag_processing\\.last_duration\\.(?<dag_file>.+)\"\n| stats avg(value) as avg_ms, max(value) as max_ms by dag_file\n| eval avg_s=round(avg_ms/1000,2)\n| where avg_s>30\n| sort - avg_s",
+  "description": "Measures how long the DagFileProcessor takes to parse each DAG file and flags files whose parse time is slow enough to delay scheduling across the whole environment.",
+  "value": "Slow DAG parsing delays every scheduling decision and can starve the scheduler; finding the heavy DAG files lets teams move imports out of the top level or split files.",
+  "implementation": "Emit dag_processing StatsD gauges to HEC; schedule daily and review the slowest files with pipeline owners.",
+  "visualization": "Table of DAG file by parse time, trend line.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We measure how long the scheduler spends reading each pipeline definition so slow ones can be trimmed before they hold up the whole system."
+}

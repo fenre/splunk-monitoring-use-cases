@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.25",
+  "title": "Airbyte Connection Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airbyte jobs (`airbyte:job`), worker logs (`airbyte:worker`).",
+  "app": "Airbyte API and worker logs via HEC.",
+  "spl": "index=bi sourcetype=airbyte:job attempt_status=\"succeeded\"\n| stats latest(_time) as last_success by connection_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Airbyte connection and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A connection can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Airbyte.",
+  "implementation": "Ingest Airbyte success events; schedule hourly and alert when a critical connection exceeds its freshness window.",
+  "visualization": "Table of connection by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — API",
+      "url": "https://reference.airbyte.com/reference/start"
+    },
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We check that each part of Airbyte has updated recently so nobody relies on old data."
+}

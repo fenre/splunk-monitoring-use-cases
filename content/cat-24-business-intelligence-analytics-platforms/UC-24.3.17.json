@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.3.17",
+  "title": "Looker Bulk Export and Download Audit",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Audit",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`).",
+  "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC.",
+  "spl": "index=bi sourcetype=looker:system_activity (result_source=\"download\" OR source=\"scheduled_plan\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user_name\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
+  "description": "Watches Looker for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
+  "value": "Large exports move governed data out of Looker where it can no longer be controlled; anomaly detection flags the risky ones for review.",
+  "implementation": "Ingest Looker export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
+  "visualization": "Table of user by export volume, anomaly markers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Looker — System Activity",
+      "url": "https://cloud.google.com/looker/docs/system-activity-pages"
+    },
+    {
+      "title": "Looker — API 4.0 reference",
+      "url": "https://cloud.google.com/looker/docs/reference/looker-api/latest"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We notice when someone pulls an unusually large amount of data out of Looker so it can be checked."
+}

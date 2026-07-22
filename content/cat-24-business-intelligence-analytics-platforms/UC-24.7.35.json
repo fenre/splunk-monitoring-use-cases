@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.35",
+  "title": "Dagster Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), event log (`dagster:event`).",
+  "app": "Dagster daemon/run logs via UF; GraphQL API and event-log records via HEC.",
+  "spl": "index=bi sourcetype=dagster:event\n| bin _time span=1h\n| stats count as events, sum(eval(event_type=\"RUN_FAILURE\" OR event_type=\"STEP_FAILURE\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Dagster and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Dagster is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Dagster logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Dagster error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Dagster — Monitoring & alerting",
+      "url": "https://docs.dagster.io/guides/monitor-alert"
+    },
+    {
+      "title": "Dagster — GraphQL API",
+      "url": "https://docs.dagster.io/guides/operate/graphql"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Dagster errors looks like and warn you only when something is genuinely going wrong."
+}

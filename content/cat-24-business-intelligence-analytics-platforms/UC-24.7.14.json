@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.14",
+  "title": "Airflow Zombie and Orphaned Task Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:scheduler (\"Detected zombie job\" OR \"was externally killed\" OR \"could not be adopted\")\n| rex \"dag_id=(?<dag_id>\\S+)\"\n| stats count as zombies by dag_id\n| where zombies>0\n| sort - zombies",
+  "description": "Surfaces zombie and orphaned task events the scheduler logs when a worker dies mid-task, which leave DAG runs stuck until they time out.",
+  "value": "Zombie tasks stall pipelines and hide worker instability; alerting on them points operators at flaky workers before whole DAGs hang.",
+  "implementation": "Ingest scheduler logs; schedule every 15 minutes and alert when zombie counts spike for any DAG. Correlate with worker host restarts.",
+  "visualization": "Table of DAG by zombie count, timechart of zombie events.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We spot pipeline jobs that quietly died when a machine failed, so they can be restarted instead of hanging forever."
+}

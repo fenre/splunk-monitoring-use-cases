@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.2.28",
+  "title": "Power BI Report Server Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Power BI Report Server execution log (`powerbi:reportserver`).",
+  "app": "Power BI Report Server ExecutionLog via DB Connect and service logs via UF.",
+  "spl": "index=bi sourcetype=powerbi:reportserver\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Power BI Report Server and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Power BI Report Server is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Power BI Report Server logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Power BI Report Server error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Power BI Report Server — Documentation",
+      "url": "https://learn.microsoft.com/en-us/power-bi/report-server/"
+    },
+    {
+      "title": "Power BI Report Server — ExecutionLog",
+      "url": "https://learn.microsoft.com/en-us/power-bi/report-server/monitoring-report-server"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Power BI Report Server errors looks like and warn you only when something is genuinely going wrong."
+}

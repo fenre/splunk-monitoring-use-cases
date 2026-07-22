@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.16",
+  "title": "Airflow Task Queue Latency",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:task\n| eval queue_latency=queued_duration\n| stats avg(queue_latency) as avg_s, p95(queue_latency) as p95_s by queue\n| where p95_s>120\n| sort - p95_s",
+  "description": "Computes how long tasks sit in the queued state before a worker picks them up, broken down by executor queue, to reveal worker-capacity shortfalls.",
+  "value": "High queue latency means tasks are ready but there are not enough workers; quantifying it per queue drives right-sized autoscaling and protects SLAs.",
+  "implementation": "Derive queued duration from task instance start vs. queued timestamps (logs or metadata DB); schedule hourly and alert when p95 latency crosses your window.",
+  "visualization": "Table of queue by p95 latency, timechart of queue wait.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We measure how long pipeline jobs wait for a free worker so you know when to add capacity before things run late."
+}

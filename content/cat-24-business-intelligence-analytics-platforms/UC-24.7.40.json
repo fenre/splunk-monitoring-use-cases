@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.40",
+  "title": "Prefect Flow Freshness SLA",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Prefect flow runs (`prefect:api`), worker logs (`prefect:worker`).",
+  "app": "Prefect worker/agent logs via UF; Prefect REST API via HEC.",
+  "spl": "index=bi sourcetype=prefect:api state_type=\"COMPLETED\"\n| stats latest(_time) as last_success by flow_name\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
+  "description": "Tracks the last successful update of each Prefect flow and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
+  "value": "A flow can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Prefect.",
+  "implementation": "Ingest Prefect success events; schedule hourly and alert when a critical flow exceeds its freshness window.",
+  "visualization": "Table of flow by hours stale, freshness heat map.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Prefect — REST API",
+      "url": "https://docs.prefect.io/v3/api-ref/rest-api"
+    },
+    {
+      "title": "Prefect — Automations",
+      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We check that each part of Prefect has updated recently so nobody relies on old data."
+}

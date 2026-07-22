@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.30",
+  "title": "Azure Data Factory Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "ADF pipeline/activity runs (`azure:datafactory`).",
+  "app": "Azure Data Factory diagnostics via Azure Monitor/Event Hub and the ADF REST API via HEC.",
+  "spl": "index=bi sourcetype=azure:datafactory\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for Azure Data Factory and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that Azure Data Factory is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest Azure Data Factory logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of Azure Data Factory error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Azure Data Factory — Monitor with Azure Monitor",
+      "url": "https://learn.microsoft.com/en-us/azure/data-factory/monitor-using-azure-monitor"
+    },
+    {
+      "title": "Microsoft Add-on for Splunk",
+      "url": "https://splunkbase.splunk.com/app/3757"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "azure"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of Azure Data Factory errors looks like and warn you only when something is genuinely going wrong."
+}

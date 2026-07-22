@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.10.20",
+  "title": "DataHub Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "DataHub events (`datahub:event`).",
+  "app": "DataHub platform events (MetadataChangeLog) via Kafka/HEC scripted inputs.",
+  "spl": "index=bi sourcetype=datahub:event\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"FAILURE\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for DataHub and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that DataHub is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest DataHub logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of DataHub error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "DataHub — Documentation",
+      "url": "https://docs.datahub.com/docs"
+    },
+    {
+      "title": "DataHub — Platform events",
+      "url": "https://docs.datahub.com/docs/advanced/mcp-mcl"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "kafka"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of DataHub errors looks like and warn you only when something is genuinely going wrong."
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.18",
+  "title": "Airflow Connection and Variable Errors",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "spl": "index=bi sourcetype=airflow:task (\"The conn_id\" AND \"isn't defined\") OR \"Variable * does not exist\"\n| rex \"conn_id `(?<conn_id>[^`]+)`\"\n| stats count as errors by conn_id, dag_id\n| sort - errors",
+  "description": "Detects tasks failing because a referenced Airflow connection or variable is missing, a common cause of environment-specific pipeline breakage after a migration.",
+  "value": "Missing connections fail pipelines in ways unit tests miss; surfacing them by DAG accelerates fixes after promotions between environments.",
+  "implementation": "Ingest task logs; schedule every 30 minutes and alert on new missing-connection errors, especially right after deployments.",
+  "visualization": "Table of conn_id/DAG by error count.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Apache Airflow — REST API reference",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+    },
+    {
+      "title": "Apache Airflow — Logging & Monitoring / Metrics",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "db_connect",
+    "opentelemetry"
+  ],
+  "grandmaExplanation": "We catch pipeline jobs that break because a saved login or setting is missing, so it can be added back quickly."
+}

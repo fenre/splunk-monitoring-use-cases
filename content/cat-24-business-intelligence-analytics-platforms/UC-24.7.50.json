@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.7.50",
+  "title": "AWS Step Functions Error-Rate Trend Anomaly",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Step Functions executions (`aws:states:execution`).",
+  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS.",
+  "spl": "index=bi sourcetype=aws:states:execution\n| bin _time span=1h\n| stats count as events, sum(eval(status=\"FAILED\" OR status=\"TIMED_OUT\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
+  "description": "Baselines the hourly error rate for AWS Step Functions and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
+  "value": "An error-rate spike is the earliest signal that AWS Step Functions is degrading; statistical baselining suppresses routine noise and pages only on genuine anomalies.",
+  "implementation": "Ingest AWS Step Functions logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
+  "visualization": "Timechart of AWS Step Functions error rate with anomaly band.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "AWS Step Functions — Monitoring with CloudWatch",
+      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html"
+    },
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "aws"
+  ],
+  "grandmaExplanation": "We learn what a normal amount of AWS Step Functions errors looks like and warn you only when something is genuinely going wrong."
+}

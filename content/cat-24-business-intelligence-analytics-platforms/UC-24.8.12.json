@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "24.8.12",
+  "title": "Airbyte Normalization Failures",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Airbyte API job/connection status (`airbyte:job`), worker logs (`airbyte:worker`), and normalization logs.",
+  "app": "Airbyte API (`/api/v1/jobs`, `/api/v1/connections`) and Airbyte worker/server logs via HEC scripted inputs.",
+  "spl": "index=bi sourcetype=airbyte:job job_type=\"sync\"\n| search (attempt_status=\"failed\" AND failure_origin=\"normalization\") OR failure_type=\"normalization\"\n| stats count as failures by connection_name\n| where failures>0\n| sort - failures",
+  "description": "Isolates Airbyte sync failures whose origin is the normalization step, distinguishing dbt-normalization breakage from source/destination errors.",
+  "value": "Normalization failures leave raw data landed but un-modelled, so partial data appears without a full failure; isolating them speeds the right fix.",
+  "implementation": "Ingest Airbyte job events including failure origin; schedule every 15 minutes and alert on normalization failures for key connections.",
+  "visualization": "Table of connection by normalization failures, timechart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Airbyte — API documentation",
+      "url": "https://reference.airbyte.com/reference/start"
+    },
+    {
+      "title": "Airbyte — Monitoring",
+      "url": "https://docs.airbyte.com/operator-guides/collecting-metrics"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "We catch when the data-tidying step of a sync fails so half-finished data does not get mistaken for complete."
+}
