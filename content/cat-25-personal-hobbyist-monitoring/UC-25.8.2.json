@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.8.2",
+  "title": "Docker Container Restart-Loop Detection",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`).",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "spl": "index=personal sourcetype=docker:stats\n| stats max(restart_count) as restarts, latest(status) as status by container_name\n| streamstats current=f last(restarts) as prev by container_name\n| eval delta=restarts-coalesce(prev,restarts)\n| where delta>3\n| sort - delta",
+  "description": "Detects containers that are crash-looping by watching their restart counter climb, catching a broken self-hosted app before you notice it is down.",
+  "value": "A crash-looping container quietly burns resources and stays offline; catching the restart pattern points you straight at the failing service.",
+  "implementation": "Forward Docker stats/events to HEC; schedule every few minutes and alert on rapidly rising restart counts.",
+  "visualization": "Table of containers by recent restart count.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Docker — Engine API",
+      "url": "https://docs.docker.com/engine/api/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "docker",
+    "proxmox",
+    "snmp",
+    "truenas"
+  ],
+  "equipmentModels": [
+    "snmp_ups"
+  ],
+  "grandmaExplanation": "It spots when one of your self-hosted apps keeps crashing and restarting, so you can fix it."
+}

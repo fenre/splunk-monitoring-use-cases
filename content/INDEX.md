@@ -270,3 +270,14 @@ build.py reads this file to generate CAT_META in data.js. CAT_GROUPS is defined 
   - UC-24.7.8 · dbt Test Failures (high, Data Orchestration & Transformation)
   - UC-24.9.1 · Table Freshness Anomaly Detection (high, Data Quality & Observability)
 
+## 25. Personal & Hobbyist Monitoring
+- **Icon:** heartPulse
+- **Description:** The fun category — Splunk turned on your own life instead of the corporate data centre. Monitor your Strava rides and running streaks, Apple Watch and Oura health data, your Tesla and EV charging, Home Assistant / Homey smart-home automations, Philips Hue and smart sensors, solar panels and home energy, Plex and gaming, your home lab and NAS, Wi-Fi and Pi-hole, weather stations and the garden, pets, personal finance and crypto, and your own digital habits. Same SPL, same dashboards, zero corporate stakes.
+- **Quick Tip:** Almost every consumer gadget and hobby service has a REST API, webhook, MQTT topic, or export you can point at Splunk HEC — ingest it all into `index=personal` and suddenly your life has dashboards, alerts, and anomaly detection just like production does.
+- **Quick Start:**
+  - UC-25.1.1 · Strava Weekly Distance vs Goal (low, Fitness & Activity Tracking)
+  - UC-25.2.1 · Resting Heart Rate Anomaly Detection (medium, Health, Sleep & Wearables)
+  - UC-25.3.1 · Tesla Battery Health Degradation Trend (medium, Connected Cars & EVs)
+  - UC-25.4.1 · Home Assistant Automation Failures (medium, Smart Home Platforms & Automation)
+  - UC-25.6.1 · Solar Production vs Home Consumption (low, Home Energy & Solar)
+
