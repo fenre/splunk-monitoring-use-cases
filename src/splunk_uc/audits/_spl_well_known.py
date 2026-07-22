@@ -955,6 +955,66 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "recycling:weight",
     "foodwaste:log",
     "repair:event",
+    # Chronic-condition management (25.51)
+    "condition:symptom",
+    "medication:dose",
+    "vitals:reading",
+    "flareup:event",
+    "labresult:value",
+    # Elder care & accessibility (25.52)
+    "eldercare:activity",
+    "fall:alert",
+    "medreminder:event",
+    "checkin:call",
+    "wandering:alert",
+    # Wedding & event planning (25.53)
+    "event:task",
+    "event:budget",
+    "event:rsvp",
+    "event:vendor",
+    "event:countdown",
+    # Home renovation & project management (25.54)
+    "reno:task",
+    "reno:budget",
+    "reno:material",
+    "reno:inspection",
+    "reno:contractor",
+    # Genealogy & family history (25.55)
+    "genealogy:record",
+    "dna:match",
+    "ancestor:event",
+    "archive:document",
+    "familytree:node",
+    # Spiritual practice & mindfulness (25.56)
+    "prayer:session",
+    "scripture:reading",
+    "fasting:log",
+    "gratitude:entry",
+    "retreat:event",
+    # Volunteering & community (25.57)
+    "volunteer:shift",
+    "donation:gift",
+    "community:event",
+    "mutualaid:request",
+    "impact:metric",
+    # Life-logging & memories (25.58)
+    "photo:capture",
+    "location:visit",
+    "voicememo:note",
+    "lifelog:moment",
+    "timeline:event",
+    # Personal Life-OS & gamification (25.59)
+    "lifeos:score",
+    "quest:task",
+    "streak:status",
+    "achievement:life",
+    "household:leaderboard",
+    # Self-forecasting & prediction markets (25.60)
+    "prediction:forecast",
+    "prediction:outcome",
+    "bet:personal",
+    "calibration:score",
+    "brier:score",
 }
 
 

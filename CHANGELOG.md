@@ -12,6 +12,60 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.14.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 5 (Stretch B) expansion — 100 new use cases across 10 new
+  subcategories, taking the fun category to 599 UCs across 60 subcategories.**
+  Wave 5 completes the Stretch frontier — life's bigger projects, caring,
+  meaning, and the parody-the-enterprise meta layer:
+  - **Chronic-Condition Management (10)** — medication adherence, symptom
+    severity trends, flare-up trigger correlation, blood-pressure control
+    zones, lab-result trends, missed-dose alerts, symptom-free streaks, refill
+    countdowns, pain time-of-day patterns, and a care-plan vitals dashboard.
+  - **Elder Care & Accessibility (10)** — daily-activity baselines, fall-alert
+    response logs, dispenser compliance, check-in cadence, night-wandering
+    watch, home-temperature safety, meal/kettle routines, accessibility
+    routines, carer visit coverage, and a family well-being summary.
+  - **Wedding & Event Planning (10)** — budget burn-down, RSVP tracking, task
+    countdowns, vendor payment schedules, dietary/access needs, seating-plan
+    completeness, milestone walls, category overspend alerts, vendor coverage,
+    and thank-you tracking.
+  - **Home Renovation & Project Management (10)** — budget vs actual, blocker
+    watch, progress vs schedule, material lead-times, permit/inspection status,
+    change-order cost impact, contractor reliability, receipt/warranty vault,
+    room-by-room completion, and a project-health summary.
+  - **Genealogy & Family History (10)** — tree growth, DNA-match clustering,
+    ancestor lifespan/era analysis, source coverage, brick-wall tracking,
+    document archive index, geographic origins, living-relative interviews,
+    duplicate detection, and research productivity.
+  - **Spiritual Practice & Mindfulness (10)** — prayer/meditation consistency,
+    reading-plan progress, gratitude themes, fasting adherence, practice
+    rhythm, worship attendance, gratitude-mood link, retreat balance,
+    reflection-word frequency, and a practice balance wheel.
+  - **Volunteering & Community (10)** — hours by cause, giving vs plan, shift
+    reliability, community-impact scorecard, mutual-aid response, tax-receipt
+    readiness, event participation, skills-based matching, burnout watch, and a
+    lifetime contribution summary.
+  - **Life-Logging & Memories (10)** — photos over time, places-visited maps,
+    on-this-day resurfacing, new-place discovery, voice-memo habits, life-event
+    timelines, photo backup coverage, people-in-photos frequency, journaling
+    streaks, and year-in-review.
+  - **Personal Life-OS & Gamification (10)** — personal SLOs and error budgets,
+    a life-score composite, XP/level-up, household chore leaderboards, quest
+    boards, streak boss-battles, a life-domain status wall, achievement logs,
+    habit-chain break alerts, and a weekly life retrospective.
+  - **Self-Forecasting & Prediction Markets on Yourself (10)** — calibration
+    curves, Brier-score trends, overconfidence detection, resolution queues,
+    topic accuracy, a personal-bet ledger, resolution forecasts, forecast
+    volume, a surprise index, and a self-forecasting scorecard.
+
+### Changed
+
+- Registered 49 new personal sourcetypes for Wave 5 subcategories and extended
+  the non-technical (grandma) view with 10 new life areas.
+
 ## [8.13.0] - 2026-07-22
 
 ### New Use Cases

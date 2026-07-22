@@ -1596,6 +1596,46 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
       { name: "Living greener", description: "We measure your everyday footprint — recycling and food waste, water and carbon, and the things you repair instead of replace.", ucs: [
         { id: "25.50.1", why: "See your household carbon footprint trend month to month, so your green efforts show real progress." },
         { id: "25.50.2", why: "Track how much you recycle versus throw away, making a greener habit something you can watch improve." }
+      ]},
+      { name: "Managing a health condition", description: "We help you stay on top of a long-term condition — taking medicines on time, tracking symptoms, and spotting what sets off a bad day.", ucs: [
+        { id: "25.51.1", why: "Check how many of your pills you actually took each week, so nothing important slips through." },
+        { id: "25.51.3", why: "Work out what tends to trigger your bad days, so you can avoid the things that make you feel worse." }
+      ]},
+      { name: "Caring for a loved one", description: "We keep a gentle eye on an elderly relative — normal daily movement, fall alarms, medicines, and who last checked in.", ucs: [
+        { id: "25.52.1", why: "Learn how much your relative normally moves about and get a warning on unusually quiet days." },
+        { id: "25.52.2", why: "Make sure every fall alarm is answered quickly, so no emergency is ever missed." }
+      ]},
+      { name: "Planning a wedding or big event", description: "We keep your celebration on track — budget, guest replies, tasks, and supplier payments, all in one calm place.", ucs: [
+        { id: "25.53.1", why: "Always know how much of your wedding budget is left, so costs never quietly run away." },
+        { id: "25.53.2", why: "See who has replied to invitations and who still needs a nudge, for an accurate head count." }
+      ]},
+      { name: "Renovating your home", description: "We run your building project like a pro — budget versus actual, what is blocked, permits, and how each room is coming along.", ucs: [
+        { id: "25.54.1", why: "Compare what each part of the job was meant to cost with what it really cost, so overspending shows early." },
+        { id: "25.54.5", why: "Keep a clear list of which permits and inspections are done, so the work stays legal and safe." }
+      ]},
+      { name: "Tracing your family tree", description: "We help your family-history research — how your tree grows, where your DNA matches point, and which facts still need proof.", ucs: [
+        { id: "25.55.1", why: "Watch your family tree grow month by month, a satisfying record of a long project." },
+        { id: "25.55.2", why: "Group your DNA relatives by family name, showing which branches to research next." }
+      ]},
+      { name: "Faith & mindfulness", description: "We gently support your spiritual life — a daily quiet-time streak, reading-plan progress, and the things you are grateful for.", ucs: [
+        { id: "25.56.1", why: "Keep your daily prayer or meditation habit alive with a gentle streak to protect." },
+        { id: "25.56.3", why: "Gather up what you have been thankful for each month, showing what really brings you joy." }
+      ]},
+      { name: "Giving back", description: "We keep track of your generosity — volunteer hours by cause, giving against your plan, and the real good you have done.", ucs: [
+        { id: "25.57.1", why: "Add up the hours you give to each cause, showing where your time and heart really go." },
+        { id: "25.57.4", why: "Total the real good you have done — meals served, trees planted — into one inspiring tally." }
+      ]},
+      { name: "Keeping your memories", description: "We help you hold onto life's moments — photos over time, places visited, on-this-day flashbacks, and safe backups.", ucs: [
+        { id: "25.58.3", why: "Bring back things that happened on this very day in past years, a lovely surprise of old memories." },
+        { id: "25.58.7", why: "Check that your photos are safely backed up, so a lost phone never takes your memories with it." }
+      ]},
+      { name: "Your life dashboard", description: "We turn your whole life into a friendly game and dashboard — one daily score, points for good habits, and a household chore leaderboard.", ucs: [
+        { id: "25.59.2", why: "Blend your health, money, and relationships into one daily score for your whole life." },
+        { id: "25.59.4", why: "Rank who has done the most chores, turning housework into a friendly family competition." }
+      ]},
+      { name: "Predicting your own life", description: "We help you become a better judge of your own future — checking how often your confident guesses come true.", ucs: [
+        { id: "25.60.1", why: "See whether things you were sure about actually happened, revealing how well you judge the future." },
+        { id: "25.60.6", why: "Keep score of the friendly bets you make, showing whether you come out ahead in the end." }
       ]}
     ]
   }
