@@ -904,6 +904,57 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "lifescore:daily",
     "personalslo:status",
     "correlation:pair",
+    # Micro-mobility & action sports (25.41)
+    "ebike:ride",
+    "scooter:trip",
+    "skate:session",
+    "surf:session",
+    "snow:run",
+    # Aviation & flight simulation (25.42)
+    "flightlog:entry",
+    "avionics:telemetry",
+    "flightsim:session",
+    "preflight:check",
+    # Boating & marine (25.43)
+    "nmea:reading",
+    "bilge:event",
+    "mooring:status",
+    "marineweather:forecast",
+    # Fishing, hunting & foraging (25.44)
+    "fishing:catch",
+    "fishfinder:reading",
+    "foraging:find",
+    "gamecam:trigger",
+    # Music-making & creator analytics (25.45)
+    "practice:session",
+    "daw:session",
+    "release:stats",
+    "setlist:play",
+    # Tabletop RPG campaigns (25.46)
+    "campaign:session",
+    "npc:ledger",
+    "loot:drop",
+    "xp:award",
+    # Reading & second brain (25.47)
+    "reading:progress",
+    "highlight:capture",
+    "note:link",
+    "book:finished",
+    # Language learning (25.48)
+    "lesson:complete",
+    "vocab:review",
+    "immersion:log",
+    "speaking:session",
+    # Wardrobe, fashion & beauty (25.49)
+    "wardrobe:item",
+    "outfit:wear",
+    "skincare:routine",
+    "laundry:cycle",
+    # Sustainability & zero-waste (25.50)
+    "carbon:estimate",
+    "recycling:weight",
+    "foodwaste:log",
+    "repair:event",
 }
 
 

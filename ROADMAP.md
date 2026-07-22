@@ -6,39 +6,46 @@
 
 ## Current release
 
-**v8.12.0 — Personal & Hobbyist Monitoring (cat-25) Wave 3: the long tail — games, mind & mood, money pettiness, cyber safety, and the personal digital twin (399 use cases across 40 subcategories)** *(shipped 2026-07-22)*
+**v8.13.0 — Personal & Hobbyist Monitoring (cat-25) Wave 4 (Stretch A): hobbies & passions — micro-mobility, aviation, boating, fishing, music, tabletop RPGs, reading, languages, wardrobe, and sustainability (499 use cases across 50 subcategories)** *(shipped 2026-07-22)*
 
-Theme: **the personal enterprise, all the way down.** v8.12.0 grows
-cat-25 from 279 to **399 use cases** by adding twelve new subcategories —
-Games & Tabletop, Collections & Hobbies, Mind/Mood & Journaling,
-Relationships & Togetherness, Everyday Habits & Vices, Money Pettiness &
-Microspending, Body Signals & Personal Oddities, Household Supplies &
-Logistics, Building Health & Structural, Personal Cyber & Digital Exhaust,
-Seasonal & Silly, and Cross-Stream ML & the Personal Digital Twin — the
-third wave toward a 1,000+ UC personal-monitoring category.
+Theme: **every passion becomes a data stream.** v8.13.0 grows cat-25
+from 399 to **499 use cases** by adding ten new subcategories —
+Micro-Mobility & Action Sports, Aviation & Flight Simulation, Boating &
+Marine, Fishing/Hunting & Foraging, Music-Making & Creator Analytics,
+Tabletop RPG Campaigns, Reading & Second Brain, Language Learning,
+Wardrobe/Fashion & Beauty, and Sustainability & Zero-Waste — the fourth
+wave toward a 1,000+ UC personal-monitoring category.
 
 ### Shipped outcomes
 
-- **120 new UCs across 12 new subcategories (25.29–25.40).** Games &
-  Tabletop (10), Collections & Hobbies (10), Mind/Mood & Journaling (10),
-  Relationships & Togetherness (10), Everyday Habits & Vices (10), Money
-  Pettiness & Microspending (10), Body Signals & Personal Oddities (10),
-  Household Supplies & Logistics (10), Building Health & Structural (10),
-  Personal Cyber & Digital Exhaust (10), Seasonal & Silly (10), and
-  Cross-Stream ML & the Personal Digital Twin (10).
-- **The meta layer lands.** The digital-twin subcategory parodies the
-  enterprise — a Personal NOC house-health wall, personal SLOs with error
-  budgets, a daily life-score composite, cross-signal anomaly detection,
-  and best-day predictors — all computed in Splunk over `index=personal`.
-- **Registration + vocabulary updates.** 47 new consumer sourcetypes
+- **100 new UCs across 10 new subcategories (25.41–25.50).** Micro-Mobility
+  & Action Sports (10), Aviation & Flight Simulation (10), Boating & Marine
+  (10), Fishing/Hunting & Foraging (10), Music-Making & Creator Analytics
+  (10), Tabletop RPG Campaigns (10), Reading & Second Brain (10), Language
+  Learning (10), Wardrobe/Fashion & Beauty (10), and Sustainability &
+  Zero-Waste (10).
+- **Real hobby telemetry, Splunk-native.** e-bike and action-sport IMU
+  sessions, pilot logbooks and SimConnect, NMEA/SignalK marine networks,
+  fishfinder sonar and trail cameras, practice trackers and creator
+  analytics, virtual-tabletop logs, reading and note graphs, spaced-
+  repetition review, closet cost-per-wear, and carbon/recycling feeds —
+  all correlated over `index=personal`.
+- **Registration + vocabulary updates.** 41 new consumer sourcetypes
   added to the curated SPL reference vocabulary; the non-technical view
-  gained twelve new plain-language areas covering the new subcategories.
+  gained ten new plain-language areas covering the new subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.12.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.13.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.12.0 — Personal & Hobbyist Monitoring (cat-25) Wave 3: the long tail — games, mind & mood, money pettiness, cyber safety, and the personal digital twin (399 use cases across 40 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **the personal enterprise, all the way down.** v8.12.0 grows cat-25
+from 279 to **399 use cases** by adding twelve new subcategories toward a
+1,000+ UC personal-monitoring category.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.12.0 release entry.
 
 **v8.11.0 — Personal & Hobbyist Monitoring (cat-25) Wave 2: citizen science, radio & space, homestead, biohacking, and wildlife (279 use cases across 28 subcategories)** *(shipped 2026-07-22)*
 

@@ -1,8 +1,8 @@
 # Splunk UC Recommender
 
 App ID: `splunk-uc-recommender`  
-App version: **8.12.0**  
-Generated: `2026-07-22T21:43:14Z`  
+App version: **8.13.0**  
+Generated: `2026-07-22T22:35:56Z`  
 Upstream catalogue: [fenre/splunk-monitoring-use-cases](https://github.com/fenre/splunk-monitoring-use-cases)
 
 This app does **two** things in one Splunk install:

@@ -1523,6 +1523,46 @@ window.NON_TECHNICAL = {
       { name: "Your personal digital twin", description: "We tie every feed together into one picture of your life — a single daily score, gentle warnings when things slip, and what really makes your best days.", ucs: [
         { id: "25.40.1", why: "Blend your sleep, activity, mood, and focus into one daily score, a simple read on how life is going." },
         { id: "25.40.4", why: "Work out what most often leads to your best days, revealing the habits that truly help you." }
+      ]},
+      { name: "E-bikes & action sports", description: "We track your rides and sessions — e-bike battery and distance, and how many waves, runs or skate tricks you actually landed.", ucs: [
+        { id: "25.41.1", why: "See how far your e-bike really goes on a charge, so you never get caught out miles from home with a flat battery." },
+        { id: "25.41.4", why: "Count the waves you caught or the runs you skied each session, turning a fun day out into a record you can look back on." }
+      ]},
+      { name: "Flying & flight sims", description: "We keep your pilot logbook and flight-sim hours tidy — currency reminders, hours flown, and how smooth your landings really were.", ucs: [
+        { id: "25.42.1", why: "Add up your flying hours and warn you before your licence currency lapses, so you stay legal to fly." },
+        { id: "25.42.5", why: "Score how gentle your flight-sim landings were, giving you an honest, fun measure to improve on." }
+      ]},
+      { name: "Boating & the water", description: "We watch over your boat — battery and bilge, whether the anchor is dragging overnight, and the marine forecast before you set off.", ucs: [
+        { id: "25.43.1", why: "Warn you if the bilge pump runs too often, an early sign of a leak while your boat sits unattended." },
+        { id: "25.43.2", why: "Sound the alarm if your anchor starts dragging at night, so you wake before you drift into trouble." }
+      ]},
+      { name: "Fishing & the outdoors", description: "We log your catches, foraging finds and trail-camera sightings, revealing the best spots, times and conditions.", ucs: [
+        { id: "25.44.1", why: "Learn which spots and times land you the most fish, turning lucky days into a pattern you can repeat." },
+        { id: "25.44.6", why: "See what your trail camera caught and when, so you know what wildlife is really visiting." }
+      ]},
+      { name: "Making music & creating", description: "We track your practice and creative output — hours on your instrument, studio sessions, and how your releases are doing.", ucs: [
+        { id: "25.45.1", why: "Add up your practice time each week, so steady progress on your instrument is something you can actually see." },
+        { id: "25.45.3", why: "Follow how your songs or videos are doing after release, without living inside the analytics dashboards." }
+      ]},
+      { name: "Tabletop adventures", description: "We keep your role-playing campaign organised — session attendance, treasure shared out fairly, and how your heroes are levelling up.", ucs: [
+        { id: "25.46.1", why: "Track who shows up to each game night, so nobody quietly drifts away from the campaign." },
+        { id: "25.46.3", why: "Keep a fair tally of the treasure everyone has earned, settling loot arguments before they start." }
+      ]},
+      { name: "Reading & your notes", description: "We help you finish more books and get value from your notes — reading pace, yearly goals, and highlights you actually revisit.", ucs: [
+        { id: "25.47.1", why: "See whether you are on pace for your reading goal this year, a gentle nudge to pick the book back up." },
+        { id: "25.47.2", why: "Resurface old highlights you saved, so the best bits of what you read do not just gather dust." }
+      ]},
+      { name: "Learning a language", description: "We keep your language study on track — daily streaks, words due for review, and how much you are really immersing.", ucs: [
+        { id: "25.48.1", why: "Protect your daily study streak with a nudge before it breaks, keeping the habit alive." },
+        { id: "25.48.2", why: "Remind you when words are due for review, so what you learn actually sticks." }
+      ]},
+      { name: "Wardrobe & getting ready", description: "We make your closet earn its keep — what you actually wear, cost per wear, and keeping your skincare routine consistent.", ucs: [
+        { id: "25.49.3", why: "Show which clothes never leave the hanger, so you declutter and shop more wisely." },
+        { id: "25.49.1", why: "Work out the real cost per wear of an item, turning an expensive splurge into an honest number." }
+      ]},
+      { name: "Living greener", description: "We measure your everyday footprint — recycling and food waste, water and carbon, and the things you repair instead of replace.", ucs: [
+        { id: "25.50.1", why: "See your household carbon footprint trend month to month, so your green efforts show real progress." },
+        { id: "25.50.2", why: "Track how much you recycle versus throw away, making a greener habit something you can watch improve." }
       ]}
     ]
   }

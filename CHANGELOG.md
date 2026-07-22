@@ -12,6 +12,61 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.13.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 4 (Stretch A) expansion — 100 new use cases across 10 new
+  subcategories, taking the fun category to 499 UCs across 50 subcategories.**
+  Wave 4 pushes into hobbies and passions with real telemetry to match:
+  - **Micro-Mobility & Action Sports (10)** — e-bike range versus battery
+    anxiety, commute cost versus car, scooter geofence and speed watch, surf
+    session wave counts, ski/snow vertical-metres, skate trick-landing rates,
+    IMU airtime and impact logs, seasonal mileage, and battery-health decline.
+  - **Aviation & Flight Simulation (10)** — pilot currency and recency, flight
+    hours by aircraft type, own-aircraft ADS-B track, pre-flight checklist
+    audits, flight-sim landing smoothness, cross-country distance logs, sim
+    versus real approach consistency, medical/rating expiry countdowns, fuel
+    burn versus book figures, and sim hours toward a goal.
+  - **Boating & Marine (10)** — bilge-pump leak watch, anchor-drag alarm,
+    house-battery state-of-charge, engine-hours and service intervals, sailing
+    performance versus polars, shore-power and galvanic watch, weather-window
+    passage planning, tank levels, trip logs, and depth-alarm grounding guard.
+  - **Fishing, Hunting & Foraging (10)** — catch logs, bite-time versus
+    conditions, personal-best leaderboards, fishfinder bait-ball detection,
+    foraging maps and seasonality, game-camera wildlife clocks, licence/tag
+    compliance, tackle inventory, catch-and-release care, and best-spot ranking.
+  - **Music-Making & Creator Analytics (10)** — instrument practice streaks,
+    DAW project momentum, streaming growth and milestones, gig setlist history,
+    practice-goal focus areas, tempo/accuracy progress, release-day watch,
+    audience-retention, catalogue value, and creative-output cadence.
+  - **Tabletop RPG Campaigns (10)** — session cadence and attendance, XP and
+    levelling pace, loot ledgers, NPC relationship webs, dice-luck by player,
+    session-length trends, campaign world-building progress, encounter balance,
+    downtime tracking, and player-spotlight fairness.
+  - **Reading & Second Brain (10)** — books finished versus yearly goal, reading
+    pace and time-to-finish, highlight resurfacing, note-graph growth, genre
+    diversity, to-be-read backlog burn-down, re-read candidates, reading-time by
+    time-of-day, source-to-note conversion, and orphaned-note cleanup.
+  - **Language Learning (10)** — daily lesson streaks, vocabulary retention and
+    mature cards, immersion-hours logging, speaking-practice cadence, review
+    backlog, skill-versus-time progress, forgetting-curve alerts, streak-freeze
+    economy, cross-app consistency, and milestone celebration.
+  - **Wardrobe, Fashion & Beauty (10)** — cost-per-wear, closet value,
+    never-worn declutter candidates, outfit rotation, skincare adherence,
+    product finish-date and repurchase, laundry-load efficiency, seasonal
+    readiness, colour-palette analysis, and spend-per-season budgeting.
+  - **Sustainability & Zero-Waste (10)** — personal carbon-footprint trends,
+    recycling-versus-landfill diversion, food-waste tracking, repair-versus-
+    replace ratio, water footprint by activity, second-hand purchase ratio,
+    compost yield, energy-carbon by hour, plastic-item counts, and a
+    sustainability goal scorecard.
+
+### Changed
+
+- Registered 41 new personal sourcetypes for Wave 4 subcategories and extended
+  the non-technical (grandma) view with 10 new life areas.
+
 ## [8.12.0] - 2026-07-22
 
 ### New Use Cases
