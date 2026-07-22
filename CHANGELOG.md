@@ -12,6 +12,63 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.11.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 2 expansion — 93 new use cases across 9 new subcategories,
+  taking the fun category to 279 UCs across 28 subcategories.** Wave 2 pushes
+  personal monitoring into citizen science, the sky, the homestead, and the body:
+  - **Citizen Science & Backyard Sensing (11)** — backyard seismograph quake
+    detection and daily noise floor, radiation-level anomaly watch, lightning
+    proximity/storm approach, home radon trend, all-sky meteor/fireball logging
+    and peak-night ranking, river-level flood watch, geomagnetic/aurora chance,
+    ISS pass reminders, and sensor-fleet uptime.
+  - **Radio, SDR & Space (11)** — WSPR propagation reach/DX records, band-opening
+    time-of-day maps and signal-to-noise distribution, APRS stations-heard/range
+    and grid coverage, NOAA weather-satellite capture logging, same-day satellite
+    pass schedules, meteor-scatter ping activity, SSTV reception logging, SDR
+    feed-health heartbeats, and best-DX-of-the-month highlights.
+  - **Backyard Astronomy & Observatory (10)** — astrophotography sub-frame yield,
+    sky-quality/light-pollution trending, cloud-sensor imaging windows, mount
+    guiding-error and best-seeing ranking, roof/power safe-state audit, integration-
+    time tracking, dew/frost risk on optics, clear-night utilisation, and session-
+    failure logging.
+  - **Family, Baby & Household Chaos (11)** — baby feeding/sleep/diaper logs,
+    child growth percentiles, chore leaderboards, allowance ledgers, family-
+    calendar load/clash detection, screen-time fairness, bedtime-routine
+    adherence, household task burn-down, and new-parent sleep-debt estimates.
+  - **Homestead, Bees & Livestock (10)** — beehive weight/swarm and temperature/
+    acoustic health, chicken-coop auto-door audit, egg-count laying-rate trend,
+    livestock GPS fence/straying alerts, feed/water supply runway, pasture soil
+    moisture, honey-harvest yield, and predator activity detection.
+  - **Advanced Health & Biohacking (10)** — HRV recovery baselines, overnight
+    blood-oxygen dip detection, continuous-glucose meal response, resting blood-
+    pressure trend, body-composition change, lab-panel biomarker trends,
+    supplement/medication adherence, sleep-apnea frequency, an illness early-
+    warning composite, and caffeine-timing vs sleep correlation.
+  - **Wildlife & Biodiversity (10)** — BirdNET species diversity and rare/first-
+    of-season alerts, dawn-chorus peaks, trail-camera visitor logs and nocturnal
+    activity clocks, moth-trap and bat-detector diversity, pollinator visit counts,
+    feeder squirrel-raid detection, and a seasonal biodiversity index.
+  - **Aquariums, Reptiles & Vivariums (10)** — reef-tank parameter stability and
+    heater-failure alerts, auto-doser reagent runway, auto-top-off leak watch,
+    fish-feeder confirmation, reptile terrarium climate/UVB, misting/humidity
+    cycles, pond oxygen/temperature, equipment/pump health, and maintenance cadence.
+  - **Sports, Skills & Training Telemetry (10)** — velocity-based-training bar-
+    speed autoregulation and estimated one-rep-max trends, running gait symmetry,
+    cycling power interval compliance and fitness/fatigue balance, hangboard load
+    progression, golf-swing consistency, basketball shooting by spot, training
+    streaks, and personal-best logging.
+
+### Changed
+
+- Registered 45 new personal-monitoring sourcetypes in the SPL reference corpus.
+- Extended the non-technical view with 9 new plain-language areas covering the
+  Wave 2 subcategories.
+- Nudged the `index.html` perf budget from ~700 KiB to ~720 KiB to absorb the
+  accumulating release-notes popup (each release appends a versioned block).
+
 ## [8.10.0] - 2026-07-22
 
 ### New Use Cases

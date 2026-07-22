@@ -98,12 +98,14 @@ PerfBudget = dict[str, Any]
 _PERF_BUDGETS: list[PerfBudget] = [
     {
         "file": "index.html",
-        "budget_bytes": 716_800,  # ~700 KiB
+        "budget_bytes": 737_280,  # ~720 KiB
         "tier": "critical-path",
         "note": (
             "Main catalog landing page; inlines all CSS/JS for offline "
             "auditor mode.  Budget raised after Phase C/E bulk UC "
-            "generation pushed the page past the original 430 KiB limit."
+            "generation pushed the page past the original 430 KiB limit; "
+            "nudged to ~720 KiB in v8.11.0 to absorb accumulating release "
+            "notes entries (each release appends a versioned block)."
         ),
     },
     {

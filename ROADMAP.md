@@ -6,38 +6,48 @@
 
 ## Current release
 
-**v8.10.0 — Personal & Hobbyist Monitoring (cat-25) Wave 1: personal monitoring goes physical — travel, kitchen, brewing, workshop, security, and water (186 use cases across 19 subcategories)** *(shipped 2026-07-22)*
+**v8.11.0 — Personal & Hobbyist Monitoring (cat-25) Wave 2: citizen science, radio & space, homestead, biohacking, and wildlife (279 use cases across 28 subcategories)** *(shipped 2026-07-22)*
 
-Theme: **push the fun category off the screen and into the physical
-world.** v8.10.0 grows cat-25 from 117 to **186 use cases** by adding
-six new subcategories — Travel/Commute & Flight-Spotting, Kitchen/
-Cooking & Fermentation, Homebrewing/Beer & Wine, Making/3D Printing &
-Workshop, Home Security & Surveillance, and Water/Plumbing & Utilities —
-the first of several planned waves toward a 1,000+ UC personal-
-monitoring category.
+Theme: **turn the personal enterprise on the sky, the land, and the
+body.** v8.11.0 grows cat-25 from 186 to **279 use cases** by adding
+nine new subcategories — Citizen Science & Backyard Sensing, Radio/SDR
+& Space, Backyard Astronomy & Observatory, Family/Baby & Household
+Chaos, Homestead/Bees & Livestock, Advanced Health & Biohacking,
+Wildlife & Biodiversity, Aquariums/Reptiles & Vivariums, and Sports/
+Skills & Training Telemetry — the second wave toward a 1,000+ UC
+personal-monitoring category.
 
 ### Shipped outcomes
 
-- **69 new UCs across 6 new subcategories (25.14–25.19).** Travel,
-  Commute & Flight-Spotting (12), Kitchen, Cooking & Fermentation (12),
-  Homebrewing, Beer & Wine (10), Making, 3D Printing & Workshop (12),
-  Home Security & Surveillance (12), and Water, Plumbing & Utilities (11).
-- **Real physical-world data sources.** Home ADS-B receivers, ESP32/
-  ESPHome sensors, OctoPrint/Klipper print servers, Frigate/Blue Iris
-  NVRs, and smart water meters — all ingested via Splunk HEC into
-  `index=personal`.
-- **Registration + vocabulary updates.** 36 new consumer sourcetypes
+- **93 new UCs across 9 new subcategories (25.20–25.28).** Citizen
+  Science & Backyard Sensing (11), Radio, SDR & Space (11), Backyard
+  Astronomy & Observatory (10), Family, Baby & Household Chaos (11),
+  Homestead, Bees & Livestock (10), Advanced Health & Biohacking (10),
+  Wildlife & Biodiversity (10), Aquariums, Reptiles & Vivariums (10),
+  and Sports, Skills & Training Telemetry (10).
+- **Ambitious real data sources.** Raspberry Shake seismographs, SDR/ham
+  receivers (WSPR/APRS/NOAA APT), backyard observatories (N.I.N.A./Ekos),
+  connected beehives and livestock tags, HRV/CGM/pulse-ox wearables,
+  BirdNET and trail cameras, reef/vivarium controllers, and VBT/power-
+  meter training sensors — all ingested via Splunk HEC into `index=personal`.
+- **Registration + vocabulary updates.** 45 new consumer sourcetypes
   added to the curated SPL reference vocabulary; the non-technical view
-  gained six new plain-language areas covering the new subcategories.
-- **Mega-expansion plan published.** A master plan
-  (`docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md`) charts
-  the road to 1,000+ personal-monitoring UCs across ~40 subcategories.
+  gained nine new plain-language areas covering the new subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.10.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.11.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.10.0 — Personal & Hobbyist Monitoring (cat-25) Wave 1: personal monitoring goes physical — travel, kitchen, brewing, workshop, security, and water (186 use cases across 19 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **push the fun category off the screen and into the physical
+world.** v8.10.0 grows cat-25 from 117 to **186 use cases** by adding
+six new subcategories toward a 1,000+ UC personal-monitoring category.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.10.0 release entry.
+
+---
 
 **v8.9.0 — Personal & Hobbyist Monitoring (cat-25): the fun category — Splunk turned on your own life (117 use cases across 13 subcategories)** *(shipped 2026-07-22)*
 

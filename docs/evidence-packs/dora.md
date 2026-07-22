@@ -586,7 +586,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.10.0
+catalogue_version: 8.11.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

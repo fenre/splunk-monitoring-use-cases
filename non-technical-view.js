@@ -1434,6 +1434,47 @@ window.NON_TECHNICAL = {
       { name: "Water & plumbing", description: "We watch the water in and around your home — leaks, the sump pump, the pool, and the sprinklers — so a small drip never becomes an expensive flood.", ucs: [
         { id: "25.19.1", why: "Spot water running non-stop for a long time — usually a running toilet or a leak — so you can act fast." },
         { id: "25.19.4", why: "Keep an eye on the pump that keeps your basement dry and warn you if the water rises or the pump stops." }
+      ]},
+      { name: "Citizen science & backyard sensing", description: "We turn homemade science sensors into real data — catching earthquakes, tracking storms and radon, and even counting shooting stars over your house.", ucs: [
+        { id: "25.20.1", why: "Watch your home earthquake sensor and pick out real quakes from ordinary rumbles like passing lorries." },
+        { id: "25.20.4", why: "Count nearby lightning and show how close the storm is getting, so you know when to head indoors." },
+        { id: "25.20.9", why: "Remind you just before the Space Station flies over, so you can go outside and watch it cross the sky." }
+      ]},
+      { name: "Radio & space", description: "We turn your radio and satellite gear into a scoreboard — how far your signals travelled, which stations you heard, and the pictures you pulled from the sky.", ucs: [
+        { id: "25.21.1", why: "Show how far your tiny radio beacon was heard on each band — a fun way to study how radio waves travel." },
+        { id: "25.21.4", why: "Record each time you catch a picture from a weather satellite and how many turned out clear." }
+      ]},
+      { name: "Backyard astronomy", description: "We help your stargazing and astrophotography — telling you when the sky is truly clear and dark, and how many of your night-sky photos were worth keeping.", ucs: [
+        { id: "25.22.2", why: "Measure how dark your night sky is, so you know the best hours for stargazing away from light pollution." },
+        { id: "25.22.3", why: "Tell you when the sky is genuinely clear enough to set up the telescope, using a clever temperature trick." }
+      ]},
+      { name: "Family & baby", description: "We turn the happy chaos of family life into calm little dashboards — baby feeds and sleep, chores, pocket money, and a busy family calendar.", ucs: [
+        { id: "25.23.1", why: "Count how often and how much the baby fed each day, so tired parents have real numbers for the doctor." },
+        { id: "25.23.2", why: "Track how much the baby slept and the longest they went without waking, which every tired parent watches closely." },
+        { id: "25.23.5", why: "Show who in the family actually did their chores each week — a fun and motivating scoreboard." }
+      ]},
+      { name: "Homestead & animals", description: "We keep watch over the homestead — the beehives, the hens, and the animals in the field — so you spot a swarm, a low egg count, or a wandering animal early.", ucs: [
+        { id: "25.24.1", why: "Watch how heavy the beehive is to see honey building up and warn if the bees suddenly swarm away." },
+        { id: "25.24.4", why: "Check the automatic chicken-coop door really closed at dusk, keeping the hens safe from foxes." },
+        { id: "25.24.6", why: "Warn you if an animal wanders out of the field or its tracker goes quiet, so you find a broken fence fast." }
+      ]},
+      { name: "Health & biohacking", description: "We bring your own health data together — heart, sleep, blood pressure, and more — to spot the early signs of getting run down before you feel it.", ucs: [
+        { id: "25.25.1", why: "Measure a heart signal each morning that shows how recovered you are, flagging days you should take it easy." },
+        { id: "25.25.4", why: "Track your blood pressure over time and flag if it stays higher than it should, so you can see a doctor early." },
+        { id: "25.25.9", why: "Combine several body signals that change before you feel ill, giving you a heads-up to rest before a cold takes hold." }
+      ]},
+      { name: "Wildlife & nature", description: "We turn your cameras and microphones into a wildlife diary — counting the birds, animals, and insects that share your garden through the day and night.", ucs: [
+        { id: "25.26.1", why: "Count how many different kinds of birds your microphone hears each day, tracking the wildlife in your garden." },
+        { id: "25.26.4", why: "Count which wild animals your outdoor cameras record, showing who visits your garden at night." },
+        { id: "25.26.9", why: "Count how often squirrels raid the bird feeder versus real bird visits — that classic garden battle." }
+      ]},
+      { name: "Aquariums & reptiles", description: "We watch the tanks and terrariums so your fish, corals, and reptiles stay safe — catching a failed heater or a leak before it becomes a disaster.", ucs: [
+        { id: "25.27.2", why: "Quickly warn you if the fish-tank water gets too hot or cold, which usually means a broken heater." },
+        { id: "25.27.6", why: "Check a reptile's tank has the right warm and cool areas, humidity, and special light it needs to stay healthy." }
+      ]},
+      { name: "Sports & training", description: "We turn your training gadgets into progress you can see — strength, running form, cycling power, and personal bests — so your effort actually pays off.", ucs: [
+        { id: "25.28.2", why: "Estimate your top strength for each lift from normal sets, so you see progress without risky maximum attempts." },
+        { id: "25.28.9", why: "Track how many days in a row you have trained across all your sports, which keeps you motivated." }
       ]}
     ]
   }
