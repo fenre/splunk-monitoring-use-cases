@@ -12,6 +12,74 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.12.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 3 expansion — 120 new use cases across 12 new subcategories,
+  taking the fun category to 399 UCs across 40 subcategories.** Wave 3 covers the
+  long tail of personal life — play, mind, money, and the meta layer that ties it
+  all together:
+  - **Games & Tabletop (10)** — weekly gaming time versus a self-set limit,
+    unfinished-backlog burn-down, achievement completion rates, board-game
+    play-frequency and cost-per-play, chess rating trends and opening win-rates,
+    a tabletop dice-luck tracker, late-night gaming versus next-day tiredness, and
+    never-played game spend.
+  - **Collections & Hobbies (10)** — collection value trending, an insurance
+    high-value list, vinyl play-counts and stylus wear, LEGO set completeness,
+    trading-card portfolio movers, want-list progress, duplicate detection,
+    acquisition pace, rarest-items spotlight, and storage-condition watch.
+  - **Mind, Mood & Journaling (10)** — mood trends and low-streak alerts,
+    activity-to-mood correlation, meditation streaks, journaling frequency,
+    gratitude themes, sleep-versus-mood and screen-versus-mood trade-offs,
+    day-of-week mood patterns, meditation impact on HRV, and sentiment drift.
+  - **Relationships & Togetherness (10)** — date-night cadence, stay-in-touch
+    reminders, relationship check-in trends, gift-idea backlog, chore balance
+    between partners, quality-time versus screen-time, anniversary countdowns,
+    an acts-of-kindness ledger, long-distance call frequency, and bucket-list
+    progress.
+  - **Everyday Habits & Vices (10)** — weekly alcohol units versus guideline,
+    dry-day streaks, smoking/vaping cessation progress and money saved, daily
+    hydration, a smart swear jar, trigger time-of-day, weekday/weekend drinking
+    split, afternoon-caffeine sleep guard, and urge-resisting success rate.
+  - **Money Pettiness & Microspending (10)** — coffee/snack spend creep,
+    no-spend-day streaks, impulse-buy detection, price-per-use of big purchases,
+    cash-back harvest, eating-out versus cooking split, round-up micro-savings,
+    merchant-frequency leaks, budget-category overruns, and fun-money ratio.
+  - **Body Signals & Personal Oddities (10)** — posture slouch-time, allergy
+    symptom-versus-pollen correlation, headache trigger logs, hydration/bathroom
+    balance, sneeze counts, standing-versus-sitting balance, symptom-onset early
+    warning, desk-break adherence, cold recovery curves, and eye-strain reminders.
+  - **Household Supplies & Logistics (10)** — consumable reorder forecasting,
+    parcel tracking and delays, bin-collection reminders, gift-card expiry watch,
+    grocery restock prediction, delivery spend, food-waste reduction, battery
+    stock, subscription-box value checks, and shopping-day optimisation.
+  - **Building Health & Structural (10)** — mould-risk humidity watch, crack and
+    tilt movement trends, HVAC filter life, room damp comparison, window/door
+    heat-loss, temperature stability, rain-response leak checks, heating
+    efficiency, and appliance-vibration fault warning.
+  - **Personal Cyber & Digital Exhaust (10)** — credential-breach alerts,
+    two-factor coverage gaps, certificate-expiry watch, inbox/newsletter bloat,
+    cloud-storage runway, suspicious-login-location watch, password age/reuse
+    audit, data-broker opt-out tracking, account sprawl, and backup 3-2-1 checks.
+  - **Seasonal & Silly (10)** — Christmas-lights cost, a Halloween candy counter,
+    advent countdowns, festive-energy baselines, a pumpkin-rot timer, resolution
+    progress, daylight-versus-mood, gift-budget burn-down, a garden-mascot
+    presence cam, and festive-playlist mood boost.
+  - **Cross-Stream ML & the Personal Digital Twin (10)** — a daily life-score
+    composite, a personal-SLO error-budget dashboard, cross-signal anomaly of the
+    day, best-day predictors, a weekly personal ops review, a habit domino map, a
+    personal-NOC house-health wall, an anomaly-free streak, digital-twin data
+    freshness, and a life-score forecast alert.
+
+### Changed
+
+- Registered 47 new `sourcetype`s (games, collections, mood, relationships,
+  habits, microspend, body signals, household logistics, building health,
+  personal cyber, seasonal, and digital-twin feeds) in the SPL reference
+  vocabulary.
+- Added 12 non-technical-view areas covering every new Wave 3 subcategory.
+
 ## [8.11.0] - 2026-07-22
 
 ### New Use Cases

@@ -6,39 +6,48 @@
 
 ## Current release
 
-**v8.11.0 — Personal & Hobbyist Monitoring (cat-25) Wave 2: citizen science, radio & space, homestead, biohacking, and wildlife (279 use cases across 28 subcategories)** *(shipped 2026-07-22)*
+**v8.12.0 — Personal & Hobbyist Monitoring (cat-25) Wave 3: the long tail — games, mind & mood, money pettiness, cyber safety, and the personal digital twin (399 use cases across 40 subcategories)** *(shipped 2026-07-22)*
 
-Theme: **turn the personal enterprise on the sky, the land, and the
-body.** v8.11.0 grows cat-25 from 186 to **279 use cases** by adding
-nine new subcategories — Citizen Science & Backyard Sensing, Radio/SDR
-& Space, Backyard Astronomy & Observatory, Family/Baby & Household
-Chaos, Homestead/Bees & Livestock, Advanced Health & Biohacking,
-Wildlife & Biodiversity, Aquariums/Reptiles & Vivariums, and Sports/
-Skills & Training Telemetry — the second wave toward a 1,000+ UC
-personal-monitoring category.
+Theme: **the personal enterprise, all the way down.** v8.12.0 grows
+cat-25 from 279 to **399 use cases** by adding twelve new subcategories —
+Games & Tabletop, Collections & Hobbies, Mind/Mood & Journaling,
+Relationships & Togetherness, Everyday Habits & Vices, Money Pettiness &
+Microspending, Body Signals & Personal Oddities, Household Supplies &
+Logistics, Building Health & Structural, Personal Cyber & Digital Exhaust,
+Seasonal & Silly, and Cross-Stream ML & the Personal Digital Twin — the
+third wave toward a 1,000+ UC personal-monitoring category.
 
 ### Shipped outcomes
 
-- **93 new UCs across 9 new subcategories (25.20–25.28).** Citizen
-  Science & Backyard Sensing (11), Radio, SDR & Space (11), Backyard
-  Astronomy & Observatory (10), Family, Baby & Household Chaos (11),
-  Homestead, Bees & Livestock (10), Advanced Health & Biohacking (10),
-  Wildlife & Biodiversity (10), Aquariums, Reptiles & Vivariums (10),
-  and Sports, Skills & Training Telemetry (10).
-- **Ambitious real data sources.** Raspberry Shake seismographs, SDR/ham
-  receivers (WSPR/APRS/NOAA APT), backyard observatories (N.I.N.A./Ekos),
-  connected beehives and livestock tags, HRV/CGM/pulse-ox wearables,
-  BirdNET and trail cameras, reef/vivarium controllers, and VBT/power-
-  meter training sensors — all ingested via Splunk HEC into `index=personal`.
-- **Registration + vocabulary updates.** 45 new consumer sourcetypes
+- **120 new UCs across 12 new subcategories (25.29–25.40).** Games &
+  Tabletop (10), Collections & Hobbies (10), Mind/Mood & Journaling (10),
+  Relationships & Togetherness (10), Everyday Habits & Vices (10), Money
+  Pettiness & Microspending (10), Body Signals & Personal Oddities (10),
+  Household Supplies & Logistics (10), Building Health & Structural (10),
+  Personal Cyber & Digital Exhaust (10), Seasonal & Silly (10), and
+  Cross-Stream ML & the Personal Digital Twin (10).
+- **The meta layer lands.** The digital-twin subcategory parodies the
+  enterprise — a Personal NOC house-health wall, personal SLOs with error
+  budgets, a daily life-score composite, cross-signal anomaly detection,
+  and best-day predictors — all computed in Splunk over `index=personal`.
+- **Registration + vocabulary updates.** 47 new consumer sourcetypes
   added to the curated SPL reference vocabulary; the non-technical view
-  gained nine new plain-language areas covering the new subcategories.
+  gained twelve new plain-language areas covering the new subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.11.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.12.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.11.0 — Personal & Hobbyist Monitoring (cat-25) Wave 2: citizen science, radio & space, homestead, biohacking, and wildlife (279 use cases across 28 subcategories)** *(shipped 2026-07-22)*
+
+Theme: **turn the personal enterprise on the sky, the land, and the
+body.** v8.11.0 grows cat-25 from 186 to **279 use cases** by adding nine
+new subcategories toward a 1,000+ UC personal-monitoring category.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.11.0 release entry.
+
+---
 
 **v8.10.0 — Personal & Hobbyist Monitoring (cat-25) Wave 1: personal monitoring goes physical — travel, kitchen, brewing, workshop, security, and water (186 use cases across 19 subcategories)** *(shipped 2026-07-22)*
 

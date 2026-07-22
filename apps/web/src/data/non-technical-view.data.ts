@@ -1508,6 +1508,54 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
       { name: "Sports & training", description: "We turn your training gadgets into progress you can see — strength, running form, cycling power, and personal bests — so your effort actually pays off.", ucs: [
         { id: "25.28.2", why: "Estimate your top strength for each lift from normal sets, so you see progress without risky maximum attempts." },
         { id: "25.28.9", why: "Track how many days in a row you have trained across all your sports, which keeps you motivated." }
+      ]},
+      { name: "Games & tabletop", description: "We keep your gaming honest and fun — weekly hours, unfinished backlogs, and even who is really the lucky one at the dice table.", ucs: [
+        { id: "25.29.1", why: "Add up your gaming hours each week against a limit you set, so a hobby does not quietly eat every evening." },
+        { id: "25.29.8", why: "Track everyone's dice rolls in a tabletop game to settle who is really the lucky one at the table." }
+      ]},
+      { name: "Collections & hobbies", description: "We turn your shelves into a tracked collection — its value over time, what is missing, and which pieces are the crown jewels.", ucs: [
+        { id: "25.30.1", why: "Track how much your collections are worth over time, so you can watch them grow in value." },
+        { id: "25.30.4", why: "Track how complete each LEGO set is and which pieces are missing, so you know what to order to finish it." }
+      ]},
+      { name: "Mind, mood & journaling", description: "We gently track how you feel — spotting a run of low days, showing what lifts your mood, and keeping calming habits going.", ucs: [
+        { id: "25.31.1", why: "Track your daily mood and gently flag a run of low days, which can be a sign to reach out for support." },
+        { id: "25.31.2", why: "Show which activities tend to lift your mood most, based on your own diary entries." }
+      ]},
+      { name: "Relationships & togetherness", description: "We help you keep the people you love close — nudging date nights, catch-ups, and important dates before they slip by.", ucs: [
+        { id: "25.32.2", why: "Remind you which friends and family you have not been in touch with for a while, so no one slips away." },
+        { id: "25.32.7", why: "Count down to anniversaries and birthdays so you never forget an important date again." }
+      ]},
+      { name: "Everyday habits & vices", description: "We make good habits stick and bad ones visible — dry-day streaks, cutting down on smoking, and even a smart swear jar.", ucs: [
+        { id: "25.33.1", why: "Add up how much alcohol you drink each week against the recommended limit, keeping it honest." },
+        { id: "25.33.3", why: "Track how much you smoke or vape each day and how far you have cut down, cheering on your progress." }
+      ]},
+      { name: "Money pettiness", description: "We catch the small spending that quietly adds up — daily coffees, impulse buys, and where your money really goes.", ucs: [
+        { id: "25.34.1", why: "Add up all your little coffee and snack buys, which quietly cost a surprising amount each month." },
+        { id: "25.34.3", why: "Spot unusually big, unplanned purchases, helping you notice impulse buys and think twice next time." }
+      ]},
+      { name: "Body signals & oddities", description: "We track the everyday signals your body gives off — posture, headaches, allergies — turning vague aches into patterns you can act on.", ucs: [
+        { id: "25.35.1", why: "Measure how much of your day you spent slouching, gently reminding you to sit up straight." },
+        { id: "25.35.3", why: "Count your headaches and note what set them off, building a helpful record for you and your doctor." }
+      ]},
+      { name: "Household supplies & logistics", description: "We keep the home running — predicting when supplies run out, tracking parcels, and reminding you which bins go out.", ucs: [
+        { id: "25.36.1", why: "Work out how many days of everyday supplies like detergent are left, so you reorder before running out." },
+        { id: "25.36.3", why: "Remind you which bins to put out the night before, so you never miss a collection again." }
+      ]},
+      { name: "Building health & structural", description: "We watch the house itself — damp and mould risk, widening cracks, and filters — so small problems get caught before they cost a fortune.", ucs: [
+        { id: "25.37.1", why: "Watch for the damp, cold conditions that grow mould, warning you to ventilate before it takes hold." },
+        { id: "25.37.2", why: "Measure monitored wall cracks over time and warn if any is slowly getting wider." }
+      ]},
+      { name: "Personal cyber safety", description: "We guard your digital life — warning of data breaches, missing two-factor logins, and backups that have gone stale.", ucs: [
+        { id: "25.38.1", why: "Warn you the moment your email turns up in a data breach, so you can change your password quickly." },
+        { id: "25.38.2", why: "List your important accounts that still lack a second login step, the easiest way to stay safe online." }
+      ]},
+      { name: "Seasonal & silly", description: "We add some fun — settling the Christmas-lights cost debate, counting trick-or-treaters, and counting down to the holidays.", ucs: [
+        { id: "25.39.1", why: "Add up what your Christmas lights cost to run each day, settling the yearly family debate." },
+        { id: "25.39.2", why: "Count the trick-or-treaters and sweets you hand out, capturing the busy Halloween rush." }
+      ]},
+      { name: "Your personal digital twin", description: "We tie every feed together into one picture of your life — a single daily score, gentle warnings when things slip, and what really makes your best days.", ucs: [
+        { id: "25.40.1", why: "Blend your sleep, activity, mood, and focus into one daily score, a simple read on how life is going." },
+        { id: "25.40.4", why: "Work out what most often leads to your best days, revealing the habits that truly help you." }
       ]}
     ]
   }

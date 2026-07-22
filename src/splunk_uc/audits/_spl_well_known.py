@@ -844,6 +844,66 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "golfswing:metric",
     "powermeter:interval",
     "shotarc:make",
+    # Games & tabletop (25.29)
+    "game:session",
+    "achievement:unlock",
+    "boardgame:play",
+    "chess:game",
+    "dice:roll",
+    # Collections & hobbies (25.30)
+    "collection:item",
+    "vinyl:play",
+    "lego:set",
+    "tradingcard:price",
+    # Mind, mood & journaling (25.31)
+    "mood:entry",
+    "meditation:session",
+    "journal:entry",
+    "gratitude:log",
+    # Relationships & togetherness (25.32)
+    "relationship:checkin",
+    "datenight:log",
+    "giftidea:item",
+    "keptintouch:contact",
+    # Everyday habits & vices (25.33)
+    "alcohol:drink",
+    "vice:log",
+    "hydration:intake",
+    "swearjar:entry",
+    # Money pettiness & microspending (25.34)
+    "microspend:txn",
+    "nospend:day",
+    "priceperuse:item",
+    "cashback:reward",
+    # Body signals & personal oddities (25.35)
+    "posture:reading",
+    "symptom:log",
+    "bathroom:visit",
+    "sneeze:event",
+    # Household supplies & logistics (25.36)
+    "supply:level",
+    "delivery:parcel",
+    "bincollection:event",
+    "giftcard:balance",
+    # Building health & structural (25.37)
+    "mould:risk",
+    "crackmeter:reading",
+    "hvacfilter:life",
+    "structural:tilt",
+    # Personal cyber & digital exhaust (25.38)
+    "breach:alert",
+    "inbox:stats",
+    "clouddrive:usage",
+    "certexpiry:check",
+    # Seasonal & silly (25.39)
+    "festive:lights",
+    "candy:counter",
+    "countdown:event",
+    "santa:tracker",
+    # Cross-stream ML & the personal digital twin (25.40)
+    "lifescore:daily",
+    "personalslo:status",
+    "correlation:pair",
 }
 
 
