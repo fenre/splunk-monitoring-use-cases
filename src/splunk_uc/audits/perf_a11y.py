@@ -159,26 +159,24 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/catalog.json",
-        "budget_bytes": 115_343_360,  # 110 MiB
+        "budget_bytes": 125_829_120,  # 120 MiB
         "tier": "generated-data",
         "note": (
             "Full JSON catalogue for AI agents / scripted consumers. "
-            "Budget bumped to 110 MiB in v8.17.0 after cat-25 Waves 6–9 "
-            "grew the catalogue past 11,600 UCs (~105 MiB uncompressed). "
-            "Previously 100 MiB (~7,700 UCs at ~10.5 KiB per UC after the "
-            "SSOT enrichment landed in P1 step 5b prep."
+            "Budget bumped to 120 MiB in v8.19.0 after cat-25 variable-depth "
+            "expansion grew the catalogue past 14,800 UCs (~117 MiB). "
+            "Previously 110 MiB in v8.17.0 (~11,600 UCs)."
         ),
     },
     {
         "file": "dist/llms-full.txt",
-        "budget_bytes": 917_504,  # 896 KiB
+        "budget_bytes": 1_126_400,  # 1100 KiB
         "tier": "generated-data",
         "note": (
             "Long-form AI-agent manifest (per llms.txt spec). Budget raised "
-            "to 896 KiB in v8.17.0 when cat-25 Waves 6–9 pushed the manifest "
-            "past 768 KiB (~11,600 UCs). Previously 640 -> 768 KiB when "
-            "cat-24 (Business Intelligence & Analytics Platforms, 500+ UCs) "
-            "pushed the manifest past 640 KiB."
+            "to 1100 KiB in v8.19.0 when cat-25 variable-depth expansion "
+            "pushed the manifest past 896 KiB (~14,800 UCs). Previously "
+            "896 KiB in v8.17.0 (~11,600 UCs)."
         ),
     },
 ]

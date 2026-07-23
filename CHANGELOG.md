@@ -12,6 +12,27 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.19.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 variable-depth expansion — +2,711 use cases (3,720 → 6,431 in
+  cat-25; 12,165 → 14,876 catalogue-wide).** Replaced the artificial uniform
+  28/33-per-subcategory pattern with **research-driven targets** (40–98 UCs per
+  subcategory, cap 100). Rich API domains (fitness, smart home, home lab,
+  finance) land at 80–98 UCs; niche domains (astronomy, radio, estate planning)
+  stay at 40–55. Subcategories 25.1–25.29 include fully researched specials and
+  extra data sources (Polar, Intervals.icu, Hevy, Plaid, etc.); 25.30–25.115
+  deepen via domain-specific analytics templates and category sourcetype coverage.
+
+### Changed
+
+- **Research manifest:** `scripts/cat25_research_manifest.json` records per-sub
+  target, rationale, and gap metadata.
+- **Generator:** `scripts/gen_cat25_research_expand.py` appends UCs to researched
+  targets without uniform batch sizes.
+- **SPL vocabulary:** +521 consumer sourcetypes for research-expand feeds.
+
 ## [8.18.0] - 2026-07-23
 
 ### New Use Cases

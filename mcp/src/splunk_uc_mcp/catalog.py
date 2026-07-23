@@ -51,7 +51,7 @@ DEFAULT_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
 are honoured; :meth:`Catalog._validate_base_url` enforces this."""
 
 
-MAX_PAYLOAD_BYTES = 12 * 1024 * 1024
+MAX_PAYLOAD_BYTES = 14 * 1024 * 1024
 """Per-endpoint payload cap. 10 MB is comfortably above the largest shipped
 endpoint (compliance/ucs/index.json ~ 855 KB) and well below any plausible
 memory pressure from a single tool call."""
