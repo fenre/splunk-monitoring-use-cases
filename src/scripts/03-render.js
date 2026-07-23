@@ -192,14 +192,14 @@ function buildSidebar() {
   }
   if (currentCat != null && !sidebarManualToggle) {
     var catToGroup = {};
-    ['infra','security','cloud','app','industry','compliance','business'].forEach(function(g) {
+    ['infra','security','cloud','app','industry','compliance','business','personal'].forEach(function(g) {
       (CAT_GROUPS[g] || []).forEach(function(id) { catToGroup[id] = g; });
     });
     var ag = catToGroup[currentCat];
     if (ag) { expandedSidebarGroups.clear(); expandedSidebarGroups.add(ag); }
   }
   var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
-  var groupOrder = ['infra','security','cloud','app','industry','compliance','business'];
+  var groupOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   groupOrder.forEach(function(g) {
     var ids = CAT_GROUPS[g] || [];
     var groupCount = 0;
@@ -268,9 +268,9 @@ function renderOverview() {
   html += renderHelpBanner();
   html += '<div class="ov-hero-inline"><div class="ov-hero-badge">' + esc(SITE.heroBadge || '') + '</div><h2 class="ov-hero-h2">' + esc(SITE.heroTitle || '') + ' <span>' + esc(SITE.heroTitleSpan || '') + '</span></h2><p>' + esc(intro) + '</p></div>';
 
-  var heroOrder = ['infra','security','cloud','app','industry','compliance','business'];
-  var heroLabels = { infra:'Infrastructure', security:'Security', cloud:'Cloud', app:'Applications', industry:'Industry', compliance:'Regulatory & Compliance', business:'Business & Executive' };
-  var heroIcons = { infra:'servers', security:'shield', cloud:'cloudNodes', app:'cog', industry:'factory', compliance:'clipboard', business:'chart' };
+  var heroOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
+  var heroLabels = { infra:'Infrastructure', security:'Security', cloud:'Cloud', app:'Applications', industry:'Industry', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };
+  var heroIcons = { infra:'servers', security:'shield', cloud:'cloudNodes', app:'cog', industry:'factory', compliance:'clipboard', business:'chart', personal:'heartPulse' };
   html += '<div class="hero-domains">';
   heroOrder.forEach(function(g) {
     var ids = CAT_GROUPS[g] || [];
