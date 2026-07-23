@@ -2,14 +2,14 @@
 
 _Generated: 2026-07-23T16:34:48Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
-Status: **failed**
+Status: **passed**
 
 ## Summary
 
 * UC files checked: **14876**
-* UC files valid:   **14870**
+* UC files valid:   **14876**
 * Compliance entries: **2808**
-* Findings: **6** (errors: **6**, baselined: **0**)
+* Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
@@ -201,17 +201,6 @@ Status: **failed**
 ## Golden tuples
 
 * Total: **52**  |  Passed: **52**  |  Failed: **0**
-
-## Blocking findings
-
-| Level | UC | Code | Path | Message |
-|-------|----|------|------|---------|
-| error | 25.2.40 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.2.40.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
-| error | 25.20.37 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.20.37.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
-| error | 25.20.40 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.20.40.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
-| error | 25.26.34 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.26.34.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
-| error | 25.26.37 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.26.37.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
-| error | 25.26.41 | uc-schema-validation | content/cat-25-personal-hobbyist-monitoring/UC-25.26.41.json:monitoringType/1 | 'Research' is not one of ['Analytics', 'Anomaly', 'Audit', 'Availability', 'Business', 'Capacity', 'Change', 'Compliance', 'Configuration', 'Cost', 'Data Quality', 'DevSecOps', 'Fault', 'Fraud', 'Governance', 'Inventory', 'Operations', 'Patient Safety', 'Performance', 'Physical', 'Physical Security', 'Quality', 'Reliability', 'Resilience', 'Revenue Assurance', 'Risk', 'Safety', 'Security', 'Trading', 'Vulnerability'] |
 
 ---
 
