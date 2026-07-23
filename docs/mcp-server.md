@@ -94,7 +94,7 @@ Key design choices:
 - **HTTPS fallback**. When no local clone is available the server
   falls back to an HTTPS GET against the GitHub Pages mirror. The
   base URL is locked to an allow-list regex, path traversal is
-  explicitly rejected, and every response is capped at 10 MB.
+  explicitly rejected, and every response is capped at 12 MB.
 - **Static JSON data plane**. Every catalogue artefact is pre-built by
   `python3 -m splunk_uc generate-api-surface` and shipped with the repository.
   The MCP server never computes anything expensive — it slices
@@ -522,7 +522,7 @@ configuration):
 | --- | --- |
 | Read-only | No MCP tool writes to disk; no shell execution path exists. |
 | Input validation | Every slug, UC ID, version, category, MITRE technique, and URL is regex-validated before use. |
-| Bounded payloads | 10 MB hard cap (`MAX_PAYLOAD_BYTES`) on both local file reads and streamed HTTPS responses. |
+| Bounded payloads | 12 MB hard cap (`MAX_PAYLOAD_BYTES`) on both local file reads and streamed HTTPS responses. |
 | Path traversal | Local paths are validated segment-by-segment; `/.`, `/..`, and absolute paths are rejected. |
 | SSRF protection | HTTPS base URL is pinned to a regex allow-list; redirects are not followed transparently. |
 | Stdio only | No HTTP listener, no bind to `0.0.0.0`. DNS-rebinding attacks do not apply. |
