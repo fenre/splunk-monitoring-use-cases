@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.61.2",
+  "title": "Impossible Travel Between Presence Pings",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Home Assistant outage events (`homeassistant:event`).",
+  "app": "Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`.",
+  "spl": "index=personal sourcetype=location:visit latitude=* longitude=* person=*\n| sort 0 person _time\n| streamstats current=f last(latitude) as prev_lat last(longitude) as prev_lon last(_time) as prev_time last(city) as prev_city by person\n| where isnotnull(prev_lat) AND isnotnull(prev_lon) AND (_time-prev_time)>0\n| eval hours_between=round((_time-prev_time)/3600,2)\n| eval distance_km=round(sqrt(pow(latitude-prev_lat,2)+pow(longitude-prev_lon,2))*111,1)\n| eval implied_kph=round(distance_km/hours_between,1)\n| where implied_kph>900\n| table _time person prev_city city distance_km hours_between implied_kph",
+  "description": "Flags jumps between consecutive location events that would require impossible travel speeds for the same person.",
+  "value": "Impossible-travel logic is a surprisingly useful personal safety and account-takeover signal when location data comes from multiple feeds.",
+  "implementation": "Normalize phone or location-export data into `location:visit` events with person, city, latitude, and longitude fields.",
+  "visualization": "Table of impossible travel hops with implied speed and city pair.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Have I Been Pwned API v3",
+      "url": "https://haveibeenpwned.com/API/v3"
+    },
+    {
+      "title": "Home Assistant Documentation",
+      "url": "https://www.home-assistant.io/docs/"
+    },
+    {
+      "title": "Google Takeout",
+      "url": "https://takeout.google.com/"
+    },
+    {
+      "title": "Todoist REST API",
+      "url": "https://developer.todoist.com/rest/v2/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It watches when your location history says you somehow jumped much too far much too fast to be real."
+}
