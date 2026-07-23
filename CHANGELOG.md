@@ -12,6 +12,36 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.16.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Waves 7–8 — 1,600 new use cases taking the fun category to 2,680
+  UCs across 85 subcategories.** Wave 7 deepens every existing subcategory
+  from 18 to 33 with real consumer telemetry each topic still lacked — COROS
+  and Wahoo training load, Plaid and Monarch finance feeds, Fi and Tractive
+  pet trackers, Bambu Lab print jobs, Nest Protect and Reolink security
+  events, and dozens more per life domain. Wave 8 adds 25 new subcategories
+  (700 UCs) for domains that deserved their own home: personal NOC/SOC,
+  coffee and tea, photography, motorcycles, overlanding, board games, home
+  office ergonomics, SaaS renewals, houseplants, laundry appliances,
+  school/homework, instruments, fiber arts, endurance races, climbing,
+  racket sports, golf/disc golf, life admin, freelance, personal weather
+  correlation, social clubs, utility bills, mobility aids, property tracking,
+  and PKM vault stats. Counts follow real sourcetype coverage, not round
+  batch caps.
+
+### Changed
+
+- Registered 346 additional personal sourcetypes from Waves 7–8 in the SPL
+  reference vocabulary.
+- Updated `_category.json` to 85 subcategories and reconciled per-sub
+  `useCaseCount` from disk.
+- Extended the non-technical view with 25 plain-language areas for
+  subcategories 25.61–25.85.
+- Committed `scripts/update_cat25_category.py` helper and expanded grandma
+  opener rotation in `scripts/gen_cat25_common.py`.
+
 ## [8.15.0] - 2026-07-23
 
 ### New Use Cases

@@ -6,32 +6,36 @@
 
 ## Current release
 
-**v8.15.0 — Personal & Hobbyist Monitoring (cat-25) Wave 6 (Depth): 481 new use cases deepening every subcategory to 18 each (1,080 use cases across 60 subcategories)** *(shipped 2026-07-23)*
+**v8.16.0 — Personal & Hobbyist Monitoring (cat-25) Waves 7–8: 1,600 new use cases deepening every subcategory to 33 and adding 25 new domains (2,680 use cases across 85 subcategories)** *(shipped 2026-07-23)*
 
-Theme: **no more round-number caps.** Waves 1–5 shipped breadth in tidy batches
-of ten per subcategory; Wave 6 fills the long tail of real consumer telemetry
-each life domain deserves. Every one of the 60 subcategories now carries 18
-genuinely runnable SPL queries — fitness wearables, sourdough ESP32 probes,
-Klipper print farms, Raspberry Shake seismographs, beehive weight sensors,
-reef-tank controllers, ranked-match stats, elder-care fall alerts, wedding
-budget burn-down, genealogy brick-walls, and the personal Life-OS meta layer.
+Theme: **as big as real life gets.** Wave 7 adds 15 more UCs per existing
+subcategory (18 → 33) with real feeds each domain still lacked — COROS and
+Wahoo training load, Plaid finance, Fi pet trackers, Bambu Lab prints, and
+dozens more. Wave 8 adds 25 new subcategories at 28 UCs each: personal
+NOC/SOC, coffee and tea, photography, motorcycles, overlanding, board games,
+home office, SaaS renewals, houseplants, laundry, school/homework, instruments,
+fiber arts, endurance races, climbing, racket sports, golf/disc golf, life
+admin, freelance, personal weather impact, social clubs, utility bills,
+mobility aids, property, and PKM.
 
 ### Shipped outcomes
 
-- **481 new UCs across all 60 existing subcategories (25.1–25.60).** Each
-  subcategory deepened from 7–12 up to **18** use cases — the launch set's
-  planned depth target, finally delivered.
-- **1,080 total cat-25 use cases** — crossing the original 1,000+ milestone
-  without adding artificial subcategory boundaries.
-- **79 new consumer sourcetypes** registered in the curated SPL vocabulary.
-- **Append-mode generators** committed under `scripts/gen_cat25_*.py` so
-  future expansions continue from the next free UC ID.
+- **900 new UCs in Wave 7 (25.1–25.60)** — every existing subcategory
+  deepened from 18 to **33** use cases.
+- **700 new UCs in Wave 8 (25.61–25.85)** — 25 new subcategories at **28**
+  use cases each.
+- **2,680 total cat-25 use cases** across **85 subcategories**.
+- **346 new consumer sourcetypes** registered in the curated SPL vocabulary.
+- **Non-technical view** extended with 25 plain-language areas for the new
+  subcategories.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.15.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.16.0 release entry.
 
 ---
 
 ## Previous releases
+
+**v8.15.0 — Personal & Hobbyist Monitoring (cat-25) Wave 6 (Depth): 481 new use cases deepening every subcategory to 18 each (1,080 use cases across 60 subcategories)** *(shipped 2026-07-23)*
 
 **v8.14.0 — Personal & Hobbyist Monitoring (cat-25) Wave 5 (Stretch B): life's bigger projects — chronic-condition & elder care, weddings, renovation, genealogy, faith, volunteering, memories, the personal Life-OS, and self-forecasting (599 use cases across 60 subcategories)** *(shipped 2026-07-22)*
 
