@@ -37,6 +37,8 @@ the release notes block in `index.html` by hand.
 - Extended the non-technical view with 15 plain-language areas for
   subcategories 25.86–25.100.
 - Committed `scripts/gen_cat25_wave9a.py` and `scripts/gen_cat25_wave9b.py`.
+- Raised search-vocab, catalog-index, and search-shard byte budgets after the
+  11,600+ UC catalogue pushed lazy-search assets past v8.16.0 limits.
 
 ## [8.16.0] - 2026-07-23
 
