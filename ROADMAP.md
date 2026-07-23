@@ -6,6 +6,30 @@
 
 ## Current release
 
+**v8.17.0 — Personal & Hobbyist Monitoring (cat-25) Wave 9: 545 new use cases — deepen Wave 8 subs to 33 and add 15 new domains (3,225 use cases across 100 subcategories)** *(shipped 2026-07-23)*
+
+Theme: **triple digits.** Wave 9A adds five analytics-layer UCs to every
+Wave 8 subcategory (28 → 33). Wave 9B adds 15 new life domains at 28 UCs
+each — dental and vision, therapy, PT/rehab, childcare, groceries, snow
+sports, yoga/Pilates, triathlon, personal CRM, gifts, moving, emergency
+prep, sneakers/resale, F1 fandom, and podcasts/audiobooks.
+
+### Shipped outcomes
+
+- **125 new UCs in Wave 9A (25.61–25.85)** — every Wave 8 subcategory
+  deepened from 28 to **33** use cases.
+- **420 new UCs in Wave 9B (25.86–25.100)** — 15 new subcategories at **28**
+  use cases each.
+- **3,225 total cat-25 use cases** across **100 subcategories**.
+- **73 new consumer sourcetypes** registered in the curated SPL vocabulary.
+- **Non-technical view** extended with 15 plain-language areas.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.17.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.16.0 — Personal & Hobbyist Monitoring (cat-25) Waves 7–8: 1,600 new use cases deepening every subcategory to 33 and adding 25 new domains (2,680 use cases across 85 subcategories)** *(shipped 2026-07-23)*
 
 Theme: **as big as real life gets.** Wave 7 adds 15 more UCs per existing

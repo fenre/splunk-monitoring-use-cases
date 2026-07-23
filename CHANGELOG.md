@@ -12,6 +12,32 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.17.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Wave 9 — 545 new use cases taking the fun category to 3,225 UCs
+  across 100 subcategories.** Wave 9A deepens subcategories 25.61–25.85 from
+  28 to **33** each (+125 UCs) with quarter-over-quarter volume, hour-of-day
+  heatmaps, weekend/weekday splits, quiet-streak detection, and cross-feed
+  correlation against each domain's real sourcetypes. Wave 9B adds **15 new
+  subcategories** at **28 UCs** each (+420 UCs): dental/vision/preventive
+  care, therapy & mental health, physical therapy & rehab, childcare & early
+  years, meal planning & groceries, snow sports, yoga/Pilates, triathlon &
+  multisport, personal CRM, gifts & holidays, moving & relocation, emergency
+  preparedness, sneakers & resale, Formula 1 fandom, and podcasts &
+  audiobooks.
+
+### Changed
+
+- Registered 73 additional Wave 9 consumer sourcetypes in the SPL reference
+  vocabulary.
+- Updated `_category.json` to **100 subcategories** and **3,225** total cat-25
+  UCs.
+- Extended the non-technical view with 15 plain-language areas for
+  subcategories 25.86–25.100.
+- Committed `scripts/gen_cat25_wave9a.py` and `scripts/gen_cat25_wave9b.py`.
+
 ## [8.16.0] - 2026-07-23
 
 ### New Use Cases

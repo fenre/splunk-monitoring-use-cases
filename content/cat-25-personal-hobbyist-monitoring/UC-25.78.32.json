@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.78.32",
+  "title": "Life Admin & Paperwork Longest Quiet Streak",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Life-admin document records (`lifeadmin:document`), passport status (`passport:status`), warranty registrations (`warranty:registration`), document-scan index (`documentscan:index`), voter-registration records (`voter:registration`).",
+  "app": "Passport and document trackers, warranty-registration forms, document-scan indexes, and voter-registration reminders streamed to Splunk HEC via scripted inputs and mobile capture workflows.",
+  "spl": "index=personal sourcetype=passport:status\n| bin _time span=1d\n| stats count as events by _time\n| sort _time\n| streamstats current=f last(_time) as prev_day last(events) as prev_events\n| eval gap_days=round((_time-prev_day)/86400,0)\n| where isnotnull(prev_day) AND prev_events>0 AND events=0 AND gap_days>=2\n| stats max(gap_days) as longest_quiet_streak_days",
+  "description": "Finds the longest multi-day gap with zero life admin events after activity was previously present.",
+  "value": "Quiet streaks often mean a broken export, a forgotten subscription, or a habit that silently died — all worth catching early.",
+  "implementation": "Run daily on `passport:status` after ingestion; investigate streaks that exceed your normal pause window for this domain.",
+  "visualization": "Single-value tile for longest quiet streak with supporting timeline.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It adds up the longest stretch with no life admin activity at all so you can tell when a feed or habit went quiet for too long."
+}
