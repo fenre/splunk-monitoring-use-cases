@@ -133,7 +133,7 @@ try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _b
 
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 var DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};
-var SIDEBAR_GROUP_LABELS = { infra:'Infrastructure', security:'Security', cloud:'Cloud & Containers', app:'Applications', industry:'Industry Verticals', compliance:'Regulatory & Compliance', business:'Business & Executive' };
+var SIDEBAR_GROUP_LABELS = { infra:'Infrastructure', security:'Security', cloud:'Cloud & Containers', app:'Applications', industry:'Industry Verticals', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };
 
 var allUCs = [];
 var ucIndex = {};
