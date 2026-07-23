@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Session start/end, duration, idle time",
-  "app": "VPN gateway logs, RADIUS accounting",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VPN Session Duration and Idle Timeout'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.23).",
+  "evidence": "Saved search uc_17_2_23_vpn_session_duration_and_idle_timeout, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VPN Session Duration and Idle Timeout'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.23.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Session start/end, duration, idle time Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "VPN gateway logs, RADIUS accounting — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vpn sourcetype=\"vpn:session\"\n| eval duration_hrs=(end_time - start_time)/3600\n| stats avg(duration_hrs) as avg_hrs, max(duration_hrs) as max_hrs, count by user\n| where max_hrs > 24 OR avg_hrs > 12\n| table user, count, avg_hrs, max_hrs",
   "description": "Anomalously long or short VPN sessions may indicate abuse or connectivity issues. Monitoring supports policy tuning and security review.",
   "value": "Network and security teams analyze VPN session durations and timeout patterns, identifying users who leave sessions connected indefinitely and validating that idle timeout policies are effectively enforced.",
@@ -25,21 +31,41 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cato Networks Events App",
-      "url": "https://splunkbase.splunk.com/app/8037"
+      "url": "https://splunkbase.splunk.com/app/8037",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `duration`, `idle_time`, `action=session_disconnect`, `disconnect_reason`.\n• ASA VPN sessions have configurable timeouts: `vpn-idle-timeout` (disconnect after N minutes of inactivity) and `vpn-session-timeout` (maximum session duration regardless of activity). Defaults vary by platform and group policy.\n\nStep 1 — Configure data collection\nVerify disconnect reason data:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| stats count by disconnect_reason\n```\nCommon disconnect reasons: `idle_timeout`, `session_timeout`, `user_initiated`, `admin_reset`, `connection_lost`.\n\nStep 2 — Create the search and alert\n\nPrimary search — Session duration and timeout analysis:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| eval dur_hrs=round(duration/3600, 1)\n| eval timeout_hit=if(match(disconnect_reason, \"(?i)idle.*timeout|session.*timeout\"), \"YES\", \"NO\")\n| stats count avg(dur_hrs) as avg_dur max(dur_hrs) as max_dur count(eval(timeout_hit=\"YES\")) as timeout_disconnects by user\n| eval timeout_pct=round(timeout_disconnects/count*100, 1)\n| where max_dur > 12 OR timeout_pct > 50\n| sort - max_dur\n```\n\nUnderstanding this SPL: Identifies users with excessively long sessions or who are frequently disconnected by idle timeouts. Long sessions (>12 hours) without timeout may indicate the timeout policy is too lenient. High timeout percentage (>50% of sessions end by timeout) may mean the user is not actively using the VPN but leaves it connected.\n\nStep 3 — Validate\n(a) On ASA: `show running-config group-policy <name> | grep timeout` shows the configured timeouts.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Avg/max session duration, timeout rate. Row 2 — Table: users with longest sessions.\nAlert: Trigger when any session exceeds 24h continuous.\n\nRunbook:\n1. **Sessions exceeding 24h** — Review the timeout policy. Consider enforcing a maximum session timeout.\n2. **High idle timeout rate** — Users are connecting but not using the VPN. Consider split-tunnel to reduce load.\n\nStep 5 — Troubleshooting\n• **`disconnect_reason` not parsed** — ASA may use message text instead of a structured field. Parse with rex.\n• **Sessions show duration=0** — Possible data parsing issue. Check the raw event format.",
-  "grandmaExplanation": "We check how long people stay connected to our remote system and whether the automatic disconnect for inactivity is working properly, because idle connections waste resources and create security risks."
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `duration`, `idle_time`, `action=session_disconnect`, `disconnect_reason`.\n• ASA VPN sessions have configurable timeouts: `vpn-idle-timeout` (disconnect after N minutes of inactivity) and `vpn-session-timeout` (maximum session duration regardless of activity). Defaults vary by platform and group policy.\n\nStep 1 — Configure data collection\nVerify disconnect reason data:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| stats count by disconnect_reason\n```\nCommon disconnect reasons: `idle_timeout`, `session_timeout`, `user_initiated`, `admin_reset`, `connection_lost`.\n\nStep 2 — Create the search and alert\n\nPrimary search — Session duration and timeout analysis:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| eval dur_hrs=round(duration/3600, 1)\n| eval timeout_hit=if(match(disconnect_reason, \"(?i)idle.*timeout|session.*timeout\"), \"YES\", \"NO\")\n| stats count avg(dur_hrs) as avg_dur max(dur_hrs) as max_dur count(eval(timeout_hit=\"YES\")) as timeout_disconnects by user\n| eval timeout_pct=round(timeout_disconnects/count*100, 1)\n| where max_dur > 12 OR timeout_pct > 50\n| sort - max_dur\n```\n\nUnderstanding this SPL: Identifies users with excessively long sessions or who are frequently disconnected by idle timeouts. Long sessions (>12 hours) without timeout may indicate the timeout policy is too lenient. High timeout percentage (>50% of sessions end by timeout) may mean the user is not actively using the VPN but leaves it connected.\n\nStep 3 — Validate\n(a) On ASA: `show running-config group-policy <name> | grep timeout` shows the configured timeouts.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Avg/max session duration, timeout rate. Row 2 — Table: users with longest sessions.\nAlert: Trigger when any session exceeds 24h continuous.\n\nRunbook:\n1. **Sessions exceeding 24h** — Review the timeout policy. Consider enforcing a maximum session timeout.\n2. **High idle timeout rate** — Users are connecting but not using the VPN. Consider split-tunnel to reduce load.\n\nStep 5 — Troubleshooting\n• **`disconnect_reason` not parsed** — ASA may use message text instead of a structured field. Parse with rex.\n• **Sessions show duration=0** — Possible data parsing issue. Check the raw event format.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (VPN gateway logs, RADIUS accounting — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=vpn:session into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_hrs, max_hrs, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check how long people stay connected to our remote system and whether the automatic disconnect for inactivity is working properly, because idle connections waste resources and create security risks.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,7 +9,13 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=sase:tunnel`, SD-WAN to SASE",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SASE Tunnel Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.15).",
+  "evidence": "Saved search uc_17_3_15_sase_tunnel_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SASE Tunnel Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=sase:tunnel`, SD-WAN to SASE Indexes: sase. Sourcetypes: sase:tunnel. Key fields: healthy, latency_ms, packet_loss_pct, site, tunnel_id. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler`, `Splunk_TA_paloalto` (Prisma Access), Cato Networks Events App (Splunkbase 8037), `TA-fortinet_fortigate` (FortiSASE), Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=sase sourcetype=\"sase:tunnel\" earliest=-24h\n| eval healthy=if(match(lower(state),\"(?i)up|active\") AND packet_loss_pct < 2 AND latency_ms < 200,1,0)\n| where healthy=0\n| stats latest(latency_ms) as latency_ms latest(packet_loss_pct) as loss by tunnel_id, site\n| sort loss",
   "description": "Monitors IPSec/GRE/SSL tunnels from branch to SASE PoPs — packet loss, latency, and down events.",
@@ -22,18 +28,26 @@
   "references": [
     {
       "title": "Cato Networks Events App",
-      "url": "https://splunkbase.splunk.com/app/8037"
+      "url": "https://splunkbase.splunk.com/app/8037",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
@@ -49,6 +63,12 @@
     "paloalto_pan_firewall",
     "paloalto_prisma"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• SASE platform tunnel/connectivity logs. Zscaler: `sourcetype=zscaler:zia:tunnel` or `sourcetype=zscaler:zpa:connector`. Cato Networks: `sourcetype=cato:sdwan:events`. Palo Alto Prisma Access: `sourcetype=pan:globalprotect` for agent tunnels. Key fields vary: `tunnel_status` (up/down), `tunnel_type` (GRE/IPSec/DTLS), `site_name`, `bandwidth_mbps`, `latency_ms`, `packet_loss_pct`.\n• SASE tunnels connect users (agent tunnel) and sites (IPSec/GRE) to the SASE cloud. Tunnel health directly affects user experience — a down tunnel means no access to cloud-delivered security services.\n• Create a `sase_tunnels.csv` lookup: `tunnel_id,site_name,tunnel_type,expected_bandwidth_mbps,sla_latency_ms`.\n\nStep 1 — Configure data collection\nVerify tunnel events:\n```spl\nindex=sase earliest=-24h\n| where isnotnull(tunnel_status)\n| stats count by tunnel_status, tunnel_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Tunnel health overview:\n```spl\nindex=sase earliest=-24h\n| dedup tunnel_id sortby -_time\n| lookup sase_tunnels.csv tunnel_id OUTPUT site_name expected_bandwidth_mbps sla_latency_ms\n| eval health=case(\n    tunnel_status=\"down\", \"DOWN\",\n    tonumber(latency_ms) > tonumber(sla_latency_ms)*2, \"DEGRADED\",\n    tonumber(packet_loss_pct) > 2, \"DEGRADED\",\n    1==1, \"Healthy\"\n  )\n| stats count by health, site_name, tunnel_type\n| sort health\n```\n\nUnderstanding this SPL: Classifies each tunnel as Healthy, Degraded (high latency or packet loss), or Down. Degraded tunnels are worse than down tunnels in some ways because users experience slow and unreliable access but cannot easily tell why. Down tunnels trigger immediate failover (if configured); degraded tunnels just silently suffer.\n\nTunnel flapping:\n```spl\nindex=sase earliest=-24h\n| where tunnel_status=\"down\" OR tunnel_status=\"up\"\n| stats count by tunnel_id, site_name\n| where count > 10\n| sort - count\n```\n\nStep 3 — Validate\n(a) Check SASE admin console for tunnel status. Compare with Splunk.\n(b) Disconnect a test tunnel and verify the down event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Tunnel status map. Row 2 — Degraded tunnels. Row 3 — Flapping tunnels.\nAlert: Immediate on any site tunnel down. Warning on degraded (>SLA latency).\n\nRunbook:\n1. **Tunnel down** — Check ISP link at the site. Failover to backup tunnel if available.\n2. **Degraded (high latency)** — ISP quality issue. Run traceroute from the site.\n3. **Flapping** — Unstable ISP link or SASE PoP issue. Contact SASE vendor support.\n\nStep 5 — Troubleshooting\n• **No tunnel events** — SASE platform may not export tunnel status logs. Check vendor documentation.\n• **`latency_ms` always 0** — Platform may not measure tunnel latency. Use external monitoring (ThousandEyes).",
-  "grandmaExplanation": "All our internet security goes through cloud tunnels. If a tunnel breaks, people lose access to everything. We monitor every tunnel for problems — not just whether it is up or down, but also whether it is slow or unstable — because a limping tunnel is sometimes worse than one that is completely down."
+  "grandmaExplanation": "All our internet security goes through cloud tunnels. If a tunnel breaks, people lose access to everything. We monitor every tunnel for problems — not just whether it is up or down, but also whether it is slow or unstable — because a limping tunnel is sometimes worse than one that is completely down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

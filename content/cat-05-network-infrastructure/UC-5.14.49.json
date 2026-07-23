@@ -9,10 +9,16 @@
     "Audit"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=traefik:access` with TLS fields",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Traefik Mutual TLS Client Certificate Errors'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.14.49).",
+  "evidence": "Saved search uc_5_14_49_traefik_mutual_tls_client_certificate_er, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Traefik Mutual TLS Client Certificate Errors'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.14.49.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=proxy` `sourcetype=traefik:access` with TLS fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"traefik:access\"\n| where DownstreamStatus==401 OR match(_raw, \"(?i)(unknown ca|certificate required|handshake failure)\")\n| stats count by RouterName, ClientAddr\n| where count > 15",
-  "description": "mTLS ecosystems break silently when CAs rotate.",
+  "description": "mTLS ecosystems break silently when CAs rotate. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Operations teams classify Traefik mutual TLS client certificate failures by error type (expired, untrusted CA, missing cert), enabling targeted client communication for certificate renewal.",
   "implementation": "Configure `tls.options.clientAuthType`; never log private keys or full chains in access logs.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
@@ -20,13 +26,33 @@
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://doc.traefik.io/traefik/https/tls/"
+      "url": "https://doc.traefik.io/traefik/https/tls/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Traefik Mutual TLS Client Certificate Errors» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "syslog",
     "traefik"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Traefik logs with mutual TLS (mTLS) events. Data in `index=proxy` with `sourcetype=traefik:log` or `sourcetype=traefik:access`. Key events: client certificate validation failures, untrusted CA, expired client cert.\n* Mutual TLS: Traefik can require client certificates for authentication. Configured per entrypoint or per router with `tls.options` specifying `clientAuth.caFiles` and `clientAuth.clientAuthType` (RequireAndVerifyClientCert, VerifyClientCertIfGiven, etc.). Failed client cert verification results in TLS handshake failure.\n\nStep 1 -- Configure data collection\n```yaml\n# traefik.yml -- mTLS\ntls:\n  options:\n    mtls-strict:\n      clientAuth:\n        caFiles:\n        - /etc/traefik/certs/client-ca.crt\n        clientAuthType: RequireAndVerifyClientCert\n      minVersion: VersionTLS12\n```\nVerify:\n```spl\nindex=proxy (sourcetype=\"traefik:log\" OR sourcetype=\"traefik:access\") earliest=-4h\n| where match(_raw, \"(?i)client.*cert|tls.*handshake.*fail|mutual.*tls|mTLS|bad certificate|unknown.*ca|expired.*cert|certificate.*required\")\n| stats count\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- mTLS client certificate error analysis:**\n```spl\nindex=proxy (sourcetype=\"traefik:log\" OR sourcetype=\"traefik:access\") earliest=-4h\n| where match(_raw, \"(?i)tls.*handshake|client.*cert|mutual.*tls|bad certificate|unknown.*ca|expired.*cert|certificate.*required|certificate.*verify\")\n| eval cert_error=case(match(_raw, \"(?i)expired.*cert|certificate.*expired\"), \"CLIENT_CERT_EXPIRED\", match(_raw, \"(?i)unknown.*ca|untrusted|ca.*not.*found\"), \"UNTRUSTED_CA\", match(_raw, \"(?i)certificate.*required|no.*cert\"), \"NO_CLIENT_CERT\", match(_raw, \"(?i)bad.*certificate|invalid.*cert|verify.*fail\"), \"INVALID_CERT\", match(_raw, \"(?i)tls.*handshake.*fail\"), \"TLS_HANDSHAKE_FAIL\", 1==1, \"OTHER\")\n| rex \"(?:from|client|addr)\\s*[:=]?\\s*(?<client_ip>[0-9.]+)\"\n| stats count as errors dc(client_ip) as affected_clients by cert_error\n| eval severity=case(cert_error=\"UNTRUSTED_CA\" AND errors > 50, \"HIGH -- many untrusted CA errors\", cert_error=\"CLIENT_CERT_EXPIRED\", \"WARNING -- expired client certificates\", cert_error=\"NO_CLIENT_CERT\", \"WARNING -- clients without certificates\", 1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -errors\n```\n\nStep 3 -- Validate\n(a) Connect without client cert: `curl -k https://<traefik>/` -- should fail if RequireAndVerifyClientCert.\n(b) Connect with valid client cert: `curl --cert client.crt --key client.key https://<traefik>/` -- should succeed.\n(c) Connect with expired cert and verify the error is logged.\n\nStep 4 -- Operationalize\nDashboard (\"Traefik -- mTLS\"):\n* Row 1 -- Single-value: \"Client cert errors (4h)\", \"Expired certs\", \"Untrusted CA\", \"Missing certs\".\n* Row 2 -- Certificate error breakdown.\n\nAlerting:\n* High (untrusted CA > 50): clients using certs from wrong CA.\n* Warning (expired client certs): notify clients to renew.\n\nStep 5 -- Troubleshooting\n\n* **UNTRUSTED_CA** -- Client certificate is signed by a CA not in `clientAuth.caFiles`. Add the client CA to the trust chain or issue client certs from the correct CA.\n\n* **CLIENT_CERT_EXPIRED** -- Client needs to renew their certificate. If many clients affected simultaneously, check if the CA itself expired.\n\n* **NO_CLIENT_CERT with VerifyClientCertIfGiven** -- Client is not sending a cert but the TLS option only verifies if given (optional). If you want to require certs, use RequireAndVerifyClientCert.",
-  "grandmaExplanation": "We watch traefik mutual tls client certificate errors and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch traefik mutual tls client certificate errors and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

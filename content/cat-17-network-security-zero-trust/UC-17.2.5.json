@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN session logs (connect/disconnect events)",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VPN Tunnel Stability'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.5).",
+  "evidence": "Saved search uc_17_2_5_vpn_tunnel_stability, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VPN Tunnel Stability'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "VPN session logs (connect/disconnect events) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\"\n| where action IN (\"session_connect\",\"session_disconnect\")\n| transaction user maxspan=1h\n| where eventcount > 4\n| table user, eventcount, duration\n| sort -eventcount",
   "description": "Frequent disconnects indicate network issues, client problems, or infrastructure instability affecting user productivity.",
   "value": "Network operations and helpdesk teams identify users experiencing VPN tunnel instability (frequent reconnections), distinguishing between endpoint issues, network problems, and concentrator-side failures to reduce ticket resolution time.",
@@ -25,14 +31,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
@@ -47,7 +65,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `action` (session_connect/session_disconnect), `user`, `src`, `duration` (session duration in seconds at disconnect).\n• Tunnel instability manifests as rapid connect-disconnect cycles (flapping). This degrades user productivity and may indicate network issues, endpoint software conflicts, or VPN client bugs.\n\nStep 1 — Configure data collection\nVerify connect/disconnect pairs:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| stats count by action, user\n| where count > 4\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Tunnel flapping detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-4h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| transaction user maxspan=4h\n| where eventcount > 6\n| eval reconnects=floor(eventcount/2)\n| eval avg_session_sec=if(isnotnull(duration), round(duration/reconnects, 0), null())\n| stats count as flap_episodes max(reconnects) as max_reconnects values(src) as source_ips by user\n| where max_reconnects > 3\n| sort - max_reconnects\n```\n\nUnderstanding this SPL: The `transaction` command groups connect/disconnect events per user. More than 6 events (3+ reconnect cycles) in 4 hours indicates instability. Very short average session durations (under 60 seconds) suggest the tunnel is dropping immediately after connecting — often a routing conflict, MTU issue, or endpoint software conflict. Multiple source IPs for the same user may indicate they are switching between networks (Wi-Fi to cellular).\n\nShort session detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-24h\n| where duration < 60\n| stats count as short_sessions dc(user) as affected_users by host\n```\n\nStep 3 — Validate\n(a) Ask a user experiencing VPN instability to check their AnyConnect event log: it records disconnect reasons.\n(b) On ASA: `show vpn-sessiondb | grep <user>` during an active session, then check again after a reported disconnect.\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Users experiencing flapping (4h)\", \"Short sessions (<60s)\". Row 2 — Table: flapping users. Row 3 — Timechart: reconnects over 24h.\nAlert: Trigger when any user reconnects >5 times in 1h.\n\nRunbook:\n1. **Widespread flapping across many users** — Network-side issue. Check the VPN concentrator for resource exhaustion, IP pool depletion, or certificate expiry.\n2. **Single user flapping** — Endpoint issue. Check for conflicting VPN clients, firewall software, or unstable internet connection.\n3. **Short sessions after client update** — AnyConnect update may have introduced a bug. Roll back or patch.\n\nStep 5 — Troubleshooting\n• **`duration` field missing** — ASA may not include duration in disconnect events for all tunnel types. Calculate from connect-disconnect timestamps.\n• **Transaction too large** — For very active users, `maxspan=4h` may capture too many events. Reduce to `maxspan=1h`.",
   "grandmaExplanation": "We detect when someone's secure connection keeps dropping and reconnecting, which disrupts their work, and we figure out whether the problem is on their end or ours.",
-  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN"
+  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

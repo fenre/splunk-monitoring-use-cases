@@ -9,7 +9,13 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ZTNA access logs (application, user, device, action)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ZTNA Application Access'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.4).",
+  "evidence": "Saved search uc_17_3_4_ztna_application_access, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ZTNA Application Access'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "ZTNA access logs (application, user, device, action) Indexes: zt. Sourcetypes: zscaler:zpa. Key fields: application. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=zt sourcetype=\"zscaler:zpa\"\n| stats dc(user) as unique_users, count as total_access by application\n| sort -unique_users",
   "description": "Per-application access patterns in ZTNA reveal usage trends, security risks, and application performance issues.",
@@ -24,22 +30,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021",
     "T1071.001"
@@ -57,6 +67,12 @@
     "paloalto_pan_firewall",
     "paloalto_prisma"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• ZTNA platform logs in `index=ztna` or `index=proxy`. Zscaler ZPA: `sourcetype=zscaler:zpa:user_activity`. Palo Alto Prisma Access: `sourcetype=pan:globalprotect`. Cloudflare Access: `sourcetype=cloudflare:access`. Key fields (ZPA): `Application`, `User`, `ClientPublicIP`, `Action` (Allow/Block), `PolicyName`, `ConnectorGroup`, `DoubleEncryption`, `ServerIP`.\n• ZTNA replaces VPN: users access specific applications, not network segments. Every access attempt is evaluated against identity, device, location, and risk signals. This UC tracks who is accessing which applications and whether the ZTNA policy allowed or blocked them.\n• Create a `ztna_app_inventory.csv` lookup: `app_name,app_owner,data_classification,required_trust_level` mapping ZTNA-published applications to ownership and sensitivity.\n\nStep 1 — Configure data collection\nFor Zscaler ZPA: Configure Log Streaming Service (LSS) to send App Connector logs to Splunk via syslog or HTTPS.\n\nVerify:\n```spl\nindex=ztna sourcetype=\"zscaler:zpa:user_activity\" earliest=-1h\n| stats count by Action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Application access overview:\n```spl\nindex=ztna earliest=-24h\n| stats count dc(User) as users count(eval(Action=\"Allow\")) as allowed count(eval(Action=\"Block\")) as blocked by Application\n| lookup ztna_app_inventory.csv app_name as Application OUTPUT app_owner data_classification\n| eval block_rate=round(blocked/(allowed+blocked)*100, 1)\n| sort - count\n```\n\nUnderstanding this SPL: Shows which ZTNA-published applications are most accessed, how many users access each, and the block rate. A high block rate on a specific app means users are trying to access it but failing ZTNA policy checks — either they lack the right identity group, their device is non-compliant, or they are coming from a restricted location. A block rate of 0% across all apps may mean ZTNA is in monitor-only mode.\n\nAccess denied analysis:\n```spl\nindex=ztna Action=Block earliest=-24h\n| stats count by User, Application, PolicyName\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access a ZTNA-published app. Verify the allow event appears.\n(b) Access with a non-compliant device. Verify the block event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Application access ranking. Row 2 — Block rate by app. Row 3 — Denied users.\nAlert: When a Tier-1 (critical) application block rate exceeds 10%.\n\nRunbook:\n1. **High block rate on one app** — Check ZTNA policy for that app. May be too restrictive.\n2. **Unexpected users accessing sensitive apps** — Review identity group membership.\n3. **No block events** — ZTNA may be in passthrough/monitor mode.\n\nStep 5 — Troubleshooting\n• **No ZPA events** — LSS may not be configured. Check ZPA Admin > Log Streaming.\n• **Application field empty** — ZPA may use 'Application Segment' name. Map to business app name via lookup.",
-  "grandmaExplanation": "Instead of giving everyone a VPN to the whole network, we publish specific applications and check who can access each one. We track every attempt — who tried, which app, and whether they were allowed — to make sure only the right people reach each application."
+  "grandmaExplanation": "Instead of giving everyone a VPN to the whole network, we publish specific applications and check who can access each one. We track every attempt — who tried, which app, and whether they were allowed — to make sure only the right people reach each application.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

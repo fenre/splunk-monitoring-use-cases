@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Firewall Deny Log Analysis — Blocked Traffic Characterisation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.65).",
+  "evidence": "Saved search uc_5_20_65_ipv6_firewall_deny_log_analysis_blocked, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Firewall Deny Log Analysis — Blocked Traffic Characterisation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.65.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=pan:traffic` or `sourcetype=cisco:asa` containing IPv6 firewall deny events (dropped/rejected traffic). IPv6 deny log analysis reveals the composition of blocked traffic and identifies both security threats and misconfigurations. Common patterns in IPv6 deny logs include:\n\n1. **NDP blocked** — If deny logs show solicited-node multicast (FF02::1:FF00:0/104) or RS/RA messages, the firewall is misconfigured and is breaking IPv6 functionality.\n2. **ICMPv6 essential types blocked** — Deny logs for ICMPv6 Type 2 (Packet Too Big) indicate PMTUD is broken. This causes TCP connections to hang for large payloads.\n3. **Scanning activity** — Systematic probing across an IPv6 /64 subnet appears as denied connections to sequential or patterned addresses within the subnet.\n4. **Spoofed traffic** — Denied traffic with bogon source addresses (see UC-5.20.63) or impossible source addresses for the interface direction.\n5. **Application misconfigurations** — Denied traffic to legitimate IPv6 destinations may indicate applications that are dual-stack-aware but lack the firewall rules to support their IPv6 paths.\n6. **Tunnel leakage** — Denied traffic using protocol 41 (6in4) or UDP port 3544 (Teredo) indicates tunnel traffic attempting to bypass the perimeter.",
   "app": "Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757). Splunk Add-on for Cisco ASA.",
   "spl": "index=network (sourcetype=\"pan:traffic\" OR sourcetype=\"cisco:asa\" OR sourcetype=\"cisco:ios\") action=\"denied\" earliest=-24h\n| eval is_ipv6=if(match(src, \":\") OR match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| eval deny_category=case(\n    match(dest, \"^[Ff][Ff]02::1:[Ff][Ff]\"), \"NDP solicited-node multicast BLOCKED — firewall misconfiguration\",\n    match(_raw, \"(?i)packet.too.big|icmpv6.*type.?2\"), \"ICMPv6 PTB BLOCKED — PMTUD broken\",\n    match(_raw, \"(?i)router.solicit|router.advert|icmpv6.*type.?13[34]\"), \"RA/RS BLOCKED — SLAAC broken\",\n    match(_raw, \"(?i)neighbor.solicit|neighbor.advert|icmpv6.*type.?13[56]\"), \"NDP NS/NA BLOCKED — resolution broken\",\n    match(src, \"^[Ff][Ee][89AaBb]\"), \"Link-local source denied (may be legitimate)\",\n    match(src, \"^2001:[Dd][Bb]8:\"), \"Documentation address source (test config leak)\",\n    match(dest_port, \"^(22|3389|445|1433|3306|5432)$\"), \"Admin/DB service probe BLOCKED (expected)\",\n    1=1, \"General deny\")\n| stats count as events first(_time) as first_seen last(_time) as last_seen by deny_category, src, dest\n| sort -events",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "RFC 4890 — Recommendations for Filtering ICMPv6 Messages in Firewalls",
-      "url": "https://www.rfc-editor.org/rfc/rfc4890"
+      "url": "https://www.rfc-editor.org/rfc/rfc4890",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Internet background radiation.** IPv6 scanning from the internet produces a constant stream of deny events. This is expected at the perimeter and should not trigger alerts unless the volume or pattern changes significantly.\n\n**Happy Eyeballs fallback.** When a client attempts IPv6 first and the firewall denies the IPv6 connection, the client falls back to IPv4 silently. This is working-as-designed for the client, but the denied IPv6 connection should be investigated — it may indicate a missing firewall rule rather than a deliberate block.\n\n**Expired session re-establishment.** After a firewall session table entry expires, the next packet in the flow is denied. This is normal for long-lived but idle connections (e.g., SSH sessions that timed out).",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint",
     "cisco",

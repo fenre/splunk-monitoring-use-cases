@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SMB Protocol Activity in OT Networks'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.9.18).",
+  "evidence": "Saved search uc_14_9_18_smb_protocol_activity_in_ot_networks, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SMB Protocol Activity in OT Networks'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.9.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session` (protocol=\"smb\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:session\" protocols=\"smb\"\n| stats count as smb_events, dc(dst_ip) as targets by src_ip, zone\n| sort -smb_events\n| table src_ip, smb_events, targets, zone",
   "description": "SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. OT security platforms detect SMB protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.",
-  "value": "SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. OT security platforms detect SMB protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.",
+  "value": "Operations and leadership rely on 'SMB Protocol Activity in OT Networks' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Both platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.",
   "visualization": "SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "SMB in OT during imaging, file drops for PLC projects, or backup jobs that are approved but should stay rare.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session` (protocol=\"smb\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:session\" protocols=\"smb\"\n| stats count as smb_events, dc(dst_ip) as targets by src_ip, zone\n| sort -smb_events\n| table src_ip, smb_events, targets, zone\n```\n\nUnderstanding this SPL\n\n**SMB Protocol Activity in OT Networks** — SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. OT security platforms detect SMB protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session` (protocol=\"smb\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:session. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:session\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_ip, zone** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **SMB Protocol Activity in OT Networks**): table src_ip, smb_events, targets, zone\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.",
-  "grandmaExplanation": "We log file and Windows-style share use in OT so out-of-profile file access does not look normal just because the network is small."
+  "grandmaExplanation": "We log file and Windows-style share use in OT so out-of-profile file access does not look normal just because the network is small.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

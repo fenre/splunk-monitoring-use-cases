@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=middleware` `sourcetype=kafka:consumer`, `rabbitmq:queue`, `activemq:queue`, `azure:eventhub:metrics`",
-  "app": "Splunk Add-on for Kafka, RabbitMQ, ActiveMQ, AWS MSK / Azure Event Hubs TAs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Message Queue Backlog Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.7.5).",
+  "evidence": "Saved search uc_8_7_5_message_queue_backlog_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Message Queue Backlog Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.7.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=middleware` `sourcetype=kafka:consumer`, `rabbitmq:queue`, `activemq:queue`, `azure:eventhub:metrics` Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Kafka, RabbitMQ, ActiveMQ, AWS MSK / Azure Event Hubs TAs — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=middleware earliest=-30d (sourcetype=\"kafka:consumer\" OR sourcetype=\"rabbitmq:queue\" OR sourcetype=\"activemq:queue\")\n| eval depth=coalesce(consumer_lag, lag, queue_depth, backlog_messages)\n| eval qname=coalesce(topic_queue, queue, destination)\n| timechart span=1d max(depth) as queue_depth by qname limit=15",
   "description": "Queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes. Growth trends drive consumer scaling, partition adds, or poison-message handling before disk limits or SLA misses.",
-  "value": "Queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes. Growth trends drive consumer scaling, partition adds, or poison-message handling before disk limits or SLA misses.",
+  "value": "Operations and leadership rely on 'Message Queue Backlog Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Align Kafka lag with consumer group and partition; use `max` across partitions for worst-case visibility. Exclude retry/DLQ topics from primary charts or show separately. Set thresholds from peak business hours using historical baselines. For cloud queues, map metric dimensions to the same `qname` namespace.",
   "visualization": "Line chart (max depth by queue), area chart (7d vs 30d overlay using `timewrap`), table (top queues by growth rate).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues grow during consumer maintenance, slow consumers, or burst producer activity. Seasonal traffic can also create sustained backlog without a hard fault.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "activemq",
     "aws",
@@ -34,6 +56,17 @@
     "kafka",
     "rabbitmq"
   ],
+  "equipmentModels": [
+    "activemq_generic",
+    "aws_generic",
+    "azure_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Kafka, RabbitMQ, ActiveMQ, AWS MSK / Azure Event Hubs TAs.\n• Ensure the following data sources are available: `index=middleware` `sourcetype=kafka:consumer`, `rabbitmq:queue`, `activemq:queue`, `azure:eventhub:metrics`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign Kafka lag with consumer group and partition; use `max` across partitions for worst-case visibility. Exclude retry/DLQ topics from primary charts or show separately. Set thresholds from peak business hours using historical baselines. For cloud queues, map metric dimensions to the same `qname` namespace.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=middleware earliest=-30d (sourcetype=\"kafka:consumer\" OR sourcetype=\"rabbitmq:queue\" OR sourcetype=\"activemq:queue\")\n| eval depth=coalesce(consumer_lag, lag, queue_depth, backlog_messages)\n| eval qname=coalesce(topic_queue, queue, destination)\n| timechart span=1d max(depth) as queue_depth by qname limit=15\n```\n\nUnderstanding this SPL\n\n**Message Queue Backlog Trending** — Queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes. Growth trends drive consumer scaling, partition adds, or poison-message handling before disk limits or SLA misses.\n\nDocumented **Data sources**: `index=middleware` `sourcetype=kafka:consumer`, `rabbitmq:queue`, `activemq:queue`, `azure:eventhub:metrics`. **App/TA** (typical add-on context): Splunk Add-on for Kafka, RabbitMQ, ActiveMQ, AWS MSK / Azure Event Hubs TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: middleware; **sourcetype**: kafka:consumer, rabbitmq:queue, activemq:queue. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=middleware, sourcetype=\"kafka:consumer\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **qname** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by qname limit=15** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (max depth by queue), area chart (7d vs 30d overlay using `timewrap`), table (top queues by growth rate).",
-  "grandmaExplanation": "We watch for signs that queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes."
+  "grandmaExplanation": "We watch for signs that queue depth over 7 and 30 days shows sustained consumer lag versus transient spikes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

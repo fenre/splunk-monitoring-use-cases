@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN concentrator session logs",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VPN Concurrent Sessions'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.1).",
+  "evidence": "Saved search uc_17_2_1_vpn_concurrent_sessions, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VPN Concurrent Sessions'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "VPN concentrator session logs Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn sourcetype=\"cisco:asa\"\n| where action=\"session_connect\" OR action=\"session_disconnect\"\n| timechart span=15m dc(user) as concurrent_users",
   "description": "VPN capacity planning prevents remote workers from being locked out. Trending identifies peak usage and growth patterns.",
   "value": "Network operations teams track real-time VPN session utilization against concentrator capacity, enabling proactive license scaling and load balancing before users experience connection refusals.",
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133",
     "T1078"
@@ -48,7 +66,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (Splunkbase, `sourcetype=cisco:asa`) on HF/SH. For Palo Alto GlobalProtect: Palo Alto Networks Add-on (`sourcetype=pan:globalprotect`). For Fortinet SSL-VPN: Fortinet FortiGate Add-on (`sourcetype=fgt_traffic` or `fgt_event`).\n• VPN concentrator/firewall sending syslog to the Heavy Forwarder on UDP/TCP 514. Cisco ASA: `logging enable` + `logging host <HF_IP>` + `logging trap informational`. Palo Alto: syslog server profile attached to GlobalProtect log forwarding.\n• Data in `index=vpn`. Key fields (Cisco ASA): `action` (session_connect/session_disconnect), `user`, `src`, `dest`, `tunnel_group`, `group_policy`, `bytes_in`, `bytes_out`, `duration`. Palo Alto: `user`, `src`, `stage` (connected/disconnected).\n• Create a `vpn_capacity.csv` lookup: `concentrator_host,max_sessions,warning_pct,critical_pct` for threshold management.\n\nStep 1 — Configure data collection\nCisco ASA: enable VPN session logging with `logging class vpn` at level 6 (informational). Key message IDs: 722022 (WebVPN session start), 722023 (WebVPN session end), 713228 (IPSec session start), 113019 (session disconnected).\n\nVerify:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-1h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| stats count by action, host\n```\nBoth connect and disconnect events must be present. If only connects: logging level may be filtering disconnects, or users are timing out without generating disconnect events.\n\nStep 2 — Create the search and alert\n\nPrimary search — Concurrent session tracking:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as concurrent_sessions by host\n| timechart span=15m max(concurrent_sessions) as peak_sessions by host\n```\n\nUnderstanding this SPL: Models concurrent sessions by summing +1 for connects and -1 for disconnects over time. The `streamstats` running total gives the session count at each event. Timechart at 15-minute bins shows the peak. This is more accurate than `dc(user)` because it accounts for session duration — a user who connected at 8am and disconnected at 5pm is counted for the entire day, not just the connect moment.\n\nCapacity utilization:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" earliest=-24h\n| where action IN (\"session_connect\", \"session_disconnect\")\n| eval delta=if(action=\"session_connect\", 1, -1)\n| sort _time\n| streamstats sum(delta) as concurrent by host\n| stats max(concurrent) as peak by host\n| lookup vpn_capacity.csv concentrator_host as host OUTPUT max_sessions warning_pct critical_pct\n| eval utilization_pct=round(peak/max_sessions*100, 1)\n| eval status=case(utilization_pct>=critical_pct, \"CRITICAL\", utilization_pct>=warning_pct, \"WARNING\", 1==1, \"OK\")\n```\n\nStep 3 — Validate\n(a) On the ASA: `show vpn-sessiondb summary` shows current session count. Compare with Splunk's latest concurrent value.\n(b) On Palo Alto: `show global-protect-gateway current-user` shows active sessions.\n(c) At peak hours (typically 9-10am), verify Splunk's concurrent count matches the concentrator's live session count within 5%.\n\nStep 4 — Operationalize\nDashboard (\"VPN — Concurrent Sessions\"):\n• Row 1 — Single-value gauge: current concurrent sessions, max sessions, utilization %.\n• Row 2 — Timechart: peak sessions by concentrator over 7 days.\n• Row 3 — Table: concentrator, peak, capacity, utilization, status.\n\nAlert: Trigger when utilization exceeds 80% (warning) or 95% (critical). At 95%, new connections may be refused.\n\nRunbook:\n1. **Approaching capacity** — Increase the VPN license count or redirect users to a secondary concentrator.\n2. **Sudden spike in sessions** — Correlate with incidents (e.g., office closure forcing remote work). Verify it is not a connection flood attack.\n3. **Session count never drops** — Users may be leaving VPN connected 24/7. Implement idle timeout policies (UC-17.2.23).\n\nStep 5 — Troubleshooting\n• **Concurrent count goes negative** — Missing connect events (started before logging was enabled) or duplicate disconnect events. Set a floor: `| eval concurrent=max(concurrent, 0)`.\n• **Disconnect events missing** — ASA may not log disconnects for certain tunnel types. Enable `logging class vpn level 6`.\n• **Count drifts from reality over time** — Accumulation error from missed events. Reset periodically with a snapshot from `show vpn-sessiondb summary` via a scripted input.",
   "grandmaExplanation": "We count how many people are connected to our secure remote access system at the same time, making sure we have enough room for everyone before the connection starts turning people away.",
-  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN"
+  "hardware": "Cisco ASA 5506-X/5508-X/5516-X/5525-X/5545-X/5555-X, ASAv, Cisco Secure Firewall 3100/4200; Palo Alto PA-220/PA-440/PA-3200/PA-5200, GlobalProtect; Fortinet FortiGate 60F/100F/200F/600F/1800F, FortiGate SSL-VPN; Juniper SRX300/SRX1500/SRX4100/SRX4200, Junos Dynamic VPN",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

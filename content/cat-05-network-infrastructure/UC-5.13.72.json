@@ -9,6 +9,12 @@
     "Inventory"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Catalyst Center + Cyber Vision OT Device Correlation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.72).",
+  "evidence": "Saved search uc_5_13_72_catalyst_center_cyber_vision_ot_device_c, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Catalyst Center + Cyber Vision OT Device Correlation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.72.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:devicehealth`. from the `devicehealth` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/intent/api/v1/device-health`. Default poll interval: 900s (15m). Volume: ~1 event per managed device per poll. RBAC: NETWORK-ADMIN-ROLE. Key fields: `overallHealth` (integer 0-100), `reachabilityHealth` (string), `deviceName` (string), `deviceType` (string), `siteId` (string), `platformId` (string), `managementIpAddress` (string), `softwareVersion` (string). Additionally correlates with `index=cybervision sourcetype=cisco:cybervision:*` (Cisco Cyber Vision OT device inventory). Requires both Catalyst Center and Cyber Vision data collection.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:devicehealth\" | stats latest(overallHealth) as network_health by managementIpAddress, deviceName, siteId | join type=left managementIpAddress [search index=cybervision sourcetype=\"cisco:cybervision:devices\" | stats count as ot_devices values(deviceType) as ot_types by gatewayIp | rename gatewayIp as managementIpAddress] | where isnotnull(ot_devices) | table deviceName managementIpAddress siteId network_health ot_devices ot_types | sort -ot_devices",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Device Health API — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Gateway IP mismatch between Cisco Cyber Vision and Catalyst Center.** The correlation joins on `managementIpAddress`, but Cyber Vision may associate OT devices with a different gateway IP (e.g., an SVI or HSRP VIP) than the switch's management IP known to Catalyst Center. Distinguish by reviewing the join key: if Cyber Vision reports a VLAN SVI IP and Catalyst Center reports the physical management IP, the join will miss valid matches. This is a query design issue — consider joining on subnet or using a `catalyst_cybervision_ip_map` lookup to translate between Cyber Vision gateway IPs and Catalyst Center management IPs.\n\n**VRF or shared SVI making OT device association ambiguous.** In networks with VRF-lite or multi-tenancy, the same switch may serve both IT and OT VRFs. Cyber Vision may report OT devices behind a VRF that Catalyst Center does not expose as a distinct entity. Distinguish by checking whether the affected switch serves multiple VRFs and whether OT devices are in a different VRF from the management interface. Suppress by scoping the correlation to specific VLANs or VRFs known to carry OT traffic.\n\n**Firewall or segmentation between OT and IT networks obscuring the correlation.** A firewall between the OT segment and the campus network may mean that the switch Catalyst Center monitors is not the same device Cyber Vision sees as the OT gateway. Distinguish by tracing the network path: if a firewall sits between the Cyber Vision sensor and the Catalyst Center-managed switch, the correlation may not be meaningful. Suppress by limiting the correlation to sites where Cyber Vision sensors are directly connected to Catalyst Center-managed switches.\n\n**Cyber Vision sensor offline or not reporting, showing no OT devices on a healthy switch.** If the Cyber Vision sensor is offline or misconfigured, the correlation will show switches with no associated OT devices, which may be incorrectly interpreted as switches not serving OT. Distinguish by verifying Cyber Vision sensor health independently: `index=cybervision sourcetype=cisco:cybervision:sensor | stats latest(_time) as last_seen by sensor_name`. Do not suppress — a silent Cyber Vision sensor is its own operational issue.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

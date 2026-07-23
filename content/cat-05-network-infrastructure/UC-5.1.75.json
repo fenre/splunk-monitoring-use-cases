@@ -9,6 +9,12 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Network Topology Discovery and Source-of-Truth Reconciliation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.75).",
+  "evidence": "Saved search uc_5_1_75_network_topology_discovery_and_source_of, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Network Topology Discovery and Source-of-Truth Reconciliation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.75.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Source-of-truth inventory exports from NetBox, IP Fabric, or Nautobot — typically pulled via REST API into a Splunk lookup (`netbox_devices.csv` or `kvstore://netbox_devices`). Compared against the live signal from `index=network sourcetype=cisco:ios` and equivalent vendor sourcetypes. SNMP `sysObjectID` is the most-portable secondary check for which devices are actually responding to polling.",
   "app": "NetBox REST API (custom scripted input), IP Fabric REST API, Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352).",
   "spl": "| inputlookup netbox_devices.csv\n| join type=left hostname [search index=network sourcetype=\"cisco:ios\" earliest=-24h | stats latest(_time) as last_seen by host | rename host as hostname]\n| eval status=if(isnull(last_seen),\"NOT_REPORTING\",\"OK\")\n| where status=\"NOT_REPORTING\"\n| table hostname, site, role, status",
@@ -22,18 +28,26 @@
   "references": [
     {
       "title": "NetBox documentation",
-      "url": "https://docs.netbox.dev/"
+      "url": "https://docs.netbox.dev/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IP Fabric documentation",
-      "url": "https://ipfabric.io/"
+      "url": "https://ipfabric.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Nautobot documentation",
-      "url": "https://docs.nautobot.com/"
+      "url": "https://docs.nautobot.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Maintenance-mode devices.** Devices that are intentionally powered off for maintenance will show as NOT_REPORTING but should not page on-call. Add a `maintenance=true` flag to the inventory lookup and filter the alert.\n\n**Brand-new devices in inventory but not yet provisioned.** Devices that have just been added to NetBox but have not yet been racked will appear as NOT_REPORTING for hours or days. Use a `provisioning_status` column from the source of truth to suppress unfinished items.\n\n**Stale inventory entries for decommissioned devices.** The reverse problem: the source of truth has a device that was decommissioned six months ago and nobody removed the record. The alert is correct — escalate to the network-inventory owner, not the network-operations team.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",
@@ -46,6 +60,12 @@
     "snmp_generic"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (NetBox REST API (custom scripted input), IP Fabric REST API, Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352).). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We compare the official list of all our network gear against what we actually see talking on the network each day. When the official list says we have a device but Splunk has not heard from it in 24 hours, the team gets alerted to investigate — either the device is broken, the monitoring is broken, or the list is wrong. All three are problems worth knowing.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

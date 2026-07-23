@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ServiceNow Fulfiller versus Requester License Mix'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-20.3.10).",
+  "evidence": "Saved search uc_20_3_10_servicenow_fulfiller_versus_requester_li, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ServiceNow Fulfiller versus Requester License Mix'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-20.3.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=itsm` and the canonical `Splunk_TA_snow` sourcetypes: `snow:sys_user` (provides `active`, `last_login_time`, `web_service_access_only`, `sys_id`, `user_name`, `email`, `department`, `company`, `sys_created_on`), `snow:sys_user_has_role` (links each `sys_user` row to its assigned `sys_user_role` rows; this is the table ServiceNow's License Compliance Manager itself reads from), and `snow:incident` / `snow:change_request` / `snow:sc_request` for the active-Requester denominator (`caller_id`, `opened_by`, `requested_for`). The add-on's modular input polls the ServiceNow REST Table API. Important: **`sys_user_has_role` is not collected by the add-on's default inputs** — it must be added as a custom stanza in `Splunk_TA_snow/local/inputs.conf` before this UC returns rows. Reference fields (`user`, `role`) come back as 32-character `sys_id` strings unless the input is configured with `display_value = all`, which this UC requires.",
   "app": "`Splunk_TA_snow` ([Splunkbase 1928](https://splunkbase.splunk.com/app/1928)), Splunk-supported. Required on a Heavy Forwarder (the modular inputs run there, not on a Universal Forwarder) and on every Search Head that needs the field aliases / sourcetype-level extractions. Compatible with Splunk Enterprise 9.x and Splunk Cloud, and with current ServiceNow Now Platform releases (Tokyo through Yokohama tested; the `sys_user_has_role` table and the `last_login_time` field on `sys_user` exist in every release back to Geneva).",
   "spl": "index=itsm sourcetype=\"snow:sys_user_has_role\" earliest=-90d@d\n| dedup user role sortby -_time\n| eval is_fulfiller=if(match(lower(role),\"^(itil|change_manager|incident_manager|problem_manager|task_writer|agent_workspace_user|sn_change_write|sn_incident_write|sn_customerservice_agent|admin)$\"),1,0)\n| stats max(is_fulfiller) as fulfiller_role values(role) as roles_held by user\n| where fulfiller_role=1\n| join type=inner user max=0 [\n    search index=itsm sourcetype=\"snow:sys_user\" earliest=-7d@d\n    | dedup user_name sortby -_time\n    | rename user_name as user\n    | where active=\"true\" AND web_service_access_only!=\"true\"\n    | eval days_since_last_login=if(isnull(last_login_time) OR last_login_time=\"\",-1,\n                                    round((now()-strptime(last_login_time,\"%Y-%m-%d %H:%M:%S\"))/86400,0))\n    | table user department days_since_last_login\n  ]\n| eval revocation_class=case(\n    days_since_last_login=-1,  \"01_never_logged_in\",\n    days_since_last_login>365, \"02_audit_window_exceeded\",\n    days_since_last_login>180, \"03_dormant_180d_revoke\",\n    days_since_last_login>90,  \"04_dormant_90d_review\",\n    true(),                    \"05_active_paid\")\n| eventstats count as fulfiller_total\n| appendcols [\n    search index=itsm (sourcetype=\"snow:incident\" OR sourcetype=\"snow:sc_request\") earliest=-30d@d\n    | stats dc(caller_id) as active_requesters_30d\n  ]\n| filldown active_requesters_30d\n| eval fulfiller_to_requester_ratio_pct=round(100*fulfiller_total/coalesce(active_requesters_30d,1),1)\n| stats count as users by revocation_class, fulfiller_total, active_requesters_30d, fulfiller_to_requester_ratio_pct\n| eval annual_waste_estimate_usd=if(revocation_class IN (\"01_never_logged_in\",\"02_audit_window_exceeded\",\"03_dormant_180d_revoke\"),users*120*12,0)\n| sort revocation_class",
@@ -19,26 +25,31 @@
   "references": [
     {
       "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for ServiceNow — canonical sourcetypes and field reference",
-      "url": "https://splunk.github.io/splunk-add-on-for-servicenow/Datatypes/"
+      "url": "https://splunk.github.io/splunk-add-on-for-servicenow/Datatypes/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk-supported integration: ServiceNow",
-      "url": "https://help.splunk.com/en/data-management/integrate-data-with-add-ons/splunk-supported-add-ons/splunk-supported-add-ons/servicenow"
+      "url": "https://help.splunk.com/en/data-management/integrate-data-with-add-ons/splunk-supported-add-ons/splunk-supported-add-ons/servicenow",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ServiceNow Now Platform — User and role administration",
-      "url": "https://docs.servicenow.com/csh?topicname=user_role_management.html"
+      "url": "https://docs.servicenow.com/csh?topicname=user_role_management.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ServiceNow Now Platform — License Compliance Manager (Subscription Management)",
-      "url": "https://docs.servicenow.com/csh?topicname=subscription-management.html"
+      "url": "https://docs.servicenow.com/csh?topicname=subscription-management.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "This UC fires on role-assignment data, not on activity, so the most common false-positives are gaps between **role assignment** (what ServiceNow bills on) and **role usability** (what the user actually needs). (a) Quarterly approvers — CAB chair, change_manager, problem_manager — legitimately use ServiceNow once per quarter and will fall into the 90- or 180-day buckets; cross-check `assigned_to` / `opened_by` activity over a 90-day window from `snow:change_request` and `snow:problem` before revoking. (b) SSO last-login lag — when the IdP issues long-lived tokens and reuses sessions, ServiceNow's `last_login_time` lags actual platform interaction by days or weeks; for SSO-authenticated populations, derive activity from `snow:incident.assigned_to` and `snow:change_request.assigned_to` instead of `last_login_time`. (c) Newly provisioned users — anyone whose `sys_user.sys_created_on` is within the past 14 days hasn't had time to log in yet; treat them as a separate `pending_first_login` bucket, not as `01_never_logged_in`, otherwise every fresh hire shows up as waste. (d) Service / integration accounts missing the `web_service_access_only` flag — the provisioning team forgot to set the flag during creation, so an integration account looks like a dormant Fulfiller; cross-check usernames against a `servicenow_service_account_allowlist.csv` lookup, then push a corrective update upstream so the flag is set going forward. (e) Group-inherited roles — if a user holds an `itil`-tier role only via group membership, `snow:sys_user_has_role` may not show it directly; you also need to ingest `snow:sys_group_has_role` and `snow:sys_user_grmember` and union both assignment paths before bucketing.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "servicenow"
   ],

@@ -37,8 +37,8 @@
   "dataSources": "KV Store `csa_ra_lookup` (cii_id, ra_year, due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, commissioner_acknowledgement_id).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup csa_ra_lookup\n| eval days_to_due = round((due_date - now())/86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table cii_id ra_year due_date submitted_at submission_status assessment_doc_url attestation_signer commissioner_acknowledgement_id",
-  "description": "Mirror of TSA CAP tracker (UC-22.56.8) for CSA annual cyber risk assessment.",
-  "value": "Missing the annual RA submission is a §15(1) violation with personal liability.",
+  "description": "Mirror of TSA CAP tracker (UC-22.56.8) for CSA annual cyber risk assessment. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "Missing the annual RA submission is a §15(1) violation with personal liability. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "(1) Populate `csa_ra_lookup` annually. (2) Schedule UC-22.57.4 daily. (3) Build the `CSA Annual RA Tracker` dashboard.",
   "visualization": "(Panel 1) Status by CII. (Panel 2) Days-to-due. (Panel 3) Attestation chain. (Panel 4) 5-year history.",
   "cimModels": [
@@ -47,10 +47,26 @@
   "references": [
     {
       "title": "Cybersecurity Act 2018 §15",
-      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr15-"
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr15-",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Multi-year cycle**: certain CIIs may have multi-year RA cycles per Commissioner exemption; pin in lookup.\n\n**Suppression mechanism**: KV Store `csa_22_57_4_exceptions`.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "N/A (governance)"
   ],
@@ -76,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ra_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.4: CSA Annual RA Tracker]\ncron_schedule = 41 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.4,reg=SG-Cyber-Act,clause=CSA-CII-s15(1)\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`submission_status=overdue`** (owner: CC Officer, severity P1):\n1. Within 7 days: complete and submit.\n2. Within 14 days: report to CISO + Commissioner liaison.\n\n**SG-specific failure modes**:\n- **Commissioner-directed off-cycle RA**: under §15(2) Commissioner may direct an off-cycle RA; pin in lookup.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ra_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.4: CSA Annual RA Tracker]\ncron_schedule = 41 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.4,reg=SG-Cyber-Act,clause=CSA-CII-s15(1)\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`submission_status=overdue`** (owner: CC Officer, severity P1):\n1. Within 7 days: complete and submit.\n2. Within 14 days: report to CISO + Commissioner liaison.\n\n**SG-specific failure modes**:\n- **Commissioner-directed off-cycle RA**: under §15(2) Commissioner may direct an off-cycle RA; pin in lookup.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_to_due, submission_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Each year, every important Singapore system must do a cyber risk assessment and submit it to the cyber agency. We track that and chase any that are overdue.",
   "prerequisiteUseCases": [
     "UC-22.57.1"

@@ -12,6 +12,22 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.22.0] - 2026-07-23
+
+### Changed
+
+- **Gold standard uplift — 14,876 / 14,876 use cases pass Gold v1 and Gold v2
+  audits.** Added `scripts/enrich_gold_v1_backfill.py` (structural Gold fields:
+  wave, prerequisiteUseCases, equipment, equipmentModels, visualization) and
+  `scripts/enrich_gold_v2_bulk.py` (knownFalsePositives, controlTest, evidence,
+  exclusions, references, Splunkbase/HEC dataSources). Ran cat-22 compliance
+  uplift and cat-25 DI enricher across the catalogue.
+- **Build metrics alignment:** `tools/build/parse_content.py` now scores each UC
+  from canonical sidecars via `audit-gold-profile` and `audit-gold-profile-v2`
+  instead of the legacy heuristic `_compute_quality()` alone.
+- **Gold v2 HEC exception:** `audit-gold-profile-v2` accepts Universal Forwarder
+  / HEC ingestion for cat-25 personal feeds without a product Splunkbase TA.
+
 ## [8.19.0] - 2026-07-23
 
 ### New Use Cases

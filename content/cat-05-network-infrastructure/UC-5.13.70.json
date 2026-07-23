@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Catalyst Center + Meraki Branch Network Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.70).",
+  "evidence": "Saved search uc_5_13_70_catalyst_center_meraki_branch_network_he, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Catalyst Center + Meraki Branch Network Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.70.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Cisco DNA Center for Splunk app (sourcetype=cisco:dnac:networkhealth) for the campus side, plus Splunk_TA_cisco_meraki Devices Availabilities + Assurance Alerts inputs for the Meraki branch side. NOTE: Meraki does not expose a single numeric 'branch health score'; this UC composes one from device availability % and open-alert count.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + `Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\"\n| stats latest(healthScore) as campus_health by _time\n| appendcols [\n    search index=meraki sourcetype=\"meraki:devicesavailabilities\" earliest=-1h\n    | stats sum(eval(if(status=\"online\",1,0))) as online,\n            count as total\n    | eval branch_availability = round(online*100/total, 1)\n  ]\n| appendcols [\n    search index=meraki sourcetype=\"meraki:assurancealerts\" earliest=-24h\n    | stats count as branch_open_alerts\n  ]\n| eval branch_health = round(branch_availability - (branch_open_alerts*0.5), 1)\n| eval combined_health = round((campus_health + branch_health) / 2, 1)\n| table _time, campus_health, branch_availability, branch_open_alerts, branch_health, combined_health",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Meraki Add-on (Splunkbase 5580)",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Network Health API — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Meraki cloud connectivity issue causing stale Meraki health data while campus data is current.** If the Meraki dashboard API is slow or unavailable, the Meraki health data in Splunk may be stale while Catalyst Center data is fresh. Distinguish by comparing the latest `_time` from both sourcetypes. Suppress by alerting when the Meraki data staleness exceeds 2x the expected poll interval.\n\n**Different health score scales between Catalyst Center and Meraki.** Catalyst Center uses 0-100 while Meraki may use a different scale or calculation method. A direct numeric comparison may not be meaningful. Distinguish by checking the health score normalization — if Meraki scores cluster around 80-100 while campus scores cluster around 60-80, the scales may not be comparable. Suppress by normalizing both scores to percentile rank within their own distribution before comparing.\n\n**Branch site maintenance causing Meraki health drop for one location while campus is stable.** A single branch office undergoing renovation or equipment replacement will lower the Meraki average. Distinguish by checking whether the Meraki health drop is localized to one network or site. Do not suppress — enrich the alert with the specific branch context.\n\n**Meraki API rate limiting causing incomplete health data.** The Meraki Dashboard API has rate limits that may prevent the TA from collecting health data for all organizations/networks in a single poll. Distinguish by checking `index=_internal` for Meraki TA errors related to HTTP 429 rate limiting. Suppress by increasing the Meraki poll interval or splitting organizations across multiple inputs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

@@ -8,8 +8,14 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=network sourcetype=cisco:ios` or multiple sourcetypes — this use case audits the completeness of IPv6 monitoring coverage compared to IPv4. The monitoring parity audit answers the fundamental question: 'Do we have the same visibility into IPv6 traffic as we have into IPv4 traffic?' Common monitoring parity gaps include:\n\n1. **Flow data** — NetFlow v5 exports only IPv4 flows. Devices running v5 provide zero IPv6 flow visibility (UC-5.20.66).\n2. **Firewall logging** — IPv6 ACL logging may not be enabled even when IPv4 ACL logging is active.\n3. **IDS/IPS** — Many IDS/IPS systems have limited IPv6 signature coverage. Some cannot inspect traffic with extension headers.\n4. **DLP** — Data Loss Prevention systems that match on IP addresses may not have IPv6 patterns.\n5. **SIEM correlation** — SIEM rules written for IPv4 addresses (e.g., regex matching dotted-quad notation) will miss IPv6 events.\n6. **Syslog** — Some devices log IPv6 events to different facilities or severity levels than IPv4 events.\n7. **NDP vs ARP** — ARP monitoring is common; NDP monitoring is frequently absent. They serve the same function.\n8. **DNS** — AAAA query logging may be filtered while A query logging is active.",
-  "app": "Multiple — this audit spans all monitoring tools and data sources.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Logging and Monitoring Parity Audit'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.78).",
+  "evidence": "Saved search uc_5_20_78_ipv6_logging_and_monitoring_parity_audit, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Logging and Monitoring Parity Audit'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.78.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or multiple sourcetypes — this use case audits the completeness of IPv6 monitoring coverage compared to IPv4. The monitoring parity audit answers the fundamental question: 'Do we have the same visibility into IPv6 traffic as we have into IPv4 traffic?' Common monitoring parity gaps include:\n\n1. **Flow data** — NetFlow v5 exports only IPv4 flows. Devices running v5 provide zero IPv6 flow visibility (UC-5.20.66).\n2. **Firewall logging** — IPv6 ACL logging may not be enabled even when IPv4 ACL logging is active.\n3. **IDS/IPS** — Many IDS/IPS systems have limited IPv6 signature coverage. Some cannot inspect traffic with extension headers.\n4. **DLP** — Data Loss Prevention systems that match on IP addresses may not have IPv6 patterns.\n5. **SIEM correlation** — SIEM rules written for IPv4 addresses (e.g., regex matching dotted-quad notation) will miss IPv6 events.\n6. **Syslog** — Some devices log IPv6 events to different facilities or severity levels than IPv4 events.\n7. **NDP vs ARP** — ARP monitoring is common; NDP monitoring is frequently absent. They serve the same function.\n8. **DNS** — AAAA query logging may be filtered while A query logging is active. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Multiple — this audit spans all monitoring tools and data sources. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "| inputlookup monitoring_capabilities.csv\n| eval ipv4_coverage=if(ipv4_active=\"yes\", 1, 0)\n| eval ipv6_coverage=if(ipv6_active=\"yes\", 1, 0)\n| eval parity=if(ipv4_coverage=ipv6_coverage, \"PARITY\", \"GAP\")\n| stats count(eval(parity=\"PARITY\")) as parity_met count(eval(parity=\"GAP\")) as parity_gaps count as total\n| eval parity_score=round(parity_met / total * 100, 0) . \"%\"\n| eval status=case(\n    parity_met = total, \"FULL PARITY — IPv6 monitoring matches IPv4\",\n    parity_gaps <= 2, \"NEAR PARITY — \" . parity_gaps . \" gaps remaining\",\n    1=1, \"SIGNIFICANT GAPS — \" . parity_gaps . \" monitoring capabilities lack IPv6 coverage\")",
   "description": "Audits the parity between IPv4 and IPv6 monitoring coverage across all monitoring capabilities — flow data, firewall logging, IDS/IPS, DLP, SIEM rules, syslog, NDP/ARP, and DNS. Every monitoring capability that exists for IPv4 should have an equivalent for IPv6. This audit identifies monitoring blind spots where IPv6 traffic is not inspected, logged, or analysed with the same depth as IPv4 traffic.",
   "value": "Monitoring parity is the single most important requirement for IPv6 security. If IPv6 traffic is not monitored with the same tools, rules, and depth as IPv4 traffic, attackers will use IPv6 to bypass detection. This audit quantifies the monitoring gap and provides a prioritised remediation list. The goal is 100% monitoring parity — every monitoring capability that works for IPv4 must also work for IPv6.",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — monitoring requirements)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§5.3 — monitoring equivalence)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Intentionally IPv4-only segments.** Some network segments are intentionally IPv4-only (legacy systems, air-gapped networks). IPv6 monitoring is not needed for these segments and should be excluded from the parity calculation.\n\n**Platform limitations.** Some older monitoring platforms genuinely cannot support IPv6. Document these as accepted risks with a migration plan rather than permanent gaps.\n\n**IPv6-specific monitoring.** Some monitoring capabilities are IPv6-specific (NDP cache monitoring, RA Guard, SISF) and have no IPv4 equivalent. These should be counted as additional IPv6 coverage, not parity gaps.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "corelight",

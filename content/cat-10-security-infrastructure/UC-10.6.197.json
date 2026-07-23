@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:admin\"` (Studio and delivery controller admin actions); `sourcetype=\"citrix:pvs:mcli\"` (PVS command line); `sourcetype=\"citrix:netscaler:nitro\"` (NITRO API with `user`, `operation`, `resource`); Windows security / PowerShell logs for remote admin hosts",
-  "app": "Citrix Cloud / CVAD administrative logging, NetScaler NITRO access logs, optional Splunk Enterprise Security for privileged access analytics",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix Admin Console Privilege Escalation Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.6.197).",
+  "evidence": "Saved search uc_10_6_197_citrix_admin_console_privilege_escalatio, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix Admin Console Privilege Escalation Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.6.197.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:admin\"` (Studio and delivery controller admin actions); `sourcetype=\"citrix:pvs:mcli\"` (PVS command line); `sourcetype=\"citrix:netscaler:nitro\"` (NITRO API with `user`, `operation`, `resource`); Windows security / PowerShell logs for remote admin hosts Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix Cloud / CVAD administrative logging, NetScaler NITRO access logs, optional Splunk Enterprise Security for privileged access analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:broker:admin\" OR sourcetype=\"citrix:pvs:mcli\" OR sourcetype=\"citrix:netscaler:nitro\") earliest=-24h\n| eval priv=if(match(lower(operation),\"(?i)create|delete|assign|full|admin|role|owner|publish|merge|override|masterimage|privilege\") OR match(lower(resource),\"(?i)catalog|desktop|machine|site|administrator|rbac\"),1,0), off=if(match(lower(user),\"(?i)svc|script|automation\") OR match(client_ip, \"^10\\\\.\"),0,1)\n| where priv=1 AND off=1\n| bin _time span=1h\n| stats count as acts, values(operation) as ops, dc(resource) as rescount by _time, user, client_ip\n| where acts>5 OR rescount>10\n| table _time, user, client_ip, acts, rescount, ops",
   "description": "Elevated configuration work in Citrix environments can change who gets what desktop, what image runs, and what the gateway allows. Monitoring administrative APIs and consoles for bulk or unusual changes from non-service accounts reveals privilege misuse, compromised admin creds, and shadow IT changes that bypass change control.",
-  "value": "Elevated configuration work in Citrix environments can change who gets what desktop, what image runs, and what the gateway allows. Monitoring administrative APIs and consoles for bulk or unusual changes from non-service accounts reveals privilege misuse, compromised admin creds, and shadow IT changes that bypass change control.",
+  "value": "Operations and leadership rely on 'Citrix Admin Console Privilege Escalation Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Send all admin paths to a protected index with immutable storage if required. Baseline service accounts and break-glass IDs. Alert on first-time admin from a new workstation, burst of publish or catalog changes, or NITRO calls from non-manager networks. Correlate with ticketing; require a change ID in a lookup for expected work. For PVS, track vDisk merge and mode changes as high severity.",
   "visualization": "Table: top admin users by action count; timeline: operations; single-value: admin events with no ticket match in 15m (from lookup join).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — Delegated administration and logging",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/install-configure/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/install-configure/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Break-glass, PAM JIT, monthly access reviews, and service accounts used for runbooks can look like 'new' Citrix admin privilege. A PAM ticket join and exclusion of known PIM product identities keep governed elevation out of a pure anomaly queue.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1078",
     "T1548"
@@ -37,6 +59,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites: citrix:broker:admin, citrix:pvs:mcli, and citrix:netscaler:nitro with a common user field; break-glass and service accounts in citrix_privileged_baseline.csv. Step 1: Configure data collection — Full admin categories enabled; admin jump hosts in known CIDR; props for operation, resource, user, client_ip. Step 2: Create the search and alert — Baseline per human admin, alert on acts>5 or rescount>10, first-time client_ip, or NITRO from non-jump networks; join to change_tickets lookup for expected work. Step 3: Validate — Tabletop: approved change with ticket is quiet; unapproved test in pre-prod triggers; run `index=xd (sourcetype=\"citrix:broker:admin\" OR sourcetype=\"citrix:netscaler:nitro\") earliest=-24h` for a drill. Step 4: Operationalize — Route to platform security with quarterly access review; suspected credential abuse or off-hours bulk publish requires immediate SecOps and Citrix platform owner escalation.",
-  "grandmaExplanation": "We track the powerful “control room” moves that reshape who can log in and what they see — so you catch misuse or a stolen admin account before the whole farm is quietly reshaped."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites: citrix:broker:admin, citrix:pvs:mcli, and citrix:netscaler:nitro with a common user field; break-glass and service accounts in citrix_privileged_baseline.csv. Step 1: Configure data collection — Full admin categories enabled; admin jump hosts in known CIDR; props for operation, resource, user, client_ip. Step 2: Create the search and alert — Baseline per human admin, alert on acts>5 or rescount>10, first-time client_ip, or NITRO from non-jump networks; join to change_tickets lookup for expected work. Step 3: Validate — Tabletop: approved change with ticket is quiet; unapproved test in pre-prod triggers; run `index=xd (sourcetype=\"citrix:broker:admin\" OR sourcetype=\"citrix:netscaler:nitro\") earliest=-24h` for a drill. Step 4: Operationalize — Route to platform security with quarterly access review; suspected credential abuse or off-hours bulk publish requires immediate SecOps and Citrix platform owner escalation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Cloud / CVAD administrative logging, NetScaler NITRO access logs, optional Splunk Enterprise Security for privileged access analytics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:admin, citrix:pvs:mcli, citrix:netscaler:nitro into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, acts, client_ip, priv`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track the powerful “control room” moves that reshape who can log in and what they see — so you catch misuse or a stolen admin account before the whole farm is quietly reshaped.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

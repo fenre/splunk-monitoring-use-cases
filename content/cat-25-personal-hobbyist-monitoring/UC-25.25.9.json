@@ -8,8 +8,14 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`).",
-  "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Illness Early-Warning Composite'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.25.9).",
+  "evidence": "Saved search uc_25_25_9_illness_early_warning_composite, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Illness Early-Warning Composite'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.25.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=hrv:reading OR sourcetype=whoop:cycle OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats avg(rmssd_ms) as hrv, avg(resting_hr) as rhr, avg(skin_temp_dev_c) as temp_dev by _time\n| eventstats avg(hrv) as hrv_base, avg(rhr) as rhr_base\n| eval warning=if(hrv<hrv_base*0.8 AND rhr>rhr_base+3 AND temp_dev>0.3,1,0)",
   "description": "Combines a dropping HRV, rising resting heart rate, and raised skin temperature into a single you-might-be-getting-sick signal.",
   "value": "These three signs shift a day or two before symptoms; combining them catches an oncoming illness while rest can still help.",
@@ -19,12 +25,38 @@
   "references": [
     {
       "title": "Quantified Self — self-tracking community",
-      "url": "https://quantifiedself.com/"
+      "url": "https://quantifiedself.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It combines several body signals that change before you feel ill, giving you a heads-up to rest before a cold takes hold."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Advanced Health & Biohacking — typical feeds: HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body co.\n• **Sourcetypes in this search**: `hrv:reading`, `whoop:cycle`, `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=hrv:reading`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Biohacking data — HRV straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest recovery metrics into `index=personal`; schedule daily and alert when all three point the wrong way at once.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"hrv:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=hrv:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Illness Early-Warning Composite** over `personal` data (primarily `sourcetype=hrv:reading`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `temp_dev`, `warning`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=hrv:reading OR sourcetype=whoop:cycle OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats avg(rmssd_ms) as hrv, avg(resting_hr) as rhr, avg(skin_temp_dev_c) as temp_dev by _time\n| eventstats avg(hrv) as hrv_base, avg(rhr) as rhr_base\n| eval warning=if(hrv<hrv_base*0.8 AND rhr>rhr_base+3 AND temp_dev>0.3,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=hrv:reading earliest=-7d\n| head 50\n| table _time, temp_dev, warning\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=hrv:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `temp_dev` before alerting:\n\n```spl\nindex=personal sourcetype=hrv:reading earliest=-30d\n| stats perc50(temp_dev) AS p50 perc90(temp_dev) AS p90 perc99(temp_dev) AS p99 max(temp_dev) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.25.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Multi-Metric Panel With A Combined Illness-Warning Flag (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `hrv:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=hrv:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It combines several body signals that change before you feel ill, giving you a heads-up to rest before a cold takes hold.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

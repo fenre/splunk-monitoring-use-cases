@@ -8,8 +8,14 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Any Splunk index containing IPv6 addresses — `index=network`, `index=netflow`, `index=firewall`, `index=dns`, etc. This UC analyses the textual representation of IPv6 addresses across all data sources. No new input required. Key concern: different devices and applications format the same IPv6 address differently — `2001:0db8:0000:0000:0000:0000:0000:0001` vs `2001:db8::1` vs `2001:DB8::1`. RFC 5952 defines a single canonical form. Non-canonical addresses break correlation, deduplication, and lookup joins.",
-  "app": "No specific app required. This UC uses SPL regex to detect non-canonical IPv6 address representations. If you use a log normalisation layer (Splunk Edge Processor, Cribl), address canonicalisation can be applied at ingest time for better performance.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Address Canonical Format Compliance'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.5).",
+  "evidence": "Saved search uc_5_20_5_ipv6_address_canonical_format_compliance, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Address Canonical Format Compliance'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Any Splunk index containing IPv6 addresses — `index=network`, `index=netflow`, `index=firewall`, `index=dns`, etc. This UC analyses the textual representation of IPv6 addresses across all data sources. No new input required. Key concern: different devices and applications format the same IPv6 address differently — `2001:0db8:0000:0000:0000:0000:0000:0001` vs `2001:db8::1` vs `2001:DB8::1`. RFC 5952 defines a single canonical form. Non-canonical addresses break correlation, deduplication, and lookup joins. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "No specific app required. This UC uses SPL regex to detect non-canonical IPv6 address representations. If you use a log normalisation layer (Splunk Edge Processor, Cribl), address canonicalisation can be applied at ingest time for better performance. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network OR index=netflow OR index=firewall earliest=-24h\n| rex field=_raw \"(?<raw_ipv6>[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,7})\"\n| where isnotnull(raw_ipv6)\n| eval has_leading_zeros=if(match(raw_ipv6, \":0[0-9a-fA-F]\"), 1, 0)\n| eval has_uppercase=if(match(raw_ipv6, \"[A-F]\"), 1, 0)\n| eval is_fully_expanded=if(len(raw_ipv6) > 25, 1, 0)\n| eval non_canonical=if(has_leading_zeros=1 OR has_uppercase=1 OR is_fully_expanded=1, 1, 0)\n| stats count as total_addresses sum(non_canonical) as non_canonical_count by sourcetype\n| eval compliance_pct=round((1 - non_canonical_count/total_addresses) * 100, 1)\n| sort compliance_pct",
   "description": "Audits IPv6 addresses across all log sources for compliance with RFC 5952, which defines the canonical text representation of IPv6 addresses: lowercase hexadecimal, leading zeros suppressed, longest run of all-zero groups compressed to '::', and no unnecessary '::' expansion. Non-canonical representations are a silent operational hazard — the same device appears as different addresses in different logs, breaking SIEM correlation, lookup table joins, threat intelligence matching, and incident investigation. RFC 9099 §2.6.1.1 explicitly warns that non-canonical IPv6 addresses are a significant operational security problem.",
   "value": "If your firewall logs `2001:0DB8::1`, your DHCP server logs `2001:db8:0:0:0:0:0:1`, and your RADIUS server logs `2001:DB8::1`, a search for any one form will miss the other two — and the attacker's address will only appear in one log. This is not a theoretical problem: RFC 9099 documents it as a known operational failure mode. This UC quantifies the problem per sourcetype, identifying which data sources need normalisation, and tracks compliance improvement over time. For organisations with IPv6 threat intelligence feeds, non-canonical addresses also cause feed lookups to miss matches.",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "RFC 5952 — A Recommendation for IPv6 Address Text Representation",
-      "url": "https://www.rfc-editor.org/rfc/rfc5952"
+      "url": "https://www.rfc-editor.org/rfc/rfc5952",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.1 — Logging format)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Intentionally expanded addresses in configuration contexts.** Some device configurations (ACLs, static routes) use fully-expanded IPv6 addresses for clarity or template consistency. These appear in syslog when configurations are logged, but represent intentional formatting, not a correlation problem — the log event itself is a config snippet, not a traffic record.\n\n**Hex values in non-IPv6 contexts.** The regex may match hex strings that look like IPv6 address fragments but are actually MAC addresses, certificate hashes, or session IDs. The filter `(:[0-9a-fA-F]{1,4}){2,7}` requires at least 3 colon-separated groups, which reduces false matches, but some non-IPv6 strings may still match. Validate by spot-checking flagged entries.\n\n**Mixed-notation IPv4-mapped addresses.** Addresses like `::ffff:192.0.2.1` use mixed IPv4/IPv6 notation, which RFC 5952 permits. These may appear non-canonical by the uppercase/expansion checks but are correctly formatted.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

@@ -8,7 +8,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Symantec CloudSOC or WSS cloud app logs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Broadcom Symantec CASB Shadow IT Detection (Broadcom)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.54).",
+  "evidence": "Saved search uc_17_3_54_broadcom_symantec_casb_shadow_it_detecti, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Broadcom Symantec CASB Shadow IT Detection (Broadcom)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.54.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Symantec CloudSOC or WSS cloud app logs Indexes: proxy. Sourcetypes: symantec:wss:accesslog. Key fields: cs_categories, cs_host. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934)",
   "spl": "index=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-30d\n| where cs_threat_risk_level=\"High\" OR match(cs_categories,\"(?i)unsanctioned|shadow\")\n| stats dc(cs_userdn) as users sum(sc_bytes) as bytes by cs_host, cs_categories\n| eval gb=round(bytes/1073741824,2)\n| sort -users",
   "description": "Symantec CloudSOC CASB detects unsanctioned cloud application usage by analyzing web proxy and firewall logs. Shadow IT visibility identifies data exposure risks and supports SaaS governance.",
@@ -21,25 +27,42 @@
   "references": [
     {
       "title": "Symantec WSS Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3856"
+      "url": "https://splunkbase.splunk.com/app/3856",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Symantec CAS App",
-      "url": "https://splunkbase.splunk.com/app/5934"
+      "url": "https://splunkbase.splunk.com/app/5934",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1102"
   ],
   "equipment": [
     "broadcom_symantec"
   ],
-  "detailedImplementation": "Prerequisites\n• Broadcom Symantec CloudSOC CASB logs in `index=symantec` with `sourcetype=symantec:casb` or `sourcetype=symantec:wss` (inline CASB via SWG). Key fields: `cs-app` (cloud application name), `cs-app-risk` (risk rating), `cs-app-category` (Cloud Storage/Collaboration/Social), `cs-userdn`, `cs-action`, `cs-bytes`, `sr-bytes`, `cs-app-activity` (login/upload/download/share).\n• Symantec CloudSOC discovers shadow IT by analyzing traffic to cloud applications. It assigns risk ratings based on security posture (encryption, certifications, compliance, data residency).\n\nStep 1 — Configure data collection\nVerify CASB data:\n```spl\nindex=symantec earliest=-7d\n| where isnotnull(cs-app) AND isnotnull(cs-app-risk)\n| stats dc(cs-userdn) as users by cs-app, cs-app-risk, cs-app-category\n| sort cs-app-risk, - users\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Shadow IT discovery:\n```spl\nindex=symantec earliest=-30d\n| where isnotnull(cs-app)\n| stats dc(cs-userdn) as users sum(cs-bytes) as upload_bytes sum(sr-bytes) as download_bytes dc(cs-app-activity) as activities by cs-app, cs-app-risk, cs-app-category\n| eval upload_mb=round(upload_bytes/1048576,1)\n| where tonumber(cs-app-risk) > 5 AND users >= 3\n| sort - users\n```\n\nUnderstanding this SPL: Identifies cloud applications with poor security ratings used by multiple employees. Apps with risk > 5 and multiple users represent organizational shadow IT — not just one person's choice. Upload volume to risky apps quantifies the data exposure.\n\nNew cloud app detection:\n```spl\nindex=symantec earliest=-7d\n| where isnotnull(cs-app)\n| stats earliest(_time) as first_seen dc(cs-userdn) as users by cs-app\n| where first_seen > relative_time(now(), \"-7d\")\n| sort - users\n```\n\nStep 3 — Validate\n(a) Access a known high-risk cloud app. Verify CASB detection.\n(b) In CloudSOC: Shadow IT > App Discovery.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Shadow IT apps by risk. Row 2 — New apps this week. Row 3 — Data uploads to risky apps.\nAlert: When new high-risk app used by 5+ users.\n\nRunbook:\n1. **High-risk app, many users** — Provide sanctioned alternative. Plan block.\n2. **Data upload to risky app** — DLP investigation.\n3. **New app detected** — Evaluate and categorize.\n\nStep 5 — Troubleshooting\n• **No CASB data** — CloudSOC may not be licensed or integrated with SWG.\n• **`cs-app-risk` always 0** — Risk scoring may not be enabled for custom/unknown apps.",
+  "equipmentModels": [
+    "broadcom_symantec_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Broadcom Symantec CloudSOC CASB logs in `index=symantec` with `sourcetype=symantec:casb` or `sourcetype=symantec:wss` (inline CASB via SWG). Key fields: `cs-app` (cloud application name), `cs-app-risk` (risk rating), `cs-app-category` (Cloud Storage/Collaboration/Social), `cs-userdn`, `cs-action`, `cs-bytes`, `sr-bytes`, `cs-app-activity` (login/upload/download/share).\n• Symantec CloudSOC discovers shadow IT by analyzing traffic to cloud applications. It assigns risk ratings based on security posture (encryption, certifications, compliance, data residency).\n\nStep 1 — Configure data collection\nVerify CASB data:\n```spl\nindex=symantec earliest=-7d\n| where isnotnull(cs-app) AND isnotnull(cs-app-risk)\n| stats dc(cs-userdn) as users by cs-app, cs-app-risk, cs-app-category\n| sort cs-app-risk, - users\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Shadow IT discovery:\n```spl\nindex=symantec earliest=-30d\n| where isnotnull(cs-app)\n| stats dc(cs-userdn) as users sum(cs-bytes) as upload_bytes sum(sr-bytes) as download_bytes dc(cs-app-activity) as activities by cs-app, cs-app-risk, cs-app-category\n| eval upload_mb=round(upload_bytes/1048576,1)\n| where tonumber(cs-app-risk) > 5 AND users >= 3\n| sort - users\n```\n\nUnderstanding this SPL: Identifies cloud applications with poor security ratings used by multiple employees. Apps with risk > 5 and multiple users represent organizational shadow IT — not just one person's choice. Upload volume to risky apps quantifies the data exposure.\n\nNew cloud app detection:\n```spl\nindex=symantec earliest=-7d\n| where isnotnull(cs-app)\n| stats earliest(_time) as first_seen dc(cs-userdn) as users by cs-app\n| where first_seen > relative_time(now(), \"-7d\")\n| sort - users\n```\n\nStep 3 — Validate\n(a) Access a known high-risk cloud app. Verify CASB detection.\n(b) In CloudSOC: Shadow IT > App Discovery.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Shadow IT apps by risk. Row 2 — New apps this week. Row 3 — Data uploads to risky apps.\nAlert: When new high-risk app used by 5+ users.\n\nRunbook:\n1. **High-risk app, many users** — Provide sanctioned alternative. Plan block.\n2. **Data upload to risky app** — DLP investigation.\n3. **New app detected** — Evaluate and categorize.\n\nStep 5 — Troubleshooting\n• **No CASB data** — CloudSOC may not be licensed or integrated with SWG.\n• **`cs-app-risk` always 0** — Risk scoring may not be enabled for custom/unknown apps.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Symantec WSS Add-on for Splunk (Splunkbase 3856), Symantec CAS App (Splunkbase 5934)). Enable the modular input or HEC token that writes sourcetype=symantec:wss:accesslog into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cs_categories, cs_host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Employees often find and use cloud services without telling IT — like a file sharing service they found online. We discover these 'shadow IT' apps, check how safe they are, and when a risky one is used by many people, we provide a safer alternative before any data leaks.",
-  "hardware": "Symantec CloudSOC (cloud), Cloud SWG"
+  "hardware": "Symantec CloudSOC (cloud), Cloud SWG",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -11,6 +11,11 @@
   ],
   "splunkPillar": "Observability",
   "exclusions": "Multi-vendor BGP-EVPN fabrics without Cisco Nexus 9000 NX-OS anchors (see UC-18.3.4 — vendor-neutral overlay telemetry); Cisco ACI APIC-managed fabrics where overlays contract through APIC policy not standalone NX-OS CLI workflows (UC-18.1.*); VMware NSX GENEVE overlays (cat-18.2.*); legacy FabricPath transports; telemetry streams that only ingest **`cisco:ndi:anomaly`** without BGP/NVE evidence (UC-18.4.1 differentiation).",
+  "evidence": "Saved search uc_18_4_5_nx_os_vxlan_evpn_fabric_underlay_bgp_hea, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NX-OS VXLAN EVPN Fabric Underlay BGP Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-18.4.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=cisco_dc` / `index=cisco_network` / `index=network_operations` combining **`cisco:nxos:syslog`** (**facility local7**, BGP/OSPF/IS-IS/NVE/L2RIB arcs), **`cisco:nxos:bgp`** (**`/api/mo/sys/bgp.json`** polled **60s**), **`cisco:nxos:nve`** (**`/api/mo/sys/nve.json`**), **`cisco:nxos:ospf`** (**`/api/mo/sys/ospf.json`**), **`cisco:ndi:health`** (**`/sedgeapi/v1/site_health`** JSON), **`cisco:ndfc:fabric`** (**`/appcenter/cisco/ndfc/api/v1/lan-fabric/rest/control/fabrics/{fabric}/inventory`**), optional **gNMI** telemetry — **`Splunk_TA_cisco-nexus`** (**Splunkbase 1917**) plus **`cisco_dc_networking_app_for_splunk`** (**Splunkbase 7777**) recommended.",
   "app": "**`Splunk Add-on for Cisco Nexus`** (**Splunk_TA_cisco-nexus**, [Splunkbase 1917](https://splunkbase.splunk.com/app/1917)); **`cisco_dc_networking_app_for_splunk`** ([Splunkbase **7777**](https://splunkbase.splunk.com/app/7777)); **Splunk REST API Modular Input** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)) for HTTPS collectors toward **NX-API**, **NDFC**, **NDI** endpoints.",
   "spl": "(index=cisco_dc OR index=cisco_network OR index=network_operations OR index=network)\n(sourcetype=\"cisco:nxos:syslog\" OR sourcetype=\"cisco:nxos:bgp\" OR sourcetype=\"cisco:nxos:nve\" OR sourcetype=\"cisco:ndi:health\")\nearliest=-4h@m\n| rex field=_raw \"(?i)neighbor\\s+(?<rex_peer>\\d{1,3}(?:\\.\\d{1,3}){3})\"\n| eval bgp_peer_ip=trim(coalesce(bgp_peer_ip, neighbor_ip, bgp_neighbor, peer_ipv4, peer_ip, rex_peer))\n| eval bgp_state=upper(trim(coalesce(bgp_state, neighbor_state, bgp_fsm_state, session_state)))\n| eval peer_role=lower(trim(coalesce(peer_role, rr_role, topo_role, fabric_role)))\n| eval nve_peer_state=lower(trim(coalesce(nve_peer_state, peer_state_nve, nve_oper_state)))\n| eval l2vpn_evpn_routes=tonumber(coalesce(l2vpn_evpn_routes, evpn_route_total, bgp_evpn_prefixes, evpn_paths))\n| eval ndi_site_score=tonumber(coalesce(site_health_score, fabricScore, siteScore, health_score))\n| eval bgp_flap=case(\n    sourcetype=\"cisco:nxos:syslog\" AND match(_raw,\"BGP-5-ADJCHANGE|BGP_NBR_DOWN|BGP_NBR_UP\"), 1,\n    sourcetype=\"cisco:nxos:bgp\" AND bgp_state!=\"ESTABLISHED\", 1,\n    0)\n| eval nve_storm=case(\n    match(nve_peer_state,\"down|inactive|delay-response|suppress-flood\"), 1,\n    match(lower(_raw),\"NVE-3-PEER_DOWN\"), 1,\n    0)\n| eval rt_leak=if(match(lower(_raw),\"route.?target|rt.?import|rt.?export\") AND match(lower(_raw),\"mismatch|unexpected|foreign\"), 1, 0)\n| eval route_drop_anomaly=if(isnotnull(evpn_route_baseline) AND isnotnull(l2vpn_evpn_routes) AND l2vpn_evpn_routes < tonumber(evpn_route_baseline), 1, 0)\n| eval ndi_degraded=if(isnotnull(ndi_site_score) AND ndi_site_score < 70, 1, 0)\n| bin span=1m _time as minute_bucket\n| stats sum(bgp_flap) as flap_cnt,\n        sum(nve_storm) as nve_storm_cnt,\n        sum(rt_leak) as rt_leak_cnt,\n        sum(route_drop_anomaly) as route_drop_cnt,\n        max(ndi_degraded) as ndi_bad,\n        latest(l2vpn_evpn_routes) as evpn_routes_latest,\n        latest(bgp_state) as bgp_state_now,\n        latest(nve_peer_state) as nve_state_now,\n        latest(peer_role) as peer_role_now\n    by minute_bucket, host, bgp_peer_ip\n| eval peer_pair_key=host.\"|\".if(isnull(bgp_peer_ip) OR bgp_peer_ip=\"\",\"unknown\",bgp_peer_ip)\n| where flap_cnt>=3 OR nve_storm_cnt>=2 OR rt_leak_cnt>=1 OR route_drop_cnt>=1 OR ndi_bad=1\n| eval alert_lane=case(\n    flap_cnt>=5 AND peer_role_now IN (\"underlay-leaf\",\"leaf\"), \"bgp_underlay_flap_pair\",\n    nve_storm_cnt>=3, \"nve_peer_storm\",\n    rt_leak_cnt>=1, \"rt_misconfig_leak\",\n    route_drop_cnt>=1, \"evpn_route_count_drop\",\n    ndi_bad=1, \"ndi_health_bridge\",\n    1=1, \"composite_review\")\n| eval fabric_story=\"BGP=\".bgp_state_now.\" NVE=\".nve_state_now.\" EVPN=\".evpn_routes_latest.\" ROLE=\".peer_role_now\n| sort - flap_cnt - nve_storm_cnt\n| head 400\n| table minute_bucket host bgp_peer_ip peer_pair_key flap_cnt nve_storm_cnt rt_leak_cnt route_drop_cnt ndi_bad alert_lane fabric_story",
@@ -27,30 +32,36 @@
   "references": [
     {
       "title": "Cisco Nexus 9000 Series NX-OS VXLAN Configuration Guide (Release 10.3.x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/103x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-103x.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 7432 — BGP MPLS-Based Ethernet VPN (EVPN)",
-      "url": "https://datatracker.ietf.org/doc/html/rfc7432"
+      "url": "https://datatracker.ietf.org/doc/html/rfc7432",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 8365 — Network Virtualization Overlay Solution Using EVPN",
-      "url": "https://datatracker.ietf.org/doc/html/rfc8365"
+      "url": "https://datatracker.ietf.org/doc/html/rfc8365",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Nexus Dashboard Insights Fabric Assurance / Site Health API concepts",
-      "url": "https://developer.cisco.com/docs/nexus-dashboard-insights/"
+      "url": "https://developer.cisco.com/docs/nexus-dashboard-insights/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco PSIRT openVuln API Documentation",
-      "url": "https://developer.cisco.com/docs/psirt/"
+      "url": "https://developer.cisco.com/docs/psirt/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco DC Networking Application for Splunk (Splunkbase 7777)",
-      "url": "https://splunkbase.splunk.com/app/7777"
+      "url": "https://splunkbase.splunk.com/app/7777",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A Fabric ISSU rolling window deliberately resets BGP sessions during supervisor reloads—suppress flap thresholds tied to approved CHG identifiers referencing ISSU phases until reload queues drain inside LAN Fabric job consoles documented beside SUM workflows.\n\nNDI site_health replay scenarios invoked for disaster rehearsals temporarily compress fabricScore—tie suppression tokens to tabletop CRQ identifiers before rehearsal dips masquerade as live regressions unrelated to scripted failover choreography.\n\nPlanned spine maintenance exercising BGP Graceful Restart stretches Established narratives while NVE peers remain UP—cross-check graceful-restart syslog arcs against flap KPI totals prior to optical-layer escalations unrelated to cabling faults.\n\nTenant onboarding bursts swell Type-5 advertisement counts briefly while route-target auto symmetry persists—differentiate purposeful EVPN surges using CHG bridges referencing evi mappings versus leakage cues lacking approvals.\n\nControlled BGP route-refresh activity after route-map edits intentionally reshuffles EVPN NLRI—suppress route-drop macros whenever automation pipelines stamp policy_refresh markers correlated with NDFC deploy batches.\n\nFabric forwarding mode anycast-gateway-mac migrations can replay dup-mac syslog arcs until mobility timers converge—widen suppression windows when hypervisor teams schedule clustered storage migrations overlapping gateway-change windows that briefly amplify Type-2 churn.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "nexus",

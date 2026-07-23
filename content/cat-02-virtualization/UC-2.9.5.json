@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:glance\"` — `image_id`, `bytes_transferred`, `duration_sec`, `operation` (upload|download), `store`",
-  "app": "Glance API logs with transfer metrics",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'OpenStack Glance Image Upload and Download Throughput'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.9.5).",
+  "evidence": "Saved search uc_2_9_5_openstack_glance_image_upload_and_downlo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'OpenStack Glance Image Upload and Download Throughput'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.9.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:glance\"` — `image_id`, `bytes_transferred`, `duration_sec`, `operation` (upload|download), `store` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Glance API logs with transfer metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:glance\" earliest=-24h\n| eval mbps=tonumber(bytes_transferred)/(1024*1024)/tonumber(duration_sec)\n| where mbps<10 AND tonumber(bytes_transferred)>104857600\n| stats avg(mbps) as avg_mbps, count as slow_ops by store, image_id",
   "description": "Slow image transfers delay autoscale and CI image refreshes. Throughput trending highlights object-store latency or congested API networks.",
-  "value": "Keeps golden image pipelines fast and reduces build queue time.",
+  "value": "Keeps golden image pipelines fast and reduces build queue time. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "Compute mbps per operation. Alert on sustained slow large transfers. Compare stores (file vs rbd vs swift).",
   "visualization": "Line chart throughput; table slow images; histogram latency.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "OpenStack Glance",
-      "url": "https://docs.openstack.org/glance/latest/"
+      "url": "https://docs.openstack.org/glance/latest/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Glance API logs with transfer metrics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:glance into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`image_id, mbps, store`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Backup Job Success and Freshness'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.8.6).",
+  "evidence": "Saved search uc_25_8_6_backup_job_success_and_freshness, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Backup Job Success and Freshness'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.8.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=proxmox:metric event=backup\n| stats latest(status) as last_status, max(_time) as last_backup by vm_name\n| eval hours_since=round((now()-last_backup)/3600,1)\n| where last_status!=\"ok\" OR hours_since>36\n| sort - hours_since",
   "description": "Confirms that every virtual machine and dataset actually backed up recently and successfully, closing the gap between assuming and knowing.",
   "value": "The worst time to discover a broken backup is during a restore; freshness and success checks make your safety net trustworthy.",
@@ -20,13 +26,26 @@
   "references": [
     {
       "title": "Proxmox VE — Documentation",
-      "url": "https://pve.proxmox.com/pve-docs/"
+      "url": "https://pve.proxmox.com/pve-docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It makes sure your important files and servers really did back up recently, so you are safe if something breaks."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Proxmox VE — Universal Forwarder + collectd/telegraf or API poll → HEC.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `proxmox:metric`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Proxmox VE** events into `index=personal` with `sourcetype=proxmox:metric`.\n\n**Collection method:** Universal Forwarder + collectd/telegraf or API poll → HEC.\n\n**Reference endpoint / path:** `GET /api2/json/nodes/{node}/qemu`.\n\n**Suggested poll interval:** 300s.\n\n**Key fields to extract:** `vmid, name, cpu, mem, disk, status`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Forward backup job results; schedule daily and alert on any failed or overdue backup.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"proxmox:metric\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Backup Job Success and Freshness** over `personal` data (primarily `sourcetype=proxmox:metric`) across the full search range. It applies numeric thresholds on `hours_since` (> 36) after latest, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `vm_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=proxmox:metric event=backup\n| stats latest(status) as last_status, max(_time) as last_backup by vm_name\n| eval hours_since=round((now()-last_backup)/3600,1)\n| where last_status!=\"ok\" OR hours_since>36\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Proxmox web UI → node summary. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-7d\n| head 50\n| table hours_since, vm_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=proxmox:metric earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Protected Items By Last Backup Status And Age (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Proxmox VE — no Proxmox VE events / missing fields:** If `proxmox:metric` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Proxmox VE connector script is still running (`systemctl status` or cron log).\n\n**Proxmox VE — NULL values in extracted fields:** The Proxmox VE JSON export shape drifted — compare a raw event (`index=personal sourcetype=proxmox:metric | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Proxmox VE — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Proxmox VE — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Proxmox VE APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It makes sure your important files and servers really did back up recently, so you are safe if something breaks.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

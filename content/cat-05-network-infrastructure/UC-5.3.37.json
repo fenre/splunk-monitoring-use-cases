@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` or `sourcetype=\"citrix:netscaler:perf\"` from NITRO — `license` pool usage percent, vCPU, throughput entitlement, `pool` name, `grace` or `expir`",
-  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix ADC Pooled Licensing Utilization'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.37).",
+  "evidence": "Saved search uc_5_3_37_citrix_adc_pooled_licensing_utilization, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix ADC Pooled Licensing Utilization'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.37.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` or `sourcetype=\"citrix:netscaler:perf\"` from NITRO — `license` pool usage percent, vCPU, throughput entitlement, `pool` name, `grace` or `expir` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"pooled\" OR \"license pool\" OR vCPU OR throughput OR entitlement OR CBM OR \"ceiling\" OR grace OR expir)\n| eval pool_pct=coalesce(license_pool_use_pct, pooled_license_use_pct, 0), vcpu=coalesce(allocated_vcpus, 0), thr_mbps=coalesce(throughput_mbps, 0)\n| eval capacity_flag=if(pool_pct>90 OR match(_raw,\"(?i)grace|violation|denied\"),1,0)\n| bin _time span=1h\n| stats max(pool_pct) as max_pool, max(vcpu) as peak_vcpu, max(thr_mbps) as peak_thr, max(capacity_flag) as risk by _time, host, pool_name\n| where max_pool>80 OR risk=1\n| table _time, host, pool_name, max_pool, peak_vcpu, peak_thr, risk",
   "description": "Pooled licensing ties multiple instances to a shared consumption meter (vCPUs, throughput, or other entitlements on supported platforms). Approaching the pool cap or entering grace or violation states risks forced throttling, feature loss, or audit findings where license position must be provable. Monitoring utilization versus entitlement is both a capacity and a compliance control.",
   "value": "Infrastructure teams monitor Citrix ADC pooled license bandwidth utilization and expiry dates, preventing instance provisioning failures from pool exhaustion and license lapses.",
@@ -20,14 +26,26 @@
   "references": [
     {
       "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Citrix — Licensing and pooled capacity",
-      "url": "https://www.citrix.com/support/"
+      "url": "https://www.citrix.com/support/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short peaks during renewals, burst traffic, and shared pools can wobble utilization before anything is truly out of license.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix",
     "syslog"
@@ -36,6 +54,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC pooled licensing data from Citrix ADM or NITRO stats. Key fields: `license_type`, `allocated_bandwidth`, `used_bandwidth`, `available_bandwidth`, `instance_count`, `expiry_date`.\n* Citrix Pooled Licensing: instead of per-appliance licenses, bandwidth is allocated from a central pool in Citrix ADM. Instances check out bandwidth on startup. If the pool is exhausted, new instances can't start or existing instances may lose bandwidth.\n\nStep 1 -- Configure data collection\nCitrix ADM manages the license pool. Poll ADM API or collect ADM syslog. Verify:\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"license\" OR \"bandwidth\" OR \"pool\" OR \"expir\") earliest=-7d\n| where match(_raw, \"(?i)(license|bandwidth|pool|allocat)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- License pool utilization:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"license\" OR \"bandwidth pool\" OR \"pooled\") earliest=-4h\n| eval total_bw=coalesce(allocated_bandwidth, total_pool_bandwidth)\n| eval used_bw=coalesce(used_bandwidth, consumed_bandwidth)\n| eval available=coalesce(available_bandwidth, remaining_bandwidth)\n| eval instances=coalesce(instance_count, licensed_instances)\n| eval expiry=coalesce(expiry_date, license_expiry)\n| stats latest(total_bw) as total latest(used_bw) as used latest(available) as available latest(instances) as instances latest(expiry) as expiry by host\n| eval utilization_pct=if(total > 0, round(100*used/total, 1), null())\n| eval days_to_expiry=if(isnotnull(expiry), round((strptime(expiry, \"%Y-%m-%d\") - now()) / 86400, 0), null())\n| eval status=case(utilization_pct > 90, \"CRITICAL -- pool nearly exhausted\", utilization_pct > 75, \"WARNING -- high utilization\", days_to_expiry < 30 AND isnotnull(days_to_expiry), \"WARNING -- license expiring soon\", 1==1, \"OK\")\n| where status != \"OK\"\n```\n\nStep 3 -- Validate\n(a) Check Citrix ADM: Infrastructure > Pooled Licensing -- compare utilization.\n(b) Verify each instance's allocated bandwidth: ADM > Infrastructure > Instances.\n(c) Check license expiry dates.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- License Pool\"):\n* Row 1 -- Single-value: \"Pool utilization %\", \"Total bandwidth (Gbps)\", \"Available (Gbps)\", \"Instances\", \"Days to expiry\".\n* Row 2 -- License status with expiry alerts.\n\nAlerting:\n* Critical (pool utilization > 90%): cannot provision new instances.\n* Warning (license expiring < 30 days): renewal needed.\n\nStep 5 -- Troubleshooting\n\n* **Pool exhausted** -- Instances may have checked out more bandwidth than needed. Review per-instance allocation in ADM and reduce over-provisioned instances.\n\n* **Instance can't start** -- Insufficient pool bandwidth. Either free bandwidth from another instance or purchase additional pool capacity.\n\n* **License expired** -- Grace period typically applies. Contact Citrix for renewal. Instances will continue running but may lose features.",
-  "grandmaExplanation": "We look at shared license use over time on the same platform so a quiet threshold day does not turn into a hard stop with no warning."
+  "grandmaExplanation": "We look at shared license use over time on the same platform so a quiet threshold day does not turn into a hard stop with no warning.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

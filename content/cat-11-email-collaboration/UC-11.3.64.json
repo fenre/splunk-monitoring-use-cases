@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Proofpoint Protection Server / gateway logs `sourcetype=proofpoint:mta`",
-  "app": "Proofpoint On Demand Email Security add-on or TA-proofpoint (org-specific syslog/HEC parsing)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Proofpoint Email Gateway TLS and Transport Posture (MTA Logs)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-11.3.64).",
+  "evidence": "Saved search uc_11_3_64_proofpoint_email_gateway_tls_and_transpo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Proofpoint Email Gateway TLS and Transport Posture (MTA Logs)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-11.3.64.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Proofpoint Protection Server / gateway logs `sourcetype=proofpoint:mta` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Proofpoint On Demand Email Security add-on or TA-proofpoint (org-specific syslog/HEC parsing) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mail sourcetype=\"proofpoint:mta\" earliest=-24h\n| eval tls=lower(coalesce(smtp_tls_status, TLS_Status, tls_status, \"\"))\n| eval tls_ok=if(match(tls,\"none|no|plaintext|not used|off\"),0,1)\n| where tls_ok=0\n| stats count values(rcpt) as sample_rcpt by sender, client_ip\n| sort -count",
   "description": "Inbound or outbound messages where SMTP TLS was not used exposes messages to passive surveillance and fails many contractual encryption expectations.",
   "value": "Extends the same TLS visibility pattern used in HIPAA-style audits to continuous monitoring, letting messaging teams chase down legacy apps still sending cleartext.",
@@ -20,17 +26,33 @@
   "references": [
     {
       "title": "Proofpoint Email Security integrations",
-      "url": "https://www.proofpoint.com/us/products/email-security"
+      "url": "https://www.proofpoint.com/us/products/email-security",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Proofpoint On Demand Email Security Add-on (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/4327"
+      "url": "https://splunkbase.splunk.com/app/4327",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Opportunistic TLS retries, old appliances, and partner MTAs on legacy ciphers in transition.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "proofpoint",
     "syslog"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -39,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint On Demand Email Security add-on or TA-proofpoint (org-specific syslog/HEC parsing) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proofpoint:mta into mail. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`client_ip, sender, tls_ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

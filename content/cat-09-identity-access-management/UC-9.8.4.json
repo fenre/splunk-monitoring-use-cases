@@ -9,8 +9,14 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=beyondtrust:pam` elevation, run-as, or approval workflow events with granted/denied outcomes",
-  "app": "Splunk Add-on for BeyondTrust Privilege Management / PRA mapped to `beyondtrust:pam`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.8.4).",
+  "evidence": "Saved search uc_9_8_4_beyondtrust_privilege_elevation_request, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'BeyondTrust Privilege Elevation Request Denial Rate Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.8.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=beyondtrust:pam` elevation, run-as, or approval workflow events with granted/denied outcomes Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for BeyondTrust Privilege Management / PRA mapped to `beyondtrust:pam` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:pam\" earliest=-30d@d\n| eval res=coalesce(result, Result, outcome, Outcome, status, \"\")\n| eval user=coalesce(user, UserName, requester, \"\")\n| eval app=coalesce(application, Application, target_app, \"\")\n| bin _time span=1d\n| stats count(eval(match(lower(res),\"(?i)denied|reject|fail\"))) as denied count as total by _time user\n| eval deny_pct=round(100*denied/total,2)\n| where total>=10 AND deny_pct>50\n| sort -deny_pct",
   "description": "A sustained high denial rate can mean over-tight policies (hurting IT productivity) or attackers probing elevation paths. Tracking denials per user and day balances usability with detection of abusive requests.",
   "value": "Guides policy tuning for BeyondTrust elevation workflows and highlights accounts that may be compromised or insider testing boundaries.",
@@ -23,17 +29,32 @@
   "references": [
     {
       "title": "BeyondTrust — Endpoint Privilege Management",
-      "url": "https://www.beyondtrust.com/endpoint-privilege-management"
+      "url": "https://www.beyondtrust.com/endpoint-privilege-management",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — eval",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "identity",
   "equipment": [
     "beyondtrust"
+  ],
+  "equipmentModels": [
+    "beyondtrust_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Privilege Elevation Request Denial Rate Monitoring"
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for BeyondTrust Privilege Management / PRA mapped to `beyondtrust:pam` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=beyondtrust:pam into pam. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`deny_pct, total`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — BeyondTrust Privilege Elevation Request Denial Rate Monitoring",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

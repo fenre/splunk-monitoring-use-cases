@@ -8,6 +8,12 @@
     "Availability"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VRRPv3/HSRPv3 IPv6 Gateway Redundancy Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.50).",
+  "evidence": "Saved search uc_5_20_50_vrrpv3_hsrpv3_ipv6_gateway_redundancy_mo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VRRPv3/HSRPv3 IPv6 Gateway Redundancy Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.50.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing VRRPv3 (RFC 5798) and HSRPv3 gateway redundancy state change events. First Hop Redundancy Protocols (FHRPs) for IPv6 provide virtual default gateway redundancy:\n\n**VRRPv3 (Virtual Router Redundancy Protocol v3, RFC 5798):**\n- Supports both IPv4 and IPv6 in a single protocol instance\n- Uses multicast (FF02::12) for advertisements\n- Virtual MAC: 00-00-5E-00-02-{group_id}\n- IPv6 support is native — VRRPv3 was designed for dual-stack\n\n**HSRPv3 (Hot Standby Router Protocol v3, Cisco proprietary):**\n- Supports both IPv4 and IPv6 address families\n- Uses multicast (FF02::66) for hello messages\n- Extended group numbering (0-4095, vs 0-255 in HSRPv2)\n- Uses UDP port 2029\n\n**Key differences from IPv4 FHRP:**\n- IPv6 FHRP uses link-local addresses for the virtual IP (not global addresses)\n- Hosts learn the virtual gateway via Router Advertisements, not ARP\n- The virtual router sends Router Advertisements with the virtual link-local address\n- NDP (Neighbor Discovery) resolves the virtual MAC instead of ARP\n\nFailover events:\n- `%VRRP-6-STATECHANGE: GigabitEthernet0/0/0 Grp 10 AF IPv6 state Master -> Backup`\n- `%HSRP-5-STATECHANGE: GigabitEthernet0/0/0 Grp 10 state Active -> Standby`",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" (\"%VRRP\" OR \"%HSRP\") (\"STATECHANGE\" OR \"state\") (\"IPv6\" OR \"AF 2\") earliest=-24h\n| rex field=_raw \"(?<interface>\\S+)\\s+Grp\\s+(?<group_id>\\d+).*state\\s+(?<from_state>\\S+)\\s*->?\\s*(?<to_state>\\S+)\"\n| eval protocol=case(\n    match(_raw, \"VRRP\"), \"VRRPv3\",\n    match(_raw, \"HSRP\"), \"HSRPv3\",\n    1=1, \"unknown\")\n| eval severity=case(\n    to_state=\"Master\" OR to_state=\"Active\", \"WARNING — failover occurred (this router is now primary)\",\n    to_state=\"Backup\" OR to_state=\"Standby\", \"WARNING — this router is no longer primary\",\n    to_state=\"Init\" OR to_state=\"Listen\", \"CRITICAL — no primary router\",\n    1=1, \"INFO\")\n| table _time, host, protocol, interface, group_id, from_state, to_state, severity\n| sort -_time",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "RFC 5798 — Virtual Router Redundancy Protocol (VRRP) Version 3 for IPv4 and IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc5798"
+      "url": "https://www.rfc-editor.org/rfc/rfc5798",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco HSRPv3 and VRRPv3 Configuration Guide for IPv6",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/configuration/xe-17/fhp-xe-17-book.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipapp_fhrp/configuration/xe-17/fhp-xe-17-book.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance.** Taking the primary router offline for maintenance causes an expected failover to the standby. Correlate with change management.\n\n**Preemption after recovery.** When the primary router recovers from a failure, VRRPv3 preemption causes a state change from Backup to Master. This is a second state change event for the same incident and is expected.\n\n**Interface tracking triggers.** VRRPv3/HSRPv3 can track upstream interface or route status. If a tracked interface goes down (e.g., WAN link), the FHRP priority is decremented, causing a failover to the standby — even though the primary router itself is healthy. This is by design for upstream failure detection.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cisco:wlc:syslog`, `sourcetype=cisco:ise:syslog`",
-  "app": "Cisco WLC syslog, `Splunk_TA_cisco-ise`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'RADIUS Authentication Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.4.8).",
+  "evidence": "Saved search uc_5_4_8_radius_authentication_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'RADIUS Authentication Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.4.8.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cisco:wlc:syslog`, `sourcetype=cisco:ise:syslog` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco WLC syslog, `Splunk_TA_cisco-ise` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ise:syslog\" \"Authentication failed\"\n| rex \"UserName=(?<username>\\S+).*?FailureReason=(?<reason>[^;]+)\"\n| stats count by reason, username | sort -count\n| head 20",
   "description": "Mass RADIUS failures prevent wireless users from connecting. Distinguishing between user errors and server issues drives faster resolution.",
   "value": "Network operations teams analyze RADIUS authentication failures by category (certificate, credential, server, policy) to rapidly distinguish between infrastructure issues affecting all users and individual user problems.",
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Failed logins often come from typos, expired passwords, guest self-service, or a single misconfigured device; treat sustained rises across many users as the real signal.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
@@ -37,7 +55,13 @@
     "cisco_ise",
     "cisco_wlc"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• RADIUS server logs (Cisco ISE, Aruba ClearPass, Microsoft NPS, FreeRADIUS) forwarded to Splunk. Data in `index=radius` (or `index=network`) with vendor-specific sourcetypes: `sourcetype=cisco:ise:auth` (ISE), `sourcetype=clearpass:auth` (ClearPass), `sourcetype=nps` (Microsoft NPS).\n• Key fields: `username`, `client_mac` (calling station ID), `nas_ip` (authenticator/WLC IP), `auth_result` (PASS/FAIL), `failure_reason`, `eap_type` (PEAP, EAP-TLS, EAP-FAST), `auth_policy`, `network_device_name`.\n• Build `radius_servers.csv` lookup: `server_ip,server_name,role,location` for health tracking.\n\nStep 1 — Configure data collection\nVerify RADIUS authentication data:\n```spl\nindex=radius earliest=-4h\n| stats count by sourcetype, auth_result\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — RADIUS failure analysis:**\n```spl\nindex=radius auth_result=\"FAIL\" earliest=-4h\n| stats count as failures dc(username) as affected_users dc(client_mac) as affected_devices values(failure_reason) as reasons by nas_ip, eap_type, auth_policy\n| eval severity=case(failures > 100 AND affected_users > 20, \"CRITICAL\", failures > 50, \"HIGH\", failures > 10, \"MEDIUM\", 1==1, \"LOW\")\n| eval failure_category=case(match(mvjoin(reasons, \",\"), \"(?i)certificate\"), \"CERT_ISSUE\", match(mvjoin(reasons, \",\"), \"(?i)timeout|unreachable\"), \"SERVER_UNREACHABLE\", match(mvjoin(reasons, \",\"), \"(?i)password|credential\"), \"BAD_CREDENTIALS\", match(mvjoin(reasons, \",\"), \"(?i)policy|authorization\"), \"POLICY_DENIED\", 1==1, \"OTHER\")\n| sort severity, -failures\n```\n\nUnderstanding this SPL: RADIUS failure categories determine the fix. CERT_ISSUE: the RADIUS server certificate or the client's supplicant certificate has expired or is untrusted. SERVER_UNREACHABLE: the RADIUS server is down or the WLC can't reach it (network issue, firewall). BAD_CREDENTIALS: user has wrong password or account is locked. POLICY_DENIED: user is authenticated but not authorized for the requested network.\n\n**RADIUS server response time:**\n```spl\nindex=radius earliest=-4h\n| where isnotnull(response_time)\n| stats avg(response_time) as avg_ms p95(response_time) as p95_ms max(response_time) as max_ms by server_ip\n| lookup radius_servers.csv server_ip OUTPUT server_name\n| eval status=case(p95_ms > 2000, \"CRITICAL\", p95_ms > 500, \"WARNING\", 1==1, \"OK\")\n| sort -p95_ms\n```\n\n**Per-user failure tracking (account lockout detection):**\n```spl\nindex=radius auth_result=\"FAIL\" earliest=-1h\n| stats count as failures dc(nas_ip) as auth_sources dc(client_mac) as devices by username\n| where failures > 5\n| eval risk=case(failures > 50, \"BRUTE_FORCE_SUSPECTED\", failures > 20, \"HIGH\", 1==1, \"INVESTIGATE\")\n| sort -failures\n```\n\nStep 3 — Validate\n(a) Intentionally enter wrong credentials on a wireless 802.1X network and verify the failure appears in Splunk.\n(b) Compare RADIUS authentication statistics with the RADIUS server's own reports (ISE Live Logs, ClearPass Access Tracker).\n(c) Test RADIUS server failover: stop the primary RADIUS server and verify clients authenticate via the secondary.\n\nStep 4 — Operationalize\nDashboard (\"RADIUS Authentication\"):\n• Row 1 — Single-value tiles: \"Auth success rate\", \"Total failures (4h)\", \"Affected users\", \"RADIUS server status\".\n• Row 2 — Failure analysis table: authenticator, EAP type, failures, affected users, category, severity.\n• Row 3 — RADIUS server response times.\n• Row 4 — Per-user failure tracking (potential brute force).\n\nAlerting:\n• Critical (RADIUS failure rate > 20% and > 20 affected users): widespread authentication outage.\n• Critical (RADIUS server unreachable): all 802.1X authentication will fail — users can't connect.\n• High (per-user failures > 50 in 1 hour): possible brute force attack.\n\nStep 5 — Troubleshooting\n\n• **Mass RADIUS failures with \"certificate\" reason** — The RADIUS server's EAP certificate has expired. Check: ISE > Administration > Certificates > System Certificates, or ClearPass > Administration > Certificates. Renew the certificate immediately.\n\n• **Failures from specific NAS IP only** — The WLC at that NAS IP may have the wrong RADIUS shared secret. Verify the shared secret on both the WLC and RADIUS server match exactly.\n\n• **High response time from RADIUS** — The RADIUS server may be overloaded, or there's an LDAP/AD backend latency issue. Check server CPU, memory, and backend directory response times.",
   "grandmaExplanation": "We watch radius authentication failures so we notice problems while they are still small, and we can fix them before Wi-Fi users get dropped calls or dead spots.",
-  "hardware": "Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance"
+  "hardware": "Cisco WLC 3504, WLC 5520, WLC 8540, Catalyst 9800-40, Catalyst 9800-80, Catalyst 9800-L, Catalyst 9800-CL, Cisco ISE 3515, ISE 3595, ISE 3615, ISE 3655, ISE 3695, ISE Virtual Appliance",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

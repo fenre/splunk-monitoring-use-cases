@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmware:perf:datastore`, vCenter disk performance metrics",
-  "app": "`Splunk_TA_vmware`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VM Disk IOPS Trending and Throttling'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.1.17).",
+  "evidence": "Saved search uc_2_1_17_vm_disk_iops_trending_and_throttling, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VM Disk IOPS Trending and Throttling'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.1.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=vmware:perf:datastore`, vCenter disk performance metrics Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:perf:datastore\" (counter=\"datastore.numberReadAveraged.average\" OR counter=\"datastore.numberWriteAveraged.average\")\n| eval metric=case(counter=\"datastore.numberReadAveraged.average\", \"read_iops\", counter=\"datastore.numberWriteAveraged.average\", \"write_iops\")\n| stats avg(Value) as avg_val by vm_name, host, datastore, metric\n| eval avg_val=round(avg_val, 0)\n| stats sum(avg_val) as total_iops, values(eval(metric . \"=\" . avg_val)) as breakdown by vm_name, host, datastore\n| where total_iops > 500\n| sort -total_iops\n| table vm_name, host, datastore, total_iops, breakdown",
   "description": "Tracks read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore. When Storage I/O Control (SIOC) throttles a VM, it appears as increased latency inside the guest — this use case exposes the throttling at the hypervisor level.",
-  "value": "Tracks read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore. When Storage I/O Control (SIOC) throttles a VM, it appears as increased latency inside the guest — this use case exposes the throttling at the hypervisor level.",
+  "value": "Operations and leadership rely on 'VM Disk IOPS Trending and Throttling' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Collected via Splunk_TA_vmware. Baseline per-VM IOPS over 7 days. Alert when a VM exceeds 2x its baseline sustained for 15 minutes. Track SIOC injector latency counters to detect throttling. Correlate high-IOPS VMs with datastore latency spikes from UC-2.1.4.",
   "visualization": "Line chart (IOPS per VM over time), Stacked bar chart (read vs write), Table (top IOPS consumers).",
   "cimModels": [
@@ -23,18 +29,41 @@
   "references": [
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "IOPS and latency can spike during backup windows, storage vMotion, or VM snapshots; compare to backup schedules and SIOC/queue depth baselines.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "hyperv",
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:datastore`, vCenter disk performance metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollected via Splunk_TA_vmware. Baseline per-VM IOPS over 7 days. Alert when a VM exceeds 2x its baseline sustained for 15 minutes. Track SIOC injector latency counters to detect throttling. Correlate high-IOPS VMs with datastore latency spikes from UC-2.1.4.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:datastore\" (counter=\"datastore.numberReadAveraged.average\" OR counter=\"datastore.numberWriteAveraged.average\")\n| eval metric=case(counter=\"datastore.numberReadAveraged.average\", \"read_iops\", counter=\"datastore.numberWriteAveraged.average\", \"write_iops\")\n| stats avg(Value) as avg_val by vm_name, host, datastore, metric\n| eval avg_val=round(avg_val, 0)\n| stats sum(avg_val) as total_iops, values(eval(metric . \"=\" . avg_val)) as breakdown by vm_name, host, datastore\n| where total_iops > 500\n| sort -total_iops\n| table vm_name, host, datastore, total_iops, breakdown\n```\n\nUnderstanding this SPL\n\n**VM Disk IOPS Trending and Throttling** — Tracks read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore. When Storage I/O Control (SIOC) throttles a VM, it appears as increased latency inside the guest — this use case exposes the throttling at the hypervisor level.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:datastore`, vCenter disk performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:datastore. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:datastore\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **metric** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by vm_name, host, datastore, metric** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **avg_val** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by vm_name, host, datastore** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where total_iops > 500` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **VM Disk IOPS Trending and Throttling**): table vm_name, host, datastore, total_iops, breakdown\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` sum(Performance.read_ops) as read_ops sum(Performance.write_ops) as write_ops\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host Performance.mount span=15m\n| eval total_iops=read_ops + write_ops\n| where total_iops > 500\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**VM Disk IOPS Trending and Throttling** — Tracks read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore. When Storage I/O Control (SIOC) throttles a VM, it appears as increased latency inside the guest — this use case exposes the throttling at the hypervisor level.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:datastore`, vCenter disk performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• `eval` defines or adjusts **total_iops** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where total_iops > 500` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (IOPS per VM over time), Stacked bar chart (read vs write), Table (top IOPS consumers).",
-  "grandmaExplanation": "We track read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore — so you catch performance or capacity problems before they hurt real work."
+  "grandmaExplanation": "We track read/write IOPS per VM to identify storage-hungry workloads before they impact other VMs on the same datastore — so you catch performance or capacity problems before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

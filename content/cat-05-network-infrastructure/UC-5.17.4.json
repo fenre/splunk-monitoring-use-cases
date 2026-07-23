@@ -10,8 +10,14 @@
     "Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: `index=visibility`; streaming counters such as `gigamon:flowstats`, `keysight:hitcount`, `apcon:acl_hit` exposing `rule_id`, `hits_per_sec`, `matched_bytes`, `miss_pkts`, `first_seen_epoch`. Pair with configuration-change logs so Splunk correlates sudden zero-hit maps with edits rather than traffic disappearance.",
-  "app": "Vendor analytics exporters (GigaVUE FM stats API, Vision Fabric Controller, APCON IntellaView), optional Splunk HTTP Event Collector receivers for JSON metric batches.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Filter Map Rule Hit Counts and Efficiency'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.17.4).",
+  "evidence": "Saved search uc_5_17_4_filter_map_rule_hit_counts_and_efficienc, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Filter Map Rule Hit Counts and Efficiency'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.17.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Detailed: `index=visibility`; streaming counters such as `gigamon:flowstats`, `keysight:hitcount`, `apcon:acl_hit` exposing `rule_id`, `hits_per_sec`, `matched_bytes`, `miss_pkts`, `first_seen_epoch`. Pair with configuration-change logs so Splunk correlates sudden zero-hit maps with edits rather than traffic disappearance. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Vendor analytics exporters (GigaVUE FM stats API, Vision Fabric Controller, APCON IntellaView), optional Splunk HTTP Event Collector receivers for JSON metric batches. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=visibility earliest=-24h\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"gigamon\"),\"Gigamon\",match(v,\"keysight|ixia|vision\"),\"Keysight\",match(v,\"apcon\"),\"APCON\",\"other\")\n| where vendor!=\"other\"\n| eval rule_key=coalesce(rule_id,map_name,filter_name,\"unset\")\n| eval hps=tonumber(coalesce(hits_per_sec,hit_rate,hps))\n| bin _time span=1h\n| stats sum(hps) as sum_hits avg(hps) as avg_hps latest(matched_bytes) as bytes_marker by _time vendor rule_key host\n| streamstats global=f window=168 avg(avg_hps) as baseline by vendor rule_key host\n| eval efficiency_ratio=if(baseline>0, round(avg_hps/baseline,3), null())\n| eval stale_map=if(avg_hps=0 AND baseline>10,1,0)\n| eval noisy_map=if(avg_hps>(baseline*5) AND baseline>0,1,0)\n| where stale_map=1 OR noisy_map=1 OR efficiency_ratio < 0.2 OR efficiency_ratio > 5\n| sort vendor rule_key _time",
   "description": "Hourly Splunk compares current filter-map hit rates against a rolling peer baseline per chassis so stale ACLs consuming scarce TCAM or accidental wildcard maps flooding tool ports become obvious without manual CLI exports.",
   "value": "Engineering governance trims redundant rules that steal appliance capacity while security architects detect overly broad matches that could overwhelm IDS clusters during benign flash crowds.",
@@ -20,18 +26,26 @@
   "references": [
     {
       "title": "Splunk Documentation — streamstats command",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Gigamon Technical Documentation — Flow mapping",
-      "url": "https://docs.gigamon.com/"
+      "url": "https://docs.gigamon.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Keysight Vision Network Packet Broker overview",
-      "url": "https://www.keysight.com/us/en/products/network-test/network-visibility-solutions.html"
+      "url": "https://www.keysight.com/us/en/products/network-test/network-visibility-solutions.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Seasonal traffic troughs:** holiday weekends mimic stale maps—extend baseline windows.**New maps warming up:** zero-hit alarms fire until caches populate—suppress first twelve hours via lookup.**Vendor counter quantization:** low-volume maps oscillate around zero confusing ratios.**Failover events:** asymmetric hashing shifts hits between chassis pairs—evaluate cluster-wide sums.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "N/A (operational analytics)"
   ],
@@ -61,7 +75,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Tagged ownership metadata per `rule_key` including cost center and annual review date.\n• Agreement on acceptable variance bands per environment (prod vs lab).\n• Storage tier sized for one-year hourly aggregates (~few GB per chassis).\n\nStep 1 — Instrument exports\nEnable hit counters at safe sampling cadence (≤60s) without overwhelming management planes; throttle via vendor-supported bulk APIs.\n\nStep 2 — Build macros\nCreate reusable macros `pktbrk_hit_normalize` handling vendor-specific counter resets and scientific notation quirks.\n\nStep 3 — Implement searches\nPrimary discovery search identifies stale/noisy maps; secondary verification search joins latest configuration revision IDs to prove drift versus Git-backed templates.\n\nStep 4 — Validate\nDisable a lab map intentionally—ensure `stale_map` triggers within two hours while production siblings remain quiet.\n\nStep 5 — Operationalize\nDashboard pairs heatmaps with annotated bar charts of wasted estimated bandwidth; integrate Splunk drilldown to ServiceNow rule-defect queue.",
+  "detailedImplementation": "Prerequisites\n• Tagged ownership metadata per `rule_key` including cost center and annual review date.\n• Agreement on acceptable variance bands per environment (prod vs lab).\n• Storage tier sized for one-year hourly aggregates (~few GB per chassis).\n\nStep 1 — Instrument exports\nEnable hit counters at safe sampling cadence (≤60s) without overwhelming management planes; throttle via vendor-supported bulk APIs.\n\nStep 2 — Build macros\nCreate reusable macros `pktbrk_hit_normalize` handling vendor-specific counter resets and scientific notation quirks.\n\nStep 3 — Implement searches\nPrimary discovery search identifies stale/noisy maps; secondary verification search joins latest configuration revision IDs to prove drift versus Git-backed templates.\n\nStep 4 — Validate\nDisable a lab map intentionally—ensure `stale_map` triggers within two hours while production siblings remain quiet.\n\nStep 5 — Operationalize\nDashboard pairs heatmaps with annotated bar charts of wasted estimated bandwidth; integrate Splunk drilldown to ServiceNow rule-defect queue.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Vendor analytics exporters (GigaVUE FM stats API, Vision Fabric Controller, APCON IntellaView), optional Splunk HTTP Event Collector receivers for JSON metric batches. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into visibility. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, baseline, efficiency_ratio, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We count how often each traffic-sorting recipe actually sees packets compared to what used to be normal. That tells us which recipes went useless or turned into fire hoses so we tidy them before they waste space or drown our watchers.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

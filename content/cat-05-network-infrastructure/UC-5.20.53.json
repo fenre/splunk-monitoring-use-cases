@@ -9,6 +9,12 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DNS64/NAT64 Translation Health and Dependency Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.53).",
+  "evidence": "Saved search uc_5_20_53_dns64_nat64_translation_health_and_depen, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DNS64/NAT64 Translation Health and Dependency Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.53.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNS64 synthesis events, and `index=network sourcetype=cisco:ios` or `sourcetype=pan:traffic` containing NAT64 translation logs. DNS64 (RFC 6147) and NAT64 (RFC 6146) work together to enable IPv6-only hosts to reach IPv4-only destinations:\n\n1. **DNS64** — When an IPv6-only host queries AAAA for a domain that has only an A record, the DNS64 resolver synthesises a AAAA response by embedding the IPv4 address inside the well-known prefix `64:ff9b::/96`. Example: IPv4 `93.184.216.34` becomes IPv6 `64:ff9b::5db8:d822`.\n\n2. **NAT64** — The NAT64 gateway receives traffic destined for `64:ff9b::/96`, extracts the embedded IPv4 address, and translates the IPv6 packet to IPv4 for the final hop.\n\nDNS64/NAT64 is critical in:\n- **Mobile networks** — many carriers deploy IPv6-only with 464XLAT for legacy IPv4 apps\n- **Enterprise IPv6-only segments** — reducing IPv4 address consumption\n- **Cloud deployments** — AWS, Azure, and GCP offer NAT64 for IPv6-only workloads\n\nFailure modes:\n- DNS64 resolver down → IPv6-only hosts cannot resolve IPv4-only destinations\n- NAT64 gateway overloaded → translation failures, connection timeouts\n- MTU issues through NAT64 (IPv6 minimum MTU 1280 vs IPv4 fragments)\n- Connection state table exhaustion on NAT64 gateway",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934). Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 1352). Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757).",
   "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"64:ff9b\" earliest=-24h\n| stats count as dns64_syntheses\n| append [\n    search index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"pan:traffic\") (\"NAT64\" OR \"nat64\" OR \"64:ff9b\") earliest=-24h\n    | eval nat64_event=case(\n        match(_raw, \"(?i)created|create|new\"), \"translation_created\",\n        match(_raw, \"(?i)deleted|expire|timeout\"), \"translation_removed\",\n        match(_raw, \"(?i)fail|error|drop\"), \"translation_failed\",\n        1=1, \"other\")\n    | stats count as nat64_total count(eval(nat64_event=\"translation_created\")) as translations_created count(eval(nat64_event=\"translation_failed\")) as translations_failed\n  ]\n| eval health=case(\n    translations_failed > translations_created * 0.05, \"WARNING — NAT64 failure rate above 5%\",\n    dns64_syntheses > 0 AND isnull(translations_created), \"WARNING — DNS64 active but no NAT64 translations seen\",\n    1=1, \"OK\")",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 6147 — DNS64: DNS Extensions for Network Address Translation from IPv6 Clients to IPv4 Servers",
-      "url": "https://www.rfc-editor.org/rfc/rfc6147"
+      "url": "https://www.rfc-editor.org/rfc/rfc6147",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6146 — Stateful NAT64: Network Address and Protocol Translation from IPv6 Clients to IPv4 Servers",
-      "url": "https://www.rfc-editor.org/rfc/rfc6146"
+      "url": "https://www.rfc-editor.org/rfc/rfc6146",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8585 — Requirements for IPv6 Customer Edge Routers to Support IPv4-as-a-Service (464XLAT)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8585"
+      "url": "https://www.rfc-editor.org/rfc/rfc8585",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Dual-stack destinations.** Destinations that have both A and AAAA records do not trigger DNS64 synthesis — the real AAAA record is returned. The DNS64 synthesis rate only reflects traffic to IPv4-only destinations.\n\n**Client DNS cache.** After a DNS64-synthesised AAAA is cached by the client, subsequent connections to the same destination use the cached record and don't generate new DNS64 synthesis events. The synthesis rate under-counts actual NAT64 usage.\n\n**464XLAT CLAT.** In 464XLAT deployments, the customer-side CLAT performs local NAT46 for legacy IPv4 applications, then traffic traverses NAT64 at the provider. The NAT64 translation logs may not distinguish between direct NAT64 and 464XLAT-originated traffic.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "azure",
     "bind",

@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=umbrella:dns`",
-  "app": "Cisco Umbrella TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco Umbrella DNS Block Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.14).",
+  "evidence": "Saved search uc_17_3_14_cisco_umbrella_dns_block_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Cisco Umbrella DNS Block Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.14.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=umbrella:dns` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Umbrella TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns sourcetype=\"umbrella:dns\" earliest=-7d\n| where action=\"blocked\"\n| stats count by domain, identity, categories\n| sort 50 -count",
   "description": "Top blocked domains, identities, and policy hits for DNS-layer security tuning and threat hunting.",
   "value": "Security operations teams analyze Cisco Umbrella DNS blocks to detect compromised internal endpoints calling command-and-control infrastructure, active phishing campaigns targeting users, and policy-violating DNS activity, leveraging DNS-layer blocking as the earliest interception point.",
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "CIM: Network_Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Access denied for users in mid-onboarding, role changes pending propagation, or VDI sessions with new device IDs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.004",
     "T1568"
@@ -32,6 +54,15 @@
   "equipment": [
     "cisco"
   ],
+  "equipmentModels": [
+    "cisco_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Cisco Umbrella DNS logs in `index=umbrella` with `sourcetype=cisco:umbrella:dns`. Splunk Add-on for Cisco Umbrella. Key fields: `identities` (user/device), `action` (Allowed/Blocked), `categories` (URL category), `domain`, `queryType`, `internalIp`, `externalIp`, `responseCode`.\n• Umbrella is a cloud DNS security service. It blocks DNS resolution for malicious, phishing, and policy-violating domains. A block at the DNS layer prevents the connection before any data is exchanged — the earliest possible interception point.\n• Create an `umbrella_category_severity.csv` lookup: `category,severity,response_action` mapping Umbrella categories to severity levels.\n\nStep 1 — Configure data collection\nConfigure Umbrella log export: Umbrella Dashboard > Admin > Log Management > enable S3 log export. Then use the Splunk Add-on to ingest from S3.\n\nVerify:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" earliest=-1h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DNS block analysis:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" action=Blocked earliest=-7d\n| stats count dc(identities) as affected_users dc(domain) as unique_domains by categories\n| lookup umbrella_category_severity.csv category as categories OUTPUT severity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups DNS blocks by Umbrella category and enriches with severity. 'Malware' and 'Command and Control' blocks are the most critical — they indicate endpoints actively trying to reach known-bad infrastructure (potentially already compromised). 'Phishing' blocks indicate users clicking malicious links. 'Adult' or 'Gambling' are policy enforcement. The 'affected_users' count per category shows the scope of a campaign.\n\nCommand-and-Control beacon detection:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" action=Blocked earliest=-24h\n| where match(categories, \"(?i)command.and.control|malware|botnet\")\n| stats count earliest(_time) as first_seen latest(_time) as last_seen by identities, domain, internalIp\n| where count > 5\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Umbrella: Reports > Activity Search > Blocked. Compare with Splunk.\n(b) Attempt to resolve a known test-block domain.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block category distribution. Row 2 — C2 beacon candidates. Row 3 — Top blocked domains.\nAlert: Immediate on any C2/Malware/Botnet blocks from internal IPs.\n\nRunbook:\n1. **C2 block** — Internal host may be compromised. Isolate and investigate.\n2. **Phishing spike** — Active campaign. Send user awareness notification.\n3. **Single domain, many users** — Widespread phishing email. Check email gateway for the source.\n\nStep 5 — Troubleshooting\n• **No Umbrella data** — S3 log export may not be enabled. Check Umbrella Admin > Log Management.\n• **`identities` empty** — Umbrella Roaming Client or Virtual Appliance may not be identifying users. Check Umbrella agent deployment.",
-  "grandmaExplanation": "Before your computer even connects to a dangerous website, our DNS security service can block the address lookup. We analyze which dangerous addresses are being blocked, and when a device keeps trying to reach known attacker addresses, we investigate because it may already be infected."
+  "grandmaExplanation": "Before your computer even connects to a dangerous website, our DNS security service can block the address lookup. We analyze which dangerous addresses are being blocked, and when a device keeps trying to reach known attacker addresses, we investigate because it may already be infected.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

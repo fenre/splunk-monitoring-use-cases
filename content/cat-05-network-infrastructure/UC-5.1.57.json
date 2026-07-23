@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=juniper:junos:structured`",
-  "app": "`Splunk_TA_juniper`, syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Junos Commit History and Configuration Rollback Audit (Juniper)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.57).",
+  "evidence": "Saved search uc_5_1_57_junos_commit_history_and_configuration_r, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Junos Commit History and Configuration Rollback Audit (Juniper)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.57.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=juniper:junos:structured` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_juniper`, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"juniper:junos:structured\"\n| search UI_COMMIT OR UI_COMMIT_COMPLETED OR \"UI_COMMIT_EVENT\"\n| rex field=_raw \"(?i)user\\s+['\\\"]?(?<commit_user>[^\\s'\\\"]+)\"\n| rex field=_raw \"(?i)comment\\s*[:=]\\s*['\\\"]?(?<commit_comment>[^'\\\"\\n]+)\"\n| rex field=_raw \"configuration committed by (?<commit_user2>\\S+)\"\n| eval operator=coalesce(commit_user, commit_user2, user)\n| stats earliest(_time) as first_seen, latest(_time) as last_seen, count as commits, latest(commit_comment) as last_comment by host, operator\n| sort -last_seen",
   "description": "Junos treats configuration as a sequence of commits, so every change is tied to a user, time, and optional comment—ideal for audit and rollback to any of the last stored revisions. Without central logging, you lose the evidence needed to prove who changed routing, security zones, or interfaces during an incident. Correlating commits with change tickets catches unapproved changes and commits outside maintenance windows before they propagate through routing or firewall policy.",
   "value": "Operations teams audit Junos commit history including rollbacks and unconfirmed commits, tracking who changed device configuration and correlating changes with incidents.",
@@ -22,16 +28,43 @@
   "references": [
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Automated commit scripts, hitless GRES sync, and off-hours break-glass logins are normal when documented—tie alerts to the change record.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "juniper",
     "m365",
     "syslog"
   ],
+  "equipmentModels": [
+    "juniper_generic",
+    "m365_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Junos commit history and configuration audit logs. Data in `index=juniper` with `sourcetype=juniper:structured`. Key Junos syslog: `UI_COMMIT`, `UI_COMMIT_COMPLETED`, `UI_COMMIT_NOT_CONFIRMED`, `UI_CMDLINE_READ_LINE`.\n* Junos commit model: all configuration changes require explicit `commit` to apply. Junos logs each commit with username, timestamp, and commit comment. `commit confirmed` provides rollback safety. `rollback <n>` reverts to previous configs (up to 50 stored).\n\nStep 1 -- Configure data collection\n```\n# Junos -- commit logging is enabled by default\nset system syslog host <splunk-ip> any info\nset system syslog host <splunk-ip> interactive-commands any\nset system syslog host <splunk-ip> change-log any\n\n# Splunk inputs.conf\n[udp://514]\nsourcetype = juniper:structured\nindex = juniper\n```\nVerify:\n```spl\nindex=juniper earliest=-30d\n| where match(_raw, \"(?i)UI_COMMIT|commit|rollback|CMDLINE\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Commit history and rollback audit:**\n```spl\nindex=juniper earliest=-30d\n| where match(_raw, \"(?i)UI_COMMIT|UI_CMDLINE_READ_LINE.*commit|UI_CMDLINE_READ_LINE.*rollback\")\n| eval device=coalesce(host, device_name)\n| rex field=_raw \"(?i)user\\s+'(?<commit_user>[^']+)'\"\n| rex field=_raw \"(?i)comment\\s+'(?<commit_comment>[^']+)'\"\n| eval user=coalesce(commit_user, user, admin)\n| eval action=case(\n    match(_raw, \"(?i)COMMIT_COMPLETED|commit complete\"), \"COMMIT\",\n    match(_raw, \"(?i)COMMIT_NOT_CONFIRMED\"), \"COMMIT_NOT_CONFIRMED\",\n    match(_raw, \"(?i)rollback\"), \"ROLLBACK\",\n    match(_raw, \"(?i)UI_COMMIT\"), \"COMMIT\",\n    1==1, \"CONFIG_CHANGE\")\n| eval severity=case(\n    action=\"ROLLBACK\", \"WARNING -- configuration rollback performed\",\n    action=\"COMMIT_NOT_CONFIRMED\", \"WARNING -- commit not confirmed (auto-rollback)\",\n    action=\"COMMIT\" AND user=\"root\", \"INFO -- root user commit\",\n    1==1, \"INFO\")\n| stats count as events values(action) as actions values(commit_comment) as comments by device, user, severity\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show system commit` -- display commit history with timestamps.\n(b) CLI: `show configuration | compare rollback <n>` -- diff between current and rollback point.\n(c) Cross-reference commits with change management tickets.\n\nStep 4 -- Operationalize\nDashboard (\"Juniper -- Commit History\"):\n* Row 1 -- Single-value: \"Commits (30d)\", \"Rollbacks\", \"Unique administrators\".\n* Row 2 -- Commit history timeline.\n\nAlert: Warning (rollback performed): investigate why change was reverted.\n\nStep 5 -- Troubleshooting\n\n* **Rollback indicates bad change** -- Check: `show system commit` for the commit that was rolled back. Review the diff: `show configuration | compare rollback <n>`.\n\n* **Commit not confirmed** -- Auto-rollback occurred because `commit confirmed <minutes>` was used and confirmation wasn't sent in time. Useful safety feature but indicates the admin lost access after commit.\n\n* **Unauthorized commit** -- Review user, source IP, and time. Cross-reference with TACACS+/RADIUS logs. Verify change management approval.",
   "grandmaExplanation": "We keep a simple story of who committed Junos config changes and when, so you can prove what changed during an incident or an audit.",
-  "hardware": "All Juniper Junos devices"
+  "hardware": "All Juniper Junos devices",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

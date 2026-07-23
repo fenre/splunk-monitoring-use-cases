@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DNSSEC Validation Failure Rate for IPv6 (AAAA) Records'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.56).",
+  "evidence": "Saved search uc_5_20_56_dnssec_validation_failure_rate_for_ipv6, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DNSSEC Validation Failure Rate for IPv6 (AAAA) Records'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.56.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNSSEC validation events and SERVFAIL responses with AD (Authenticated Data) flag information. DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication of DNS responses, preventing DNS spoofing and cache poisoning. DNSSEC validation interacts with IPv6 in several important ways:\n\n1. **AAAA record signing** — AAAA records are signed the same as A records, but DNSSEC-signed AAAA responses are significantly larger (IPv6 addresses are 128 bits vs 32 bits) and DNSSEC signatures add 100-500+ bytes per RRset\n\n2. **Response size implications** — DNSSEC-signed AAAA + RRSIG responses frequently exceed 1280 bytes (IPv6 minimum MTU), requiring EDNS0 with larger buffer sizes or TCP fallback\n\n3. **Trust chain validation** — AAAA records are validated through the same DNSSEC trust chain (DS → DNSKEY → RRSIG) as A records. If the trust chain is broken for a zone, both A and AAAA lookups fail with SERVFAIL\n\n4. **DNS64 + DNSSEC conflict** — DNS64-synthesised AAAA records break DNSSEC validation because the synthesised record doesn't match the authoritative zone's signature (see UC-5.20.53)\n\nDNSSEC validation failures cause SERVFAIL responses — the resolver refuses to return the answer because it cannot verify its authenticity. This is a security-positive result (preventing potential spoofing) but causes connectivity failure.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946). Splunk Add-on for BIND DNS.",
   "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") earliest=-24h\n  (\"DNSSEC\" OR \"validation\" OR \"dnssec-failed\" OR \"BOGUS\" OR \"insecure\" OR \"AD bit\")\n| eval validation_status=case(\n    match(_raw, \"(?i)BOGUS|validation.*fail|dnssec-fail\"), \"FAILED — DNSSEC validation error\",\n    match(_raw, \"(?i)INSECURE|no DNSSEC\"), \"INSECURE — zone not signed\",\n    match(_raw, \"(?i)SECURE|validated|AD\"), \"SECURE — DNSSEC validated\",\n    1=1, \"unknown\")\n| eval query_is_aaaa=if(match(_raw, \"\\bAAAA\\b\"), 1, 0)\n| stats count as total count(eval(validation_status=\"FAILED — DNSSEC validation error\")) as failed count(eval(validation_status=\"SECURE — DNSSEC validated\")) as secure count(eval(query_is_aaaa=1 AND validation_status=\"FAILED — DNSSEC validation error\")) as aaaa_failed by host\n| eval dnssec_failure_rate=round(failed / total * 100, 2)",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 4033 — DNS Security Introduction and Requirements (DNSSEC overview)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4033"
+      "url": "https://www.rfc-editor.org/rfc/rfc4033",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6781 — DNSSEC Operational Practices, Version 2 (operational guidance)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6781"
+      "url": "https://www.rfc-editor.org/rfc/rfc6781",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8027 — DNSSEC Roadblock Avoidance (troubleshooting DNSSEC failures)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8027"
+      "url": "https://www.rfc-editor.org/rfc/rfc8027",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Expired DNSSEC signatures.** Zone operators who fail to re-sign their zones before RRSIG expiry cause legitimate DNSSEC validation failures. These are real failures but not caused by attacks — they are operational errors by the zone operator. The resolver is correct to fail validation.\n\n**Clock skew.** DNSSEC signatures have inception and expiration times. If the resolver's system clock is significantly skewed, valid signatures may appear expired or not-yet-valid. Ensure NTP synchronisation on resolvers.\n\n**Algorithm rollover.** During DNSSEC algorithm rollovers (e.g., RSA to ECDSA), there is a brief period where validators that have not updated their trust anchors may fail validation. This is a planned event.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "bind",
     "infoblox",

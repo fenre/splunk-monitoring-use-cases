@@ -9,10 +9,16 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=squid:cache` ICAP/eCAP diagnostics",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Squid ICAP and eCAP Adaptation Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.14.27).",
+  "evidence": "Saved search uc_5_14_27_squid_icap_and_ecap_adaptation_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Squid ICAP and eCAP Adaptation Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.14.27.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=proxy` `sourcetype=squid:cache` ICAP/eCAP diagnostics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| regex _raw=\"(?i)(ICAP|ECAP).*(?:fail|error|timeout)\"\n| bin _time span=5m\n| stats count by _time, host\n| where count > 10",
-  "description": "Adaptation failures look like random web errors to users.",
+  "description": "Adaptation failures look like random web errors to users. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Operations teams detect Squid ICAP/eCAP content adaptation failures and bypass events where traffic flows unscanned, creating security gaps in antivirus and DLP enforcement.",
   "implementation": "Tune service timeouts; scale scanners horizontally when counts rise.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
@@ -20,13 +26,33 @@
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "http://www.squid-cache.org/Doc/config/icap_service/"
+      "url": "http://www.squid-cache.org/Doc/config/icap_service/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Squid ICAP and eCAP Adaptation Failures» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "squid",
     "syslog"
+  ],
+  "equipmentModels": [
+    "squid_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Squid cache/syslog logs with ICAP and eCAP adaptation events. Data in `index=proxy` with `sourcetype=squid:cache` or `sourcetype=squid:access`. Key events: ICAP service errors, eCAP adapter failures, adaptation timeouts.\n* ICAP (Internet Content Adaptation Protocol, RFC 3507): Squid sends HTTP requests/responses to an external ICAP server for modification (antivirus scanning, DLP, content filtering). eCAP: in-process content adaptation using loadable modules. Adaptation failures mean content isn't being scanned, creating a security gap.\n\nStep 1 -- Configure data collection\n```\n# squid.conf -- ICAP example\nicap_enable on\nicap_service av_req reqmod_precache icap://av-server:1344/avscan\nadaptation_access av_req allow all\nicap_service_failure_limit 10\nicap_service_revival_delay 30\n```\nVerify:\n```spl\nindex=proxy (sourcetype=\"squid:cache\" OR sourcetype=\"squid:access\") earliest=-4h\n| where match(_raw, \"(?i)icap|ecap|adaptation|ICAP_ERR|ICAP.*fail|eCAP.*fail\")\n| stats count by _raw | head 20\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ICAP/eCAP adaptation failure analysis:**\n```spl\nindex=proxy (sourcetype=\"squid:cache\" OR sourcetype=\"squid:access\") earliest=-4h\n| where match(_raw, \"(?i)icap|ecap|adaptation\")\n| eval event_type=case(match(_raw, \"(?i)ICAP.*timeout|icap.*timed.out\"), \"ICAP_TIMEOUT\", match(_raw, \"(?i)ICAP.*err|ICAP.*fail|icap.*service.*down\"), \"ICAP_ERROR\", match(_raw, \"(?i)ICAP.*bypass|adaptation.*bypass\"), \"ICAP_BYPASS\", match(_raw, \"(?i)eCAP.*err|ecap.*fail\"), \"ECAP_ERROR\", match(_raw, \"(?i)ICAP.*200|adaptation.*ok\"), \"ICAP_OK\", 1==1, \"OTHER\")\n| where event_type != \"ICAP_OK\"\n| rex \"icap://(?<icap_server>[^/:]+)\"\n| stats count as events dc(icap_server) as affected_servers values(icap_server) as servers by event_type\n| eval severity=case(event_type=\"ICAP_BYPASS\", \"CRITICAL -- content bypassing scanning\", event_type=\"ICAP_TIMEOUT\", \"HIGH -- ICAP server timing out\", event_type=\"ICAP_ERROR\", \"HIGH -- ICAP service errors\", event_type=\"ECAP_ERROR\", \"HIGH -- eCAP module errors\", 1==1, \"WARNING\")\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) Stop the ICAP server and verify error/bypass events appear.\n(b) Send an EICAR test file through the proxy: `curl -x http://<squid>:3128 http://example.com/eicar.com` -- should be blocked by ICAP AV.\n(c) `squidclient mgr:icap` -- shows ICAP service statistics.\n\nStep 4 -- Operationalize\nDashboard (\"Squid -- Content Adaptation\"):\n* Row 1 -- Single-value: \"ICAP errors (4h)\", \"Bypass events\", \"ICAP timeouts\".\n* Row 2 -- Adaptation event breakdown.\n\nAlerting:\n* Critical (ICAP bypass): content not being scanned -- security gap.\n* High (ICAP timeout > 50/hr): ICAP server performance issue.\n\nStep 5 -- Troubleshooting\n\n* **ICAP bypass** -- When ICAP service hits `icap_service_failure_limit`, Squid bypasses adaptation. This means traffic flows without scanning. Review: (1) increase limit if transient, (2) fix ICAP server, (3) consider `adaptation_access` deny rules to block traffic when ICAP is down instead of bypassing.\n\n* **ICAP timeout** -- ICAP server is too slow. Check: (1) ICAP server load, (2) `icap_connect_timeout` (default 30s), (3) large file scans taking too long.\n\n* **eCAP module crash** -- eCAP modules run in-process. A crash can take down Squid. Check core dumps and module logs. Consider switching to ICAP for isolation.",
-  "grandmaExplanation": "We watch squid icap and ecap adaptation failures and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch squid icap and ecap adaptation failures and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

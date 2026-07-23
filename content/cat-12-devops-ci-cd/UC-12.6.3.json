@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`",
-  "app": "Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Build Queue Wait Time Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-12.6.3).",
+  "evidence": "Saved search uc_12_6_3_build_queue_wait_time_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Build Queue Wait Time Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-12.6.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops (sourcetype=\"jenkins:build\" OR sourcetype=\"gitlab:job\") earliest=-30d@d\n| eval wait_sec=coalesce(queue_wait_ms/1000, queued_duration, queue_time_sec)\n| where isnotnull(wait_sec)\n| timechart span=1d avg(wait_sec) as avg_wait_sec p95(wait_sec) as p95_wait_sec\n| eval avg_wait_min=round(avg_wait_sec/60,2)\n| trendline sma7(avg_wait_min) as wait_trend\n| eventstats median(avg_wait_min) as med_wait\n| eval backlog_pressure=if(avg_wait_min > med_wait*1.5,1,0)",
   "description": "Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.",
-  "value": "Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.",
+  "value": "Operations and leadership rely on 'Build Queue Wait Time Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ensure `wait_sec` excludes container provisioning if that is tracked separately. For GitHub-only shops, ingest workflow_job events with `queued_at` and `started_at` to derive wait. Split by `label` or `runner_group` to see constrained pools. Alert when p95 wait exceeds SLA for two consecutive days.",
   "visualization": "Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).",
   "cimModels": [
@@ -22,15 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build times vary with cache state, runner availability, or test suite expansion.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "github",
     "gitlab",
     "jenkins"
   ],
+  "equipmentModels": [
+    "github_generic",
+    "gitlab_generic",
+    "jenkins_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events).\n• Ensure the following data sources are available: `index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure `wait_sec` excludes container provisioning if that is tracked separately. For GitHub-only shops, ingest workflow_job events with `queued_at` and `started_at` to derive wait. Split by `label` or `runner_group` to see constrained pools. Alert when p95 wait exceeds SLA for two consecutive days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"jenkins:build\" OR sourcetype=\"gitlab:job\") earliest=-30d@d\n| eval wait_sec=coalesce(queue_wait_ms/1000, queued_duration, queue_time_sec)\n| where isnotnull(wait_sec)\n| timechart span=1d avg(wait_sec) as avg_wait_sec p95(wait_sec) as p95_wait_sec\n| eval avg_wait_min=round(avg_wait_sec/60,2)\n| trendline sma7(avg_wait_min) as wait_trend\n| eventstats median(avg_wait_min) as med_wait\n| eval backlog_pressure=if(avg_wait_min > med_wait*1.5,1,0)\n```\n\nUnderstanding this SPL\n\n**Build Queue Wait Time Trending** — Queue wait reflects runner capacity and pipeline fan-in; rising waits delay feedback and release trains even when job success rates look fine.\n\nDocumented **Data sources**: `index=devops` `sourcetype=\"jenkins:queue\"` or `sourcetype=\"jenkins:build\"` with `queue_wait_ms`; `sourcetype=\"gitlab:job\"` with `queued_duration`. **App/TA** (typical add-on context): Jenkins metrics (`metrics` plugin), GitLab Runner metrics, GitHub Actions (job queue via API-derived events). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: jenkins:build, gitlab:job. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"jenkins:build\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **wait_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(wait_sec)` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **avg_wait_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Build Queue Wait Time Trending**): trendline sma7(avg_wait_min) as wait_trend\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **backlog_pressure** — often to normalize units, derive a ratio, or prepare for thresholds.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub and GitLab audit or activity views for the same time range. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (average and p95 wait in minutes), Area chart (wait distribution bands), Single value (current p95 wait).",
-  "grandmaExplanation": "We watch queueing and wait time so developers are not stuck behind broken runners or clogged pipelines."
+  "grandmaExplanation": "We watch queueing and wait time so developers are not stuck behind broken runners or clogged pipelines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

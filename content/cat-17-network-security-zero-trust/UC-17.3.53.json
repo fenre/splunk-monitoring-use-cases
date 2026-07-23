@@ -9,7 +9,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Symantec WSS access logs (API-based collection via the Add-on)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.53).",
+  "evidence": "Saved search uc_17_3_53_broadcom_symantec_cloud_swg_policy_analy, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.53.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Symantec WSS access logs (API-based collection via the Add-on) Indexes: proxy. Sourcetypes: symantec:wss:accesslog. Key fields: cs_categories, cs_userdn, sc_filter_result. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Symantec WSS Add-on for Splunk (Splunkbase 3856)",
   "spl": "index=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-7d\n| where sc_filter_result=\"DENIED\"\n| stats count by cs_categories, cs_userdn, sc_filter_result\n| sort -count",
   "description": "Broadcom Symantec Cloud SWG (formerly WSS) provides cloud-delivered web security with URL filtering, threat protection, and SSL inspection for all users. Tracking policy violations and threat blocks validates security posture.",
@@ -24,21 +30,42 @@
   "references": [
     {
       "title": "Symantec WSS Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3856"
+      "url": "https://splunkbase.splunk.com/app/3856",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "broadcom_symantec"
   ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Broadcom Symantec Web Security Service (WSS / CloudSOC) logs in `index=symantec` with `sourcetype=symantec:wss` or `sourcetype=bluecoat:proxysg:access`. Key fields: `cs-action` (ALLOWED/DENIED/TUNNELED), `cs-categories` (URL category), `cs-threat-risk` (risk score), `cs-userdn` (user DN), `cs-host`, `cs-uri`, `cs-bytes`, `sr-bytes`, `cs-method`.\n• Symantec WSS (now Broadcom) is a cloud proxy/SWG that inspects web traffic, applies URL categorization, threat scanning, and DLP. Logs use W3C extended log format.\n\nStep 1 — Configure data collection\nConfigure WSS log export: WSS Admin > Integration > Log Export > add Splunk HEC endpoint or syslog.\n\nVerify:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-1h\n| stats count by cs-action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy analysis:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" cs-action=DENIED earliest=-7d\n| timechart span=1d count by cs-categories limit=10\n```\n\nUnderstanding this SPL: Trends denied web categories over time. Symantec uses over 80 URL categories. Spikes in security-related categories (Malware, Phishing, Hacking) indicate active threats. Spikes in policy categories (Gambling, Adult) indicate enforcement. 'Uncategorized' denials may be false positives.\n\nThreat risk analysis:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-24h\n| where tonumber(cs-threat-risk) > 5\n| stats count dc(cs-userdn) as users by cs-host, cs-threat-risk, cs-action\n| sort - cs-threat-risk\n```\n\nStep 3 — Validate\n(a) Visit a blocked category. Verify denial event.\n(b) In WSS Portal: Reports > Web Activity.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Denial trend. Row 2 — High-risk domains. Row 3 — Top denied users.\nAlert: When threat-risk > 8 domains are accessed by internal users.\n\nRunbook:\n1. **High-risk domain accessed** — Check for endpoint compromise.\n2. **Denial spike** — Policy change or active campaign.\n3. **Uncategorized denials** — Submit for re-categorization.\n\nStep 5 — Troubleshooting\n• **No WSS data** — Log export may not be configured. Check WSS Integration settings.\n• **`cs-categories` empty** — URL may be uncategorized in Symantec's database.",
   "grandmaExplanation": "Symantec's cloud proxy filters all our web traffic. We track which categories are being blocked and pay special attention to websites rated as high-risk — when employees visit risky sites, we check whether their devices might already be compromised.",
-  "hardware": "Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent"
+  "hardware": "Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

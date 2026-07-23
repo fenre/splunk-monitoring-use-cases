@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Forcepoint Policy Sync Status Between Cloud SSE and On-Prem Web (`forcepoint:one`)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.5.15).",
+  "evidence": "Saved search uc_17_5_15_forcepoint_policy_sync_status_between_cl, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Forcepoint Policy Sync Status Between Cloud SSE and On-Prem Web (`forc'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.5.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=sase sourcetype=\"forcepoint:one\" OR index=proxy sourcetype=\"websense:cg:kv\" earliest=-24h\n| eval plane=if(sourcetype==\"forcepoint:one\",\"cloud\",\"onprem\")\n| where match(_raw,\"(?i)sync|publish|revision\")\n| stats latest(_time) as t by plane, policy_name\n| eventstats max(t) as newest\n| eval lag_sec=newest-t\n| where lag_sec>3600",
@@ -22,17 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/3245"
+      "url": "https://splunkbase.splunk.com/app/3245",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Both Forcepoint ONE SSE (cloud) and Forcepoint Web Security (on-prem Content Gateway) sending logs to Splunk.\n• Cloud data in `index=sase` with `sourcetype=forcepoint:one`. On-prem data in `index=proxy` with `sourcetype=websense:cg:kv`.\n• This UC addresses hybrid deployments where some users go through the cloud SSE and others through the on-prem Content Gateway. Policy consistency between the two is critical — a URL blocked in the cloud must also be blocked on-prem, and vice versa.\n\nStep 1 — Configure data collection\nVerify both data sources:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h | stats count as cloud_events\n| appendpipe [\n    search index=proxy sourcetype=\"websense:cg:kv\" earliest=-24h | stats count as onprem_events\n]\n```\nBoth should show events. If one is empty: that deployment is not sending logs.\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy sync discrepancy detection:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| where match(lower(action), \"block|deny\")\n| stats count as cloud_blocks dc(user) as cloud_users by category\n| join type=outer category [\n    search index=proxy sourcetype=\"websense:cg:kv\" earliest=-24h\n    | where match(lower(action), \"block|deny\")\n    | stats count as onprem_blocks dc(user) as onprem_users by category\n]\n| fillnull value=0 cloud_blocks onprem_blocks\n| eval sync_status=case(\n    cloud_blocks>0 AND onprem_blocks=0, \"CLOUD-ONLY BLOCKING\",\n    cloud_blocks=0 AND onprem_blocks>0, \"ONPREM-ONLY BLOCKING\",\n    abs(cloud_blocks - onprem_blocks)/max(cloud_blocks, onprem_blocks) > 0.5, \"SIGNIFICANT DRIFT\",\n    1==1, \"IN SYNC\"\n)\n| where sync_status!=\"IN SYNC\"\n| sort sync_status\n```\n\nUnderstanding this SPL: Compares which URL categories are being blocked by each enforcement point. 'CLOUD-ONLY BLOCKING' means the on-prem gateway allows traffic that the cloud blocks — users on-prem have a weaker policy. 'ONPREM-ONLY BLOCKING' is the reverse. 'SIGNIFICANT DRIFT' means both block but volumes differ by more than 50%, suggesting different thresholds or category definitions. Policy sync is a common issue in hybrid Forcepoint deployments because the cloud and on-prem systems may have independent policy databases.\n\nStep 3 — Validate\n(a) Pick a category flagged as out-of-sync. Review the policy for that category in both Forcepoint ONE (cloud) and Security Manager (on-prem).\n(b) Visit a test URL from both a cloud-routed and on-prem-routed endpoint. Verify the action matches.\n\nStep 4 — Operationalize\nDashboard (\"Forcepoint — Policy Sync\"):\n• Row 1 — Single-value: \"Categories in sync\", \"Categories drifted\", \"Cloud-only blocks\".\n• Row 2 — Table: categories with sync status, cloud blocks, on-prem blocks.\n\nAlert: Weekly sync report. Immediate alert if a high-risk category (Malware, Phishing) shows drift.\n\nRunbook:\n1. **Cloud-only blocking** — Update the on-prem policy to match cloud. This usually means the on-prem policy database is outdated.\n2. **On-prem-only blocking** — The cloud policy may be more permissive. Review and align.\n3. **Significant drift** — May indicate different category database versions. Schedule a policy sync.\n\nStep 5 — Troubleshooting\n• **One side always shows zero** — That deployment may not be in the traffic path (all users on one side).\n• **Category names don't match** — Cloud and on-prem may use different category naming. Create a mapping lookup.\n• **Drift increasing over time** — Automated policy sync between cloud and on-prem is not configured. Enable it in Forcepoint management.",
-  "grandmaExplanation": "We make sure the rules for blocking bad websites are the same whether someone is working from the office or from home, so nobody accidentally gets a weaker set of protections."
+  "grandmaExplanation": "We make sure the rules for blocking bad websites are the same whether someone is working from the office or from home, so nobody accidentally gets a weaker set of protections.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

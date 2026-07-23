@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmware:perf:cpu`, vCenter performance metrics",
-  "app": "`Splunk_TA_vmware`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ESXi Host CPU Contention'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.1.1).",
+  "evidence": "Saved search uc_2_1_1_esxi_host_cpu_contention, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ESXi Host CPU Contention'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.1.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=vmware:perf:cpu`, vCenter performance metrics Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready by host, vm_name\n| where avg_ready > 5\n| sort -avg_ready",
   "description": "CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.",
-  "value": "CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.",
+  "value": "Operations and leadership rely on 'ESXi Host CPU Contention' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Install `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.",
   "visualization": "Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215"
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "vSphere API",
-      "url": "https://developer.vmware.com/"
+      "url": "https://developer.vmware.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "CPU ready time can spike during vMotion, host maintenance mode, DRS rebalancing, or right after power-on; correlate with change windows and cluster load before re-sizing VMs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "vmware"
   ],
@@ -37,6 +55,12 @@
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:cpu`, vCenter performance metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstall `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready by host, vm_name\n| where avg_ready > 5\n| sort -avg_ready\n```\n\nUnderstanding this SPL\n\n**ESXi Host CPU Contention** — CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:cpu`, vCenter performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:cpu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:cpu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ready_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, vm_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_ready > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).",
-  "grandmaExplanation": "We track when your virtual machines wait too long for CPU time, so we can catch overload or unfair resource shares before the slowness hits real work."
+  "grandmaExplanation": "We track when your virtual machines wait too long for CPU time, so we can catch overload or unfair resource shares before the slowness hits real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,8 +8,14 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`).",
-  "app": "Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography capture software (N.I.N.A./Ekos) — logging to Splunk HEC via MQTT and scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Astrophotography Sub-Frame Yield per Session'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.22.1).",
+  "evidence": "Saved search uc_25_22_1_astrophotography_sub_frame_yield_per_ses, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Astrophotography Sub-Frame Yield per Session'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.22.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography capture software (N.I.N.A./Ekos) — logging to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=imaging:session\n| stats sum(eval(if(rejected=\"false\",1,0))) as kept, count as total, avg(hfr) as focus by target\n| eval keep_pct=round(100*kept/total,1)\n| sort keep_pct",
   "description": "Measures how many exposures you kept versus threw away per target, the real productivity of a night under the stars.",
   "value": "Astrophotography is a numbers game; a keep rate per target reveals guiding, focus, or wind problems eating your imaging time.",
@@ -19,15 +25,38 @@
   "references": [
     {
       "title": "N.I.N.A. — astrophotography imager",
-      "url": "https://nighttime-imaging.eu/"
+      "url": "https://nighttime-imaging.eu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It counts how many of your long night-sky photos were good enough to keep, showing how productive the night was."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Backyard Astronomy & Observatory — typical feeds: Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`)..\n• **Sourcetypes in this search**: `imaging:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=imaging:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography software (N.I.N.A./Ekos) — via MQTT and scripted inputs..\n\n**Author notes:** Ingest per-sub metadata from your capture software; schedule after each session and review keep rate by target.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"imaging:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=imaging:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Astrophotography Sub-Frame Yield per Session** over `personal` data (primarily `sourcetype=imaging:session`) across the full search range. The `sum, avg` aggregation groups by `target`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `target`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=imaging:session\n| stats sum(eval(if(rejected=\"false\",1,0))) as kept, count as total, avg(hfr) as focus by target\n| eval keep_pct=round(100*kept/total,1)\n| sort keep_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=imaging:session earliest=-7d\n| head 50\n| table target\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=imaging:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.22.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Kept-Frame Percentage By Target (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `imaging:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=imaging:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It counts how many of your long night-sky photos were good enough to keep, showing how productive the night was.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

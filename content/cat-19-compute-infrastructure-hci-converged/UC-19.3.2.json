@@ -11,6 +11,11 @@
   ],
   "splunkPillar": "Observability",
   "exclusions": "Storage Spaces (non-Direct) single-server volumes; Storage Pools on JBOD enclosures attached to non-S2D Windows hosts; Hyper-V VHDX expansion at the file-system layer (separate use case); Azure-managed storage services (Azure Files, Azure NetApp Files, Azure Blob); Linux mdadm/btrfs/ZFS; SCM (Optane Persistent Memory) tiers used in App-Direct mode rather than as cache.",
+  "evidence": "Saved search uc_19_3_2_storage_spaces_direct_s2d_storage_pool_u, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Storage Spaces Direct (S2D) Storage Pool Utilization and Tier-Imbalanc'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-19.3.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=storage_s2d` (aliases `azure_stack_hci`, `hci_cluster`, `windows`) ingesting ConvertTo-Json snapshots from Azure Stack HCI 23H2 and Windows Server 2025/2022/2019 Datacenter Storage Spaces Direct clusters. `sourcetype=s2d:pool` captures Get-StoragePool FriendlyName, Size, AllocatedSize, OperationalStatus, HealthStatus, EnclosureAwareDefault, IsClustered, MediaTypeDefault. `sourcetype=s2d:virtualdisk` captures Get-VirtualDisk Name, FootprintOnPool, Size, AllocatedSize, ResiliencySettingName, NumberOfDataCopies, PhysicalDiskRedundancy, NumberOfColumns, OperationalStatus, HealthStatus. `sourcetype=s2d:tier` captures Get-StorageTier MediaType, Size, AllocatedSize, FootprintOnPool, ResiliencySettingName. `sourcetype=s2d:storagejob` captures Get-StorageJob Optimize/Rebuild/Repair/Regeneration/Reallocation PercentComplete fields. Optional `sourcetype=s2d:performancehistory` holds Get-ClusterPerformanceHistory slices; `WinEventLog:Microsoft-Windows-Health/Operational` carries Storage Health Service capacity faults. Stamp cluster_key consistently on every HEC payload so searches merge nodes cleanly.",
   "app": "`Splunk_TA_windows` ([Splunkbase 742](https://splunkbase.splunk.com/app/742)) on each node for WinEventLog and perfmon parsing; add a small custom app such as TA_s2d_pool_capacity that schedules PowerShell collectors every 300–900 seconds into s2d:pool, s2d:virtualdisk, s2d:tier, and s2d:storagejob sourcetypes.",
   "spl": "(index=storage_s2d OR index=azure_stack_hci OR index=hci_cluster OR index=windows) (sourcetype=\"s2d:pool\" OR sourcetype=\"s2d:tier\" OR sourcetype=\"s2d:virtualdisk\" OR sourcetype=\"s2d:storagejob\") earliest=-6h\n| eval cluster_key=upper(trim(coalesce(Cluster_Name,cluster_name,fq_cluster,ComputerName,host)))\n| eval pool_label=coalesce(PoolFriendlyName,FriendlyName,pool_name,PoolName,\"\")\n| eval st=lower(sourcetype)\n| eval pool_bytes=case(st=\"s2d:pool\",tonumber(coalesce(Size,PoolSizeBytes,pool_size_bytes,\"\")),st=\"s2d:tier\",tonumber(coalesce(Size,TierSizeBytes,tier_size_bytes,\"\")),null())\n| eval alloc=tonumber(coalesce(AllocatedSize,allocated_bytes,TierAllocatedBytes,\"\"))\n| eval footprint_bytes=tonumber(coalesce(FootprintOnPool,footprint_on_pool,\"\"))\n| eval pool_usage_pct=if(st=\"s2d:pool\" AND pool_bytes>0 AND isnotnull(alloc),round(100*alloc/pool_bytes,2),null())\n| eval tier_fill_pct=if(st=\"s2d:tier\" AND pool_bytes>0 AND isnotnull(alloc),round(100*alloc/pool_bytes,2),null())\n| eval tier_media=coalesce(MediaType,media_type,\"\")\n| eval resiliency=coalesce(ResiliencySettingName,resiliency_setting,\"\")\n| eval vd_logical=tonumber(coalesce(Size,VolumeLogicalBytes,logical_size_bytes,\"\"))\n| eval jobnam=lower(coalesce(Name,JobName,job_name,\"\"))\n| eval optimize_pct=if(st=\"s2d:storagejob\" AND match(jobnam,\"(?i)optimize\"),tonumber(coalesce(PercentComplete,percent_complete,\"\")),null())\n| eval optimize_eta_sec=if(st=\"s2d:storagejob\" AND match(jobnam,\"(?i)optimize\"),tonumber(coalesce(EtaSecondsRemaining,eta_seconds,\"\")),null())\n| eval pool_warn=st=\"s2d:pool\" AND pool_usage_pct>=70 AND pool_usage_pct<80\n| eval pool_crit=st=\"s2d:pool\" AND pool_usage_pct>=80\n| eval map_footprint=st=\"s2d:virtualdisk\" AND match(lower(resiliency),\"(?i)mirroracceleratedparity\") AND isnotnull(footprint_bytes) AND isnotnull(vd_logical) AND footprint_bytes>(vd_logical*1.25)\n| eval parity_heavy=st=\"s2d:virtualdisk\" AND match(lower(resiliency),\"(?i)parity\") AND isnotnull(NumberOfColumns) AND tonumber(NumberOfColumns)>=9\n| eval optimize_slow=st=\"s2d:storagejob\" AND isnotnull(optimize_pct) AND optimize_pct<95 AND optimize_eta_sec>14400\n| eval tier_hot=st=\"s2d:tier\" AND tier_media IN (\"SSD\",\"HDD\",\"SCM\") AND tier_fill_pct>=85\n| where pool_warn OR pool_crit OR map_footprint OR parity_heavy OR optimize_slow OR tier_hot\n| stats latest(_time) as last_seen,max(pool_usage_pct) as peak_pool_usage_pct,max(tier_fill_pct) as peak_tier_fill_pct,values(resiliency) as resiliency_modes,max(optimize_pct) as optimize_percent_complete,min(optimize_eta_sec) as optimize_eta_seconds,dc(pool_label) as pool_scope,values(tier_media) as tier_breakdown,max(case(pool_crit OR pool_usage_pct>=80,1,0)) as breach_critical,max(case(optimize_slow,1,0)) as optimize_long_tail,max(case(map_footprint,1,0)) as map_volume_flag,max(case(parity_heavy,1,0)) as parity_layout_flag by cluster_key\n| eval posture=case(breach_critical=1 OR peak_pool_usage_pct>=80,\"capacity_critical\",optimize_long_tail=1 OR map_volume_flag=1 OR parity_layout_flag=1 OR peak_tier_fill_pct>=85,\"tier_ops_review\",peak_pool_usage_pct>=70,\"capacity_warning\",1=1,\"informational\")\n| sort -last_seen\n| table cluster_key,posture,peak_pool_usage_pct,peak_tier_fill_pct,resiliency_modes,tier_breakdown,optimize_percent_complete,optimize_eta_seconds,pool_scope,last_seen",
@@ -25,30 +30,36 @@
   "references": [
     {
       "title": "Plan volumes for Storage Spaces Direct (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/concepts/plan-volumes"
+      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/concepts/plan-volumes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fault tolerance and storage efficiency (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/concepts/fault-tolerance"
+      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/concepts/fault-tolerance",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Get-StoragePool (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/powershell/module/storage/get-storagepool"
+      "url": "https://learn.microsoft.com/en-us/powershell/module/storage/get-storagepool",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Optimize-StoragePool (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/powershell/module/storage/optimize-storagepool"
+      "url": "https://learn.microsoft.com/en-us/powershell/module/storage/optimize-storagepool",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Performance history for Storage Spaces Direct (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/"
+      "url": "https://learn.microsoft.com/en-us/azure-stack/hci/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bulk VM template imports during tenant onboarding temporarily push AllocatedSize toward Size because golden images hydrate replicas quickly; suppress capacity_critical until a bulk_seed_campaign enrichment clears while Optimize and Rebuild queues remain healthy.\n\nOptimize-StoragePool jobs deliberately reshape slabs: Get-StorageJob PercentComplete under 95 with multi-hour EtaSecondsRemaining can look like imbalance even though Get-StorageTier AllocatedSize ratios stabilize once Optimize completes.\n\nResiliency migrations (three-way Mirror toward MirrorAcceleratedParity) inflate FootprintOnPool transiently versus logical Size while NumberOfColumns changes finalize—delay tier_ops_review until Get-VirtualDisk OperationalStatus returns OK on every node.\n\nCapacity-disk replacements invoke Rebuild, Regeneration, and Reallocation tasks that temporarily consume slack similar to exhaustion; confirm Repair-VirtualDisk timelines and verify there is no Lost Communication storm before reacting only to percentages.\n\nShrink-volume maintenance reduces logical Size while FootprintOnPool lags garbage collection, so mismatches resemble footprint faults until Optimize or Repair drains complete.\n\nThin-provision churn without tier edits can surface parity_heavy noise when NumberOfColumns spikes only because stats merged two FriendlyName collisions from throwaway volumes—deduplicate pool_label extraction and require two consecutive polling cycles before escalating.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "azure",
     "cisco",

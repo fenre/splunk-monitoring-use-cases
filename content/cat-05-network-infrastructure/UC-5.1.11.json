@@ -8,10 +8,16 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Power Supply / Fan Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.11).",
+  "evidence": "Saved search uc_5_1_11_power_supply_fan_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Power Supply / Fan Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%FAN-3-FAN_FAILED\" OR \"%PLATFORM_ENV-1-PSU\" OR \"%ENVIRONMENTAL-1-ALERT\"\n| table _time host _raw | sort -_time",
-  "description": "Hardware failures reduce redundancy. A second failure causes outage.",
+  "description": "Hardware failures reduce redundancy. A second failure causes outage. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "NOC teams detect power supply and fan failures on network devices, identifying loss of hardware redundancy that puts devices at risk of thermal shutdown or complete power failure.",
   "implementation": "Forward syslog. Poll ENVMON-MIB. Alert immediately on hardware failure. Include device location for dispatch.",
   "visualization": "Status indicator per device, Events list (critical).",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hardware sensor warnings during power redundancy testing, scheduled maintenance, or environmental swings. Lab gear often logs benign transitions.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "snmp",
@@ -32,6 +54,10 @@
     "cisco_ios",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -39,7 +65,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* Power supply and fan failure syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%ENVMON-2-FAN_FAILED`, `%C6KPWR-4-DISABLED`, `%PLATFORM_ENV-1-FAN`, `%PLATFORM_ENV-1-PSU`; generic `%SYS-2-MALLOCFAIL`.\n* Power supply redundancy loss means the device is running on a single PSU -- the next PSU failure causes complete outage. Fan failures lead to thermal shutdown if not addressed promptly.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- environmental monitoring is logged by default\n# SNMP: poll CISCO-ENVMON-MIB\n# ciscoEnvMonFanStatusDescr (.1.3.6.1.4.1.9.9.13.1.4.1.2)\n# ciscoEnvMonSupplyStatusDescr (.1.3.6.1.4.1.9.9.13.1.5.1.2)\n# ciscoEnvMonSupplyState (.1.3.6.1.4.1.9.9.13.1.5.1.3)\n```\nVerify:\n```spl\nindex=network earliest=-30d\n| where match(_raw, \"(?i)FAN|PSU|POWER.*SUPPLY|power.*fail|fan.*fail|ENVMON|PLATFORM_ENV\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Hardware failure event monitoring:**\n```spl\nindex=network earliest=-30d\n| where match(_raw, \"(?i)FAN.*FAIL|FAN.*DOWN|PSU.*FAIL|POWER.*FAIL|ENVMON.*(FAN|SUPPLY)|PLATFORM_ENV|redundancy.*lost|power.*absent\")\n| eval device=coalesce(host, device_name)\n| eval component=case(\n    match(_raw, \"(?i)fan\"), \"FAN\",\n    match(_raw, \"(?i)psu|power.*supply|power.*module\"), \"PSU\",\n    1==1, \"HARDWARE\")\n| eval status=case(\n    match(_raw, \"(?i)fail|down|absent|removed|critical\"), \"FAILED\",\n    match(_raw, \"(?i)ok|normal|good|inserted\"), \"OK\",\n    1==1, \"WARNING\")\n| dedup device, component sortby -_time\n| where status != \"OK\"\n| eval severity=case(\n    component=\"PSU\" AND status=\"FAILED\", \"CRITICAL -- power supply failure (redundancy lost)\",\n    component=\"FAN\" AND status=\"FAILED\", \"CRITICAL -- fan failure (thermal shutdown risk)\",\n    1==1, \"WARNING\")\n| table device, component, status, _time, severity\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI: `show environment all` -- check PSU and fan status.\n(b) CLI: `show power inline` (for PoE switches) -- verify power budget.\n(c) Check for correlating temperature alarms (UC-5.1.15).\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Hardware Health\"):\n* Row 1 -- Single-value: \"PSU failures\", \"Fan failures\", \"Devices at risk\".\n* Row 2 -- Hardware failure event timeline.\n\nAlert: Critical (PSU/fan failure): dispatch field service or RMA.\n\nStep 5 -- Troubleshooting\n\n* **PSU failure** -- Check: LED indicators, power cable, circuit breaker. If redundant PSU available, device continues operating but with no redundancy. Order replacement immediately.\n\n* **Fan failure** -- Device will begin thermal throttling. Monitor temperature (UC-5.1.15). If temperature exceeds threshold, device will shut down to prevent damage. RMA fan tray.\n\n* **Intermittent PSU status** -- May indicate loose power cable or failing PSU capacitor. Reseat cable; if continues, replace PSU.",
+  "detailedImplementation": "Prerequisites\n* Power supply and fan failure syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%ENVMON-2-FAN_FAILED`, `%C6KPWR-4-DISABLED`, `%PLATFORM_ENV-1-FAN`, `%PLATFORM_ENV-1-PSU`; generic `%SYS-2-MALLOCFAIL`.\n* Power supply redundancy loss means the device is running on a single PSU -- the next PSU failure causes complete outage. Fan failures lead to thermal shutdown if not addressed promptly.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- environmental monitoring is logged by default\n# SNMP: poll CISCO-ENVMON-MIB\n# ciscoEnvMonFanStatusDescr (.1.3.6.1.4.1.9.9.13.1.4.1.2)\n# ciscoEnvMonSupplyStatusDescr (.1.3.6.1.4.1.9.9.13.1.5.1.2)\n# ciscoEnvMonSupplyState (.1.3.6.1.4.1.9.9.13.1.5.1.3)\n```\nVerify:\n```spl\nindex=network earliest=-30d\n| where match(_raw, \"(?i)FAN|PSU|POWER.*SUPPLY|power.*fail|fan.*fail|ENVMON|PLATFORM_ENV\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Hardware failure event monitoring:**\n```spl\nindex=network earliest=-30d\n| where match(_raw, \"(?i)FAN.*FAIL|FAN.*DOWN|PSU.*FAIL|POWER.*FAIL|ENVMON.*(FAN|SUPPLY)|PLATFORM_ENV|redundancy.*lost|power.*absent\")\n| eval device=coalesce(host, device_name)\n| eval component=case(\n    match(_raw, \"(?i)fan\"), \"FAN\",\n    match(_raw, \"(?i)psu|power.*supply|power.*module\"), \"PSU\",\n    1==1, \"HARDWARE\")\n| eval status=case(\n    match(_raw, \"(?i)fail|down|absent|removed|critical\"), \"FAILED\",\n    match(_raw, \"(?i)ok|normal|good|inserted\"), \"OK\",\n    1==1, \"WARNING\")\n| dedup device, component sortby -_time\n| where status != \"OK\"\n| eval severity=case(\n    component=\"PSU\" AND status=\"FAILED\", \"CRITICAL -- power supply failure (redundancy lost)\",\n    component=\"FAN\" AND status=\"FAILED\", \"CRITICAL -- fan failure (thermal shutdown risk)\",\n    1==1, \"WARNING\")\n| table device, component, status, _time, severity\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI: `show environment all` -- check PSU and fan status.\n(b) CLI: `show power inline` (for PoE switches) -- verify power budget.\n(c) Check for correlating temperature alarms (UC-5.1.15).\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Hardware Health\"):\n* Row 1 -- Single-value: \"PSU failures\", \"Fan failures\", \"Devices at risk\".\n* Row 2 -- Hardware failure event timeline.\n\nAlert: Critical (PSU/fan failure): dispatch field service or RMA.\n\nStep 5 -- Troubleshooting\n\n* **PSU failure** -- Check: LED indicators, power cable, circuit breaker. If redundant PSU available, device continues operating but with no redundancy. Order replacement immediately.\n\n* **Fan failure** -- Device will begin thermal throttling. Monitor temperature (UC-5.1.15). If temperature exceeds threshold, device will shut down to prevent damage. RMA fan tray.\n\n* **Intermittent PSU status** -- May indicate loose power cable or failing PSU capacitor. Reseat cable; if continues, replace PSU.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, SNMP CISCO-ENVMON-MIB — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We raise the alarm if power supplies or fans report trouble, so a closet does not overheat or lose redundancy without you knowing.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

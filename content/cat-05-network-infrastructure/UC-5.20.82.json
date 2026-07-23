@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — syslog messages from Unicast Reverse Path Forwarding (uRPF) drops and configuration verification. BCP 38 (RFC 2827/3704) anti-spoofing is even more critical for IPv6 than for IPv4 because:\n\n1. **No NAT.** IPv6 hosts use globally routable addresses directly. In IPv4, NAT inadvertently provides a degree of anti-spoofing (packets with internal source addresses cannot originate externally). IPv6 has no such accidental protection.\n2. **Larger address space.** The 128-bit address space makes traditional ACL-based source validation impractical. uRPF (FIB-based validation) is the only scalable approach.\n3. **Link-local scope.** Link-local addresses (fe80::/10) should NEVER appear as source addresses in routed traffic. This is an absolute rule with no exceptions.\n4. **ULA containment.** ULA addresses (fc00::/7) should never cross organisational perimeters.\n\n**uRPF modes:**\n- **Strict mode** — packet source must be reachable via the receiving interface's RIB/FIB. Best for single-homed or known-topology links.\n- **Loose mode** — packet source must exist in the RIB (any interface). Suitable for multi-homed links where asymmetric routing is expected.\n- **Feasible-path mode** (Cisco extension) — packet source must be reachable via the receiving interface OR any equal-cost or backup path.",
-  "app": "Cisco Add-on for Splunk / Juniper Add-on / Palo Alto Networks Add-on",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Anti-Spoofing (uRPF/BCP 38) Verification'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.82).",
+  "evidence": "Saved search uc_5_20_82_ipv6_anti_spoofing_urpf_bcp_38_verificat, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Anti-Spoofing (uRPF/BCP 38) Verification'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.82.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — syslog messages from Unicast Reverse Path Forwarding (uRPF) drops and configuration verification. BCP 38 (RFC 2827/3704) anti-spoofing is even more critical for IPv6 than for IPv4 because:\n\n1. **No NAT.** IPv6 hosts use globally routable addresses directly. In IPv4, NAT inadvertently provides a degree of anti-spoofing (packets with internal source addresses cannot originate externally). IPv6 has no such accidental protection.\n2. **Larger address space.** The 128-bit address space makes traditional ACL-based source validation impractical. uRPF (FIB-based validation) is the only scalable approach.\n3. **Link-local scope.** Link-local addresses (fe80::/10) should NEVER appear as source addresses in routed traffic. This is an absolute rule with no exceptions.\n4. **ULA containment.** ULA addresses (fc00::/7) should never cross organisational perimeters.\n\n**uRPF modes:**\n- **Strict mode** — packet source must be reachable via the receiving interface's RIB/FIB. Best for single-homed or known-topology links.\n- **Loose mode** — packet source must exist in the RIB (any interface). Suitable for multi-homed links where asymmetric routing is expected.\n- **Feasible-path mode** (Cisco extension) — packet source must be reachable via the receiving interface OR any equal-cost or backup path. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Add-on for Splunk / Juniper Add-on / Palo Alto Networks Add-on — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") (\"%IPV6_ACL-6-ACCESSLOGP\" OR \"%IOSXE-6-PLATFORM\" OR \"rpf-check\" OR \"urpf\") earliest=-24h\n| eval is_urpf_drop=if(match(_raw, \"(?i)rpf.?(check|fail|drop)|urpf|reverse.?path\"), 1, 0)\n| where is_urpf_drop=1\n| rex field=_raw \"(?:src|source)\\s*=?\\s*(?<spoofed_src>[0-9a-fA-F:.]+)\"\n| rex field=_raw \"(?:interface|IF)\\s+(?<ingress_interface>\\S+)\"\n| eval spoof_type=case(\n    match(spoofed_src, \"^[Ff][Ee][89AaBb]\"), \"link-local source in routed traffic — ALWAYS spoofed\",\n    match(spoofed_src, \"^[Ff][CcDd]\"), \"ULA source at perimeter — policy violation\",\n    match(spoofed_src, \"^::$\"), \"unspecified address (::) — misconfiguration or attack\",\n    match(spoofed_src, \"^::1$\"), \"loopback address — always spoofed in transit\",\n    1=1, \"global unicast source not in RIB for ingress interface\")\n| stats count as drops first(_time) as first last(_time) as last by host, ingress_interface, spoofed_src, spoof_type\n| sort -drops",
   "description": "Verifies that Unicast Reverse Path Forwarding (uRPF) anti-spoofing protection is active on all IPv6-enabled interfaces and analyses uRPF drop events to characterise spoofing attempts. BCP 38 (RFC 2827/3704) mandates source address validation to prevent IP spoofing. IPv6 makes anti-spoofing even more critical than IPv4 because there is no NAT to provide accidental source validation, and globally routable addresses are used directly by hosts.",
   "value": "Source address spoofing is the foundation of DDoS reflection/amplification attacks, NDP cache poisoning, and network reconnaissance evasion. Without uRPF, an attacker on any IPv6 subnet can forge packets from any global unicast address. uRPF verification ensures this critical control is deployed fleet-wide, and drop analysis provides visibility into active spoofing attempts. The combination of deployment verification and drop analysis closes both the prevention and detection gaps.",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "RFC 3704 — Ingress Filtering for Multihomed Networks (BCP 84, extends BCP 38)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3704"
+      "url": "https://www.rfc-editor.org/rfc/rfc3704",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 2827 — Network Ingress Filtering: Defeating Denial of Service Attacks which employ IP Source Address Spoofing (BCP 38)",
-      "url": "https://www.rfc-editor.org/rfc/rfc2827"
+      "url": "https://www.rfc-editor.org/rfc/rfc2827",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.1 — ingress filtering)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MANRS — Mutually Agreed Norms for Routing Security (requires anti-spoofing)",
-      "url": "https://www.manrs.org/"
+      "url": "https://www.manrs.org/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Asymmetric routing.** Strict uRPF will drop legitimate traffic on interfaces with asymmetric routing paths. Use loose or feasible-path mode on multi-homed interfaces.\n\n**Floating static routes.** Backup routes that are not in the active RIB may cause strict uRPF to drop traffic during failover. Feasible-path mode resolves this by considering backup routes.\n\n**VRF leaking.** Traffic leaked between VRFs may have source addresses not present in the ingress VRF's RIB. Configure per-VRF uRPF or use loose mode on VRF interconnection points.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "fortinet",

@@ -9,6 +9,12 @@
     "Fault"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (Infoblox)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.15.12).",
+  "evidence": "Saved search uc_5_15_12_infoblox_authoritative_zone_transfer_axf, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Infoblox Authoritative Zone Transfer (AXFR/IXFR) Failure Monitoring (I'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.15.12.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` authoritative service logs capturing NOTIFY, AXFR, IXFR, TSIG failures; complementary `sourcetype=infoblox:audit` entries referencing zone distribution or transfer denies when DNS daemon verbosity routes there.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| search ((\"AXFR\" OR \"IXFR\" OR \"zone transfer\" OR \"transfer failed\" OR \"NOTIFY\" OR \"TSIG\" OR \"NOTAUTH\" OR \"REFUSED\") AND (fail OR failed OR deny OR error OR timeout OR refused))\n| rex field=_raw \"(?i)(?:zone|domain)[\\\\s:=]+(?<zone_name>[^\\\\s,;]+)\"\n| rex field=_raw \"(?i)(?:client|peer|master)[\\\\s:=]+(?<peer>[^\\\\s,;]+)\"\n| stats count latest(_time) as last_event values(_raw) as samples by zone_name peer host\n| sort - count\n| head 150",
@@ -22,18 +28,26 @@
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Infoblox",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Infoblox — DNS zone transfers overview",
-      "url": "https://docs.infoblox.com/"
+      "url": "https://docs.infoblox.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned cutovers:** Temporary REFUSED while secondaries are rebuilt.**Pen-test probes:** External scanners trigger refused transfers—correlate with perimeter IDS.**Verbose NOTIFY chatter:** informational NOTIFY logs without failures may keyword-match until filters tightened.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"
@@ -48,7 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Inventory of secondary nameservers (BIND, cloud DNS) with expected peers encoded in `infoblox_dns_secondaries.csv`.\n• Understanding whether transfers traverse NAT devices rewriting source IPs.\n• Coordination with PKI owners if TSIG keys rotate on calendar.\n\nStep 1 — Configure data collection\nEnable DNS daemon categories logging zone transfers on authoritative members—not only recursion logs. Validate samples contain both success and failure lines.\n\nStep 2 — Create the search and alert\nPrimary SPL focuses on failure-bearing clauses; add success baseline search for SLA dashboards comparing success/failure ratio.\n\nStep 3 — Validate\nManually block TCP/53 in lab between primary and secondary to generate deterministic failure; confirm Splunk captures matching keywords within one minute.\n\nStep 4 — Operationalize\nPer-zone health tiles, integration with ITSI KPI for external DNS availability, automated Slack ping tagging DNS on-call.\n\nStep 5 — Troubleshooting\n**Low verbosity:** failures absent until logging raised—consult Infoblox KB for daemon categories.**Benign REFUSED:** ACL mismatches during provisioning mimic attacks—pair with change records.**Log truncation:** long TSIG errors may truncate—use TCP syslog.",
+  "detailedImplementation": "Prerequisites\n• Inventory of secondary nameservers (BIND, cloud DNS) with expected peers encoded in `infoblox_dns_secondaries.csv`.\n• Understanding whether transfers traverse NAT devices rewriting source IPs.\n• Coordination with PKI owners if TSIG keys rotate on calendar.\n\nStep 1 — Configure data collection\nEnable DNS daemon categories logging zone transfers on authoritative members—not only recursion logs. Validate samples contain both success and failure lines.\n\nStep 2 — Create the search and alert\nPrimary SPL focuses on failure-bearing clauses; add success baseline search for SLA dashboards comparing success/failure ratio.\n\nStep 3 — Validate\nManually block TCP/53 in lab between primary and secondary to generate deterministic failure; confirm Splunk captures matching keywords within one minute.\n\nStep 4 — Operationalize\nPer-zone health tiles, integration with ITSI KPI for external DNS availability, automated Slack ping tagging DNS on-call.\n\nStep 5 — Troubleshooting\n**Low verbosity:** failures absent until logging raised—consult Infoblox KB for daemon categories.**Benign REFUSED:** ACL mismatches during provisioning mimic attacks—pair with change records.**Log truncation:** long TSIG errors may truncate—use TCP syslog.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:dns into dns. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, peer, zone_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch whether copies of your official internet directory successfully sync from the master list to backup servers, because a failed copy means people sometimes get old or missing addresses.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

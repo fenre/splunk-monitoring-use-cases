@@ -48,11 +48,23 @@
   "references": [
     {
       "title": "ANSSI — Cartographie du système d'information",
-      "url": "https://cyber.gouv.fr/publications/cartographie-du-systeme-dinformation"
+      "url": "https://cyber.gouv.fr/publications/cartographie-du-systeme-dinformation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Code de la défense Art. R.1332-41-2",
-      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370691/"
+      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370691/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **NAT/proxy obfuscation**: traversal devices may flatten zone boundaries; tag with `nat=true`.\n2. **Scheduled maintenance windows**: legitimate cross-zone maintenance must be in `lpm_aie_exception_lookup`.\n3. **OT vendor remote access**: gated cross-zone for OT vendor support must be pre-authorized; use UC-22.58.7-style controls.\n\n**Suppression mechanism**: KV Store `lpm_22_58_6_exceptions` with documented RSSI approval and 30-day max grant.",
@@ -94,7 +106,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Firewall and OT-detection feeds.\n- KV Stores `lpm_aie_zone_assignment_lookup`, `lpm_aie_matrix_lookup`.\n\n## Step 1 — AIE matrix\n\n```ini\n[lpm_aie_matrix_lookup]\nfield.src_zone = string\nfield.dst_zone = string\nfield.allowed_protocols = string\nfield.allowed_ports = string\nfield.baseline_owner = string\nfield.last_validated = number\n```\n\nMust be approved by the Délégué OIV.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.6: LPM AIE Surveillance]\ncron_schedule = 23 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.6,reg=FR-LPM,clause=LPM-AIE-Art-R1332-41-2\nalert.severity = 5\n```\n\n## Step 3 — Runbook\n\n**`baseline_state=unauthorized_flow`** (owner: Network Lead, severity P1):\n1. Within 1 hour: triage flow; determine if legitimate change or attack.\n2. Within 4 hours: if attack, declare under UC-22.58.2.\n3. Within 24 hours: if legitimate, update AIE matrix with Délégué OIV approval.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **AIE matrix staleness**: review quarterly with Délégué OIV.\n- **Cartographie completeness**: every SAIV IP must be in `lpm_aie_zone_assignment_lookup`.\n- **Encrypted cross-zone**: ensure TLS-inspect is performant; otherwise tag flows by protocol/SNI.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Firewall and OT-detection feeds.\n- KV Stores `lpm_aie_zone_assignment_lookup`, `lpm_aie_matrix_lookup`.\n\n## Step 1 — AIE matrix\n\n```ini\n[lpm_aie_matrix_lookup]\nfield.src_zone = string\nfield.dst_zone = string\nfield.allowed_protocols = string\nfield.allowed_ports = string\nfield.baseline_owner = string\nfield.last_validated = number\n```\n\nMust be approved by the Délégué OIV.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.6: LPM AIE Surveillance]\ncron_schedule = 23 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.6,reg=FR-LPM,clause=LPM-AIE-Art-R1332-41-2\nalert.severity = 5\n```\n\n## Step 3 — Runbook\n\n**`baseline_state=unauthorized_flow`** (owner: Network Lead, severity P1):\n1. Within 1 hour: triage flow; determine if legitimate change or attack.\n2. Within 4 hours: if attack, declare under UC-22.58.2.\n3. Within 24 hours: if legitimate, update AIE matrix with Délégué OIV approval.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **AIE matrix staleness**: review quarterly with Délégué OIV.\n- **Cartographie completeness**: every SAIV IP must be in `lpm_aie_zone_assignment_lookup`.\n- **Encrypted cross-zone**: ensure TLS-inspect is performant; otherwise tag flows by protocol/SNI.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for Stormshield (Splunkbase 5378), Splunk Add-on for Fortinet FortiGate (Splunkbase 2846), Splunk Add-on for Cisco Network Security (Splunkbase 5485).). Enable the modular input or HEC token that writes sourcetype=stormshield:traffic, fortinet:traffic, cisco:asa into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`baseline_state, dst_ip, dst_saiv, dst_zone`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Les systèmes vitaux français sont découpés en zones, et seuls certains échanges entre zones sont autorisés. Toutes les quatre heures, nous vérifions que personne n'a tracé un nouveau passage non prévu.",
   "prerequisiteUseCases": [
     "UC-22.58.3"

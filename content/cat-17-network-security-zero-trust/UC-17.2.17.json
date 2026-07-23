@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN session logs with `client_version`",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VPN Client Version Compliance'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.17).",
+  "evidence": "Saved search uc_17_2_17_vpn_client_version_compliance, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VPN Client Version Compliance'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "VPN session logs with `client_version` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\" earliest=-24h\n| eval major_minor=replace(client_version,\"^(\\d+\\.\\d+).*\",\"\\1\")\n| lookup vpn_min_client.csv platform OUTPUT min_version\n| eval compliant=if(major_minor>=min_version,1,0)\n| where compliant=0\n| stats count by user, client_version, platform\n| sort -count",
   "description": "Reports AnyConnect/GlobalProtect client versions against minimum supported builds.",
   "value": "IT security teams track VPN client version compliance across the endpoint fleet, ensuring end-of-life clients with known vulnerabilities are upgraded before they become attack vectors.",
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133",
     "T1078"
@@ -43,7 +61,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`) or Palo Alto Networks Add-on (`sourcetype=pan:globalprotect`). Data in `index=vpn`.\n• Key fields: `user`, `client_version` (AnyConnect version, GlobalProtect version), `os_type`, `action=session_connect`.\n• On Cisco ASA, AnyConnect version appears in session connect events (message ID 722022/722032).\n• Create a `vpn_target_version.csv` lookup: `os_type,target_version,min_version,eol_version`.\n\nStep 1 — Configure data collection\nVerify client version data:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\" earliest=-24h\n| stats dc(user) as users by client_version\n| sort client_version\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Version compliance:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\" earliest=-7d\n| eval major_minor=replace(client_version, \"^(\\d+\\.\\d+).*\", \"\\1\")\n| stats dc(user) as users latest(_time) as last_seen by client_version, major_minor\n| lookup vpn_target_version.csv OUTPUT target_version min_version eol_version\n| eval compliance=case(client_version=target_version, \"CURRENT\", client_version<min_version, \"OUTDATED\", client_version=eol_version, \"EOL\", 1==1, \"ACCEPTABLE\")\n| stats sum(users) as total_users by compliance\n```\n\nUnderstanding this SPL: Categorizes VPN client versions against the target, minimum, and end-of-life thresholds. EOL clients may have known vulnerabilities. The compliance rate shows upgrade campaign effectiveness. Splitting by `major_minor` helps identify which release branch is behind.\n\nStep 3 — Validate\n(a) Check your own AnyConnect version (Help > About) and compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Pie chart of compliance breakdown. Table of EOL/outdated users.\nAlert: Weekly compliance report. Immediate for EOL clients connecting.\n\nRunbook:\n1. **EOL clients** — Push auto-update via AnyConnect headend update or SCCM deployment.\n2. **Compliance rate declining** — Auto-update may be failing. Check the ASA AnyConnect image configuration.\n\nStep 5 — Troubleshooting\n• **`client_version` null** — Not all ASA log messages include the version. Look specifically at message ID 722032.\n• **Version format varies** — Different platforms (Windows, macOS, Linux, mobile) may use different version strings.",
   "grandmaExplanation": "We check that everyone's VPN software on their laptop is up to date, because old versions might have security holes that attackers could exploit.",
-  "hardware": "ASA, GP portal"
+  "hardware": "ASA, GP portal",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

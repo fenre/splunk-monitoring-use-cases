@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=zscaler:web`, `sourcetype=pan:traffic`",
-  "app": "Zscaler, Umbrella, firewall logs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Shadow IT Discovery'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.5.20).",
+  "evidence": "Saved search uc_10_5_20_shadow_it_discovery, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Shadow IT Discovery'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.5.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=zscaler:web`, `sourcetype=pan:traffic` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zscaler, Umbrella, firewall logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| stats sum(bytes_in) as bytes by app_name, user\n| lookup approved_saas_apps.csv app_name OUTPUT approved\n| where isnull(approved)\n| sort -bytes\n| head 50",
   "description": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.",
-  "value": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.",
+  "value": "Operations and leadership rely on 'Shadow IT Discovery' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Maintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.",
   "visualization": "Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS rollouts, browser or agent updates, or vendor category changes; review against change windows and approved app lists.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "zscaler"
   ],
+  "equipmentModels": [
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Zscaler, Umbrella, firewall logs.\n• Ensure the following data sources are available: `sourcetype=zscaler:web`, `sourcetype=pan:traffic`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| stats sum(bytes_in) as bytes by app_name, user\n| lookup approved_saas_apps.csv app_name OUTPUT approved\n| where isnull(approved)\n| sort -bytes\n| head 50\n```\n\nUnderstanding this SPL\n\n**Shadow IT Discovery** — Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.\n\nDocumented **Data sources**: `sourcetype=zscaler:web`, `sourcetype=pan:traffic`. **App/TA** (typical add-on context): Zscaler, Umbrella, firewall logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: proxy; **sourcetype**: zscaler:web. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=proxy, sourcetype=\"zscaler:web\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by app_name, user** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(approved)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nCompare with the Zscaler ZIA admin portal (web security, blocks, users) for the same time range; then confirm field extractions and index permissions in Splunk.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).",
-  "grandmaExplanation": "We use proxy and DNS-like logs to find shadow IT so we know which unapproved apps need review, approval, or blocking."
+  "grandmaExplanation": "We use proxy and DNS-like logs to find shadow IT so we know which unapproved apps need review, approval, or blocking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

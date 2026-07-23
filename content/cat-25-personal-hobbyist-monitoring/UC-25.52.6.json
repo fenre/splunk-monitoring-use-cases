@@ -9,8 +9,14 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`).",
-  "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Home-Temperature Safety Watch'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.52.6).",
+  "evidence": "Saved search uc_25_52_6_home_temperature_safety_watch, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Home-Temperature Safety Watch'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.52.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=eldercare:activity metric=temperature\n| timechart span=1h avg(value) as temp_c\n| eval unsafe=case(temp_c<16,\"too cold\",temp_c>28,\"too hot\",1=1,\"ok\")\n| where unsafe!=\"ok\"",
   "description": "Watches indoor temperature at an elderly relative's home and flags spells that are dangerously cold or hot.",
   "value": "Older people are vulnerable to cold and heat but may not notice or act; an outside alert protects them.",
@@ -20,12 +26,38 @@
   "references": [
     {
       "title": "Home Assistant — presence detection",
-      "url": "https://www.home-assistant.io/integrations/person/"
+      "url": "https://www.home-assistant.io/integrations/person/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It keeps an eye on how warm or cold the house is and warns you if it becomes unsafe for your relative."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Elder Care & Accessibility — typical feeds: Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`)..\n• **Sourcetypes in this search**: `eldercare:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=eldercare:activity`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs..\n\n**Author notes:** Ingest indoor temperature into `index=personal`; alert when it leaves the safe range.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"eldercare:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=eldercare:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Home-Temperature Safety Watch** over `personal` data (primarily `sourcetype=eldercare:activity`) across the full search range. It applies numeric thresholds on `temp_c` (< 16) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `temp_c`, `unsafe`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=eldercare:activity metric=temperature\n| timechart span=1h avg(value) as temp_c\n| eval unsafe=case(temp_c<16,\"too cold\",temp_c>28,\"too hot\",1=1,\"ok\")\n| where unsafe!=\"ok\"\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=eldercare:activity earliest=-7d\n| head 50\n| table temp_c, unsafe\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=eldercare:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `temp_c` before alerting:\n\n```spl\nindex=personal sourcetype=eldercare:activity earliest=-30d\n| stats perc50(temp_c) AS p50 perc90(temp_c) AS p90 perc99(temp_c) AS p99 max(temp_c) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.52.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Indoor Temperature With Safe-Band Shading (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `eldercare:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=eldercare:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It keeps an eye on how warm or cold the house is and warns you if it becomes unsafe for your relative.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

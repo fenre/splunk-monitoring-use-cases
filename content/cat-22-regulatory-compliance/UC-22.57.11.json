@@ -36,8 +36,8 @@
   "dataSources": "DNS resolver telemetry (`dns:resolver`, `dns:authoritative`). Registrar audit logs. Abuse ticketing (`registrar:abuse`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).",
   "spl": "(sourcetype=dns:authoritative zone=*.sg)\n| stats latest(_time) as last_query values(rrtype) as rrtypes by zone\n| eval has_dnssec = if(in(rrtypes, \"DNSKEY\") AND in(rrtypes, \"RRSIG\"), \"true\", \"false\")\n| where has_dnssec=\"false\"\n| table zone last_query has_dnssec rrtypes",
-  "description": "Surveys .sg authoritative answers for DNSSEC presence.",
-  "value": "DNR-COP mandates DNSSEC; missing DNSSEC is a registrar enforcement finding.",
+  "description": "Surveys .sg authoritative answers for DNSSEC presence. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "DNR-COP mandates DNSSEC; missing DNSSEC is a registrar enforcement finding. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "(1) Ingest authoritative DNS feed. (2) Schedule UC-22.57.11 daily. (3) Build the `CSA DNR Health` dashboard.",
   "visualization": "(Panel 1) DNSSEC coverage. (Panel 2) Recent un-signed zones. (Panel 3) Registrar abuse-ticket SLA. (Panel 4) Registrar MFA coverage.",
   "cimModels": [
@@ -46,14 +46,26 @@
   "references": [
     {
       "title": "CSA / SGNIC DNR COP",
-      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SGNIC",
-      "url": "https://www.sgnic.sg/"
+      "url": "https://www.sgnic.sg/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **DS-record propagation lag**: TLD parent zone may take 24-48h to publish DS records; pin `propagation_until`.\n\n**Suppression mechanism**: KV Store `csa_22_57_11_exceptions`.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1583.001",
     "T1071.004"
@@ -82,7 +94,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).). Enable the modular input or HEC token that writes sourcetype=dns:authoritative into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`has_dnssec, zone`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Singapore web addresses (.sg) must use a special 'tamper-proof' system called DNSSEC. We check every day to make sure it's working.",
   "prerequisiteUseCases": [
     "UC-22.57.3"

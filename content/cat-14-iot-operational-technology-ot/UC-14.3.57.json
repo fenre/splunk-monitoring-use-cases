@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-logs` sourcetype=edge_hub temperature_response_test, `index=edge-hub-data` sensor_response_metrics",
-  "app": "Splunk Edge Hub (temperature sensor), Splunk OT Intelligence",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Temperature Sensor Response Time Validation & Lag Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.3.57).",
+  "evidence": "Saved search uc_14_3_57_temperature_sensor_response_time_validat, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Temperature Sensor Response Time Validation & Lag Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.3.57.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=edge_hub temperature_response_test, `index=edge-hub-data` sensor_response_metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (temperature sensor), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=edge_hub temperature_response_test=true stimulus_type=heat_pulse\n| stats latest(stimulus_start_time) as heat_start, latest(temperature_rise_detected_time) as detection_time by sensor_id\n| eval response_latency_seconds=round((detection_time - heat_start) / 1000, 1)\n| stats avg(response_latency_seconds) as avg_response_time, max(response_latency_seconds) as worst_case by sensor_id\n| where avg_response_time > 30 OR worst_case > 60\n| eval sensor_status=\"SLOW_RESPONSE\"",
   "description": "Validates temperature sensor response time to ensure rapid detection of thermal events (e.g., fire detection latency < 30 seconds).",
-  "value": "Validates temperature sensor response time to ensure rapid detection of thermal events (e.g., fire detection latency < 30 seconds).",
+  "value": "Operations and leadership rely on 'Temperature Sensor Response Time Validation & Lag Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Implement quarterly temperature sensor response test: apply controlled heat source (heat lamp, hot water bath) near sensor, record time from stimulus application to temperature rise detection (configurable threshold: +5°C from baseline). Temperature sensor response time (Edge Hub spec): ~1-5 seconds in air, ~10-30 seconds in slow-moving air. Response time > 60 seconds indicates sensor degradation (fouled sensing element, thermal insulation issue). Store test results in edge-hub-logs. Alert if average response time exceeds equipment-specific safety limit (e.g., fire detection requires < 30 second response). Use test data for recalibration/replacement decisions.",
   "visualization": "Sensor response time trend, test results timeline, response time validation pass/fail status.",
   "cimModels": [
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (temperature sensor), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=edge_hub temperature_response_test, `index=edge-hub-data` sensor_response_metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nImplement quarterly temperature sensor response test: apply controlled heat source (heat lamp, hot water bath) near sensor, record time from stimulus application to temperature rise detection (configurable threshold: +5°C from baseline). Temperature sensor response time (Edge Hub spec): ~1-5 seconds in air, ~10-30 seconds in slow-moving air. Response time > 60 seconds indicates sensor degradation (fouled sensing element, thermal insulation issue). Store test results in edge-hub-logs. Alert if av…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=edge_hub temperature_response_test=true stimulus_type=heat_pulse\n| stats latest(stimulus_start_time) as heat_start, latest(temperature_rise_detected_time) as detection_time by sensor_id\n| eval response_latency_seconds=round((detection_time - heat_start) / 1000, 1)\n| stats avg(response_latency_seconds) as avg_response_time, max(response_latency_seconds) as worst_case by sensor_id\n| where avg_response_time > 30 OR worst_case > 60\n| eval sensor_status=\"SLOW_RESPONSE\"\n```\n\nUnderstanding this SPL\n\n**Temperature Sensor Response Time Validation & Lag Detection** — Validates temperature sensor response time to ensure rapid detection of thermal events (e.g., fire detection latency < 30 seconds).\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=edge_hub temperature_response_test, `index=edge-hub-data` sensor_response_metrics. **App/TA** (typical add-on context): Splunk Edge Hub (temperature sensor), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by sensor_id** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **response_latency_seconds** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by sensor_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_response_time > 30 OR worst_case > 60` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **sensor_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sensor response time trend, test results timeline, response time validation pass/fail status.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with uncomfortable or unsafe hot and cold spots before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with uncomfortable or unsafe hot and cold spots before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

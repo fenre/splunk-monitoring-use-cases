@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix ShareFile Mass Download and Data Exfiltration Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.72).",
+  "evidence": "Saved search uc_2_6_72_citrix_sharefile_mass_download_and_data, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix ShareFile Mass Download and Data Exfiltration Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.72.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:audit\"` (file download, link access); optional `sourcetype=\"citrix:sharefile:api\"` for public link creation; fields `user`, `event_type`, `bytes`, `file_count`, `link_type` (public|internal), `client_ip` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
   "spl": "index=sharefile (sourcetype=\"citrix:sharefile:audit\" OR sourcetype=\"citrix:sharefile:api\") earliest=-24h\n| eval evt=lower(coalesce(event_type, action, \"\")), is_dl=if(match(evt, \"(?i)download|fetch|get\"),1,0), is_link=if(match(evt, \"(?i)create.*link|public.*link|share.*link\"),1,0), b=tonumber(bytes), hour=strftime(_time, \"%H\"), fc=tonumber(file_count)\n| eval off_hours=if(tonumber(hour)<6 OR tonumber(hour)>20,1,0)\n| eval bulk=if(is_dl=1 AND (b>200000000 OR fc>200),1,0)\n| bin _time span=1h\n| stats sum(b) as tot_bytes, sum(bulk) as bulk_events, sum(is_link) as link_creates, sum(eval(off_hours=1 AND is_dl=1)) as offh_dl by _time, user, client_ip\n| where tot_bytes>500000000 OR bulk_events>0 OR link_creates>50 OR offh_dl>30\n| table _time, user, client_ip, tot_bytes, bulk_events, link_creates, offh_dl",
   "description": "Unusual file movement through ShareFile can indicate exfiltration: large or repeated downloads, bursts of public link creation, off-hours bulk export, and access from anomalous locations. This use case focuses on high-signal mass behaviors rather than every single file open so analysts can respond quickly to theft or account abuse.",
-  "value": "Unusual file movement through ShareFile can indicate exfiltration: large or repeated downloads, bursts of public link creation, off-hours bulk export, and access from anomalous locations. This use case focuses on high-signal mass behaviors rather than every single file open so analysts can respond quickly to theft or account abuse.",
+  "value": "Operations and leadership rely on 'Citrix ShareFile Mass Download and Data Exfiltration Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest high-fidelity audit and API link events. Establish per-role baselines (sales vs finance). Tune byte and count thresholds; exclude known migration service accounts. Correlate with identity risk scores and end-point alerts. Contain with session revoke and link disable playbooks. Review privacy rules before full raw logging of filenames in regulated sectors.",
   "visualization": "Timechart: total bytes and link creates per hour; table: top users for bulk and off-hours; map or table: source IPs for flagged sessions (where available).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — ShareFile audit logging overview",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1119",
     "T1567"
@@ -32,7 +54,16 @@
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• ShareFile audit API or log export to Splunk with user, time, event type, and byte counts where available.\n• Exclusion list of backup and migration users.\n\nStep 1 — Configure data collection\nUse a dedicated index and consistent sourcetype. Truncate or hash file names in regulated environments if required.\n\nStep 2 — Create the search and alert\nAdjust thresholds to your data volume. Add correlation to impossible travel in a separate use case. Alert on any row in the `where` clause with severity by tier (mass bytes vs public link storm).\n\nStep 3 — Validate\nRun against historical data from a known security drill if available. Compare counts to vendor reporting.\n\nStep 4 — Operationalize\nTie alerts to a response playbook, assign an owner, and add drill links to the ShareFile admin UI.",
-  "grandmaExplanation": "We look for the hallmarks of someone hauling out huge piles of files, sharing links in a sudden rush, or doing it in odd off-hours — so you catch data walking out the door before the damage is done."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• ShareFile audit API or log export to Splunk with user, time, event type, and byte counts where available.\n• Exclusion list of backup and migration users.\n\nStep 1 — Configure data collection\nUse a dedicated index and consistent sourcetype. Truncate or hash file names in regulated environments if required.\n\nStep 2 — Create the search and alert\nAdjust thresholds to your data volume. Add correlation to impossible travel in a separate use case. Alert on any row in the `where` clause with severity by tier (mass bytes vs public link storm).\n\nStep 3 — Validate\nRun against historical data from a known security drill if available. Compare counts to vendor reporting.\n\nStep 4 — Operationalize\nTie alerts to a response playbook, assign an owner, and add drill links to the ShareFile admin UI.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.). Enable the modular input or HEC token that writes sourcetype=citrix:sharefile:audit, citrix:sharefile:api into sharefile. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, bulk, bulk_events, client_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for the hallmarks of someone hauling out huge piles of files, sharing links in a sudden rush, or doing it in odd off-hours — so you catch data walking out the door before the damage is done.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

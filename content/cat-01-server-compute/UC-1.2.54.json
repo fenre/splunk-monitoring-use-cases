@@ -8,8 +8,14 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Windows Event Forwarding (WEF) Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.2.54).",
+  "evidence": "Saved search uc_1_2_54_windows_event_forwarding_wef_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Windows Event Forwarding (WEF) Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.2.54.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Forwarding/Operational\"\n  EventCode IN (102, 103, 105, 111)\n| eval issue=case(EventCode=102,\"Subscription connected\",EventCode=103,\"Subscription error\",EventCode=105,\"Access denied\",EventCode=111,\"Collector unreachable\")\n| stats count by host, issue, SubscriptionName\n| where issue!=\"Subscription connected\"\n| sort -count",
   "description": "WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.",
   "value": "If WEF is down, a chunk of the estate is dark to SIEM and SOAR even if the hosts are ‘healthy’ in CMDB terms.",
@@ -24,14 +30,40 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short collector restarts and cert rollouts. Sustained 103/111 patterns mean central logging gaps—*that* is the audit and IR risk.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "m365",
     "windows"
   ],
+  "equipmentModels": [
+    "m365_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Forwarding/Operational log on WEF collectors and clients. EventCode 103=subscription-level error, 105=access denied (Kerberos/permission issue), 111=cannot reach collector. Monitor for expected forwarders going silent — compare against CMDB endpoint list. Alert when error rate exceeds 5% of clients. Use `wecutil gr <subscription>` via scripted input for precise subscription health.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Forwarding/Operational\"\n  EventCode IN (102, 103, 105, 111)\n| eval issue=case(EventCode=102,\"Subscription connected\",EventCode=103,\"Subscription error\",EventCode=105,\"Access denied\",EventCode=111,\"Collector unreachable\")\n| stats count by host, issue, SubscriptionName\n| where issue!=\"Subscription connected\"\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Windows Event Forwarding (WEF) Health** — WEF collects events from thousands of endpoints to central collectors. Forwarding failures create visibility gaps across the security monitoring pipeline.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Forwarding/Operational` (EventCode 100, 102, 103, 105, 111). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, issue, SubscriptionName** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where issue!=\"Subscription connected\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (subscription × host), Pie chart (healthy vs. error), Table (error details), Single value (connected clients).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you know when a forwarder of Windows logs to a central place is losing connection, so you are not missing security events in one region quietly."
+  "grandmaExplanation": "We help you know when a forwarder of Windows logs to a central place is losing connection, so you are not missing security events in one region quietly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

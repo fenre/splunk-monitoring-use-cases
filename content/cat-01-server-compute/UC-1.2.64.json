@@ -8,8 +8,14 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:System` (EventCode 6005) + custom scripted input (`wevtutil gl Security`)",
-  "app": "`Splunk_TA_windows`, custom scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Event Log Channel Size / Overflow'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.2.64).",
+  "evidence": "Saved search uc_1_2_64_event_log_channel_size_overflow, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Event Log Channel Size / Overflow'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.2.64.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=WinEventLog:System` (EventCode 6005) + custom scripted input (`wevtutil gl Security`) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows`, custom scripted input — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=os sourcetype=windows:eventlog:size\n| where used_pct > 90\n| table _time, host, log_name, current_size_MB, max_size_MB, used_pct",
   "description": "When event logs reach maximum size with overwrite-oldest policy, critical security events are lost. With do-not-overwrite policy, the log stops recording entirely.",
   "value": "If a channel stops, your audit trail stops—this is a *data-loss* class alert for regulated shops, not a perf chart.",
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "High churn apps on small forward buffers look ‘full’ by percent but are by design. Cross-check with max size policy and your retention, not a once-a-day 90% only.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, custom scripted input.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (EventCode 6005) + custom scripted input (`wevtutil gl Security`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy a scripted input that runs `wevtutil gl Security` (and other critical channels) every 15 minutes, parsing current size vs. max size. Default Security log is 20MB — often insufficient on DCs and servers with detailed auditing. Alert when any critical log exceeds 90% capacity. Alternatively, monitor EventCode 1101 (audit log full) in the System log. Recommended: increase Security log to 1GB+ on DCs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=windows:eventlog:size\n| where used_pct > 90\n| table _time, host, log_name, current_size_MB, max_size_MB, used_pct\n```\n\nUnderstanding this SPL\n\n**Event Log Channel Size / Overflow** — When event logs reach maximum size with overwrite-oldest policy, critical security events are lost. With do-not-overwrite policy, the log stops recording entirely.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (EventCode 6005) + custom scripted input (`wevtutil gl Security`). **App/TA** (typical add-on context): `Splunk_TA_windows`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: windows:eventlog:size. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=windows:eventlog:size. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where used_pct > 90` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Event Log Channel Size / Overflow**): table _time, host, log_name, current_size_MB, max_size_MB, used_pct\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (log fill percentage), Table (logs near capacity), Bar chart (log sizes by channel).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you know when a log file on disk is close to the max size you allowed, so it does not stop writing the events you need for audits and support."
+  "grandmaExplanation": "We help you know when a log file on disk is close to the max size you allowed, so it does not stop writing the events you need for audits and support.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

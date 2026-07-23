@@ -8,10 +8,16 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cellular Data Usage and Overage Monitoring (Meraki MG)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.53).",
+  "evidence": "Saved search uc_5_1_53_cellular_data_usage_and_overage_monitori, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Cellular Data Usage and Overage Monitoring (Meraki MG)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.53.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Summary Top Devices by Usage input (sourcetype=meraki:summarytopdevicesbyusage, daily) and Devices input (sourcetype=meraki:devices). NOTE: the TA does NOT expose per-SIM data plan consumption or carrier billing data. For real overage/quota tracking, use the Meraki Dashboard cellular billing UI export or the carrier portal API.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:summarytopdevicesbyusage\" earliest=-30d\n| join type=left serial [\n    search index=meraki sourcetype=\"meraki:devices\" productType=\"cellularGateway\"\n    | stats latest(model) as model, latest(name) as device_name, latest(network.name) as network_name by serial\n  ]\n| where isnotnull(model)\n| stats latest(usage.total) as total_kb,\n        latest(usage.percentage) as pct_of_org\n         by serial, device_name, model, network_name\n| eval total_gb = round(total_kb/1024/1024, 2)\n| where total_gb > 0\n| sort - total_gb",
-  "description": "Tracks cellular data consumption to manage carrier costs and prevent overages.",
+  "description": "Tracks cellular data consumption to manage carrier costs and prevent overages. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Operations teams monitor Meraki MG cellular data usage against plan limits, preventing overage charges by alerting before data caps are reached and identifying high-consumption patterns.",
   "implementation": "1. Enable the Summary Top Devices by Usage input (TA v3+, polls GET /organizations/{orgId}/summary/top/devices/byUsage daily, OAuth scope dashboard:general:telemetry:read). 2. Filter to MG devices via a left join on the Devices input where productType=cellularGateway. 3. The 'usage.total' field is in kB; convert to GB for plan-quota comparison. 4. Per-SIM monthly billing data must be pulled from the carrier (AT&T, Verizon) directly; the Meraki API does not expose it.",
   "visualization": "Data usage gauge per gateway; consumption timeline; overage alert table.",
@@ -19,16 +25,38 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Carrier testing, local SIM swaps, and planned tower work can look like a connectivity fault. Compare the Meraki event log to the same window in Splunk.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Summary Top Devices by Usage input (sourcetype=meraki:summarytopdevicesbyusage, daily) and Devices input (sourcetype=meraki:devices). NOTE: the TA does NOT expose per-SIM data plan consumption or carrier billing data. For real overage/quota tracking, use the Meraki Dashboard cellular billing UI export or the carrier portal API..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Summary Top Devices by Usage input (TA v3+, polls GET /organizations/{orgId}/summary/top/devices/byUsage daily, OAuth scope dashboard:general:telemetry:read). 2. Filter to MG devices via a left join on the Devices input where productType=cellularGateway. 3. The 'usage.total' field is in kB; convert to GB for plan-quota comparison. 4. Per-SIM monthly billing data must be pulled from the carrier (AT&T, Verizon) directly; the Meraki API does not expose it.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:summarytopdevicesbyusage\" earliest=-30d\n| join type=left serial [\n    search index=meraki sourcetype=\"meraki:devices\" productType=\"cellularGateway\"\n    | stats latest(model) as model, latest(name) as device_name, latest(network.name) as network_name by serial\n  ]\n| where isnotnull(model)\n| stats latest(usage.total) as total_kb,\n        latest(usage.percentage) as pct_of_org\n         by serial, device_name, model, network_name\n| eval total_gb = round(total_kb/1024/1024, 2)\n| where total_gb > 0\n| sort - total_gb\n```\n\nUnderstanding this SPL\n\n**Cellular Data Usage and Overage Monitoring (Meraki MG)** — Operations teams monitor Meraki MG cellular data usage against plan limits, preventing overage charges by alerting before data caps are reached and identifying high-consumption patterns.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Summary Top Devices by Usage input (sourcetype=meraki:summarytopdevicesbyusage, daily) and Devices input (sourcetype=meraki:devices). NOTE: the TA does NOT expose per-SIM data plan consumption or carrier billing data. For real overage/quota tracking, use the Meraki Dashboard cellular billing UI export or the carrier portal API. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:summarytopdevicesbyusage. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:summarytopdevicesbyusage\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnotnull(model)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by serial, device_name, model, network_name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **total_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where total_gb > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Data usage gauge per gateway; consumption timeline; overage alert table.",
-  "grandmaExplanation": "We help you know early when something looks wrong with cellular data usage and overage monitoring so the team can act before it grows into a bigger outage."
+  "grandmaExplanation": "We help you know early when something looks wrong with cellular data usage and overage monitoring so the team can act before it grows into a bigger outage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

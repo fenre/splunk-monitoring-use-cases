@@ -46,11 +46,23 @@
   "references": [
     {
       "title": "Cybersecurity Code of Practice 2.0",
-      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cybersecurity Act 2018 §11",
-      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr11-"
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr11-",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **CCoP version drift**: ensure register matches the version in effect (CCoP 2.0 from 4 Jul 2022, with future amendments).\n2. **Search latency**: some control evidence may emit weekly; tune `expected_silence_hours` per control.\n3. **Sector-specific addenda**: certain sectors have sector-CCoP appendices; capture in extended register.\n\n**Suppression mechanism**: KV Store `csa_ccop_exception_lookup`.",
@@ -81,7 +93,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ccop_control_lookup`.\n- `audit_evidence` summary index populated by other UCs.\n\n## Step 1 — Control register\n\n```ini\n[csa_ccop_control_lookup]\nfield.control_id = string\nfield.control_family = string\nfield.control_name = string\nfield.evidence_search = string\nfield.expected_silence_hours = number\nfield.sector_specific = string\n```\n\nPopulate with all CCoP 2.0 controls (e.g., `GOV-1` Information Security Policy, `IDP-3` Asset Management, `PRO-5` Network Segmentation, `DET-2` Continuous Monitoring, etc.).\n\nMap each to a search that should produce evidence rows (e.g., `PRO-5` → `index=audit_evidence reg=SG-Cyber-Act clause=PRO-5`).\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.3: CSA CCoP Scorecard]\ncron_schedule = 37 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.3,reg=SG-Cyber-Act,clause=CSA-CII-s11\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`gap_pct > 20`** (owner: CC Officer, severity P2):\n1. Within 7 days: assign owners to missing controls.\n2. Within 30 days: produce evidence or pin exceptions.\n3. Within 60 days: re-score; report to CISO.\n\n## Step 4 — Troubleshooting\n\n- **Subsearch limit**: 120 maxsearches works for CCoP 2.0; if exceeded, partition into family-scoped passes.\n- **Performance**: use cached `audit_evidence` summary index, not raw events.\n\n**SG-specific failure modes**:\n- **CCoP 3.0 timing**: CCoP typically refreshes every 3–4 years; pre-build the migration register.\n- **Commissioner-directed remediation**: under §11 the Commissioner may direct specific remediation; ensure direction is captured in the register.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_ccop_control_lookup`.\n- `audit_evidence` summary index populated by other UCs.\n\n## Step 1 — Control register\n\n```ini\n[csa_ccop_control_lookup]\nfield.control_id = string\nfield.control_family = string\nfield.control_name = string\nfield.evidence_search = string\nfield.expected_silence_hours = number\nfield.sector_specific = string\n```\n\nPopulate with all CCoP 2.0 controls (e.g., `GOV-1` Information Security Policy, `IDP-3` Asset Management, `PRO-5` Network Segmentation, `DET-2` Continuous Monitoring, etc.).\n\nMap each to a search that should produce evidence rows (e.g., `PRO-5` → `index=audit_evidence reg=SG-Cyber-Act clause=PRO-5`).\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.3: CSA CCoP Scorecard]\ncron_schedule = 37 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.3,reg=SG-Cyber-Act,clause=CSA-CII-s11\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`gap_pct > 20`** (owner: CC Officer, severity P2):\n1. Within 7 days: assign owners to missing controls.\n2. Within 30 days: produce evidence or pin exceptions.\n3. Within 60 days: re-score; report to CISO.\n\n## Step 4 — Troubleshooting\n\n- **Subsearch limit**: 120 maxsearches works for CCoP 2.0; if exceeded, partition into family-scoped passes.\n- **Performance**: use cached `audit_evidence` summary index, not raw events.\n\n**SG-specific failure modes**:\n- **CCoP 3.0 timing**: CCoP typically refreshes every 3–4 years; pre-build the migration register.\n- **Commissioner-directed remediation**: under §11 the Commissioner may direct specific remediation; ensure direction is captured in the register.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`control_family, health, hours_since_evidence`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Singapore has a long checklist of cyber rules for important systems. We have one screen that shows which items have fresh proof, which need attention, and which are missing.",
   "prerequisiteUseCases": [
     "UC-22.57.1"

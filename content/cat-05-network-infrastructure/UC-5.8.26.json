@@ -9,6 +9,12 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'CDN Origin Hit Rate and Cache Efficiency (CloudFront / Akamai / Fastly)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.8.26).",
+  "evidence": "Saved search uc_5_8_26_cdn_origin_hit_rate_and_cache_efficiency, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'CDN Origin Hit Rate and Cache Efficiency (CloudFront / Akamai / Fastly'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.8.26.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "AWS CloudFront access logs (`sourcetype=aws:cloudfront:accesslogs`), Akamai DataStream (`sourcetype=akamai:datastream`), and Fastly Real-Time Log Streaming (`sourcetype=fastly:cdn`). Each stream carries the cache-decision metadata that distinguishes HIT vs MISS vs ERROR at the edge: `x_edge_result_type` for CloudFront, `cacheStatus` for Akamai DataStream, and `cache_status` for Fastly. Hit ratio at edge is the single best indicator of CDN configuration health.",
   "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) for CloudFront; Akamai DataStream syslog (raw forwarder, no Splunkbase TA); Fastly Real-Time Log Streaming via HEC (no Splunkbase TA, configured directly in Fastly UI)",
   "spl": "index=cdn sourcetype=\"aws:cloudfront:accesslogs\"\n| eval cache_result=case(x_edge_result_type=\"Hit\",\"HIT\", x_edge_result_type=\"Miss\",\"MISS\", x_edge_result_type=\"Error\",\"ERROR\", 1=1,\"OTHER\")\n| stats count as total, count(eval(cache_result=\"HIT\")) as hits, count(eval(cache_result=\"MISS\")) as misses, count(eval(cache_result=\"ERROR\")) as errors by cs_uri_stem\n| eval hit_rate=round(hits/total*100,2)\n| where hit_rate < 80 OR errors > 10\n| sort - total",
@@ -22,22 +28,26 @@
   "references": [
     {
       "title": "Splunk Add-on for AWS (Splunkbase app 1876)",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AWS CloudFront access log documentation",
-      "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html"
+      "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai DataStream",
-      "url": "https://techdocs.akamai.com/datastream2/docs"
+      "url": "https://techdocs.akamai.com/datastream2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fastly Real-Time Log Streaming",
-      "url": "https://docs.fastly.com/en/guides/about-fastlys-realtime-log-streaming-features"
+      "url": "https://docs.fastly.com/en/guides/about-fastlys-realtime-log-streaming-features",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**First-deploy / cold-cache window.** A newly deployed origin or a freshly invalidated cache region will have low hit rates for the first few hours simply because the cache is empty. Suppress alerts during planned deploys and scheduled invalidations.\n\n**Personalised content URIs.** URIs that incorporate per-user query strings (session IDs, A/B test buckets) legitimately have hit rates near 0% because the cache key is unique per request. Pre-filter these URIs from the search or move them to a dedicated origin pass-through path so they do not depress the dashboard average.\n\n**Long-tail static assets.** The first request for a rarely-fetched static asset is always a MISS at every edge. URIs with very low absolute volume can show 50% hit rates simply because their first-of-day MISS dominates a sample of two requests. Filter `where total > 100` to focus on URIs with statistical significance.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "akamai",
     "asterisk",
@@ -51,6 +61,12 @@
     "fastly_cdn"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) for CloudFront; Akamai DataStream syslog (raw forwarder, no Splunkbase TA); Fastly Real-Time Log Streaming via HEC (no Splunkbase TA, configured directly in Fastly UI)). Enable the modular input or HEC token that writes sourcetype=aws:cloudfront:accesslogs into cdn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cache_result, cs_uri_stem, errors, hit_rate`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch how often our content delivery network (the cache layer that serves images and videos closer to users) actually finds what users ask for in its memory versus going back to the original servers. When the cache hit rate drops or errors climb, we alert before users notice slow pages or before our origin servers get overloaded.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

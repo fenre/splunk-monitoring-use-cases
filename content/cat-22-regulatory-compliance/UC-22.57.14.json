@@ -37,7 +37,7 @@
   "dataSources": "Thales Luna HSM audit (`thales:hsm:audit`). AWS KMS (`aws:cloudtrail:kms`). Azure Key Vault (`azure:keyvault:audit`). KV Store `csa_kms_lookup` (key_id, key_type, hsm_vendor, rotation_max_days, last_rotation, attestation_doc_url).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Azure (Splunkbase 5747).",
   "spl": "| inputlookup csa_kms_lookup\n| eval days_since_rotation = round((now() - last_rotation) / 86400, 0)\n| eval rotation_status = case(\n    isnull(last_rotation), \"never_rotated\",\n    days_since_rotation > rotation_max_days, \"overdue\",\n    days_since_rotation > (rotation_max_days * 0.9), \"due_soon\",\n    1=1, \"current\")\n| eval attestation_status = case(\n    isnull(attestation_doc_url), \"missing\",\n    1=1, \"present\")\n| where rotation_status IN (\"never_rotated\",\"overdue\") OR attestation_status=\"missing\"\n| table key_id key_type hsm_vendor last_rotation days_since_rotation rotation_max_days rotation_status attestation_status",
-  "description": "Surveys CII-critical keys for rotation currency and HSM attestation presence.",
+  "description": "Surveys CII-critical keys for rotation currency and HSM attestation presence. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Key compromise on CII-critical infrastructure can drive a §14 reportable event; rotation evidence is a hard control.",
   "implementation": "(1) Populate `csa_kms_lookup`. (2) Ingest KMS/HSM audit feeds. (3) Schedule UC-22.57.14 every 12h. (4) Build the `CSA KMS Attestation` dashboard.",
   "visualization": "(Panel 1) Rotation status by key. (Panel 2) Attestation gaps. (Panel 3) HSM-vendor mix. (Panel 4) Rotation trend.",
@@ -47,11 +47,23 @@
   "references": [
     {
       "title": "CCoP 2.0 §CRY",
-      "url": "https://www.csa.gov.sg/legislation/code-of-practice"
+      "url": "https://www.csa.gov.sg/legislation/code-of-practice",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FIPS 140-3",
-      "url": "https://csrc.nist.gov/publications/detail/fips/140/3/final"
+      "url": "https://csrc.nist.gov/publications/detail/fips/140/3/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **HSM partition rotation**: rotation may be against the partition, not the key; tune the schema accordingly.\n2. **Cloud-managed key**: CMK rotation may be vendor-managed; pin `vendor_managed=true`.\n\n**Suppression mechanism**: KV Store `csa_kms_exception_lookup`.",
@@ -91,7 +103,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + cloud TAs + HSM audit feed.\n- KV Store `csa_kms_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.14: CSA KMS Attestation]\ncron_schedule = 19 */12 * * *\ndispatch.earliest_time = -12h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.14,reg=SG-Cyber-Act,clause=CSA-CCoP-CRY\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`rotation_status=overdue`**: rotate within 7 days; capture attestation.\n\n**SG-specific failure modes**:\n- **FIPS-140-3 timing**: most cloud HSMs migrated from 140-2 to 140-3; ensure register reflects current.\n- **PQC readiness**: position for post-quantum cryptography evolution; track NIST PQC selections.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + cloud TAs + HSM audit feed.\n- KV Store `csa_kms_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.14: CSA KMS Attestation]\ncron_schedule = 19 */12 * * *\ndispatch.earliest_time = -12h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.14,reg=SG-Cyber-Act,clause=CSA-CCoP-CRY\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`rotation_status=overdue`**: rotate within 7 days; capture attestation.\n\n**SG-specific failure modes**:\n- **FIPS-140-3 timing**: most cloud HSMs migrated from 140-2 to 140-3; ensure register reflects current.\n- **PQC readiness**: position for post-quantum cryptography evolution; track NIST PQC selections.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for AWS (Splunkbase 1876), Splunk Add-on for Microsoft Azure (Splunkbase 5747).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`attestation_status, rotation_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "The most important cyber keys must be stored in special tamper-proof hardware and rotated regularly. Every twelve hours we check that's still the case.",
   "prerequisiteUseCases": [
     "UC-22.57.3"

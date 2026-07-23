@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SLAAC Address Assignment Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.9).",
+  "evidence": "Saved search uc_5_20_9_slaac_address_assignment_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SLAAC Address Assignment Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` for Router Advertisement (RA) syslog messages containing prefix, lifetime, and flag information. Key IOS mnemonics: `%IPV6_ND-6-RA_SEND`, `%IPV6_ND-6-RA_RECEIVE`. On Juniper: `rpd[]: RPD_IPV6_ND_RA_SEND`. RA fields of interest: `prefix` (advertised /64), `preferred_lifetime`, `valid_lifetime`, `M-flag` (Managed address config), `O-flag` (Other stateful config), `A-flag` (Autonomous address config). For passive RA capture: `index=ids sourcetype=zeek:conn` with IPv6 RA detection or Splunk Stream with ICMPv6 Type 134 capture. Volume: one RA per router per interface every 200-600 seconds (RFC 4861 default MaxRtrAdvInterval=600s). A campus with 100 L3 interfaces generates ~600-1,800 RA events/hour.",
   "app": "Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for syslog, Zeek TA for passive RA capture, or Splunk App for Stream for wire-data ICMPv6 capture.",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%IPV6_ND\" OR \"Router Advertisement\" earliest=-24h\n| rex \"prefix\\s+(?<ra_prefix>[0-9a-fA-F:]+/\\d+).*valid\\s+(?<valid_lifetime>\\d+).*preferred\\s+(?<preferred_lifetime>\\d+)\"\n| rex \"(?<m_flag>M-flag=[01]).*(?<o_flag>O-flag=[01]).*(?<a_flag>A-flag=[01])\"\n| eval m_bit=if(match(m_flag, \"=1\"), 1, 0)\n| eval o_bit=if(match(o_flag, \"=1\"), 1, 0)\n| eval a_bit=if(match(a_flag, \"=1\"), 1, 0)\n| eval config_method=case(\n    m_bit=1 AND a_bit=0, \"DHCPv6 only (stateful)\",\n    m_bit=0 AND a_bit=1 AND o_bit=0, \"SLAAC only\",\n    m_bit=0 AND a_bit=1 AND o_bit=1, \"SLAAC + DHCPv6 for DNS/options\",\n    m_bit=1 AND a_bit=1, \"SLAAC + DHCPv6 (redundant — may confuse clients)\",\n    1==1, \"Unclear\")\n| stats latest(valid_lifetime) as valid_sec latest(preferred_lifetime) as pref_sec latest(config_method) as method count as ra_count by host, interface, ra_prefix\n| eval valid_days=round(valid_sec/86400, 1)\n| eval pref_days=round(pref_sec/86400, 1)\n| eval lifetime_issue=case(\n    valid_sec < 7200, \"WARNING: valid lifetime < 2h (too short for renumbering)\",\n    pref_sec > valid_sec, \"ERROR: preferred > valid (RFC violation)\",\n    valid_sec=4294967295, \"INFO: infinite lifetime (permanent prefix)\",\n    1==1, \"OK\")\n| sort host, interface",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (IPv6) — Router Advertisement specification",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1 — Address assignment)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7772 — Reducing Energy Consumption of Router Advertisements (BCP 202 — RA rate limiting for wireless)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7772"
+      "url": "https://www.rfc-editor.org/rfc/rfc7772",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc8981"
+      "url": "https://www.rfc-editor.org/rfc/rfc8981",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Multiple RAs from the same router on VRRP/HSRP failover.** During first-hop redundancy failover, both the old and new active router may send RAs briefly. This creates a spike in RA count but is transient and normal. Distinguish by checking if the RA source link-local address changes (new router) vs stays the same (same router re-advertising).\n\n**Different RA frequencies across vendors.** Cisco defaults to MaxRtrAdvInterval=200s, Juniper to 600s, Arista to 200s. Different RA frequencies from different routers on the same VLAN are expected in multi-vendor environments and don't indicate a problem unless the advertised prefixes or flags differ.\n\n**Infinite lifetimes (4294967295).** Some deployments intentionally set infinite valid lifetime for static infrastructure prefixes. This isn't wrong, but it means the prefix will persist even if RAs stop — which is correct for infrastructure but could be problematic for client subnets where you need the ability to renumber.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

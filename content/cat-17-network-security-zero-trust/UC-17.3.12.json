@@ -9,8 +9,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=zscaler:web` or `zscaler:zia`",
-  "app": "Zscaler TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Zscaler ZIA Policy Violation Trends'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.12).",
+  "evidence": "Saved search uc_17_3_12_zscaler_zia_policy_violation_trends, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Zscaler ZIA Policy Violation Trends'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.12.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=zscaler:web` or `zscaler:zia` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zscaler TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-30d\n| where action=\"blocked\" OR threat_score>0\n| timechart span=1d count by rule_name",
   "description": "Time-series of blocked violations per URL category and rule — tunes SWG policy and spots sudden policy drift.",
   "value": "Security teams trend Zscaler ZIA web policy violations by category, identifying active malware campaigns targeting users, repeat policy violators, and DLP incidents where sensitive data was attempted to be uploaded to unauthorized destinations.",
@@ -25,16 +31,41 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "zscaler"
   ],
+  "equipmentModels": [
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Zscaler Internet Access (ZIA) logs via Nanolog Streaming Service (NSS) to Splunk. Data in `index=zscaler` with `sourcetype=zscaler:zia:web`. Key fields: `action` (Allowed/Blocked/Cautioned/Isolated), `urlclass` (URL category), `department`, `user`, `url`, `threatname`, `dlpengine`, `dlpdictionaries`, `riskscore`, `bandwidth`.\n• ZIA is a Secure Web Gateway (SWG) in the SASE stack. Policy violations include: blocked URLs by category (adult, gambling, malware), DLP violations (sensitive data in uploads), threat blocks (malware downloads, phishing sites), and SSL inspection bypasses.\n• Zscaler NSS: Configure in ZIA Admin > Administration > Nanolog Streaming Service > add NSS server (Splunk HF) with web log type.\n\nStep 1 — Configure data collection\nVerify ZIA data:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" earliest=-1h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy violation trends:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" action=Blocked earliest=-7d\n| timechart span=1d count by urlclass limit=10\n```\n\nUnderstanding this SPL: Trends blocked web requests by URL category over 7 days. Spikes in 'Malware' or 'Phishing' categories indicate active campaigns targeting your users. Steady 'Adult' or 'Gambling' blocks indicate policy enforcement working as intended. A spike in 'Custom Blocked' (your custom categories) indicates a specific policy change. If blocks drop to zero, the policy may have been disabled.\n\nTop violators:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" action=Blocked earliest=-7d\n| stats count dc(url) as unique_urls by user, department, urlclass\n| sort - count\n| head 20\n```\n\nDLP violations:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" earliest=-7d\n| where isnotnull(dlpengine)\n| stats count by dlpengine, dlpdictionaries, user, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) In ZIA Admin: Analytics > Web Insights > Policy blocks. Compare with Splunk.\n(b) Visit a known-blocked URL category and verify the block event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block category trend. Row 2 — Top violating users. Row 3 — DLP violations.\nAlert: When 'Malware' or 'Phishing' blocks exceed 2x the 7-day average.\n\nRunbook:\n1. **Malware/Phishing spike** — Active campaign. Check threat intelligence for context.\n2. **Top user with many blocks** — May be infected or intentionally trying to bypass. Investigate.\n3. **DLP violation** — Sensitive data attempted upload. Follow DLP incident response process.\n\nStep 5 — Troubleshooting\n• **No ZIA data** — NSS may not be configured. Check ZIA Admin > Nanolog Streaming Service.\n• **All traffic 'Allowed'** — ZIA policy may be too permissive or in monitor-only mode.",
-  "grandmaExplanation": "We watch which websites our employees try to visit that are blocked by our security rules. When many people suddenly get blocked from dangerous websites, it usually means there is an active attack campaign, and we can warn everyone and strengthen our defenses."
+  "grandmaExplanation": "We watch which websites our employees try to visit that are blocked by our security rules. When many people suddenly get blocked from dangerous websites, it usually means there is an active attack campaign, and we can warn everyone and strengthen our defenses.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

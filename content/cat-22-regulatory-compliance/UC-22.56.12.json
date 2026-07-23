@@ -47,15 +47,23 @@
   "references": [
     {
       "title": "TSA SD-1542-21-02 §3.1 (airport network segmentation)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FAA AC 119-1 — cyber-aviation guidance",
-      "url": "https://www.faa.gov/regulations_policies/advisory_circulars"
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Eurocontrol Cybersecurity Toolkit (companion airside-OT material)",
-      "url": "https://www.eurocontrol.int/publication/eurocontrol-cybersecurity-toolkit"
+      "url": "https://www.eurocontrol.int/publication/eurocontrol-cybersecurity-toolkit",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **BHS maintenance windows** — baggage-handling-system vendor updates need approved bridges during maintenance.\n2. **Aerobridge vendor remote access** — covered by vendor-management UC-22.56.16; if the access is approved, the bridge appears in the exception register.\n3. **Pre-flight ramp/DCS integration** — DCS bridges to airline systems are common; pin in exception register with explicit allow-list.\n\n**Suppression mechanism**: KV Store `aviation_seg_exception_lookup`.",
@@ -95,7 +103,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.3 plus aviation zone register.\n\n## Step 1 — Define aviation zones\n\n```ini\n[aviation_network_zone_lookup]\nfield.src_ip = string\nfield.zone = string\nfield.zone_category = string\nfield.facility_code = string\n```\n\nZone enums: AIRSIDE_OT, BHS_OT, DCS, AEROBRIDGE, LANDSIDE_IT, GUEST_WIFI, ADMIN_IT, MAINT_IT.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.12: TSA Aviation Segmentation]\ncron_schedule = 53 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.12,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.1\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Violation on AIRSIDE_OT→LANDSIDE_IT** (owner: CC + Airport Operations, severity P1):\n1. Within 1 hour: triage — is it a misconfig, a vendor access bridge, or active intrusion?\n2. Within 4 hours: kill the flow OR add to exception register with documented rationale.\n3. Within 24 hours: post-mortem.\n\n## Step 4 — Troubleshooting\n\n- **Multi-tenant airports**: multiple airlines + service providers share airside; zone classification must be per-tenant.\n- **NAT/PAT obfuscation**: ensure firewall logs include both pre- and post-NAT addresses.\n\n**TSA-specific failure modes**:\n- **FAA NOTAM-relevant impact**: if a violation enables a NOTAM-affecting incident, parallel-notify FAA via UC-22.56.11.\n- **AirsideOT vendor expansion**: new vendor adds may bring new bridges; force a change-control + register update.",
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.3 plus aviation zone register.\n\n## Step 1 — Define aviation zones\n\n```ini\n[aviation_network_zone_lookup]\nfield.src_ip = string\nfield.zone = string\nfield.zone_category = string\nfield.facility_code = string\n```\n\nZone enums: AIRSIDE_OT, BHS_OT, DCS, AEROBRIDGE, LANDSIDE_IT, GUEST_WIFI, ADMIN_IT, MAINT_IT.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.12: TSA Aviation Segmentation]\ncron_schedule = 53 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.12,reg=TSA-Surface,clause=TSA-SD-1542-21-02-s3.1\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Violation on AIRSIDE_OT→LANDSIDE_IT** (owner: CC + Airport Operations, severity P1):\n1. Within 1 hour: triage — is it a misconfig, a vendor access bridge, or active intrusion?\n2. Within 4 hours: kill the flow OR add to exception register with documented rationale.\n3. Within 24 hours: post-mortem.\n\n## Step 4 — Troubleshooting\n\n- **Multi-tenant airports**: multiple airlines + service providers share airside; zone classification must be per-tenant.\n- **NAT/PAT obfuscation**: ensure firewall logs include both pre- and post-NAT addresses.\n\n**TSA-specific failure modes**:\n- **FAA NOTAM-relevant impact**: if a violation enables a NOTAM-affecting incident, parallel-notify FAA via UC-22.56.11.\n- **AirsideOT vendor expansion**: new vendor adds may bring new bridges; force a change-control + register update.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco ASA (Splunkbase 1620), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=pan:traffic, cisco:asa into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dest_ip, dest_port, dest_zone, drift`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Inside an airport there are two networks: one that runs the airplanes (super protected) and one for office work. We constantly check no traffic crosses without permission.",
   "prerequisiteUseCases": [
     "UC-22.56.3"

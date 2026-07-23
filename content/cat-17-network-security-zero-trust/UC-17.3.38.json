@@ -10,7 +10,13 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:audit`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Netskope Admin Audit Trail'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.38).",
+  "evidence": "Saved search uc_17_3_38_netskope_admin_audit_trail, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Netskope Admin Audit Trail'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.38.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=netskope:audit` Indexes: casb. Sourcetypes: netskope:audit. Key fields: admin_user, object_type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:audit\" earliest=-30d\n| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by admin_user, object_type\n| sort -last",
   "description": "Administrative changes to Netskope policies, steering configs, and tenant settings have global impact. Audit trail ensures accountability and change correlation.",
@@ -26,14 +32,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1562.004",
     "T1133"
@@ -41,7 +59,16 @@
   "equipment": [
     "netskope"
   ],
-  "detailedImplementation": "Prerequisites\n• Netskope admin audit events in `index=netskope` with `sourcetype=netskope:audit` or from the Netskope REST API audit endpoint. Key fields: `admin_user`, `event` (Create/Update/Delete/Login), `object_type` (Policy/Profile/Publisher/Configuration), `object_name`, `details`, `timestamp`.\n• Netskope admin changes can have immediate, organization-wide impact. A misconfigured DLP policy, disabled threat protection, or removed CASB rule can create an instant security gap.\n\nStep 1 — Configure data collection\nVerify admin audit events:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-30d\n| stats count by event, object_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Admin change log:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-7d\n| eval change_hour=strftime(_time, \"%H\")\n| eval out_of_hours=if(change_hour<\"08\" OR change_hour>\"18\", \"YES\", \"no\")\n| table _time, admin_user, event, object_type, object_name, details, out_of_hours\n| sort - _time\n```\n\nUnderstanding this SPL: Lists all admin changes with out-of-hours flagging. Critical changes: deleting a real-time protection policy, disabling threat protection, modifying DLP rules, or adding admin users. Out-of-hours changes bypass the normal review process and are higher risk.\n\nHigh-impact changes:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-7d\n| where event==\"Delete\" OR match(object_type, \"(?i)policy|protection|dlp\")\n| stats count by admin_user, event, object_type\n| sort - count\n```\n\nStep 3 — Validate\n(a) Make a test change in Netskope Admin. Verify the audit event.\n(b) In Netskope: Settings > Administration > Audit Log. Compare.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Admin changes per day. Row 2 — High-impact changes. Row 3 — Out-of-hours changes.\nAlert: Immediate on policy deletion or threat protection disable.\n\nRunbook:\n1. **Policy deletion** — Verify with admin. Roll back if unintended.\n2. **Threat protection disabled** — Critical. Re-enable immediately.\n3. **New admin added** — Verify authorization with security team.\n\nStep 5 — Troubleshooting\n• **No audit events** — Audit logging may require a separate API endpoint. Check Netskope REST API v2.\n• **`details` empty** — Some admin actions don't include change details in the audit.",
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Netskope admin audit events in `index=netskope` with `sourcetype=netskope:audit` or from the Netskope REST API audit endpoint. Key fields: `admin_user`, `event` (Create/Update/Delete/Login), `object_type` (Policy/Profile/Publisher/Configuration), `object_name`, `details`, `timestamp`.\n• Netskope admin changes can have immediate, organization-wide impact. A misconfigured DLP policy, disabled threat protection, or removed CASB rule can create an instant security gap.\n\nStep 1 — Configure data collection\nVerify admin audit events:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-30d\n| stats count by event, object_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Admin change log:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-7d\n| eval change_hour=strftime(_time, \"%H\")\n| eval out_of_hours=if(change_hour<\"08\" OR change_hour>\"18\", \"YES\", \"no\")\n| table _time, admin_user, event, object_type, object_name, details, out_of_hours\n| sort - _time\n```\n\nUnderstanding this SPL: Lists all admin changes with out-of-hours flagging. Critical changes: deleting a real-time protection policy, disabling threat protection, modifying DLP rules, or adding admin users. Out-of-hours changes bypass the normal review process and are higher risk.\n\nHigh-impact changes:\n```spl\nindex=netskope sourcetype=\"netskope:audit\" earliest=-7d\n| where event==\"Delete\" OR match(object_type, \"(?i)policy|protection|dlp\")\n| stats count by admin_user, event, object_type\n| sort - count\n```\n\nStep 3 — Validate\n(a) Make a test change in Netskope Admin. Verify the audit event.\n(b) In Netskope: Settings > Administration > Audit Log. Compare.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Admin changes per day. Row 2 — High-impact changes. Row 3 — Out-of-hours changes.\nAlert: Immediate on policy deletion or threat protection disable.\n\nRunbook:\n1. **Policy deletion** — Verify with admin. Roll back if unintended.\n2. **Threat protection disabled** — Critical. Re-enable immediately.\n3. **New admin added** — Verify authorization with security team.\n\nStep 5 — Troubleshooting\n• **No audit events** — Audit logging may require a separate API endpoint. Check Netskope REST API v2.\n• **`details` empty** — Some admin actions don't include change details in the audit.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=netskope:audit into casb. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`admin_user, object_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every change an administrator makes to our cloud security settings is recorded. We pay special attention to dangerous changes like disabling security features or deleting rules, especially when they happen outside normal hours, because one wrong change can leave the entire organization unprotected.",
-  "hardware": "Netskope Security Cloud (tenant admin)"
+  "hardware": "Netskope Security Cloud (tenant admin)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

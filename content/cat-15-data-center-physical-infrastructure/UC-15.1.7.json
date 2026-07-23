@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState)",
-  "app": "SNMP modular input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'APC PDU Outlet-Level Power Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-15.1.7).",
+  "evidence": "Saved search uc_15_1_7_apc_pdu_outlet_level_power_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'APC PDU Outlet-Level Power Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-15.1.7.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"snmp:apc:pdu\"\n| eval outlet_state=case(rPDU2OutletSwitchedStatusState=\"1\",\"on\",rPDU2OutletSwitchedStatusState=\"2\",\"off\",1=1,\"unknown\")\n| where rPDU2OutletSwitchedStatusCurrent > 10 OR outlet_state=\"off\"\n| table _time, pdu_name, outlet_id, outlet_label, rPDU2OutletSwitchedStatusCurrent as current_amps, outlet_state\n| sort -current_amps",
   "description": "Per-outlet current draw and on/off state on APC rack PDUs enables granular power attribution, remote outlet control verification, and identification of high-draw devices within a rack.",
-  "value": "Per-outlet current draw and on/off state on APC rack PDUs enables granular power attribution, remote outlet control verification, and identification of high-draw devices within a rack.",
+  "value": "Operations and leadership rely on 'APC PDU Outlet-Level Power Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Configure SNMP modular input to poll APC PowerNet-MIB. Map rPDU2OutletSwitchedStatusCurrent (0.1A resolution) and rPDU2OutletSwitchedStatusState per outlet. Poll every 5 minutes. Alert on outlets exceeding threshold (e.g., 10A) or unexpected off-state. Correlate outlet labels with DCIM for device mapping.",
   "visualization": "Table (outlet current by PDU), Bar chart (top outlets by draw), Status grid (outlet on/off state), Line chart (outlet current trend).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -35,6 +57,12 @@
     "snmp_apc",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP modular input.\n• Ensure the following data sources are available: APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure SNMP modular input to poll APC PowerNet-MIB. Map rPDU2OutletSwitchedStatusCurrent (0.1A resolution) and rPDU2OutletSwitchedStatusState per outlet. Poll every 5 minutes. Alert on outlets exceeding threshold (e.g., 10A) or unexpected off-state. Correlate outlet labels with DCIM for device mapping.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=power sourcetype=\"snmp:apc:pdu\"\n| eval outlet_state=case(rPDU2OutletSwitchedStatusState=\"1\",\"on\",rPDU2OutletSwitchedStatusState=\"2\",\"off\",1=1,\"unknown\")\n| where rPDU2OutletSwitchedStatusCurrent > 10 OR outlet_state=\"off\"\n| table _time, pdu_name, outlet_id, outlet_label, rPDU2OutletSwitchedStatusCurrent as current_amps, outlet_state\n| sort -current_amps\n```\n\nUnderstanding this SPL\n\n**APC PDU Outlet-Level Power Monitoring** — Per-outlet current draw and on/off state on APC rack PDUs enables granular power attribution, remote outlet control verification, and identification of high-draw devices within a rack.\n\nDocumented **Data sources**: APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState). **App/TA** (typical add-on context): SNMP modular input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: power; **sourcetype**: snmp:apc:pdu. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=power, sourcetype=\"snmp:apc:pdu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **outlet_state** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where rPDU2OutletSwitchedStatusCurrent > 10 OR outlet_state=\"off\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **APC PDU Outlet-Level Power Monitoring**): table _time, pdu_name, outlet_id, outlet_label, rPDU2OutletSwitchedStatusCurrent as current_amps, outlet_state\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (outlet current by PDU), Bar chart (top outlets by draw), Status grid (outlet on/off state), Line chart (outlet current trend).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

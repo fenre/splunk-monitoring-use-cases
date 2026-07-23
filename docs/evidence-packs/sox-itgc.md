@@ -71,13 +71,13 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-12.2.17** — Deploy Approval Bypass Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-12-devops-ci-cd/UC-12.2.17.json`](../../content/cat-12-devops-ci-cd/UC-12.2.17.json)
 <a id='uc-16-4-1'></a>
 - **UC-16.4.1** — Unauthorized Change Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-16-service-management-itsm/UC-16.4.1.json`](../../content/cat-16-service-management-itsm/UC-16.4.1.json)
 <a id='uc-17-1-32'></a>
 - **UC-17.1.32** — Cisco ISE<sup class="ref">[<a href="#ref-4">4</a>]</sup> License Consumption, Endpoint Capacity and MnT Log Retention
@@ -89,37 +89,37 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
 <a id='uc-17-1-48'></a>
 - **UC-17.1.48** — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.48.json)
 <a id='uc-17-1-49'></a>
 - **UC-17.1.49** — Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.49.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.49.json)
 <a id='uc-17-1-58'></a>
 - **UC-17.1.58** — Cisco ISE Data Connect — DB-Direct Query Audit and Slow-Query Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.58.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.58.json)
 <a id='uc-17-1-71'></a>
 - **UC-17.1.71** — Cisco ISE Admin Account Lockout, Failed-Login Burst, and Privileged-Role Audit
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.71.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.71.json)
 <a id='uc-17-1-76'></a>
 - **UC-17.1.76** — ISE Group-Based Policy (GBP / Microsegmentation) Effective-Policy Drift
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.76.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.76.json)
 <a id='uc-22-11-95'></a>
 - **UC-22.11.95** — PCI-DSS 6.2 — Bespoke-software SDLC: code-review + SAST completion before CDE deploy
@@ -359,25 +359,25 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-7.1.13** — Schema Change Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-07-database-data-platforms/UC-7.1.13.json`](../../content/cat-07-database-data-platforms/UC-7.1.13.json)
 <a id='uc-7-1-21'></a>
 - **UC-7.1.21** — Database User and Privilege Change Audit
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-07-database-data-platforms/UC-7.1.21.json`](../../content/cat-07-database-data-platforms/UC-7.1.21.json)
 <a id='uc-7-1-40'></a>
 - **UC-7.1.40** — Database Audit Log Tampering Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-07-database-data-platforms/UC-7.1.40.json`](../../content/cat-07-database-data-platforms/UC-7.1.40.json)
 <a id='uc-9-5-15'></a>
 - **UC-9.5.15** — Okta<sup class="ref">[<a href="#ref-8">8</a>]</sup> User Lifecycle Events (Provisioning / Deprovisioning)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-09-identity-access-management/UC-9.5.15.json`](../../content/cat-09-identity-access-management/UC-9.5.15.json)
 
 ## 5. Evidence collection
@@ -505,7 +505,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.19.0
+catalogue_version: 8.22.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

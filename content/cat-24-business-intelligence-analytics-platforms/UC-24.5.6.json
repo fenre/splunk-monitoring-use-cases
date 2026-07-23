@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC.",
-  "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Embedded Analytics SDK Errors'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-24.5.6).",
+  "evidence": "Saved search uc_24_5_6_embedded_analytics_sdk_errors, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Embedded Analytics SDK Errors'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-24.5.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=bi:embed:client (event=embed_error OR event=token_refresh_failed)\n| stats count as errors by host_app, error_code\n| where errors>0\n| sort - errors",
   "description": "Captures client-side errors from embedded analytics (Superset/Metabase/Sigma embeds) so broken tokens or failed loads inside customer-facing apps are caught.",
   "value": "Embedded analytics failures degrade a customer-facing product, not just an internal tool; capturing embed errors protects revenue-facing experiences.",
@@ -20,17 +26,26 @@
   "references": [
     {
       "title": "Apache Superset documentation",
-      "url": "https://superset.apache.org/docs/intro"
+      "url": "https://superset.apache.org/docs/intro",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Metabase documentation",
-      "url": "https://www.metabase.com/docs/latest/"
+      "url": "https://www.metabase.com/docs/latest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "apache",
     "db_connect"
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We catch errors when reports are embedded inside your own apps, so customers do not see broken charts."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=bi:embed:client into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`error_code, errors, host_app`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch errors when reports are embedded inside your own apps, so customers do not see broken charts.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

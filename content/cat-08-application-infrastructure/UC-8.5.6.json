@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Redis SLOWLOG",
-  "app": "Custom scripted input (`SLOWLOG GET`)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Slow Command Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.5.6).",
+  "evidence": "Saved search uc_8_5_6_slow_command_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Slow Command Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.5.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Redis SLOWLOG Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`SLOWLOG GET`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"redis:slowlog\"\n| table _time, host, duration_ms, command, key\n| where duration_ms > 10\n| sort -duration_ms",
   "description": "Slow Redis commands block the single-threaded event loop, impacting all clients. Detection enables command optimization.",
-  "value": "Slow Redis commands block the single-threaded event loop, impacting all clients. Detection enables command optimization.",
+  "value": "Operations and leadership rely on 'Slow Command Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Run `redis-cli SLOWLOG GET 100` via scripted input every minute. Parse command, duration, and key pattern. Alert on commands exceeding 10ms. Identify O(N) commands (KEYS, SMEMBERS on large sets) for optimization.",
   "visualization": "Table (slow commands with details), Bar chart (slow commands by type), Line chart (slow command frequency).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "redis"
   ],
+  "equipmentModels": [
+    "redis_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`SLOWLOG GET`).\n• Ensure the following data sources are available: Redis SLOWLOG.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRun `redis-cli SLOWLOG GET 100` via scripted input every minute. Parse command, duration, and key pattern. Alert on commands exceeding 10ms. Identify O(N) commands (KEYS, SMEMBERS on large sets) for optimization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cache sourcetype=\"redis:slowlog\"\n| table _time, host, duration_ms, command, key\n| where duration_ms > 10\n| sort -duration_ms\n```\n\nUnderstanding this SPL\n\n**Slow Command Detection** — Slow Redis commands block the single-threaded event loop, impacting all clients. Detection enables command optimization.\n\nDocumented **Data sources**: Redis SLOWLOG. **App/TA** (typical add-on context): Custom scripted input (`SLOWLOG GET`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cache; **sourcetype**: redis:slowlog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cache, sourcetype=\"redis:slowlog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Slow Command Detection**): table _time, host, duration_ms, command, key\n• Filters the current rows with `where duration_ms > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with `redis-cli INFO` (and slowlog if relevant) on the same instance and time window.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (slow commands with details), Bar chart (slow commands by type), Line chart (slow command frequency).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that slow Redis commands block the single-threaded event loop, impacting all clients."
+  "grandmaExplanation": "We watch for signs that slow Redis commands block the single-threaded event loop, impacting all clients.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,7 +8,13 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cp_log` (performance logs), `fw ctl multik stat` via scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point CoreXL CPU Distribution (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.50).",
+  "evidence": "Saved search uc_5_2_50_check_point_corexl_cpu_distribution_chec, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point CoreXL CPU Distribution (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.50.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cp_log` (performance logs), `fw ctl multik stat` via scripted input Indexes: firewall. Sourcetypes: cp_log. Key fields: core_id, gw, imbalance, max_cpu. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=firewall sourcetype=\"cp_log\" earliest=-4h\n| where match(lower(product),\"(?i)corexl|multik|fw_worker\")\n| eval gw=coalesce(orig, src, hostname)\n| eval core_id=coalesce(core_id, fw_instance, worker_id)\n| eval cpu_pct=coalesce(cpu_usage, cpu_pct, cpu_util)\n| stats avg(cpu_pct) as avg_cpu max(cpu_pct) as max_cpu by gw, core_id\n| eventstats avg(avg_cpu) as gw_avg by gw\n| eval imbalance=round(max_cpu - gw_avg, 1)\n| where imbalance > 30 OR max_cpu > 85\n| sort -imbalance",
   "description": "CoreXL distributes firewall inspection across multiple CPU cores (Firewall Worker instances). Uneven load distribution — where one core saturates while others idle — reduces effective throughput and causes packet drops on that core. This often happens when large flows or specific protocols always hash to the same core. Detecting core imbalance before it causes visible packet loss prevents elusive intermittent connectivity issues.",
@@ -19,26 +25,39 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bursts, elephant flows, and short spikes can unbalance one core for minutes without a lasting performance problem.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point CoreXL CPU distribution data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input from `fw ctl multik stat`. Key fields: `instance_id`, `connections`, `cpu_usage`, `packets`.\n* CoreXL: distributes firewall inspection across multiple CPU cores (Firewall Worker instances / fw_worker_X). Uneven load distribution -- where one worker handles disproportionate traffic -- creates a bottleneck despite overall CPU availability. Monitoring: `fw ctl multik stat`, `fw ctl affinity -l -a`.\n\nStep 1 -- Configure data collection\n```\n# Custom scripted input for CoreXL stats\n# inputs.conf\n[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/corexl_stats.sh]\ninterval = 300\nsourcetype = checkpoint:corexl\nindex = checkpoint\ndisabled = false\n\n# corexl_stats.sh\n#!/bin/bash\necho \"timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\necho \"hostname=$(hostname)\"\nfw ctl multik stat 2>/dev/null | while read line; do echo \"corexl_stat=\"$line\"\"; done\nfw ctl multik get_mode 2>/dev/null | while read line; do echo \"corexl_mode=\"$line\"\"; done\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:corexl\" earliest=-1h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- CoreXL CPU distribution analysis:**\n```spl\nindex=checkpoint sourcetype=\"checkpoint:corexl\" earliest=-4h\n| rex field=corexl_stat \"(?i)(?<instance>\\d+)\\s+(?<conns>\\d+)\\s+(?<pkts>\\d+)\"\n| where isnotnull(instance)\n| eval instance=tonumber(instance)\n| eval conns=tonumber(conns)\n| eval pkts=tonumber(pkts)\n| bin _time span=5m\n| stats sum(conns) as total_conns sum(pkts) as total_pkts avg(conns) as avg_conns max(conns) as max_conns values(instance) as instances dc(instance) as num_workers by _time, host\n| eval max_worker_pct=if(total_conns > 0, round(100*max_conns/total_conns, 1), 0)\n| eval imbalance_ratio=if(avg_conns > 0, round(max_conns/avg_conns, 2), 0)\n| eval severity=case(\n    imbalance_ratio > 3, \"CRITICAL -- severe CoreXL imbalance (hottest worker \".imbalance_ratio.\"x average)\",\n    imbalance_ratio > 2, \"WARNING -- CoreXL imbalance detected\",\n    max_worker_pct > 40 AND num_workers > 4, \"INFO -- one worker handling >40% of connections\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, host, num_workers, total_conns, avg_conns, max_conns, imbalance_ratio, severity\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI (expert mode): `fw ctl multik stat` -- show per-instance connection and packet counts.\n(b) CLI: `fw ctl affinity -l -a` -- show CPU affinity assignments for each worker.\n(c) CLI: `cpview` -- real-time monitoring of per-core CPU usage.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- CoreXL CPU Distribution\"):\n* Row 1 -- Single-value: \"FW workers\", \"Hottest worker (%)\", \"Imbalance ratio\".\n* Row 2 -- Per-worker connection distribution.\n\nAlert: Critical (imbalance ratio > 3x): performance bottleneck on single core.\n\nStep 5 -- Troubleshooting\n\n* **Single worker overloaded** -- Check affinity: `fw ctl affinity -l -a`. Large flows (e.g., backup, streaming) may hash to one worker. Consider enabling Dynamic Dispatcher: `fw ctl multik set_mode 4`.\n\n* **CoreXL hash imbalance** -- Default hash uses src/dst IP. Environments with few large talkers benefit from adding port to hash: `fw ctl set int fwmultik_use_ports 1`.\n\n* **Insufficient workers** -- Check total available: `fw ctl multik get_mode`. Add workers if CPU cores are available. Requires reboot after change: `cpconfig` > Configure CoreXL.",
   "grandmaExplanation": "We look at per-core load on the gateway so a hot engine on one worker does not become packet loss and mystery slowness for everyone else.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

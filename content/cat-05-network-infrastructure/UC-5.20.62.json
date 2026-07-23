@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.62).",
+  "evidence": "Saved search uc_5_20_62_ipv6_firewall_session_table_utilization, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Firewall Session Table Utilization and Connection Rate Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.62.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=pan:system` or `sourcetype=cisco:asa` or `sourcetype=fortinet:fortigate` containing firewall session table metrics and connection rate counters. Stateful firewalls maintain a session table (connection table) that tracks every active connection passing through the firewall. IPv6 session table entries are larger than IPv4 entries because IPv6 addresses are 128 bits (vs 32 bits for IPv4), increasing memory consumption per session by approximately 24 bytes.\n\nIPv6-specific session table concerns:\n1. **Larger entries** — Each IPv6 session consumes more memory than IPv4 due to larger addresses. A firewall at 80% IPv4 session table capacity may hit 100% when IPv6 traffic is added.\n2. **NDP traffic** — NDP generates additional state entries for multicast listeners, router solicitations, and neighbour cache entries. These consume session table resources.\n3. **Privacy extensions** — Hosts with RFC 8981 privacy extensions use multiple IPv6 addresses simultaneously, each generating separate sessions. A single host may consume 3-5x more session table entries than an equivalent IPv4 host.\n4. **Extension header processing** — Firewall CPU time increases for packets with extension headers, reducing the maximum new-connection rate.\n5. **Dual-stack doubling** — In dual-stack environments, Happy Eyeballs sends both IPv4 and IPv6 connection attempts simultaneously, doubling the connection setup rate.",
   "app": "Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757). Splunk Add-on for Cisco ASA.",
   "spl": "index=network (sourcetype=\"pan:system\" OR sourcetype=\"cisco:asa\" OR sourcetype=\"fortinet:fortigate\") earliest=-24h\n  (\"session\" AND (\"table\" OR \"count\" OR \"utilization\" OR \"max\"))\n| rex field=_raw \"(?:active|current)\\s*(?:sessions?|connections?)\\s*:?\\s*(?<active_sessions>\\d+)\"\n| rex field=_raw \"(?:max|maximum|limit)\\s*(?:sessions?|connections?)\\s*:?\\s*(?<max_sessions>\\d+)\"\n| eval utilization_pct=round(active_sessions / max_sessions * 100, 1)\n| eval severity=case(\n    utilization_pct > 95, \"CRITICAL — session table nearly full\",\n    utilization_pct > 85, \"HIGH — approaching capacity\",\n    utilization_pct > 70, \"WARNING — monitor growth\",\n    1=1, \"OK\")\n| stats latest(active_sessions) as current_sessions latest(max_sessions) as max_sessions latest(utilization_pct) as utilization latest(severity) as status by host\n| sort -utilization",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.1 — firewall session table considerations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§4.3.2 — firewall capacity planning)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legitimate traffic spikes.** Black Friday, product launches, or marketing campaigns cause legitimate session count spikes. Correlate with business events.\n\n**Long-lived connections.** WebSocket, SSH, and VPN connections persist for hours or days, accumulating in the session table. Adjust session timeouts for long-lived protocols.\n\n**Scanning and vulnerability assessment.** Legitimate vulnerability scans create many short-lived sessions simultaneously, spiking the session count temporarily.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint",
     "cisco",

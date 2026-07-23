@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Energy and Utilities",
-  "dataSources": "`index=oms` `sourcetype=\"oms:outage\"` (device_id, status), `index=scada` `sourcetype=\"scada:alarm\"` or `sourcetype=\"scada:rtu\"` (device_id, breaker_state)",
-  "app": "Splunk OT Intelligence, custom HEC (OMS)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Outage Management System vs SCADA State Correlation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.1.12).",
+  "evidence": "Saved search uc_21_1_12_outage_management_system_vs_scada_state, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Outage Management System vs SCADA State Correlation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.1.12.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=oms` `sourcetype=\"oms:outage\"` (device_id, status), `index=scada` `sourcetype=\"scada:alarm\"` or `sourcetype=\"scada:rtu\"` (device_id, breaker_state) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk OT Intelligence, custom HEC (OMS) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=oms sourcetype=\"oms:outage\" status=\"open\"\n| fields device_id, _time, outage_id\n| join type=inner max=1 device_id [\n    search index=scada (sourcetype=\"scada:rtu\" OR sourcetype=\"scada:alarm\")\n    | eval breaker_state=coalesce(breaker_state, device_state)\n    | where lower(breaker_state) IN (\"closed\",\"energized\",\"1\")\n    | stats latest(breaker_state) as scada_state by device_id\n]\n| table outage_id, device_id, scada_state",
   "description": "Disconnected OMS tickets and energized SCADA devices delay restoration and confuse customers; alignment checks improve switching safety and SAIDI/SAIFI reporting quality.",
   "value": "Service and risk leaders use signals from Outage Management System vs SCADA State Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
@@ -24,17 +30,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "State mismatch right after OMS cutovers, mapping refreshes, storm playbooks, or training simulations the control room ran as a planned exercise.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "edge_hub",
     "m365"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OT Intelligence, custom HEC (OMS).\n• Ensure the following data sources are available: `index=oms` `sourcetype=\"oms:outage\"` (device_id, status), `index=scada` `sourcetype=\"scada:alarm\"` or `sourcetype=\"scada:rtu\"` (device_id, breaker_state).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain a canonical `device_id` lookup between OMS and SCADA naming. Schedule frequent correlation; handle multiphase devices with MVLV mapping table. Alert ETRM/OMS when mismatches exceed zero for active outages. Use Edge Hub only for SCADA side if needed. **Domain context:** OMS–DMS–SCADA alignment is central to safe switching and accurate SAIDI/SAIFI; energized devices during “open” outages are a safety and customer-trust issue. **Splunk:** `join type=inner` only shows matches—add a separate…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=oms sourcetype=\"oms:outage\" status=\"open\"\n| fields device_id, _time, outage_id\n| join type=inner max=1 device_id [\n    search index=scada (sourcetype=\"scada:rtu\" OR sourcetype=\"scada:alarm\")\n    | eval breaker_state=coalesce(breaker_state, device_state)\n    | where lower(breaker_state) IN (\"closed\",\"energized\",\"1\")\n    | stats latest(breaker_state) as scada_state by device_id\n]\n| table outage_id, device_id, scada_state\n```\n\nUnderstanding this SPL\n\n**Outage Management System vs SCADA State Correlation** — Disconnected OMS tickets and energized SCADA devices delay restoration and confuse customers; alignment checks improve switching safety and SAIDI/SAIFI reporting quality.\n\nDocumented **Data sources**: `index=oms` `sourcetype=\"oms:outage\"` (device_id, status), `index=scada` `sourcetype=\"scada:alarm\"` or `sourcetype=\"scada:rtu\"` (device_id, breaker_state). **App/TA** (typical add-on context): Splunk OT Intelligence, custom HEC (OMS). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: oms; **sourcetype**: oms:outage. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=oms, sourcetype=\"oms:outage\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Pipeline stage (see **Outage Management System vs SCADA State Correlation**): table outage_id, device_id, scada_state\n\n\nStep 3 — Validate\nCompare alarm rates and shelved alarm counts with the EMS or alarm master/operator HMI for the same substation and time range. Confirm severities, shelved flags, and timestamps match the control room view.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (mismatched devices), Single value (mismatch count), Timeline (OMS vs SCADA changes), Map (optional).",
-  "grandmaExplanation": "We watch whether outage tickets match live SCADA. We help you catch wrong customer comms before trust erodes."
+  "grandmaExplanation": "We watch whether outage tickets match live SCADA. We help you catch wrong customer comms before trust erodes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

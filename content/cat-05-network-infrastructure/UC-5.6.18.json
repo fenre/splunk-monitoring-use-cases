@@ -9,8 +9,14 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "BlueCat DNS Edge service-point query logs (`sourcetype=bluecat:dns`) forwarded via syslog or HEC, optionally enriched by polling the BlueCat Address Manager (BAM) REST API for policy and threat-intel context. Key fields: `query_type`, `response_code`, `query_name`, `client_ip`, `policy_action` (allow / block / redirect).",
-  "app": "BlueCat DNS Edge syslog (raw forwarder), BlueCat Address Manager REST API (custom scripted input or HEC). No vendor Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'BlueCat DNS Edge Query Analytics'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.6.18).",
+  "evidence": "Saved search uc_5_6_18_bluecat_dns_edge_query_analytics, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'BlueCat DNS Edge Query Analytics'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.6.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "BlueCat DNS Edge service-point query logs (`sourcetype=bluecat:dns`) forwarded via syslog or HEC, optionally enriched by polling the BlueCat Address Manager (BAM) REST API for policy and threat-intel context. Key fields: `query_type`, `response_code`, `query_name`, `client_ip`, `policy_action` (allow / block / redirect). Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "BlueCat DNS Edge syslog (raw forwarder), BlueCat Address Manager REST API (custom scripted input or HEC). No vendor Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=dns sourcetype=\"bluecat:dns\"\n| stats count by query_type, response_code\n| eventstats sum(count) as total\n| eval pct_nxdomain=round(count/total*100,2)\n| where response_code=\"NXDOMAIN\"\n| sort - count",
   "description": "Aggregates BlueCat DNS Edge query telemetry by query type and response code, computing the share of NXDOMAIN responses. Surfaces hosts and clients producing elevated NXDOMAIN volume — a classic DGA / C2 telemetry signal — alongside the basic resolver throughput needed for capacity planning.",
   "value": "BlueCat DNS Edge is the DDI platform of choice for many large enterprises and government deployments where native cloud DNS is not an option. Without the equivalent of bind query logging or Infoblox QIP analytics, BlueCat resolver issues stay invisible until users complain. NXDOMAIN spikes are also one of the most reliable DGA / C2 indicators in the SOC's toolbox — DGA-based malware blasts thousands of randomly-generated domains looking for their command channel, and almost all of them resolve to NXDOMAIN. This UC catches both operational drift and security signals from the same stream.",
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "BlueCat DNS Edge documentation",
-      "url": "https://docs.bluecatnetworks.com/r/DNS-Edge-Service-Point-Administration-Guide"
+      "url": "https://docs.bluecatnetworks.com/r/DNS-Edge-Service-Point-Administration-Guide",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BlueCat DDI overview",
-      "url": "https://bluecatnetworks.com/products/"
+      "url": "https://bluecatnetworks.com/products/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Recursive resolver caches and local hostname typos.** End users mistyping internal hostnames (`intra.exmaple.com`) generate legitimate NXDOMAIN traffic. Filter on second-level domain or apply a denylist of known internal-typo domains.\n\n**Public chrome-prefetch traffic.** Chromium-based browsers issue speculative NXDOMAIN queries to detect DNS hijacking by network operators. This is a known floor of NXDOMAIN noise that varies by browser version. Use percentile baselines, not absolute counts, for alerting.\n\n**Newly-deployed CNAMEs in transition.** During a CNAME cutover, both the old and new names may serve traffic for hours; clients that cached the old name resolve to NXDOMAIN until TTL expiry. Mute alerts for known-cutover domains during the announced transition window.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "bluecat",
     "syslog"
@@ -40,6 +58,12 @@
     "bluecat_dns_edge"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (BlueCat DNS Edge syslog (raw forwarder), BlueCat Address Manager REST API (custom scripted input or HEC). No vendor Splunkbase TA at the time of authoring; field extraction lives in a custom `props.conf` / `transforms.conf` pair under a local app. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=bluecat:dns into dns. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`query_type, response_code`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch how the company's name-lookup service answers questions like 'what's the address for this website?'. When too many lookups come back as 'no such name', that is often the early signal of either a configuration mistake or malware on a computer trying to phone home through randomly-generated domain names.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

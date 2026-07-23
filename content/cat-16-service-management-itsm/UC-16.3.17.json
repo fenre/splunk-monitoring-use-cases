@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Jira issue export with sprint custom fields (`jira:cloud:issues`)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Jira Sprint Scope Change After Sprint Start'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-16.3.17).",
+  "evidence": "Saved search uc_16_3_17_jira_sprint_scope_change_after_sprint_st, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Jira Sprint Scope Change After Sprint Start'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-16.3.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Jira issue export with sprint custom fields (`jira:cloud:issues`) Indexes: itsm. Sourcetypes: jira:cloud:issues, jira:issue. Key fields: added_after_start, assignee, project, sprint_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Jira Cloud (Splunkbase 6211)",
   "spl": "index=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where sprint_state=\"active\" AND issue_type=\"Story\"\n| eval added_after_start=if(created_epoch > sprint_start_epoch,1,0)\n| where added_after_start=1\n| stats count by project, sprint_name, assignee\n| sort -count",
-  "description": "Mid-sprint scope inflation invalidates commitments and capacity plans.",
-  "value": "Gives RTEs evidence of late story injection for retrospective review.",
+  "description": "Mid-sprint scope inflation invalidates commitments and capacity plans. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "Gives RTEs evidence of late story injection for retrospective review. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "Sync `sprint_start_epoch` from board metadata or lookup; nightly batch acceptable.",
   "visualization": "Table (project × sprint), Bar chart (added issues).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Splunk Add-on for Jira Cloud",
-      "url": "https://splunkbase.splunk.com/app/6211"
+      "url": "https://splunkbase.splunk.com/app/6211",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Jira Cloud",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Scope moves during planning, stakeholder tweaks, or admin fixes in the work-tracking tool; align with the team's sprint rules before you treat a change as a process break.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "jira"
+  ],
+  "equipmentModels": [
+    "jira_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (Splunkbase 6211).\n• Data: Jira issue export with sprint custom fields (`jira:cloud:issues`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nSync `sprint_start_epoch` from board metadata or lookup; nightly batch acceptable.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where sprint_state=\"active\" AND issue_type=\"Story\"\n| eval added_after_start=if(created_epoch > sprint_start_epoch,1,0)\n| where added_after_start=1\n| stats count by project, sprint_name, assignee\n| sort -count\n```\n\nUnderstanding this search\nMid-sprint scope inflation invalidates commitments and capacity plans.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (project × sprint), Bar chart (added issues).",
-  "grandmaExplanation": "We notice when a sprint’s scope still moves after it officially started, so we keep planning honest and the team not surprised mid-week."
+  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (Splunkbase 6211).\n• Data: Jira issue export with sprint custom fields (`jira:cloud:issues`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nSync `sprint_start_epoch` from board metadata or lookup; nightly batch acceptable.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where sprint_state=\"active\" AND issue_type=\"Story\"\n| eval added_after_start=if(created_epoch > sprint_start_epoch,1,0)\n| where added_after_start=1\n| stats count by project, sprint_name, assignee\n| sort -count\n```\n\nUnderstanding this search\nMid-sprint scope inflation invalidates commitments and capacity plans.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (project × sprint), Bar chart (added issues).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Jira Cloud (Splunkbase 6211)). Enable the modular input or HEC token that writes sourcetype=jira:cloud:issues, jira:issue into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`added_after_start, assignee, project, sprint_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when a sprint’s scope still moves after it officially started, so we keep planning honest and the team not surprised mid-week.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

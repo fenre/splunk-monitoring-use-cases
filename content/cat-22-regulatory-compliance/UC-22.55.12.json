@@ -47,11 +47,23 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 8.3",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MITRE ATT&CK for ICS",
-      "url": "https://attack.mitre.org/matrices/ics/"
+      "url": "https://attack.mitre.org/matrices/ics/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **New rule in test phase** — may have `never_tested` for 14-day grace.\n\n2. **Vendor-supplied rule pending tuning** — vendor rules from Cyber Vision / Claroty may need 30-day tuning grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_12_exceptions` with documented Detection-Engineering-Lead approval and 30-day maximum grant.",
@@ -93,7 +105,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT-detection platforms.\n- KV Store `rail_detection_lookup`.\n\n## Step 1 — Detection collection\n\n```ini\n[rail_detection_lookup]\nenforceTypes = true\nfield.detection_id = string\nfield.rail_subsystem = string\nfield.event_type = string\nfield.severity = string\nfield.asset_id = string\nfield.mitre_technique = string\nfield.detection_signed_at = number\nfield.signature_test_passed_at = number\nfield.detection_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.12: CLC/TS 50701 Rail Incident Detection]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.12,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail incident-detection content unsigned, untested, or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `signature_test_overdue`** (owner: Detection Engineering Lead, severity P2): run quarterly test; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Signal-system specific signatures**: signal RBC / CBTC have specific behaviour; detections must be sensor-tuned.\n- **GSM-R / FRMCS detection**: rail-radio detection is increasingly important; build content for these protocols.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- OT-detection platforms.\n- KV Store `rail_detection_lookup`.\n\n## Step 1 — Detection collection\n\n```ini\n[rail_detection_lookup]\nenforceTypes = true\nfield.detection_id = string\nfield.rail_subsystem = string\nfield.event_type = string\nfield.severity = string\nfield.asset_id = string\nfield.mitre_technique = string\nfield.detection_signed_at = number\nfield.signature_test_passed_at = number\nfield.detection_status_in_register = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.12: CLC/TS 50701 Rail Incident Detection]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.12,reg=CLC-TS-50701,clause=CLC-TS-50701-c8-3\naction.notable.param.rule_title = Rail incident-detection content unsigned, untested, or stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `signature_test_overdue`** (owner: Detection Engineering Lead, severity P2): run quarterly test; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Signal-system specific signatures**: signal RBC / CBTC have specific behaviour; detections must be sensor-tuned.\n- **GSM-R / FRMCS detection**: rail-radio detection is increasingly important; build content for these protocols.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_since_test, detection_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our cyber-watchtower has alarms set for many specific kinds of trouble — someone trying to break a signal, a strange radio command. Every three months we test that each alarm still rings when something fake happens. If an alarm hasn't been tested for too long, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.3",

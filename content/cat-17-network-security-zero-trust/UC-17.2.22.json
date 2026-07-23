@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`vpn:session` or ASA with start/end",
-  "app": "VPN TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Remote Session Duration Anomalies'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.22).",
+  "evidence": "Saved search uc_17_2_22_remote_session_duration_anomalies, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Remote Session Duration Anomalies'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.22.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`vpn:session` or ASA with start/end Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "VPN TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vpn sourcetype=\"vpn:session\" earliest=-7d\n| eval dur_hrs=(end_time-start_time)/3600\n| eventstats median(dur_hrs) as med, stdev(dur_hrs) as sd by user\n| eval z=if(sd>0, (dur_hrs-med)/sd, 0)\n| where abs(z)>3 OR dur_hrs>48 OR dur_hrs<0.01\n| table user, dur_hrs, med, z, src",
   "description": "Statistical outliers in VPN session length — unusually short (brute probe) or long (unattended tunnel) vs UC-17.3.8 fixed thresholds.",
   "value": "Security analysts detect statistically anomalous VPN session durations per user, catching sessions that are unusually long (potential persistent access) or unusually short (connectivity issues or failed logins).",
@@ -24,15 +30,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021",
     "T1219"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `duration` (session duration in seconds), `action=session_disconnect`, `bytes_in`, `bytes_out`.\n• At least 7 days of data to establish per-user baselines.\n\nStep 1 — Configure data collection\nVerify duration data:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| where isnotnull(duration) AND duration>0\n| stats avg(duration) as avg_sec by user\n| eval avg_hours=round(avg_sec/3600, 1)\n| sort - avg_hours\n| head 10\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Duration anomaly detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| eval dur_hrs=duration/3600\n| eventstats avg(dur_hrs) as user_avg stdev(dur_hrs) as user_sd by user\n| eval zscore=if(user_sd>0, (dur_hrs - user_avg)/user_sd, 0)\n| where abs(zscore) > 3\n| eval anomaly_type=if(zscore>0, \"UNUSUALLY LONG\", \"UNUSUALLY SHORT\")\n| stats count values(anomaly_type) as types max(dur_hrs) as max_hrs min(dur_hrs) as min_hrs by user\n| sort - count\n```\n\nUnderstanding this SPL: Calculates per-user session duration baselines and flags sessions that deviate by more than 3 standard deviations. Unusually long sessions (>3 sigma above average) may indicate a forgotten connection, an automated process, or an attacker maintaining persistence. Unusually short sessions (<3 sigma below average) may indicate tunnel instability (UC-17.2.5) or failed logins.\n\nStep 3 — Validate\n(a) Check 3 flagged sessions — do the durations make business sense?\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Duration anomalies (7d)\". Row 2 — Table: user, anomaly type, duration, z-score.\nAlert: Daily digest of anomalies.\n\nRunbook:\n1. **Unusually long session** — Check if the user is still active. Idle sessions should be terminated per policy.\n2. **Unusually short** — May indicate connectivity issues. Correlate with tunnel stability (UC-17.2.5).\n\nStep 5 — Troubleshooting\n• **Duration field not available** — Calculate from connect/disconnect timestamps: `| transaction user maxspan=24h`.\n• **Baseline too narrow** — New users have limited history. Exclude users with fewer than 5 sessions.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`). Data in `index=vpn`.\n• Key fields: `user`, `duration` (session duration in seconds), `action=session_disconnect`, `bytes_in`, `bytes_out`.\n• At least 7 days of data to establish per-user baselines.\n\nStep 1 — Configure data collection\nVerify duration data:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| where isnotnull(duration) AND duration>0\n| stats avg(duration) as avg_sec by user\n| eval avg_hours=round(avg_sec/3600, 1)\n| sort - avg_hours\n| head 10\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Duration anomaly detection:\n```spl\nindex=vpn sourcetype=\"cisco:asa\" action=\"session_disconnect\" earliest=-7d\n| eval dur_hrs=duration/3600\n| eventstats avg(dur_hrs) as user_avg stdev(dur_hrs) as user_sd by user\n| eval zscore=if(user_sd>0, (dur_hrs - user_avg)/user_sd, 0)\n| where abs(zscore) > 3\n| eval anomaly_type=if(zscore>0, \"UNUSUALLY LONG\", \"UNUSUALLY SHORT\")\n| stats count values(anomaly_type) as types max(dur_hrs) as max_hrs min(dur_hrs) as min_hrs by user\n| sort - count\n```\n\nUnderstanding this SPL: Calculates per-user session duration baselines and flags sessions that deviate by more than 3 standard deviations. Unusually long sessions (>3 sigma above average) may indicate a forgotten connection, an automated process, or an attacker maintaining persistence. Unusually short sessions (<3 sigma below average) may indicate tunnel instability (UC-17.2.5) or failed logins.\n\nStep 3 — Validate\n(a) Check 3 flagged sessions — do the durations make business sense?\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Duration anomalies (7d)\". Row 2 — Table: user, anomaly type, duration, z-score.\nAlert: Daily digest of anomalies.\n\nRunbook:\n1. **Unusually long session** — Check if the user is still active. Idle sessions should be terminated per policy.\n2. **Unusually short** — May indicate connectivity issues. Correlate with tunnel stability (UC-17.2.5).\n\nStep 5 — Troubleshooting\n• **Duration field not available** — Calculate from connect/disconnect timestamps: `| transaction user maxspan=24h`.\n• **Baseline too narrow** — New users have limited history. Exclude users with fewer than 5 sessions.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (VPN TA — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=vpn:session into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dur_hrs, sd, user, z`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We notice when someone's VPN connection lasts an unusually long or short time compared to their normal pattern, because that can signal something is wrong — like a forgotten session or a connection problem.",
-  "hardware": "Cisco ASA"
+  "hardware": "Cisco ASA",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

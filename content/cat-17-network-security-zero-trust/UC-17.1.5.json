@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE BYOD portal logs, certificate provisioning",
-  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'BYOD Onboarding Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.5).",
+  "evidence": "Saved search uc_17_1_5_byod_onboarding_tracking, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'BYOD Onboarding Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.1.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "ISE BYOD portal logs, certificate provisioning Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:byod\"\n| stats count by device_type, os_type, onboarding_status\n| sort -count",
   "description": "BYOD onboarding metrics inform mobile device management strategy and user experience optimization.",
   "value": "IT teams track the BYOD onboarding pipeline — from attempted registrations to completed enrollment and MDM compliance — identifying OS-specific failures and devices that register but never achieve compliance.",
@@ -23,20 +29,36 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ise"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -45,7 +67,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Cisco ISE BYOD Portal with Dual-SSID or Single-SSID onboarding. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `UserName`, `CallingStationID`, `EndpointOUI`, `OperatingSystem`, `BYODRegistration` (Success/Failure), `MDMComplianceStatus`, `CertificateGeneratedDate`.\n• ISE My Devices Portal allows users to register personal devices. ISE can generate supplicant profiles that install certificates and configure 802.1X automatically.\n• MDM integration (e.g., Microsoft Intune, Workspace ONE): ISE queries MDM for compliance status of BYOD devices.\n• Create a `byod_device_types.csv` lookup: `oui_prefix,manufacturer,device_category` to classify devices by OUI.\n\nStep 1 — Configure data collection\nVerify BYOD events:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where isnotnull(BYODRegistration)\n| stats count by BYODRegistration, OperatingSystem\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — BYOD onboarding funnel:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-30d\n| eval onboard_stage=case(\n    BYODRegistration=\"Success\", \"3_Registered\",\n    BYODRegistration=\"Failure\", \"2_Failed\",\n    isnotnull(BYODRegistration), \"1_Attempted\",\n    1==1, \"0_Unknown\"\n  )\n| stats count by onboard_stage, OperatingSystem\n| sort onboard_stage\n```\n\nUnderstanding this SPL: Tracks the onboarding funnel — how many users attempt, how many fail, and how many complete registration. A high failure rate on a specific OS (especially iOS or Android) often means the supplicant profile is not compatible with the latest OS version.\n\nMDM compliance check:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where BYODRegistration=\"Success\"\n| stats count by MDMComplianceStatus, OperatingSystem\n```\n\nStep 3 — Validate\n(a) In ISE: Work Centers > BYOD > Reports.\n(b) Register a test BYOD device and verify the event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Onboarding funnel. Row 2 — Failures by OS. Row 3 — MDM compliance.\nReport: Weekly BYOD onboarding summary to IT management.\n\nRunbook:\n1. **iOS failures spike** — Check Apple's recent OS update for EAP-TLS changes.\n2. **MDM non-compliant BYOD** — Device does not meet security policy. IT can remediate or revoke access.\n\nStep 5 — Troubleshooting\n• **No BYOD events** — BYOD Portal may not be enabled in ISE. Check Work Centers > BYOD.\n• **`BYODRegistration` field missing** — Requires detailed syslog logging level in ISE.",
+  "detailedImplementation": "Prerequisites\n• Cisco ISE BYOD Portal with Dual-SSID or Single-SSID onboarding. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `UserName`, `CallingStationID`, `EndpointOUI`, `OperatingSystem`, `BYODRegistration` (Success/Failure), `MDMComplianceStatus`, `CertificateGeneratedDate`.\n• ISE My Devices Portal allows users to register personal devices. ISE can generate supplicant profiles that install certificates and configure 802.1X automatically.\n• MDM integration (e.g., Microsoft Intune, Workspace ONE): ISE queries MDM for compliance status of BYOD devices.\n• Create a `byod_device_types.csv` lookup: `oui_prefix,manufacturer,device_category` to classify devices by OUI.\n\nStep 1 — Configure data collection\nVerify BYOD events:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where isnotnull(BYODRegistration)\n| stats count by BYODRegistration, OperatingSystem\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — BYOD onboarding funnel:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-30d\n| eval onboard_stage=case(\n    BYODRegistration=\"Success\", \"3_Registered\",\n    BYODRegistration=\"Failure\", \"2_Failed\",\n    isnotnull(BYODRegistration), \"1_Attempted\",\n    1==1, \"0_Unknown\"\n  )\n| stats count by onboard_stage, OperatingSystem\n| sort onboard_stage\n```\n\nUnderstanding this SPL: Tracks the onboarding funnel — how many users attempt, how many fail, and how many complete registration. A high failure rate on a specific OS (especially iOS or Android) often means the supplicant profile is not compatible with the latest OS version.\n\nMDM compliance check:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where BYODRegistration=\"Success\"\n| stats count by MDMComplianceStatus, OperatingSystem\n```\n\nStep 3 — Validate\n(a) In ISE: Work Centers > BYOD > Reports.\n(b) Register a test BYOD device and verify the event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Onboarding funnel. Row 2 — Failures by OS. Row 3 — MDM compliance.\nReport: Weekly BYOD onboarding summary to IT management.\n\nRunbook:\n1. **iOS failures spike** — Check Apple's recent OS update for EAP-TLS changes.\n2. **MDM non-compliant BYOD** — Device does not meet security policy. IT can remediate or revoke access.\n\nStep 5 — Troubleshooting\n• **No BYOD events** — BYOD Portal may not be enabled in ISE. Check Work Centers > BYOD.\n• **`BYODRegistration` field missing** — Requires detailed syslog logging level in ISE.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:byod into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`device_type, onboarding_status, os_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We track how employees bring their personal phones and laptops onto our network — we can see who tried to connect, who succeeded, who failed, and whether each personal device meets our security requirements.",
-  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend"
+  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,6 +8,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Client Roaming Event Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.44).",
+  "evidence": "Saved search uc_5_13_44_client_roaming_event_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Client Roaming Event Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.44.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:client` from the `client` detail modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same per-client feed as UC-5.13.40. Roaming is detected by tracking `apName` changes for the same `macAddress` across consecutive polls. Roaming-related fields (when available): `roamDuration` (ms), `previousApName`, `roamType` (11r/11k/11v/legacy). Not all Catalyst Center versions expose dedicated roaming fields — see Step 1 for detection alternatives.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:client\" connectionType=\"WIRELESS\"\n| sort macAddress, _time\n| streamstats current=f last(apName) as prev_ap by macAddress\n| where apName != prev_ap AND isnotnull(prev_ap)\n| stats count as roam_count dc(apName) as aps_visited avg(roamDuration) as avg_roam_ms by macAddress, ssid\n| where roam_count > 3\n| eval avg_roam_ms=round(coalesce(avg_roam_ms, -1), 0)\n| sort -roam_count\n| head 20",
@@ -18,22 +24,26 @@
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Client Detail endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-client-detail"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-client-detail",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco 802.11r, 802.11k, 802.11v — Fast Roaming Best Practices",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Mobile users walking between buildings.** Users physically moving between buildings legitimately roam between APs. Distinguish by checking whether the `aps_visited` value corresponds to APs in different buildings (correlate with `siteId` if available). Do not suppress — but these roams are expected and healthy. Investigate only when `avg_roam_ms` is high (> 200ms), indicating the roam is slow despite being legitimate.\n\n**Client 'ping-ponging' between two APs with overlapping coverage.** A client positioned equidistant between two APs may oscillate rapidly between them — associating with one, then the other, then back. Distinguish by checking whether `aps_visited = 2` with high `roam_count`. Suppress by tuning AP power to reduce overlap, or enabling sticky-client mitigation on the WLC.\n\n**VoIP/video clients showing high roam count but healthy call quality.** 802.11r/k/v fast roaming can complete in < 20ms, so even 10 roams per hour may not impact the application. Distinguish by checking `avg_roam_ms` — if < 50ms, the roaming is healthy. Suppress by only alerting when `avg_roam_ms > 200`.\n\n**`roamDuration` not available in your Catalyst Center version.** Without `roamDuration`, you can only count roam events, not measure their impact. The event count is still useful for identifying ping-pong clients. Do not suppress — adapt the analysis to use roam count as the severity metric instead of roam duration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

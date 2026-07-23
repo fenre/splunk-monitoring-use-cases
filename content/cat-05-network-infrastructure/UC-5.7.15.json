@@ -10,6 +10,12 @@
     "Risk"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Encrypted Traffic Analytics (ETA) via Flow Metadata'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.7.15).",
+  "evidence": "Saved search uc_5_7_15_encrypted_traffic_analytics_eta_via_flow, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Encrypted Traffic Analytics (ETA) via Flow Metadata'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.7.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=netflow` or companion `index=network_security` carrying Cisco Encrypted Traffic Analytics adjunct records exported through Flexible NetFlow / IPFIX with TLS/JA3-like metadata (`spl_exfiltration_score`, `tls_extensions_length`, `ssl_flow_flags`, `initial_round_trip_time_ms`) ingested via Splunk Add-on for NetFlow (Splunkbase 1838) or companion parsers from Cisco Secure Analytics integrations.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838); optional Cisco Secure Analytics field-mapping guidance",
   "spl": "index=netflow earliest=-24h dest_port=443 OR dest_port=9443\n| eval eta_score=coalesce(spl_exfiltration_score, eta_metadata_score, ssl_entropy_score)\n| eval tls_ext=coalesce(tls_extensions_length, tls_extensions_len)\n| eval handshake_rtt=coalesce(initial_round_trip_time_ms, tls_handshake_rtt_ms)\n| where isnotnull(eta_score) OR isnotnull(tls_ext) OR isnotnull(handshake_rtt)\n| stats avg(eta_score) as avg_eta max(eta_score) as peak_eta sum(bytes) as bytes dc(dest) as uniq_servers count as flows\n  by src\n| where avg_eta>50 OR peak_eta>85 OR (flows>500 AND avg_eta>35)\n| eval mb=round(bytes/1048576,2)\n| sort -peak_eta\n| head 50",
@@ -20,14 +26,26 @@
   "references": [
     {
       "title": "Cisco Encrypted Traffic Analytics Overview",
-      "url": "https://www.cisco.com/c/en/us/products/security/"
+      "url": "https://www.cisco.com/c/en/us/products/security/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — NetFlow Add-on",
-      "url": "https://docs.splunk.com/Documentation/NetFlow/"
+      "url": "https://docs.splunk.com/Documentation/NetFlow/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Developers compiling containers generate noisy handshake variability. Video conferencing renewal bursts inflate round-trip statistics. Misconfigured load balancers duplicate flows and exaggerate scores.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "netflow"
@@ -44,7 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Hardware with Cisco ETA licensing and Stealthwatch or Secure Client telemetry correlation documented by your security architecture board.\n• Splunk field extractions verified against a packet capture ground truth during pilot.\n• Governance memo permitting metadata-driven inspection without payload decryption.\n\nStep 1 — Configure data collection\nMirror Flexible NetFlow records to a dedicated heavy forwarder input; segregate high-volume campus exporters into separate indexes to control license burn.\n\nStep 2 — Create the search\nLayer allowlists for software-update CDN nets and known DevOps artifact hosts. Use `streamstats` over seven days per src for adaptive thresholds when static numbers chatter.\n\nStep 3 — Validate\nReplay labelled malware samples in a sandbox whose flows egress through an ETA-enabled router and confirm elevated scores appear with acceptable latency.\n\nStep 4 — Operationalize\nDashboard integrates ETA tiles with traditional volumetric exfiltration panels from sibling use cases; notable events carry autonomous-system and domain enrichment.\n\nStep 5 — Troubleshooting\nNull scores often mean an outdated protocol pack—upgrade IOS-XE. Duplicate telemetry occurs when both sampled NetFlow and packet-derived analytics feed Splunk; deduplicate using `dedup` on `(src, dest, dest_port, flow_start_ms)`.",
+  "detailedImplementation": "Prerequisites\n• Hardware with Cisco ETA licensing and Stealthwatch or Secure Client telemetry correlation documented by your security architecture board.\n• Splunk field extractions verified against a packet capture ground truth during pilot.\n• Governance memo permitting metadata-driven inspection without payload decryption.\n\nStep 1 — Configure data collection\nMirror Flexible NetFlow records to a dedicated heavy forwarder input; segregate high-volume campus exporters into separate indexes to control license burn.\n\nStep 2 — Create the search\nLayer allowlists for software-update CDN nets and known DevOps artifact hosts. Use `streamstats` over seven days per src for adaptive thresholds when static numbers chatter.\n\nStep 3 — Validate\nReplay labelled malware samples in a sandbox whose flows egress through an ETA-enabled router and confirm elevated scores appear with acceptable latency.\n\nStep 4 — Operationalize\nDashboard integrates ETA tiles with traditional volumetric exfiltration panels from sibling use cases; notable events carry autonomous-system and domain enrichment.\n\nStep 5 — Troubleshooting\nNull scores often mean an outdated protocol pack—upgrade IOS-XE. Duplicate telemetry occurs when both sampled NetFlow and packet-derived analytics feed Splunk; deduplicate using `dedup` on `(src, dest, dest_port, flow_start_ms)`.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838); optional Cisco Secure Analytics field-mapping guidance). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_eta, flows, peak_eta, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We study fingerprints around sealed letter traffic—timing and shape clues the gear shares—so we can spot sneaky tunnels without opening every envelope.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

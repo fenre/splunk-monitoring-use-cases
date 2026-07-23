@@ -9,8 +9,14 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`).",
-  "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DNS Latency Degradation by Resolver'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.9.9).",
+  "evidence": "Saved search uc_25_9_9_dns_latency_degradation_by_resolver, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DNS Latency Degradation by Resolver'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.9.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pihole:query\n| bin _time span=1h\n| stats avg(reply_time_ms) as avg_ms by upstream _time\n| eventstats avg(avg_ms) as baseline by upstream\n| where avg_ms>baseline*1.5 AND avg_ms>50\n| sort - avg_ms",
   "description": "Compares hourly DNS response time against each upstream resolver's own baseline and catches the nameserver that is suddenly making everything feel slow.",
   "value": "Slow DNS harms the whole home network in subtle ways; a resolver-specific trend gives you a quick answer before blaming the ISP or Wi-Fi.",
@@ -20,15 +26,38 @@
   "references": [
     {
       "title": "Pi-hole - Documentation",
-      "url": "https://docs.pi-hole.net/"
+      "url": "https://docs.pi-hole.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "syslog"
   ],
-  "grandmaExplanation": "It tracks which DNS server is suddenly taking much longer than usual to answer lookups for your home devices."
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Pi-hole — Pi-hole API / tail FTL log → UF or HEC.\n• **Subcategory context**: Home Network & Connectivity — typical feeds: UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes..\n• **Sourcetypes in this search**: `pihole:query`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Pi-hole** events into `index=personal` with `sourcetype=pihole:query`.\n\n**Collection method:** Pi-hole API / tail FTL log → UF or HEC.\n\n**Reference endpoint / path:** `GET /admin/api.php?summaryRaw&auth=<token>`.\n\n**Suggested poll interval:** 300s.\n\n**Key fields to extract:** `domains_being_blocked, ads_blocked_today, dns_queries_today`.\n\n**Typical connector stack:** UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder..\n\n**Author notes:** Forward Pi-hole query timing and upstream server fields; alert when one resolver drifts materially above normal latency.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"pihole:query\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=pihole:query earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **DNS Latency Degradation by Resolver** over `personal` data (primarily `sourcetype=pihole:query`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `avg_ms`, `upstream`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=pihole:query\n| bin _time span=1h\n| stats avg(reply_time_ms) as avg_ms by upstream _time\n| eventstats avg(avg_ms) as baseline by upstream\n| where avg_ms>baseline*1.5 AND avg_ms>50\n| sort - avg_ms\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Pi-hole admin → Dashboard main counters. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=pihole:query earliest=-7d\n| head 50\n| table _time, avg_ms, upstream\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=pihole:query earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `avg_ms` before alerting:\n\n```spl\nindex=personal sourcetype=pihole:query earliest=-30d\n| stats perc50(avg_ms) AS p50 perc90(avg_ms) AS p90 perc99(avg_ms) AS p99 max(avg_ms) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.9.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Hourly Table Of Upstream Resolvers By Average Response Time And Baseline Delta (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Pi-hole — no Pi-hole events / missing fields:** If `pihole:query` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Pi-hole connector script is still running (`systemctl status` or cron log).\n\n**Pi-hole — NULL values in extracted fields:** The Pi-hole JSON export shape drifted — compare a raw event (`index=personal sourcetype=pihole:query | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Pi-hole — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Pi-hole — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Pi-hole APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It tracks which DNS server is suddenly taking much longer than usual to answer lookups for your home devices.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

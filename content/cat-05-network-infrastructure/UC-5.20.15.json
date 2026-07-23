@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Address Accountability and Forensic Mapping'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.15).",
+  "evidence": "Saved search uc_5_20_15_ipv6_address_accountability_and_forensic, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Address Accountability and Forensic Mapping'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Four data sources correlated for end-to-end accountability:\n1. **IPFIX/NetFlow** — `index=netflow sourcetype=ipfix` — who communicated (IPv6 source, destination, ports, timestamps).\n2. **NDP cache** — `index=network sourcetype=ndp:cache` — MAC-to-IPv6 binding at the first hop (from SNMP polling of `ipv6NetToMediaTable`).\n3. **DHCPv6 leases** — `index=dhcp sourcetype=infoblox:dhcp` — DUID-to-IPv6 assignment history.\n4. **RADIUS accounting** — `index=radius sourcetype=cisco:ise:radius` — user-to-MAC-to-port binding from 802.1X authentication.\nThe correlation chain: Flow → IPv6 address → NDP cache → MAC → RADIUS → username → port → switch → physical location.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1658), SNMP Modular Input or SC4SNMP for NDP cache, Splunk Add-on for Infoblox (Splunkbase 2934), Splunk Add-on for Cisco ISE (Splunkbase 7437).",
   "spl": "index=netflow sourcetype=ipfix earliest=-24h\n| where match(src_ip, \":\")\n| lookup ndp_cache_lookup ipv6_address as src_ip OUTPUT mac_address, switch_hostname, switch_port\n| lookup dhcpv6_lease_lookup ipv6_address as src_ip OUTPUT duid, lease_start, lease_end\n| lookup radius_auth_lookup mac as mac_address OUTPUT username, nas_port, auth_time\n| eval accountability_depth=case(\n    isnotnull(username), \"FULL — user identified\",\n    isnotnull(mac_address), \"PARTIAL — MAC known, user unknown\",\n    isnotnull(duid), \"PARTIAL — DUID known, MAC unknown (DUID-EN)\",\n    1==1, \"NONE — address only\")\n| stats count as flows dc(src_ip) as unique_addresses by accountability_depth\n| eventstats sum(flows) as total_flows\n| eval pct=round(flows/total_flows*100, 1)",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.2.1 — Address accountability)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6302 — Logging Recommendations for Internet-Facing Servers (BCP 162 — source port + timestamp for attribution)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6302"
+      "url": "https://www.rfc-editor.org/rfc/rfc6302",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§5.2 — Address forensics)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Guest network traffic.** Guest WiFi networks typically don't use 802.1X authentication, so RADIUS accounting is absent. Guest traffic will always show PARTIAL or NONE accountability, which is expected by design — guests are isolated in a separate security zone. Filter guest VLANs from the accountability metric.\n\n**Infrastructure device traffic.** Router-to-router traffic (OSPFv3, BGP, NDP multicast) will not have RADIUS correlations because infrastructure devices authenticate differently (SSH keys, TACACS+). Exclude infrastructure address ranges from the metric.\n\n**Privacy extension addresses not yet in NDP cache.** If a privacy extension address was created after the last NDP cache poll but before the flow was recorded, the NDP lookup will fail. This is a timing gap, not a true accountability failure. Increasing NDP poll frequency reduces this gap.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "cisco_ise",

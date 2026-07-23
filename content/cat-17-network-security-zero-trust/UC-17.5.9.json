@@ -9,10 +9,16 @@
     "Performance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Forcepoint Bandwidth Consumption by Application Category (`forcepoint:one`)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.5.9).",
+  "evidence": "Saved search uc_17_5_9_forcepoint_bandwidth_consumption_by_appl, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Forcepoint Bandwidth Consumption by Application Category (`forcepoint:'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.5.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| stats sum(bytes_in) as in_b sum(bytes_out) as out_b by category\n| eval total_mb=round((in_b+out_b)/1048576,2)\n| sort -total_mb",
-  "description": "Understanding heavy categories guides QoS, caching, and SD-WAN policies.",
+  "description": "Understanding heavy categories guides QoS, caching, and SD-WAN policies. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Network and security teams analyze bandwidth consumption patterns by application category and user, identifying excessive streaming, abnormal upload ratios that suggest data exfiltration, and users consuming disproportionate network resources.",
   "implementation": "Install the Insights SIEM app, configure HEC inputs per product line, and align indexes (`proxy`, `email`, `dlp`, `sase`). Normalize usernames to enterprise SAMAccountName.",
   "visualization": "Treemap (category bytes), table.",
@@ -22,17 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/3245"
+      "url": "https://splunkbase.splunk.com/app/3245",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Forcepoint Insights SIEM App (Splunkbase 8053) or direct integration from Forcepoint ONE SSE.\n• Data in `index=sase` with `sourcetype=forcepoint:one`. Key fields: `app_name`, `app_category`, `bytes_in`, `bytes_out`, `user`, `src_ip`, `event_type`.\n• Forcepoint ONE SSE processing web and cloud traffic with application classification enabled.\n\nStep 1 — Configure data collection\nVerify bandwidth data:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| stats sum(bytes_in) as total_in sum(bytes_out) as total_out dc(app_name) as apps by app_category\n| eval total_gb=round((total_in+total_out)/1073741824, 2)\n| sort - total_gb\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Bandwidth by application category:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| stats sum(bytes_in) as in_bytes sum(bytes_out) as out_bytes dc(user) as users dc(app_name) as apps by app_category\n| eval total_bytes=in_bytes+out_bytes\n| eval total_gb=round(total_bytes/1073741824, 2)\n| eval upload_pct=round(out_bytes/total_bytes*100, 1)\n| sort - total_gb\n| head 20\n```\n\nUnderstanding this SPL: Ranks application categories by total bandwidth consumption. Categories with disproportionate upload percentages (>30%) warrant investigation — legitimate browsing is download-heavy, while data exfiltration is upload-heavy. 'Streaming Media' dominating bandwidth is a productivity concern; 'Cloud Storage' with high upload volume is a security concern.\n\nTop bandwidth consumers by user:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| stats sum(bytes_in) as in_b sum(bytes_out) as out_b by user, app_category\n| eval total_gb=round((in_b+out_b)/1073741824, 2)\n| where total_gb > 1\n| sort - total_gb\n| head 20\n```\n\nStep 3 — Validate\n(a) In Forcepoint ONE portal: Reports > Bandwidth Usage. Compare category totals with Splunk.\n(b) Cross-reference with network monitoring tools for total internet bandwidth — Forcepoint should account for the majority of user web traffic.\n\nStep 4 — Operationalize\nDashboard (\"Forcepoint — Bandwidth Analytics\"):\n• Row 1 — Single-value: \"Total bandwidth (GB, 24h)\", \"Top category\", \"Upload ratio (%)\".\n• Row 2 — Pie chart: bandwidth by category.\n• Row 3 — Timechart: bandwidth over 7 days by top 5 categories.\n• Row 4 — Table: top users by bandwidth.\n\nAlert: Trigger when any single user exceeds 10 GB upload in 24h.\n\nRunbook:\n1. **Streaming media consuming excessive bandwidth** — Apply bandwidth throttling in Forcepoint policy for streaming categories during business hours.\n2. **Cloud storage high upload** — Correlate with DLP findings (UC-17.5.2). May be legitimate backup or data exfiltration.\n3. **Single user massive bandwidth** — May be downloading large files, streaming, or running automated tools. Investigate.\n\nStep 5 — Troubleshooting\n• **`bytes_in`/`bytes_out` always zero** — Byte counting may require specific log level. Check event format.\n• **Category shows 'Unknown'** — Application classification database needs updating.\n• **Total bandwidth seems low** — Split-tunnel VPN or direct internet access may bypass Forcepoint.",
-  "grandmaExplanation": "We measure how much internet data each type of application uses, so we can spot if someone is uploading a lot of files to an outside service or if video streaming is hogging all the bandwidth."
+  "grandmaExplanation": "We measure how much internet data each type of application uses, so we can spot if someone is uploading a lot of files to an outside service or if video streaming is hogging all the bandwidth.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

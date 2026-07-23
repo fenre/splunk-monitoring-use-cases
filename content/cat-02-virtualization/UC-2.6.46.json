@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:monitor:odata\"` (Machines, Sessions, and LoadIndex fields from the Citrix Monitor Service OData collection); field aliases such as `load_index` or `LoadIndex` depending on the collector; `MachineName` / `CatalogName` / `DesktopGroupName` for grouping",
-  "app": "Citrix Monitor Service OData poller (custom scripted input) or a supported Splunk Citrix add-on that writes `citrix:monitor:odata`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix Monitor OData Load Index Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.46).",
+  "evidence": "Saved search uc_2_6_46_citrix_monitor_odata_load_index_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix Monitor OData Load Index Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.46.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:monitor:odata\"` (Machines, Sessions, and LoadIndex fields from the Citrix Monitor Service OData collection); field aliases such as `load_index` or `LoadIndex` depending on the collector; `MachineName` / `CatalogName` / `DesktopGroupName` for grouping Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix Monitor Service OData poller (custom scripted input) or a supported Splunk Citrix add-on that writes `citrix:monitor:odata` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd sourcetype=\"citrix:monitor:odata\" odata_resource=\"Machines\"\n| eval li=tonumber(coalesce(load_index, LoadIndex, 0))\n| eval machine=coalesce(machine_name, MachineName, host)\n| eval dg=coalesce(delivery_group, DesktopGroupName, \"Unknown\")\n| where li >= 0\n| bin _time span=1h\n| stats latest(li) as load_index, max(li) as peak_li by machine, dg, _time\n| where peak_li > 5000\n| timechart max(peak_li) by dg",
   "description": "The Citrix load evaluator reports a load index (0 to 10,000) that combines session count, application load, and other factors per machine. Trending that index at the machine and delivery group level shows who is overassigned before new sessions fail, validates load-balancing policy effectiveness, and helps capacity planning. Spikes in average or peak load index that persist across hours point to too few hosts, heavy users, or runaway published applications, not one-off blips. Pair this with session counts to separate genuine saturation from a broken load metric source.",
-  "value": "The Citrix load evaluator reports a load index (0 to 10,000) that combines session count, application load, and other factors per machine. Trending that index at the machine and delivery group level shows who is overassigned before new sessions fail, validates load-balancing policy effectiveness, and helps capacity planning. Spikes in average or peak load index that persist across hours point to too few hosts, heavy users, or runaway published applications, not one-off blips. Pair this with session counts to separate genuine saturation from a broken load metric source.",
+  "value": "Operations and leadership rely on 'Citrix Monitor OData Load Index Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Stand up a scheduled OData poll with authentication to the on-premises Monitor service and persist JSON into `citrix:monitor:odata` with a stable `odata_resource` field. Map OData property names to lowercase Splunk fields for `LoadIndex` and `MachineName`. Create hourly or fifteen-minute baselines. Alert when peak load index exceeds 5,000 (tunable) for any machine for more than two consecutive samples, or when the delivery group average crosses your internal green/yellow line. Onboard a dashboard of top ten machines by load index with drilldowns to process and session data.",
   "visualization": "Line chart of max load index by delivery group, heatmap of machines over time, table of current worst offenders with load index and session count if joined.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Monitor Service and OData in CVAD",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix"
   ],
@@ -33,6 +55,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: A Citrix Monitor OData poller (scripted or third-party) that writes to `index=xd` with `sourcetype=\"citrix:monitor:odata\"`.\n• Ensure the following data sources are available: OData `Machines` and optionally `Sessions` for joins; service account with least privilege.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule polls at least every five minutes. Use incremental queries if the API supports it. Add credentials in `password.conf` and reference a modular or scripted input. Normalize field names. Log HTTP failures from the poller to a separate index so you can alert on collector outages separately from high load index.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; fix `coalesce` field list to the names your poller actually emits):\n\n```spl\nindex=xd sourcetype=\"citrix:monitor:odata\" odata_resource=\"Machines\"\n| eval li=tonumber(coalesce(load_index, LoadIndex, 0))\n| eval machine=coalesce(machine_name, MachineName, host)\n| eval dg=coalesce(delivery_group, DesktopGroupName, \"Unknown\")\n| bin _time span=1h\n| stats latest(li) as load_index, max(li) as peak_li by machine, dg, _time\n| where peak_li > 5000\n```\n\n**Citrix Monitor OData Load Index Trending** — The `5,000` cut is a starting point: busy single-session physical hosts may be lower. For multi-session, lower thresholds are common. Add `streamstats` to require sustained elevation before alerting.\n\nStep 3 — Validate\nCompare a known busy host’s on-console load index in Citrix against the poll. If deltas appear, check clock skew, poll interval, and whether you are using cached OData responses.\n\nStep 4 — Operationalize\nTie the alert to capacity reviews: new hardware, more instances, or session limits per user. Revisit delivery group power management so hosts come online before load index pegs at shift start.",
-  "grandmaExplanation": "We track how “full” each desktop server is using Citrix’s own load number over time, so you add capacity or balance work before that host stops taking new people."
+  "grandmaExplanation": "We track how “full” each desktop server is using Citrix’s own load number over time, so you add capacity or balance work before that host stops taking new people.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

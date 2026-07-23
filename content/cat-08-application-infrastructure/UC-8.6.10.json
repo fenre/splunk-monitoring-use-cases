@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Envoy /stats endpoint (envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry)",
-  "app": "Custom (Envoy admin /stats, Prometheus metrics)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Envoy Proxy Upstream Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.6.10).",
+  "evidence": "Saved search uc_8_6_10_envoy_proxy_upstream_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Envoy Proxy Upstream Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.6.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Envoy /stats endpoint (envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Envoy admin /stats, Prometheus metrics) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mesh sourcetype=\"envoy:stats\"\n| search \"envoy_cluster_upstream\" (\"cx_active\" OR \"rq_retry\" OR \"circuit_breakers\")\n| rex \"envoy_cluster\\.(?<cluster>[^.]+)\\.(?<metric>\\w+)=(?<value>\\d+)\"\n| stats latest(value) as val by cluster, metric\n| where metric==\"rq_retry\" AND val > 0 OR metric==\"circuit_breakers_default_rq_open\" AND val > 0",
   "description": "Upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health. Detection enables rapid isolation of failing upstreams.",
-  "value": "Upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health. Detection enables rapid isolation of failing upstreams.",
+  "value": "Operations and leadership rely on 'Envoy Proxy Upstream Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Enable Envoy admin interface (`/stats`). Poll via scripted input or Prometheus scrape every 30 seconds. Parse envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry, envoy_cluster_upstream_rq_retry_overflow, circuit_breakers.*.rq_open. Forward to Splunk via HEC. Alert when retry rate spikes or circuit breaker opens. Correlate with upstream service health checks.",
   "visualization": "Status grid (cluster × health), Line chart (retry rate over time), Table (clusters with circuit breaker trips), Single value (active circuit breakers).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "envoy",
     "prometheus"
   ],
+  "equipmentModels": [
+    "envoy_generic",
+    "prometheus_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Envoy admin /stats, Prometheus metrics).\n• Ensure the following data sources are available: Envoy /stats endpoint (envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Envoy admin interface (`/stats`). Poll via scripted input or Prometheus scrape every 30 seconds. Parse envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry, envoy_cluster_upstream_rq_retry_overflow, circuit_breakers.*.rq_open. Forward to Splunk via HEC. Alert when retry rate spikes or circuit breaker opens. Correlate with upstream service health checks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:stats\"\n| search \"envoy_cluster_upstream\" (\"cx_active\" OR \"rq_retry\" OR \"circuit_breakers\")\n| rex \"envoy_cluster\\.(?<cluster>[^.]+)\\.(?<metric>\\w+)=(?<value>\\d+)\"\n| stats latest(value) as val by cluster, metric\n| where metric==\"rq_retry\" AND val > 0 OR metric==\"circuit_breakers_default_rq_open\" AND val > 0\n```\n\nUnderstanding this SPL\n\n**Envoy Proxy Upstream Health** — Upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health. Detection enables rapid isolation of failing upstreams.\n\nDocumented **Data sources**: Envoy /stats endpoint (envoy_cluster_upstream_cx_active, envoy_cluster_upstream_rq_retry). **App/TA** (typical add-on context): Custom (Envoy admin /stats, Prometheus metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mesh; **sourcetype**: envoy:stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mesh, sourcetype=\"envoy:stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by cluster, metric** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where metric==\"rq_retry\" AND val > 0 OR metric==\"circuit_breakers_default_rq_open\" AND val > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (cluster × health), Line chart (retry rate over time), Table (clusters with circuit breaker trips), Single value (active circuit breakers).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health."
+  "grandmaExplanation": "We watch for signs that upstream cluster health, retry rate, and circuit breaker trips indicate Envoy proxy and backend service health.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:ucm:cdr`",
-  "app": "`TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'CUCM CDR Call Path Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-11.3.35).",
+  "evidence": "Saved search uc_11_3_35_cucm_cdr_call_path_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'CUCM CDR Call Path Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-11.3.35.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cisco:ucm:cdr` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:cdr\"\n| eval call_path=origDeviceName.\" → \".lastRedirectDn.\" → \".destDeviceName\n| eval failed=if(destCause_value!=16 AND destCause_value!=0, 1, 0)\n| stats count as total_calls, sum(failed) as failed_calls, values(origCause_value) as orig_causes, values(destCause_value) as dest_causes by call_path, origCallingPartyNumber, finalCalledPartyNumber\n| eval fail_pct=round(failed_calls*100/total_calls, 1)\n| where fail_pct > 10 OR failed_calls > 5\n| sort -fail_pct\n| table call_path, origCallingPartyNumber, finalCalledPartyNumber, total_calls, failed_calls, fail_pct, dest_causes",
   "description": "End-to-end call routing visibility across gateways, trunks, route patterns, and route lists exposes misconfigured route plans that silently send calls through unintended paths — causing unexpected PSTN charges, degraded codec quality, or failed calls that users report as \"the phone just doesn't work.\" CDR path analysis turns cryptic cause codes into actionable routing intelligence.",
-  "value": "End-to-end call routing visibility across gateways, trunks, route patterns, and route lists exposes misconfigured route plans that silently send calls through unintended paths — causing unexpected PSTN charges, degraded codec quality, or failed calls that users report as \"the phone just doesn't work.\" CDR path analysis turns cryptic cause codes into actionable routing intelligence.",
+  "value": "Operations and leadership rely on 'CUCM CDR Call Path Analysis' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest CUCM CDR data via the Cisco CDR Reporting TA. The `origDeviceName`, `lastRedirectDn`, and `destDeviceName` fields trace the call path through the CUCM dial plan. `destCause_value=16` (Normal Call Clearing) indicates a successful call; any other value signals routing failure, congestion, or configuration error. Common cause codes to watch: 1 (Unallocated Number), 34 (No Circuit), 47 (Resource Unavailable), 127 (Interworking). Build a lookup for cause code descriptions. Group by route pattern or called party transform pattern to identify which dial plan rules produce the most failures. Alert when a previously healthy path exceeds 10% failure rate within 1 hour. Correlate with gateway utilization (UC-11.3.38) to distinguish capacity-related failures from configuration errors.",
   "visualization": "Sankey diagram (call flow from origin → redirect → destination), Table (failed paths with cause codes), Bar chart (failures by cause code), Line chart (path failure rate over 24 hours).",
   "cimModels": [
@@ -23,17 +29,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Complex transfers, call forwarding, and hunt overflow paths that are valid but hard to read.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_ucm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669).\n• Ensure the following data sources are available: `sourcetype=cisco:ucm:cdr`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest CUCM CDR data via the Cisco CDR Reporting TA. The `origDeviceName`, `lastRedirectDn`, and `destDeviceName` fields trace the call path through the CUCM dial plan. `destCause_value=16` (Normal Call Clearing) indicates a successful call; any other value signals routing failure, congestion, or configuration error. Common cause codes to watch: 1 (Unallocated Number), 34 (No Circuit), 47 (Resource Unavailable), 127 (Interworking). Build a lookup for cause code descriptions. Group by route patte…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:cdr\"\n| eval call_path=origDeviceName.\" → \".lastRedirectDn.\" → \".destDeviceName\n| eval failed=if(destCause_value!=16 AND destCause_value!=0, 1, 0)\n| stats count as total_calls, sum(failed) as failed_calls, values(origCause_value) as orig_causes, values(destCause_value) as dest_causes by call_path, origCallingPartyNumber, finalCalledPartyNumber\n| eval fail_pct=round(failed_calls*100/total_calls, 1)\n| where fail_pct > 10 OR failed_calls > 5\n| sort -fail_pct\n| table call_path, origCallingPartyNumber, finalCalledPartyNumber, total_calls, failed_calls, fail_pct, dest_causes\n```\n\nUnderstanding this SPL\n\n**CUCM CDR Call Path Analysis** — End-to-end call routing visibility across gateways, trunks, route patterns, and route lists exposes misconfigured route plans that silently send calls through unintended paths — causing unexpected PSTN charges, degraded codec quality, or failed calls that users report as \"the phone just doesn't work.\" CDR path analysis turns cryptic cause codes into actionable routing intelligence.\n\nDocumented **Data sources**: `sourcetype=cisco:ucm:cdr`. **App/TA** (typical add-on context): `TA for Cisco CDR Reporting and Analytics` (Splunkbase #4434), `Cisco CDR Reporting and Analytics` (Splunkbase #669). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:cdr. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:cdr\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **call_path** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **failed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by call_path, origCallingPartyNumber, finalCalledPartyNumber** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fail_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fail_pct > 10 OR failed_calls > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **CUCM CDR Call Path Analysis**): table call_path, origCallingPartyNumber, finalCalledPartyNumber, total_calls, failed_calls, fail_pct, dest_causes\n\n\nStep 3 — Validate\nCompare with CUCM RTMT, CallManager service parameters, and CDR/CMR or quality reports in Cisco unified communications admin for the same cluster and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey diagram (call flow from origin → redirect → destination), Table (failed paths with cause codes), Bar chart (failures by cause code), Line chart (path failure rate over 24 hours).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Unified Communications Manager (CUCM), CUBE, ISDN Gateways, Cisco VG series"
+  "hardware": "Cisco Unified Communications Manager (CUCM), CUBE, ISDN Gateways, Cisco VG series",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

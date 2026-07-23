@@ -9,8 +9,14 @@
     "Data Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`).",
-  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ShutterCount Camera Health Sync Gap Watch'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.63.18).",
+  "evidence": "Saved search uc_25_63_18_shuttercount_camera_health_sync_gap_watc, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ShutterCount Camera Health Sync Gap Watch'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.63.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=shuttercount:camera\n| stats max(_time) as last_seen by camera_body\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
   "description": "Detects when ShutterCount camera health data has stopped arriving for a given camera body.",
   "value": "Personal telemetry is only useful when it is current; sync-gap alerts catch failed exports and broken credentials early.",
@@ -20,24 +26,43 @@
   "references": [
     {
       "title": "Adobe Lightroom Classic",
-      "url": "https://www.adobe.com/products/photoshop-lightroom-classic.html"
+      "url": "https://www.adobe.com/products/photoshop-lightroom-classic.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Flickr API Services",
-      "url": "https://www.flickr.com/services/api/"
+      "url": "https://www.flickr.com/services/api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ShutterCount",
-      "url": "https://shuttercount.com/"
+      "url": "https://shuttercount.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "F3 - Fight Flash Fraud",
-      "url": "https://fight-flash-fraud.readthedocs.io/"
+      "url": "https://fight-flash-fraud.readthedocs.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It monitors when one part of your ShutterCount camera health feed has stopped checking in and probably needs fixing."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Photography & Camera Gear — typical feeds: Lightroom photo exports (`lightroom:photo`), Flickr photo metadata (`flickr:photo`), ShutterCount body audits (`shuttercount:camera`), and F3 card tests (`f3:card`)..\n• **Sourcetypes in this search**: `shuttercount:camera`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=shuttercount:camera`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Adobe Lightroom exports, Flickr API metadata, ShutterCount camera audits, and F3 SD-card health checks sent to Splunk HEC..\n\n**Author notes:** Track the latest event time per camera body and alert when the feed is older than 168 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"shuttercount:camera\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=shuttercount:camera earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **ShutterCount Camera Health Sync Gap Watch** over `personal` data (primarily `sourcetype=shuttercount:camera`) across the full search range. It applies numeric thresholds on `hours_since` (> 168) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `camera_body`, `hours_since`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=shuttercount:camera\n| stats max(_time) as last_seen by camera_body\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=shuttercount:camera earliest=-7d\n| head 50\n| table camera_body, hours_since\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=shuttercount:camera earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=shuttercount:camera earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.63.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `shuttercount:camera` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=shuttercount:camera | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It monitors when one part of your ShutterCount camera health feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

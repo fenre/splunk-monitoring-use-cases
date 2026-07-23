@@ -9,10 +9,16 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Rides (`ride:session`), charge sessions (`ride:charge`), ride exports (`ride:export`), surf forecasts (`surf:forecast`), ride incidents (`ride:incident`), segment efforts (`fitness:segment`).",
-  "app": "Micro-mobility and action-sports telemetry — Onewheel ride exports, legacy Boosted board logs, Surfline forecast snapshots, and Strava segment efforts — streamed to Splunk HEC via vendor exports and scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Ride Export Freshness Across Onewheel and Boosted'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.41.28).",
+  "evidence": "Saved search uc_25_41_28_ride_export_freshness_across_onewheel_an, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Ride Export Freshness Across Onewheel and Boosted'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.41.28.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Rides (`ride:session`), charge sessions (`ride:charge`), ride exports (`ride:export`), surf forecasts (`surf:forecast`), ride incidents (`ride:incident`), segment efforts (`fitness:segment`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Micro-mobility and action-sports telemetry — Onewheel ride exports, legacy Boosted board logs, Surfline forecast snapshots, and Strava segment efforts — streamed to Splunk HEC via vendor exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ride:export platform=* export_epoch=* event_epoch=*\n| eval lag_hours=round((export_epoch-event_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by platform\n| sort - avg_lag_hours",
-  "description": "Measures ride export lag by platform for ride-data syncs.",
+  "description": "Measures ride export lag by platform for ride-data syncs. Runs scheduled SPL against `index=personal` to surface **Ride Export Freshness Across Onewheel and Boosted** so you can spot drift before it becomes a habit.",
   "value": "Lag tracking shows which platform create the slowest handoffs, syncs, or review loops inside ride-data syncs.",
   "implementation": "Capture the timestamps needed to compute `ride export lag` on `ride:export` events and aggregate them by `platform`.",
   "visualization": "Table of platform with average and worst ride export lag.",
@@ -20,24 +26,43 @@
   "references": [
     {
       "title": "Onewheel — boards",
-      "url": "https://onewheel.com/"
+      "url": "https://onewheel.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Boosted — electric skateboards",
-      "url": "https://boostedusa.com/"
+      "url": "https://boostedusa.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Surfline — surf reports",
-      "url": "https://www.surfline.com/"
+      "url": "https://www.surfline.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Strava — segments",
-      "url": "https://www.strava.com/"
+      "url": "https://www.strava.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It turns how long things take for each platform so you can see where ride-data syncs slows down."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Micro-Mobility & Action Sports — typical feeds: E-bike rides (`ebike:ride`), scooter trips (`scooter:trip`), skate sessions (`skate:session`), surf sessions (`surf:session`), snow runs (`snow:run`)..\n• **Sourcetypes in this search**: `ride:export`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=ride:export`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Micro-mobility and action-sport trackers — e-bike / e-scooter apps (VanMoof, Bosch eBike Flow), and skate / surf / snow session trackers (Trace, Slopes, Xensr) with IMU sensors — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Capture the timestamps needed to compute `ride export lag` on `ride:export` events and aggregate them by `platform`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"ride:export\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=ride:export earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Ride Export Freshness Across Onewheel and Boosted** over `personal` data (primarily `sourcetype=ride:export`) across the full search range. The `avg, max` aggregation groups by `platform`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `platform`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=ride:export platform=* export_epoch=* event_epoch=*\n| eval lag_hours=round((export_epoch-event_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by platform\n| sort - avg_lag_hours\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=ride:export earliest=-7d\n| head 50\n| table platform\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=ride:export earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.41.28: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Platform With Average And Worst Ride Export Lag (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `ride:export` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=ride:export | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It turns how long things take for each platform so you can see where ride-data syncs slows down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

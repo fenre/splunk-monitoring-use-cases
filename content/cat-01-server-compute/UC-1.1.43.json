@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, custom:fstrim_status`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Fstrim and TRIM Command Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.1.43).",
+  "evidence": "Saved search uc_1_1_43_fstrim_and_trim_command_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Fstrim and TRIM Command Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.1.43.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=syslog, custom:fstrim_status` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=custom:fstrim_status host=*\n| stats latest(status) as trim_status, latest(bytes_discarded) as discarded by host, mount_point\n| where trim_status!=\"success\"",
   "description": "Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation.",
-  "value": "Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation.",
+  "value": "Operations and leadership rely on 'Fstrim and TRIM Command Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Create a cron job that runs fstrim -v and logs output to syslog. Create alerts for any failures. Track bytes discarded over time to ensure TRIM operations are completing successfully.",
   "visualization": "Table, Timechart",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Regular `fstrim` and vendor maintenance can cluster related log lines. Distinguish scheduled from unexpected manual TRIMs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, custom:fstrim_status`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a cron job that runs fstrim -v and logs output to syslog. Create alerts for any failures. Track bytes discarded over time to ensure TRIM operations are completing successfully.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:fstrim_status host=*\n| stats latest(status) as trim_status, latest(bytes_discarded) as discarded by host, mount_point\n| where trim_status!=\"success\"\n```\n\nUnderstanding this SPL\n\n**Fstrim and TRIM Command Monitoring** — Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation.\n\nDocumented **Data sources**: `sourcetype=syslog, custom:fstrim_status`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:fstrim_status. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:fstrim_status. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, mount_point** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where trim_status!=\"success\"` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timechart",
-  "grandmaExplanation": "Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Fstrim failures indicate potential SSD performance degradation from lack of proper space reclamation — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

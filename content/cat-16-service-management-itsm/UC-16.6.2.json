@@ -9,8 +9,14 @@
     "Risk"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=alerts` `sourcetype=opsgenie:alert` notify events, `sourcetype=opsgenie:heartbeat` expired pings",
-  "app": "Opsgenie Splunk integration, Outgoing Webhook/OEC forwarder",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Opsgenie Zero-Recipient and Heartbeat Lapse — On-Call Routing Gaps'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-16.6.2).",
+  "evidence": "Saved search uc_16_6_2_opsgenie_zero_recipient_and_heartbeat_la, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Opsgenie Zero-Recipient and Heartbeat Lapse — On-Call Routing Gaps'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-16.6.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=alerts` `sourcetype=opsgenie:alert` notify events, `sourcetype=opsgenie:heartbeat` expired pings Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Opsgenie Splunk integration, Outgoing Webhook/OEC forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=alerts (sourcetype=\"opsgenie:alert\" OR sourcetype=\"opsgenie:heartbeat\")\n| eval alert_gap=if(sourcetype=\"opsgenie:alert\" AND (match(lower(message),\"(?i)no recipients|empty rotation|no one on-call\") OR recipients_count=0 OR mvcount(recipients)=0),1,0)\n| eval hb_gap=if(sourcetype=\"opsgenie:heartbeat\" AND status IN (\"expired\",\"inactive\"),1,0)\n| where alert_gap=1 OR hb_gap=1\n| stats count, latest(_time) as t, values(team) as teams by integration_name, source\n| sort -count",
   "description": "Opsgenie alerts that fire with zero recipients or heartbeats that expire without follow-up indicate broken rotations, deleted schedules, or integration misrouting—distinct from PagerDuty schedule exports. Catching these patterns prevents silent failures in hybrid paging estates.",
   "value": "Ensures hybrid Opsgenie + PagerDuty environments still have a human on the hook during sev-1 events.",
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Opsgenie — Heartbeats",
-      "url": "https://support.atlassian.com/opsgenie/"
+      "url": "https://support.atlassian.com/opsgenie/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Opsgenie for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3759"
+      "url": "https://splunkbase.splunk.com/app/3759",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Heartbeats that stop during host rebuilds, agent upgrades, or quiet testing that was not meant to page anyone.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "pagerduty"
+  ],
+  "equipmentModels": [
+    "pagerduty_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -43,5 +64,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Install and configure: Opsgenie Splunk integration, Outgoing Webhook/OEC forwarder.\n• Data: `index=alerts` `sourcetype=opsgenie:alert` notify events, `sourcetype=opsgenie:heartbeat` expired pings.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nNormalize `recipients` multivalue field from JSON arrays. Join to `team` roster CSV for expected coverage. Differentiate from UC-16.2.22 (PagerDuty schedule gaps) by focusing on Opsgenie sourcetypes only.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts (sourcetype=\"opsgenie:alert\" OR sourcetype=\"opsgenie:heartbeat\")\n| eval alert_gap=if(sourcetype=\"opsgenie:alert\" AND (match(lower(message),\"(?i)no recipients|empty rotation|no one on-call\") OR recipients_count=0 OR mvcount(recipients)=0),1,0)\n| eval hb_gap=if(sourcetype=\"opsgenie:heartbeat\" AND status IN (\"expired\",\"inactive\"),1,0)\n| where alert_gap=1 OR hb_gap=1\n| stats count, latest(_time) as t, values(team) as teams by integration_name, source\n| sort -count\n```\n\nUnderstanding this search\nOpsgenie alerts that fire with zero recipients or heartbeats that expire without follow-up indicate broken rotations, deleted schedules, or integration misrouting—distinct from PagerDuty schedule exports. Catching these patterns prevents silent failures in hybrid paging estates.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Timeline of zero-recipient alerts, table (integration × team), map of expired heartbeats by region.",
-  "grandmaExplanation": "We look for emergency signals that nobody was scheduled to receive, and for heartbeat checks that died quietly. Either situation means an alarm might never reach a person."
+  "grandmaExplanation": "We look for emergency signals that nobody was scheduled to receive, and for heartbeat checks that died quietly. Either situation means an alarm might never reach a person.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

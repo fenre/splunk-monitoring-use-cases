@@ -9,6 +9,12 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Operational Efficiency and Productivity Metrics'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-23.8.2).",
+  "evidence": "Saved search uc_23_8_2_operational_efficiency_and_productivity, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Operational Efficiency and Productivity Metrics'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.8.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary `index=business` sourcetypes defined via Splunk DB Connect (Splunkbase 2686): `dbx:erp_orders` (revenue and billable transaction counts aligned to SAP **VBRK**/lines or warehouse mirrors such as Oracle **RA_INVOICES_ALL** / NetSuite lines—cite **UC-23.8.6** when tying postings to **ACDOCA** controls); `dbx:hris_employees` or parallel `workday:worker` feeds with **UC-23.4.1** field **coalesce** (`employee_id`, `Worker_ID`, `worker_id`); `dbx:gl_opex` with cost-center joins (`cost_center_mapping.csv`). Automation telemetry lands in `index=automation` (`uipath:robot:execution`, `automation_anywhere:execution`) or bespoke `app:process_event` via Splunk HTTP Event Collector; optional ITSM overlay `snow:incident` for exception-cost narratives. Lookups: `productivity_kpi_targets.csv` bands per **kpi_name**; `process_classification.csv` for stable **process_class** buckets.",
   "app": "Splunk DB Connect (Splunkbase 2686) for ERP/GL/HR warehouse extracts; Splunk HTTP Event Collector (built-in indexer tier configuration) for automation payloads forwarded from UiPath Orchestrator Insights/API bridges or Automation Anywhere telemetry collectors.",
   "spl": "index=business sourcetype=\"dbx:erp_orders\" earliest=-1mon@mon latest=@mon\n| stats sum(revenue) as monthly_revenue, count as transactions\n| head 1\n| appendcols [\n    search index=business sourcetype=\"dbx:hris_employees\" earliest=-1mon@mon latest=@mon\n    | eval wid=coalesce(employee_id, Worker_ID, worker_id, \"\")\n    | eval active_flag=if(Active_Status=1 OR lower(tostring(Active_Status)) IN (\"1\",\"y\",\"true\",\"active\"),1,0)\n    | where active_flag=1 AND len(wid)>0\n    | stats dc(wid) as headcount\n    | head 1\n  ]\n| appendcols [\n    search index=business sourcetype=\"dbx:gl_opex\" earliest=-1mon@mon latest=@mon\n    | lookup cost_center_mapping.csv cost_center OUTPUT operational_function\n    | where operational_function IN (\"Operations\",\"Support\",\"Finance Ops\")\n    | stats sum(amount) as opex_operations\n    | head 1\n  ]\n| appendcols [\n    search index=automation (sourcetype=\"uipath:robot:execution\" OR sourcetype=\"automation_anywhere:execution\" OR sourcetype=\"app:process_event\") earliest=-1mon@mon latest=@mon\n    | stats sum(eval(if(automated=\"yes\",1,0))) as auto_steps, count as total_steps\n    | head 1\n  ]\n| appendcols [\n    search index=business sourcetype=\"app:process_event\" earliest=-1mon@mon latest=@mon\n    | stats sum(eval(if(match(lower(tostring(status)),\"fail.*\"),1,0))) as failed_steps, count as monitored_steps\n    | head 1\n  ]\n| eval revenue_per_FTE=if(headcount>0, round(monthly_revenue/headcount,0), null())\n| eval cost_per_transaction=if(transactions>0 AND isnotnull(opex_operations), round(opex_operations/transactions,2), null())\n| eval automation_rate=if(total_steps>0, round(100*auto_steps/total_steps,1), null())\n| eval exception_rate=if(monitored_steps>0, round(100*failed_steps/monitored_steps,2), null())\n| table monthly_revenue, transactions, headcount, opex_operations, revenue_per_FTE, cost_per_transaction, automation_rate, exception_rate",
@@ -20,18 +26,26 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UiPath Orchestrator — REST API reference",
-      "url": "https://docs.uipath.com/automation-cloud/"
+      "url": "https://docs.uipath.com/automation-cloud/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — Use the HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Productivity optics swing when payroll-classified workers sit on unpaid leave yet remain coded active in HR snapshots—denominators inflate while revenue stays flat until staffing catches up. Badge-access feeds sometimes lag termination dates by weeks; pairing revenue-per-worker ratios with badge-headcount inadvertently celebrates phantom leverage until reconciliation closes the gap. Vendor-defined automation labels jump after reorganizing Orchestrator folders even when bots execute unchanged workloads—classification drift mimics breakthrough gains unless lookups gate taxonomy. Mergers fold acquired headcounts ahead of revenue synergies—mixing legacy enterprise resource planning scope makes efficiency ratios look hollow until finance aligns definitions across entities. Contractors billed outside HR worker IDs distort denominators when procurement staffing spikes during seasonal peaks—finance must declare contingent inclusion versus exclusion explicitly each quarter. Severance or restructuring accelerators posting through operations cost centers inflate operating-expense-per-transaction math though throughput stayed steady—finance-supplied flags belong in numerator exclusions. Idle clock minutes versus ERP-backed completions also misstate automation leverage when only vendor consoles are compared.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "oracle",

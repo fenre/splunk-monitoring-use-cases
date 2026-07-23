@@ -8,6 +8,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Page Load Duration Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.38).",
+  "evidence": "Saved search uc_5_9_38_page_load_duration_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Page Load Duration Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.38.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"page-load\"`. OTel v2 metric `web.page_load.duration` reports total page load time in **seconds** — from navigation start to page fully rendered.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"page-load\"\n| stats avg(web.page_load.duration) as avg_load p95(web.page_load.duration) as p95_load by thousandeyes.test.name, server.address\n| eval avg_load_s=round(avg_load,2), p95_load_s=round(p95_load,2)\n| where avg_load_s > 5\n| sort -avg_load_s",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — Page Load metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Heavy pages by design.** Some pages (dashboards, data-heavy reports) are inherently slow to load. Establish page-specific baselines rather than using a universal threshold.\n\n**Page load duration not reported on failure.** If `web.page_load.completion` = 0%, `web.page_load.duration` may not be reported (the page didn't finish loading). Check completion first.\n\n**Browser caching disabled in tests.** ThousandEyes Page Load tests typically clear cache between rounds, meaning every test is a cold-cache load. Real users with browser cache enabled will see faster load times.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

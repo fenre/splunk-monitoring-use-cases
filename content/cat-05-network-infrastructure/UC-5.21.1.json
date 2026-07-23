@@ -8,6 +8,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Network Device NTP Peer Reachability and Stratum Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.21.1).",
+  "evidence": "Saved search uc_5_21_1_network_device_ntp_peer_reachability_and, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Network Device NTP Peer Reachability and Stratum Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.21.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos:structured` — NTP syslog events including `%NTP-4-PEER_NOT_REACHABLE`, `%NTP-6-PEER_REACHABLE`, `%NTP-4-CLOCK_NOT_SYNC`, Juniper `ntpd` events. Also SNMP polling of NTP MIB (ntpAssocPeerAddr, ntpAssocStratum, ntpAssocStatReach) via SC4SNMP. Network devices are often stratum-2/3 servers for the entire enterprise — if they lose NTP sync, every downstream system's clock drifts.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos:structured\") earliest=-24h\n  (\"NTP\" AND (\"reachable\" OR \"not reachable\" OR \"sync\" OR \"unsync\" OR \"stratum\" OR \"peer\"))\n| eval ntp_event=case(\n    match(_raw, \"(?i)not.?reachable|unreachable|peer.*lost\"), \"PEER_UNREACHABLE\",\n    match(_raw, \"(?i)clock.*not.*sync|unsynchronized|no.*valid\"), \"CLOCK_UNSYNC\",\n    match(_raw, \"(?i)reachable|peer.*up\"), \"PEER_REACHABLE\",\n    match(_raw, \"(?i)stratum.*change|stratum\"), \"STRATUM_CHANGE\",\n    1=1, \"NTP_EVENT\")\n| rex field=_raw \"(?:peer|server)\\s*(?<ntp_peer>[\\d\\.]+|[0-9a-fA-F:]+)\"\n| rex field=_raw \"stratum\\s*(?<stratum>\\d+)\"\n| stats count as events latest(ntp_event) as last_event values(ntp_peer) as peers values(stratum) as stratum by host\n| eval severity=case(\n    last_event=\"CLOCK_UNSYNC\", \"CRITICAL — \" . host . \" clock unsynchronized\",\n    last_event=\"PEER_UNREACHABLE\" AND events > 3, \"HIGH — NTP peer unreachable on \" . host,\n    last_event=\"STRATUM_CHANGE\", \"MEDIUM — stratum changed on \" . host,\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "Cisco — NTP Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 5905 — Network Time Protocol Version 4",
-      "url": "https://www.rfc-editor.org/rfc/rfc5905"
+      "url": "https://www.rfc-editor.org/rfc/rfc5905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Brief NTP peer flaps.** NTP peers may briefly show unreachable during network convergence events. Require sustained unreachability (>15 minutes) before alerting.\n\n**Stratum changes during planned maintenance.** When primary NTP servers are taken offline for maintenance, devices naturally fall back to secondary peers at higher stratum. Correlate with maintenance windows.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "juniper",

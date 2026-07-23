@@ -8,6 +8,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point SecureXL Acceleration Status (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.49).",
+  "evidence": "Saved search uc_5_2_49_check_point_securexl_acceleration_status, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point SecureXL Acceleration Status (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.49.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`sourcetype=cp_log` (performance/system logs), `fwaccel` CLI output via scripted input",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=firewall sourcetype=\"cp_log\" earliest=-24h\n| where match(lower(product),\"(?i)securexl|fwaccel\") OR match(lower(logdesc),\"(?i)accel|template|f2f|medium.path|pxl\")\n| eval gw=coalesce(orig, src, hostname)\n| eval path=case(\n    match(lower(_raw),\"(?i)accel|template\"),\"accelerated\",\n    match(lower(_raw),\"(?i)medium.path|pxl\"),\"medium_path\",\n    match(lower(_raw),\"(?i)f2f|slow|firewall.path\"),\"slow_path\",\n    1=1,\"unknown\")\n| stats count by gw, path\n| eventstats sum(count) as total by gw\n| eval pct=round(100*count/total,1)\n| where path!=\"accelerated\" AND pct>20",
@@ -19,26 +25,39 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Policy changes, debug toggles, and version shifts can make acceleration messages noisy until you set a baseline.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point SecureXL acceleration status data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input from `fwaccel stat`. Key fields: `acceleration_status`, `accel_connections`, `accel_packets`, `pxl_connections`.\n* SecureXL: hardware/software acceleration layer that offloads established connections from the firewall kernel (F2F path) to the accelerated path (SecureXL). When enabled, throughput increases 2-10x. Connections can be accelerated (fast path), medium-path (partial inspection), or slow-path (full inspection). Monitoring: `fwaccel stat`, `fwaccel stats -s`.\n\nStep 1 -- Configure data collection\n```\n# Custom scripted input to collect SecureXL stats\n# inputs.conf\n[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/secureXL_stats.sh]\ninterval = 300\nsourcetype = checkpoint:securexl\nindex = checkpoint\ndisabled = false\n\n# secureXL_stats.sh\n#!/bin/bash\necho \"timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\nfwaccel stat 2>/dev/null | while read line; do echo \"securexl_stat=\"$line\"\"; done\nfwaccel stats -s 2>/dev/null | while read line; do echo \"securexl_detail=\"$line\"\"; done\nfwaccel conns 2>/dev/null | head -5 | while read line; do echo \"securexl_conns=\"$line\"\"; done\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:securexl\" earliest=-1h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- SecureXL acceleration status monitoring:**\n```spl\nindex=checkpoint (sourcetype=\"checkpoint:securexl\" OR sourcetype=\"cp_log\") earliest=-4h\n| eval accel_enabled=if(match(_raw, \"(?i)accelerator.*status.*on|securexl.*enabled\"), \"ON\", if(match(_raw, \"(?i)accelerator.*status.*off|securexl.*disabled\"), \"OFF\", null()))\n| eval accel_packets=tonumber(coalesce(accel_packets, \"0\"))\n| eval pxl_packets=tonumber(coalesce(pxl_packets, \"0\"))\n| eval f2f_packets=tonumber(coalesce(f2f_packets, \"0\"))\n| eval total_packets=accel_packets + pxl_packets + f2f_packets\n| eval accel_pct=if(total_packets > 0, round(100*accel_packets/total_packets, 1), 0)\n| eval pxl_pct=if(total_packets > 0, round(100*pxl_packets/total_packets, 1), 0)\n| eval f2f_pct=if(total_packets > 0, round(100*f2f_packets/total_packets, 1), 0)\n| bin _time span=5m\n| stats latest(accel_enabled) as status avg(accel_pct) as accel_pct avg(pxl_pct) as medium_pct avg(f2f_pct) as slow_pct by _time, host\n| eval severity=case(\n    status=\"OFF\", \"CRITICAL -- SecureXL disabled, performance severely degraded\",\n    accel_pct < 50, \"WARNING -- low acceleration ratio (\".accel_pct.\"%), high kernel processing\",\n    accel_pct < 70, \"INFO -- suboptimal acceleration ratio\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, host, status, accel_pct, medium_pct, slow_pct, severity\n```\n\nStep 3 -- Validate\n(a) CLI (expert mode): `fwaccel stat` -- verify SecureXL is enabled and check status.\n(b) CLI: `fwaccel stats -s` -- show acceleration statistics (packets accelerated/not-accelerated).\n(c) CLI: `fwaccel conns` -- show accelerated connection table count.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- SecureXL Acceleration\"):\n* Row 1 -- Single-value: \"SecureXL status\", \"Acceleration ratio (%)\", \"Slow-path packets (%)\".\n* Row 2 -- Acceleration ratio timechart.\n\nAlert: Critical (SecureXL disabled or acceleration < 50%): performance impact, investigate.\n\nStep 5 -- Troubleshooting\n\n* **SecureXL disabled** -- Re-enable: `fwaccel on`. If disabled intentionally for debugging, re-enable after troubleshooting. Check `cpinfo -y all` for known issues.\n\n* **Low acceleration ratio** -- Many connections may be in slow-path due to: (1) security blades requiring deep inspection (IPS, Application Control), (2) HTTPS inspection enabled, (3) fragmented packets. Check which blades are forcing F2F: `fwaccel stat` shows blade impact.\n\n* **SecureXL template count high** -- Connection templates consume memory. Monitor with `fwaccel conns -s`. Consider connection table optimization.",
   "grandmaExplanation": "We look at fast-path and acceleration state so a sudden return to slow inspection is a visible clue before users call about slowness.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

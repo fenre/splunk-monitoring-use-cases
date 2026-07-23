@@ -9,6 +9,12 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Manufacturing, Retail, Distribution",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Order-to-Cash Cycle Time and Bottleneck Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-23.5.1).",
+  "evidence": "Saved search uc_23_5_1_order_to_cash_cycle_time_and_bottleneck, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Order-to-Cash Cycle Time and Bottleneck Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.5.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary: `index=business` with Splunk DB Connect (Splunkbase 2686) fed sourcetype `dbx:erp_orders`, produced by JDBC rising-column inputs—representative stanza `[db://hana/rs_erp_orders]` polling SAP S/4HANA stage histories hourly (`cron_schedule = 0 * * * *`) with watermark column `CHANGEDATE` or `LASTUPDATE` on your curated stage-event projection that unions operational timestamps drawn from SD (`VBAK`, `VBAP`), deliveries (`LIKP`, `LIPS`), billing (`VBRK`, `VBRP`), and FI clearing pointers (`BSAD`). Alternate Oracle JDBC input `[oracle://corp/rs_oracle_o2c]` executes SQL views joining `OE_ORDER_HEADERS_ALL`, `WSH_DELIVERY_DETAILS`, `RA_CUSTOMER_TRX_ALL`, and `AR_PAYMENT_SCHEDULES_ALL` with rising watermark `LAST_UPDATE_DATE`. NetSuite deployments may use SuiteAnalytics Connect ODBC behind DB Connect with watermark `LASTMODIFIEDDATE`. Each indexed row must expose `order_id`, `stage_timestamp`, raw ERP stage (`stage_raw`), mapped canonical stage (`stage_canonical`), optional `sales_org`, `warehouse_id`, `customer_tier`, and `order_value` so stream-ordered bottleneck math can segment B2B versus B2C latencies.",
   "app": "Splunk DB Connect (Splunkbase 2686) — package name `splunk_app_db_connect` on Splunkbase; install on Heavy Forwarder or dedicated DB Connect server per Splunk deployment guidance.",
   "spl": "index=business sourcetype=\"dbx:erp_orders\" earliest=-90d@d\n| eval stage_canon=coalesce(stage_canonical, stage_std, upper(trim(coalesce(stage_raw,\"\"))), trim(coalesce(stage,\"\")))\n| eval stage_time=coalesce(strptime(stage_timestamp, \"%Y-%m-%d %H:%M:%S\"), strptime(stage_timestamp, \"%Y-%m-%dT%H:%M:%S.%3Q\"), strptime(stage_timestamp, \"%Y-%m-%d\"))\n| where isnotnull(stage_time)\n| sort order_id, stage_time\n| dedup order_id stage_canon\n| streamstats current=f latest(stage_time) as prev_time latest(stage_canon) as prev_stage by order_id\n| eval stage_duration_hours=if(isnotnull(prev_time), round((stage_time-prev_time)/3600, 4), null())\n| where isnull(stage_duration_hours) OR stage_duration_hours>0\n| stats avg(stage_duration_hours) as avg_hours perc95(stage_duration_hours) as p95_hours perc99(stage_duration_hours) as p99_hours count as transitions dc(order_id) as orders_seen by stage_canon\n| eval avg_days=round(avg_hours/24, 2)\n| sort stage_canon\n| table stage_canon avg_hours avg_days p95_hours p99_hours transitions orders_seen",
@@ -20,30 +26,36 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — Deploy DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/DeployDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/DeployDBX",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SAP Help Portal — Sales Document Tables (VBAK/VBAP overview)",
-      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD"
+      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oracle SCM Cloud — Ship Confirm and OM References",
-      "url": "https://docs.oracle.com/en/cloud/saas/supply-chain-and-manufacturing/"
+      "url": "https://docs.oracle.com/en/cloud/saas/supply-chain-and-manufacturing/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oracle NetSuite Applications Suite documentation (Help Center)",
-      "url": "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/set_N20140200.html"
+      "url": "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/set_N20140200.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — Identifying supply chain issues (process visibility)",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Manufacturing/Identifying_and_visualizing_supply_chain_issues"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Manufacturing/Identifying_and_visualizing_supply_chain_issues",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Ocean freight lanes elongate Delivered timestamps versus dock Ship timestamps without implying dock inefficiency—carrier variability masks Fulfillment KPI honesty unless segmented by Incoterms. Planned ERP blackouts freeze postings yet inventory physically moves—duration spikes reflect maintenance calendars not Operations regression. SAP finance accelerators replay aged CDHDR pointers during backlog drains near German fiscal-year-end producing duplicate-looking dwell spikes absent genuine rework. Same-second RFID tunnel scans collapse pick versus pack deltas despite hourly labour elapsed—parallel-stage anomalies inflate pick→pack KPI optimism when timestamps collide. Partial shipments duplicate lifecycle tuples without netting residual quantities—Splunk aggregates mis-count throughput intensity unless keyed by delivered quantity tiers. Customer-driven pickup lanes bypass carrier milestones entirely yet analysts mistake skipped legs for systemic latency. Heavy month-end billing batches lengthen invoice lag though fulfilment stayed steady—Finance rhythm dominates invoice→cash variance temporarily. Extended AR collection stretches unrelated to fulfilment excellence appear when treasury grants ninety-day enterprise Net terms deliberately—misroutes Ops accountability without segmentation by payment_term tier. EDI ASN batching delays Delivered scans though product left the building hours earlier—true supply-chain noise confuses last-mile posture but is not dock failure. Freight-broker handoffs create limbo timestamps between Shipped versus Invoiced splits when documentation passes through non-integrated 3PL portals. Credit-hold pause-and-release sequences stretch Confirmed→Allocated gaps while warehouse capacity sits idle—misread as labour shortage absent credit status flags. Multi-currency FX revaluation postings near quarter close disturb naive cash-application math versus functional-currency expectations even when physical delivery performance was sound.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "oracle"

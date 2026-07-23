@@ -8,6 +8,12 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NDP Cache Poisoning and IPv6 Spoofing Attack Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.72).",
+  "evidence": "Saved search uc_5_20_72_ndp_cache_poisoning_and_ipv6_spoofing_at, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NDP Cache Poisoning and IPv6 Spoofing Attack Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.72.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=zeek:conn` containing NDP events and SISF security logs. NDP cache poisoning is the IPv6 equivalent of ARP poisoning — an attacker sends unsolicited Neighbor Advertisement (NA) messages to associate their MAC address with another host's IPv6 address, enabling man-in-the-middle attacks. Unlike ARP, NDP includes additional attack vectors:\n\n1. **Unsolicited NA with Override flag.** An attacker sends NA messages with the Override (O) flag set, which instructs the target to update its NDP cache entry even if a valid entry exists. This is the primary cache poisoning vector.\n2. **Rapid MAC-to-IPv6 binding changes.** If the same IPv6 address is associated with multiple MAC addresses in rapid succession, someone is poisoning the NDP cache.\n3. **Router Advertisement spoofing.** A rogue RA can redirect all hosts on the subnet to use the attacker as their default gateway — a much more powerful attack than single-host NDP poisoning. Covered in UC-5.20.21, but correlated here.\n4. **Redirect message abuse.** ICMPv6 Redirect (Type 137) can redirect traffic for specific destinations via the attacker. Covered in UC-5.20.25, but correlated here.\n5. **DAD interference.** By responding to DAD probes, an attacker prevents legitimate hosts from using their intended addresses (DoS). Detected via SISF DAD events.\n\nKey detection signal: SISF `%SISF-4-IP_THEFT` and `%SISF-4-MAC_THEFT` messages are definitive indicators of NDP spoofing on Cisco switches.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). Splunk Add-on for Zeek/Corelight.",
   "spl": "index=network sourcetype=\"cisco:ios\" (\"%SISF-4-IP_THEFT\" OR \"%SISF-4-MAC_THEFT\" OR \"%SISF-6-ENTRY_UPDATED\") earliest=-1h\n| rex field=_raw \"IP=(?<ipv6_addr>[0-9a-fA-F:.]+)\"\n| rex field=_raw \"(?:MAC|mac)=(?<mac_addr>[0-9a-fA-F.]+)\"\n| rex field=_raw \"(?:port|Port|IF)\\s*=?\\s*(?<port>\\S+)\"\n| eval severity=case(\n    match(_raw, \"IP_THEFT\"), \"CRITICAL — NDP spoofing: someone is claiming another host's IPv6 address\",\n    match(_raw, \"MAC_THEFT\"), \"CRITICAL — MAC spoofing: someone is impersonating another host's MAC address\",\n    match(_raw, \"ENTRY_UPDATED\") AND match(_raw, \"Binding Changed\"), \"WARNING — NDP cache binding change\",\n    1=1, \"INFO\")\n| stats count as events first(_time) as first_seen last(_time) as last_seen by host, ipv6_addr, mac_addr, port, severity\n| sort -events",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (NDP specification)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3 — NDP security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3756 — IPv6 Neighbor Discovery (ND) Trust Models and Threats",
-      "url": "https://www.rfc-editor.org/rfc/rfc3756"
+      "url": "https://www.rfc-editor.org/rfc/rfc3756",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**VM migration.** When a virtual machine migrates between hypervisors, the same IPv6 address appears on a different port/MAC. This triggers SISF IP_THEFT for the migration duration. Configure SISF to allow known VM migration MAC pairs.\n\n**VRRP/HSRP failover.** FHRP failover causes the virtual IPv6 address to move between physical hosts, triggering binding changes. Configure SISF to recognise FHRP virtual MACs.\n\n**LACP/port-channel reconfiguration.** When link aggregation reconfigures, the same MAC may appear on different physical ports temporarily.\n\n**DHCP lease reassignment.** When a DHCPv6 lease expires and is reassigned to a different host, the IPv6 address moves to a new MAC. This is legitimate but slower than attack patterns.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "corelight",

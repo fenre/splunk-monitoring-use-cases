@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=network sourcetype=ndp:cache` from SNMP polling of `ipv6NetToMediaTable` (RFC 4293, OID 1.3.6.1.2.1.55.1.12), specifically the `ipv6NetToMediaState` column. Each NDP cache entry has one of five states defined in RFC 4861 §7.3.2:\n- **INCOMPLETE:** NS sent, no NA received yet. Entry will be deleted after 3 retries (default ~3 seconds). High INCOMPLETE count means many addresses are unreachable.\n- **REACHABLE:** NA received with valid confirmation. Entry is fresh and usable. Typical duration: 30 seconds (Cisco), 30 seconds (Linux `base_reachable_time`).\n- **STALE:** Reachability timer expired but entry hasn't been used. Entry remains usable but will be verified (DELAY→PROBE) on next use.\n- **DELAY:** Traffic sent to STALE entry; waiting 5 seconds before probing (DELAY_FIRST_PROBE_TIME).\n- **PROBE:** Sending unicast NS to verify reachability. After 3 unanswered probes, entry deleted.\n\nA healthy NDP cache is predominantly REACHABLE (active hosts) and STALE (recently active). High INCOMPLETE percentages indicate scanning or unreachable hosts. High PROBE percentages indicate connectivity problems.",
-  "app": "Splunk Connect for SNMP (SC4SNMP) for NDP cache state polling.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NDP Cache State Distribution Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.24).",
+  "evidence": "Saved search uc_5_20_24_ndp_cache_state_distribution_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NDP Cache State Distribution Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.24.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=ndp:cache` from SNMP polling of `ipv6NetToMediaTable` (RFC 4293, OID 1.3.6.1.2.1.55.1.12), specifically the `ipv6NetToMediaState` column. Each NDP cache entry has one of five states defined in RFC 4861 §7.3.2:\n- **INCOMPLETE:** NS sent, no NA received yet. Entry will be deleted after 3 retries (default ~3 seconds). High INCOMPLETE count means many addresses are unreachable.\n- **REACHABLE:** NA received with valid confirmation. Entry is fresh and usable. Typical duration: 30 seconds (Cisco), 30 seconds (Linux `base_reachable_time`).\n- **STALE:** Reachability timer expired but entry hasn't been used. Entry remains usable but will be verified (DELAY→PROBE) on next use.\n- **DELAY:** Traffic sent to STALE entry; waiting 5 seconds before probing (DELAY_FIRST_PROBE_TIME).\n- **PROBE:** Sending unicast NS to verify reachability. After 3 unanswered probes, entry deleted.\n\nA healthy NDP cache is predominantly REACHABLE (active hosts) and STALE (recently active). High INCOMPLETE percentages indicate scanning or unreachable hosts. High PROBE percentages indicate connectivity problems. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP (SC4SNMP) for NDP cache state polling. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"ndp:cache\" earliest=-1h\n| stats count as entries by host, interface, state\n| eventstats sum(entries) as total_entries by host, interface\n| eval pct=round(entries / total_entries * 100, 1)\n| chart values(pct) as pct by host, state\n| rename INCOMPLETE as incomplete_pct, REACHABLE as reachable_pct, STALE as stale_pct, DELAY as delay_pct, PROBE as probe_pct",
   "description": "Tracks the distribution of NDP cache entry states (INCOMPLETE, REACHABLE, STALE, DELAY, PROBE) across all Layer 3 interfaces over time. The state distribution is a powerful health indicator: a healthy interface shows 40-60% REACHABLE (active hosts), 30-50% STALE (recently active), <5% INCOMPLETE, and <5% PROBE. A sudden spike in INCOMPLETE entries indicates either a scanning attack (UC-5.20.23) or a connectivity problem where hosts are unreachable. A spike in PROBE entries indicates that the router is having difficulty confirming reachability of known hosts — possibly due to congestion, host failure, or firewall filtering of unicast NS/NA. This use case provides the NDP health 'vital signs' that complement cache size monitoring (UC-5.20.19) and poisoning detection (UC-5.20.20).",
   "value": "NDP cache state distribution is the most sensitive indicator of IPv6 network health at the Layer 2/3 boundary. Unlike simple cache size monitoring (which only tells you how many entries exist), state distribution tells you the quality of those entries. An interface with 1000 entries might look healthy by size, but if 80% are INCOMPLETE, the router is spending CPU on unanswered neighbor solicitations and hosts are not reachable. Conversely, a high STALE percentage is normal and indicates the garbage collector is working correctly. Trending state distribution over time reveals operational patterns: daily REACHABLE peaks during business hours, gradual STALE increase overnight as hosts go idle, and transient PROBE spikes during network maintenance.",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§7.3.2 — Neighbor Cache Entry States: INCOMPLETE, REACHABLE, STALE, DELAY, PROBE)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6583 — Operational Neighbor Discovery Problems (NDP cache state behaviour under attack conditions)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6583"
+      "url": "https://www.rfc-editor.org/rfc/rfc6583",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4293 — MIB for IP (ipv6NetToMediaState — SNMP MIB for NDP cache entry state)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4293"
+      "url": "https://www.rfc-editor.org/rfc/rfc4293",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Overnight STALE dominance.** When users leave the office, their devices stop communicating. NDP entries transition from REACHABLE to STALE (after 30 seconds of inactivity). Overnight, 80-90% STALE is normal and expected. This is not an anomaly — it reflects the daily usage pattern.\n\n**Post-reboot transient INCOMPLETE spike.** After a router reboot, the NDP cache is empty. As hosts on the VLAN communicate, each triggers an NS/NA exchange, and the cache briefly has a high proportion of entries transitioning through INCOMPLETE to REACHABLE. This transient lasts 1-5 minutes.\n\n**Scheduled maintenance windows.** During switch/router upgrades, hosts may become temporarily unreachable, causing entries to move to PROBE and then be deleted. Correlate with change management events.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

@@ -9,6 +9,12 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DHCPv6 Lease and Prefix Delegation Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.10).",
+  "evidence": "Saved search uc_5_20_10_dhcpv6_lease_and_prefix_delegation_track, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DHCPv6 Lease and Prefix Delegation Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=dhcp sourcetype=infoblox:dhcp` for Infoblox DHCPv6 lease events, or `index=dhcp sourcetype=isc:dhcpd` for ISC DHCP, or `index=dhcp sourcetype=microsoft:dhcpv6` for Windows Server DHCPv6. Key DHCPv6 message types to capture: SOLICIT (client seeking server), ADVERTISE (server response), REQUEST (client requesting address), REPLY (server assigning address), RENEW (client renewing lease), REBIND (client seeking any server), RELEASE (client releasing address), DECLINE (client rejecting address — indicates DAD failure). DHCPv6-specific fields: `ia_na` (Identity Association for Non-temporary Address — individual address assignment), `ia_pd` (Identity Association for Prefix Delegation — /48 to /64 prefix delegation to downstream routers), `duid` (DHCP Unique Identifier — replaces MAC-based client-id from DHCPv4), `iaid` (Interface Association ID). Volume: one lease event per DHCPv6 client per lease operation; typical enterprise with 5,000 IPv6 clients ≈ 10,000–50,000 lease events/day.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934) for Infoblox, or manual syslog forwarding from ISC DHCP / Windows DHCPv6. No Splunkbase TA exists specifically for ISC DHCPv6 — use `sourcetype=syslog` with custom field extractions.",
   "spl": "index=dhcp sourcetype=\"infoblox:dhcp\" DHCPv6 earliest=-24h\n| rex \"(?<dhcpv6_msg>SOLICIT|ADVERTISE|REQUEST|REPLY|RENEW|REBIND|RELEASE|DECLINE)\"\n| rex \"IA_NA\\s+(?<ia_na_addr>[0-9a-fA-F:]+)\"\n| rex \"IA_PD\\s+(?<ia_pd_prefix>[0-9a-fA-F:]+/\\d+)\"\n| rex \"DUID\\s+(?<client_duid>[0-9a-fA-F:]+)\"\n| eval assignment_type=case(\n    isnotnull(ia_pd_prefix), \"Prefix Delegation (IA_PD)\",\n    isnotnull(ia_na_addr), \"Address Assignment (IA_NA)\",\n    1==1, \"Other\")\n| stats count by dhcpv6_msg, assignment_type\n| sort dhcpv6_msg",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "RFC 8415 — Dynamic Host Configuration Protocol for IPv6 (DHCPv6) — consolidated DHCPv6 specification",
-      "url": "https://www.rfc-editor.org/rfc/rfc8415"
+      "url": "https://www.rfc-editor.org/rfc/rfc8415",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1.3 — DHCPv6 security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3633 — IPv6 Prefix Options for DHCPv6 (IA_PD prefix delegation)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3633"
+      "url": "https://www.rfc-editor.org/rfc/rfc3633",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Infoblox (Splunkbase 2934)",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**RENEW storms after DHCPv6 server restart.** When a DHCPv6 server restarts, all clients whose leases are in T1 (renewal) or T2 (rebind) timers will immediately send RENEW or REBIND messages. This creates a transient spike that looks like a problem but is normal server recovery behaviour. The spike should resolve within minutes as clients receive valid replies.\n\n**DUID changes after OS reinstall.** DUID-LLT includes a timestamp component. If a client is reimaged, its DUID changes, and it appears as a new client requesting a new lease while the old lease (under the old DUID) remains allocated until it expires. This is normal DHCPv6 behaviour — the old lease will be reclaimed automatically after expiry.\n\n**IA_PD from virtualisation platforms.** Virtual switch platforms (vSphere, Hyper-V) that run their own DHCPv6 clients for prefix delegation on virtual network interfaces may generate IA_PD traffic that looks like a downstream router requesting prefixes. These are legitimate if the platform is designed to provide IPv6 connectivity to VMs, but unexpected if virtual networking is supposed to be IPv4-only.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "infoblox",

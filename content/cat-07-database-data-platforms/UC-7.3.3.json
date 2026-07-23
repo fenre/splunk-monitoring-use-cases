@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "CloudWatch `ReplicaLag` metric, Azure SQL `replication_lag`",
-  "app": "Cloud provider TAs (CloudWatch, Azure Monitor)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Read Replica Lag'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-7.3.3).",
+  "evidence": "Saved search uc_7_3_3_read_replica_lag, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Read Replica Lag'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-7.3.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "CloudWatch `ReplicaLag` metric, Azure SQL `replication_lag` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cloud provider TAs (CloudWatch, Azure Monitor) — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/RDS\" metric_name=\"ReplicaLag\"\n| timechart span=5m max(Maximum) as replica_lag_sec by DBInstanceIdentifier\n| where replica_lag_sec > 30",
   "description": "Replica lag affects read consistency for applications using read replicas. Monitoring prevents stale data serving.",
-  "value": "Replica lag affects read consistency for applications using read replicas. Monitoring prevents stale data serving.",
+  "value": "Operations and leadership rely on 'Read Replica Lag' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest CloudWatch RDS metrics. Alert when ReplicaLag exceeds application tolerance (e.g., >30 seconds). Track trend and correlate with write workload spikes. Alert on replica lag growing consistently.",
   "visualization": "Line chart (replica lag over time), Single value (current max lag), Table (replicas with lag).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned failovers, network maintenance, or heavy bulk replication can extend lag for a time without an outage; align the alert with the DR runbook and change window.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "aws",
     "azure"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in MySQL Workbench, Percona tools, or the managed MySQL console.\n• Install and configure the required add-on or app: Cloud provider TAs (CloudWatch, Azure Monitor).\n• Ensure the following data sources are available: CloudWatch `ReplicaLag` metric, Azure SQL `replication_lag`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest CloudWatch RDS metrics. Alert when ReplicaLag exceeds application tolerance (e.g., >30 seconds). Track trend and correlate with write workload spikes. Alert on replica lag growing consistently.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/RDS\" metric_name=\"ReplicaLag\"\n| timechart span=5m max(Maximum) as replica_lag_sec by DBInstanceIdentifier\n| where replica_lag_sec > 30\n```\n\nUnderstanding this SPL\n\n**Read Replica Lag** — Replica lag affects read consistency for applications using read replicas. Monitoring prevents stale data serving.\n\nDocumented **Data sources**: CloudWatch `ReplicaLag` metric, Azure SQL `replication_lag`. **App/TA** (typical add-on context): Cloud provider TAs (CloudWatch, Azure Monitor). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by DBInstanceIdentifier** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where replica_lag_sec > 30` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (replica lag over time), Single value (current max lag), Table (replicas with lag).",
-  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress."
+  "grandmaExplanation": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

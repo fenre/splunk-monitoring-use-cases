@@ -9,8 +9,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=os` `sourcetype=macos_time_sync` from `sntp -d pool.ntp.org` or `ntpdate -q` style scripted checks (offset milliseconds)",
-  "app": "Splunk Universal Forwarder for macOS (scripted input)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'macOS Secure Time Offset vs Stratum-1 Reference'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.2.137).",
+  "evidence": "Saved search uc_1_2_137_macos_secure_time_offset_vs_stratum_1_re, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'macOS Secure Time Offset vs Stratum-1 Reference'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.2.137.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=os` `sourcetype=macos_time_sync` from `sntp -d pool.ntp.org` or `ntpdate -q` style scripted checks (offset milliseconds) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder for macOS (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=macos_time_sync host=*\n| stats latest(offset_ms) as offset_ms, latest(stratum) as stratum by host\n| where abs(offset_ms) > 500\n| eval abs_offset=abs(offset_ms)\n| table host, offset_ms, abs_offset, stratum\n| sort - abs_offset",
   "description": "TLS authentication, Kerberos, and MDM certificate validation break when macOS clock skew exceeds hundreds of milliseconds. Lightweight NTP offset probes per host catch silent time drift from dead batteries, virtualization glitches, or captive portal blocks before MFA and VPN begin failing intermittently.",
   "value": "Stops sporadic auth and VPN failures by proving whether endpoints have drifted from trusted time.",
@@ -22,16 +28,33 @@
   "references": [
     {
       "title": "NIST SP 800-52 Rev. 2 — TLS guidance (time synchronization context)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/final",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Universal Forwarder macOS install",
-      "url": "https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/"
+      "url": "https://docs.splunk.com/Documentation/Forwarder/latest/Deployment/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "hyperv",
     "macos"
+  ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "macos_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Allow outbound UDP/123 or NTP-over-HTTPS per security policy.\n• If `sntp` is absent, bundle `ntpdate` from macOS Command Line Tools.\n\nStep 1 — Scripted input emits JSON: `{\"offset_ms\":-12.4,\"stratum\":2}`.\n\nStep 2 — Correlate alerts with Wi-Fi captive portal incidents.\n\nStep 3 — Validate by manually setting clock wrong in lab.\n\nStep 4 — Document tolerance for VMs using host sync.",
-  "grandmaExplanation": "We check that each Mac’s clock matches the real world so logins and secure connections don’t randomly fail because the time is off."
+  "detailedImplementation": "Prerequisites\n• Allow outbound UDP/123 or NTP-over-HTTPS per security policy.\n• If `sntp` is absent, bundle `ntpdate` from macOS Command Line Tools.\n\nStep 1 — Scripted input emits JSON: `{\"offset_ms\":-12.4,\"stratum\":2}`.\n\nStep 2 — Correlate alerts with Wi-Fi captive portal incidents.\n\nStep 3 — Validate by manually setting clock wrong in lab.\n\nStep 4 — Document tolerance for VMs using host sync.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder for macOS (scripted input) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_time_sync into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that each Mac’s clock matches the real world so logins and secure connections don’t randomly fail because the time is off.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

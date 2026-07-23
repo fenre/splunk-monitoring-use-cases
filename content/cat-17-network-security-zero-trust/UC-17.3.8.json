@@ -9,7 +9,13 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Access decision logs (allow/deny), user, app, reason",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Zero Trust Access Denial Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.8).",
+  "evidence": "Saved search uc_17_3_8_zero_trust_access_denial_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Zero Trust Access Denial Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.8.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Access decision logs (allow/deny), user, app, reason Indexes: zt. Sourcetypes: zt:access. Key fields: _time, application, deny_reason, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_zscaler` (ZPA), Netskope Add-on for Splunk (Splunkbase 3808), `Splunk_TA_paloalto` (Prisma Access), `TA-fortinet_fortigate` (FortiSASE), Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=zt sourcetype=\"zt:access\"\n| where decision=\"deny\"\n| bin _time span=1h\n| stats count by user, application, deny_reason, _time\n| where count > 20\n| sort -count",
   "description": "High denial rates may indicate policy misconfiguration or attacker probing. Trending supports tuning and security analysis.",
@@ -25,18 +31,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Access denied for users in mid-onboarding, role changes pending propagation, or VDI sessions with new device IDs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001",
     "T1046"
@@ -54,6 +68,12 @@
     "paloalto_pan_firewall",
     "paloalto_prisma"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Aggregated access denial events from all Zero Trust enforcement points. Microsoft Entra CA: `sourcetype=azure:aad:signin` where `properties.conditionalAccessStatus=failure`. Zscaler ZPA: `sourcetype=zscaler:zpa:user_activity` where `Action=Block`. Prisma Access: `sourcetype=pan:globalprotect` where action=deny. Key common fields: `user`, `application`, `deny_reason`, `timestamp`.\n• Zero Trust denials are the primary signal that the system is working — or that it is too strict. A Zero Trust architecture should deny access by default and only allow after all conditions are met. Trending denials helps separate the signal (attacks blocked) from the noise (legitimate users frustrated).\n\nStep 1 — Configure data collection\nVerify denial data from multiple sources:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Unified denial trending:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| eval deny_source=case(\n    sourcetype=\"azure:aad:signin\", \"Entra CA\",\n    sourcetype=\"zscaler:zpa:user_activity\", \"ZPA\",\n    sourcetype=\"pan:globalprotect\", \"Prisma\",\n    1==1, sourcetype\n  )\n| timechart span=1h count by deny_source\n```\n\nUnderstanding this SPL: Trends access denials across all Zero Trust enforcement points in a single view. Spikes indicate: a new policy deployed (causes mass denials until users comply), an attack (credential stuffing, brute force), or an infrastructure issue (SSO down, certificate expired). Correlating deny source with timing helps pinpoint the cause.\n\nDeny reason analysis:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| eval reason=coalesce(properties.status.failureReason, PolicyName, \"unknown\")\n| stats count dc(user) as affected_users by reason\n| sort - count\n```\n\nStep 3 — Validate\n(a) Trigger a known denial (e.g., access from untrusted device).\n(b) Verify the denial appears in the unified trend.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Denial trend (multi-source timechart). Row 2 — Top denial reasons. Row 3 — Most-denied users.\nAlert: When denials exceed 3x the 7-day average in any 1-hour window.\n\nRunbook:\n1. **Spike after policy change** — Expected. Monitor for 24h. If sustained, review policy.\n2. **Spike without policy change** — Possible attack or infrastructure issue.\n3. **Single user with many denials** — Check user's device compliance and credentials.\n\nStep 5 — Troubleshooting\n• **Only one source showing denials** — Other platforms may not be forwarding denial events. Check each platform's log configuration.\n• **Deny reason 'unknown'** — The platform may not provide structured denial reasons. Parse from raw event.",
-  "grandmaExplanation": "In our Zero Trust system, blocking unauthorized access is the whole point. We trend all the blocks across every security checkpoint so we can tell the difference between the system working correctly and the system accidentally locking out the wrong people."
+  "grandmaExplanation": "In our Zero Trust system, blocking unauthorized access is the whole point. We trend all the blocks across every security checkpoint so we can tell the difference between the system working correctly and the system accidentally locking out the wrong people.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Manufacturing",
-  "dataSources": "`index=mfg` `sourcetype=\"mes:production\"` (line_id, state), `index=mfg` `sourcetype=\"cmms:workorder\"` (asset_id, wo_id, priority), `index=ot` `sourcetype=\"opc:tag\"` (asset_id, alarm_text)",
-  "app": "Splunk OT Intelligence, CMMS integration",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Unplanned Downtime Root Cause Correlation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.2.2).",
+  "evidence": "Saved search uc_21_2_2_unplanned_downtime_root_cause_correlatio, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Unplanned Downtime Root Cause Correlation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.2.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=mfg` `sourcetype=\"mes:production\"` (line_id, state), `index=mfg` `sourcetype=\"cmms:workorder\"` (asset_id, wo_id, priority), `index=ot` `sourcetype=\"opc:tag\"` (asset_id, alarm_text) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk OT Intelligence, CMMS integration — Universal Forwarder (Splunkbase 617)",
   "spl": "(index=mfg sourcetype=\"mes:production\" state=\"down\") OR (index=mfg sourcetype=\"cmms:workorder\" priority=\"emergency\") OR (index=ot sourcetype=\"opc:tag\")\n| eval key=coalesce(line_id, asset_id)\n| where sourcetype!=\"opc:tag\" OR match(alarm_text, \"(?i)fault|alarm|trip\")\n| transaction key maxspan=30m maxevents=50\n| eval duration_sec=duration\n| where duration_sec>60\n| table _time, key, duration_sec, state, wo_id, alarm_text",
   "description": "Shortening mean time to repair for unplanned stops protects customer OTIF; correlating alarms, work orders, and environmental data speeds RCA across shifts.",
   "value": "Service and risk leaders use signals from Unplanned Downtime Root Cause Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
@@ -24,17 +30,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Downtime clusters during changeovers, material starvation, quality holds, or planned PLC stops that the shift report and CMMS work orders already show as expected.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "edge_hub",
     "opcua"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "opcua_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk OT Intelligence, CMMS integration.\n• Ensure the following data sources are available: `index=mfg` `sourcetype=\"mes:production\"` (line_id, state), `index=mfg` `sourcetype=\"cmms:workorder\"` (asset_id, wo_id, priority), `index=ot` `sourcetype=\"opc:tag\"` (asset_id, alarm_text).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize asset and line keys across MES, CMMS, and OPC-UA. Use `transaction` or `stats` with `maxspan` tuned to line stop characteristics. Ingest OPC alarms via Edge Hub. Store exemplar searches in OT Intelligence workbench for engineers. **Domain context:** ISA-95 and ISO 22400 frame downtime analytics; RCA typically sequences MES state → CMMS work order → OT alarm text—tune `maxspan` to your line’s stop/start cadence. **Splunk:** The base search must not put `match()` inside the initial boole…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=mfg sourcetype=\"mes:production\" state=\"down\") OR (index=mfg sourcetype=\"cmms:workorder\" priority=\"emergency\") OR (index=ot sourcetype=\"opc:tag\")\n| eval key=coalesce(line_id, asset_id)\n| where sourcetype!=\"opc:tag\" OR match(alarm_text, \"(?i)fault|alarm|trip\")\n| transaction key maxspan=30m maxevents=50\n| eval duration_sec=duration\n| where duration_sec>60\n| table _time, key, duration_sec, state, wo_id, alarm_text\n```\n\nUnderstanding this SPL\n\n**Unplanned Downtime Root Cause Correlation** — Shortening mean time to repair for unplanned stops protects customer OTIF; correlating alarms, work orders, and environmental data speeds RCA across shifts.\n\nDocumented **Data sources**: `index=mfg` `sourcetype=\"mes:production\"` (line_id, state), `index=mfg` `sourcetype=\"cmms:workorder\"` (asset_id, wo_id, priority), `index=ot` `sourcetype=\"opc:tag\"` (asset_id, alarm_text). **App/TA** (typical add-on context): Splunk OT Intelligence, CMMS integration. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mfg, ot; **sourcetype**: mes:production, cmms:workorder, opc:tag. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mfg, index=mfg, index=ot, sourcetype=\"mes:production\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **key** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where sourcetype!=\"opc:tag\" OR match(alarm_text, \"(?i)fault|alarm|trip\")` — typically the threshold or rule expression for this monitoring goal.\n• Groups related events into transactions — prefer `maxspan`/`maxpause`/`maxevents` for bounded memory.\n• `eval` defines or adjusts **duration_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where duration_sec>60` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Unplanned Downtime Root Cause Correlation**): table _time, key, duration_sec, state, wo_id, alarm_text\n\n\nStep 3 — Validate\nCompare calculated buckets with the MES shift report or historian (for example PI or Proficy) for the same line and period. Confirm planned versus run time matches the routing master used by production.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (downtime episodes), Table (correlated WO and alarms), Sankey (cause categories), Bar chart (duration by line).",
-  "grandmaExplanation": "We watch sudden stops and the alerts around them. We help you stitch the story across machines before the shift loses hours."
+  "grandmaExplanation": "We watch sudden stops and the alerts around them. We help you stitch the story across machines before the shift loses hours.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

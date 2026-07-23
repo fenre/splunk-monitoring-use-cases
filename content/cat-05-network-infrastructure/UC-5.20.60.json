@@ -9,6 +9,12 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.60).",
+  "evidence": "Saved search uc_5_20_60_ipv6_segment_routing_srv6_sid_validation, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.60.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:xr` containing SRv6 policy events, SID (Segment Identifier) validation logs, and segment list status messages. Segment Routing over IPv6 (SRv6) encodes network instructions directly in IPv6 addresses using Segment Identifiers (SIDs). Each SID is a 128-bit IPv6 address that represents a network instruction (a segment). SRv6 replaces MPLS labels with IPv6 addresses, leveraging the IPv6 header's Segment Routing Header (SRH, routing header type 4) to carry ordered segment lists.\n\nKey SRv6 concepts:\n- **Locator** — The prefix portion of a SID that is routable via standard IPv6 routing (e.g., 2001:db8:cafe::/48)\n- **Function** — The suffix of the SID that encodes the specific operation (e.g., End, End.X, End.DT6, End.DX4)\n- **SID List** — An ordered list of SIDs in the SRH that defines the packet's path through the network\n- **SR Policy** — A headend-to-tailend intent-based traffic engineering path defined by colour and endpoint\n\nSRv6 functions:\n- **End** — Node SID (transit through this node)\n- **End.X** — Adjacency SID (use this specific link)\n- **End.DT6** — Decapsulate and lookup in IPv6 table (VPNv6 service)\n- **End.DT4** — Decapsulate and lookup in IPv4 table (VPNv4 over SRv6)\n- **End.DX6/DX4** — Decapsulate and cross-connect to specific next-hop\n- **H.Encaps** — Headend encapsulation\n- **H.Encaps.Red** — Headend reduced encapsulation (uSID)\n\nFailure modes:\n- SID validation failure (invalid function, unknown locator)\n- Segment list loop (SIDs creating a forwarding loop)\n- SR policy candidate path down (no valid segment list)\n- uSID container mismatch (micro-segment encoding error)",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:xr\") (\"%SRV6\" OR \"%SR_POLICY\" OR \"%SEGMENT_ROUTING\") earliest=-24h\n| eval srv6_event=case(\n    match(_raw, \"(?i)SID.*invalid|validation.*fail\"), \"SID_VALIDATION_FAILURE\",\n    match(_raw, \"(?i)policy.*down|candidate.*down\"), \"POLICY_DOWN\",\n    match(_raw, \"(?i)policy.*up|candidate.*active\"), \"POLICY_UP\",\n    match(_raw, \"(?i)SID.*install|SID.*allocated\"), \"SID_INSTALLED\",\n    match(_raw, \"(?i)locator.*unreachable\"), \"LOCATOR_UNREACHABLE\",\n    1=1, \"OTHER\")\n| eval severity=case(\n    srv6_event=\"SID_VALIDATION_FAILURE\", \"CRITICAL\",\n    srv6_event=\"POLICY_DOWN\", \"HIGH\",\n    srv6_event=\"LOCATOR_UNREACHABLE\", \"HIGH\",\n    srv6_event=\"POLICY_UP\", \"INFO\",\n    srv6_event=\"SID_INSTALLED\", \"INFO\",\n    1=1, \"LOW\")\n| stats count by host, srv6_event, severity\n| sort -severity",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 8986 — Segment Routing over IPv6 (SRv6) Network Programming",
-      "url": "https://www.rfc-editor.org/rfc/rfc8986"
+      "url": "https://www.rfc-editor.org/rfc/rfc8986",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8754 — IPv6 Segment Routing Header (SRH)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8754"
+      "url": "https://www.rfc-editor.org/rfc/rfc8754",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9252 — BGP Overlay Services Based on Segment Routing over IPv6 (SRv6)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9252"
+      "url": "https://www.rfc-editor.org/rfc/rfc9252",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**SR policy recalculation after topology change.** When a link fails, SR policies that use the failed link are recalculated to use alternative paths. The policy goes DOWN momentarily and then comes back UP on a new path. This is normal reconvergence.\n\n**SID installation during boot.** When a router boots, it installs its local SIDs. This generates SID_INSTALLED events that are normal.\n\n**Policy preference changes.** When a higher-preference candidate path becomes available, the lower-preference path goes down. This is normal SR policy behaviour.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "juniper",

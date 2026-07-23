@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log",
-  "app": "Splunk Edge Hub (custom container), gRPC SDK",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Custom Python Container for Data Transformation & Enrichment'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.3.23).",
+  "evidence": "Saved search uc_14_3_23_custom_python_container_for_data_transfo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Custom Python Container for Data Transformation & Enrichment'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.3.23.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (custom container), gRPC SDK — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enrichment\n| stats count as successful_transforms, count(eval(error_code!=0)) as failed_transforms by host\n| eval transform_success_rate = (successful_transforms / (successful_transforms + failed_transforms)) * 100",
   "description": "Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.",
-  "value": "Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.",
+  "value": "Operations and leadership rely on 'Custom Python Container for Data Transformation & Enrichment' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Build custom ARM64 Python container (requires Dockerfile with Python 3.9+ and gRPC client library) to read sensor data via Edge Hub gRPC API. Implement custom enrichment logic (e.g., add facility ID, shift code, operator ID). Redact PII or sensitive fields before forwarding to cloud. Configure edge.json manifest with resource limits (memory: 512MB, CPU: 2 cores). Container runs as non-root (v2.0+). Deploy via Advanced Settings → Containers tab. Local SQLite backlog absorbs data if container crashes.",
   "visualization": "Transform success rate trend, processing latency histogram, error frequency chart.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "docker",
     "edge_hub",
@@ -34,9 +56,15 @@
   "equipmentModels": [
     "hardware_bmc_edac"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (custom container), gRPC SDK.\n• Ensure the following data sources are available: `index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild custom ARM64 Python container (requires Dockerfile with Python 3.9+ and gRPC client library) to read sensor data via Edge Hub gRPC API. Implement custom enrichment logic (e.g., add facility ID, shift code, operator ID). Redact PII or sensitive fields before forwarding to cloud. Configure edge.json manifest with resource limits (memory: 512MB, CPU: 2 cores). Container runs as non-root (v2.0+). Deploy via Advanced Settings → Containers tab. Local SQLite backlog absorbs data if container cras…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log container_name=transform_enrichment\n| stats count as successful_transforms, count(eval(error_code!=0)) as failed_transforms by host\n| eval transform_success_rate = (successful_transforms / (successful_transforms + failed_transforms)) * 100\n```\n\nUnderstanding this SPL\n\n**Custom Python Container for Data Transformation & Enrichment** — Pre-processes edge sensor data locally before forwarding to Splunk, reducing bandwidth and enabling offline analytics.\n\nDocumented **Data sources**: `index=edge-hub-data` all metrics post-transformation, `index=edge-hub-logs` container_event_log. **App/TA** (typical add-on context): Splunk Edge Hub (custom container), gRPC SDK. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **transform_success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Transform success rate trend, processing latency histogram, error frequency chart.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: custom python container for data transformation & enrichment before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: custom python container for data transformation & enrichment before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

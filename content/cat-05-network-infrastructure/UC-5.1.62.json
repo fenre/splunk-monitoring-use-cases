@@ -9,8 +9,14 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "CloudVision webhook JSON (HEC) or forwarded syslog from CVP",
-  "app": "CloudVision webhook or syslog to Splunk HEC",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Arista CloudVision Telemetry Alerts (Arista)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.62).",
+  "evidence": "Saved search uc_5_1_62_arista_cloudvision_telemetry_alerts_aris, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Arista CloudVision Telemetry Alerts (Arista)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.62.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "CloudVision webhook JSON (HEC) or forwarded syslog from CVP Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "CloudVision webhook or syslog to Splunk HEC — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network (source=*cvp* OR sourcetype=\"http:event_collector\" OR sourcetype=\"_json\")\n| search CloudVision OR cvp OR \"CVP\" OR deviceId OR device_id\n| eval sev=coalesce(severity, alert_severity, severity_level)\n| eval cat=coalesce(category, alert_type, type, alertType)\n| eval dev=coalesce(deviceId, device_id, dvc, host)\n| stats count as alert_count, latest(_time) as last_alert by sev, cat, dev\n| sort -alert_count",
   "description": "CloudVision aggregates streaming telemetry and policy state across the fabric; forwarding those alerts to Splunk gives the NOC the same fabric-wide lens as the network team without logging into CVP for every spike. You can align telemetry-driven anomalies with application incidents and compliance audits. Historical alert volume also shows whether automation or drift is increasing operational noise.",
   "value": "Operations teams aggregate Arista CloudVision telemetry alerts in Splunk by category and severity, correlating compliance, security, and performance alerts across the Arista switching fabric.",
@@ -20,14 +26,39 @@
   "references": [
     {
       "title": "CIM: Alerts",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "API rate limits, CVaaS maintenance, and collector restarts can look like an agent problem—check CloudVision and device reachability first.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "syslog"
   ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Arista CloudVision (CVP) telemetry alerts. Data in `index=arista` or `index=network` with `sourcetype=arista:cloudvision` or webhook/API data from CVP. Key fields: `alertType`, `severity`, `device`, `description`.\n* Arista CloudVision Portal (CVP): centralized management and telemetry platform for Arista switches. Streams telemetry via gNMI/OpenConfig. CVP generates alerts for: compliance violations, inventory changes, security events, and performance thresholds. CVP can forward alerts to Splunk via webhook or syslog.\n\nStep 1 -- Configure data collection\n```\n# CVP webhook to Splunk HEC\n# CVP > Settings > Notifications > Add Webhook\n# URL: https://<splunk-hec>:8088/services/collector\n# Token: <HEC-token>\n# Events: Compliance, Inventory, Security, Performance\n\n# Splunk inputs.conf\n[http://cvp_alerts]\ntoken = <HEC-token>\nsourcetype = arista:cloudvision\nindex = arista\n```\nVerify:\n```spl\nindex=arista sourcetype=\"arista:cloudvision\" earliest=-7d\n| stats count by alertType, severity\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- CloudVision telemetry alert analysis:**\n```spl\nindex=arista sourcetype=\"arista:cloudvision\" earliest=-24h\n| eval device=coalesce(device, deviceName, hostname)\n| eval alert_type=coalesce(alertType, type, category)\n| eval sev=coalesce(severity, level)\n| eval desc=coalesce(description, message, detail)\n| eval alert_category=case(\n    match(alert_type, \"(?i)compliance|config.*drift|image.*compliance\"), \"COMPLIANCE\",\n    match(alert_type, \"(?i)inventory|device.*add|device.*remove\"), \"INVENTORY\",\n    match(alert_type, \"(?i)security|vulnerability|CVE\"), \"SECURITY\",\n    match(alert_type, \"(?i)perf|threshold|utilization|interface\"), \"PERFORMANCE\",\n    match(alert_type, \"(?i)bug|alert.*bug|known.*issue\"), \"BUG_ALERT\",\n    1==1, \"OTHER\")\n| eval severity_level=case(\n    match(sev, \"(?i)critical|emergency\"), \"CRITICAL\",\n    match(sev, \"(?i)error|high\"), \"HIGH\",\n    match(sev, \"(?i)warning|medium\"), \"WARNING\",\n    1==1, \"INFO\")\n| stats count as alerts dc(device) as devices_affected values(device) as affected_devices by alert_category, severity_level\n| where severity_level != \"INFO\"\n| sort severity_level, -alerts\n```\n\nStep 3 -- Validate\n(a) CVP UI: Events > Alerts -- verify alerts match Splunk data.\n(b) CVP: Compliance > Dashboard -- check compliance status.\n(c) Verify webhook delivery: CVP > Settings > Notifications > delivery status.\n\nStep 4 -- Operationalize\nDashboard (\"Arista -- CloudVision Alerts\"):\n* Row 1 -- Single-value: \"Critical alerts\", \"Compliance violations\", \"Security alerts\".\n* Row 2 -- Alert distribution by category.\n* Row 3 -- Alert detail table.\n\nAlert: Critical (security vulnerability or compliance critical): immediate investigation.\n\nStep 5 -- Troubleshooting\n\n* **Compliance violation** -- Device configuration doesn't match CVP configlet/image. Check: CVP > Provisioning > compare running vs designed config. Push compliance correction.\n\n* **No alerts received** -- Verify webhook configuration in CVP. Check HEC token validity. Test with manual webhook test from CVP.\n\n* **Alert storm** -- Mass alerts from network event. Check for upstream failure causing cascading alerts. Filter by root cause device.",
   "grandmaExplanation": "We help you know early when something looks wrong with arista cloudvision telemetry alerts so the team can act before it grows into a bigger outage.",
-  "hardware": "Arista CloudVision (on-prem or as-a-Service), all managed EOS switches"
+  "hardware": "Arista CloudVision (on-prem or as-a-Service), all managed EOS switches",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

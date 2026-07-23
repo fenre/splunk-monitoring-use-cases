@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:shard_allocation`",
-  "app": "Custom REST scripted input (`_cluster/allocation/explain`, `_cat/shards`)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Elasticsearch Shard Allocation Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-7.5.2).",
+  "evidence": "Saved search uc_7_5_2_elasticsearch_shard_allocation_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Elasticsearch Shard Allocation Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-7.5.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=elasticsearch:shard_allocation` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom REST scripted input (`_cluster/allocation/explain`, `_cat/shards`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:shard_allocation\"\n| where state=\"UNASSIGNED\" OR allocation_decision=\"NO\"\n| stats latest(deciders) as deciders, count by index, shard, prirep\n| sort -count",
   "description": "Unassigned or stuck relocating shards leave data unavailable or at risk; allocation explain output points to disk, routing, or settings issues before outages spread.",
-  "value": "Unassigned or stuck relocating shards leave data unavailable or at risk; allocation explain output points to disk, routing, or settings issues before outages spread.",
+  "value": "Operations and leadership rely on 'Elasticsearch Shard Allocation Failures' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest `_cat/shards` with `state` filter and, for unassigned primaries, poll `POST _cluster/allocation/explain` on a schedule. Parse `allocate_explanation` and decider names. Alert when any primary shard is unassigned >5 minutes or replica unassigned count exceeds policy.",
   "visualization": "Table (index, shard, state, reason), Single value (unassigned shard count), Timeline of allocation events.",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Yellow or relocating shards during rolling restarts, ILM/ISM moves, or snapshot restore; compare with maintenance before treating as an incident.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom REST scripted input (`_cluster/allocation/explain`, `_cat/shards`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:shard_allocation`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest `_cat/shards` with `state` filter and, for unassigned primaries, poll `POST _cluster/allocation/explain` on a schedule. Parse `allocate_explanation` and decider names. Alert when any primary shard is unassigned >5 minutes or replica unassigned count exceeds policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:shard_allocation\"\n| where state=\"UNASSIGNED\" OR allocation_decision=\"NO\"\n| stats latest(deciders) as deciders, count by index, shard, prirep\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Shard Allocation Failures** — Unassigned or stuck relocating shards leave data unavailable or at risk; allocation explain output points to disk, routing, or settings issues before outages spread.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:shard_allocation`. **App/TA** (typical add-on context): Custom REST scripted input (`_cluster/allocation/explain`, `_cat/shards`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:shard_allocation. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:shard_allocation\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where state=\"UNASSIGNED\" OR allocation_decision=\"NO\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by index, shard, prirep** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (index, shard, state, reason), Single value (unassigned shard count), Timeline of allocation events.",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

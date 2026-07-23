@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`aws:cloudtrail` Spot events, instance-hours from CUR",
-  "app": "`Splunk Add-on for AWS`, CloudTrail",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Spot Instance Interruption Rate'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-20.1.11).",
+  "evidence": "Saved search uc_20_1_11_spot_instance_interruption_rate, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Spot Instance Interruption Rate'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-20.1.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`aws:cloudtrail` Spot events, instance-hours from CUR Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for AWS`, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" earliest=-30d\n| search eventName=\"SpotInstanceInterruption\"\n| stats count as intr\n| append [ search index=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n  | search lineItem_UsageType=\"*SpotUsage*\"\n  | stats sum(lineItem_NormalizedUsageAmount) as instance_hours ]\n| stats sum(intr) as interruptions sum(instance_hours) as ih\n| eval intr_per_1k=round(1000*interruptions/nullif(ih,0),2)",
   "description": "Interruptions per 1,000 instance-hours by pool and AZ — extends raw event counts (UC-20.1.7) with a **rate** for SLO tracking.",
-  "value": "Interruptions per 1,000 instance-hours by pool and AZ — extends raw event counts (UC-20.1.7) with a **rate** for SLO tracking.",
+  "value": "Operations and leadership rely on 'Spot Instance Interruption Rate' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Align instance-hour denominator from CUR `NormalizedUsageAmount`. Alert when `intr_per_1k` exceeds baseline for stateful tiers.",
   "visualization": "Single value (interruptions per 1k hours), Line chart (rate trend), Table (by AZ).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from autoscaling events, new workload deployments, batch jobs, or DR drill resources.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk Add-on for AWS`, CloudTrail.\n• Ensure the following data sources are available: `aws:cloudtrail` Spot events, instance-hours from CUR.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign instance-hour denominator from CUR `NormalizedUsageAmount`. Alert when `intr_per_1k` exceeds baseline for stateful tiers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" earliest=-30d\n| search eventName=\"SpotInstanceInterruption\"\n| stats count as intr\n| append [ search index=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n  | search lineItem_UsageType=\"*SpotUsage*\"\n  | stats sum(lineItem_NormalizedUsageAmount) as instance_hours ]\n| stats sum(intr) as interruptions sum(instance_hours) as ih\n| eval intr_per_1k=round(1000*interruptions/nullif(ih,0),2)\n```\n\nUnderstanding this SPL\n\n**Spot Instance Interruption Rate** — Interruptions per 1,000 instance-hours by pool and AZ — extends raw event counts (UC-20.1.7) with a **rate** for SLO tracking.\n\nDocumented **Data sources**: `aws:cloudtrail` Spot events, instance-hours from CUR. **App/TA** (typical add-on context): `Splunk Add-on for AWS`, CloudTrail. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudtrail. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudtrail\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Appends rows from a subsearch with `append`.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **intr_per_1k** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (interruptions per 1k hours), Line chart (rate trend), Table (by AZ).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

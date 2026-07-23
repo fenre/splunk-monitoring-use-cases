@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:netscaler:aaalog\"` (authentication, SmartAccess / EPA context); `sourcetype=\"citrix:storefront:launch\"` (post-auth resource enumeration); `sourcetype=\"citrix:broker:events\"` (session and assignment); fields `access_policy`, `post_logon_state`, `virtual_apps_visible` (if extracted)",
-  "app": "Splunk Add-on for Citrix NetScaler, Citrix DaaS / CVAD broker event forwarders, and optional FAS / identity integration logs for correlation",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix SmartAccess Policy Match Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.6.194).",
+  "evidence": "Saved search uc_10_6_194_citrix_smartaccess_policy_match_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix SmartAccess Policy Match Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.6.194.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:netscaler:aaalog\"` (authentication, SmartAccess / EPA context); `sourcetype=\"citrix:storefront:launch\"` (post-auth resource enumeration); `sourcetype=\"citrix:broker:events\"` (session and assignment); fields `access_policy`, `post_logon_state`, `virtual_apps_visible` (if extracted) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler, Citrix DaaS / CVAD broker event forwarders, and optional FAS / identity integration logs for correlation — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:netscaler:aaalog\" OR sourcetype=\"citrix:storefront:launch\" OR sourcetype=\"citrix:broker:events\") earliest=-24h\n| eval fail=if(match(lower(coalesce(post_logon_state, \"\")),\"(?i)deny|no.?resource|unassigned|mismatch|filter\") OR match(_raw, \"(?i)smartaccess|policy.?(deny|miss|fail)\"),1,0)\n| eval usr=coalesce(user, user_name, sAMAccountName)\n| where isnotnull(usr) AND (fail=1 OR isnotnull(action) AND like(action, \"%Error%\"))\n| bin _time span=1h\n| stats count as ev, values(access_policy) as policies by _time, usr, client_ip\n| where ev>3\n| table _time, usr, client_ip, ev, policies",
   "description": "SmartAccess and contextual policies decide what users see after logon. When policy match fails, users can authenticate but receive no virtual apps, wrong filters, or an unexpected post-logon state. Correlating gateway authentication context with storefront and broker results surfaces misconfiguration, attribute mapping errors, and attacks that try to evade the intended entitlements view.",
-  "value": "SmartAccess and contextual policies decide what users see after logon. When policy match fails, users can authenticate but receive no virtual apps, wrong filters, or an unexpected post-logon state. Correlating gateway authentication context with storefront and broker results surfaces misconfiguration, attribute mapping errors, and attacks that try to evade the intended entitlements view.",
+  "value": "Operations and leadership rely on 'Citrix SmartAccess Policy Match Failures' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ensure consistent user keys across netscaler, StoreFront, and broker logs. Add lookups for user-to-group and expected virtual app set per role. Tune false positives: mass failures after a policy push point to a bad rule, not an attacker. For incidents, join to change records and the policy export from the day before. Escalate repeated failure patterns from one subnet as possible scripted probing.",
   "visualization": "Timechart: failed policy or empty launch stack per hour; table: top users and subnets; link to a sample raw event in the case queue.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — NetScaler Gateway session policies and SmartAccess",
-      "url": "https://docs.citrix.com/en-us/citrix-gateway/current-release/"
+      "url": "https://docs.citrix.com/en-us/citrix-gateway/current-release/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "SmartAccess and attribute renames after an AD restructure, GPO, or a pilot group addition can make many users see empty app lists the same day. A mass failure after a policy publish points to a bad rule, not a single user; use change and AD group correlation first.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1078"
   ],
@@ -36,6 +58,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites: Time sync and consistent user keys across citrix:netscaler:aaalog, citrix:storefront:launch, and citrix:broker:events; client_ip when possible. Step 1: Configure data collection — Name SmartAccess and resource filters identically in logs and in lookup smartaccess_policy_map.csv; props EXTRACT for access_policy, post_logon_state, user. Step 2: Create the search and alert — Start with a high ev/h threshold, then lower as noise allows; add maintenance windows and bad_subnet.csv allow/deny. Step 3: Validate — In lab, break a test policy and confirm: `index=xd (sourcetype=\"citrix:netscaler:aaalog\" OR sourcetype=\"citrix:storefront:launch\") fail=1 earliest=-1h` surfaces match strings. Step 4: Operationalize — Helpdesk triage dashboard and notables to identity for attribute review; if mass failures follow a change, page Citrix EUC/NetScaler owners; consistent cross-subnet matches escalate to the Citrix DaaS/CVAD admin team and identity.",
-  "grandmaExplanation": "We look for the “you got in, but the door to your apps stayed shut” case — so you find broken rules, missing groups, and odd logins before a whole team sits idle."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites: Time sync and consistent user keys across citrix:netscaler:aaalog, citrix:storefront:launch, and citrix:broker:events; client_ip when possible. Step 1: Configure data collection — Name SmartAccess and resource filters identically in logs and in lookup smartaccess_policy_map.csv; props EXTRACT for access_policy, post_logon_state, user. Step 2: Create the search and alert — Start with a high ev/h threshold, then lower as noise allows; add maintenance windows and bad_subnet.csv allow/deny. Step 3: Validate — In lab, break a test policy and confirm: `index=xd (sourcetype=\"citrix:netscaler:aaalog\" OR sourcetype=\"citrix:storefront:launch\") fail=1 earliest=-1h` surfaces match strings. Step 4: Operationalize — Helpdesk triage dashboard and notables to identity for attribute review; if mass failures follow a change, page Citrix EUC/NetScaler owners; consistent cross-subnet matches escalate to the Citrix DaaS/CVAD admin team and identity.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Citrix NetScaler, Citrix DaaS / CVAD broker event forwarders, and optional FAS / identity integration logs for correlation — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:netscaler:aaalog, citrix:storefront:launch, citrix:broker:events into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, client_ip, ev, fail`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for the “you got in, but the door to your apps stayed shut” case — so you find broken rules, missing groups, and odd logins before a whole team sits idle.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

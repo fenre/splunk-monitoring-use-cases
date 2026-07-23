@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 NetFlow/IPFIX Template Validation and Exporter Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.66).",
+  "evidence": "Saved search uc_5_20_66_ipv6_netflow_ipfix_template_validation_a, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 NetFlow/IPFIX Template Validation and Exporter Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.66.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=netflow` or `sourcetype=sc4snmp:metric` containing NetFlow/IPFIX template and export data. IPv6 flow visibility requires specific NetFlow/IPFIX configuration that is frequently overlooked:\n\n1. **NetFlow v5 does not support IPv6.** NetFlow version 5, the most widely deployed version, exports only IPv4 flows. Routers exporting only v5 provide zero IPv6 visibility. NetFlow v9 or IPFIX (v10) is required for IPv6 flow records.\n2. **IPv6 templates must be explicitly configured.** Even on routers exporting v9/IPFIX, IPv6 flow records require a separate template containing IPv6-specific information elements (sourceIPv6Address IE#27, destinationIPv6Address IE#28, flowLabelIPv6 IE#31, ipNextHopIPv6Address IE#62).\n3. **Dual-stack interface monitoring.** A dual-stack interface needs both IPv4 and IPv6 flow monitors applied. A common misconfiguration is applying only the IPv4 monitor.\n4. **Template refresh.** IPv6 templates are larger than IPv4 templates (due to 128-bit addresses). Template refresh intervals must account for the larger template overhead.\n5. **Sampled vs unsampled.** If flow sampling is applied, the IPv6 sampling rate should match the IPv4 rate for comparable visibility.",
   "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658). Splunk Stream (`Splunk_TA_stream_wire_data`).",
   "spl": "index=network sourcetype=\"netflow\" earliest=-24h\n| eval has_ipv6=if(isnotnull(sourceIPv6Address) OR match(src, \":\"), 1, 0)\n| stats count(eval(has_ipv6=1)) as ipv6_flows count(eval(has_ipv6=0)) as ipv4_flows by exporter_ip\n| eval ipv6_pct=round(ipv6_flows / (ipv6_flows + ipv4_flows) * 100, 1)\n| eval status=case(\n    ipv6_flows=0, \"NO IPv6 FLOWS — exporter not configured for IPv6 (NetFlow v5 or missing IPv6 template)\",\n    ipv6_pct < 1, \"LOW — IPv6 flows present but very few; check if IPv6 monitor applied to all interfaces\",\n    1=1, \"OK\")\n| sort ipv6_pct",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "RFC 7012 — Information Model for IP Flow Information Export (IPFIX IPv6 information elements)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7012"
+      "url": "https://www.rfc-editor.org/rfc/rfc7012",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.2 — flow visibility)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**IPv4-only segments.** Exporters on segments with no IPv6 deployment will legitimately show zero IPv6 flows. Tag these exporters in the exporter inventory to exclude from the alert.\n\n**Sampled flows.** Exporters with high sampling rates (1-in-1000+) may show very few IPv6 flows on segments with low IPv6 traffic. The flows exist but are undersampled.\n\n**Asymmetric routing.** If IPv6 traffic uses a different path than IPv4 (common in dual-stack routing), some exporters see only one version.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "fortinet",

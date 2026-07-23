@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=snow:change_request`, `sourcetype=snow:incident`",
-  "app": "`Splunk_TA_snow`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Failed Change Correlation with Incident Spikes'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-16.4.3).",
+  "evidence": "Saved search uc_16_4_3_failed_change_correlation_with_incident, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Failed Change Correlation with Incident Spikes'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-16.4.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=snow:change_request`, `sourcetype=snow:incident` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:change_request\" state=\"Closed\"\n| where lower(close_code)=\"unsuccessful\"\n| eval ci=cmdb_ci\n| join type=left max=1 ci [\n  search index=itsm sourcetype=\"snow:incident\" earliest=-30d\n  | rename cmdb_ci as ci\n  | stats count as inc_count by ci\n]\n| where isnotnull(inc_count) AND inc_count>0\n| table number, short_description, ci, inc_count",
   "description": "Linking unsuccessful changes to incident volume proves root cause for major reviews and helps tighten testing or rollback criteria for similar changes.",
-  "value": "Linking unsuccessful changes to incident volume proves root cause for major reviews and helps tighten testing or rollback criteria for similar changes.",
+  "value": "Operations and leadership rely on 'Failed Change Correlation with Incident Spikes' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Align `cmdb_ci` on change and incident. Use `join` with time bounds via subsearch or `transaction` on `ci` plus `_time` window (e.g., 4h after change close). Prefer native `caused_by` or `problem_id` when populated. Dashboard: unsuccessful changes with related incident counts in the follow-up window. Use for PIR and change model updates.",
   "visualization": "Table (failed CHG + incident count), Timeline (CHG vs incidents), Sankey (change → CI → incidents).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rollbacks that spike in big cutovers, legacy retirements, or stricter post-audit close codes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`.\n• Ensure the following data sources are available: `sourcetype=snow:change_request`, `sourcetype=snow:incident`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign `cmdb_ci` on change and incident. Use `join` with time bounds via subsearch or `transaction` on `ci` plus `_time` window (e.g., 4h after change close). Prefer native `caused_by` or `problem_id` when populated. Dashboard: unsuccessful changes with related incident counts in the follow-up window. Use for PIR and change model updates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:change_request\" state=\"Closed\"\n| where lower(close_code)=\"unsuccessful\"\n| eval ci=cmdb_ci\n| join type=left max=1 ci [\n  search index=itsm sourcetype=\"snow:incident\" earliest=-30d\n  | rename cmdb_ci as ci\n  | stats count as inc_count by ci\n]\n| where isnotnull(inc_count) AND inc_count>0\n| table number, short_description, ci, inc_count\n```\n\nUnderstanding this SPL\n\n**Failed Change Correlation with Incident Spikes** — Linking unsuccessful changes to incident volume proves root cause for major reviews and helps tighten testing or rollback criteria for similar changes.\n\nDocumented **Data sources**: `sourcetype=snow:change_request`, `sourcetype=snow:incident`. **App/TA** (typical add-on context): `Splunk_TA_snow`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:change_request. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:change_request\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where lower(close_code)=\"unsuccessful\"` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **ci** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnotnull(inc_count) AND inc_count>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Failed Change Correlation with Incident Spikes**): table number, short_description, ci, inc_count\n\n\nStep 3 — Validate\nCompare with the ServiceNow change request list or form for the same records. Verify change numbers, states, and timing against our search. Use the same filters you expect operations to use in the list view.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed CHG + incident count), Timeline (CHG vs incidents), Sankey (change → CI → incidents).",
-  "grandmaExplanation": "We look for a wave of customer pain after a bad change, so we can roll back, fix forward, and tell the business fast."
+  "grandmaExplanation": "We look for a wave of customer pain after a bad change, so we can roll back, fix forward, and tell the business fast.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -11,6 +11,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "regulation-specific",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Security Advisory (PSIRT) Overview'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.34).",
+  "evidence": "Saved search uc_5_13_34_security_advisory_psirt_overview, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -33,6 +35,10 @@
       "evidenceArtifact": "Dashboard panel showing advisory severity distribution and affected device counts, refreshed with each TA poll cycle."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Security Advisory (PSIRT) Overview'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.34.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:securityadvisory` from the `securityadvisory` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/security-advisory/advisory` using token auth. Default poll interval: 3600s (1h). Volume: ~1 event per advisory-device pair per poll × ~700 bytes. Key fields: `advisoryId` (Cisco advisory ID), `advisoryTitle` (human-readable title), `severity` (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL), `cveId` (CVE identifier), `deviceCount` (affected devices), `fixedVersions` (array of patched firmware versions), `publicationDate` (advisory publish date). CIM data model: Vulnerabilities.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\"\n| stats dc(advisoryId) as unique_advisories dc(cveId) as unique_cves sum(deviceCount) as total_affected by severity\n| sort case(severity=\"CRITICAL\",1,severity=\"HIGH\",2,severity=\"MEDIUM\",3,severity=\"LOW\",4,1==1,5)",
@@ -43,22 +49,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco PSIRT Security Advisories",
-      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x"
+      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Same advisory re-polled on every cycle inflating the event count.** The securityadvisory API returns all current advisories on each poll. If you count events rather than distinct `advisoryId` values, counts inflate with each poll cycle. Distinguish by checking whether `| stats dc(advisoryId)` is significantly lower than `| stats count`. Suppress by using `dc(advisoryId)` for advisory metrics instead of event count.\n\n**INFORMATIONAL severity advisories with zero affected devices.** Catalyst Center may include INFORMATIONAL advisories in the feed that do not affect any devices in the managed inventory. These can inflate the total advisory count. Distinguish by checking `deviceCount` — if 0, the advisory is informational only. Suppress by filtering `| where deviceCount>0` for operationally relevant advisory dashboards.\n\n**Advisory impact classification still in progress.** When Catalyst Center first detects a new PSIRT advisory, it may still be classifying the impact (which devices are affected, which versions are vulnerable). During this period, the advisory appears with incomplete data. Distinguish by checking whether `deviceCount` is null or changes between polls. Suppress by allowing 24 hours after a new advisory's `first_seen` before including it in operational dashboards.\n\n**Catalyst Center PSIRT database update re-scanning and surfacing previously cleared advisories.** When Catalyst Center updates its PSIRT database, it re-scans the inventory and may re-detect advisories that were previously assessed and accepted. Distinguish by checking whether the advisory's `advisoryId` appeared in earlier data with a resolution status. Suppress by maintaining a `catalyst_advisory_exceptions` lookup for risk-accepted advisories.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

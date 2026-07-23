@@ -9,6 +9,12 @@
     "Governance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Forcepoint ONE CASB Shadow IT Application Discovery (`forcepoint:one`)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.5.4).",
+  "evidence": "Saved search uc_17_5_4_forcepoint_one_casb_shadow_it_applicatio, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Forcepoint ONE CASB Shadow IT Application Discovery (`forcepoint:one`)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.5.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| where match(lower(event_type),\"(?i)casb|cloud app|saas\")\n| stats dc(app_name) as apps values(app_name) as examples by user\n| where apps>12\n| sort -apps",
@@ -22,17 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/3245"
+      "url": "https://splunkbase.splunk.com/app/3245",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Forcepoint Insights SIEM App (Splunkbase 8053) v1.x on the Search Head, or direct syslog/API integration from Forcepoint ONE SSE.\n• Data in `index=sase` with `sourcetype=forcepoint:one`. Key fields: `event_type` (casb/web/ztna/dlp), `app_name`, `app_category`, `app_risk_score`, `user`, `action`, `bytes_in`, `bytes_out`, `src_ip`, `sanctioned` (yes/no/unknown).\n• Forcepoint ONE SSE with CASB module enabled. The CASB module discovers cloud applications by analyzing web traffic through the SSE proxy or inline deployment.\n• Create a `fp_sanctioned_apps.csv` lookup: `app_name,sanctioned,owner_team,approved_date` for marking sanctioned versus unsanctioned applications.\n\nStep 1 — Configure data collection\nIn Forcepoint ONE admin portal: Settings > SIEM Integration > configure Splunk HEC or syslog endpoint. Enable CASB event logging.\n\nVerify:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| where match(lower(event_type), \"casb|cloud\")\n| stats count dc(app_name) as unique_apps by app_category\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Shadow IT discovery:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-7d\n| where match(lower(event_type), \"casb|cloud\")\n| stats count as sessions dc(user) as users sum(bytes_out) as upload_bytes by app_name, app_category, app_risk_score\n| lookup fp_sanctioned_apps.csv app_name OUTPUT sanctioned owner_team\n| where sanctioned!=\"yes\" OR isnull(sanctioned)\n| eval upload_mb=round(upload_bytes/1048576, 1)\n| eval risk=case(app_risk_score>=8, \"HIGH\", app_risk_score>=5, \"MEDIUM\", 1==1, \"LOW\")\n| sort - risk, - upload_mb\n```\n\nUnderstanding this SPL: Identifies cloud applications not on the sanctioned list, ranked by risk score and upload volume. High-risk unsanctioned apps with significant upload volume represent potential data exfiltration channels. Common shadow IT: personal cloud storage (Google Drive personal, Dropbox), code repositories (personal GitHub), collaboration tools (WhatsApp Web), and AI services (ChatGPT, Claude). Upload volume is more concerning than download — uploading to an unsanctioned app means company data is leaving controlled environments.\n\nNew app detection:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-24h\n| where match(lower(event_type), \"casb|cloud\")\n| stats count dc(user) as users by app_name\n| join type=left app_name [\n    search index=sase sourcetype=\"forcepoint:one\" earliest=-31d latest=-1d\n    | where match(lower(event_type), \"casb|cloud\")\n    | stats count as hist_count by app_name\n]\n| where isnull(hist_count)\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Forcepoint ONE portal: CASB > Cloud App Discovery. Compare the discovered app list with Splunk.\n(b) Access a known unsanctioned cloud app from a monitored endpoint. Verify it appears in Splunk.\n(c) Verify the `fp_sanctioned_apps.csv` lookup is complete — every sanctioned app should be marked.\n\nStep 4 — Operationalize\nDashboard (\"Forcepoint — Shadow IT Discovery\"):\n• Row 1 — Single-value: \"Unsanctioned apps detected\", \"High-risk apps\", \"Data uploaded to shadow IT (MB)\".\n• Row 2 — Table: app name, category, risk score, users, sessions, upload volume.\n• Row 3 — Timechart: shadow IT usage over 30 days.\n\nAlert: Weekly shadow IT report to IT governance. Immediate alert for any high-risk (score >= 8) unsanctioned app with upload volume > 100 MB.\n\nRunbook:\n1. **High-risk app with uploads** — Block the app in Forcepoint ONE policy. Investigate which users uploaded data and what was uploaded.\n2. **Popular unsanctioned app (many users)** — The organization may need this app. Evaluate for sanctioning or provide a sanctioned alternative.\n3. **AI/ML services detected** — Sensitive data may be shared with AI providers. Apply DLP inspection to the CASB channel for these apps.\n\nStep 5 — Troubleshooting\n• **Very few apps discovered** — CASB discovery requires traffic to pass through the Forcepoint proxy. If users bypass the proxy (split tunnel VPN), apps are not visible.\n• **`app_name` shows raw hostnames instead of app names** — The Forcepoint app classification database may not recognize the hostname. Submit for classification.\n• **Sanctioned apps appearing as unsanctioned** — Update the `fp_sanctioned_apps.csv` lookup with all approved applications.",
-  "grandmaExplanation": "We find out which unapproved cloud services our employees are using, like personal file-sharing or AI tools, so we can make sure company data is not accidentally leaking out."
+  "grandmaExplanation": "We find out which unapproved cloud services our employees are using, like personal file-sharing or AI tools, so we can make sure company data is not accidentally leaking out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

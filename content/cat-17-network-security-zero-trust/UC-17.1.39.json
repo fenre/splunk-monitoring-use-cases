@@ -9,6 +9,8 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'EAP Authentication Method Drift and Weak-Method Regression'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.39).",
+  "evidence": "Saved search uc_17_1_39_eap_authentication_method_drift_and_weak, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -101,22 +103,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — EAP Configuration",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4017 — EAP method requirements (deprecates LEAP)",
-      "url": "https://datatracker.ietf.org/doc/rfc4017/"
+      "url": "https://datatracker.ietf.org/doc/rfc4017/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9427 — TEAP — Tunnel Extensible Authentication Protocol Version 1",
-      "url": "https://datatracker.ietf.org/doc/rfc9427/"
+      "url": "https://datatracker.ietf.org/doc/rfc9427/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Legacy device still on-network** — a single old printer doing PEAP+MSCHAPv2 in an EAP-TLS-only environment will appear daily until decommissioned. Maintain `eap_method_exceptions.csv` and exclude. (b) **Network test devices** — penetration-test rigs commonly run LEAP; mark and exclude. (c) **MAB falls back to no EAP** — MAC-Auth-Bypass sessions don't have EAP; the search filters them via the MessageCode (5400 only emits for EAP successes; MAB uses different codes). Verify your search isn't pulling in MAB.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1556"
   ],
@@ -134,7 +140,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE *Authentication* category at INFO (default).\n• `eap_method_exceptions.csv` lookup defining accepted exceptions per device type.\n• `device_inventory.csv` for endpoint context.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 earliest=-1h\n| stats count by EapAuthentication, EapTunnel\n```\nFor a healthy fleet you should see methods you expect. If MD5 or LEAP appears, that's the symptom this UC catches.\n\nStep 2 — Create the search\nDaily audit search in `spl` field. Schedule daily at 06:00 UTC.\n\nReal-time regression search (every 30 min):\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 earliest=-30m\n| rex \"EapAuthentication=(?<inner>[^,\\s]+)\"\n| stats count by inner\n| eval current_share = count / sum(count)\n| join inner [\n    | inputlookup eap_method_baseline.csv\n  ]\n| eval delta = current_share - baseline_share\n| where abs(delta) > 0.10\n```\nWhere `eap_method_baseline.csv` is built nightly from the 7d distribution.\n\nStep 3 — Validate\nProvoke as in controlTest.\nField check: every 5400 event must have `EapAuthentication` non-null. If null, TA version too old.\n\nStep 4 — Operationalize\nDashboard \"ISE — EAP Method Distribution\":\n• Pie: 30d distribution.\n• Trend timechart: % share by method last 90d.\n• Top-N: users with weak methods.\n• Top-N: device types with weak methods (cross-ref `device_inventory.csv`).\n\nDeprecation campaign workflow:\n• Daily report → ticket per user/device with weak method → owner assignment → reauth on TEAP/EAP-TLS.\n\nStep 5 — Troubleshooting\n• **All methods show as 'medium'** — `is_weak` case has gaps; review the eval.\n• **Method counts dropped to zero** — *Authentication* category logging severity raised to WARN; lower to INFO.\n• **PEAP+MSCHAPv2 share growing month-on-month** — A new device type is being onboarded with PEAP rather than TEAP. Engage the platform team to update the baseline supplicant config.",
+  "detailedImplementation": "Prerequisites\n• ISE *Authentication* category at INFO (default).\n• `eap_method_exceptions.csv` lookup defining accepted exceptions per device type.\n• `device_inventory.csv` for endpoint context.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 earliest=-1h\n| stats count by EapAuthentication, EapTunnel\n```\nFor a healthy fleet you should see methods you expect. If MD5 or LEAP appears, that's the symptom this UC catches.\n\nStep 2 — Create the search\nDaily audit search in `spl` field. Schedule daily at 06:00 UTC.\n\nReal-time regression search (every 30 min):\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5400 earliest=-30m\n| rex \"EapAuthentication=(?<inner>[^,\\s]+)\"\n| stats count by inner\n| eval current_share = count / sum(count)\n| join inner [\n    | inputlookup eap_method_baseline.csv\n  ]\n| eval delta = current_share - baseline_share\n| where abs(delta) > 0.10\n```\nWhere `eap_method_baseline.csv` is built nightly from the 7d distribution.\n\nStep 3 — Validate\nProvoke as in controlTest.\nField check: every 5400 event must have `EapAuthentication` non-null. If null, TA version too old.\n\nStep 4 — Operationalize\nDashboard \"ISE — EAP Method Distribution\":\n• Pie: 30d distribution.\n• Trend timechart: % share by method last 90d.\n• Top-N: users with weak methods.\n• Top-N: device types with weak methods (cross-ref `device_inventory.csv`).\n\nDeprecation campaign workflow:\n• Daily report → ticket per user/device with weak method → owner assignment → reauth on TEAP/EAP-TLS.\n\nStep 5 — Troubleshooting\n• **All methods show as 'medium'** — `is_weak` case has gaps; review the eval.\n• **Method counts dropped to zero** — *Authentication* category logging severity raised to WARN; lower to INFO.\n• **PEAP+MSCHAPv2 share growing month-on-month** — A new device type is being onboarded with PEAP rather than TEAP. Engage the platform team to update the baseline supplicant config.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`combined, is_weak`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Devices have many ways to prove who they are when joining the network — some are modern and strong, others are decades old and weak. We list which methods are being used and ring the bell when a weak old method is seen, so we can replace it with a stronger one.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

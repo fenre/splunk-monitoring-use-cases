@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=itsm` `sourcetype=\"snow:backlog_daily\"` (recommended) or `sourcetype=\"snow:incident\"` with snapshot pipeline; `sourcetype=jira:*` for Jira SM parity",
-  "app": "`Splunk_TA_snow`, optional HEC forwarder for ServiceNow scheduled reports",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Ticket Backlog Aging Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-16.5.1).",
+  "evidence": "Saved search uc_16_5_1_ticket_backlog_aging_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Ticket Backlog Aging Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-16.5.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=itsm` `sourcetype=\"snow:backlog_daily\"` (recommended) or `sourcetype=\"snow:incident\"` with snapshot pipeline; `sourcetype=jira:*` for Jira SM parity Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow`, optional HEC forwarder for ServiceNow scheduled reports — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:backlog_daily\" earliest=-30d@d\n| eval _time=strptime(snapshot_date,\"%Y-%m-%d\")\n| timechart span=1d sum(open_count) by age_bucket\n| foreach \"0-7d\" \"7-30d\" \"30-90d\" \"90d+\" [trendline sma7(<<FIELD>>) as trend_<<FIELD>>]",
   "description": "Watching how open work ages shows whether queues are draining or stagnating; growth in older buckets signals staffing, tooling, or upstream failure demand that will eventually breach customer expectations.",
-  "value": "Watching how open work ages shows whether queues are draining or stagnating; growth in older buckets signals staffing, tooling, or upstream failure demand that will eventually breach customer expectations.",
+  "value": "Operations and leadership rely on 'Ticket Backlog Aging Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Publish a daily ServiceNow report (or scripted REST) that counts open incidents or tasks by age bucket (`0-7d`, `7-30d`, `30-90d`, `90d+`) and send results to Splunk with stable field names. If you cannot ingest snapshots yet, run a nightly saved search that writes the same structure to a summary index. Map `age_bucket` labels to your CMDB time zones; exclude cancelled records. If `foreach` is unavailable on your Splunk version, add a `trendline` per series in Dashboard Studio or clone the search per bucket. For Jira, mirror buckets using `created` versus `resolutiondate`.",
   "visualization": "Stacked area or column chart (buckets over 30 days), Line chart (trendline overlays per bucket), Single value (90d+ share of open backlog).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Stale or old records while waiting on a vendor, a customer reply, a patch, or work we chose to park on purpose.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "jira",
     "servicenow"
   ],
+  "equipmentModels": [
+    "jira_generic",
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`, optional HEC forwarder for ServiceNow scheduled reports.\n• Ensure the following data sources are available: `index=itsm` `sourcetype=\"snow:backlog_daily\"` (recommended) or `sourcetype=\"snow:incident\"` with snapshot pipeline; `sourcetype=jira:*` for Jira SM parity.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPublish a daily ServiceNow report (or scripted REST) that counts open incidents or tasks by age bucket (`0-7d`, `7-30d`, `30-90d`, `90d+`) and send results to Splunk with stable field names. If you cannot ingest snapshots yet, run a nightly saved search that writes the same structure to a summary index. Map `age_bucket` labels to your CMDB time zones; exclude cancelled records. If `foreach` is unavailable on your Splunk version, add a `trendline` per series in Dashboard Studio or clone the searc…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:backlog_daily\" earliest=-30d@d\n| eval _time=strptime(snapshot_date,\"%Y-%m-%d\")\n| timechart span=1d sum(open_count) by age_bucket\n| foreach \"0-7d\" \"7-30d\" \"30-90d\" \"90d+\" [trendline sma7(<<FIELD>>) as trend_<<FIELD>>]\n```\n\nUnderstanding this SPL\n\n**Ticket Backlog Aging Trending** — Watching how open work ages shows whether queues are draining or stagnating; growth in older buckets signals staffing, tooling, or upstream failure demand that will eventually breach customer expectations.\n\nDocumented **Data sources**: `index=itsm` `sourcetype=\"snow:backlog_daily\"` (recommended) or `sourcetype=\"snow:incident\"` with snapshot pipeline; `sourcetype=jira:*` for Jira SM parity. **App/TA** (typical add-on context): `Splunk_TA_snow`, optional HEC forwarder for ServiceNow scheduled reports. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:backlog_daily. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:backlog_daily\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **_time** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by age_bucket** — ideal for trending and alerting on this use case.\n• Iterates over multivalue fields with `foreach`.\n\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area or column chart (buckets over 30 days), Line chart (trendline overlays per bucket), Single value (90d+ share of open backlog).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We trend how long work sits in the backlog, so we can see debt building before customers feel it in every call."
+  "grandmaExplanation": "We trend how long work sits in the backlog, so we can see debt building before customers feel it in every call.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

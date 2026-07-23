@@ -8,7 +8,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=fgt_utm`, `sourcetype=fortinet_fortios_utm`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'FortiGate Web Filter and Application Control Events (Fortinet)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.46).",
+  "evidence": "Saved search uc_5_2_46_fortigate_web_filter_and_application_con, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'FortiGate Web Filter and Application Control Events (Fortinet)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.46.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=fgt_utm`, `sourcetype=fortinet_fortios_utm` Indexes: firewall. Sourcetypes: fgt_utm, fortinet_fortios_utm. Key fields: act, app_name, cat, device, hostname, src. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`TA-fortinet_fortigate` (Splunkbase 2846)",
   "spl": "index=firewall sourcetype IN (\"fgt_utm\",\"fortinet_fortios_utm\")\n| eval cat=coalesce(catdesc, category, urlfilter_cat, web_cat)\n| eval app_name=coalesce(app, appname, applist, app_cat)\n| eval act=lower(coalesce(action, utm_action))\n| eval device=coalesce(devname, dvc, host)\n| stats count by device act cat app_name hostname src\n| sort -count",
   "description": "FortiGate UTM combines web filtering (FortiGuard URL categories), DNS filtering, and application control in one policy pass. Reviewing blocked categories, high-risk apps, and allow/deny ratios shows policy drift, shadow IT, and risky user behavior without full packet capture. It also helps justify license spend and tune noisy categories that generate help-desk load.",
@@ -21,21 +27,39 @@
   "references": [
     {
       "title": "Splunkbase app 2846",
-      "url": "https://splunkbase.splunk.com/app/2846"
+      "url": "https://splunkbase.splunk.com/app/2846",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Overblocking categories, new SaaS, and end-user workarounds can make web or app control logs noisy by design.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "fortinet"
   ],
   "equipmentModels": [
     "fortinet_fortigate"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* FortiGate UTM web filter and application control logs. Data in `index=fortinet` or `index=firewall` with `sourcetype=fgt_utm` or `sourcetype=fgt_log`. Key fields: `catdesc` (URL category), `hostname`, `url`, `action` (blocked/allowed/monitored), `appcat` (application category), `app` (application name), `profile`, `policyid`.\n* FortiGate UTM: combines web filtering (FortiGuard URL categories, custom categories, DNS filtering), application control (deep packet inspection), and SSL inspection in a single policy. Categories defined in `config webfilter profile` and `config application list`.\n\nStep 1 -- Configure data collection\n```\n# FortiGate CLI -- enable UTM logging\nconfig webfilter profile\n    edit \"default\"\n        config ftgd-wf\n            config filters\n                edit 1\n                    set category 2    # Adult\n                    set action block\n                next\n                edit 2\n                    set category 7    # Malware\n                    set action block\n                next\n            end\n        end\n        set log-all-url enable\n    next\nend\n\nconfig application list\n    edit \"default\"\n        set other-application-action pass\n        set other-application-log enable\n        config entries\n            edit 1\n                set category 5    # P2P\n                set action block\n            next\n        end\n    next\nend\n```\nVerify:\n```spl\nindex=fortinet sourcetype=\"fgt_utm\" earliest=-4h\n| stats count by catdesc, action, app\n| sort -count | head 20\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Web filter and application control events:**\n```spl\nindex=fortinet sourcetype=\"fgt_utm\" earliest=-4h\n| eval url_category=coalesce(catdesc, cat, category)\n| eval application=coalesce(app, appcat, application)\n| eval act=lower(coalesce(action, utmaction))\n| eval hostname=coalesce(hostname, dstname)\n| eval user=coalesce(user, srcuser, unauthuser)\n| eval src=coalesce(srcip, src_ip, src)\n| eval risk_level=case(\n    match(url_category, \"(?i)malware|phishing|botnet|command.and.control\"), \"CRITICAL -- threat category\",\n    match(url_category, \"(?i)proxy|vpn|anonymizer\"), \"HIGH -- evasion attempt\",\n    match(act, \"(?i)block\") AND match(url_category, \"(?i)adult|gambling|weapons\"), \"MEDIUM -- policy violation\",\n    match(application, \"(?i)tor|bitTorrent|p2p\"), \"HIGH -- high-risk application\",\n    match(act, \"(?i)block\"), \"INFO -- blocked\",\n    1==1, \"LOW\")\n| where risk_level != \"LOW\"\n| stats count as events dc(src) as unique_users values(user) as users values(hostname) as sites by risk_level, url_category, application, act\n| sort risk_level, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `diagnose wad stats` -- check web filter processing statistics.\n(b) CLI: `diagnose application list` -- verify application signatures are current.\n(c) Test: attempt to access a blocked category and verify block page appears.\n\nStep 4 -- Operationalize\nDashboard (\"FortiGate -- UTM Web Filter & App Control\"):\n* Row 1 -- Single-value: \"Threat blocks\", \"Policy violations\", \"Evasion attempts\".\n* Row 2 -- Category block distribution.\n* Row 3 -- Top blocked users and sites.\n\nAlert: Critical (malware/phishing/C2 category access): SOC investigation.\nHigh (anonymizer/proxy/Tor usage): potential policy evasion.\n\nStep 5 -- Troubleshooting\n\n* **Web filter not blocking HTTPS** -- SSL deep inspection must be enabled. Verify: `config firewall ssl-ssh-profile`. Without inspection, only SNI-based filtering works (category detection is limited).\n\n* **Application misidentified** -- FortiGuard application DB may need update: `exec update-now`. Custom application signatures can override default classification.\n\n* **User not identified in logs** -- Enable FSSO (Fortinet Single Sign-On) or explicit proxy authentication. Without user identification, logs show only source IP.",
   "grandmaExplanation": "We add up web filter and app control events on FortiGate so overblocking, shadow apps, and policy drift are easier to see in one place.",
-  "hardware": "Fortinet FortiGate models with FortiGuard web filtering and application control licensing"
+  "hardware": "Fortinet FortiGate models with FortiGuard web filtering and application control licensing",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

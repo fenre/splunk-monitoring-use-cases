@@ -8,6 +8,12 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Router Advertisement Anomaly Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.21).",
+  "evidence": "Saved search uc_5_20_21_router_advertisement_anomaly_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Router Advertisement Anomaly Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.21.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing `%SISF-4-PAK_DROP` with `Reason:RA guard` for blocked rogue RAs, and `%SISF-6-ENTRY_CREATED` for legitimate RAs. Additionally, `sourcetype=corelight_zeek` from Zeek/Corelight decoding ICMPv6 Type 134 packets on SPAN/TAP ports. On Juniper, RA Guard events appear in `syslog` with `ND_RA_BLOCKED` or `RTADV_GUARD_BLOCKED`.\n\nRouter Advertisements (RAs) are ICMPv6 Type 134 messages sent by routers to ff02::1 (all-nodes multicast). They announce the network prefix, default gateway, DNS servers, and address configuration method (M/O/A flags). A rogue RA — whether from a misconfigured device (laptop with IPv6 forwarding enabled, rogue access point) or a deliberate attack (THC-IPv6 `fake_router6`) — can redirect all host traffic to the attacker, assign wrong prefixes, or break connectivity entirely.\n\nNormal RA rate: 1 RA per 200 seconds per router per VLAN (default `ipv6 nd ra-interval 200`). >5 RAs/second from any single source is anomalous. RAs from non-router ports (access layer switchports) should never occur if RA Guard is deployed correctly.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for SISF/RA Guard syslog. Zeek (`corelight_zeek`) for ICMPv6 Type 134 decode.",
   "spl": "index=network (sourcetype=\"cisco:ios\" \"%SISF-4-PAK_DROP\" \"RA guard\")\n  OR (sourcetype=\"cisco:ios\" \"SISF\" \"router-advertisement\")\n  OR (sourcetype=\"corelight_zeek\" icmpv6_type=134)\n| eval detection_type=case(\n    match(_raw, \"PAK_DROP.*RA guard\"), \"ROGUE_RA_BLOCKED\",\n    match(_raw, \"icmpv6_type=134\") AND NOT match(src_mac, \"^(00:00:5e|00:01:00)\"), \"UNVERIFIED_RA\",\n    1=1, \"LEGITIMATE_RA\")\n| stats count as ra_count dc(src_ip) as unique_sources values(src_ip) as sources values(src_mac) as macs by host, detection_type\n| where detection_type!=\"LEGITIMATE_RA\"\n| sort -ra_count",
@@ -18,22 +24,26 @@
   "references": [
     {
       "title": "RFC 6105 — IPv6 Router Advertisement Guard (RA Guard specification)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6105"
+      "url": "https://www.rfc-editor.org/rfc/rfc6105",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7113 — Implementation Advice for IPv6 Router Advertisement Guard (RA-Guard bypass mitigations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7113"
+      "url": "https://www.rfc-editor.org/rfc/rfc7113",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2 — RA security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "THC-IPv6 Attack Toolkit — fake_router6 rogue RA tool",
-      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+      "url": "https://github.com/vanhauser-thc/thc-ipv6",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Windows Internet Connection Sharing (ICS).** When a Windows laptop enables ICS or mobile hotspot, it enables IPv6 forwarding and starts sending RAs on its connected interface. This is the #1 source of accidental rogue RAs in enterprise networks. The RAs typically advertise the laptop's self-assigned ULA prefix (fd00::/64). RA Guard blocks them, but the PAK_DROP events fire. This is a genuine misconfiguration that should be investigated, even though it is not malicious.\n\n**Docker/Podman/LXC containers.** Container runtimes on hosts with IPv6 forwarding enabled may send RAs on the host network interface. These are typically link-local only and confined to the container bridge, but misconfigured bridge networking can leak RAs onto the physical LAN.\n\n**Network equipment during configuration.** When a new router or layer-3 switch is being configured, it may briefly send RAs with incorrect or test prefixes before final configuration is applied. These should be time-limited to the maintenance window.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

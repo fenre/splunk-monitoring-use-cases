@@ -47,11 +47,23 @@
   "references": [
     {
       "title": "CERT-In Directions of 28 April 2022 — Direction (iv) on 180-day log retention",
-      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CERT-In FAQ (May 2022 clarifications) — log retention",
-      "url": "https://www.cert-in.org.in/PDF/FAQs.pdf"
+      "url": "https://www.cert-in.org.in/PDF/FAQs.pdf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Newly-created index**: an index created within the last 60 days has no aged data and may report `oldest_event_age_days < 150` simply because no bucket has aged that far yet — load `index_created_at` and suppress for the first 180 days of the index's life. 2. **Frozen-to-glacier handoff**: if frozen buckets are migrated to a cold archive within Indian jurisdiction with a documented chain-of-custody — load `cold_archive_jurisdiction_ref = IN`. 3. **Read-replica in non-IN region**: a non-IN read-replica may be acceptable if the primary write copy is in IN and the replica is read-only — load `read_replica_attestation_ref`.\n\n**Suppression mechanism**: KV Store `cert_in_22_62_4_exceptions` with the CISO and Legal documented approval, an explicit log_index scope, an expiry date, and a written justification.",
@@ -86,7 +98,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (ap-south-1).\n- CSP storage-region attestation letters obtained from every CSP carrying the in-scope logs.\n\n## Step 1 - Log register KV Store\n\n```ini\n[cert_in_log_register_lookup]\nenforceTypes = true\nfield.log_index = string\nfield.expected_role = string\nfield.jurisdiction = string\nfield.storage_region_attested = string\nfield.csp_attestation_ref = string\nfield.cold_archive_jurisdiction_ref = string\nfield.read_replica_attestation_ref = string\nfield.non_production = bool\nfield.index_created_at = time\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.62.4: CERT-In Log Retention]\ncron_schedule = 0 4 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.4,reg=CERT-In,clause=CERT-In-Dir-5\nalert.severity = 4\n```\n\n## Step 3 - Indian-jurisdiction-specific notes\n\n- **Multi-tenant SaaS**: a SaaS application's audit-trail logs that touch Indian-jurisdiction users must satisfy Direction (iv) — CSP attestation of the storage region is mandatory.\n- **Logs in cross-border SIEM**: shipping logs to a non-IN SIEM is permissible only if the IN-jurisdiction primary copy is retained 180 days and the cross-border copy is a derivative read-only forensic view — document the architecture.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (ap-south-1).\n- CSP storage-region attestation letters obtained from every CSP carrying the in-scope logs.\n\n## Step 1 - Log register KV Store\n\n```ini\n[cert_in_log_register_lookup]\nenforceTypes = true\nfield.log_index = string\nfield.expected_role = string\nfield.jurisdiction = string\nfield.storage_region_attested = string\nfield.csp_attestation_ref = string\nfield.cold_archive_jurisdiction_ref = string\nfield.read_replica_attestation_ref = string\nfield.non_production = bool\nfield.index_created_at = time\n```\n\n## Step 2 - Schedule\n\n```ini\n[UC-22.62.4: CERT-In Log Retention]\ncron_schedule = 0 4 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.4,reg=CERT-In,clause=CERT-In-Dir-5\nalert.severity = 4\n```\n\n## Step 3 - Indian-jurisdiction-specific notes\n\n- **Multi-tenant SaaS**: a SaaS application's audit-trail logs that touch Indian-jurisdiction users must satisfy Direction (iv) — CSP attestation of the storage region is mandatory.\n- **Logs in cross-border SIEM**: shipping logs to a non-IN SIEM is permissible only if the IN-jurisdiction primary copy is retained 180 days and the cross-border copy is a derivative read-only forensic view — document the architecture.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`data_aging_short, index, jurisdiction_breach, oldest_event_age_days`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Indian law says every computer system's records must be kept for at least 6 months and stored on computers in India. We check every day that all our log indexes meet that 180-day floor and live on Indian servers.",
   "prerequisiteUseCases": [],
   "splunkbaseApps": [

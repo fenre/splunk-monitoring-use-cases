@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Infoblox audit log, DNS dynamic update logs",
-  "app": "Splunk_TA_infoblox, DNS update logs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DNS Record Change Audit'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.6.7).",
+  "evidence": "Saved search uc_5_6_7_dns_record_change_audit, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DNS Record Change Audit'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.6.7.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Infoblox audit log, DNS dynamic update logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_infoblox, DNS update logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns sourcetype=\"infoblox:audit\" (\"Added\" OR \"Deleted\" OR \"Modified\") AND (\"record\" OR \"zone\")\n| table _time admin record_type record_name record_data action | sort -_time",
   "description": "Unauthorized DNS changes can redirect traffic to attacker infrastructure (DNS hijacking).",
   "value": "DNS and security teams maintain a complete audit trail of DNS record changes, detecting unauthorized modifications to critical records, after-hours changes, and bulk modifications that may indicate DNS hijacking or misconfiguration.",
@@ -20,13 +26,38 @@
   "references": [
     {
       "title": "CIM: Network_Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned cutovers, DDI automation, and bulk import jobs can produce bursts of add/delete events that are authorized but look noisy; align to change records.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "infoblox"
   ],
+  "equipmentModels": [
+    "infoblox_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• DNS zone change/audit logs in `index=dns` or `index=audit`. Sources: Infoblox NIOS audit logs (`sourcetype=infoblox:audit` — tracks all NIOS API/GUI changes including zone modifications), Windows DNS Server audit events (Event IDs 540-582 for zone changes), or BIND `named` with `update-security-log` enabled.\n• DNS record changes (A, AAAA, CNAME, MX, NS, TXT modifications) are high-impact events: a hijacked A record redirects traffic to an attacker, a modified MX record intercepts email, a changed NS record delegates a zone to a malicious server.\n• Build a `dns_critical_records.csv` lookup: `fqdn,record_type,expected_value,owner` listing your most important DNS records (corporate website, email MX, API endpoints, identity providers).\n• For dynamic DNS (DDNS) environments: legitimate record changes are frequent. Focus alerting on static zones (manually managed records) where changes are rare and should go through change management.\n\nStep 1 — Configure data collection\nVerify audit log availability:\n```spl\nindex=dns OR index=audit (sourcetype=\"infoblox:audit\" OR sourcetype=\"MSAD:NT6:DNS\") earliest=-24h\n| search \"record\" OR \"zone\" OR \"add\" OR \"modify\" OR \"delete\" OR \"update\"\n| stats count by sourcetype, host\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — DNS record change audit:**\n```spl\nindex=dns OR index=audit (sourcetype=\"infoblox:audit\" OR sourcetype=\"MSAD:NT6:DNS\") earliest=-24h\n| search \"record\" OR \"zone\" OR \"add\" OR \"modify\" OR \"delete\" OR \"update\"\n| rex field=_raw \"(?i)(?:action|operation)[\\s:=]+(?<change_action>\\w+)\"\n| rex field=_raw \"(?i)(?:name|record|fqdn)[\\s:=]+(?<record_name>[\\w.-]+)\"\n| rex field=_raw \"(?i)(?:type)[\\s:=]+(?<record_type>\\w+)\"\n| rex field=_raw \"(?i)(?:user|admin|by)[\\s:=]+(?<changed_by>[\\w@.-]+)\"\n| rex field=_raw \"(?i)(?:value|data|address|rdata)[\\s:=]+(?<new_value>[^\\s,;]+)\"\n| where isnotnull(change_action) AND isnotnull(record_name)\n| lookup dns_critical_records.csv fqdn as record_name OUTPUT owner expected_value\n| eval is_critical=if(isnotnull(owner), \"CRITICAL RECORD\", \"Standard\")\n| table _time, host, changed_by, change_action, record_name, record_type, new_value, is_critical, owner\n| sort -_time\n```\n\nUnderstanding this SPL: Extracts the who/what/when/how of every DNS record change. The `dns_critical_records.csv` lookup flags changes to business-critical records. A change to `www.company.com` by an unauthorized user is a critical security event (DNS hijacking). Regex patterns cover common audit log formats across Infoblox, Windows, and BIND.\n\n**Unauthorized change detection (outside change window):**\n```spl\nindex=dns OR index=audit (sourcetype=\"infoblox:audit\") earliest=-24h\n| search \"record\" \"add\" OR \"modify\" OR \"delete\"\n| rex field=_raw \"(?i)(?:user|admin)[\\s:=]+(?<changed_by>[\\w@.-]+)\"\n| rex field=_raw \"(?i)(?:name|fqdn)[\\s:=]+(?<record_name>[\\w.-]+)\"\n| eval hour=strftime(_time, \"%H\")\n| eval is_business_hours=if(hour >= 8 AND hour < 18, \"yes\", \"no\")\n| eval day_of_week=strftime(_time, \"%w\")\n| eval is_weekend=if(day_of_week==0 OR day_of_week==6, \"yes\", \"no\")\n| where is_business_hours=\"no\" OR is_weekend=\"yes\"\n| table _time, host, changed_by, record_name, is_weekend\n| sort -_time\n```\n\n**Bulk change detection (mass modification):**\n```spl\nindex=dns OR index=audit (sourcetype=\"infoblox:audit\") earliest=-1h\n| search \"record\"\n| rex field=_raw \"(?i)(?:user|admin)[\\s:=]+(?<changed_by>[\\w@.-]+)\"\n| stats count dc(eval(if(match(_raw, \"(?i)add\"), _raw, null()))) as adds dc(eval(if(match(_raw, \"(?i)delete\"), _raw, null()))) as deletes by changed_by\n| where count > 20\n| eval alert=\"Bulk DNS change: \".changed_by.\" made \".count.\" changes in 1 hour\"\n| sort -count\n```\n\nStep 3 — Validate\n(a) Make a test DNS record change (add a TXT record) and verify it appears in the audit search within minutes.\n(b) Verify the `changed_by` field accurately identifies the administrator. For Infoblox, this comes from NIOS audit logs. For Windows, from the Security event log.\n(c) Cross-reference with change management: recent DNS changes should have corresponding change tickets.\n\nStep 4 — Operationalize\nDashboard (\"DNS — Record Change Audit\"):\n• Row 1 — Single-value tiles: \"Changes (24h)\", \"Critical record changes\", \"After-hours changes\", \"Bulk changes\".\n• Row 2 — Change audit table: time, admin, action, record, type, value, criticality.\n• Row 3 — Timeline: changes over 7 days by action type (add/modify/delete).\n\nAlerting:\n• Critical (change to any record in `dns_critical_records.csv`): alert security and DNS owner immediately.\n• High (any change outside business hours or on weekends): alert for review.\n• Warning (bulk changes > 20 in 1 hour by single admin): verify against change management.\n\nRunbook:\n1. **Unauthorized critical record change**: Immediately verify the record's current value (`dig <record>`). If hijacked, revert to the expected value. Investigate the admin account that made the change — possible compromised credentials.\n2. **After-hours change**: Contact the administrator and verify the change was planned. If not, treat as potential compromise.\n\nStep 5 — Troubleshooting\n\n• **Infoblox audit logs don't capture all changes** — Ensure audit logging is enabled at the Grid level: Grid > Grid Manager > Audit Log. Set to capture \"All\" or at minimum \"Configuration changes\".\n\n• **Windows DNS changes not logged** — Enable DNS Server audit logging via Group Policy: `Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy > Object Access > Audit Other Object Access Events`.\n\n• **Dynamic DNS updates flooding the audit** — DDNS updates from DHCP (automatic A/PTR record creation) generate high volumes. Filter: `| where changed_by!=\"DHCP\"` or exclude PTR record changes for DDNS zones.",
-  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed lookups."
+  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed lookups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

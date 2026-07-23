@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Connector/gateway logs (certificate validation, trust list)",
-  "app": "Edge Hub OPC-UA connector, OPC-UA gateway",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'OPC-UA Certificate Expiration and Trust'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.5.9).",
+  "evidence": "Saved search uc_14_5_9_opc_ua_certificate_expiration_and_trust, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'OPC-UA Certificate Expiration and Trust'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.5.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Connector/gateway logs (certificate validation, trust list) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Edge Hub OPC-UA connector, OPC-UA gateway — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log \"opcua\" (\"certificate\" OR \"trust\" OR \"expir\" OR \"reject\")\n| rex \"expir|reject|invalid|cert\"\n| table _time host message\n| sort -_time",
   "description": "Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.",
-  "value": "Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.",
+  "value": "Operations and leadership rely on 'OPC-UA Certificate Expiration and Trust' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Forward OPC-UA connector and gateway logs. Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.",
   "visualization": "Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).",
   "cimModels": [
@@ -23,18 +29,45 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Certificate expiry during planned PKI rollover, vendor certificate refresh, or migration windows.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cert_pki",
     "edge_hub",
     "opcua"
   ],
+  "equipmentModels": [
+    "cert_pki_generic",
+    "edge_hub_generic",
+    "opcua_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Edge Hub OPC-UA connector, OPC-UA gateway.\n• Ensure the following data sources are available: Connector/gateway logs (certificate validation, trust list).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward OPC-UA connector and gateway logs. Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log \"opcua\" (\"certificate\" OR \"trust\" OR \"expir\" OR \"reject\")\n| rex \"expir|reject|invalid|cert\"\n| table _time host message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**OPC-UA Certificate Expiration and Trust** — Expired or untrusted OPC-UA certificates break secure connections and prevent data collection. Proactive monitoring avoids blind spots after certificate rollover failures.\n\nDocumented **Data sources**: Connector/gateway logs (certificate validation, trust list). **App/TA** (typical add-on context): Edge Hub OPC-UA connector, OPC-UA gateway. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Pipeline stage (see **OPC-UA Certificate Expiration and Trust**): table _time host message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range where you know sessions were active, then compare the same nodes and clients in an industrial client such as UA Expert. Spot-check certificate and session fields against the server.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (cert expiry by endpoint), Timeline (cert events), Single value (certs expiring in 30d).",
-  "grandmaExplanation": "We watch certificates and trust on the industrial link so an expiry or trust break does not silently cut off secure plant data."
+  "grandmaExplanation": "We watch certificates and trust on the industrial link so an expiry or trust break does not silently cut off secure plant data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

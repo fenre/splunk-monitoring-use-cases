@@ -177,6 +177,21 @@ def _has_splunkbase_id(text: str) -> bool:
     return bool(SPLUNKBASE_ID_RE.search(text or ""))
 
 
+HEC_INGESTION_RE = re.compile(
+    r"\b(?:HEC|HTTP Event Collector|Universal Forwarder|Splunkbase\s+617)\b",
+    re.IGNORECASE,
+)
+
+
+def _has_splunkbase_or_hec(text: str, filepath: Path) -> bool:
+    """Cat-25 personal feeds may ingest via HEC/UF without a product TA."""
+    if _has_splunkbase_id(text):
+        return True
+    if "cat-25-personal" in str(filepath).replace("\\", "/"):
+        return bool(HEC_INGESTION_RE.search(text or ""))
+    return False
+
+
 def _has_sourcetype(text: str) -> bool:
     return bool(SOURCETYPE_RE.search(text or ""))
 
@@ -243,7 +258,7 @@ def audit_uc_v2(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
             f"dataSources {len(ds)} chars (need >= {V2_THRESHOLDS['datasources_min_chars']})"
         )
         out["score"] -= 5
-    if not _has_splunkbase_id(ds + " " + (uc.get("app", "") or "")):
+    if not _has_splunkbase_or_hec(ds + " " + (uc.get("app", "") or ""), filepath):
         gaps.append("dataSources/app does not name a Splunkbase ID")
         out["score"] -= 5
     if not _has_sourcetype(ds + " " + (uc.get("spl", "") or "")):

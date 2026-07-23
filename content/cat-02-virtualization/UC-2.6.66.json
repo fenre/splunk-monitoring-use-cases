@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix Endpoint Management App Distribution Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.66).",
+  "evidence": "Saved search uc_2_6_66_citrix_endpoint_management_app_distribut, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix Endpoint Management App Distribution Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.66.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=xd` `sourcetype=\"citrix:endpoint:app:deploy\"` with `app_id`, `app_name`, `action` (`install`/`update`), `outcome`, `error_category` (`VPP`, `app_store`, `enterprise`, `mdm_push`), `device_platform`, `user_id`, `vpp_code` when available Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
   "spl": "index=xd sourcetype=\"citrix:endpoint:app:deploy\" outcome!=\"success\"\n| eval cat=lower(coalesce(error_category, failure_bucket, app_source, \"unknown\"))\n| eval app=coalesce(app_name, app_id, \"unknown\")\n| eval plat=coalesce(device_platform, os_type, \"unknown\")\n| where like(cat, \"%vpp%\") OR like(cat, \"%app%store%\") OR like(cat, \"%enterprise%\") OR like(cat, \"%push%\") OR isnotnull(vpp_code)\n| timechart span=1h count by cat, plat\n| fillnull value=0",
   "description": "Pushing in-house, store, and volume-purchase programs (VPP) apps through CEM depends on correct tokens, licenses, and platform-specific constraints. A burst of VPP or enterprise install failures is often an Apple Business Manager or Google side issue; steady enterprise failures can point to signing or package corruption. This use case breaks down failures by channel so mobile operations can open the right vendor ticket, roll back a bad build, or fix token drift without re-imaging the whole estate.",
-  "value": "Pushing in-house, store, and volume-purchase programs (VPP) apps through CEM depends on correct tokens, licenses, and platform-specific constraints. A burst of VPP or enterprise install failures is often an Apple Business Manager or Google side issue; steady enterprise failures can point to signing or package corruption. This use case breaks down failures by channel so mobile operations can open the right vendor ticket, roll back a bad build, or fix token drift without re-imaging the whole estate.",
+  "value": "Operations and leadership rely on 'Citrix Endpoint Management App Distribution Failures' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest CEM app deployment or command-result logs. Tag errors into coarse buckets (VPP, public store, enterprise/internal). Mask user identifiers in shared dashboards. Alert when failures for a specific `app_id` cross a threshold in two consecutive hours, or when VPP-scoped errors exceed the prior week at the same time of day. Keep a runbook for common codes (license exhausted, not compatible OS, app removed from store). Pair with app owners so version bumps are not silent. Rate-limit noisy beta cohorts in test rings.",
   "visualization": "Stacked area of failures by error bucket; top failing apps table; link from `vpp_code` to Apple’s code reference where applicable.",
   "cimModels": [
@@ -21,15 +27,41 @@
   "references": [
     {
       "title": "Distribute and manage mobile apps in Citrix Endpoint Management",
-      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management/"
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix",
     "syslog"
   ],
+  "equipmentModels": [
+    "citrix_generic",
+    "syslog_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• CEM and store connectors healthy; at least 30 days of history to learn seasonality; owners per published app in a lookup file.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap raw messages to a stable `error_category` with regex extractions. Keep large payloads in a separate summary index if needed for volume.\n\nStep 2 — Create the search and alert\nTie alerts to `app_id` and include recent change tickets from your change system via lookup. Suppress for rolling pilot groups in their own tag.\n\nStep 3 — Validate\nIn non-production, release a test enterprise app and force a controlled failure, confirm the category field.\n\nStep 4 — Operationalize\nAdd this chart to the mobile apps CAB deck and track mean time to correct per channel.",
-  "grandmaExplanation": "We track when the company’s pushed apps fail to install from the public store, the volume-license pool, or your own package, so the right support path opens and people are not stuck without the tools their job needs."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• CEM and store connectors healthy; at least 30 days of history to learn seasonality; owners per published app in a lookup file.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap raw messages to a stable `error_category` with regex extractions. Keep large payloads in a separate summary index if needed for volume.\n\nStep 2 — Create the search and alert\nTie alerts to `app_id` and include recent change tickets from your change system via lookup. Suppress for rolling pilot groups in their own tag.\n\nStep 3 — Validate\nIn non-production, release a test enterprise app and force a controlled failure, confirm the category field.\n\nStep 4 — Operationalize\nAdd this chart to the mobile apps CAB deck and track mean time to correct per channel.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.). Enable the modular input or HEC token that writes sourcetype=citrix:endpoint:app:deploy into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cat, plat`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track when the company’s pushed apps fail to install from the public store, the volume-license pool, or your own package, so the right support path opens and people are not stuck without the tools their job needs.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

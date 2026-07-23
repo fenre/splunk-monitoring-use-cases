@@ -8,7 +8,13 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point Policy Install and Publish Tracking (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.48).",
+  "evidence": "Saved search uc_5_2_48_check_point_policy_install_and_publish_t, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point Policy Install and Publish Tracking (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.48.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cp_log` (audit/admin logs), SmartConsole audit trail Indexes: checkpoint. Sourcetypes: cp_log. Key fields: administrator, target_gateway. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=checkpoint sourcetype=\"cp_log\" earliest=-30d\n| where match(lower(product),\"(?i)smartconsole|smartcenter|management\") AND match(lower(operation),\"(?i)install|publish|verify\")\n| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, target_gateway\n| sort -last",
   "description": "Policy install pushes new rulebase and object changes from the management server (SmartConsole/Smart-1 Cloud) to enforcement gateways. A failed install leaves old policy active; a successful install with errors may silently break specific rules. Tracking install timestamps, success/failure, and who published enables change management correlation and root-cause analysis when traffic patterns shift unexpectedly after a policy push.",
@@ -21,26 +27,39 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned install windows, many admins, and repeated templates can make install and publish events look excessive.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point policy install and publish audit logs. Data in `index=checkpoint` or `index=firewall` with `sourcetype=cp_log`. Key fields: `product` (SmartConsole, Management Server), `action` (Install Policy, Publish), `administrator`, `policy_name`, `target`, `status`, `rule_count`.\n* Check Point policy workflow: (1) Admin edits rules in SmartConsole, (2) Publishes changes (creates audit trail), (3) Installs policy to gateway(s). Each step generates audit logs. Failed installs leave gateways on previous policy version. CLI: `show-sessions`, `install-policy`.\n\nStep 1 -- Configure data collection\n```\n# Check Point Management Server -- enable audit logging\n# SmartConsole > Manage & Settings > Logs & Masters\n# Log policy install and configuration changes\n# Ensure \"Audit\" blade is enabled\n\n# Log Exporter (captures audit and system logs)\ncp_log_export add name splunk_audit target-server <splunk-ip> target-port 514 protocol udp format syslog\ncp_log_export set name splunk_audit read-mode audit\ncp_log_export restart name splunk_audit\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-30d\n| where match(action, \"(?i)install.*policy|publish|policy.*install\") OR match(product, \"(?i)SmartConsole|Audit\")\n| stats count by action, administrator, status\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Policy install and publish audit trail:**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-30d\n| where match(action, \"(?i)install.*policy|publish|policy.*install|accept.*changes\")\n| eval admin=coalesce(administrator, user, src_user_name)\n| eval policy=coalesce(policy_name, policy, rule_name)\n| eval target_gw=coalesce(target, dst, gateway)\n| eval install_status=case(\n    match(status, \"(?i)succeeded|success|completed\"), \"SUCCESS\",\n    match(status, \"(?i)failed|error|timeout\"), \"FAILED\",\n    match(status, \"(?i)warning|partial\"), \"PARTIAL\",\n    1==1, \"UNKNOWN\")\n| eval change_type=case(\n    match(action, \"(?i)publish\"), \"PUBLISH\",\n    match(action, \"(?i)install\"), \"INSTALL\",\n    1==1, \"OTHER\")\n| stats count as events count(eval(install_status=\"FAILED\")) as failures count(eval(install_status=\"SUCCESS\")) as successes values(target_gw) as targets by admin, policy, change_type, install_status\n| eval severity=case(\n    install_status=\"FAILED\", \"CRITICAL -- policy install FAILED\",\n    install_status=\"PARTIAL\", \"WARNING -- partial policy install\",\n    change_type=\"INSTALL\" AND match(admin, \"(?i)unknown|system|api\"), \"WARNING -- non-interactive policy install\",\n    1==1, \"INFO\")\n| eval last_time=strftime(now(), \"%Y-%m-%d %H:%M:%S\")\n| where severity != \"INFO\" OR change_type=\"INSTALL\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) SmartConsole: Logs & Monitor > Audit -- verify install events appear.\n(b) CLI: `show-gateways` -- check policy date on each gateway.\n(c) Verify: `show-sessions limit 5` -- recent management sessions.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- Policy Management\"):\n* Row 1 -- Single-value: \"Policy installs (30d)\", \"Failed installs\", \"Administrators active\".\n* Row 2 -- Policy install timeline.\n* Row 3 -- Audit trail table (admin, action, gateway, status).\n\nAlert: Critical (policy install failed): gateway running stale policy, investigate immediately.\n\nStep 5 -- Troubleshooting\n\n* **Policy install failed** -- Common causes: (1) SIC (Secure Internal Communication) certificate issue between management and gateway, (2) disk space on gateway, (3) rule conflict or invalid object reference. Check: `cpca_client lscert` for SIC, and SmartConsole install log for detailed error.\n\n* **Unauthorized policy change** -- Review audit log for admin identity. Cross-reference with change management tickets. Consider requiring approval for policy installs via SmartWorkflow.\n\n* **Policy install timeout** -- Large rulebases (>10K rules) or slow management-to-gateway links. Consider: optimizing rulebase, using policy packages, or increasing timeout.",
   "grandmaExplanation": "We follow policy install and publish steps so a bad push, a late night edit, or a missing approval is not invisible when auditors ask why.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

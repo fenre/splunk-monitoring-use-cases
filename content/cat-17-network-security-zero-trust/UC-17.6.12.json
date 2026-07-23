@@ -9,10 +9,16 @@
     "Resilience"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Akamai Guardicore Breach Detection Time-to-Containment Metrics (`guardicore:incident`)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.6.12).",
+  "evidence": "Saved search uc_17_6_12_akamai_guardicore_breach_detection_time, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Akamai Guardicore Breach Detection Time-to-Containment Metrics (`guard'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.6.12.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:incident\" earliest=-30d\n| where isnotnull(detected_time) AND isnotnull(contained_time)\n| eval ttc_sec=contained_time-detected_time\n| stats median(ttc_sec) as med_ttc p90(ttc_sec) as p90_ttc by incident_type",
-  "description": "Board-level metrics require measuring how fast segmentation limits damage.",
+  "description": "Board-level metrics require measuring how fast segmentation limits damage. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Security leadership measures Mean Time to Contain and Mean Time to Resolve for microsegmentation-detected breaches, providing board-level metrics that demonstrate security program maturity and justify continued investment.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Box plot (TTC), KPI single values.",
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting incident data from the Centra REST API.\n• Data in `index=microseg` with `sourcetype=guardicore:incident`. Key fields: `incident_id`, `severity`, `detected_time`, `contained_time` (when the affected asset was isolated or the policy was enforced), `resolved_time`, `incident_type`, `affected_assets`, `containment_action` (isolate/policy_enforce/manual).\n• At least 30 days of incident data for meaningful metrics. 90 days provides quarterly trending.\n• This UC produces board-level metrics: Mean Time to Detect (MTTD), Mean Time to Contain (MTTC), and Mean Time to Resolve (MTTR). These are key indicators of security program maturity.\n\nStep 1 — Configure data collection\nVerify incident lifecycle fields:\n```spl\nindex=microseg sourcetype=\"guardicore:incident\" earliest=-30d\n| where isnotnull(detected_time) AND isnotnull(contained_time)\n| stats count by severity\n```\nIf `contained_time` is null for most incidents: analysts may not be using the containment workflow in Centra. This is a process issue, not a data issue.\n\nStep 2 — Create the search and alert\n\nPrimary search — Time-to-containment metrics:\n```spl\nindex=microseg sourcetype=\"guardicore:incident\" earliest=-90d\n| where isnotnull(detected_time) AND isnotnull(contained_time)\n| eval ttc_minutes=round((contained_time - detected_time)/60, 0)\n| eval ttr_minutes=if(isnotnull(resolved_time), round((resolved_time - detected_time)/60, 0), null())\n| eval ttc_band=case(ttc_minutes<=15, \"<15 min\", ttc_minutes<=60, \"15-60 min\", ttc_minutes<=240, \"1-4 hours\", ttc_minutes<=1440, \"4-24 hours\", 1==1, \">24 hours\")\n| stats count avg(ttc_minutes) as avg_ttc median(ttc_minutes) as median_ttc p90(ttc_minutes) as p90_ttc avg(ttr_minutes) as avg_ttr by severity\n| eval avg_ttc=round(avg_ttc, 0) | eval median_ttc=round(median_ttc, 0) | eval p90_ttc=round(p90_ttc, 0) | eval avg_ttr=round(avg_ttr, 0)\n```\n\nUnderstanding this SPL: Calculates containment and resolution times per severity. The median is more meaningful than the average because a single multi-day incident can skew the mean. The p90 (90th percentile) represents the worst 10% of incidents — if this is hours for critical incidents, the containment process needs improvement. Target: critical incidents should be contained within 15 minutes (the 'golden hour' of breach response).\n\nMonthly trending:\n```spl\nindex=microseg sourcetype=\"guardicore:incident\" earliest=-90d\n| where isnotnull(detected_time) AND isnotnull(contained_time)\n| eval ttc_minutes=round((contained_time - detected_time)/60, 0)\n| eval month=strftime(detected_time, \"%Y-%m\")\n| stats median(ttc_minutes) as median_ttc count as incidents by month, severity\n| sort month, severity\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Incidents > select a resolved incident > verify the detected, contained, and resolved timestamps match Splunk.\n(b) Check for data quality: incidents where `contained_time < detected_time` indicate a clock sync issue or incorrect field mapping. These should be excluded.\n(c) Compare metrics with your SIEM/SOAR ticketing system for cross-validation.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Breach Metrics\"):\n• Row 1 — Single-value tiles: \"Median TTC (critical)\", \"Median TTR (all)\", \"Incidents (90d)\".\n• Row 2 — Bar chart: TTC distribution bands by severity.\n• Row 3 — Timechart: monthly median TTC trending (should decrease over time).\n• Row 4 — Table: individual incidents with TTC, TTR, severity, containment action.\n\nReport: Monthly executive summary to CISO. Quarterly board report comparing metrics against industry benchmarks.\n\nRunbook:\n1. **TTC increasing for critical incidents** — Review the SOC workflow. Are analysts receiving alerts promptly? Is the Centra isolation feature being used, or are analysts manually configuring firewall rules (slower)?\n2. **TTR much longer than TTC** — Containment is fast but resolution is slow. This usually means root cause analysis or remediation is bottlenecked. Check staffing and tooling.\n3. **Seasonal patterns** — TTC may be longer during holidays or off-hours. Consider automated containment (Centra can auto-isolate on critical incidents) to maintain response times 24/7.\n\nStep 5 — Troubleshooting\n• **`contained_time` always null** — Analysts are not using the containment workflow in Centra. Train them to click 'Contain' when they isolate an asset, not just close the incident.\n• **TTC shows negative values** — Clock skew between the Centra server and the agent's detected_time. Fix NTP on the Centra management appliance.\n• **Very few incidents with complete lifecycle data** — The metric is unreliable with small sample sizes. Report confidence intervals or wait for more data.",
-  "grandmaExplanation": "We measure how quickly our team spots and stops a security breach inside the network, tracking those times over months to show our defenses are getting faster and better."
+  "grandmaExplanation": "We measure how quickly our team spots and stops a security breach inside the network, tracking those times over months to show our defenses are getting faster and better.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

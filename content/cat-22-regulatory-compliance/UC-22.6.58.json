@@ -29,8 +29,8 @@
     "positiveScenario": "Modify a single SGT-matrix cell. UC-22.6.58 logs drift evidence next day.",
     "negativeScenario": "No drift. Empty evidence set; A.8.20 attestation held."
   },
-  "dataSources": "`ise_sgt_matrix.csv` (current export from ISE OpenAPI) and `ise_sgt_matrix_baseline.csv` (approved baseline). Cross-reference UC-17.1.76.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`ise_sgt_matrix.csv` (current export from ISE OpenAPI) and `ise_sgt_matrix_baseline.csv` (approved baseline). Cross-reference UC-17.1.76. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup ise_sgt_matrix.csv\n| join type=outer source_sgt destination_sgt [| inputlookup ise_sgt_matrix_baseline.csv | rename action as baseline_action]\n| eval drift=if(action!=baseline_action, \"DRIFTED\", \"ok\")\n| where drift==\"DRIFTED\"\n| eval iso27001_clause=\"A.8.20\", control=\"Network_Segregation\"\n| collect index=audit_evidence",
   "description": "We continuously evidence ISO 27001 A.8.20 (network segregation) by detecting any drift in the ISE TrustSec / GBP segmentation matrix.",
   "value": "Segmentation drift is an insidious erosion of A.8.20. Daily baseline comparison turns operational change-detection into audit-grade evidence with attribution.",
@@ -42,14 +42,26 @@
   "references": [
     {
       "title": "ISO/IEC 27001:2022",
-      "url": "https://www.iso.org/standard/27001"
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.76 — ISE Group-Based Policy (GBP) Effective-Policy Drift",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.76.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.76.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Baseline pending update during planned segmentation change — coordinate with policy engineering and update baseline post-CAB.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "requiredFields": [
     "source_sgt",
     "destination_sgt",
@@ -71,6 +83,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.76 deployed. Lookups present.\n- Baseline `ise_sgt_matrix_baseline.csv` checked into Git with approved-by metadata.\n\n## Step 1 — Data\n\nDaily OpenAPI export script populates `ise_sgt_matrix.csv`.\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.6.58: ISO 27001 A.8.20 — ISE Segmentation Matrix Evidence]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1m\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.6.58,reg=ISO27001,clause=A.8.20\n```\n\n## Step 3 — Validate\n\nDeliberately introduce a drift cell, confirm UC-22.6.58 captures it within 24h.\n\n## Step 4 — Operationalize\n\nA.8.20 dashboard with drift count panel and current vs. baseline matrix viewer.\n\n## Step 5 — Audit submission\n\nMonthly evidence pack with attestation that baseline was updated only via the change board.",
-  "grandmaExplanation": "We continuously evidence ISO 27001 A.8.20 (network segregation) by checking the segmentation matrix against the approved baseline daily. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.76 deployed. Lookups present.\n- Baseline `ise_sgt_matrix_baseline.csv` checked into Git with approved-by metadata.\n\n## Step 1 — Data\n\nDaily OpenAPI export script populates `ise_sgt_matrix.csv`.\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.6.58: ISO 27001 A.8.20 — ISE Segmentation Matrix Evidence]\ncron_schedule = 0 7 * * *\ndispatch.earliest_time = -1m\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.6.58,reg=ISO27001,clause=A.8.20\n```\n\n## Step 3 — Validate\n\nDeliberately introduce a drift cell, confirm UC-22.6.58 captures it within 24h.\n\n## Step 4 — Operationalize\n\nA.8.20 dashboard with drift count panel and current vs. baseline matrix viewer.\n\n## Step 5 — Audit submission\n\nMonthly evidence pack with attestation that baseline was updated only via the change board.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drift`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence ISO 27001 A.8.20 (network segregation) by checking the segmentation matrix against the approved baseline daily. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

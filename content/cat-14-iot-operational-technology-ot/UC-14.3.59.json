@@ -9,8 +9,14 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` `sourcetype=aranet:sensor` with `battery_pct`, `sensor_id`, `gateway_id` timestamps",
-  "app": "Aranet Cloud → HEC, or MQTT ingest (Splunkbase #1890 / #7575)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Aranet Probe Battery Percent and Stale Telemetry Gap Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.3.59).",
+  "evidence": "Saved search uc_14_3_59_aranet_probe_battery_percent_and_stale_t, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Aranet Probe Battery Percent and Stale Telemetry Gap Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.3.59.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` with `battery_pct`, `sensor_id`, `gateway_id` timestamps Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Aranet Cloud → HEC, or MQTT ingest (Splunkbase #1890 / #7575) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=aranet:sensor sensor_id=*\n| stats latest(battery_pct) as batt, latest(_time) as last_seen by sensor_id, location\n| eval hours_since_seen=round((now()-last_seen)/3600,2)\n| where batt < 15 OR hours_since_seen > 2\n| table sensor_id, location, batt, hours_since_seen\n| sort hours_since_seen desc",
   "description": "Aranet probes run on primary cells; when battery percentage falls or uplinks stop while gateways remain healthy, environmental compliance dashboards go stale. Combining `battery_pct` with time-since-last-event differentiates dying sensors from broker outages.",
   "value": "Prevents undetected excursions in GxP or food storage by forcing battery swaps before telemetry gaps exceed SOP limits.",
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "Aranet FAQ — sensor power",
-      "url": "https://aranet.com/"
+      "url": "https://aranet.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Battery alarms during scheduled load tests, planned battery replacements, or after a sustained brownout recovery.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "aranet",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "aranet_generic",
+    "mqtt_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Inventory lookup with expected reporting cadence per sensor class.\n• Exclude sensors intentionally shelved.\n\nStep 1 — Use `bucket` command for gap detection across irregular MQTT bursts if needed.\n\nStep 2 — Pair with gateway health UC in network category.\n\nStep 3 — Validate by removing battery in lab.\n\nStep 4 — CMMS integration for work orders.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: aranet probe battery percent and stale telemetry gap before harm, damage, or wasted effort piles up."
+  "detailedImplementation": "Prerequisites\n• Inventory lookup with expected reporting cadence per sensor class.\n• Exclude sensors intentionally shelved.\n\nStep 1 — Use `bucket` command for gap detection across irregular MQTT bursts if needed.\n\nStep 2 — Pair with gateway health UC in network category.\n\nStep 3 — Validate by removing battery in lab.\n\nStep 4 — CMMS integration for work orders.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Aranet Cloud → HEC, or MQTT ingest (Splunkbase #1890 / #7575) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`batt, hours_since_seen, location, sensor_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: aranet probe battery percent and stale telemetry gap before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

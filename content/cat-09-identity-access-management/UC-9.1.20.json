@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest`",
-  "app": "`Splunk_TA_windows`, `repadmin` / scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'AD Replication Topology Changes'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.1.20).",
+  "evidence": "Saved search uc_9_1_20_ad_replication_topology_changes, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'AD Replication Topology Changes'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.1.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows`, `repadmin` / scripted input — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog (sourcetype=\"WinEventLog:Directory Service\" EventCode IN (1308,1311,1394)) OR sourcetype=\"ad:topology\"\n| table _time, host, EventCode, Message, connection_from, connection_to\n| sort -_time",
   "description": "New connections, site link, or bridgehead changes can indicate persistence or misconfiguration affecting auth paths.",
-  "value": "New connections, site link, or bridgehead changes can indicate persistence or misconfiguration affecting auth paths.",
+  "value": "Operations and leadership rely on 'AD Replication Topology Changes' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Enable KCC and replication diagnostics. Ingest periodic topology snapshots. Alert on new unexpected replication partners or disabled site links outside change windows.",
   "visualization": "Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).",
   "cimModels": [
@@ -23,16 +29,41 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Scheduled backfills, network maintenance between sites, and vendor connector upgrades; check synthetic test accounts.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1098"
   ],
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, `repadmin` / scripted input.\n• Ensure the following data sources are available: Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable KCC and replication diagnostics. Ingest periodic topology snapshots. Alert on new unexpected replication partners or disabled site links outside change windows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog (sourcetype=\"WinEventLog:Directory Service\" EventCode IN (1308,1311,1394)) OR sourcetype=\"ad:topology\"\n| table _time, host, EventCode, Message, connection_from, connection_to\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**AD Replication Topology Changes** — New connections, site link, or bridgehead changes can indicate persistence or misconfiguration affecting auth paths.\n\nDocumented **Data sources**: Directory Service events (KCC topology), scripted `repadmin /showconn` / `nltest`. **App/TA** (typical add-on context): `Splunk_TA_windows`, `repadmin` / scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Directory Service, ad:topology. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Directory Service\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **AD Replication Topology Changes**): table _time, host, EventCode, Message, connection_from, connection_to\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (topology events), Table (connection changes), Diagram export (optional via lookup).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — AD Replication Topology Changes"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — AD Replication Topology Changes",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

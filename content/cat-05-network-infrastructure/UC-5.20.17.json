@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SLAAC M-bit/O-bit/A-bit Flag Consistency Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.17).",
+  "evidence": "Saved search uc_5_20_17_slaac_m_bit_o_bit_a_bit_flag_consistency, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SLAAC M-bit/O-bit/A-bit Flag Consistency Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=syslog` containing Router Advertisement (ICMPv6 Type 134) log entries. On Cisco IOS/IOS-XE, RA flags appear in `%IPv6-6-ND_RA_PREFIX` or in packet captures. On Juniper Junos, use `show ipv6 router-advertisement interface` for current state. For continuous monitoring, use RA Guard logging (`%SISF-6-ENTRY_CREATED` with RA details), or SPAN/TAP with packet capture tools (Zeek/Suricata) that decode ICMPv6 Type 134 and extract the M, O, and per-prefix A flags.\n\nThe three flags in a Router Advertisement control how hosts obtain IPv6 addresses:\n- **M-bit (Managed):** 1 = use DHCPv6 for address assignment (IA_NA).\n- **O-bit (Other):** 1 = use DHCPv6 for DNS/NTP/domain but NOT addresses.\n- **A-bit (Autonomous):** Per-prefix flag; 1 = use SLAAC for this prefix.\n\nCommon valid configurations:\n- SLAAC-only: M=0, O=0, A=1\n- SLAAC + DHCPv6 DNS: M=0, O=1, A=1\n- DHCPv6-only: M=1, O=1, A=0\n\nInvalid/risky: M=0, O=0, A=0 (no addressing at all), or M=1, A=1 (conflicting — host may get both SLAAC and DHCPv6 addresses).",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for syslog. Zeek (`corelight_zeek`) or Suricata for ICMPv6 Type 134 decode.",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"syslog\")\n  (\"ND_RA_PREFIX\" OR \"Router Advertisement\" OR icmpv6_type=134)\n| rex field=_raw \"M=(?<m_flag>\\d)\\s*O=(?<o_flag>\\d)\"\n| rex field=_raw \"prefix=(?<ra_prefix>[0-9a-fA-F:]+/\\d+).*A=(?<a_flag>\\d)\"\n| stats values(m_flag) as m_flags values(o_flag) as o_flags values(a_flag) as a_flags dc(host) as router_count by ra_prefix\n| eval flag_combo=mvjoin(m_flags, \",\").\"/\".mvjoin(o_flags, \",\").\"/\".mvjoin(a_flags, \",\")\n| eval inconsistent=if(mvcount(m_flags) > 1 OR mvcount(o_flags) > 1 OR mvcount(a_flags) > 1, \"YES\", \"NO\")\n| eval risky=case(\n    mvindex(m_flags, 0)=\"0\" AND mvindex(o_flags, 0)=\"0\" AND mvindex(a_flags, 0)=\"0\", \"CRITICAL: No addressing method configured\",\n    mvindex(m_flags, 0)=\"1\" AND mvindex(a_flags, 0)=\"1\", \"WARNING: Both SLAAC and DHCPv6 active — hosts will get dual addresses\",\n    1=1, \"OK\"\n  )\n| table ra_prefix, flag_combo, inconsistent, risky, router_count",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§4.2 — Router Advertisement Message Format, M/O/A flag definitions)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1 — Address architecture and autoconfiguration monitoring)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7772 — Reducing Energy Consumption of Router Advertisements (BCP 202 — RA rate limiting for wireless environments)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7772"
+      "url": "https://www.rfc-editor.org/rfc/rfc7772",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**VRRP/HSRP active-standby transitions.** During a gateway failover, RAs may briefly originate from the new active router with slightly different timing, causing a transient 'inconsistency' alert until the old RAs expire (default RA lifetime = 1800 seconds). The flags themselves should be consistent between active and standby — if they differ, that is a genuine misconfiguration.\n\n**Intentional M=1,A=1 (dual-assignment).** Some organisations intentionally configure both SLAAC and DHCPv6 addressing so that hosts get a SLAAC address for connectivity and a DHCPv6 address for DNS registration. This is a legitimate design choice but doubles the address count per host. If this is your intended architecture, suppress the M=1,A=1 warning for those specific prefixes.\n\n**OS-dependent flag interpretation.** Android ignores the M-bit entirely and only uses SLAAC, regardless of flag settings. Windows and Linux honour both M and A bits. macOS honours M=1 but may also keep a SLAAC address. These OS behaviours don't change what the router advertises — this use case monitors router configuration consistency, not host behaviour.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

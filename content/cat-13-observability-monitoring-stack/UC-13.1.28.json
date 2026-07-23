@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`)",
-  "app": "Monitoring Console",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SHC Configuration Replication Lag (_internal)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-13.1.28).",
+  "evidence": "Saved search uc_13_1_28_shc_configuration_replication_lag_intern, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SHC Configuration Replication Lag (_internal)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-13.1.28.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monitoring Console — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*\n| search (\"replication\" OR \"bundle\" OR \"lag\") AND (log_level=WARN OR log_level=ERROR)\n| stats count by host, message\n| sort -count",
   "description": "Lagging conf replication causes inconsistent searches and failed lookups across members.",
-  "value": "Lagging conf replication causes inconsistent searches and failed lookups across members.",
+  "value": "Operations and leadership rely on 'SHC Configuration Replication Lag (_internal)' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Prefer REST `| rest /services/shcluster/member/members` for `last_conf_replication` where available. Alert on WARN/ERROR about replication lag or failed bundles.",
   "visualization": "Table (members with replication issues), Single value (max lag seconds).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Capacity moves with archive work, new data, or a short burst. We compare with growth plans before a spend jump.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console.\n• Ensure the following data sources are available: `index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPrefer REST `| rest /services/shcluster/member/members` for `last_conf_replication` where available. Alert on WARN/ERROR about replication lag or failed bundles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal sourcetype=splunkd component=*SHC* OR component=*shcluster*\n| search (\"replication\" OR \"bundle\" OR \"lag\") AND (log_level=WARN OR log_level=ERROR)\n| stats count by host, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**SHC Configuration Replication Lag (_internal)** — Lagging conf replication causes inconsistent searches and failed lookups across members.\n\nDocumented **Data sources**: `index=_internal` `sourcetype=splunkd` (SHC, replication, `apply_bundle`). **App/TA** (typical add-on context): Monitoring Console. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal; **sourcetype**: splunkd. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, sourcetype=splunkd. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by host, message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (members with replication issues), Single value (max lag seconds).",
-  "grandmaExplanation": "We watch how many app copies are running as traffic and policy change so a surprise scale event does not go unnoticed."
+  "grandmaExplanation": "We watch how many app copies are running as traffic and policy change so a surprise scale event does not go unnoticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

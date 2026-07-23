@@ -9,6 +9,8 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.62).",
+  "evidence": "Saved search uc_17_1_62_ise_hybrid_deployment_on_prem_pan_to_clo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "dora",
@@ -39,8 +41,8 @@
     "positiveScenario": "Drop the VPN tunnel between on-prem and cloud. ISE lag spikes. UC-17.1.62 fires.",
     "negativeScenario": "Restore tunnel. Lag returns to normal."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` for replication-lag fields. Network metrics for the on-prem→cloud path: VPN tunnel state from `index=network sourcetype=cisco:asa` or `cisco:ftd`; tunnel BW from `index=cloud sourcetype=aws:cloudwatch`.",
-  "app": "`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` for replication-lag fields. Network metrics for the on-prem→cloud path: VPN tunnel state from `index=network sourcetype=cisco:asa` or `cisco:ftd`; tunnel BW from `index=cloud sourcetype=aws:cloudwatch`. Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "(index=network sourcetype IN (\"cisco:asa\",\"cisco:ftd\") \"%ASA-3-713\")\n  OR (index=cloud sourcetype=\"aws:cloudwatch\" metric_name=\"TunnelState\")\n| stats sum(eval(like(_raw, \"%713%\"))) as tunnel_drops, max(value) as tunnel_state by tunnel_id\n| where tunnel_drops > 0 OR tunnel_state==0",
   "description": "Detects VPN-tunnel issues affecting hybrid on-prem PAN ↔ cloud PSN ISE deployments. When the VPN drops, cloud PSNs lose access to the PAN's policy updates and identity stores.",
   "value": "Hybrid ISE deployments depend on stable VPN. A flapping IPsec tunnel manifests as intermittent auth issues at cloud-served sites; this UC catches the network-layer cause directly.",
@@ -53,10 +55,26 @@
   "references": [
     {
       "title": "Cisco ISE Hybrid Deployment",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Scheduled VPN maintenance** — cross-reference.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "N/A (data-feed liveness — measures ISE pxGrid topic delivery, no attack mapping)"
   ],
@@ -76,7 +94,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Hybrid ISE deployment with VPN tunnel.\n\nStep 1 — Configure firewall + cloud TA.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard combining tunnel + ISE replication.\nStep 5 — Troubleshooting: validate IKE/IPsec config; check NAT-T.",
+  "detailedImplementation": "Prerequisites\n• Hybrid ISE deployment with VPN tunnel.\n\nStep 1 — Configure firewall + cloud TA.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard combining tunnel + ISE replication.\nStep 5 — Troubleshooting: validate IKE/IPsec config; check NAT-T.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch, cisco:asa, cisco:ftd into network, cloud. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`tunnel_drops, tunnel_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE has parts on the office network and parts in the cloud, they communicate through a secure tunnel. We watch the tunnel — if it breaks, the cloud parts lose their connection home.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

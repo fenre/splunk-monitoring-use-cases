@@ -9,8 +9,14 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`).",
-  "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Allsky Clouded-Out Night Ratio'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.20.29).",
+  "evidence": "Saved search uc_25_20_29_allsky_clouded_out_night_ratio, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Allsky Clouded-Out Night Ratio'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.20.29.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=allsky:capture\n| bin _time span=1d\n| stats count(eval(cloud_cover_pct>80)) as cloudy_frames, count as total_frames by camera _time\n| eval cloudy_pct=round(100*cloudy_frames/total_frames,1)\n| where total_frames>0 AND cloudy_pct>80\n| sort - cloudy_pct",
   "description": "Uses Allsky camera weather context telemetry to monitor how much of each night was effectively clouded out in index=personal.",
   "value": "Splunk turns the feed into an operational check for nights where astronomy data will be sparse before you waste review time, so the signal does not stay buried inside separate consumer apps or exports.",
@@ -20,35 +26,53 @@
   "references": [
     {
       "title": "Raspberry Shake",
-      "url": "https://raspberryshake.org/"
+      "url": "https://raspberryshake.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Safecast",
-      "url": "https://safecast.org/"
+      "url": "https://safecast.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Blitzortung",
-      "url": "https://www.blitzortung.org/"
+      "url": "https://www.blitzortung.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AirGradient documentation",
-      "url": "https://www.airgradient.com/documentation/"
+      "url": "https://www.airgradient.com/documentation/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Allsky",
-      "url": "https://github.com/AllSkyCamera/allsky"
+      "url": "https://github.com/AllSkyCamera/allsky",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RadonEye",
-      "url": "https://radonftlab.com/"
+      "url": "https://radonftlab.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It blends how much of each night was effectively clouded out so you can spot nights where astronomy data will be sparse before you waste review time before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Citizen Science & Backyard Sensing — typical feeds: Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel.\n• **Sourcetypes in this search**: `allsky:capture`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=allsky:capture`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** DIY citizen-science sensors — Raspberry Shake seismograph, Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — via MQTT and scripted inputs to Splunk HEC..\n\n**Author notes:** Ingest Allsky camera weather context data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"allsky:capture\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Allsky Clouded-Out Night Ratio** over `personal` data (primarily `sourcetype=allsky:capture`) across the full search range. It applies numeric thresholds on `cloud_cover_pct` (> 80) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `camera`, `cloud_cover_pct`, `cloudy_pct`, `total_frames`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=allsky:capture\n| bin _time span=1d\n| stats count(eval(cloud_cover_pct>80)) as cloudy_frames, count as total_frames by camera _time\n| eval cloudy_pct=round(100*cloudy_frames/total_frames,1)\n| where total_frames>0 AND cloudy_pct>80\n| sort - cloudy_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-7d\n| head 50\n| table _time, camera, cloud_cover_pct, cloudy_pct, total_frames\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `cloud_cover_pct` before alerting:\n\n```spl\nindex=personal sourcetype=allsky:capture earliest=-30d\n| stats perc50(cloud_cover_pct) AS p50 perc90(cloud_cover_pct) AS p90 perc99(cloud_cover_pct) AS p99 max(cloud_cover_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.20.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Cloudy-Frame Percentage Chart (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `allsky:capture` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=allsky:capture | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It blends how much of each night was effectively clouded out so you can spot nights where astronomy data will be sparse before you waste review time before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

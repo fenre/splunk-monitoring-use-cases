@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:ucm:syslog` (DBReplication alerts), CUCM CLI `utils dbreplication runtimestate` via scripted input",
-  "app": "`Splunk Connect for Syslog`, CUCM RTMT log forwarding",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'CUCM Cluster Database Replication Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-11.3.39).",
+  "evidence": "Saved search uc_11_3_39_cucm_cluster_database_replication_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'CUCM Cluster Database Replication Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-11.3.39.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cisco:ucm:syslog` (DBReplication alerts), CUCM CLI `utils dbreplication runtimestate` via scripted input Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Connect for Syslog`, CUCM RTMT log forwarding — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:syslog\" (\"DBReplication\" OR \"Replication\" OR \"%CCM_DB-DB-3%\")\n| eval severity=case(\n    like(_raw, \"%CRITICAL%\") OR like(_raw, \"%-3-%\"), \"Critical\",\n    like(_raw, \"%WARNING%\") OR like(_raw, \"%-4-%\"), \"Warning\",\n    1==1, \"Info\")\n| stats count as event_count, latest(_time) as last_event, values(severity) as severities by host\n| eval repl_status=if(mvfind(severities,\"Critical\")>=0, \"BROKEN\", if(mvfind(severities,\"Warning\")>=0, \"DEGRADED\", \"OK\"))\n| table host, repl_status, event_count, last_event, severities\n| sort -event_count",
   "description": "CUCM relies on Informix database replication between publisher and subscriber nodes to synchronize configuration and runtime data. Replication failures cause configuration drift — changes made on the publisher don't propagate, causing inconsistent dial plans, missing device registrations, and failover failures. Detecting replication lag or broken replication before it impacts call processing prevents hard-to-diagnose intermittent call failures.",
-  "value": "CUCM relies on Informix database replication between publisher and subscriber nodes to synchronize configuration and runtime data. Replication failures cause configuration drift — changes made on the publisher don't propagate, causing inconsistent dial plans, missing device registrations, and failover failures. Detecting replication lag or broken replication before it impacts call processing prevents hard-to-diagnose intermittent call failures.",
+  "value": "Operations and leadership rely on 'CUCM Cluster Database Replication Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "CUCM generates syslog messages with facility `%CCM_DB-DB` for replication events. Severity level 3 (Error) indicates replication failure; level 4 (Warning) indicates replication lag. Forward all CUCM node syslog via Splunk Connect for Syslog. For deeper monitoring, deploy a scripted input that runs `utils dbreplication runtimestate` via SSH/expect script on the CUCM publisher CLI every 30 minutes, parsing the output to extract replication status per subscriber (values: 0=Init, 1=Bad, 2=Good, 3=Setup, 4=Uncertain). Alert immediately on status values other than 2. After replication breaks, CUCM requires `utils dbreplication repair` or `reset` which may cause service disruption — early detection is critical. Correlate with network connectivity between CUCM nodes.",
   "visualization": "Single value (nodes with replication OK vs broken), Table (node replication status), Timeline (replication events), Line chart (replication event rate over 7 days).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Brief replication lag during UCM cluster switchovers and publisher maintenance.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
@@ -34,7 +56,13 @@
   "equipmentModels": [
     "cisco_ucm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk Connect for Syslog`, CUCM RTMT log forwarding.\n• Ensure the following data sources are available: `sourcetype=cisco:ucm:syslog` (DBReplication alerts), CUCM CLI `utils dbreplication runtimestate` via scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCUCM generates syslog messages with facility `%CCM_DB-DB` for replication events. Severity level 3 (Error) indicates replication failure; level 4 (Warning) indicates replication lag. Forward all CUCM node syslog via Splunk Connect for Syslog. For deeper monitoring, deploy a scripted input that runs `utils dbreplication runtimestate` via SSH/expect script on the CUCM publisher CLI every 30 minutes, parsing the output to extract replication status per subscriber (values: 0=Init, 1=Bad, 2=Good, 3=S…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:syslog\" (\"DBReplication\" OR \"Replication\" OR \"%CCM_DB-DB-3%\")\n| eval severity=case(\n    like(_raw, \"%CRITICAL%\") OR like(_raw, \"%-3-%\"), \"Critical\",\n    like(_raw, \"%WARNING%\") OR like(_raw, \"%-4-%\"), \"Warning\",\n    1==1, \"Info\")\n| stats count as event_count, latest(_time) as last_event, values(severity) as severities by host\n| eval repl_status=if(mvfind(severities,\"Critical\")>=0, \"BROKEN\", if(mvfind(severities,\"Warning\")>=0, \"DEGRADED\", \"OK\"))\n| table host, repl_status, event_count, last_event, severities\n| sort -event_count\n```\n\nUnderstanding this SPL\n\n**CUCM Cluster Database Replication Health** — CUCM relies on Informix database replication between publisher and subscriber nodes to synchronize configuration and runtime data. Replication failures cause configuration drift — changes made on the publisher don't propagate, causing inconsistent dial plans, missing device registrations, and failover failures. Detecting replication lag or broken replication before it impacts call processing prevents hard-to-diagnose intermittent call failures.\n\nDocumented **Data sources**: `sourcetype=cisco:ucm:syslog` (DBReplication alerts), CUCM CLI `utils dbreplication runtimestate` via scripted input. **App/TA** (typical add-on context): `Splunk Connect for Syslog`, CUCM RTMT log forwarding. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **repl_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **CUCM Cluster Database Replication Health**): table host, repl_status, event_count, last_event, severities\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with CUCM RTMT, CallManager service parameters, and CDR/CMR or quality reports in Cisco unified communications admin for the same cluster and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (nodes with replication OK vs broken), Table (node replication status), Timeline (replication events), Line chart (replication event rate over 7 days).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Unified Communications Manager (CUCM) — Publisher and Subscriber nodes"
+  "hardware": "Cisco Unified Communications Manager (CUCM) — Publisher and Subscriber nodes",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

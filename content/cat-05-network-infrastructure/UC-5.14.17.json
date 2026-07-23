@@ -9,10 +9,16 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=varnish:vsl` TTL VSL lines (sampled)",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Varnish Object TTL Distribution Sampling'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.14.17).",
+  "evidence": "Saved search uc_5_14_17_varnish_object_ttl_distribution_sampling, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Varnish Object TTL Distribution Sampling'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.14.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=proxy` `sourcetype=varnish:vsl` TTL VSL lines (sampled) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"varnish:vsl\"\n| rex field=_raw \"TTL:\\s+(?<ttl>\\d+)\"\n| where isnotnull(ttl)\n| bin ttl span=30\n| stats count by ttl",
-  "description": "TTL spread explains hit ratio and origin offload variance.",
+  "description": "TTL spread explains hit ratio and origin offload variance. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Operations teams sample Varnish object TTL distributions to identify caching strategy gaps such as excessively short TTLs driving backend load or overly long TTLs serving stale content.",
   "implementation": "Sample high-volume VSL 1:N to control license cost.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
@@ -20,13 +26,33 @@
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://varnish-cache.org/docs/trunk/users-guide/increasing-your-hitrate.html"
+      "url": "https://varnish-cache.org/docs/trunk/users-guide/increasing-your-hitrate.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Varnish Object TTL Distribution Sampling» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "syslog",
     "varnish"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "varnish_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Varnish logs with TTL information. Key log tags: `TTL` (shows ttl, grace, keep values for objects), `ExpKill` (object expired and removed). Data in `index=proxy` with `sourcetype=varnish:log`.\n* Object TTL distribution reveals caching strategy effectiveness. Very short TTLs (< 10s) create high backend load. Very long TTLs (> 24h) risk serving stale content. Understanding the distribution helps tune `beresp.ttl` in VCL.\n\nStep 1 -- Configure data collection\nLog TTL decisions:\n```\nvarnishlog -g session -i TTL > /var/log/varnish/ttl.log\n```\nOr collect via varnishstat for aggregate counters. Verify:\n```spl\nindex=proxy sourcetype=\"varnish:log\" earliest=-4h\n| where match(_raw, \"(?i)^-\\s+TTL|beresp\\.ttl|object\\.ttl\")\n| head 20\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- TTL distribution by backend:**\n```spl\nindex=proxy sourcetype=\"varnish:log\" earliest=-4h\n| where match(_raw, \"(?i)TTL\")\n| rex \"TTL\\s+\\S+\\s+(?<ttl_seconds>\\d+)\\s\"\n| rex \"VCL_call\\s+(?<vcl_call>\\w+)\"\n| eval ttl=tonumber(ttl_seconds)\n| where isnotnull(ttl)\n| eval ttl_bucket=case(ttl < 10, \"< 10s (very short)\", ttl < 60, \"10s-60s (short)\", ttl < 300, \"1-5 min\", ttl < 3600, \"5-60 min\", ttl < 86400, \"1-24 hours\", 1==1, \"> 24 hours\")\n| stats count as objects avg(ttl) as avg_ttl min(ttl) as min_ttl max(ttl) as max_ttl by ttl_bucket\n| sort min_ttl\n```\n\n**Short-TTL objects causing high backend load:**\n```spl\nindex=proxy sourcetype=\"varnish:access\" earliest=-4h\n| where lower(hitmiss)=\"miss\"\n| rex field=request \"\\S+ (?<uri>\\S+)\"\n| stats count as misses by uri\n| sort -misses | head 20\n| eval recommendation=if(misses > 100, \"Consider increasing TTL for this URI\", \"OK\")\n```\n\nStep 3 -- Validate\n(a) `varnishlog -q \"TTL\" -i TTL` -- live TTL assignments.\n(b) For a specific object: `varnishlog -q \"ReqURL eq '/api/data'\" -i TTL -i BerespHeader`.\n(c) Verify backend `Cache-Control` headers match expected TTLs.\n\nStep 4 -- Operationalize\nDashboard (\"Varnish -- TTL Distribution\"):\n* Row 1 -- TTL bucket distribution pie chart.\n* Row 2 -- Shortest TTL objects table.\n* Row 3 -- Top miss URIs (candidates for TTL increase).\n\nStep 5 -- Troubleshooting\n\n* **All objects have very short TTL** -- Backend is sending `Cache-Control: max-age=0` or `no-cache`. Override in VCL: `set beresp.ttl = 300s;` when safe. Check for `Pragma: no-cache` legacy headers too.\n\n* **TTL set in VCL not taking effect** -- VCL processing order: `beresp.ttl` set in `vcl_backend_response` overrides backend headers. But if `beresp.uncacheable = true` is also set, the TTL is irrelevant.\n\n* **Long TTL but content changes** -- Use purge or ban mechanisms to invalidate changed content proactively rather than relying solely on TTL expiry.",
-  "grandmaExplanation": "We watch varnish object ttl distribution sampling and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch varnish object ttl distribution sampling and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

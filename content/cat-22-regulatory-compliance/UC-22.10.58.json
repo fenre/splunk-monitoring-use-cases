@@ -29,8 +29,8 @@
     "positiveScenario": "Healthcare endpoint fails posture. Evidence captured.",
     "negativeScenario": "All healthcare endpoints compliant. Empty result; control attested."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` Posture codes 80001-80003. Cross-reference UC-17.1.21 and UC-17.1.53.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` Posture codes 80001-80003. Cross-reference UC-17.1.21 and UC-17.1.53. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (80001, 80002, 80003) earliest=-1d\n| lookup healthcare_endpoint_inventory.csv endpoint_mac OUTPUT phi_relevant\n| where phi_relevant=\"yes\"\n| stats count by posture_status, MessageCode\n| eval hipaa_clause=\"164.312(b)\", control=\"Posture_Compliance\"\n| collect index=audit_evidence",
   "description": "We continuously evidence HIPAA 164.312(b) — posture compliance for healthcare endpoints accessing PHI-bearing networks.",
   "value": "HIPAA requires audit controls over PHI-access endpoints. Posture compliance per ISE is the technical control; this UC produces evidence of its operation.",
@@ -42,18 +42,26 @@
   "references": [
     {
       "title": "HIPAA Security Rule",
-      "url": "https://www.hhs.gov/hipaa/for-professionals/security/index.html"
+      "url": "https://www.hhs.gov/hipaa/for-professionals/security/index.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.21 — ISE Endpoint Posture Compliance",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.21.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.21.json",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.53 — Posture Remediation Funnel",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.53.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.53.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Posture-grace-period endpoints — annotate with grace expiry.",
+  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
   "requiredFields": [
     "_time",
     "endpoint_mac",
@@ -75,6 +83,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.21 + UC-17.1.53 operational.\n- `healthcare_endpoint_inventory.csv` maintained.\n\n## Step 1-5\n\n```ini\n[UC-22.10.58: HIPAA — Posture Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.10.58,reg=HIPAA,clause=164.312(b)\n```",
-  "grandmaExplanation": "We continuously evidence HIPAA 164.312(b) — posture compliance for healthcare endpoints accessing PHI. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.21 + UC-17.1.53 operational.\n- `healthcare_endpoint_inventory.csv` maintained.\n\n## Step 1-5\n\n```ini\n[UC-22.10.58: HIPAA — Posture Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.10.58,reg=HIPAA,clause=164.312(b)\n```\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, endpoint_mac, phi_relevant, posture_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence HIPAA 164.312(b) — posture compliance for healthcare endpoints accessing PHI. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

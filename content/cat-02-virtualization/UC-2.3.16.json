@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Syslog, systemd service status, libvirtd response time",
-  "app": "`Splunk_TA_nix`, custom scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Libvirt Daemon Health and Responsiveness'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.3.16).",
+  "evidence": "Saved search uc_2_3_16_libvirt_daemon_health_and_responsiveness, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Libvirt Daemon Health and Responsiveness'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.3.16.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Syslog, systemd service status, libvirtd response time Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, custom scripted input — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"libvirtd\" (\"error\" OR \"warning\" OR \"failed\" OR \"timed out\")\n| bin _time span=5m\n| stats count as errors by host, _time\n| where errors > 5\n| table _time, host, errors",
   "description": "The libvirtd daemon is the management layer for all KVM operations — VM start/stop, migration, storage, networking. If libvirtd hangs or crashes, no VM management operations are possible. Existing VMs keep running but become unmanageable. Detecting libvirtd health issues enables proactive restart before they cascade.",
-  "value": "The libvirtd daemon is the management layer for all KVM operations — VM start/stop, migration, storage, networking. If libvirtd hangs or crashes, no VM management operations are possible. Existing VMs keep running but become unmanageable. Detecting libvirtd health issues enables proactive restart before they cascade.",
+  "value": "Operations and leadership rely on 'Libvirt Daemon Health and Responsiveness' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Monitor libvirtd syslog output for errors. Create a scripted input that runs `virsh list` and measures response time — if it takes >5 seconds, libvirtd is likely overloaded. Also monitor the systemd service status: `systemctl is-active libvirtd`. Alert if libvirtd is not active or response time exceeds 10 seconds.",
   "visualization": "Status indicator (libvirtd per host), Line chart (response time), Events table (errors).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "libvirt and KVM logs can burst during live migration, image imports, or when guests crash and restart; correlate time windows with host maintenance.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, custom scripted input.\n• Ensure the following data sources are available: Syslog, systemd service status, libvirtd response time.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor libvirtd syslog output for errors. Create a scripted input that runs `virsh list` and measures response time — if it takes >5 seconds, libvirtd is likely overloaded. Also monitor the systemd service status: `systemctl is-active libvirtd`. Alert if libvirtd is not active or response time exceeds 10 seconds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"libvirtd\" (\"error\" OR \"warning\" OR \"failed\" OR \"timed out\")\n| bin _time span=5m\n| stats count as errors by host, _time\n| where errors > 5\n| table _time, host, errors\n```\n\nUnderstanding this SPL\n\n**Libvirt Daemon Health and Responsiveness** — The libvirtd daemon is the management layer for all KVM operations — VM start/stop, migration, storage, networking. If libvirtd hangs or crashes, no VM management operations are possible. Existing VMs keep running but become unmanageable. Detecting libvirtd health issues enables proactive restart before they cascade.\n\nDocumented **Data sources**: Syslog, systemd service status, libvirtd response time. **App/TA** (typical add-on context): `Splunk_TA_nix`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by host, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where errors > 5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Libvirt Daemon Health and Responsiveness**): table _time, host, errors\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status indicator (libvirtd per host), Line chart (response time), Events table (errors).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on libvirt Daemon Health and Responsiveness and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on libvirt Daemon Health and Responsiveness and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

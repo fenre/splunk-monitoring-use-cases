@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=subscriber` with `sourcetype=subscriber:usage` (weekly or daily BSS/CRM aggregates per subscriber) and optional `sourcetype=subscriber:recharge` for prepaid top-up streams. **Index patterns**: separate **PII-heavy** subscriber index with strict RBAC (`subscriber_id` tokenised where possible); consider **pseudo-IDs** for Splunk analysts. **Mechanisms**: **DB Connect** scheduled extracts from BSS usage marts (`data_mb`, `voice_min`, `sms_count`) and CRM contract fields (`plan_type`, `contract_end_date`); optional CSV monitor from campaign exports. **Key fields**: `subscriber_id`, `data_mb`, `voice_min`, `sms_count`, `recharge_amount`, `plan_type`, `contract_end_date`, `dest_number` (optional social reach proxy). **Volume**: aggregate usage feeds are lighter than rated CDR — commonly **500k–5M subscriber-day rows/day** for national MNO depending on rollup grain. **Parsing notes**: harmonise **rolling 7-day** boundaries to billing timezone; exclude **zero-balance dormant** IMSIs via eligibility flag; clamp outliers from metering glitches (`data_mb > 10*rolling_p99`).",
-  "app": "**Splunk DB Connect 3.x** against BSS data warehouse facts (`subscriber_usage_daily`) — preferred for freshness and keyed joins to CRM dimensions. Alternative: **CSV monitor** for offline usage extracts from Hadoop/Snowflake offload. Prepaid recharge feeds via **`subscriber:recharge`** monitor or JDBC **incremental**. Integrate consent flags from CRM (**GDPR**/CPRA) as lookup to suppress opted-out subscribers from scoring.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Subscriber Churn Prediction from Usage Pattern Decay'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.8.19).",
+  "evidence": "Saved search uc_21_8_19_subscriber_churn_prediction_from_usage_p, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Subscriber Churn Prediction from Usage Pattern Decay'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.8.19.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=subscriber` with `sourcetype=subscriber:usage` (weekly or daily BSS/CRM aggregates per subscriber) and optional `sourcetype=subscriber:recharge` for prepaid top-up streams. **Index patterns**: separate **PII-heavy** subscriber index with strict RBAC (`subscriber_id` tokenised where possible); consider **pseudo-IDs** for Splunk analysts. **Mechanisms**: **DB Connect** scheduled extracts from BSS usage marts (`data_mb`, `voice_min`, `sms_count`) and CRM contract fields (`plan_type`, `contract_end_date`); optional CSV monitor from campaign exports. **Key fields**: `subscriber_id`, `data_mb`, `voice_min`, `sms_count`, `recharge_amount`, `plan_type`, `contract_end_date`, `dest_number` (optional social reach proxy). **Volume**: aggregate usage feeds are lighter than rated CDR — commonly **500k–5M subscriber-day rows/day** for national MNO depending on rollup grain. **Parsing notes**: harmonise **rolling 7-day** boundaries to billing timezone; exclude **zero-balance dormant** IMSIs via eligibility flag; clamp outliers from metering glitches (`data_mb > 10*rolling_p99`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "**Splunk DB Connect 3.x** against BSS data warehouse facts (`subscriber_usage_daily`) — preferred for freshness and keyed joins to CRM dimensions. Alternative: **CSV monitor** for offline usage extracts from Hadoop/Snowflake offload. Prepaid recharge feeds via **`subscriber:recharge`** monitor or JDBC **incremental**. Integrate consent flags from CRM (**GDPR**/CPRA) as lookup to suppress opted-out subscribers from scoring. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=subscriber sourcetype=subscriber:usage\n| bin _time span=7d\n| stats sum(data_mb) as weekly_data, sum(voice_min) as weekly_voice, dc(dest_number) as unique_contacts by subscriber_id, _time\n| streamstats window=4 avg(weekly_data) as avg_data, avg(weekly_voice) as avg_voice by subscriber_id\n| eval data_decay=round(((avg_data-weekly_data)/avg_data)*100, 1), voice_decay=round(((avg_voice-weekly_voice)/avg_voice)*100, 1)\n| where data_decay > 40 OR voice_decay > 50\n| sort -data_decay",
   "description": "Tracks each subscriber's weekly voice minutes, mobile data megabytes, and social reach proxies across rolling four-week windows, flagging steep drops versus their own trailing averages before port-out behaviors fully appear.",
   "value": "Marketing and retention can intervene with offers or save teams while the subscriber is still reachable, reducing involuntary churn and protecting recurring service revenue without waiting for disconnect or port requests.",
@@ -24,30 +30,40 @@
   "references": [
     {
       "title": "Splunk Lantern — Use Case Explorer: Communications",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TMForum — Revenue Assurance Maturity Model (RA-MM)",
-      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/"
+      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "3GPP TS 32.297 — CDR File Format and Transfer",
-      "url": "https://www.3gpp.org/DynaReport/32297.htm"
+      "url": "https://www.3gpp.org/DynaReport/32297.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GSMA TAP3 Standard — Transferred Account Procedure",
-      "url": "https://www.gsma.com/aboutus/"
+      "url": "https://www.gsma.com/aboutus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ITU-T E.425 — IP Network Performance Objectives",
-      "url": "https://www.itu.int/rec/T-REC-E.425"
+      "url": "https://www.itu.int/rec/T-REC-E.425",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**(1) Seasonal travel & roaming reversions** — subscribers who recently returned home show steep drops versus roaming-heavy trailing weeks despite no churn intent; mitigate with roaming flags from mediation or abbreviated suppress windows after roam end. **(2) Planned life-cycle pauses** — medical leave, parental leave, caregiver plans, bereavement freezes; suppression via CRM/BSS paused-service rosters keyed by subscriber. **(3) SIM/device migrations** — SIM swaps or handset replacements create metering blind spots lasting days; join equipment-change feeds and freeze decay scoring for ≥14 days with tunable SLA. **(4) Caps, throttling, fair-usage policies** — once quotas bite, lawful traffic shaping mimics abandonment; segmented thresholds for capped and unlimited plans plus plan-change calendars. **(5) Educational / dorm Wi-Fi offload** — students shift usage wholesale to unmanaged Wi-Fi; optional Wi-Fi offload metrics or institutional calendar suppress periods. **(6) Multi-IMSI households** — wearables/eSIM companions split billed usage across pseudo-identifiers unless household linkage tables unify views. **(7) Collections or fraud bars** — involuntary freezes suppress usage without churn predictive value; BSS **exception/disposition** codes should dampen outbound marketing triggers. **(8) Fibre substitution or broadband migration bundles** deliberately move consumption off mobile for happy customers — cross-check fixed-line KPIs before save-team outreach to avoid irritated “already satisfied” subscribers. **(9) OSS/BSS metering bugs or partial rating outages** flatten usage fleet-wide—not behavioural decay; correlate with outage tickets and mediation health indexes before alerting. **(10) Prepaid dormant accounts with long silent periods** resurrect mid-window causing unstable `streamstats` denominators — require minimum nonzero sample weeks (`where sample_count>=3`) prior to alerting.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "db_connect_generic",
+    "servicenow_generic",
+    "snowflake_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

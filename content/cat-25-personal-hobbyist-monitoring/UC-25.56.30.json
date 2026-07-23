@@ -8,10 +8,16 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Prayer sessions (`faith:rosary`), retreat events (`faith:retreat`), attendance logs (`faith:attendance`), fasting journals (`faith:fast`), practice reviews (`faith:ops`).",
-  "app": "Spiritual-practice telemetry — rosary counters, meditation-retreat schedules, church-attendance logs, and fasting journals — streamed to Splunk HEC via exports and scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Fasting Symptom Note Backlog'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.56.30).",
+  "evidence": "Saved search uc_25_56_30_fasting_symptom_note_backlog, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Fasting Symptom Note Backlog'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.56.30.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Prayer sessions (`faith:rosary`), retreat events (`faith:retreat`), attendance logs (`faith:attendance`), fasting journals (`faith:fast`), practice reviews (`faith:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Spiritual-practice telemetry — rosary counters, meditation-retreat schedules, church-attendance logs, and fasting journals — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=faith:fast symptom_type=* note_state=*\n| stats sum(eval(if(note_state!=\"reviewed\",1,0))) as backlog, count as total by symptom_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending fasting notes backlog by symptom type for fasting reviews.",
+  "description": "Lists pending fasting notes backlog by symptom type for fasting reviews. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside fasting reviews.",
   "implementation": "Mark each `faith:fast` record with a pending-state flag and summarize backlog totals by `symptom_type`.",
   "visualization": "Table of symptom type with pending fasting notes counts.",
@@ -19,20 +25,38 @@
   "references": [
     {
       "title": "Hallow",
-      "url": "https://hallow.com/"
+      "url": "https://hallow.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Church Center",
-      "url": "https://www.churchcenter.com/"
+      "url": "https://www.churchcenter.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "YouVersion",
-      "url": "https://www.youversion.com/the-bible-app/"
+      "url": "https://www.youversion.com/the-bible-app/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends where unfinished fasting notes are piling up so you can clear the biggest queues in fasting reviews."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Spiritual Practice & Mindfulness — typical feeds: Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`)..\n• **Sourcetypes in this search**: `faith:fast`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=faith:fast`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Mark each `faith:fast` record with a pending-state flag and summarize backlog totals by `symptom_type`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"faith:fast\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=faith:fast earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Fasting Symptom Note Backlog** over `personal` data (primarily `sourcetype=faith:fast`) across the full search range. It applies numeric thresholds on `backlog` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `backlog`, `symptom_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=faith:fast symptom_type=* note_state=*\n| stats sum(eval(if(note_state!=\"reviewed\",1,0))) as backlog, count as total by symptom_type\n| where backlog>0\n| sort - backlog\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=faith:fast earliest=-7d\n| head 50\n| table backlog, symptom_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=faith:fast earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `backlog` before alerting:\n\n```spl\nindex=personal sourcetype=faith:fast earliest=-30d\n| stats perc50(backlog) AS p50 perc90(backlog) AS p90 perc99(backlog) AS p99 max(backlog) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.56.30: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Symptom Type With Pending Fasting Notes Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `faith:fast` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=faith:fast | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It blends where unfinished fasting notes are piling up so you can clear the biggest queues in fasting reviews.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

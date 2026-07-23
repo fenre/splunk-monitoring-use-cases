@@ -9,7 +9,13 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Microsoft 365 Defender incidents via `sourcetype=ms365:defender:incident`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.16.11).",
+  "evidence": "Saved search uc_10_16_11_microsoft_365_defender_open_incident_bac, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.16.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Microsoft 365 Defender incidents via `sourcetype=ms365:defender:incident` Sourcetypes: ms365:defender:incident. Key fields: sev. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Microsoft Security (Splunkbase 6207)",
   "spl": "index=* sourcetype=\"ms365:defender:incident\" earliest=-7d\n| eval st=lower(coalesce(status, Status, \"\"))\n| where st IN (\"active\",\"new\",\"in_progress\",\"investigating\") OR (st!=\"resolved\" AND st!=\"closed\")\n| eval sev=lower(coalesce(severity, Severity, \"unknown\"))\n| stats dc(incidentId) as open_incidents by sev\n| sort -open_incidents",
   "description": "Counts non-resolved Microsoft 365 Defender incidents by severity so leadership can see backlog growth, analyst capacity risk, and whether critical incidents are stuck open beyond SLA.",
@@ -23,14 +29,32 @@
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Security",
-      "url": "https://splunkbase.splunk.com/app/6207"
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Microsoft Security",
-      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/"
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Open incident backlog and severity mix can grow during vendor outages, analyst PTO, or a known campaign — the backlog is as much a staffing signal as a threat signal.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
@@ -38,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We look at how many Microsoft incidents stay open and how severe they are so backlog and triage health are not a mystery in one portal."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Security (Splunkbase 6207)). Enable the modular input or HEC token that writes sourcetype=ms365:defender:incident into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`sev`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look at how many Microsoft incidents stay open and how severe they are so backlog and triage health are not a mystery in one portal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip` `sourcetype=asterisk:queue_log` pipe-delimited events (`COMPLETEAGENT`, `ABANDON`, `ENTERQUEUE`, `CONNECT`)",
-  "app": "Asterisk `queue_log` file monitoring via Universal Forwarder",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Asterisk Queue Log Abandon Rate and Service Level Breach'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.8.13).",
+  "evidence": "Saved search uc_21_8_13_asterisk_queue_log_abandon_rate_and_serv, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Asterisk Queue Log Abandon Rate and Service Level Breach'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.8.13.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=voip` `sourcetype=asterisk:queue_log` pipe-delimited events (`COMPLETEAGENT`, `ABANDON`, `ENTERQUEUE`, `CONNECT`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Asterisk `queue_log` file monitoring via Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:queue_log\n| eval q=coalesce(queue, qname)\n| eval is_abandon=if(event=\"ABANDON\",1,0), is_enter=if(event=\"ENTERQUEUE\",1,0), is_answer=if(event=\"CONNECT\",1,0)\n| bin _time span=1h\n| stats sum(is_enter) as enters, sum(is_abandon) as abandons, sum(is_answer) as answers by _time, host, q\n| eval abandon_rate=round(100*abandons/nullif(enters,0),2)\n| eval sla_met=round(100*answers/nullif(enters,0),2)\n| where enters>30 AND (abandon_rate>15 OR sla_met<75)",
   "description": "The Asterisk `queue_log` is the canonical source for ENTERQUEUE, ABANDON, and CONNECT events. Hourly abandon percentage and connect ratio highlight understaffed intervals or misrouted IVR paths before executive dashboards show revenue impact.",
   "value": "Protects revenue and NPS on carrier or enterprise contact centers running Asterisk queues by exposing abandon spikes within an hour.",
@@ -24,16 +30,31 @@
   "references": [
     {
       "title": "Asterisk Documentation — Queue logs",
-      "url": "https://docs.asterisk.org/Operation/Logging/Queue-Logs/"
+      "url": "https://docs.asterisk.org/Operation/Logging/Queue-Logs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: Monitor files and directories",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorfilesanddirectories"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorfilesanddirectories",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Abandon rate noise during IVR or queue redesigns, short staffing, or campaign callbacks where the contact center WFM plan already called for a higher threshold.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "asterisk"
+  ],
+  "equipmentModels": [
+    "asterisk_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,7 +63,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• `props.conf` `LINE_BREAKER` for queue_log pipe format.\n• Clock sync between Asterisk and Splunk.\n\nStep 1 — Validate event counts against `queue show stats`.\n\nStep 2 — Exclude marketing test campaigns via ANI lookup.\n\nStep 3 — Alert routing to WFM team with queue name.\n\nStep 4 — Archive raw queue_log for regulatory retention if required.",
+  "detailedImplementation": "Prerequisites\n• `props.conf` `LINE_BREAKER` for queue_log pipe format.\n• Clock sync between Asterisk and Splunk.\n\nStep 1 — Validate event counts against `queue show stats`.\n\nStep 2 — Exclude marketing test campaigns via ANI lookup.\n\nStep 3 — Alert routing to WFM team with queue name.\n\nStep 4 — Archive raw queue_log for regulatory retention if required.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Asterisk `queue_log` file monitoring via Universal Forwarder — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:queue_log into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, abandon_rate, enters, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch queue wait and abandon on call centers. We help you catch understaffing before service level tanks.",
-  "telcoUseCase": "Contact center queue analytics on Asterisk `queue_log` — correlate abandons with staffing without exporting CDR to a separate warehouse."
+  "prerequisiteUseCases": [],
+  "telcoUseCase": "Contact center queue analytics on Asterisk `queue_log` — correlate abandons with staffing without exporting CDR to a separate warehouse.",
+  "wave": "crawl"
 }

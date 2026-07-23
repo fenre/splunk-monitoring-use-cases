@@ -8,6 +8,12 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ICMPv6 Multicast Amplification Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.28).",
+  "evidence": "Saved search uc_5_20_28_icmpv6_multicast_amplification_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ICMPv6 Multicast Amplification Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.28.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=corelight_zeek` for ICMPv6 Type 128 (Echo Request) analysis, or `index=network sourcetype=cisco:ios` for firewall/ACL deny logs showing ICMP Echo Requests to multicast destinations. The attack pattern is an IPv6 'Smurf' amplification: an attacker sends an ICMPv6 Echo Request (ping6) to ff02::1 (All Nodes multicast) with a spoofed source address set to the victim's IPv6 address. Every host on the VLAN responds with an Echo Reply to the victim, creating an amplification factor equal to the number of hosts on the VLAN.\n\nRFC 9099 §2.3.5 explicitly warns about this attack vector. Unlike IPv4 where directed broadcast amplification was mitigated by disabling directed broadcast forwarding (RFC 2644), IPv6 link-local multicast (ff02::1) is always reachable and cannot be 'disabled' without breaking NDP.\n\nThe mitigation is to not respond to Echo Requests sent to multicast addresses (RFC 4443 §4.2 allows this), but many operating systems still respond by default.\n\nDetection signals: (1) Echo Requests to ff02::1 or other ff02:: addresses. (2) A burst of Echo Replies from many hosts to a single destination within a short time window.",
   "app": "Zeek (`corelight_zeek`) for ICMPv6 Echo Request/Reply analysis. Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for ACL deny logs.",
   "spl": "index=network sourcetype=\"corelight_zeek\" icmpv6_type=128 earliest=-1h\n| where match(dest_ip, \"^ff0[0-9a-fA-F]:\")\n| stats count as ping_count dc(src_ip) as unique_sources values(src_ip) as spoofed_sources values(dest_ip) as mcast_targets by vlan\n| where ping_count > 5\n| eval assessment=case(\n    ping_count > 100, \"CRITICAL — active multicast amplification attack\",\n    ping_count > 20, \"WARNING — elevated multicast pings\",\n    1=1, \"INFO — low-level multicast pings\")\n| table vlan, ping_count, unique_sources, spoofed_sources, mcast_targets, assessment",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.5 — Multicast amplification, ICMPv6 ff02::1 abuse)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4443 — Internet Control Message Protocol (ICMPv6) for IPv6 (§4.2 — Echo Reply to multicast — implementations SHOULD NOT respond)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4443"
+      "url": "https://www.rfc-editor.org/rfc/rfc4443",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4890 — Recommendations for Filtering ICMPv6 Messages in Firewalls (Echo Request/Reply handling at boundaries)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4890"
+      "url": "https://www.rfc-editor.org/rfc/rfc4890",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Network discovery tools using ff02::1 ping.** Some legitimate network discovery tools (e.g., `nmap -6 --script targets-ipv6-multicast-echo`) use ping6 to ff02::1 to discover hosts. These should be scheduled and whitelisted. On production networks, this technique should be confined to authorised scanning windows.\n\n**Router keep-alive pings to ff02::1.** Some network monitoring systems send periodic pings to ff02::1 to verify VLAN connectivity. This is unusual but not unheard of. Verify with the network team and whitelist the monitoring system's source IP.\n\n**IPv6 troubleshooting by network engineers.** Engineers may manually ping6 ff02::1 from a router to discover active IPv6 hosts. This is a legitimate troubleshooting technique but should be rare on production networks.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

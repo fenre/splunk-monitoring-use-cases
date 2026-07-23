@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added",
-  "app": "`Splunk_TA_microsoft-cloudservices`, Graph scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'App Registration Secret Expiry'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.3.13).",
+  "evidence": "Saved search uc_9_3_13_app_registration_secret_expiry, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'App Registration Secret Expiry'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.3.13.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices`, Graph scripted input — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"azure:graph:applications\"\n| eval days_left=round((strptime(endDateTime,\"%Y-%m-%dT%H:%M:%SZ\")-now())/86400)\n| where days_left < 30 AND days_left > 0\n| table appId, displayName, days_left, endDateTime\n| sort days_left",
   "description": "Expired client secrets break automation and encourage long-lived secrets; proactive alerting avoids outages and insecure workarounds.",
-  "value": "Expired client secrets break automation and encourage long-lived secrets; proactive alerting avoids outages and insecure workarounds.",
+  "value": "Operations and leadership rely on 'App Registration Secret Expiry' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Schedule Graph export of app registrations with secrets/certificates. Alert at 30/14/7 days. Map apps to owners via lookup.",
   "visualization": "Table (expiring secrets), Single value (next expiry), Gauge (apps past due).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1528"
   ],
@@ -34,6 +56,16 @@
     "azure",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`, Graph scripted input.\n• Ensure the following data sources are available: Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule Graph export of app registrations with secrets/certificates. Alert at 30/14/7 days. Map apps to owners via lookup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"azure:graph:applications\"\n| eval days_left=round((strptime(endDateTime,\"%Y-%m-%dT%H:%M:%SZ\")-now())/86400)\n| where days_left < 30 AND days_left > 0\n| table appId, displayName, days_left, endDateTime\n| sort days_left\n```\n\nUnderstanding this SPL\n\n**App Registration Secret Expiry** — Expired client secrets break automation and encourage long-lived secrets; proactive alerting avoids outages and insecure workarounds.\n\nDocumented **Data sources**: Application credential inventory (`passwordCredentials.endDateTime`), audit when secret added. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`, Graph scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: azure:graph:applications. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"azure:graph:applications\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_left < 30 AND days_left > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **App Registration Secret Expiry**): table appId, displayName, days_left, endDateTime\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Entra ID sign-in and audit logs in the Microsoft Entra or Azure portal for the same users, resources, and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (expiring secrets), Single value (next expiry), Gauge (apps past due).",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — App Registration Secret Expiry"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — App Registration Secret Expiry",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

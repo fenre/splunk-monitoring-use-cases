@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics",
-  "app": "Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'MQTT Topic Message Rate and Subscription Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.5.1).",
+  "evidence": "Saved search uc_14_5_1_mqtt_topic_message_rate_and_subscription, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'MQTT Topic Message Rate and Subscription Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.5.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub\n| bin _time span=5m\n| stats count as msg_count, latest(_time) as last_seen by topic, host, _time\n| eval age_sec = now() - last_seen\n| where age_sec > 600 OR msg_count < 1\n| table topic host msg_count last_seen age_sec",
   "description": "Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.",
-  "value": "Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.",
+  "value": "Operations and leadership rely on 'MQTT Topic Message Rate and Subscription Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Use Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.",
   "visualization": "Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).",
   "cimModels": [
@@ -23,17 +29,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Topic stalls during sensor power cycles, scheduled OTA updates, or cell modem coverage gaps.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ).\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Edge Hub MQTT topic subscriptions with metric extraction (topic as dimension). Or ingest broker metrics (e.g. Mosquitto stats, HiveMQ REST API) for messages per topic. Alert when a critical topic has no messages for >10 minutes or rate drops below baseline. Dashboard message rate by topic and subscriber count.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-data OR index=ot sourcetype=mqtt OR sourcetype=edge_hub\n| bin _time span=5m\n| stats count as msg_count, latest(_time) as last_seen by topic, host, _time\n| eval age_sec = now() - last_seen\n| where age_sec > 600 OR msg_count < 1\n| table topic host msg_count last_seen age_sec\n```\n\nUnderstanding this SPL\n\n**MQTT Topic Message Rate and Subscription Health** — Per-topic message rate and subscriber count indicate whether sensors and downstream consumers are healthy. Sudden drops mean a publisher or subscription failed; spikes can indicate a runaway device or replay.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics by topic), broker stats API or log-derived metrics. **App/TA** (typical add-on context): Splunk Edge Hub (MQTT broker), MQTT broker metrics (Mosquitto, HiveMQ). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data, ot; **sourcetype**: mqtt, edge_hub. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-data, index=ot, sourcetype=mqtt. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by topic, host, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where age_sec > 600 OR msg_count < 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **MQTT Topic Message Rate and Subscription Health**): table topic host msg_count last_seen age_sec\n\nStep 3 — Validate\nRun the search over a period with known traffic, then compare with the MQTT broker UI or `mosquitto_sub` for the same topics and clients. Spot-check counts against broker access and metrics logs.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (message rate by topic), Table (topics with no recent data), Single value (topics healthy %).",
-  "grandmaExplanation": "We watch how often each topic gets messages so we can tell when a sensor or our broker goes quiet or starts flooding before operators lose trust in the data."
+  "grandmaExplanation": "We watch how often each topic gets messages so we can tell when a sensor or our broker goes quiet or starts flooding before operators lose trust in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

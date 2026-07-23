@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.37).",
+  "evidence": "Saved search uc_17_1_37_ise_cisco_aci_cisco_secure_workload_sgt, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -64,14 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — TrustSec / ACI Integration",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco APIC — REST API",
-      "url": "https://developer.cisco.com/docs/aci/"
+      "url": "https://developer.cisco.com/docs/aci/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Bulk ACI EPG renames** — A scheduled rename causes a transient binding miss until ACI re-resolves. Suppress within scheduled change windows. (b) **Secure Workload scope reorganisation** — Major scope-tree changes generate binding update activity that may transiently fail before the new tree is applied.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1599"
   ],
@@ -90,7 +104,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE-ACI integration configured (Administration > pxGrid Services > ACI Settings).\n• ACI APIC syslog forwarded to Splunk.\n• Splunk credentials for the Secure Workload OpenAPI; modular input or cron poller.\n• `sgt_epg_mapping.csv` lookup (SGT → expected EPG).\n\nStep 1 — Configure data collection\nEnable ISE *TrustSec* category at INFO. Verify ACI APIC syslog is arriving at `index=network sourcetype=cisco:apic`.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a binding failure as in controlTest. Confirm fire.\n\nStep 4 — Operationalize\nDashboard panels listed above. Slack notification to `#network-segmentation-platform`.\n\nStep 5 — Troubleshooting\n• **No ACI syslog events** — APIC syslog target not configured. Configure under APIC: Admin > External Data Collectors > Syslog.\n• **Binding-failure events from ISE without ACI events** — APIC may be reachable but Secure Workload integration broken. Validate Secure Workload OpenAPI auth.\n• **Persistent failures for one SGT** — That SGT has no matching EPG defined in ACI. Coordinate with the ACI admin to create or rename the EPG.",
+  "detailedImplementation": "Prerequisites\n• ISE-ACI integration configured (Administration > pxGrid Services > ACI Settings).\n• ACI APIC syslog forwarded to Splunk.\n• Splunk credentials for the Secure Workload OpenAPI; modular input or cron poller.\n• `sgt_epg_mapping.csv` lookup (SGT → expected EPG).\n\nStep 1 — Configure data collection\nEnable ISE *TrustSec* category at INFO. Verify ACI APIC syslog is arriving at `index=network sourcetype=cisco:apic`.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a binding failure as in controlTest. Confirm fire.\n\nStep 4 — Operationalize\nDashboard panels listed above. Slack notification to `#network-segmentation-platform`.\n\nStep 5 — Troubleshooting\n• **No ACI syslog events** — APIC syslog target not configured. Configure under APIC: Admin > External Data Collectors > Syslog.\n• **Binding-failure events from ISE without ACI events** — APIC may be reachable but Secure Workload integration broken. Validate Secure Workload OpenAPI auth.\n• **Persistent failures for one SGT** — That SGT has no matching EPG defined in ACI. Coordinate with the ACI admin to create or rename the EPG.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Cisco ACI Connector` ([Splunkbase 4309](https://splunkbase.splunk.com/app/4309)) + custom Secure Workload poller.). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:apic into nac, network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`epg_name, failures, sgt_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE labels users by group, but the data-centre fabric and the workload-protection tool need to know about the same groups. We make sure those tools agree with ISE — and ring the bell when one of them refuses a label, so security rules stay consistent.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

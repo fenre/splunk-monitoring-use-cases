@@ -46,15 +46,23 @@
   "references": [
     {
       "title": "IMO MSC-FAL.1/Circ.3 Rev.2 §3.1 — Passenger public networks, administrative + crew welfare",
-      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf"
+      "url": "https://wwwcdn.imo.org/localresources/en/OurWork/Security/Documents/MSC-FAL.1-Circ.3-Rev.2.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BIMCO Guidelines — Crew and passenger Wi-Fi segregation",
-      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships"
+      "url": "https://www.bimco.org/about-us-and-our-members/publications/the-guidelines-on-cyber-security-onboard-ships",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IACS UR E26 — Cyber resilience of ships, network architecture",
-      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/"
+      "url": "https://iacs.org.uk/publications/unified-requirements/ur-e/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **One-way time-sync from administrative-LAN to OT NTP**: this is a baseline-approved flow; ensure NTP-only is excluded. 2. **OEM portable diagnostic tool on engineering Wi-Fi**: tunnels through PAM in production; if seen on a vessel without PAM yet, flag and route to PAM-onboarding queue. 3. **Crew TV / IPTV traffic**: should be confined to crew network, but occasionally leaks; tighten the leak diagnosis.\n\n**Suppression mechanism**: KV Store `imo_22_59_12_exceptions` with the Network Architect's documented approval.",
@@ -98,7 +106,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- Splunk Network_Traffic CIM-compliant data model on accelerated indexes covering firewall + Wi-Fi controller logs.\n\n## Step 1 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall + Wi-Fi controller sourcetypes to set `src_zone` / `dst_zone`. Maintain a vessel-specific zone-mapping lookup keyed on subnet -> zone.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.12: IMO Crew/Passenger Wi-Fi Isolation]\ncron_schedule = 47 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.12,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`allowed_count > 0` and `dst_zone in [ibs, ecdis, gmdss, ais, propulsion, dps, cargo-control]` during sea passage** (severity P1): Within 1 hour, isolate the source device via Wi-Fi controller; investigate; document.\n\n**Other allowed-traversal events** (severity P2): Within 4 hours, the Network Architect either updates the policy or remediates.\n\n## Step 4 — Maritime-specific notes\n\n- **Cruise-ship passenger Wi-Fi**: large fleet of devices; scale storage and search performance accordingly.\n- **Cargo-vessel crew Wi-Fi only**: small fleet of devices; cheaper to monitor.",
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.4 in production.\n- Splunk Network_Traffic CIM-compliant data model on accelerated indexes covering firewall + Wi-Fi controller logs.\n\n## Step 1 — Zone enrichment\n\nProps.conf FIELDALIAS on firewall + Wi-Fi controller sourcetypes to set `src_zone` / `dst_zone`. Maintain a vessel-specific zone-mapping lookup keyed on subnet -> zone.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.12: IMO Crew/Passenger Wi-Fi Isolation]\ncron_schedule = 47 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.12,reg=IMO-MSC-428-98,clause=IMO-MSC-FAL-Circ-3-s3-1\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`allowed_count > 0` and `dst_zone in [ibs, ecdis, gmdss, ais, propulsion, dps, cargo-control]` during sea passage** (severity P1): Within 1 hour, isolate the source device via Wi-Fi controller; investigate; document.\n\n**Other allowed-traversal events** (severity P2): Within 4 hours, the Network Architect either updates the policy or remediates.\n\n## Step 4 — Maritime-specific notes\n\n- **Cruise-ship passenger Wi-Fi**: large fleet of devices; scale storage and search performance accordingly.\n- **Cargo-vessel crew Wi-Fi only**: small fleet of devices; cheaper to monitor.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco Meraki (Splunkbase 5582), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Network_Traffic.dst_zone, Network_Traffic.imo_number, Network_Traffic.src_zone, allowed_count`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Crew internet and passenger Wi-Fi must never be able to reach the bridge or engine-room computers. We watch the network constantly and ring the alarm if a crew or passenger device tries to peek at the ship's important systems.",
   "prerequisiteUseCases": [
     "UC-22.59.4"

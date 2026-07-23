@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN/IKE syslog (`cisco:asa`, `pan:system`)",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VPN Tunnel Keepalive Failure Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.2.15).",
+  "evidence": "Saved search uc_17_2_15_vpn_tunnel_keepalive_failure_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VPN Tunnel Keepalive Failure Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.2.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "VPN/IKE syslog (`cisco:asa`, `pan:system`) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-24h\n| search \"IKE\" OR \"keepalive\" OR \"DPD\" OR \"dead peer\"\n| stats count by tunnel_id, peer_ip, message_signature\n| sort 40 -count",
   "description": "Tracks DPD/keepalive failures and tunnel teardown reasons for site-to-site and remote-access — isolates path MTU, NAT, and idle timeout issues.",
   "value": "Network operations teams monitor IKE/IPSec tunnel health through keepalive and Dead Peer Detection failures, identifying unstable WAN paths before tunnels drop and cause site-to-site connectivity outages.",
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
@@ -38,7 +60,13 @@
     "cisco_asa",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`) or Palo Alto Networks Add-on (`sourcetype=pan:system`). Data in `index=vpn`.\n• Key fields: `tunnel_id`, `peer_ip`, `action/event` (keepalive_failed, dpd_timeout, ike_timeout).\n• IKE/IPSec tunnels use Dead Peer Detection (DPD) or keepalive messages to verify the remote peer is reachable. Failures indicate network path issues, peer reboots, or configuration drift.\n• This UC focuses on site-to-site and remote-access IPSec tunnels, not SSL/TLS VPN sessions.\n\nStep 1 — Configure data collection\nVerify keepalive/DPD events:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-24h\n| search \"keepalive\" OR \"DPD\" OR \"dead peer\" OR \"IKE.*timeout\"\n| stats count by host, peer_ip\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Keepalive failure analysis:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-24h\n| search \"keepalive\" OR \"DPD\" OR \"dead peer\" OR \"IKE.*timeout\"\n| stats count as failures earliest(_time) as first latest(_time) as last by host, peer_ip\n| eval duration_hours=round((last - first)/3600, 1)\n| eval frequency=if(duration_hours>0, round(failures/duration_hours, 1), failures)\n| sort - frequency\n```\n\nUnderstanding this SPL: Tracks keepalive failures per tunnel peer. High frequency (many failures per hour) indicates an unstable path. Burst failures (many in a short period, then none) suggest a temporary network outage. Persistent low-rate failures suggest MTU issues or marginal link quality.\n\nStep 3 — Validate\n(a) On ASA: `show crypto isakmp sa` to check IKE SA status. Peers with DPD failures show as 'QM_IDLE' or missing.\n\nStep 4 — Operationalize\nDashboard: Table of tunnel peers with failure counts. Timechart of failures.\nAlert: Trigger when any peer exceeds 10 failures in 1h.\n\nRunbook:\n1. **Sustained failures** — Check the network path: traceroute, link utilization, ISP status.\n2. **Burst then recovery** — Transient issue. Document and monitor.\n3. **DPD timeout but tunnel still up** — DPD interval may be too aggressive. Increase from 10s to 30s.\n\nStep 5 — Troubleshooting\n• **No keepalive events** — DPD may not be enabled. On ASA: `crypto isakmp keepalive 30 5`.\n• **Peer IP not matching expected** — NAT-T may be changing the peer address.",
   "grandmaExplanation": "We watch the heartbeat signals between our network tunnels, and when they start missing, we know the connection path is having trouble before it completely breaks.",
-  "hardware": "ASA, Palo Alto IPsec"
+  "hardware": "ASA, Palo Alto IPsec",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

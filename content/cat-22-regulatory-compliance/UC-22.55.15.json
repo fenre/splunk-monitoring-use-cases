@@ -47,11 +47,23 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 9.1",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ISA Secure",
-      "url": "https://www.isasecure.org/"
+      "url": "https://www.isasecure.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Supplier negotiating extension** — documented contract amendment. Suppression: `deliverable_status_override=amendment_in_review` with 30-day grant.\n\n**Suppression mechanism**: KV Store `clc_22_55_15_exceptions` with documented Supply-Chain-Lead approval and 60-day maximum grant.",
@@ -82,7 +94,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_supplier_deliverables_lookup`.\n\n## Step 1 — Deliverable collection\n\n```ini\n[rail_supplier_deliverables_lookup]\nenforceTypes = true\nfield.deliverable_id = string\nfield.supplier_id = string\nfield.deliverable_type = string\nfield.due_at = number\nfield.received_at = number\nfield.accepted_at = number\nfield.accepted_by = string\nfield.deliverable_status_in_register = string\n```\n\nDeliverable types include: SBOM, vulnerability bulletin, patch release schedule, security event sharing, ISA-Secure certification proof, security-incident notification SLA proof.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.15: CLC/TS 50701 Supplier Deliverables]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.15,reg=CLC-TS-50701,clause=CLC-TS-50701-c9-1\naction.notable.param.rule_title = Rail supplier deliverable overdue or pending\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `deliverable_overdue`** (owner: Procurement Cybersecurity Lead, severity P2): contact supplier; document remediation; escalate if no response.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Long-cycle rail vendors**: rail vendors often slow to deliver SBOMs; require contractual commitment.\n- **Vendor-of-vendor visibility**: sub-suppliers may have separate obligations; tracked via flow-down clauses.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_supplier_deliverables_lookup`.\n\n## Step 1 — Deliverable collection\n\n```ini\n[rail_supplier_deliverables_lookup]\nenforceTypes = true\nfield.deliverable_id = string\nfield.supplier_id = string\nfield.deliverable_type = string\nfield.due_at = number\nfield.received_at = number\nfield.accepted_at = number\nfield.accepted_by = string\nfield.deliverable_status_in_register = string\n```\n\nDeliverable types include: SBOM, vulnerability bulletin, patch release schedule, security event sharing, ISA-Secure certification proof, security-incident notification SLA proof.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.15: CLC/TS 50701 Supplier Deliverables]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.15,reg=CLC-TS-50701,clause=CLC-TS-50701-c9-1\naction.notable.param.rule_title = Rail supplier deliverable overdue or pending\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `deliverable_overdue`** (owner: Procurement Cybersecurity Lead, severity P2): contact supplier; document remediation; escalate if no response.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Long-cycle rail vendors**: rail vendors often slow to deliver SBOMs; require contractual commitment.\n- **Vendor-of-vendor visibility**: sub-suppliers may have separate obligations; tracked via flow-down clauses.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_overdue, deliverable_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every cyber-supplier (signal-box maker, train-brain maker, radio maker) promised certain things in their contracts — a list of components in their products, a fast warning if they find a bug. We keep a list of every promise; if a supplier misses a deadline, we contact them.",
   "prerequisiteUseCases": [
     "UC-22.55.9"

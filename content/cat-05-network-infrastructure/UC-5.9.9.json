@@ -8,6 +8,12 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'BGP Path Change Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.9).",
+  "evidence": "Saved search uc_5_9_9_bgp_path_change_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'BGP Path Change Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` from the Tests Stream — Metrics input in `ta_cisco_thousandeyes` (Splunkbase 7719). The OTel v2 metric `bgp.path_changes.count` reports the number of BGP path changes observed per collection interval per monitor. A path change means the AS path to the monitored prefix changed as seen from that monitor's vantage point. Resource attributes: `thousandeyes.test.type` (`bgp`), `thousandeyes.monitor.name`, `thousandeyes.monitor.location`, `network.prefix`. BGP collection interval: 15 minutes (default).",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"bgp\"\n| timechart span=1h sum(bgp.path_changes.count) as path_changes by network.prefix",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes BGP Route Monitoring — Path change metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "BGP Route Instability Analysis — RIPE RIS",
-      "url": "https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris"
+      "url": "https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Carrier peering changes and traffic engineering.** Large ISPs routinely adjust BGP policies — prepending, community changes, peer preference shifts — during maintenance windows, typically at off-peak hours. These produce bursts of path changes that are planned and benign. Distinguish by checking whether the changes occur during known ISP maintenance windows and whether reachability remains at 100%.\n\n**Initial BGP test setup.** When a new BGP test is created, monitors need one or two collection cycles to establish a baseline path. The first few rounds may report path changes as the monitor's RIB converges. Ignore path changes in the first 30 minutes after test creation.\n\n**Internet backbone events (submarine cable cuts, IX outages).** Major internet infrastructure events cause global BGP path changes across all monitors and prefixes simultaneously. If you see a spike across ALL prefixes and ALL monitors at the same time, it's likely a backbone event, not specific to your prefix. Check BGP event feeds (bgpstream.com, ThousandEyes Outages page) to confirm.\n\n**AS path prepending changes by your own team.** If your network engineering team changes BGP prepending on your announcements, monitors will observe path changes as ISPs re-converge to the new best path. Correlate with your change management system.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

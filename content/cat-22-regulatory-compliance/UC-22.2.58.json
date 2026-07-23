@@ -30,8 +30,8 @@
     "positiveScenario": "Quarantine fires; attack stops within 2 min. Healthy KPI evidence.",
     "negativeScenario": "Quarantine ineffective. Evidence captured for remediation."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` 86001 + `index=notable`. Cross-reference UC-17.1.80.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` 86001 + `index=notable`. Cross-reference UC-17.1.80. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine earliest=-1d\n| eval anc_time=_time, endpoint_mac=mac\n| join endpoint_mac [search index=notable severity=high earliest=-1d | rename _time as last_attack_time]\n| eval quarantine_to_stop=anc_time - last_attack_time\n| stats avg(quarantine_to_stop) as avg_seconds, count by anc_policy\n| eval nis2_clause=\"Art.21(2)(b)\", control=\"Containment_Effectiveness\"\n| collect index=audit_evidence",
   "description": "We continuously evidence NIS2 Art.21(2)(b) — that automated containment is effective.",
   "value": "NIS2 audit will probe incident response effectiveness. This UC produces measurable, machine-attested evidence of containment efficacy — not just policy.",
@@ -43,14 +43,26 @@
   "references": [
     {
       "title": "NIS2 Directive (EU) 2022/2555",
-      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.80 — ANC Closed-Loop Effectiveness",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.80.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.80.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Endpoint moved to non-NAC port post-quarantine.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "requiredFields": [
     "_time",
     "endpoint_mac",
@@ -72,6 +84,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.80 operational.\n- ES Notable framework integrated.\n\n## Step 1-5\n\n```ini\n[UC-22.2.58: NIS2 Art.21(2)(b) — Containment Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.2.58,reg=NIS2,clause=Art.21(2)(b)\n```\n\nQuarterly review with NIS2 ARCSI/regulator.",
-  "grandmaExplanation": "We continuously evidence NIS2 Art.21(2)(b) — that automated containment is effective. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.80 operational.\n- ES Notable framework integrated.\n\n## Step 1-5\n\n```ini\n[UC-22.2.58: NIS2 Art.21(2)(b) — Containment Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.2.58,reg=NIS2,clause=Art.21(2)(b)\n```\n\nQuarterly review with NIS2 ARCSI/regulator.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, notable, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`anc_policy`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence NIS2 Art.21(2)(b) — that automated containment is effective. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

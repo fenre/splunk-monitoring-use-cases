@@ -8,6 +8,12 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Catalyst Center Data Collection Health (Meta)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.74).",
+  "evidence": "Saved search uc_5_13_74_catalyst_center_data_collection_health_m, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Catalyst Center Data Collection Health (Meta)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.74.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:*` (all Catalyst Center sourcetypes) plus `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"` (TA execution health). This meta use case monitors the health of Catalyst Center data collection itself — checking for event gaps, stale data, TA errors, and API failures across all 15+ sourcetype families.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:*\" | stats count as event_count latest(_time) as last_event earliest(_time) as first_event by sourcetype | eval hours_since_last=round((now()-last_event)/3600,1) | eval status=if(hours_since_last>2,\"Stale\",\"Active\") | sort -hours_since_last",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API Reference — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!api-reference"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!api-reference",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Low-frequency inputs appearing stale when checked against a tight freshness threshold.** Some Catalyst Center API endpoints (site hierarchy, SWIM golden image, license) are polled hourly or less frequently. If the data freshness check uses a 15-minute threshold, these inputs will always appear stale. Distinguish by checking the configured poll interval for each input type in the TA configuration. Suppress by maintaining a `catalyst_input_intervals` lookup with expected poll intervals per sourcetype and comparing freshness against the per-sourcetype threshold.\n\n**TA poll failure due to Catalyst Center API rate limiting.** If the TA exceeds Catalyst Center's API rate limits, some inputs may fail to collect data, appearing as stale. Distinguish by checking `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"` for rate limit errors (HTTP 429). Suppress by adjusting the TA poll intervals to stay within the rate limit.\n\n**Catalyst Center platform maintenance causing a temporary collection gap.** During Catalyst Center upgrades or restarts, the API is unavailable and the TA cannot collect data. Distinguish by checking whether the collection gap coincides with a Catalyst Center maintenance window. Suppress by annotating data freshness gaps with maintenance window records.\n\n**Splunk forwarder or heavy forwarder restart causing a brief collection gap.** When the Splunk instance running the TA restarts, there is a brief gap in data collection. Distinguish by checking `index=_internal sourcetype=splunkd \"Splunkd starting\" OR \"Splunkd restarting\"` for restart events coinciding with the collection gap. Suppress by allowing a 10-minute gap after a forwarder restart before flagging data freshness issues.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

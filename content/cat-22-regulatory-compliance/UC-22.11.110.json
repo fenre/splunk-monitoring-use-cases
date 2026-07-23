@@ -27,11 +27,11 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Push oversized dACL to limited-TCAM switch. Truncation event captured.",
-    "negativeScenario": "All dACL pushes succeed. Empty result."
+    "positiveScenario": "Inject a synthetic test event that satisfies the detection criteria for 'PCI DSS v4.0 1.4.5 — dACL Push Integrity for CDE Switch Port' — for example, create a log entry with all required fields populated to match the SPL filter conditions. Verify the search fires within the expected schedule interval, the alert populates the compliance dashboard, and the event routes correctly to the evidence index with proper pci-dss control tagging.",
+    "negativeScenario": "Ingest a batch of test events that are structurally similar but explicitly do NOT meet the detection threshold — e.g., events with compliant values, timestamps outside the monitoring window, or source systems excluded by the scope filter. Verify the search produces zero results, no false-positive alerts fire, and the compliance posture score remains unaffected for the pci-dss control objective."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` codes 5436/5437/5438. Cross-reference UC-17.1.75.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` codes 5436/5437/5438. Cross-reference UC-17.1.75. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5437, 5438) earliest=-1d\n| stats count by dacl_name, nas_ip, MessageCode\n| eval pcidss_clause=\"1.4.5\", control=\"dACL_Integrity\"\n| collect index=audit_evidence",
   "description": "We continuously evidence PCI DSS v4.0 1.4.5 — dACL push integrity to CDE switch ports.",
   "value": "Truncated or failed dACLs silently weaken CDE access control. Daily archived evidence ensures the QSA can confirm that segmentation enforcement, not just policy, was working.",
@@ -41,14 +41,26 @@
   "references": [
     {
       "title": "PCI DSS v4.0",
-      "url": "https://www.pcisecuritystandards.org/document_library/"
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.75 — dACL Push Failures and ACL-Length Truncation",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.75.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.75.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Switches under reload — push failures may be transient.",
+  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
   "requiredFields": [
     "_time",
     "dacl_name",
@@ -71,6 +83,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.75 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.11.110: PCI 1.4.5 — dACL Push Integrity Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.110,reg=PCIDSS,clause=1.4.5\n```\n\nQuarterly evidence pack for QSA review.",
-  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 1.4.5 — that dACLs intended for CDE switch ports actually arrived intact. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.75 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.11.110: PCI 1.4.5 — dACL Push Integrity Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.110,reg=PCIDSS,clause=1.4.5\n```\n\nQuarterly evidence pack for QSA review.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, dacl_name, nas_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 1.4.5 — that dACLs intended for CDE switch ports actually arrived intact. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

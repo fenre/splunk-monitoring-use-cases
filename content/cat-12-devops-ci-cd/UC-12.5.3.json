@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=fluxcd:controller`, `sourcetype=kube:container_flux`",
-  "app": "Custom (Flux logs/metrics), Splunk OTel Collector for Kubernetes",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Flux Reconciliation Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-12.5.3).",
+  "evidence": "Saved search uc_12_5_3_flux_reconciliation_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Flux Reconciliation Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-12.5.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=fluxcd:controller`, `sourcetype=kube:container_flux` Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Flux logs/metrics), Splunk OTel Collector for Kubernetes — Splunk Connect for Kubernetes (Splunkbase 5167)",
   "spl": "index=devops (sourcetype=\"fluxcd:controller\" OR sourcetype=\"kube:container_flux\")\n| search (status=\"False\" AND type=\"Ready\") OR level=\"error\" OR msg=\"*reconciliation*failed*\"\n| stats count by namespace, name, kind, message\n| sort -count",
   "description": "Unhealthy Flux `Kustomization`/`HelmRelease` resources stop automated delivery; monitoring reconciliation ensures continuous GitOps and catches controller or source errors early.",
-  "value": "Unhealthy Flux `Kustomization`/`HelmRelease` resources stop automated delivery; monitoring reconciliation ensures continuous GitOps and catches controller or source errors early.",
+  "value": "Operations and leadership rely on 'Flux Reconciliation Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Forward Flux source-controller, kustomize-controller, and helm-controller logs (or scrape status conditions from CRDs) into Splunk. Parse Ready=False conditions and error strings. Alert on reconciliation failures or backlog growth. Group by cluster and tenant.",
   "visualization": "Table (failed resources), Single value (failed reconciliations), Timeline (controller errors), Bar chart (failures by kind).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-lived sync issues during cluster upgrades, credential rotations, or Git provider incidents.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "kubernetes",
     "opentelemetry"
@@ -35,6 +57,12 @@
     "kubernetes_helm",
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Flux logs/metrics), Splunk OTel Collector for Kubernetes.\n• Ensure the following data sources are available: `sourcetype=fluxcd:controller`, `sourcetype=kube:container_flux`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Flux source-controller, kustomize-controller, and helm-controller logs (or scrape status conditions from CRDs) into Splunk. Parse Ready=False conditions and error strings. Alert on reconciliation failures or backlog growth. Group by cluster and tenant.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"fluxcd:controller\" OR sourcetype=\"kube:container_flux\")\n| search (status=\"False\" AND type=\"Ready\") OR level=\"error\" OR msg=\"*reconciliation*failed*\"\n| stats count by namespace, name, kind, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Flux Reconciliation Health** — Unhealthy Flux `Kustomization`/`HelmRelease` resources stop automated delivery; monitoring reconciliation ensures continuous GitOps and catches controller or source errors early.\n\nDocumented **Data sources**: `sourcetype=fluxcd:controller`, `sourcetype=kube:container_flux`. **App/TA** (typical add-on context): Custom (Flux logs/metrics), Splunk OTel Collector for Kubernetes. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: fluxcd:controller, kube:container_flux. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"fluxcd:controller\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by namespace, name, kind, message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with Flux Kustomize/Helm status and source controller logs. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed resources), Single value (failed reconciliations), Timeline (controller errors), Bar chart (failures by kind).",
-  "grandmaExplanation": "We watch Flux reconciliation so clusters do not drift silently from the desired state in Git."
+  "grandmaExplanation": "We watch Flux reconciliation so clusters do not drift silently from the desired state in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

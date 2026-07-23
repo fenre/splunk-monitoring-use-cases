@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe",
-  "app": "`Splunk_TA_nix`, `Splunk_TA_syslog`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SSH Service Availability Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.6.1).",
+  "evidence": "Saved search uc_8_6_1_ssh_service_availability_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SSH Service Availability Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.6.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, `Splunk_TA_syslog` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "| inputlookup monitored_linux_hosts.csv\n| fields host\n| join type=left max=1 host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]\n| where isnull(ssh_events) OR ssh_events=0\n| eval status=\"SSH_DOWN\"\n| table host, status",
   "description": "SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.",
-  "value": "SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.",
+  "value": "Operations and leadership rely on 'SSH Service Availability Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.",
   "visualization": "Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, `Splunk_TA_syslog`.\n• Ensure the following data sources are available: `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest sshd syslog messages (Linux) via Universal Forwarder. Maintain a lookup (`monitored_linux_hosts.csv`) of expected hosts. Use `tstats` or a scheduled search every 5 minutes to detect hosts with no sshd events in the last 10 minutes. Optionally deploy a scripted input that performs a TCP connect to port 22 and logs result (0=up, 1=down) for direct availability data. Alert on SSH_DOWN status for more than 2 consecutive intervals to reduce false positives during restart.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup monitored_linux_hosts.csv\n| fields host\n| join type=left max=1 host [search index=os sourcetype=syslog process=sshd earliest=-15m | stats count as ssh_events by host]\n| where isnull(ssh_events) OR ssh_events=0\n| eval status=\"SSH_DOWN\"\n| table host, status\n```\n\nUnderstanding this SPL\n\n**SSH Service Availability Monitoring** — SSH is the primary remote administration channel for Linux and Unix servers. An unresponsive SSH daemon locks out operators and often signals broader system distress (OOM, hung kernel, storage full). Nagios `check_ssh` is one of the most universally deployed checks; Splunk replicates it through absence-of-event detection and syslog-based availability trending.\n\nDocumented **Data sources**: `sourcetype=syslog` (sshd messages), scripted input or Stream for TCP/22 probe. **App/TA** (typical add-on context): `Splunk_TA_nix`, `Splunk_TA_syslog`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Keeps or drops fields with `fields` to shape columns and size.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(ssh_events) OR ssh_events=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **SSH Service Availability Monitoring**): table host, status\n\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (hosts with SSH down), Table (host, last seen, duration down), Timeline (SSH availability per host), Heatmap (host × time availability).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that remote login is the primary remote administration channel for Linux and Unix servers."
+  "grandmaExplanation": "We watch for signs that remote login is the primary remote administration channel for Linux and Unix servers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

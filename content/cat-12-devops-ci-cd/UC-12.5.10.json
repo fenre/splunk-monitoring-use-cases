@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=github:webhook`, `sourcetype=argocd:application`",
-  "app": "Git + ArgoCD/Flux correlation (custom), DORA metrics scripts",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'GitOps Deployment Lead Time'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-12.5.10).",
+  "evidence": "Saved search uc_12_5_10_gitops_deployment_lead_time, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'GitOps Deployment Lead Time'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-12.5.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=github:webhook`, `sourcetype=argocd:application` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Git + ArgoCD/Flux correlation (custom), DORA metrics scripts — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops (sourcetype=\"github:webhook\" OR sourcetype=\"argocd:application\")\n| eval commit_ts=if(sourcetype=\"github:webhook\", strptime(commit_time,\"%Y-%m-%dT%H:%M:%SZ\"), null())\n| eval sync_ts=if(sourcetype=\"argocd:application\", _time, null())\n| stats earliest(commit_ts) as first_commit, latest(sync_ts) as last_sync by repository, revision\n| eval lead_time_sec=last_sync-first_commit\n| where isnotnull(lead_time_sec) AND lead_time_sec > 0\n| eval lead_time_min=round(lead_time_sec/60,1)\n| table repository, revision, lead_time_min\n| sort -lead_time_min",
   "description": "Measuring Git commit-to-production lead time exposes bottlenecks in review, CI, and sync so teams can optimize end-to-end delivery speed.",
-  "value": "Measuring Git commit-to-production lead time exposes bottlenecks in review, CI, and sync so teams can optimize end-to-end delivery speed.",
+  "value": "Operations and leadership rely on 'GitOps Deployment Lead Time' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Correlate Git merge or push timestamps with Argo CD successful sync or Flux `LastAppliedRevision` time for the same revision. Use lookup or transaction across indexes if needed. Report p50/p95 lead time by team and service. Exclude hotfix channels with tags if required.",
   "visualization": "Histogram (lead time distribution), Line chart (p95 lead time trend), Bar chart (lead time by service).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build times vary with cache state, runner availability, or test suite expansion.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "argocd",
     "github"
   ],
+  "equipmentModels": [
+    "argocd_generic",
+    "github_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Git + ArgoCD/Flux correlation (custom), DORA metrics scripts.\n• Ensure the following data sources are available: `sourcetype=github:webhook`, `sourcetype=argocd:application`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCorrelate Git merge or push timestamps with Argo CD successful sync or Flux `LastAppliedRevision` time for the same revision. Use lookup or transaction across indexes if needed. Report p50/p95 lead time by team and service. Exclude hotfix channels with tags if required.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"github:webhook\" OR sourcetype=\"argocd:application\")\n| eval commit_ts=if(sourcetype=\"github:webhook\", strptime(commit_time,\"%Y-%m-%dT%H:%M:%SZ\"), null())\n| eval sync_ts=if(sourcetype=\"argocd:application\", _time, null())\n| stats earliest(commit_ts) as first_commit, latest(sync_ts) as last_sync by repository, revision\n| eval lead_time_sec=last_sync-first_commit\n| where isnotnull(lead_time_sec) AND lead_time_sec > 0\n| eval lead_time_min=round(lead_time_sec/60,1)\n| table repository, revision, lead_time_min\n| sort -lead_time_min\n```\n\nUnderstanding this SPL\n\n**GitOps Deployment Lead Time** — Measuring Git commit-to-production lead time exposes bottlenecks in review, CI, and sync so teams can optimize end-to-end delivery speed.\n\nDocumented **Data sources**: `sourcetype=github:webhook`, `sourcetype=argocd:application`. **App/TA** (typical add-on context): Git + ArgoCD/Flux correlation (custom), DORA metrics scripts. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: github:webhook, argocd:application. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"github:webhook\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **commit_ts** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **sync_ts** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by repository, revision** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **lead_time_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(lead_time_sec) AND lead_time_sec > 0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **lead_time_min** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **GitOps Deployment Lead Time**): table repository, revision, lead_time_min\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub audit log. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Histogram (lead time distribution), Line chart (p95 lead time trend), Bar chart (lead time by service).",
-  "grandmaExplanation": "We track delivery tempo and stability so leaders see whether we are shipping safely and often enough."
+  "grandmaExplanation": "We track delivery tempo and stability so leaders see whether we are shipping safely and often enough.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'OT Asset Risk Score Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.9.4).",
+  "evidence": "Saved search uc_14_9_4_ot_asset_risk_score_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'OT Asset Risk Score Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.9.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset` Indexes: nozomi. Sourcetypes: nozomi:nn_asset. Key fields: current_risk, id, ip, name, risk_level, zone. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:nn_asset\" risk=*\n| stats latest(risk) as current_risk by id, name, ip, zone\n| eval risk_level=case(current_risk>=8, \"Critical\", current_risk>=6, \"High\", current_risk>=4, \"Medium\", current_risk<4, \"Low\")\n| where current_risk >= 6\n| sort -current_risk\n| table name, ip, zone, current_risk, risk_level",
   "description": "OT security platforms calculate composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.",
-  "value": "OT security platforms calculate composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.",
+  "value": "Operations and leadership rely on 'OT Asset Risk Score Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Both platforms calculate composite risk scores per device. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.",
   "visualization": "Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.",
   "cimModels": [
@@ -22,17 +28,38 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Risk score moves after passive profile updates, new CVE feeds, or routine communication pattern changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],
+  "equipmentModels": [
+    "cisco_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms calculate composite risk scores per device. Track score changes over time. Alert on assets crossing risk thresholds. Use risk scores to prioritize patching and segmentation efforts. Report on overall risk posture trends for management.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:nn_asset\" risk=*\n| stats latest(risk) as current_risk by id, name, ip, zone\n| eval risk_level=case(current_risk>=8, \"Critical\", current_risk>=6, \"High\", current_risk>=4, \"Medium\", current_risk<4, \"Low\")\n| where current_risk >= 6\n| sort -current_risk\n| table name, ip, zone, current_risk, risk_level\n```\n\nUnderstanding this SPL\n\n**OT Asset Risk Score Monitoring** — OT security platforms calculate composite risk scores per device considering vulnerabilities, communication patterns, and security posture. Monitoring risk score changes over time shows whether your OT security posture is improving or degrading, and highlights which assets need immediate attention.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:device` · Nozomi: `sourcetype=nozomi:nn_asset`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:nn_asset. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:nn_asset\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by id, name, ip, zone** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **risk_level** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where current_risk >= 6` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **OT Asset Risk Score Monitoring**): table name, ip, zone, current_risk, risk_level\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Risk distribution gauge; high-risk asset table; risk trend line per site; risk heatmap by asset group.",
-  "grandmaExplanation": "We follow risk scores on each asset so the worst combinations of exposure and comms get attention first."
+  "grandmaExplanation": "We follow risk scores on each asset so the worst combinations of exposure and comms get attention first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

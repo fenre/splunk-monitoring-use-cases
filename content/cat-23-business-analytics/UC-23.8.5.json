@@ -13,6 +13,10 @@
   "owner": "CFO",
   "exclusions": "Does not certify standalone revenue recognition compliance; omits walled-garden advertising lift tests unless invoices and accruals land inside Splunk-fed ledgers; treats Magic Number companion maths as illustrative until FP&A signs identical quarterly recurring revenue deltas to investor statements; does not replace ASC six-zero-six commission footnote disclosures from enterprise performance management systems.",
   "evidence": "Saved search saas_unit_economics_monthly plus cohort_streamstats companion with Dashboard Studio workbook PDF archives and hash-stamped extracts in the governed business-analytics evidence library.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Customer Acquisition Cost and Payback Period (SaaS Unit Economics)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.8.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Salesforce Opportunities flow into index=business sourcetype salesforce:opportunity via Splunk Add-on for Salesforce modular inputs executing asynchronous Bulk API 2.0 query jobs POST https://login.salesforce.com/services/data/v60.0/jobs/query then GET services/data/v60.0/jobs/{id}/results until batches return Amount, StageName, CloseDate or ContractStartDate, AccountId. HubSpot CRM deals indexed as hubspot:deal from GET https://api.hubapi.com/crm/v3/objects/deals with property filters for pipeline stage. ChartMogul customer and metrics pulls land as chartmogul:mrr_event or warehouse tables using GET https://api.chartmogul.com/api/v1/customers/{uuid} plus GET https://api.chartmogul.com/v1/metrics/all for MRR movement. Stripe Billing subscriptions arrive as stripe:billing_subscription from GET https://api.stripe.com/v1/subscriptions pagination. Recurly GET https://v3.recurly.com/subscriptions populates recurly:subscription; Zuora REST GET /v1/object/subscription feeds zuora:subscription after normalisation. SAP S/4HANA sales-plus-marketing actuals surface as dbx:erp_sm_costs through Splunk DB Connect JDBC. HubSpot Marketing Hub campaign response metrics use GET https://api.hubapi.com/marketing/v3/transactional/email/stats where enabled. Marketo programme inventory uses GET https://rest.marketo.com/rest/asset/v1/programs.json for hierarchy joins. Product usage overlays use pendo:feature_agg referencing Pendo aggregation GET https://app.pendo.io/api/v1/aggregation patterns, mixpanel:cohort via GET https://mixpanel.com/api/2.0/engage exports, amplitude:user cohort pulls from GET https://api.amplitude.com/api/2/users posted through Splunk HTTP Event Collector JSON receivers.",
   "app": "Splunk Add-on for Salesforce (Splunkbase 3549) on Heavy Forwarders or Cloud collectors for Bulk API Opportunity extracts; Splunk DB Connect (Splunkbase 2686) for SAP S/4HANA numerators, billing-warehouse replicas, ChartMogul JDBC mirrors, HubSpot warehouse projections; Splunk HTTP Event Collector for product-analytics bridges; optional Splunk IT Service Intelligence (Splunkbase 1841) when RevOps promotes CAC payback and LTV/CAC KPIs into formal KPI Services plus Glass Tables.",
   "spl": "index=business sourcetype=\"dbx:erp_sm_costs\" earliest=-395d@d latest=@mon\n| bin _time span=1mon aligntime=@mon\n| eval ym=strftime(_time,\"%Y-%m\")\n| stats sum(eval(coalesce(sm_cost_lc,sales_marketing_lc,amount_lc,0))) as sm_spend by ym\n| join type=left ym [\n    search index=business (sourcetype=\"salesforce:opportunity\" OR sourcetype=\"hubspot:deal\") earliest=-395d@d latest=@mon\n      | eval cid=lower(trim(toString(coalesce(AccountId,customer_id,account_id,company_id,organization_id,\"\"))))\n      | eval stage_lower=lower(toString(coalesce(StageName,deal_stage,pipeline_stage,\"\")))\n      | eval is_won=if(match(stage_lower,\"closed[_\\\\s-]*won|won\"),1,0)\n      | eval cd=coalesce(strptime(CloseDate,\"%Y-%m-%d\"),strptime(CloseDate,\"%m/%d/%Y\"),strptime(closedate,\"%Y-%m-%d\"),strptime(closed_at,\"%Y-%m-%dT%H:%M:%SZ\"))\n      | eval ym=strftime(cd,\"%Y-%m\")\n      | eval tier=coalesce(rep_tier,sales_tier,\"mixed\")\n      | eval segment=coalesce(account_segment,Ideal_Customer_Profile,icp_bucket,\"core\")\n      | where is_won=1 AND len(cid)>6\n      | stats dc(cid) as new_logos by ym tier segment\n      | stats sum(new_logos) as new_logos by ym\n]\n| fillnull value=0 sm_spend new_logos\n| eval blended_cac=if(new_logos>0, round(sm_spend/new_logos,0), null())\n| join type=left ym [\n    search index=business (sourcetype=\"chartmogul:mrr_event\" OR sourcetype=\"stripe:billing_subscription\" OR sourcetype=\"recurly:subscription\" OR sourcetype=\"zuora:subscription\") earliest=-395d@d latest=@mon\n      | bin _time span=1mon aligntime=@mon\n      | eval ym=strftime(_time,\"%Y-%m\")\n      | eval payer_id=coalesce(customer_uuid,stripe_customer_id,zuora_account_key,recurly_account_code,customer_id,\"\")\n      | where len(payer_id)>2\n      | stats sum(eval(coalesce(mrr_usd,mrr_amount,mrr,0))) as mrr_usd, dc(payer_id) as paying_accounts by ym\n      | eval monthly_arpu=if(paying_accounts>0, round(mrr_usd/paying_accounts,2), null())\n      | fields ym monthly_arpu mrr_usd paying_accounts\n]\n| lookup gross_margin_policy.csv ym OUTPUT gm_pct AS gm_pct_override\n| lookup churn_policy.csv ym OUTPUT logo_churn_rate AS churn_override\n| eval gm_pct=coalesce(tonumber(gm_pct_override),0.72)\n| eval monthly_churn=coalesce(tonumber(churn_override),0.017)\n| eval contribution_per_month=if(isnotnull(monthly_arpu), monthly_arpu*gm_pct, null())\n| eval simple_payback_months=if(contribution_per_month>0 AND blended_cac>0, round(blended_cac/contribution_per_month,2), null())\n| eval simple_ltv=if(monthly_churn>0 AND isnotnull(contribution_per_month), round(contribution_per_month/monthly_churn,0), null())\n| eval ltv_cac_ratio=if(blended_cac>0 AND simple_ltv>0, round(simple_ltv/blended_cac,2), null())\n| eval bench_payback_q1=12\n| eval bench_payback_med=18\n| eval bench_ltv_cac=3.0\n| eval row_kind=\"monthly_economics\"\n| table row_kind ym sm_spend new_logos blended_cac monthly_arpu gm_pct contribution_per_month simple_payback_months simple_ltv ltv_cac_ratio paying_accounts bench_payback_q1 bench_payback_med bench_ltv_cac\n| append maxout=20000 [\n    search index=summary_saas_unit_economics earliest=-800d@d latest=@mon\n      | bin _time span=1mon aligntime=@mon\n      | eval ym=strftime(_time,\"%Y-%m\")\n      | eval cohort_month=coalesce(cohort_month,strftime(first_invoice_dt,\"%Y-%m\"))\n      | eval monthly_cm=tonumber(coalesce(monthly_cm,contribution_margin_usd,0))\n      | sort cid cohort_month ym\n      | streamstats current=f window=12 global=f sum(monthly_cm) as cohort_cm_cum by cid cohort_month\n      | eval row_kind=\"cohort_streamstats\"\n      | eval cohort_recapture_ratio=if(isnotnull(blended_cac_cohort) AND blended_cac_cohort>0, round(cohort_cm_cum/blended_cac_cohort,4), null())\n      | table row_kind cid cohort_month ym cohort_cm_cum cohort_recapture_ratio\n  ]",
@@ -24,38 +28,46 @@
   "references": [
     {
       "title": "Bessemer Venture Partners Atlas hub",
-      "url": "https://www.bvp.com/atlas"
+      "url": "https://www.bvp.com/atlas",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Sequoia Capital perspectives hub",
-      "url": "https://www.sequoia.com/"
+      "url": "https://www.sequoia.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SaaSCAPITAL content hub",
-      "url": "https://www.saascapital.com/"
+      "url": "https://www.saascapital.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OpenView Partners SaaS benchmarking narrative archive",
-      "url": "https://openviewpartners.com/blog/"
+      "url": "https://openviewpartners.com/blog/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ChartMogul SaaS metrics reference centre",
-      "url": "https://chartmogul.com/resources/"
+      "url": "https://chartmogul.com/resources/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Stripe Atlas SaaS operator guides",
-      "url": "https://stripe.com/atlas/guides"
+      "url": "https://stripe.com/atlas/guides",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Salesforce Splunkbase 3549",
-      "url": "https://splunkbase.splunk.com/app/3549"
+      "url": "https://splunkbase.splunk.com/app/3549",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect Splunkbase 2686",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Zuora subscription amendments can temporarily duplicate normalised MRR rows until amendment streams reconcile inside nightly Zuora connectors—Splunk paying_accounts denominators swell briefly versus CRM wins causing phantom ARPU softness unrelated to packaging economics. Partners resale motions booking vendor marketplace fees outside chartered demand-gen centres leave acquisition numerator understated while reseller-attributed logos inflate denominators sourced purely from CRM campaign IDs—dual-definition distortion until alliance ledger mappings arrive. Stripe Radar disputes netting against gross cash receipts shift ERP commission accruals yet leave CRM Closed Won untouched creating faux worsening payback weeks until dispute-resolution postings settle. Lightweight discounted cash-flow lifetime-value variants disagree sharply with simple_ltv whenever finance lifts gross-retention assumptions inside valuation decks—Splunk simple_ltv remains bookkeeping-style while board models use weighted discount curves. Inbound webinar surges counted as acquisition spend spikes when event deposits post one week and delegate pipeline closes two quarters later—single-month numerator spike with delayed logos mislabels go-to-market regression until expenses align to acquisition cohort windows.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "dell_emc",

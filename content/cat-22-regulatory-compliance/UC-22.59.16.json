@@ -45,11 +45,23 @@
   "references": [
     {
       "title": "IACS UR E27 — Cyber Resilience of Systems and Equipment, Rev.3 (2024)",
-      "url": "https://iacs.org.uk/publications/unified-requirements/"
+      "url": "https://iacs.org.uk/publications/unified-requirements/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IEC 61162-460 — Maritime navigation and radiocommunication equipment and systems — Digital interfaces",
-      "url": "https://webstore.iec.ch/en/publication/72732"
+      "url": "https://webstore.iec.ch/en/publication/72732",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Firmware-version aliasing**: the OEM ships v3.4.1 but the OT-discovery sensor reports v3.4.1-build42; align the comparison logic to ignore build-suffix differences. 2. **Replacement spare parts**: an emergency engine-control card swap may briefly create an attestation gap; honour a 14-day grace window before raising P3.\n\n**Suppression mechanism**: KV Store `imo_22_59_16_exceptions` with the Company Security Officer documented approval.",
@@ -88,7 +100,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, UC-22.59.7, and UC-22.59.15 in production.\n- OT-discovery sensor coverage on every vessel.\n\n## Step 1 — E27 attestation KV Store\n\n```ini\n[iacs_ur_e27_attestation_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.equipment_id = string\nfield.attestation_id = string\nfield.e27_revision = string\nfield.attested_firmware = string\nfield.attestation_at = time\nfield.surveyor = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.16: IACS UR E27 Equipment Attestation Register]\ncron_schedule = 0 5 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.16,reg=IMO-MSC-428-98,clause=IACS-UR-E27-r3\nalert.severity = 3\n```\n\n## Step 3 — Maritime-specific notes\n\n- **Type approval vs ship-specific attestation**: some vendors hold a class-society type approval that covers a model family; the register must map type-approval → equipment instance.\n- **End-of-life firmware**: when a vendor declares EOL on an attested firmware, the company must plan an upgrade campaign; this UC flags the trigger event.",
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.59.3, UC-22.59.7, and UC-22.59.15 in production.\n- OT-discovery sensor coverage on every vessel.\n\n## Step 1 — E27 attestation KV Store\n\n```ini\n[iacs_ur_e27_attestation_lookup]\nenforceTypes = true\nfield.imo_number = string\nfield.equipment_id = string\nfield.attestation_id = string\nfield.e27_revision = string\nfield.attested_firmware = string\nfield.attestation_at = time\nfield.surveyor = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.59.16: IACS UR E27 Equipment Attestation Register]\ncron_schedule = 0 5 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.16,reg=IMO-MSC-428-98,clause=IACS-UR-E27-r3\nalert.severity = 3\n```\n\n## Step 3 — Maritime-specific notes\n\n- **Type approval vs ship-specific attestation**: some vendors hold a class-society type approval that covers a model family; the register must map type-approval → equipment instance.\n- **End-of-life firmware**: when a vendor declares EOL on an attested firmware, the company must plan an upgrade campaign; this UC flags the trigger event.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Each critical piece of equipment on a ship — its engines, navigation, cargo controls — needs a cyber-safety certificate from the maker. We keep a list of every piece and its certificate, and we shout if any equipment is missing one or running software that doesn't match what was approved.",
   "prerequisiteUseCases": [
     "UC-22.59.3",

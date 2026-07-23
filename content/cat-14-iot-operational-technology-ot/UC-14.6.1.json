@@ -11,11 +11,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'S7comm PLC Read/Write Operation Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.6.1).",
+  "evidence": "Saved search uc_14_6_1_s7comm_plc_read_write_operation_monitori, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'S7comm PLC Read/Write Operation Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.6.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:s7comm:json\"\n| eval op=case(match(function_name,\"(?i)read\"),\"read\",match(function_name,\"(?i)write\"),\"write\",\"other\")\n| stats count(eval(op==\"read\")) as reads count(eval(op==\"write\")) as writes by source_h destination_h\n| eval write_ratio=if(reads+writes>0, round(100*writes/(reads+writes),2), null())\n| where writes>0 AND (reads=0 OR write_ratio>25)\n| table source_h destination_h reads writes write_ratio",
   "description": "Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.",
-  "value": "Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.",
+  "value": "Operations and leadership rely on 'S7comm PLC Read/Write Operation Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Deploy Zeek with ICSNPP-S7COMM on passive taps or SPAN ports on OT VLANs carrying PLC traffic; forward JSON logs to Splunk with TA for Zeek field extractions. Baseline read/write ratios per engineering workstation pair; tune the write-ratio threshold per zone and alert on off-hours spikes.",
   "visualization": "Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).",
   "cimModels": [
@@ -25,14 +31,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "S7 anomalies from authorized engineering access, vendor remote support, or planned PLC programming.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek with ICSNPP-S7COMM on passive taps or SPAN ports on OT VLANs carrying PLC traffic; forward JSON logs to Splunk with TA for Zeek field extractions. Baseline read/write ratios per engineering workstation pair; tune the write-ratio threshold per zone and alert on off-hours spikes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:s7comm:json\"\n| eval op=case(match(function_name,\"(?i)read\"),\"read\",match(function_name,\"(?i)write\"),\"write\",\"other\")\n| stats count(eval(op==\"read\")) as reads count(eval(op==\"write\")) as writes by source_h destination_h\n| eval write_ratio=if(reads+writes>0, round(100*writes/(reads+writes),2), null())\n| where writes>0 AND (reads=0 OR write_ratio>25)\n| table source_h destination_h reads writes write_ratio\n```\n\nUnderstanding this SPL\n\n**S7comm PLC Read/Write Operation Monitoring** — Unexpected write-heavy traffic to Siemens PLCs can indicate tampering or mis-engineered automation; tracking read versus write ratios supports least-privilege engineering and early detection of process-impacting changes.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (ICSNPP `s7comm.log` fields such as `function_name`, `rosctr_name`, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:s7comm:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:s7comm:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **op** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by source_h destination_h** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **write_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where writes>0 AND (reads=0 OR write_ratio>25)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **S7comm PLC Read/Write Operation Monitoring**): table source_h destination_h reads writes write_ratio\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (writes vs reads by source/destination pair), Single value (max write_ratio), Table (top writers).",
-  "grandmaExplanation": "We use deep packet inspection of industrial control traffic to compare reads and writes to our controllers so unexpected write-heavy patterns stand out."
+  "grandmaExplanation": "We use deep packet inspection of industrial control traffic to compare reads and writes to our controllers so unexpected write-heavy patterns stand out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Versa Analytics logs (syslog key-value pairs: alarm, event, flow, firewall, threat logs)",
-  "app": "Versa Networks Splunk App (via Versa Analytics syslog integration)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Versa SASE Security and Access Events (Versa Networks)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.62).",
+  "evidence": "Saved search uc_17_3_62_versa_sase_security_and_access_events_ve, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Versa SASE Security and Access Events (Versa Networks)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.62.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Versa Analytics logs (syslog key-value pairs: alarm, event, flow, firewall, threat logs) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Versa Networks Splunk App (via Versa Analytics syslog integration) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=sase sourcetype=\"versa:sase\" earliest=-24h\n| where match(lower(action),\"(?i)block|deny|drop|alert\")\n| stats count by log_type, rule_name, src_ip, action\n| sort -count",
   "description": "Versa SASE unifies SD-WAN, SWG, CASB, ZTNA, and FWaaS in a single platform. Security event analysis across these functions provides unified threat visibility and policy enforcement validation.",
   "value": "VPN access control teams analyze SonicWall SMA policy enforcement, identifying resources with high denial rates, unauthorized device types connecting through VPN, and realm misconfigurations that block legitimate access.",
@@ -21,17 +27,42 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• SonicWall SMA access policy events in `index=sonicwall` with `sourcetype=sonicwall:sma`. Key fields: `msg_id`, `user`, `resource` (bookmarks, file shares, applications), `action` (allow/deny), `policy_name`, `device_type`, `os`, `auth_realm`.\n• SonicWall SMA uses access policies to control which resources VPN users can reach. Policies combine user groups, device types, and realms to grant access to specific bookmarks, applications, and network resources.\n\nStep 1 — Configure data collection\nVerify access policy events:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-7d\n| where isnotnull(resource) AND isnotnull(action)\n| stats count by action, resource\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Access policy enforcement:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" action=deny earliest=-7d\n| stats count dc(user) as users by resource, policy_name, auth_realm\n| sort - count\n```\n\nUnderstanding this SPL: Shows resources being denied most frequently and which policies are responsible. A resource with many denials and many affected users means the policy is either misconfigured or users are attempting to access resources outside their authorization.\n\nDevice compliance:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where isnotnull(device_type) AND isnotnull(os)\n| stats count dc(user) as users by device_type, os, auth_realm\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access a restricted bookmark as a non-authorized user. Verify denial.\n(b) In SMA: Users > Active. Check access permissions.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Access denials by resource. Row 2 — Device types. Row 3 — Policy effectiveness.\nAlert: When critical resource denials exceed baseline.\n\nRunbook:\n1. **Resource denial spike** — Policy may need adjustment after a change.\n2. **Unauthorized device type** — Personal device policy enforcement.\n3. **Wrong realm** — User group membership issue.\n\nStep 5 — Troubleshooting\n• **No policy events** — Access policy logging may be at a lower verbosity level.\n• **`resource` always empty** — Bookmark/resource names may not be logged. Enable detailed logging.",
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• SonicWall SMA access policy events in `index=sonicwall` with `sourcetype=sonicwall:sma`. Key fields: `msg_id`, `user`, `resource` (bookmarks, file shares, applications), `action` (allow/deny), `policy_name`, `device_type`, `os`, `auth_realm`.\n• SonicWall SMA uses access policies to control which resources VPN users can reach. Policies combine user groups, device types, and realms to grant access to specific bookmarks, applications, and network resources.\n\nStep 1 — Configure data collection\nVerify access policy events:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-7d\n| where isnotnull(resource) AND isnotnull(action)\n| stats count by action, resource\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Access policy enforcement:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" action=deny earliest=-7d\n| stats count dc(user) as users by resource, policy_name, auth_realm\n| sort - count\n```\n\nUnderstanding this SPL: Shows resources being denied most frequently and which policies are responsible. A resource with many denials and many affected users means the policy is either misconfigured or users are attempting to access resources outside their authorization.\n\nDevice compliance:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where isnotnull(device_type) AND isnotnull(os)\n| stats count dc(user) as users by device_type, os, auth_realm\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access a restricted bookmark as a non-authorized user. Verify denial.\n(b) In SMA: Users > Active. Check access permissions.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Access denials by resource. Row 2 — Device types. Row 3 — Policy effectiveness.\nAlert: When critical resource denials exceed baseline.\n\nRunbook:\n1. **Resource denial spike** — Policy may need adjustment after a change.\n2. **Unauthorized device type** — Personal device policy enforcement.\n3. **Wrong realm** — User group membership issue.\n\nStep 5 — Troubleshooting\n• **No policy events** — Access policy logging may be at a lower verbosity level.\n• **`resource` always empty** — Bookmark/resource names may not be logged. Enable detailed logging.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Versa Networks Splunk App (via Versa Analytics syslog integration) — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=versa:sase into sase. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, log_type, rule_name, src_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "After people connect to our VPN, they still need permission to reach specific systems. We monitor which resources are being denied most often — when many people are blocked from the same resource, it usually means we need to update the permissions, not that everyone is doing something wrong.",
-  "hardware": "Versa FlexVNF (branch CPE), Versa Director (management), Versa SASE Cloud Gateways"
+  "hardware": "Versa FlexVNF (branch CPE), Versa Director (management), Versa SASE Cloud Gateways",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

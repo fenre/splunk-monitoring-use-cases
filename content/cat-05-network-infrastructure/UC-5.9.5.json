@@ -8,6 +8,12 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Path Hop Count Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.5).",
+  "evidence": "Saved search uc_5_9_5_path_hop_count_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Path Hop Count Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_pathvis sourcetype=cisco:thousandeyes:path-vis` from the path visualization collection in `ta_cisco_thousandeyes` (Splunkbase 7719). Path Visualization data is collected via the ThousandEyes REST API (not the OTel stream) at a configurable polling interval (default: 300 seconds). When you enable the Tests Stream — Metrics input, the app can optionally enable path visualization collection into a separate index. Key fields: `hop_count` (integer — total hops from agent to target), `thousandeyes.source.agent.name`, `server.address`, `thousandeyes.test.type`, `thousandeyes.permalink`. Volume: ~5 KB per agent-target pair per poll ≈ 1.4 MB/agent-target/day at 5-minute intervals.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`path_viz_index` thousandeyes.test.type=\"agent-to-server\"\n| stats min(hop_count) as min_hops max(hop_count) as max_hops by thousandeyes.source.agent.name, server.address\n| where max_hops - min_hops > 2\n| sort -max_hops",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Splunk App — Inputs (Path Visualization collection)",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Path Visualization — Understanding network paths",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**ECMP load balancing.** When traffic crosses a network with Equal-Cost Multi-Path routing (common in data centers and large ISP backbones), consecutive test probes may take different paths with different hop counts. The hop count fluctuates by 1–2 hops continuously — this is normal ECMP behavior, not instability. Distinguish by checking whether the variation is consistent and small (±1–2 hops) over days without any correlated latency impact. Raise the threshold to `> 3` for paths known to traverse ECMP networks.\n\n**Carrier maintenance windows.** Carriers routinely reroute traffic during maintenance, temporarily increasing hop counts. This typically happens during off-peak hours (02:00–06:00 local) and lasts 2–4 hours. Distinguish by checking whether the hop count change is temporary and reverts to baseline after the window. Suppress with a `carrier_maintenance_windows` lookup.\n\n**Anycast destination changes.** If the target server uses anycast (common for CDNs, DNS resolvers like 8.8.8.8, and cloud load balancers), the test may reach different physical servers at different times, each with different hop counts. This is normal anycast behavior. Distinguish by checking whether `server.address` resolves to different IPs across rounds (anycast) or the same IP (routing change).",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "elasticsearch"

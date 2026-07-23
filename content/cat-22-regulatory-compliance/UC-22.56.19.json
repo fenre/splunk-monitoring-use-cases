@@ -48,11 +48,23 @@
   "references": [
     {
       "title": "TSA SD Pipeline-2021-02D §3.5 (backups)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST 800-34 — Contingency Planning",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-34/rev-1/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-34/rev-1/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Snapshot-based backups**: some assets use snapshot-only protection. Pin in lookup with `protection_type=snapshot`.\n2. **Air-gapped backups**: pin with `air_gapped=true`; the job telemetry may not reach Splunk in real time.\n\n**Suppression mechanism**: KV Store `tsa_backup_exception_lookup`.",
@@ -91,7 +103,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + backup vendor add-ons.\n- KV Store `tsa_rto_lookup`.\n\n## Step 1 — RTO register\n\n```ini\n[tsa_rto_lookup]\nfield.facility_id = string\nfield.asset_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.rto_hours = number\nfield.rpo_hours = number\nfield.protection_type = string\nfield.air_gapped = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.19: TSA Backup Health]\ncron_schedule = 11 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.19,reg=TSA-Surface,clause=TSA-SD-multi-backup-RTO\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`backup_status=missing` on critical TSA asset** (owner: Recovery Lead, severity P1): triage 1 hour, deploy 4 hours.\n**`backup_status=untested`**: schedule DR test within 30 days.\n\n## Step 4 — Troubleshooting\n\n- **Vendor metric delay**: some vendors emit job status hours-late; use `last_backup` not job-start.\n- **Air-gapped reporting gap**: install a side-channel attestation feed.\n\n**TSA-specific failure modes**:\n- **Pipeline SCADA partial-restore**: PCS restore may require staged validation; ensure DR test plan covers staged restore.\n- **Airline DCS multi-airport restore**: airline-wide DCS restore touches 100+ airports; budget for the surge.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + backup vendor add-ons.\n- KV Store `tsa_rto_lookup`.\n\n## Step 1 — RTO register\n\n```ini\n[tsa_rto_lookup]\nfield.facility_id = string\nfield.asset_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.rto_hours = number\nfield.rpo_hours = number\nfield.protection_type = string\nfield.air_gapped = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.19: TSA Backup Health]\ncron_schedule = 11 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.19,reg=TSA-Surface,clause=TSA-SD-multi-backup-RTO\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`backup_status=missing` on critical TSA asset** (owner: Recovery Lead, severity P1): triage 1 hour, deploy 4 hours.\n**`backup_status=untested`**: schedule DR test within 30 days.\n\n## Step 4 — Troubleshooting\n\n- **Vendor metric delay**: some vendors emit job status hours-late; use `last_backup` not job-start.\n- **Air-gapped reporting gap**: install a side-channel attestation feed.\n\n**TSA-specific failure modes**:\n- **Pipeline SCADA partial-restore**: PCS restore may require staged validation; ensure DR test plan covers staged restore.\n- **Airline DCS multi-airport restore**: airline-wide DCS restore touches 100+ airports; budget for the surge.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Veeam (Splunkbase 3973), Splunk Add-on for Commvault (Splunkbase 4115), Splunk Add-on for Rubrik (Splunkbase 4316).). Enable the modular input or HEC token that writes sourcetype=veeam:job, commvault:job:event, rubrik:event into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`asset_id], backup_status, days_since_test`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We back up every important computer in our pipelines, trains, and airports — and we test that the backups actually work, regularly. If a backup is missing, stale, or untested, we know about it the next day.",
   "prerequisiteUseCases": [
     "UC-22.56.6"

@@ -9,7 +9,13 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=rbi:session`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Browser Isolation Usage'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.20).",
+  "evidence": "Saved search uc_17_3_20_browser_isolation_usage, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Browser Isolation Usage'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=rbi:session` Indexes: zt. Sourcetypes: rbi:session. Key fields: isolated. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Menlo Security syslog, `Splunk_TA_zscaler` (RBI), Island Enterprise Browser syslog, Broadcom Symantec WSS Add-on (Splunkbase 3856), Forcepoint ONE syslog",
   "spl": "index=zt sourcetype=\"rbi:session\" earliest=-30d\n| eval isolated=if(match(lower(session_type),\"(?i)isolated|rbi\"),1,0)\n| timechart span=1d sum(isolated) as isolated_sessions, count as total_sessions\n| eval isolation_rate=round(100*isolated_sessions/total_sessions,1)",
   "description": "Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage.",
@@ -25,10 +31,26 @@
   "references": [
     {
       "title": "Broadcom Symantec WSS Add-on",
-      "url": "https://splunkbase.splunk.com/app/3856"
+      "url": "https://splunkbase.splunk.com/app/3856",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
@@ -38,6 +60,17 @@
     "syslog",
     "zscaler"
   ],
+  "equipmentModels": [
+    "broadcom_symantec_generic",
+    "forcepoint_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Browser isolation platform logs. Zscaler Cloud Browser Isolation (CBI): `sourcetype=zscaler:zia:isolation`. Cloudflare Browser Isolation: embedded in `sourcetype=cloudflare:logpush:http_requests` with isolation-specific fields. Menlo Security: `sourcetype=menlo:web`. Key fields: `user`, `url`, `domain`, `isolation_reason`, `isolation_profile`, `action` (isolated/allowed/blocked), `data_transfer` (upload/download/clipboard).\n• Browser Isolation renders web content in a remote cloud container, sending only safe pixels to the user's browser. It protects against zero-day browser exploits, drive-by downloads, and phishing credential theft.\n\nStep 1 — Configure data collection\nVerify isolation events:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:isolation\" earliest=-7d\n| stats count by isolation_reason\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Isolation usage overview:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:isolation\" earliest=-7d\n| stats count dc(user) as users dc(domain) as domains by isolation_reason, isolation_profile\n| sort - count\n```\n\nUnderstanding this SPL: Shows why sessions are being isolated (risk-based, URL category, policy, user request). If most isolations are 'risk-based' (unknown or suspicious sites), the system is working as designed. If 'policy' isolations are very high, the policy may be too broad. 'User request' shows adoption of user-initiated isolation.\n\nData transfer control:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:isolation\" earliest=-7d\n| where data_transfer IN (\"upload\", \"download\", \"clipboard\", \"print\")\n| stats count by user, data_transfer, domain\n| sort - count\n```\n\nStep 3 — Validate\n(a) Visit a site in the isolation category. Verify the isolation event.\n(b) Attempt a file download inside isolation. Verify the data_transfer event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Isolation sessions trend. Row 2 — Isolation by reason. Row 3 — Data transfer attempts.\nAlert: When data transfer (upload) from isolation exceeds threshold.\n\nRunbook:\n1. **High upload attempts** — Users trying to extract data from isolated sessions. Review DLP policy.\n2. **Isolation volume spike** — New URL category added to isolation profile. Expected.\n3. **Low adoption** — Users may not understand isolation. Send awareness communication.\n\nStep 5 — Troubleshooting\n• **No isolation events** — CBI may not be licensed or enabled. Check Zscaler Admin.\n• **`isolation_reason` empty** — Event format may differ by CBI version. Check field extraction.",
-  "grandmaExplanation": "Instead of blocking risky websites outright, we open them in a safe sandbox in the cloud and send only a picture to the user's screen. We track how often this happens and watch for anyone trying to copy sensitive information out of these sandboxed sessions."
+  "grandmaExplanation": "Instead of blocking risky websites outright, we open them in a safe sandbox in the cloud and send only a picture to the user's screen. We track how often this happens and watch for anyone trying to copy sensitive information out of these sandboxed sessions.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

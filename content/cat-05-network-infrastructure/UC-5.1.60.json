@@ -8,8 +8,14 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=arista:eos`",
-  "app": "`arista:eos` via SC4S, syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Arista MLAG Health and Consistency (Arista)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.60).",
+  "evidence": "Saved search uc_5_1_60_arista_mlag_health_and_consistency_arist, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Arista MLAG Health and Consistency (Arista)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.60.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=arista:eos` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`arista:eos` via SC4S, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"arista:eos\"\n| search Mlag OR MLAG OR mlag OR \"Mlag:\" OR \"Dual attached\" OR \"peer-link\" OR \"inactive\"\n| rex field=_raw \"(?i)Mlag:\\s*(?<mlag_msg>[^\\n]+)\"\n| stats count as mlag_events, latest(mlag_msg) as last_summary, values(_raw) as samples by host\n| sort -mlag_events",
   "description": "MLAG pairs depend on matching configuration and a healthy peer link; inconsistency or peer loss can lead to blackholed VLANs or asymmetric forwarding while both switches appear “up.” Catching `config-sanity` failures and peer state changes early prevents subtle application outages that load balancers and servers cannot retry away from. Splunk correlation across both peers speeds root cause when only one side logs the fault.",
   "value": "NOC teams monitor Arista MLAG peer status, peer-link health, and configuration consistency to ensure dual-homed device redundancy and detect MLAG pair failures.",
@@ -19,14 +25,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Peer-link upgrades, ISSU, and cable moves trigger MLAG checks. Confirm whether both switches saw the same event.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "syslog"
   ],
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Arista MLAG (Multi-Chassis Link Aggregation) health data from syslog or eAPI. Data in `index=arista` or `index=network` with `sourcetype=arista:eos` or `sourcetype=syslog`. Key syslog: `MLAG-4-INACTIVE`, `MLAG-6-PEER_STATUS`, `MLAG-3-CONFIG_CONSISTENCY`. eAPI: `show mlag`.\n* Arista MLAG: two Arista switches form a virtual pair, providing active-active link aggregation to downstream devices. MLAG requires: peer-link (trunk between switches), MLAG domain, and consistent configuration. MLAG health depends on: peer reachability, peer-link status, and configuration consistency.\n\nStep 1 -- Configure data collection\n```\n# Arista EOS -- syslog forwarding\nlogging host <splunk-ip>\nlogging trap informational\nlogging facility local7\n\n# eAPI scripted input (alternative to syslog)\n# Polls: show mlag, show mlag detail\n```\nVerify:\n```spl\nindex=arista earliest=-24h\n| where match(_raw, \"(?i)MLAG|mlag|peer.link|peer.status|mlag.*config\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- MLAG health and consistency monitoring:**\n```spl\nindex=arista earliest=-24h\n| where match(_raw, \"(?i)MLAG|mlag|peer.link|peer.status|config.*consistency\")\n| eval device=coalesce(host, device_name)\n| eval mlag_event=case(\n    match(_raw, \"(?i)peer.*down|peer.*unreachable|peer.*fail\"), \"PEER_DOWN\",\n    match(_raw, \"(?i)peer.*up|peer.*active|peer.*established\"), \"PEER_UP\",\n    match(_raw, \"(?i)peer.link.*down|peer-link.*fail\"), \"PEER_LINK_DOWN\",\n    match(_raw, \"(?i)config.*inconsist|consistency.*error\"), \"CONFIG_INCONSISTENCY\",\n    match(_raw, \"(?i)INACTIVE|port.*inactive\"), \"PORT_INACTIVE\",\n    match(_raw, \"(?i)reload.*delay|MLAG.*reload\"), \"RELOAD_DELAY\",\n    1==1, \"MLAG_EVENT\")\n| stats count as events count(eval(mlag_event=\"PEER_DOWN\")) as peer_downs count(eval(mlag_event=\"CONFIG_INCONSISTENCY\")) as config_errors latest(mlag_event) as latest_event by device\n| eval severity=case(\n    peer_downs > 0, \"CRITICAL -- MLAG peer down (no redundancy)\",\n    match(latest_event, \"PEER_LINK_DOWN\"), \"CRITICAL -- MLAG peer-link down\",\n    config_errors > 0, \"WARNING -- MLAG configuration inconsistency\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI: `show mlag` -- overall MLAG status and peer.\n(b) CLI: `show mlag detail` -- detailed peer-link and port-channel status.\n(c) CLI: `show mlag config-sanity` -- configuration consistency check.\n\nStep 4 -- Operationalize\nDashboard (\"Arista -- MLAG Health\"):\n* Row 1 -- Single-value: \"MLAG peer status\", \"Config errors\", \"Inactive ports\".\n* Row 2 -- MLAG event timeline.\n\nAlert: Critical (MLAG peer down or peer-link down): dual-homing lost.\n\nStep 5 -- Troubleshooting\n\n* **MLAG peer down** -- Check: (1) peer switch reachable, (2) MLAG domain ID matches, (3) peer-link physical connectivity. CLI: `show mlag detail` for failure reason.\n\n* **Configuration inconsistency** -- MLAG requires matching configuration on both peers (VLANs, STP, interface config). Run `show mlag config-sanity` for specific mismatches. Fix mismatches on both switches.\n\n* **MLAG port inactive** -- Member port not participating in MLAG. Check: port-channel configuration, LACP status, and that the MLAG ID matches on both peers.",
   "grandmaExplanation": "We help you know early when something looks wrong with arista mlag health and consistency so the team can act before it grows into a bigger outage.",
-  "hardware": "Arista 7050X3, 7060X, 7260X3, 7280R3, 7300X3, 7500R3, 7800R3"
+  "hardware": "Arista 7050X3, 7060X, 7260X3, 7280R3, 7300X3, 7500R3, 7800R3",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'HDX Adaptive Transport (EDT) and Graphics Mode'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.37).",
+  "evidence": "Saved search uc_2_6_37_hdx_adaptive_transport_edt_and_graphics, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'HDX Adaptive Transport (EDT) and Graphics Mode'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.37.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=uberagent` `sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\"`, `sourcetype=\"uberAgent:Remoting:HDX*\"` or `sourcetype=\"uberAgent:GPU:*\"` for encoder or GPU use; `index=xd` `sourcetype=\"citrix:vda:events\"` for graphics and transport fallback messages; optional `sourcetype=\"citrix:netscaler:syslog\"` for UDP/ICA profile stats",
   "app": "uberAgent UXM (Splunkbase 1448), optional Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
   "spl": "index=uberagent (sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\" OR sourcetype=\"uberAgent:Remoting:HDX*\") earliest=-1h\n| eval loss_pct=coalesce(UDPPacketLossPercent, UdpPacketLoss, PacketLoss), latency_ms=coalesce(UDPRTTms, AvgRttMs, Latency), fallback=if(match(coalesce(Transport, Protocol), \"(?i)tcp\"),1,0)\n| where loss_pct>2 OR latency_ms>150 OR fallback=1\n| bin _time span=5m\n| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_rtt, sum(fallback) as fallbacks, dc(user) as users by _time, host, SessionId\n| table _time, host, users, avg_loss, avg_rtt, fallbacks",
   "description": "HDX Adaptive Transport prefers UDP (EDT) for interactive traffic when the network is healthy, falling back to TCP when loss or delay is high. High packet loss, RTT, or constant fallback reduces perceived responsiveness and can force CPU-biased H.264/HEVC or software rendering, stressing hosts and user experience. uberAgent’s EDT and HDX remoting metrics complement Citrix VDA event strings on encoder choice and display pipeline pressure.",
-  "value": "HDX Adaptive Transport prefers UDP (EDT) for interactive traffic when the network is healthy, falling back to TCP when loss or delay is high. High packet loss, RTT, or constant fallback reduces perceived responsiveness and can force CPU-biased H.264/HEVC or software rendering, stressing hosts and user experience. uberAgent’s EDT and HDX remoting metrics complement Citrix VDA event strings on encoder choice and display pipeline pressure.",
+  "value": "Operations and leadership rely on 'HDX Adaptive Transport (EDT) and Graphics Mode' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Deploy uberAgent on VDAs with network and remoting data enabled. Add field extractions for your exact uberAgent 7.x/8.x field names. Side-by-side: run a VDA search for 'policy', 'H264', 'HEVC', or 'YUV' in `citrix:vda:events` for policy-driven changes. Set threshold bands by site (WAN vs LAN).",
   "visualization": "Dual-axis chart (loss vs RTT), Heatmap (hosts by time), Table (top sessions with fallback).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "uberAgent documentation - HDX/EDT",
-      "url": "https://liquidware.com/"
+      "url": "https://liquidware.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix",
     "syslog"
@@ -35,6 +57,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent UXM (Splunkbase 1448), optional VDA or broker TA for context.\n• Ensure the following data sources are available: `sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\"` and remoting/graphics sourcetypes, optional `sourcetype=\"citrix:vda:events\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm uberAgent is licensed for network remoting. Map transport and GPU metrics to fields used in the SPL; create macros if sourcetype names include wildcards. Ingest a narrow slice of VDA log events for display stack messages.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; align field names to your uberAgent build):\n\n```spl\nindex=uberagent (sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\" OR sourcetype=\"uberAgent:Remoting:HDX*\") earliest=-1h\n| eval loss_pct=coalesce(UDPPacketLossPercent, UdpPacketLoss, PacketLoss), latency_ms=coalesce(UDPRTTms, AvgRttMs, Latency), fallback=if(match(coalesce(Transport, Protocol), \"(?i)tcp\"),1,0)\n| where loss_pct>2 OR latency_ms>150 OR fallback=1\n| bin _time span=5m\n| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_rtt, sum(fallback) as fallbacks, dc(user) as users by _time, host, SessionId\n| table _time, host, users, avg_loss, avg_rtt, fallbacks\n```\n\nStep 3 — Validate\nBenchmark a known good LAN session and a throttled lab session. Adjust thresholds. Confirm VDA text events align on forced encoder mode.\n\nStep 4 — Operationalize\nFeed findings to the network and desktop graphics teams. Track GPU memory pressure in a companion panel if you enable GPU fields.",
-  "grandmaExplanation": "We see when the line between a virtual desktop and a user is noisy or too slow, and when the system stops using the fast path for pictures — so you catch choppy screens before they hurt real work."
+  "grandmaExplanation": "We see when the line between a virtual desktop and a user is noisy or too slow, and when the system stops using the fast path for pictures — so you catch choppy screens before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

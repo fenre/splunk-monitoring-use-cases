@@ -8,6 +8,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Agent-to-Agent Latency and Throughput'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.4).",
+  "evidence": "Saved search uc_5_9_4_agent_to_agent_latency_and_throughput, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Agent-to-Agent Latency and Throughput'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` from the Tests Stream — Metrics input in `ta_cisco_thousandeyes` (Splunkbase 7719). Agent-to-Agent tests produce the same OTel v2 metrics as Agent-to-Server (`network.latency` in seconds, `network.loss` in percentage, `network.jitter` in milliseconds) but add the `network.io.direction` attribute (`transmit`, `receive`, or `round-trip`) and `thousandeyes.target.agent.name` / `thousandeyes.target.agent.id` / `thousandeyes.target.agent.location` resource attributes to identify the far-end agent. The `thousandeyes.test.type` attribute is `agent-to-agent`. Volume: ~3 KB per agent-pair per round (three direction measurements per round) × 1440 rounds/day at 1-minute interval ≈ 4.3 MB/agent-pair/day.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. Install on Search Heads AND Heavy Forwarder or single-instance receiving HEC data.",
   "spl": "`stream_index` thousandeyes.test.type=\"agent-to-agent\"\n| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, thousandeyes.target.agent.name, network.io.direction\n| eval avg_latency_ms=round(avg_latency_s*1000,1)\n| sort thousandeyes.source.agent.name, network.io.direction",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 Data Model — Agent-to-Agent metrics and direction attribute",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Agent-to-Agent Test Configuration",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Asymmetric routing causing directional disparity.** On many WAN links — especially those with multiple ISP uplinks or SD-WAN overlays — the forward and return paths take different routes through different ISPs. This makes TX and RX latency/loss differ significantly even when both paths are healthy. Distinguish from a real problem by baselining each direction independently over 7 days. If the asymmetry is stable and both directions meet SLA, it's by design.\n\n**Enterprise Agent maintenance or reboot.** When one agent in the pair is rebooted (OS update, agent software upgrade), the test produces loss=100% and high latency for the duration. Distinguish by checking whether the agent's status in ThousandEyes → Agent Settings shows a restart event in the same time window. Suppress by requiring > 3 consecutive rounds of degradation before alerting.\n\n**SD-WAN path selection oscillation.** SD-WAN controllers (Cisco vManage, Arista, Fortinet) continuously optimize path selection based on real-time quality. When the controller switches the active WAN link, Agent-to-Agent latency can spike for 1–2 rounds as the new path warms up. This is normal SD-WAN behavior. Distinguish by correlating with SD-WAN tunnel change events from UC-5.5.x.\n\n**One-sided congestion at branch offices.** Branch offices often have asymmetric bandwidth (e.g., 100 Mbps down / 20 Mbps up). The TX direction from the branch shows higher loss during peak hours because the upload circuit saturates. This is a capacity issue, not a fault — correlate with circuit utilization data.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`itsi_entities` lookup, CMDB/asset inventory, `index=_internal`",
-  "app": "Splunk ITSI, infrastructure TAs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Entity Discovery Completeness Audit'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-13.2.20).",
+  "evidence": "Saved search uc_13_2_20_entity_discovery_completeness_audit, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Entity Discovery Completeness Audit'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-13.2.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`itsi_entities` lookup, CMDB/asset inventory, `index=_internal` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI, infrastructure TAs — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup itsi_entities\n| stats dc(_key) as itsi_entities values(entity_type_ids) as types\n| appendcols [\n  | tstats dc(host) as infra_hosts where (index=main OR index=security OR index=os OR index=windows) by index\n  | stats sum(infra_hosts) as total_infra_hosts\n]\n| eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)\n| table itsi_entities total_infra_hosts coverage_pct types",
   "description": "Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.",
-  "value": "Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.",
+  "value": "Operations and leadership rely on 'Entity Discovery Completeness Audit' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Compare ITSI entity inventory against CMDB, cloud provider APIs, or Splunk host metadata. Identify unmonitored hosts. Use entity discovery searches or CSV imports to close gaps. Schedule weekly coverage audits. Track entity types to ensure classification is consistent.",
   "visualization": "Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -37,5 +66,7 @@
     }
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, infrastructure TAs.\n• Ensure the following data sources are available: `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCompare ITSI entity inventory against CMDB, cloud provider APIs, or Splunk host metadata. Identify unmonitored hosts. Use entity discovery searches or CSV imports to close gaps. Schedule weekly coverage audits. Track entity types to ensure classification is consistent.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsi_entities\n| stats dc(_key) as itsi_entities values(entity_type_ids) as types\n| appendcols [\n  | tstats dc(host) as infra_hosts where (index=main OR index=security OR index=os OR index=windows) by index\n  | stats sum(infra_hosts) as total_infra_hosts\n]\n| eval coverage_pct=round(itsi_entities/total_infra_hosts*100,1)\n| table itsi_entities total_infra_hosts coverage_pct types\n```\n\nUnderstanding this SPL\n\n**Entity Discovery Completeness Audit** — Undiscovered entities create monitoring blind spots. Auditing entity coverage against infrastructure inventories ensures every critical asset is monitored by ITSI services.\n\nDocumented **Data sources**: `itsi_entities` lookup, CMDB/asset inventory, `index=_internal`. **App/TA** (typical add-on context): Splunk ITSI, infrastructure TAs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Adds columns from a subsearch with `appendcols`.\n• `eval` defines or adjusts **coverage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Entity Discovery Completeness Audit**): table itsi_entities total_infra_hosts coverage_pct types\n\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (coverage %), Table (unmatched hosts), Column chart (entity count by type).",
-  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console."
+  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

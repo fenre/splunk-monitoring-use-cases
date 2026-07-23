@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=named`",
-  "app": "Splunk_TA_infoblox, BIND/Unbound logs",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DNS Cache Hit Ratio'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.6.9).",
+  "evidence": "Saved search uc_5_6_9_dns_cache_hit_ratio, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DNS Cache Hit Ratio'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.6.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=named` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_infoblox, BIND/Unbound logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"infoblox:dns\"\n| eval cache_hit=if(match(message,\"cache hit\"),1,0), total=1\n| timechart span=1h sum(cache_hit) as hits, sum(total) as total\n| eval hit_ratio=round(hits/total*100,1) | where hit_ratio < 70",
   "description": "Low cache hit ratios indicate either a surge of new queries, cache poisoning attempts, or misconfigured TTLs — all increasing latency and upstream load.",
   "value": "DNS operations teams monitor cache hit ratios to ensure resolver performance, identify cache sizing issues, and detect anomalies like DGA malware or cache flush events that degrade DNS resolution speed.",
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "CIM: Network_Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes can come from DNS cache flushes, authorized security or performance monitoring, or very talky clients; compare against change windows and known scanning tools.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "infoblox"
   ],
+  "equipmentModels": [
+    "infoblox_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• DNS cache statistics from resolvers. Sources: (a) SNMP polling of DNS resolver cache counters, (b) Infoblox NIOS reporting API for cache statistics, (c) BIND statistics channel (`rndc stats` output), (d) Windows DNS Server performance counters (via Splunk_TA_windows perfmon), (e) DNS wire data via Splunk Stream with response analysis.\n• Cache hit ratio = cache_hits / (cache_hits + cache_misses). A healthy recursive resolver should have > 80% cache hit ratio. Lower ratios indicate: (a) cache too small, (b) low TTL records dominating, (c) cache flushed recently, (d) many unique domain lookups (DGA malware or crawlers).\n• Cache hits are served in < 1ms. Cache misses require recursive resolution (10-200ms). A high miss rate directly impacts user-perceived DNS latency.\n\nStep 1 — Configure data collection\nVerify cache statistics availability (method depends on source):\n```spl\nindex=dns OR index=perfmon earliest=-1h\n| search \"cache\" OR \"hit\" OR \"miss\"\n| stats count by sourcetype\n```\n\nFor Windows DNS perfmon:\n```spl\nindex=perfmon sourcetype=\"Perfmon:DNS\" earliest=-1h\n| stats latest(cache_hits) as hits latest(cache_misses) as misses by host\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Cache hit ratio (Stream-based estimation):**\n```spl\nindex=dns sourcetype=\"stream:dns\" earliest=-1h\n| eval is_cache_hit=if(response_time < 2, 1, 0)\n| stats count as total sum(is_cache_hit) as cache_hits by dest\n| eval cache_misses=total - cache_hits\n| eval hit_ratio=round(100*cache_hits/total, 1)\n| eval status=case(hit_ratio < 60, \"CRITICAL\", hit_ratio < 75, \"WARNING\", 1==1, \"OK\")\n| sort hit_ratio\n```\n\nUnderstanding this SPL: Since direct cache statistics aren't always available, this uses response time as a proxy: queries answered in < 2ms are almost certainly cache hits (a recursive lookup takes 10+ ms). This approach works with Splunk Stream wire data without needing direct server-side metrics.\n\n**Cache effectiveness trending:**\n```spl\nindex=dns sourcetype=\"stream:dns\" earliest=-7d\n| eval is_cache_hit=if(response_time < 2, 1, 0)\n| bin _time span=1h\n| stats count as total sum(is_cache_hit) as hits by _time, dest\n| eval hit_ratio=round(100*hits/total, 1)\n| timechart span=1h avg(hit_ratio) as cache_hit_pct by dest\n```\n\n**Cache miss analysis — which domains cause the most misses:**\n```spl\nindex=dns sourcetype=\"stream:dns\" response_time > 5 earliest=-1h\n| stats count as cache_misses avg(response_time) as avg_resolve_ms by query\n| sort -cache_misses\n| head 20\n```\n\nUnderstanding this SPL: Identifies domains that are never cached (every lookup is a miss). These could be: very low TTL records (some CDNs use 60-second TTLs), DGA domains (always unique), or rarely accessed domains. If a frequently accessed domain has low TTL, consider implementing a minimum TTL override on the resolver.\n\nStep 3 — Validate\n(a) Compare with resolver statistics: Infoblox NIOS reporting, `rndc stats` for BIND, Windows DNS Server Manager statistics.\n(b) Test: query the same domain twice. The second query should be a cache hit (< 2ms response time).\n\nStep 4 — Operationalize\nDashboard (\"DNS — Cache Performance\"):\n• Row 1 — Single-value tiles: \"Cache hit ratio (%)\", \"Cache misses (1h)\", \"Worst resolver hit ratio\", \"Top miss domain\".\n• Row 2 — Timechart: cache hit ratio per resolver over 7 days.\n• Row 3 — Cache miss domains table: domain, miss count, avg resolve time.\n\nAlerting:\n• Critical (cache hit ratio < 60% for 30+ minutes): serious cache issue — investigate resolver health.\n• Warning (cache hit ratio < 75%): degraded performance — review cache configuration.\n\nRunbook:\n1. **Sudden cache hit ratio drop**: Check for cache flushes (planned or unplanned). After a flush, the cache needs time to warm up. Monitor for recovery within 1-2 hours.\n2. **Persistently low hit ratio**: Increase cache size if possible. Implement minimum TTL override for frequently queried domains with very low TTLs.\n\nStep 5 — Troubleshooting\n\n• **Response time proxy inaccurate** — The 2ms threshold for cache hits may need adjustment based on your resolver hardware. Faster resolvers may serve cache hits in < 0.5ms; slower ones may take up to 5ms. Calibrate by querying a known cached domain.\n\n• **No Stream data available** — Without wire data, fall back to SNMP polling of DNS cache statistics MIBs or Windows perfmon counters.",
-  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed lookups."
+  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed lookups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

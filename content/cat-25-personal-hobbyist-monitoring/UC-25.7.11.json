@@ -9,8 +9,14 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player and achievements (`steam:player`), Sonarr events (`sonarr:event`).",
-  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Spotify Skip Rate by Playlist'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.7.11).",
+  "evidence": "Saved search uc_25_7_11_spotify_skip_rate_by_playlist, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Spotify Skip Rate by Playlist'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.7.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player and achievements (`steam:player`), Sonarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=spotify:play\n| stats count as plays, sum(eval(skipped=\"true\")) as skips by context_name\n| eval skip_rate=round(100*skips/plays,1)\n| where plays>=10 AND skip_rate>40\n| sort - skip_rate",
   "description": "Measures which playlists, radios, or contexts you abandon most often, giving you a brutally honest quality score for your own music curation.",
   "value": "Skip behaviour is feedback you do not have to think about; turning it into a metric helps improve playlists and discover what actually fits your mood.",
@@ -20,12 +26,38 @@
   "references": [
     {
       "title": "Spotify Web API",
-      "url": "https://developer.spotify.com/documentation/web-api"
+      "url": "https://developer.spotify.com/documentation/web-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots which playlists you keep skipping through instead of really enjoying."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Spotify — Spotify Web API recently-played → HEC.\n• **Subcategory context**: Media, Gaming & Entertainment — typical feeds: Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:e.\n• **Sourcetypes in this search**: `spotify:play`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Spotify** events into `index=personal` with `sourcetype=spotify:play`.\n\n**Collection method:** Spotify Web API recently-played → HEC.\n\n**Reference endpoint / path:** `GET /v1/me/player/recently-played`.\n\n**Suggested poll interval:** 900s.\n\n**Key fields to extract:** `track.name, artist, played_at, duration_ms`.\n\n**Typical connector stack:** Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC..\n\n**Author notes:** Forward Spotify playback data with skip markers; review the highest skip-rate contexts and prune or rebuild them.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"spotify:play\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=spotify:play earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Spotify Skip Rate by Playlist** over `personal` data (primarily `sourcetype=spotify:play`) across the full search range. It applies numeric thresholds on `plays` (>= 10) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `context_name`, `plays`, `skip_rate`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=spotify:play\n| stats count as plays, sum(eval(skipped=\"true\")) as skips by context_name\n| eval skip_rate=round(100*skips/plays,1)\n| where plays>=10 AND skip_rate>40\n| sort - skip_rate\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Spotify app → Recently played. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=spotify:play earliest=-7d\n| head 50\n| table context_name, plays, skip_rate\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=spotify:play earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `plays` before alerting:\n\n```spl\nindex=personal sourcetype=spotify:play earliest=-30d\n| stats perc50(plays) AS p50 perc90(plays) AS p90 perc99(plays) AS p99 max(plays) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.7.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Playlists By Plays (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Skips (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And Skip Rate (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Spotify — no Spotify events / missing fields:** If `spotify:play` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Spotify connector script is still running (`systemctl status` or cron log).\n\n**Spotify — NULL values in extracted fields:** The Spotify JSON export shape drifted — compare a raw event (`index=personal sourcetype=spotify:play | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Spotify — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Spotify — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Spotify APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots which playlists you keep skipping through instead of really enjoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

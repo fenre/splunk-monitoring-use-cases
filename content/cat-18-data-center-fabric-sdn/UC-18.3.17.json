@@ -11,6 +11,11 @@
   ],
   "splunkPillar": "Observability",
   "exclusions": "Pure controller-only dashboards without switch-local NX-API or eAPI (UC-18.3.12 / 18.3.3 territory); Meraki or campus-only access switches lacking VXLAN/EVPN fabric roles; silent ASIC drops that bypass CPU/TCAM counters until line-rate policers trip (pair with dataplane drop UCs); wholesale NFV soft-switches where hypervisor vCPU metrics replace **show system resources** semantics.",
+  "evidence": "Saved search uc_18_3_17_leaf_switch_resource_utilization, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Leaf Switch Resource Utilization'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-18.3.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=dc_fabric` / `index=network_ops` / `index=network` (rename per governance) — five sourcetypes: **`nxos:system_resources`** (**NX-API** JSON from **`show system resources`**: **kernel/user** CPU, **memory** totals); **`nxos:hardware_capacity`** (**`show hardware capacity forwarding`**, **`show hardware capacity module`** slices → **fib_used**, **fib_max**, **tcam_used**, **tcam_max**); **`network:switch_health`** (normalized NMS/agent **cpu_pct**, **mem_used_pct**, **health_status**, **hostname**); **`cisco:nxos:syslog`** (**TCAM/FIB/L2RIB** pressure mnemonics); **`network:bgp_neighbor`** (**EVPN** peer **bgp_state**, prefix counts for churn context). Land collectors with **1546** REST/eAPI, align samples to **7777** reference layouts, enrich ACI-attached leaves via 1897 where applicable, and use 4241/3215 only for correlated compute motion.",
   "app": "**Splunk REST API Modular Input** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)); **Cisco Data Center Networking for Splunk Platform** ([Splunkbase **7777**](https://splunkbase.splunk.com/app/7777)); **Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897)); **Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)); **Splunk Add-on for VMware** ([Splunkbase 3215](https://splunkbase.splunk.com/app/3215)).",
   "spl": "(index=dc_fabric OR index=network_ops OR index=network)\n(\n  sourcetype=\"nxos:system_resources\" OR sourcetype=\"nxos:hardware_capacity\" OR\n  sourcetype=\"network:switch_health\" OR sourcetype=\"cisco:nxos:syslog\" OR\n  sourcetype=\"network:bgp_neighbor\"\n)\nearliest=-4h@m latest=now\n| eval leaf=trim(lower(coalesce(hostname,host,device_name,nms_hostname,switch_id,\"\")))\n| eval cpu_pct=tonumber(coalesce(cpu_pct,cpu_utilization,kernel_percent,cpumem_usage_cpu,\"\"))\n| eval mem_used_pct=tonumber(coalesce(mem_used_pct,mem_usage_pct,memory_usage,heap_used_pct,chassis_mem_pct,\"\"))\n| eval fib_used=tonumber(coalesce(fib_used,fib_entries_used,ipv4_routes_used,forwarding_entries_used,l3_route_entries,\"\"))\n| eval fib_max=tonumber(coalesce(fib_max,fib_entries_max,route_capacity_max,forwarding_entries_max,fib_total_entries,\"\"))\n| eval tcam_used=tonumber(coalesce(tcam_used,tcam_entries_used,hardware_tcam_used,\"\"))\n| eval tcam_max=tonumber(coalesce(tcam_max,tcam_entries_max,tcam_budget_total,\"\"))\n| eval tcam_pct_direct=tonumber(coalesce(tcam_util_pct,acl_tcam_used_pct,\"\"))\n| eval fib_util=if(isnotnull(fib_used) AND isnotnull(fib_max) AND fib_max>0, round(100*fib_used/fib_max,2), null())\n| eval tcam_util=if(isnotnull(tcam_pct_direct), tcam_pct_direct, if(isnotnull(tcam_used) AND isnotnull(tcam_max) AND tcam_max>0, round(100*tcam_used/tcam_max,2), null()))\n| eval syslog_res=if(sourcetype=\"cisco:nxos:syslog\" AND match(_raw,\"(?i)(tcam|fib|forwarding.?table|hw.?rate.?limit|low.?memory|out.?of.?memory|l2rib.*fail)\"),1,0)\n| eval bgp_state_l=lower(coalesce(bgp_state,state,\"\"))\n| eval bgp_churn=if(sourcetype=\"network:bgp_neighbor\" AND match(bgp_state_l,\"(idle|active|connect|opensent|openconfirm)\"),1,0)\n| eval cpu_b=if(isnotnull(cpu_pct) AND cpu_pct>=85,1,0)\n| eval mem_b=if(isnotnull(mem_used_pct) AND mem_used_pct>=88,1,0)\n| eval fib_b=if(isnotnull(fib_util) AND fib_util>=90,1,0)\n| eval tcam_b=if(isnotnull(tcam_util) AND tcam_util>=85,1,0)\n| eval health_sig=case(\n    sourcetype=\"network:switch_health\" AND match(lower(coalesce(health_status,status,resource_state,\"\")),\"critical|major|down|failed\"),4,\n    true(),0)\n| fillnull value=0 syslog_res bgp_churn cpu_b mem_b fib_b tcam_b health_sig\n| eval score=cpu_b*3 + mem_b*3 + fib_b*5 + tcam_b*5 + syslog_res*4 + bgp_churn*2 + health_sig\n| where score>=3 OR fib_b==1 OR tcam_b==1 OR health_sig>=4\n| bin _time span=10m\n| stats max(cpu_pct) AS cpu_peak max(mem_used_pct) AS mem_peak max(fib_util) AS fib_util_peak max(tcam_util) AS tcam_util_peak max(score) AS score_peak values(sourcetype) AS st_seen latest(fib_used) AS fib_used_latest latest(fib_max) AS fib_cap latest(tcam_used) AS tcam_used_latest latest(tcam_max) AS tcam_cap BY _time leaf\n| eval story=leaf.\"|cpu=\".tostring(round(coalesce(cpu_peak,0))).\"|mem=\".tostring(round(coalesce(mem_peak,0))).\"|fib=\".tostring(round(coalesce(fib_util_peak,0))).\"|tcam=\".tostring(round(coalesce(tcam_util_peak,0)))\n| sort - score_peak - _time\n| head 200\n| table _time leaf cpu_peak mem_peak fib_util_peak tcam_util_peak fib_used_latest fib_cap tcam_used_latest tcam_cap score_peak st_seen story",
@@ -28,34 +33,41 @@
   "references": [
     {
       "title": "Cisco Nexus 9000 Series NX-OS System Management Configuration Guide, Release 10.3.x",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Arista EOS User Manual — system health and platform command reference",
-      "url": "https://www.arista.com/en/um-eos/"
+      "url": "https://www.arista.com/en/um-eos/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Cisco ACI (Splunkbase 1897)",
-      "url": "https://splunkbase.splunk.com/app/1897"
+      "url": "https://splunkbase.splunk.com/app/1897",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk REST API Modular Input (Splunkbase 1546)",
-      "url": "https://splunkbase.splunk.com/app/1546"
+      "url": "https://splunkbase.splunk.com/app/1546",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Data Center Networking for Splunk Platform (Splunkbase 7777)",
-      "url": "https://splunkbase.splunk.com/app/7777"
+      "url": "https://splunkbase.splunk.com/app/7777",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for VMware NSX (Splunkbase 4241)",
-      "url": "https://splunkbase.splunk.com/app/4241"
+      "url": "https://splunkbase.splunk.com/app/4241",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for VMware (Splunkbase 3215)",
-      "url": "https://splunkbase.splunk.com/app/3215"
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**planned_linecard_upgrade** — During ISSU or linecard replacements, `show hardware capacity` may report transient zeros or split totals across old and new ASICs while the supervisor reconciles banks. Splunk can show a fake **fib_util_peak** dip-then-spike pattern. Require two consecutive polls after declared maintenance complete, or honor `suppress_until` on **fabric_leaf_inventory** before paging capacity teams.\n\n**bgp_refresh_after_policy** — Mass concurrent soft-inbound refreshes when controllers publish broad retract/announce churn can pin CPU high for minutes without any hardware table breach. Peaks align with `network:bgp_neighbor` state flutters but forwarding remains sound. Correlate with automation job IDs, damp CPU-only alerts during known publish windows, and require **fib_b** or **tcam_b** before hardware escalations.\n\n**telemetry_alias_drift** — TA upgrades occasionally rename `cpu_utilization` or TCAM fields; `tonumber()` yields nulls so breaches vanish although the CLI still looks hot. Run field-summary dashboards after every TA push, keep **FIELDALIAS** stanzas for legacy sourcetypes, and alert on sudden null-rate increases—not only on numeric thresholds.\n\n**cold_standby_supervisor** — On dual-sup chassis, standby polls may return idle CPU while active forwarding happens on the peer. Mis-tagging **hostname** without **active_role** can flatten **cpu_peak** misleadingly. Enrich events with **redundancy_state** when available and filter standbys from capacity tiles meant for traffic-forwarding units only.\n\n**nms_false_critical** — Third-party **network:switch_health** probes sometimes mark CRITICAL when SNMP communities rotate or proxy ACLs block UDP, not when TCAM fills. Cross-check native **nxos:system_resources** before acting, and include probe collector_id in tickets so network and monitoring ownership stays clear.\n\n**evpn_type5_bursts** — Sudden Type-5 advertisement storms expand RIB→FIB programming queues and inflate CPU without immediate TCAM exhaustion. **bgp_churn** may trip while **fib_util** is still modest. Treat as control-plane contention: widen investigation SPL with `show bgp l2vpn evpn summary` counters and throttle repeat alerts per **leaf** until prefixes stabilize.\n\n**eos_bank_mapping_gap** — Arista platform releases occasionally rename TCAM bank labels; **vendor_capacity_map** rows go stale and **tcam_util** reads artificially low. Refresh the CSV after EOS upgrades, validate against one manual `show platform` snapshot per pod, and tag events with **eos_version** for quicker comparisons.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "requiredFields": [
     "hostname",
     "cpu_pct",

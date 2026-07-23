@@ -9,7 +9,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cp_log` (URL filtering / application control logs)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point Harmony SASE Internet Access Policy (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.45).",
+  "evidence": "Saved search uc_17_3_45_check_point_harmony_sase_internet_access, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point Harmony SASE Internet Access Policy (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.45.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cp_log` (URL filtering / application control logs) Indexes: proxy. Sourcetypes: cp_log. Key fields: category, policy_name, src_user_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=proxy sourcetype=\"cp_log\" product=\"URL Filtering\" earliest=-7d\n| where action=\"Block\"\n| stats count by category, src_user_name, policy_name\n| sort -count",
   "description": "Harmony SASE Internet Access (formerly Perimeter 81) enforces URL filtering, application control, and content inspection. Tracking policy actions validates acceptable-use enforcement and identifies shadow IT.",
@@ -25,21 +31,42 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "checkpoint"
   ],
-  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE internet access (SWG) events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Key fields: `action` (Accept/Drop/Reject), `blade` (URL Filtering/Application Control), `appi_name` (application name), `matched_category` (URL category), `user`, `src`, `dst`, `service`.\n• Harmony SASE Internet Access = cloud SWG + application control. URL Filtering blocks by category. Application Control blocks by application identity (e.g., BitTorrent, Tor, WhatsApp).\n\nStep 1 — Configure data collection\nVerify internet access events:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade IN (\"URL Filtering\",\"Application Control\") earliest=-24h\n| stats count by blade, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Internet access policy enforcement:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade IN (\"URL Filtering\",\"Application Control\") action IN (\"Drop\",\"Reject\") earliest=-7d\n| eval block_type=coalesce(matched_category, appi_name, \"unknown\")\n| timechart span=1d count by block_type limit=10\n```\n\nUnderstanding this SPL: Trends blocked internet access by URL category and application. 'Anonymizer' blocks mean users trying to use VPNs/proxies to bypass filtering. 'P2P' blocks mean torrent usage. 'Phishing' spikes indicate active campaigns.\n\nApplication control analytics:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=\"Application Control\" earliest=-7d\n| stats count dc(user) as users by appi_name, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Visit a blocked URL category. Verify block event.\n(b) In SmartConsole: Logs & Monitor > URL Filtering/Application Control.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block trend by type. Row 2 — Anonymizer/bypass attempts. Row 3 — App control blocks.\nAlert: When anonymizer blocks exceed baseline.\n\nRunbook:\n1. **Anonymizer spike** — Users bypassing SWG. Tighten policy and communicate.\n2. **Phishing spike** — Active campaign. Alert users.\n3. **Legit app blocked** — Re-categorize or create exception.\n\nStep 5 — Troubleshooting\n• **No URL Filtering events** — URL Filtering blade may not be enabled in the Harmony SASE policy.\n• **`matched_category` empty** — May be an Application Control event, not URL Filtering.",
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE internet access (SWG) events in `index=checkpoint` with `sourcetype=checkpoint:harmony`. Key fields: `action` (Accept/Drop/Reject), `blade` (URL Filtering/Application Control), `appi_name` (application name), `matched_category` (URL category), `user`, `src`, `dst`, `service`.\n• Harmony SASE Internet Access = cloud SWG + application control. URL Filtering blocks by category. Application Control blocks by application identity (e.g., BitTorrent, Tor, WhatsApp).\n\nStep 1 — Configure data collection\nVerify internet access events:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade IN (\"URL Filtering\",\"Application Control\") earliest=-24h\n| stats count by blade, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Internet access policy enforcement:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade IN (\"URL Filtering\",\"Application Control\") action IN (\"Drop\",\"Reject\") earliest=-7d\n| eval block_type=coalesce(matched_category, appi_name, \"unknown\")\n| timechart span=1d count by block_type limit=10\n```\n\nUnderstanding this SPL: Trends blocked internet access by URL category and application. 'Anonymizer' blocks mean users trying to use VPNs/proxies to bypass filtering. 'P2P' blocks mean torrent usage. 'Phishing' spikes indicate active campaigns.\n\nApplication control analytics:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:harmony\" blade=\"Application Control\" earliest=-7d\n| stats count dc(user) as users by appi_name, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Visit a blocked URL category. Verify block event.\n(b) In SmartConsole: Logs & Monitor > URL Filtering/Application Control.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block trend by type. Row 2 — Anonymizer/bypass attempts. Row 3 — App control blocks.\nAlert: When anonymizer blocks exceed baseline.\n\nRunbook:\n1. **Anonymizer spike** — Users bypassing SWG. Tighten policy and communicate.\n2. **Phishing spike** — Active campaign. Alert users.\n3. **Legit app blocked** — Re-categorize or create exception.\n\nStep 5 — Troubleshooting\n• **No URL Filtering events** — URL Filtering blade may not be enabled in the Harmony SASE policy.\n• **`matched_category` empty** — May be an Application Control event, not URL Filtering.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Check Point App for Splunk (Splunkbase 4293)). Enable the modular input or HEC token that writes sourcetype=cp_log into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`category, policy_name, src_user_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our internet security system blocks dangerous websites and unauthorized applications. We watch for employees trying to use anonymizer tools to get around the filter, and we track which dangerous websites are being blocked most often so we can warn everyone about active threats.",
-  "hardware": "Check Point Harmony SASE (cloud), Harmony Connect Client"
+  "hardware": "Check Point Harmony SASE (cloud), Harmony Connect Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

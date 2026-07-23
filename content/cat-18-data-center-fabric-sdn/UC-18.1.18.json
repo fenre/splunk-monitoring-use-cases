@@ -9,6 +9,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'APIC Cluster Replication Latency'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-18.1.18).",
+  "evidence": "Saved search uc_18_1_18_apic_cluster_replication_latency, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'APIC Cluster Replication Latency'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-18.1.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=cisco_aci` (rename per governance) combining **`sourcetype=cisco:aci:replication`** (**`GET https://<apic>/api/node/class/dbgrReplStatus.json`** plus **`GET https://<apic>/api/node/class/infraWiNode.json`** for **`operState`** corroboration; map **`delay`** / **`status`** / **`id`** / **`dn`** fields via **FIELDALIAS**); **`sourcetype=cisco:aci:cluster_health`** (structured **`cluster_health`** counters for compaction/backlog hints); **`sourcetype=cisco:aci:fault`** (**faultInst** rows referencing **dbgr** or shard churn); **`sourcetype=cisco:aci:syslog`** (**Splunk_TA_cisco-aci**, Splunkbase **4022**, **`facility=local6`** narratives); **`sourcetype=cisco:aci:audit`** (**`aaaModLR`**, **`configJob`** maintenance context). Poll **60–300s** via **rest_ta** (**1546**) or scripted collectors using **aaaLogin** / **aaaRefresh** sessions.",
   "app": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)); **Splunk REST API Modular Input** (**`rest_ta`**, [Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)); optional **cisco_dc_networking_app_for_splunk** ([Splunkbase **7777**](https://splunkbase.splunk.com/app/7777)) for sample dashboards.",
   "spl": "index=cisco_aci earliest=-6h@m\n(\n  sourcetype=\"cisco:aci:replication\"\n  OR sourcetype=\"cisco:aci:cluster_health\"\n  OR (sourcetype=\"cisco:aci:fault\" AND match(_raw,\"(?i)(dbgr|repl|replica|replication|shard|consensus|lag|split|partition)\"))\n  OR (sourcetype=\"cisco:aci:syslog\" AND match(_raw,\"(?i)(dbgr|replication|replica|split|consensus|lag|shard|pending)\"))\n  OR (sourcetype=\"cisco:aci:audit\" AND match(_raw,\"(?i)(dbgrRepl|infraWiNode|infraCluster|cluster_health|replica)\"))\n)\n| eval collector_tag=coalesce(collector_id, rest_stanza, input_id, \"default\")\n| eval ctrl_node=lower(trim(coalesce(apic_fqdn, apic_host, host, \"\")))\n| eval dn_lc=lower(trim(coalesce(dn, mo_dn, distinguished_name, infraWiNode_dn, \"\")))\n| eval repl_delay_ms=tonumber(coalesce(repl_delay_ms, replication_delay_ms, replDelay, replLagMs, dbReplDelay, delay_ms, lag_ms, \"0\"))\n| eval repl_status=lower(trim(coalesce(replStatus, repl_state, replication_state, dbgr_state, \"\")))\n| eval wi_oper=lower(trim(coalesce(oper_state, operState, wiOperState, \"\")))\n| eval pending_rep=tonumber(coalesce(replicas_pending, replicasPending, \"0\"))\n| eval synced_rep=tonumber(coalesce(replicas_synced, replicasSynced, \"0\"))\n| eval mo_class=lower(trim(coalesce(moClass, className, \"\")))\n| eval is_structured=if(sourcetype==\"cisco:aci:replication\" OR sourcetype==\"cisco:aci:cluster_health\",1,0)\n| eval is_narrative=if(sourcetype==\"cisco:aci:fault\" OR sourcetype==\"cisco:aci:syslog\",1,0)\n| eval is_audit=if(sourcetype==\"cisco:aci:audit\",1,0)\n| eval band=case(repl_delay_ms<=0 OR isnull(repl_delay_ms),\"none\", repl_delay_ms<200,\"lt200ms\", repl_delay_ms<500,\"200_499ms\", repl_delay_ms<1000,\"500_999ms\", 1==1,\"ge1000ms\")\n| eval state_sev=case(match(repl_status,\"(?i)(out|down|fault|stall|unsync|unknown|fail|error)\"),3, match(wi_oper,\"(?i)(down|unknown|fail|offline)\"),3, len(repl_status)>0 AND NOT match(repl_status,\"(?i)(ok|sync|up|idle|insync|in-sync|active|healthy)\"),2, true(),0)\n| eval lag_sev=case(repl_delay_ms>=1500,3, repl_delay_ms>=750,2, repl_delay_ms>=500,1, true(),0)\n| eval pending_sev=if(pending_rep>=12,3,if(pending_rep>=8,2,if(pending_rep>=6,1,0)))\n| eval evidence_score=is_narrative+is_audit\n| eval composite=max(state_sev,lag_sev,pending_sev)+if(is_structured==1 AND lag_sev>=1,1,0)+if(evidence_score>0 AND lag_sev>=1,1,0)\n| where composite>=4 OR (lag_sev>=2 AND is_structured==1) OR (pending_sev>=2 AND state_sev>=2) OR (pending_rep>=10 AND is_structured==1)\n| bin _time span=5m\n| stats max(repl_delay_ms) as repl_ms_peak max(lag_sev) as lag_class max(state_sev) as state_class max(pending_rep) as pending_peak min(synced_rep) as synced_min max(composite) as composite_peak dc(ctrl_node) as controller_hops values(band) as band_mix values(sourcetype) as sourcetype_lane dc(collector_tag) as collector_tags latest(repl_status) as repl_row latest(wi_oper) as wi_row values(mo_class) as mo_classes sum(is_structured) as structured_hits sum(is_narrative) as narrative_hits sum(is_audit) as audit_hits by _time dn_lc\n| lookup local=true aci_controller_inventory dn_lc OUTPUT site_code fabric_name owning_team\n| where repl_ms_peak>=500 OR composite_peak>=5 OR pending_peak>=8\n| sort - repl_ms_peak composite_peak\n| head 150\n| table _time dn_lc site_code fabric_name repl_ms_peak lag_class state_class pending_peak synced_min composite_peak structured_hits narrative_hits audit_hits sourcetype_lane collector_tags mo_classes repl_row wi_row owning_team",
@@ -24,30 +30,36 @@
   "references": [
     {
       "title": "Cisco APIC Cluster Management — Getting Started Guide 6.1(x)",
-      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/6x/getting-started/cisco-apic-getting-started-guide-61x/cisco-apic-cluster-management-60x.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/6x/getting-started/cisco-apic-getting-started-guide-61x/cisco-apic-cluster-management-60x.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Cisco ACI (Splunkbase 4022)",
-      "url": "https://splunkbase.splunk.com/app/4022"
+      "url": "https://splunkbase.splunk.com/app/4022",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk REST API Modular Input (Splunkbase 1546)",
-      "url": "https://splunkbase.splunk.com/app/1546"
+      "url": "https://splunkbase.splunk.com/app/1546",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco DC Networking Application for Splunk (Splunkbase 7777)",
-      "url": "https://splunkbase.splunk.com/app/7777"
+      "url": "https://splunkbase.splunk.com/app/7777",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk CIM — Alerts data model",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco APIC Faults — Faults Management Guide landing",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_01.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_01.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**repl_poll_cadence_smoothing** — When HTTPS collectors poll dbgrReplStatus slower than fault narratives, Splunk can miss sub-minute spikes Visore already shows—tighten rest_ta intervals or keep cisco:aci:syslog blended before assuming replicas are healthy.\n\n**aci_full_policy_import_window** — Bulk imports or contract compiles legitimately stretch replication queues while APIC stays sound—tie composite_peak timelines to approved CHG or Ansible job IDs and suppress until pending_peak clears without state_sev escalation.\n\n**ha_leader_transition_buffer** — Leader moves and standby promotions reshape dbgr views for minutes even when sessions converge—require fault codes or mixed sourcetype_lane evidence before sev-1 pages during maintenance_aci.csv windows.\n\n**vmfs_metadata_storm** — ESXi snapshot merges or datastore rescans stall VM-APIC disks, inflating repl_delay_ms without leaf symptoms—check hypervisor calendars and infraWiNode oper transitions before blaming switching.\n\n**mirrored_rest_collector_duplication** — Two rest_ta instances on the same VIP double pending tallies—partition on collector_tag and dedup dn_lc per poll when collector_tags repeats across bins.\n\n**nms_wan_latency_to_passive_site** — Stretched or DR-separated APIC peers over high RTT WAN links can show higher delays on secondary sites—add site_role=primary|dr to aci_controller_inventory and maintain separate baselines instead of one global millisecond gate.\n\n**snmp_trap_only_without_mo_class** — Trap-only noise may mention replication without dbgrReplStatus rows—treat narrative_hits as advisory until structured cisco:aci:replication returns, routing tickets to parser owners instead of fabric bridge calls during long overnight maintenance windows.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "apic",
     "cisco",

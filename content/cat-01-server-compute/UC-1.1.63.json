@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=interfaces` (fields `dropped_in` / `dropped_out` from `/proc` via Splunk_TA_nix, when exposed)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Dropped Packets by Network Interface'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.1.63).",
+  "evidence": "Saved search uc_1_1_63_dropped_packets_by_network_interface, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Dropped Packets by Network Interface'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.1.63.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=interfaces` (fields `dropped_in` / `dropped_out` from `/proc` via Splunk_TA_nix, when exposed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=interfaces host=*\n| bin _time span=5m\n| stats max(dropped_in) as di max(dropped_out) as do by host, interface, _time\n| eval total_dropped=di+do\n| where total_dropped>0\n| timechart max(total_dropped) by host, interface",
   "description": "Surfaces interfaces where the cumulative **dropped** counters are non-zero in the lookback, then trends the maximum of the combined in+out drop count in each bucket so you can see whether the condition persists.",
   "value": "Packet drops on the host precede many application time-outs; this view nudges you toward buffer, ring, and coalesce tuning with NIC vendor guidance before the problem scales up.",
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A single non-zero value from a one-time micro-burst; counters that only increase on reboot; bond/team parents vs slave stats double-counting if you do not pick the right **interface** names—tighten to `| where total_dropped>threshold` and compare delta over time, not the absolute if counters never reset.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Fields **dropped_in** and **dropped_out** (or renames) must exist. If the TA’s **interfaces** sample omits them, extend the scripted input to parse `rx_dropped` / `tx_dropped` from `ip -s link` or `/proc/net/dev`.\n\nStep 1 — Configure data collection\nPrefer a steady poll so **latest** per host+interface in the **stats** is meaningful. For alerts, you often want **delta** drops per interval instead of a never-decreasing counter; use `delta` + `where increase>0` in a follow-on iteration.\n\nStep 2 — Create the search and report\n`timechart` is ideal for a dashboard; add `| where max>0` in an alert with `bucket`ed five-minute **stats** for paging.\n\n**CIM note** — Standard **All_Traffic** does not carry Linux **drop** counters; this UC stays on raw **interfaces** until you model drops into a custom data model or metric store.\n\n\nStep 3 — Validate\n`ethtool -S iface` and `nstat` / `ss -i` (tooling varies) on the host; for drivers with **ring** size controls, also capture `ethtool -g` before/after tuning.\n\nStep 4 — Operationalize\nRoute NIC drops with the same timeline as switch **CRC** and **error** counters for fabric-side proof.\n\n",
-  "grandmaExplanation": "We help you know when a network card is quietly throwing away pieces of traffic, which is often the first sign of a busy or mis-sized connection between the card and the rest of the network."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Fields **dropped_in** and **dropped_out** (or renames) must exist. If the TA’s **interfaces** sample omits them, extend the scripted input to parse `rx_dropped` / `tx_dropped` from `ip -s link` or `/proc/net/dev`.\n\nStep 1 — Configure data collection\nPrefer a steady poll so **latest** per host+interface in the **stats** is meaningful. For alerts, you often want **delta** drops per interval instead of a never-decreasing counter; use `delta` + `where increase>0` in a follow-on iteration.\n\nStep 2 — Create the search and report\n`timechart` is ideal for a dashboard; add `| where max>0` in an alert with `bucket`ed five-minute **stats** for paging.\n\n**CIM note** — Standard **All_Traffic** does not carry Linux **drop** counters; this UC stays on raw **interfaces** until you model drops into a custom data model or metric store.\n\n\nStep 3 — Validate\n`ethtool -S iface` and `nstat` / `ss -i` (tooling varies) on the host; for drivers with **ring** size controls, also capture `ethtool -g` before/after tuning.\n\nStep 4 — Operationalize\nRoute NIC drops with the same timeline as switch **CRC** and **error** counters for fabric-side proof.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=interfaces into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, interface, total_dropped`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when a network card is quietly throwing away pieces of traffic, which is often the first sign of a busy or mis-sized connection between the card and the rest of the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Privacy Extension Address Churn Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.12).",
+  "evidence": "Saved search uc_5_20_12_privacy_extension_address_churn_tracking, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Privacy Extension Address Churn Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.12.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=ndp:cache` from NDP cache polling (SNMP `ipv6NetToMediaTable` or CLI `show ipv6 neighbors`), or `index=netflow sourcetype=ipfix` for passively observed IPv6 source addresses, or `index=dhcp sourcetype=infoblox:dhcp` for DHCPv6 lease churn. Key fields: `ipv6_address`, `mac_address`, `_time`. The critical observation is the number of distinct IPv6 addresses per MAC address over a 24-hour period. RFC 8981 temporary addresses have a default preferred lifetime of 24 hours and generate a new address daily. With privacy extensions enabled, a typical host will use 2-5 addresses simultaneously (1 stable + 1-4 temporary) and cycle through 3-8 unique addresses per day.",
   "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input for NDP cache polling, Splunk Add-on for NetFlow for flow-based discovery, Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for syslog.",
   "spl": "index=network sourcetype=\"ndp:cache\" earliest=-24h\n| where NOT match(ipv6_address, \"^fe80:\")\n| stats dc(ipv6_address) as addr_count values(ipv6_address) as addresses latest(_time) as last_seen by mac_address, host\n| eval churn_level=case(\n    addr_count > 20, \"EXCESSIVE — possible misconfiguration or scanning\",\n    addr_count > 10, \"HIGH — very short temporary address lifetime\",\n    addr_count > 5, \"NORMAL — privacy extensions active\",\n    addr_count > 1, \"LOW — stable + few temporary\",\n    1==1, \"MINIMAL — likely static or SLAAC without privacy\")\n| where addr_count > 10\n| eval last_seen=strftime(last_seen, \"%Y-%m-%d %H:%M:%S\")\n| sort -addr_count",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6 (privacy extensions)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8981"
+      "url": "https://www.rfc-editor.org/rfc/rfc8981",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.5 — Address accountability vs privacy)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7721 — Security and Privacy Considerations for IPv6 Address Generation Mechanisms",
-      "url": "https://www.rfc-editor.org/rfc/rfc7721"
+      "url": "https://www.rfc-editor.org/rfc/rfc7721",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Servers with many virtual interfaces.** A server running containers (Docker, Kubernetes) or VMs may have many IPv6 addresses legitimately — one per container/VM. These all share the host's physical MAC but have distinct IPv6 addresses. Distinguish by correlating with the server inventory — known container hosts should be excluded or have a higher threshold.\n\n**Mobile devices reconnecting to different APs.** When a device roams between WiFi access points on the same VLAN, it may generate a new temporary address on reconnect (depending on OS implementation). If roaming is frequent (every 15-30 minutes in a large campus), the address count per day can be high. The MAC address stays the same, so the correlation is correct.\n\n**OS updates changing privacy extension behaviour.** A Windows or macOS update may change the default preferred lifetime for temporary addresses, causing a fleet-wide shift in churn rates. This isn't a per-device anomaly — it's a baseline shift. Check if the churn increase correlates with a recent OS patch Tuesday.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

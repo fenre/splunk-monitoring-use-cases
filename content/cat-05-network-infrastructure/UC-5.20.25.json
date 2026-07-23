@@ -9,6 +9,12 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NDP Redirect Message Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.25).",
+  "evidence": "Saved search uc_5_20_25_ndp_redirect_message_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NDP Redirect Message Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.25.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=corelight_zeek` containing ICMPv6 Type 137 (Redirect) messages. NDP Redirects tell hosts that a better next-hop exists for a specific destination — the host should send future packets to the indicated neighbour instead of the current router. RFC 4861 §8 defines Redirect message processing.\n\nRedirects are legitimate in multi-router VLANs where one router is the default gateway but another is closer to the destination. However, attackers can forge Redirect messages to redirect traffic through a malicious host (man-in-the-middle). The THC-IPv6 `redir6` tool automates this attack.\n\nOn well-designed networks with VRRP/HSRP and proper routing, Redirects should be extremely rare. A high Redirect rate or Redirects from non-router sources are strong anomaly indicators.\n\nCisco IOS generates `%IPV6_ND-6-REDIRECT` or logs ICMPv6 Type 137 via ACL logging. Zeek logs Redirect messages in its ICMPv6 analysis.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812). Zeek (`corelight_zeek`) for ICMPv6 Type 137 decode.",
   "spl": "index=network (sourcetype=\"cisco:ios\" \"%IPV6_ND\" \"REDIRECT\")\n  OR (sourcetype=\"corelight_zeek\" icmpv6_type=137)\n| stats count as redirect_count values(src_ip) as sources values(dest_ip) as targets by host, vlan\n| where redirect_count > 0\n| eval assessment=case(\n    redirect_count > 50, \"WARNING — excessive redirects, possible attack\",\n    redirect_count > 10, \"INFO — elevated redirect rate\",\n    1=1, \"LOW — occasional redirects\")\n| sort -redirect_count",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (§8 — Redirect Function)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.3 — Redirect security implications)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "THC-IPv6 Attack Toolkit — redir6 redirect attack tool",
-      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+      "url": "https://github.com/vanhauser-thc/thc-ipv6",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Multi-router VLAN with asymmetric routing.** When a VLAN has two routers and the default gateway is not the optimal next-hop for certain destinations, the default gateway sends Redirects to hosts for those specific destinations. This is legitimate NDP behaviour. Verify by checking if the Redirect sources are known router IPs and the 'better next-hop' is also a known router.\n\n**Router reboot or VRRP transition.** During a transition, the new active router may send Redirects for destinations that the old active was directly handling. This is transient.\n\n**Static routes on hosts.** Hosts with static IPv6 routes to non-default-gateway routers will trigger Redirects from the default gateway pointing to the correct next-hop. This is by design.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

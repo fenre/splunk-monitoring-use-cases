@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VDA BSOD and Machine Stability Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.50).",
+  "evidence": "Saved search uc_2_6_50_vda_bsod_and_machine_stability_tracking, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VDA BSOD and Machine Stability Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.50.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=windows` (session hosts) `sourcetype=\"WinEventLog:System\"` bugcheck events, unexpected shutdowns, kernel power events; `index=xd` `sourcetype=\"citrix:vda:events\"` for VDA and agent service restarts tied to host instability; `index=uberagent` `sourcetype=\"uberAgent:Machine:Boot\"` and related stability or boot sourcetypes for unexpected reboots and stop codes normalized by uberAgent",
   "app": "Splunk Add-on for Microsoft Windows; uberAgent UXM (Splunkbase 1448); optional Template for Citrix XenDesktop 7 for `citrix:vda:events`",
   "spl": "index=windows sourcetype=\"WinEventLog:System\" (EventCode=1001 OR EventCode=41 OR EventCode=6008)\n| rex field=Message max_match=0 \"(?<bugcheck>0x[0-9A-Fa-f]+)\"\n| append [ search index=uberagent sourcetype=\"uberAgent:Machine:Boot\" unexpected_reboot=1 | eval EventCode=9999 | eval host=coalesce(host, dest_host) ]\n| bin _time span=1d\n| stats count as instabilities, values(EventCode) as event_codes, values(bugcheck) as stop_codes by host, _time\n| where instabilities>0\n| sort - instabilities\n| table _time, host, instabilities, event_codes, stop_codes",
   "description": "Blue screens, hard hangs, and unexpected reboots on session hosts are disproportionately disruptive: many users and published apps can fail in one incident. A single bugcheck may be a driver or GPU edge case; a cluster of the same stop code in one catalog points to a bad image, firmware, or policy rollout. You need a unified stream that captures bugcheck parameters from the System log, correlates with Citrix VDA and agent state when available, and enriches with uberAgent reboot analytics so you can trend stability per catalog, per hardware generation, and after every monthly patch. Treat recurring hosts as a candidate for maintenance mode and root-cause with vendor tools.",
-  "value": "Blue screens, hard hangs, and unexpected reboots on session hosts are disproportionately disruptive: many users and published apps can fail in one incident. A single bugcheck may be a driver or GPU edge case; a cluster of the same stop code in one catalog points to a bad image, firmware, or policy rollout. You need a unified stream that captures bugcheck parameters from the System log, correlates with Citrix VDA and agent state when available, and enriches with uberAgent reboot analytics so you can trend stability per catalog, per hardware generation, and after every monthly patch. Treat recurring hosts as a candidate for maintenance mode and root-cause with vendor tools.",
+  "value": "Operations and leadership rely on 'VDA BSOD and Machine Stability Tracking' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest the full System channel from all session hosts. For bugcheck 1001, parse `Message` to extract the stop code. Join `host` to a CMDB or lookup that supplies `catalog_name` and `delivery_group`. In uberAgent, confirm unexpected reboots flow with the same `host` key. Alert when any host has more than one bugcheck in seven days, or when a new stop code appears in more than 10% of a catalog in a week. Exclude planned reboot windows via a change lookup. For GPU images, add NVIDIA or AMD field extractions in a child search.",
   "visualization": "Choropleth of stability rate by data center, bar chart of top stop codes, timeline of restarts, table of worst hosts with catalog and patch level.",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Windows bug check reference (Microsoft Learn)",
-      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-code-reference2"
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-code-reference2",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "uberAgent unexpected reboots",
-      "url": "https://liquidware.com/"
+      "url": "https://liquidware.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix"
   ],
@@ -37,6 +55,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows on all session hosts; uberAgent; optional VDA log feed.\n• Ensure the following data sources are available: `WinEventLog:System` with 1001, 41, 6008, and 1074 where applicable; `index=uberagent` boot and stability; optional `index=xd` `citrix:vda:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nStandardize time zones. Map `host` to asset inventory. Truncate or mask kernel dumps paths in `Message` if sensitive. If `append` is heavy, materialize a summary index on a 15-minute schedule instead of real-time for wide fleets.\n\nStep 2 — Create the search and alert\nSimplify the primary SPL in production — the example is illustrative. A typical pattern is:\n\n```spl\nindex=windows sourcetype=\"WinEventLog:System\" EventCode=1001\n| eval stop_code=if(match(_raw, \"(0x[A-Fa-f0-9]{8})\"), mvindex( match(_raw, \"(0x[A-Fa-f0-9]{8})\" ),1), null())\n| stats count by host, stop_code\n| where count>0\n```\n\n**VDA BSOD and Machine Stability Tracking** — Union with `index=uberagent` unexpected reboots on `host` in a `join` or `append` and deduplicate the same second.\n\nStep 3 — Validate\nInduce a controlled bugcheck in a non-production pool if policy allows, or use historical data from a known patch regression. Check that 41 and 1001 do not double count the same event.\n\nStep 4 — Operationalize\nSend weekly top-stop-code review to the desktop engineering team, attach to image lifecycle gates, and block promotion when stability KPIs regress.",
-  "grandmaExplanation": "We count sudden blue screens and surprise restarts on your shared desktop machines, so you see a bad patch or driver before a whole building keeps dropping connection during work."
+  "grandmaExplanation": "We count sudden blue screens and surprise restarts on your shared desktop machines, so you see a bad patch or driver before a whole building keeps dropping connection during work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

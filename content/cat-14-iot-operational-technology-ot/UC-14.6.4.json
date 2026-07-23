@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'S7comm Unauthorized Function Block Access'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.6.4).",
+  "evidence": "Saved search uc_14_6_4_s7comm_unauthorized_function_block_acces, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'S7comm Unauthorized Function Block Access'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.6.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:s7comm:json\"` (`function_name`, `subfunction_name`, `error_class`, `error_code`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:s7comm:json\"\n| where (match(function_name,\"(?i)block|OB|FB|FC|SFB\") OR match(subfunction_name,\"(?i)block\"))\n| where (isnotnull(error_code) AND error_code!=\"0x0000\") OR (isnotnull(error_class) AND NOT error_class IN (\"NONE\",\"-\",\"\"))\n| stats count by source_h destination_h function_name subfunction_name error_class error_code\n| where count>=3\n| sort - count",
   "description": "Access attempts to protected OB/FB/FC blocks may indicate credential abuse or ladder tampering; monitoring errors and targeted function names supports defense-in-depth around safety-related code.",
-  "value": "Access attempts to protected OB/FB/FC blocks may indicate credential abuse or ladder tampering; monitoring errors and targeted function names supports defense-in-depth around safety-related code.",
+  "value": "Operations and leadership rely on 'S7comm Unauthorized Function Block Access' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Deploy Zeek ICSNPP on segments with S7 controllers; build an allowlist of engineering hosts permitted to access safety-related blocks. Tune minimum event counts to suppress single-bit noise; integrate with asset inventory for PLC roles.",
   "visualization": "Table (source, destination, function, error), Bar chart (errors by source_h), Timeline (clusters of denied access).",
   "cimModels": [
@@ -24,14 +30,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Function block access from migration tools, obfuscated projects, or temporary diagnostic screens.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (`function_name`, `subfunction_name`, `error_class`, `error_code`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Zeek ICSNPP on segments with S7 controllers; build an allowlist of engineering hosts permitted to access safety-related blocks. Tune minimum event counts to suppress single-bit noise; integrate with asset inventory for PLC roles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:s7comm:json\"\n| where (match(function_name,\"(?i)block|OB|FB|FC|SFB\") OR match(subfunction_name,\"(?i)block\"))\n| where (isnotnull(error_code) AND error_code!=\"0x0000\") OR (isnotnull(error_class) AND NOT error_class IN (\"NONE\",\"-\",\"\"))\n| stats count by source_h destination_h function_name subfunction_name error_class error_code\n| where count>=3\n| sort - count\n```\n\nUnderstanding this SPL\n\n**S7comm Unauthorized Function Block Access** — Access attempts to protected OB/FB/FC blocks may indicate credential abuse or ladder tampering; monitoring errors and targeted function names supports defense-in-depth around safety-related code.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:s7comm:json\"` (`function_name`, `subfunction_name`, `error_class`, `error_code`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:s7comm:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:s7comm:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where (match(function_name,\"(?i)block|OB|FB|FC|SFB\") OR match(subfunction_name,\"(?i)block\"))` — typically the threshold or rule expression for this monitoring goal.\n• Filters the current rows with `where (isnotnull(error_code) AND error_code!=\"0x0000\") OR (isnotnull(error_class) AND NOT error_class IN (\"NONE\",\"-\",\"\"))` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by source_h destination_h function_name subfunction_name error_class error_code** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count>=3` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (source, destination, function, error), Bar chart (errors by source_h), Timeline (clusters of denied access).",
-  "grandmaExplanation": "We use deep packet inspection to watch which program blocks are touched so unexpected access to logic surfaces quickly."
+  "grandmaExplanation": "We use deep packet inspection to watch which program blocks are touched so unexpected access to logic surfaces quickly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,10 +8,16 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ipNetToMediaTable entries count, show arp count",
-  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ARP Table Size Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.29).",
+  "evidence": "Saved search uc_5_1_29_arp_table_size_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ARP Table Size Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.29.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "ipNetToMediaTable entries count, show arp count Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=snmp:arp OR sourcetype=cisco:ios:arp\n| eval arp_count=coalesce(arp_entries, arp_count, 0)\n| stats latest(arp_count) as current_arp by host\n| lookup arp_limit host OUTPUT max_arp\n| eval util_pct=round(current_arp/max_arp*100,1)\n| where util_pct > 70\n| table host current_arp max_arp util_pct",
-  "description": "ARP table approaching hardware limits; can cause connectivity failures.",
+  "description": "ARP table approaching hardware limits; can cause connectivity failures. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Network engineers trend ARP table sizes across routers to detect abnormal growth indicating large flat networks, scanning activity, or ARP storms that risk table exhaustion.",
   "implementation": "Poll ipNetToMediaTable (count rows) or parse `show ip arp` / `show arp` output via scripted input. Create lookup with device→max_arp (from vendor specs). Alert when utilization exceeds 70%.",
   "visualization": "Line chart (ARP count over time), Gauge (utilization), Table.",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VMware vMotion, imaging carts, and conference room churn move MACs often. Baseline by VLAN before calling an attack.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "snmp",
@@ -31,6 +53,10 @@
   "equipmentModels": [
     "cisco_ios",
     "snmp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -41,5 +67,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* ARP table size data from SNMP or CLI scripted input. SNMP OID: ipNetToMediaEntry count, or `show arp | count` via scripted input. Data in `index=network` with SNMP or `sourcetype=network:arp:stats`.\n* ARP table exhaustion causes devices to drop new ARP entries, breaking connectivity. Large ARP tables indicate large flat networks (L2 broadcast domains), scanning activity, or ARP storms.\n\nStep 1 -- Configure data collection\n```\n[script:///opt/splunk/etc/apps/network_mon/bin/arp_table_size.sh]\ninterval = 300\nsourcetype = network:arp:stats\nindex = network\n\n# arp_table_size.sh\n#!/bin/bash\necho \"device=$(hostname)\"\narp_count=$(show ip arp | wc -l 2>/dev/null || arp -an | wc -l)\necho \"arp_entries=$arp_count\"\n```\nVerify:\n```spl\nindex=network sourcetype=\"network:arp:stats\" earliest=-4h | stats latest(arp_entries) by device\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- ARP table size trending:**\n```spl\nindex=network earliest=-7d\n| eval arp_count=tonumber(coalesce(arp_entries, arp_table_size))\n| eval device=coalesce(device, host, device_name)\n| where isnotnull(arp_count)\n| bin _time span=1h\n| stats avg(arp_count) as avg_entries max(arp_count) as max_entries by _time, device\n| eventstats avg(avg_entries) as baseline_avg stdev(avg_entries) as stdev_entries by device\n| eval z_score=if(stdev_entries > 0, round((avg_entries - baseline_avg)/stdev_entries, 2), 0)\n| eval severity=case(\n    max_entries > 4000, \"CRITICAL -- ARP table very large (>4000 entries)\",\n    z_score > 3, \"WARNING -- abnormal ARP table growth\",\n    max_entries > 2000, \"INFO -- ARP table elevated\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, device, avg_entries, max_entries, z_score, severity\n| sort severity, -max_entries\n```\n\nStep 3 -- Validate\n(a) CLI: `show ip arp | count` or `show ip arp summary` -- current ARP table size.\n(b) Check ARP timeout: `show ip arp timeout` -- default 4 hours on Cisco.\n(c) Verify ARP table limit: hardware-dependent.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- ARP Table\"):\n* Row 1 -- Single-value: \"Max ARP entries\", \"Devices > 2000 entries\".\n* Row 2 -- ARP table size timechart.\n\nAlert: Critical (>4000 ARP entries): investigate cause.\n\nStep 5 -- Troubleshooting\n\n* **Large flat L2 domain** -- All hosts in the broadcast domain generate ARP entries. Consider: subnet segmentation, VRFs, or moving to routed access layer.\n\n* **ARP storm from scanning** -- Check for new entries from same source MAC. May indicate network scanner or worm. Apply DHCP snooping and DAI.\n\n* **ARP timeout too long** -- Default 4 hours may keep stale entries. Consider reducing: `arp timeout <seconds>` on interface.",
   "grandmaExplanation": "We help you know early when something looks wrong with arp table size trending so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

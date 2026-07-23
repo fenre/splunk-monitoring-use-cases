@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for '/64 per Host Prefix Assignment Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.18).",
+  "evidence": "Saved search uc_5_20_18_64_per_host_prefix_assignment_tracking, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for '/64 per Host Prefix Assignment Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=infoblox:dhcp` or `sourcetype=cisco:ios` containing DHCPv6 Prefix Delegation (IA_PD) log entries. In the RFC 8273 model, each host receives a delegated /64 prefix instead of a single /128 address. This is used in shared environments such as co-working spaces, service-provider residential networks, and hosting platforms where each device needs its own globally routable prefix for privacy, subnet isolation, or running VMs/containers.\n\nDHCPv6-PD events show the prefix delegated to each client DUID. On Cisco IOS, DHCPv6-PD assignments appear in `%DHCPv6-PD-6-PREFIX_ASSIGN` syslog messages. On ISC DHCP/Kea, they appear as `IA_PD` entries in the lease log. On Infoblox, PD assignments appear with `ia-pd` in the DHCP log.\n\nVolume is modest: one event per prefix delegation or renewal, typically every 3600-86400 seconds per host.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934) for DHCPv6-PD lease logging. Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for IOS syslog. ISC Kea/DHCP lease files via Splunk Universal Forwarder.",
   "spl": "index=network (sourcetype=\"infoblox:dhcp\" OR sourcetype=\"cisco:ios\" OR sourcetype=\"isc:dhcpd\")\n  (\"IA_PD\" OR \"PREFIX_ASSIGN\" OR \"ia-pd\" OR \"prefix-delegation\")\n| rex field=_raw \"prefix[= ]+(?<delegated_prefix>[0-9a-fA-F:]+/\\d+)\"\n| rex field=_raw \"(DUID|duid|client-id)[= ]+(?<client_duid>[0-9a-fA-F:]+)\"\n| eval prefix_length=tonumber(replace(delegated_prefix, \".*/(\\d+)\", \"\\1\"))\n| stats min(_time) as first_delegated max(_time) as last_renewed count as renewal_count latest(host) as dhcp_server by delegated_prefix, client_duid\n| eval first_delegated=strftime(first_delegated, \"%Y-%m-%d %H:%M:%S\")\n| eval last_renewed=strftime(last_renewed, \"%Y-%m-%d %H:%M:%S\")\n| eval non_standard=if(prefix_length!=64, \"YES — expected /64 per RFC 8273\", \"NO\")\n| sort client_duid, delegated_prefix",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 8273 — Unique IPv6 Prefix per Host (prefix-per-host model for shared networks)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8273"
+      "url": "https://www.rfc-editor.org/rfc/rfc8273",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8415 — Dynamic Host Configuration Protocol for IPv6 (DHCPv6) — IA_PD Identity Association for Prefix Delegation",
-      "url": "https://www.rfc-editor.org/rfc/rfc8415"
+      "url": "https://www.rfc-editor.org/rfc/rfc8415",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1.3 — prefix delegation security implications)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Residential CPE prefix delegation.** In service-provider networks, each residential CPE (home router) receives a /48 or /56 via IA_PD, not a /64. The non-standard prefix length alert (expecting /64 per RFC 8273) will fire for these legitimate delegations. Filter by client type or create separate monitoring for SP vs enterprise PD.\n\n**Lab/test environments.** Developers running multiple VMs or containers on a single host may trigger the 'excessive prefix count per client' alert if they legitimately need multiple /64 prefixes. Whitelist known development DUIDs.\n\n**Prefix renewals during server failover.** When a DHCPv6 server cluster fails over, the backup server may re-delegate prefixes to all clients, causing a spike in delegation events. This is normal failover behaviour, not a real anomaly.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "infoblox",

@@ -8,6 +8,12 @@
     "Performance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point Gateway Connection Table Utilization (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.54).",
+  "evidence": "Saved search uc_5_2_54_check_point_gateway_connection_table_uti, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point Gateway Connection Table Utilization (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.54.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`sourcetype=cp_log` (system/performance logs), `fw tab -t connections -s` via scripted input",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=firewall sourcetype=\"cp_log\" earliest=-4h\n| where match(lower(product),\"(?i)firewall\") AND (match(lower(logdesc),\"(?i)connection.*table|conn.*limit|aggressive.aging\") OR isnotnull(connections_count))\n| eval gw=coalesce(orig, src, hostname)\n| eval conn_count=coalesce(connections_count, concurrent_connections)\n| eval conn_limit=coalesce(connections_limit, table_limit)\n| eval util_pct=if(isnotnull(conn_limit) AND conn_limit>0, round(100*conn_count/conn_limit,1), null())\n| stats latest(conn_count) as conns latest(util_pct) as util_pct by gw\n| where util_pct > 70 OR match(lower(logdesc),\"(?i)aggressive.aging\")\n| sort -util_pct",
@@ -19,26 +25,39 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Large downloads, more remote users, and new sites can use more connections than a quiet baseline from last month.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point gateway connection table utilization data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input from `fw tab -t connections -s`. Key fields: `connections_count`, `connections_limit`, `connections_peak`.\n* Each Check Point gateway has a finite concurrent connection table (configurable, typically 500K-25M depending on appliance model). When the table fills, new connections are dropped. Monitoring: `fw tab -t connections -s`, `cpview`, `cpstat -f all os`.\n\nStep 1 -- Configure data collection\n```\n# Custom scripted input for connection table monitoring\n# inputs.conf\n[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/conn_table.sh]\ninterval = 60\nsourcetype = checkpoint:conntable\nindex = checkpoint\ndisabled = false\n\n# conn_table.sh\n#!/bin/bash\necho \"timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\necho \"hostname=$(hostname)\"\nfw tab -t connections -s 2>/dev/null | while read line; do echo \"conn_table=\"$line\"\"; done\ncpstat -f all os 2>/dev/null | grep -i \"connections\" | while read line; do echo \"cpstat=\"$line\"\"; done\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:conntable\" earliest=-1h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Connection table utilization monitoring:**\n```spl\nindex=checkpoint sourcetype=\"checkpoint:conntable\" earliest=-4h\n| rex field=conn_table \"(?i)(?<current>\\d+).*(?<peak>\\d+).*(?<limit>\\d+)\"\n| eval current=tonumber(current)\n| eval peak=tonumber(peak)\n| eval limit=tonumber(limit)\n| where isnotnull(current) AND isnotnull(limit)\n| eval util_pct=round(100*current/limit, 1)\n| eval peak_pct=round(100*peak/limit, 1)\n| bin _time span=1m\n| stats latest(current) as current_conns latest(peak) as peak_conns latest(limit) as max_limit latest(util_pct) as util_pct latest(peak_pct) as peak_pct by _time, host\n| eval severity=case(\n    util_pct > 90, \"CRITICAL -- connection table near capacity (\".util_pct.\"%), new connections will be dropped\",\n    util_pct > 75, \"WARNING -- connection table at \".util_pct.\"% capacity\",\n    util_pct > 60, \"INFO -- connection table utilization trending up\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, host, current_conns, peak_conns, max_limit, util_pct, peak_pct, severity\n| sort severity, -util_pct\n```\n\n**Secondary search -- Connection table growth rate:**\n```spl\nindex=checkpoint sourcetype=\"checkpoint:conntable\" earliest=-4h\n| rex field=conn_table \"(?i)(?<current>\\d+)\"\n| eval current=tonumber(current)\n| where isnotnull(current)\n| bin _time span=5m\n| stats latest(current) as conns by _time, host\n| sort host, _time\n| streamstats current=f last(conns) as prev_conns last(_time) as prev_time by host\n| eval growth_rate=round((conns - prev_conns)/(((_time - prev_time)/60)), 0)\n| where growth_rate > 1000\n| eval severity=\"WARNING -- rapid connection growth (\".growth_rate.\" conns/min)\"\n| table _time, host, conns, growth_rate, severity\n```\n\nStep 3 -- Validate\n(a) CLI (expert mode): `fw tab -t connections -s` -- show current/peak/limit.\n(b) CLI: `cpview` > Overview > Connections -- real-time connection count.\n(c) CLI: `fw ctl pstat` -- verify connection table statistics.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- Connection Table\"):\n* Row 1 -- Single-value: \"Current connections\", \"Utilization (%)\", \"Table limit\".\n* Row 2 -- Connection table utilization timechart.\n* Row 3 -- Growth rate analysis.\n\nAlerting:\n* Critical (>90% utilization): immediate action required.\n* Warning (>75% utilization): plan capacity increase.\n\nStep 5 -- Troubleshooting\n\n* **Connection table filling rapidly** -- Possible DoS/DDoS or scanning. Check top connection sources: `fw tab -t connections | sort | uniq -c | sort -rn | head 20`. Consider aggressive timeout tuning.\n\n* **Connection limit too low** -- Increase limit: `fw ctl set int fwconn_max_connections <value>` (temporary). Permanent: edit `$FWDIR/boot/modules/fwkern.conf` and add `fwconn_max_connections=<value>`. Requires reboot.\n\n* **Stale connections not timing out** -- Check timeout values: `fw ctl get int fw_tcp_session_timeout`. Default TCP timeout is 3600s (1 hour). Reduce for short-lived connections. Consider enabling aggressive aging: `fw ctl set int fw_aggressive_aging_timeout <seconds>`.",
   "grandmaExplanation": "We follow how full the connection table is so sudden growth, leaks, and attacks that eat state are visible with room to act.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

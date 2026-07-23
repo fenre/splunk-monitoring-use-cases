@@ -8,8 +8,14 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Soda scan results (`soda:scan`), Soda Cloud check events, and Bigeye metric/issue API (`bigeye:issue`).",
-  "app": "Soda Cloud API and Soda scan results (soda-core) forwarded as JSON to HEC; Bigeye API metric and issue exports via scripted inputs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Soda Failed-Row Sampling Trend'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-24.9.15).",
+  "evidence": "Saved search uc_24_9_15_soda_failed_row_sampling_trend, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Soda Failed-Row Sampling Trend'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-24.9.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Soda scan results (`soda:scan`), Soda Cloud check events, and Bigeye metric/issue API (`bigeye:issue`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Soda Cloud API and Soda scan results (soda-core) forwarded as JSON to HEC; Bigeye API metric and issue exports via scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=soda:scan check_outcome=\"fail\"\n| stats sum(failed_rows) as failed_rows, dc(check_name) as failing_checks by dataset\n| where failed_rows>0\n| sort - failed_rows",
   "description": "Aggregates Soda failed-row counts per dataset across all failing checks, quantifying how much data in each table currently violates its quality rules.",
   "value": "Ranking datasets by failed rows focuses data-quality remediation on the tables with the most broken records feeding analytics.",
@@ -19,16 +25,38 @@
   "references": [
     {
       "title": "Soda — Scan results & Soda Cloud API",
-      "url": "https://docs.soda.io/api-docs/reporting-api-v1"
+      "url": "https://docs.soda.io/api-docs/reporting-api-v1",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Bigeye — API documentation",
-      "url": "https://docs.bigeye.com/reference"
+      "url": "https://docs.bigeye.com/reference",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We total up the broken records in each table so the messiest data gets cleaned up first."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Soda Cloud API and Soda scan results (soda-core) forwarded as JSON to HEC; Bigeye API metric and issue exports via scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=soda:scan into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dataset, failed_rows`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We total up the broken records in each table so the messiest data gets cleaned up first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

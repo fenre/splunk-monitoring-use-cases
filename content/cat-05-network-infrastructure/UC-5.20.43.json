@@ -8,6 +8,12 @@
     "Availability"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'OSPFv3 Adjacency Monitoring and IPv6 Routing Stability'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.43).",
+  "evidence": "Saved search uc_5_20_43_ospfv3_adjacency_monitoring_and_ipv6_rou, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'OSPFv3 Adjacency Monitoring and IPv6 Routing Stability'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.43.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing OSPFv3 adjacency change syslog messages. OSPFv3 (RFC 5340) is the IPv6 version of OSPF, replacing OSPFv2 for IPv6 routing. While OSPFv2 carries IPv4 routes inside LSAs using IPv4 addressing, OSPFv3 uses link-local addresses for neighbor communication and carries IPv6 prefixes in separate LSA types (Type 8 Intra-Area-Prefix-LSA, Type 9 Inter-Area-Prefix-LSA). Key differences:\n\n1. **Link-local next-hops** — OSPFv3 peers using link-local addresses (FE80::/10), not global addresses\n2. **Per-link operation** — OSPFv3 runs per-link, not per-subnet (multiple instances per interface possible)\n3. **Authentication** — OSPFv3 uses IPsec (AH/ESP) for authentication, not MD5 in the OSPF header\n4. **Address families** — OSPFv3 can carry both IPv4 and IPv6 routes via Address Family (AF) support (RFC 5838)\n\nAdjacency events:\n- `%OSPFv3-5-ADJCHG: Process <pid> Nbr <router-id> on <intf> from FULL to DOWN` — adjacency lost\n- `%OSPFv3-5-ADJCHG: Process <pid> Nbr <router-id> on <intf> from LOADING to FULL` — adjacency established\n\nOSPFv3-specific failure modes (not present in OSPFv2):\n- IPsec authentication mismatch (replaces MD5)\n- Link-local address conflict or misconfiguration\n- Instance ID mismatch (new in OSPFv3)\n- IPv6 disabled on the interface but OSPFv3 configured",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%OSPFv3\" \"ADJCHG\" earliest=-24h\n| rex field=_raw \"Process\\s+(?<ospf_pid>\\d+).*Nbr\\s+(?<neighbor_id>[\\d.]+)\\s+on\\s+(?<interface>\\S+)\\s+from\\s+(?<from_state>\\S+)\\s+to\\s+(?<to_state>\\S+)\"\n| eval severity=case(\n    to_state=\"DOWN\", \"CRITICAL — adjacency lost\",\n    to_state=\"FULL\", \"INFO — adjacency established\",\n    match(to_state, \"INIT|2WAY|EXSTART|EXCHANGE|LOADING\"), \"WARNING — adjacency transitioning\",\n    1=1, \"INFO\")\n| eval is_down=if(to_state=\"DOWN\", 1, 0)\n| eval is_full=if(to_state=\"FULL\", 1, 0)\n| stats count as events count(eval(is_down=1)) as adjacency_losses count(eval(is_full=1)) as adjacency_ups by host, neighbor_id, interface, ospf_pid\n| eval flapping=if(adjacency_losses > 3 AND adjacency_ups > 3, \"FLAPPING\", \"stable\")\n| sort -adjacency_losses",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "RFC 5340 — OSPF for IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc5340"
+      "url": "https://www.rfc-editor.org/rfc/rfc5340",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 5838 — Support of Address Families in OSPFv3 (dual-stack AF support)",
-      "url": "https://www.rfc-editor.org/rfc/rfc5838"
+      "url": "https://www.rfc-editor.org/rfc/rfc5838",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4552 — Authentication/Confidentiality for OSPFv3 (IPsec for OSPFv3)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4552"
+      "url": "https://www.rfc-editor.org/rfc/rfc4552",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned maintenance.** Router upgrades and interface maintenance cause expected adjacency losses. Correlate with change management windows.\n\n**OSPFv3 process restart.** A process restart (`clear ipv6 ospf process`) causes all adjacencies to drop and re-form. This is expected during troubleshooting or configuration changes.\n\n**Dual-stack migration.** When deploying OSPFv3 on interfaces that previously ran OSPFv2 only, the initial adjacency formation generates ADJCHG events. These are expected during migration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

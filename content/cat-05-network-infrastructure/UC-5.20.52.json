@@ -9,6 +9,12 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.52).",
+  "evidence": "Saved search uc_5_20_52_ipv6_reverse_dns_ip6_arpa_completeness_a, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Reverse DNS (ip6.arpa) Completeness and PTR Record Audit'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.52.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=infoblox:dns` or `sourcetype=named:querylog` containing DNS PTR query logs and responses for the ip6.arpa zone. IPv6 reverse DNS uses the ip6.arpa domain (RFC 3596), mapping IPv6 addresses to hostnames. Each nibble (4-bit hex digit) of the 128-bit address is reversed and separated by dots:\n\n- Forward: `2001:db8::1` → AAAA → `server.example.com`\n- Reverse: `1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa` → PTR → `server.example.com`\n\nReverse DNS completeness is important for:\n1. **Email deliverability** — mail servers check reverse DNS; missing PTR records cause mail rejection\n2. **Security logging** — SIEM and log analysis tools resolve source IPs to hostnames for readability\n3. **Compliance** — RFC 6302 requires forward-confirmed reverse DNS (FCrDNS) for logging\n4. **Troubleshooting** — traceroute displays hostnames from reverse DNS, making path analysis much easier\n5. **SSH strict checking** — SSH with `UseDNS yes` checks reverse DNS and may delay or reject connections\n\nIPv6 reverse DNS challenges:\n- The ip6.arpa zone is much larger than in-addr.arpa (128 bits vs 32 bits)\n- Dynamically assigned IPv6 addresses (SLAAC, privacy extensions) make manual PTR maintenance impractical\n- Dynamic DNS updates (RFC 2136) or wildcard PTR records are needed for scale\n- Delegation follows nibble boundaries (/48, /32), not arbitrary prefix lengths",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2946).",
   "spl": "index=network (sourcetype=\"infoblox:dns\" OR sourcetype=\"named:querylog\") \"ip6.arpa\" earliest=-24h\n| eval response_type=case(\n    match(_raw, \"NXDOMAIN\"), \"NXDOMAIN — no PTR record\",\n    match(_raw, \"NOERROR\"), \"NOERROR — PTR found\",\n    match(_raw, \"SERVFAIL\"), \"SERVFAIL — resolver error\",\n    match(_raw, \"REFUSED\"), \"REFUSED — not authoritative\",\n    1=1, \"query\")\n| stats count by response_type\n| eventstats sum(count) as total\n| eval pct=round(count / total * 100, 1)",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 3596 — DNS Extensions to Support IP Version 6 (AAAA and ip6.arpa)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3596"
+      "url": "https://www.rfc-editor.org/rfc/rfc3596",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6302 — Logging Recommendations for Internet-Facing Servers (requires FCrDNS)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6302"
+      "url": "https://www.rfc-editor.org/rfc/rfc6302",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8501 — Reverse DNS in IPv6 for Internet Service Providers (operational guidance)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8501"
+      "url": "https://www.rfc-editor.org/rfc/rfc8501",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Privacy extension addresses.** Hosts using RFC 8981 privacy extensions generate new temporary IPv6 addresses daily. Creating PTR records for every temporary address is impractical. Use wildcard PTR records for client subnets (e.g., `*.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.8.b.d.0.1.0.0.2.ip6.arpa IN PTR dynamic-client.example.com`).\n\n**SLAAC addresses without DDNS.** Hosts using SLAAC (Stateless Address Autoconfiguration) do not register in DNS unless dynamic DNS updates are configured. NXDOMAIN for SLAAC addresses is expected without DDNS.\n\n**External addresses.** PTR queries for external IPv6 addresses (not controlled by the organisation) will return NXDOMAIN if the external organisation hasn't configured reverse DNS. This is outside the organisation's control.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "bind",
     "infoblox",

@@ -10,6 +10,12 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Top Conversation Pairs and New Communication Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.7.19).",
+  "evidence": "Saved search uc_5_7_19_top_conversation_pairs_and_new_communica, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Top Conversation Pairs and New Communication Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.7.19.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=netflow` with `sourcetype=netflow` or `stream:ipfix` carrying normalized five-tuple summaries (`src`, `dest`, `bytes`, `packets`, `protocol`, ports); consider summary-index acceleration when cardinality exceeds millions of pairs per day.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-24h\n| eval lo=min(src,dest), hi=max(src,dest), pair=lo.\"|\".hi\n| stats sum(bytes) as recent_bytes sum(packets) as recent_packets first(lo) as endpoint_a first(hi) as endpoint_b by pair\n| join max=500000 type=left pair [\n    search index=netflow earliest=-30d latest=-24h\n    | eval lo=min(src,dest), hi=max(src,dest), pair=lo.\"|\".hi\n    | stats count as prior_flow_records by pair\n]\n| fillnull value=0 prior_flow_records\n| eval mb_recent=round(recent_bytes/1048576, 2)\n| eval insight=if(prior_flow_records=0 AND mb_recent>5, \"NEW_HIGH_VOLUME_PAIR\", \"KNOWN_PAIR\")\n| sort -recent_bytes\n| head 40\n| table insight endpoint_a endpoint_b mb_recent recent_packets prior_flow_records pair",
@@ -20,14 +26,26 @@
   "references": [
     {
       "title": "Splunk — Hunting with NetFlow data",
-      "url": "https://www.splunk.com/en_us/blog/"
+      "url": "https://www.splunk.com/en_us/blog/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MITRE ATT&CK — Lateral Movement",
-      "url": "https://attack.mitre.org/tactics/TA0008/"
+      "url": "https://attack.mitre.org/tactics/TA0008/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-retention archives pretend novelty after retention rollover. Cloud auto-scaling introduces ephemeral pairs hourly. Penetration tests purposely mimic suspicious connectivity.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "netflow"
   ],
@@ -43,7 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Adequate indexer compute for wide-time joins or prebuilt baseline lookups refreshed nightly.\n• Data retention exceeding the baseline horizon so absence truly implies novelty rather than expiry.\n• Change-management feed optionally merged to annotate expected new pairs.\n\nStep 1 — Configure data collection\nEnsure Network Address Translation logging aligns internal hosts so pairs reflect true endpoints rather than translated gateways.\n\nStep 2 — Create the search\nWhen `join max` truncates, pivot to `| lookup baseline_pairs.csv pair OUTPUT first_seen` populated by a scheduled transform. Add asset enrichment columns for business unit labels.\n\nStep 3 — Validate\nSeed a fresh lab virtual machine talking solely to a new file share and confirm novelty classification within one reporting interval.\n\nStep 4 — Operationalize\nSOC reviewers receive CSV extracts limited to regulated subnets; network operations consumes only the top-volume portion via saved-search ACL separation.\n\nStep 5 — Troubleshooting\nSampling bias misses rare pairs—lower megabyte thresholds cautiously. Split exporters duplicates inflate prior counts—deduplicate using `dedup _raw` cautiously only after verifying redundancy patterns.",
+  "detailedImplementation": "Prerequisites\n• Adequate indexer compute for wide-time joins or prebuilt baseline lookups refreshed nightly.\n• Data retention exceeding the baseline horizon so absence truly implies novelty rather than expiry.\n• Change-management feed optionally merged to annotate expected new pairs.\n\nStep 1 — Configure data collection\nEnsure Network Address Translation logging aligns internal hosts so pairs reflect true endpoints rather than translated gateways.\n\nStep 2 — Create the search\nWhen `join max` truncates, pivot to `| lookup baseline_pairs.csv pair OUTPUT first_seen` populated by a scheduled transform. Add asset enrichment columns for business unit labels.\n\nStep 3 — Validate\nSeed a fresh lab virtual machine talking solely to a new file share and confirm novelty classification within one reporting interval.\n\nStep 4 — Operationalize\nSOC reviewers receive CSV extracts limited to regulated subnets; network operations consumes only the top-volume portion via saved-search ACL separation.\n\nStep 5 — Troubleshooting\nSampling bias misses rare pairs—lower megabyte thresholds cautiously. Split exporters duplicates inflate prior counts—deduplicate using `dedup _raw` cautiously only after verifying redundancy patterns.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`], insight, mb_recent, pair`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We list who talked the most to whom lately and call out brand-new friendships that moved serious traffic. That helps guardians notice odd introductions without reading every chat.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

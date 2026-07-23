@@ -9,6 +9,12 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'FTP Server Availability and Throughput'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.45).",
+  "evidence": "Saved search uc_5_9_45_ftp_server_availability_and_throughput, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'FTP Server Availability and Throughput'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.45.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"ftp-server\"`. OTel v2 metrics: `ftp.server.request.availability` (percentage), `ftp.client.request.duration` (seconds, TTFB), `ftp.server.throughput` (bytes/second). Attributes: `server.address`, `ftp.request.command` (GET/PUT/LS), `url.scheme` (ftp/ftps/sftp), `ftp.response.status_code`.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"ftp-server\"\n| stats avg(ftp.server.request.availability) as avg_avail avg(ftp.client.request.duration) as avg_duration avg(ftp.server.throughput) as avg_throughput by thousandeyes.test.name, server.address, ftp.request.command\n| eval avg_duration_ms=round(avg_duration*1000,1), avg_throughput_mbps=round(avg_throughput*8/1000000,2)\n| sort avg_avail, -avg_duration_ms",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — FTP metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**FTP session limits.** FTP servers often limit concurrent connections. If multiple test agents connect simultaneously and exceed the limit, some connections fail — a test artifact, not a server problem. Stagger test schedules across agents.\n\n**Credential rotation.** FTP tests using username/password authentication fail when credentials are rotated. Update test credentials after rotation.\n\n**Firewall/NAT issues.** Active-mode FTP requires the server to initiate data connections back to the client, which is often blocked by firewalls. Use passive mode (PASV) in test configuration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

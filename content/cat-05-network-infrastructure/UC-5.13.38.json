@@ -12,6 +12,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "regulation-specific",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Advisory Remediation Progress Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.38).",
+  "evidence": "Saved search uc_5_13_38_advisory_remediation_progress_tracking, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -44,6 +46,10 @@
       "evidenceArtifact": "Trending report showing advisory affected-device counts decreasing over 30-day windows; exported monthly for management review."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Advisory Remediation Progress Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.38.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:securityadvisory` from the `securityadvisory` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.34. Tracks `deviceCount` over time per `advisoryId` — a declining count means devices are being patched.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:securityadvisory\" (severity=\"CRITICAL\" OR severity=\"HIGH\")\n| timechart span=1d latest(deviceCount) as affected by advisoryId",
@@ -54,22 +60,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco PSIRT Security Advisories",
-      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x"
+      "url": "https://sec.cloudapps.cisco.com/security/center/publicationListing.x",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Remediation progress appearing to regress when new devices are added to Catalyst Center.** When new devices are onboarded, they may be affected by existing advisories, increasing the `current_affected` count and making it appear that remediation progress has regressed. Distinguish by separating newly onboarded devices from the existing fleet: track `dc(deviceId)` over time and correlate with inventory additions. Suppress by computing remediation progress as a percentage of the original affected fleet, excluding devices onboarded after the advisory was first detected.\n\n**Device remediated by firmware upgrade but compliance re-scan not yet complete.** A device that has been upgraded to a fixed version may still appear as affected until Catalyst Center's next PSIRT scan re-evaluates it. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:swim\"` or `index=catalyst sourcetype=\"cisco:dnac:device\"` for version changes. Suppress by allowing one scan cycle (3600s) after a device upgrade before counting it as still-affected.\n\n**Compensating control applied but device still listed as affected.** Catalyst Center tracks affected devices by software version, not by compensating controls. A device with an ACL or IPS rule mitigating the vulnerability will still appear in the affected list. Distinguish by cross-referencing with the `catalyst_advisory_exceptions` lookup. Do not suppress from the advisory view — note the compensating control status alongside the advisory.\n\n**Advisory with no available fix showing zero remediation progress.** Some advisories affect devices running software where no fixed version is available yet. Remediation progress will remain at 0% indefinitely. Distinguish by checking the advisory's `fixedVersions` — if empty, no remediation is possible. Suppress by separating advisories with available fixes from those without in the remediation tracking dashboard.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`).",
-  "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'F1 Fantasy Team Weekly Budget Remaining Trend'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-25.99.20).",
+  "evidence": "Saved search uc_25_99_20_f1_fantasy_team_weekly_budget_remaining, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'F1 Fantasy Team Weekly Budget Remaining Trend'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-25.99.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=f1fantasy:team budget_remaining_m=*\n| bin _time span=1w\n| stats avg(budget_remaining_m) as avg_duration, max(budget_remaining_m) as worst_duration by _time\n| sort _time",
   "description": "Trends the average and worst budget remaining for F1 Fantasy team events each week.",
   "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
@@ -20,20 +26,38 @@
   "references": [
     {
       "title": "FastF1 Python API",
-      "url": "https://docs.fastf1.dev/"
+      "url": "https://docs.fastf1.dev/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Ergast F1 API",
-      "url": "http://ergast.com/mrd/"
+      "url": "http://ergast.com/mrd/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "F1 Fantasy",
-      "url": "https://fantasy.formula1.com/"
+      "url": "https://fantasy.formula1.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It reminds whether F1 Fantasy team tasks are taking longer than they used to and where the slow weeks were."
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Formula 1 & Motorsport Fandom — typical feeds: FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`)..\n• **Sourcetypes in this search**: `f1fantasy:team`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=f1fantasy:team`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC..\n\n**Author notes:** Capture budget_remaining_m on each event and review weekly averages plus worst cases during your personal ops review.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"f1fantasy:team\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=f1fantasy:team earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **F1 Fantasy Team Weekly Budget Remaining Trend** over `personal` data (primarily `sourcetype=f1fantasy:team`) across the full search range. The `avg, max` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=f1fantasy:team budget_remaining_m=*\n| bin _time span=1w\n| stats avg(budget_remaining_m) as avg_duration, max(budget_remaining_m) as worst_duration by _time\n| sort _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=f1fantasy:team earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=f1fantasy:team earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.99.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Weekly Average Budget Remaining With Markers For The Worst Week (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `f1fantasy:team` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=f1fantasy:team | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It reminds whether F1 Fantasy team tasks are taking longer than they used to and where the slow weeks were.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

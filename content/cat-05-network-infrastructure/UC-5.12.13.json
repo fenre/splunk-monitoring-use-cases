@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=voicemail` or `index=msexchange` with `sourcetype=\"cisco:unity:diag\"`, `sourcetype=\"unity:tomcat\"`, SMTP/MWI SIP traces (`stream:sip`), Exchange UM operational logs (`MSExchangeUM_*`), Active Directory replication latency feeds correlated by `mailbox_id`; optional `sourcetype=\"perfmon\"` for UM worker CPU/memory.",
-  "app": "Cisco Unity Connection syslog/diagnostic export TA, Microsoft Exchange Add-on / Windows TA for UM roles",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Voicemail System Health Monitoring (Unity, Exchange UM)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.12.13).",
+  "evidence": "Saved search uc_5_12_13_voicemail_system_health_monitoring_unity, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Voicemail System Health Monitoring (Unity, Exchange UM)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.12.13.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=voicemail` or `index=msexchange` with `sourcetype=\"cisco:unity:diag\"`, `sourcetype=\"unity:tomcat\"`, SMTP/MWI SIP traces (`stream:sip`), Exchange UM operational logs (`MSExchangeUM_*`), Active Directory replication latency feeds correlated by `mailbox_id`; optional `sourcetype=\"perfmon\"` for UM worker CPU/memory. Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Unity Connection syslog/diagnostic export TA, Microsoft Exchange Add-on / Windows TA for UM roles — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "(index=voicemail OR index=msexchange OR index=windows)\n(sourcetype=\"cisco:unity:diag\" OR sourcetype=\"MSExchangeUM*\" OR sourcetype=\"WinEventLog:Application\")\n(error OR fail OR timeout OR MWI OR \"storage\")\n| rex field=_raw max_match=1 \"(?i)(?<vm_component>Unity|UMWorkerProcess|MSExchangeUM)\"\n| stats count by vm_component, host\n| where count > 20\n| sort -count",
   "description": "Surfaces voicemail platform faults—Unity Connection stack errors, Exchange UM worker crashes, MWI signaling delays, and mailbox database latency—so greeting playback and message waiting lamps stay dependable.",
   "value": "Unified communications teams restore voicemail services quickly when UM processes wedge or storage thresholds trip, preventing silent subscriber failures where calls roll to generic recordings without generating tickets.",
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Cisco Unity Connection Administration Guide — Diagnostics",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Scheduled antivirus scans spike disk latency alarms; benign LDAP constraint violations during AD tidy scripts resemble auth failures; UM language-pack updates emit benign INFO parsed as error when regex too broad; transient replication backlog after reboot clears without user impact.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "dell_emc",
@@ -46,8 +64,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Diagnostic logging enabled on Cisco Unity Connection (Connection Administration → Logs) forwarded via syslog/HEC.\n• Exchange UM servers forwarding Application/System logs or SCOM-exported CSV.\n• Inventory CSV linking `host`, `UM_role`, `voicemail_domain`, `storage_group`.\n\nStep 1 — Onboard logs\nRoute Unity Connection diagnostics into dedicated index with UTF-8 preservation for multilingual prompts metadata.\n\nStep 2 — Field extraction\nExtract error codes, LDAP correlation IDs, and mailbox identifiers using vendor regex packs; mask subscriber PIN data—never index secrets.\n\nStep 3 — Baseline noise\nCompute hourly error counts per component; alert when five-minute counts exceed three times rolling median excluding patch Tuesdays.\n\nStep 4 — Dashboard\nTiles for Unity vs Exchange UM error rates; timeline of MWI SIP NOTIFY failures; storage quota nearing-full indicators.\n\nStep 5 — Operational response\nRestart UM worker under change window after validating DAG replication healthy; for Unity disk alarms purge orphaned prompts only per vendor KB.\n\nExtended troubleshooting\nMWI storms after bulk mailbox migrations mimic outages—correlate with migration batches. Hybrid UM retirements may shift traffic unexpectedly; validate hunt pilot overflow remains configured.",
+  "detailedImplementation": "Prerequisites\n• Diagnostic logging enabled on Cisco Unity Connection (Connection Administration → Logs) forwarded via syslog/HEC.\n• Exchange UM servers forwarding Application/System logs or SCOM-exported CSV.\n• Inventory CSV linking `host`, `UM_role`, `voicemail_domain`, `storage_group`.\n\nStep 1 — Onboard logs\nRoute Unity Connection diagnostics into dedicated index with UTF-8 preservation for multilingual prompts metadata.\n\nStep 2 — Field extraction\nExtract error codes, LDAP correlation IDs, and mailbox identifiers using vendor regex packs; mask subscriber PIN data—never index secrets.\n\nStep 3 — Baseline noise\nCompute hourly error counts per component; alert when five-minute counts exceed three times rolling median excluding patch Tuesdays.\n\nStep 4 — Dashboard\nTiles for Unity vs Exchange UM error rates; timeline of MWI SIP NOTIFY failures; storage quota nearing-full indicators.\n\nStep 5 — Operational response\nRestart UM worker under change window after validating DAG replication healthy; for Unity disk alarms purge orphaned prompts only per vendor KB.\n\nExtended troubleshooting\nMWI storms after bulk mailbox migrations mimic outages—correlate with migration batches. Hybrid UM retirements may shift traffic unexpectedly; validate hunt pilot overflow remains configured.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Unity Connection syslog/diagnostic export TA, Microsoft Exchange Add-on / Windows TA for UM roles — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=cisco:unity:diag, MSExchangeUM, WinEventLog:Application into voicemail, msexchange, windows. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, vm_component`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch the machines that store voice messages and blink your message light so if they get sick or full, someone fixes them before people wonder why nobody got their voicemail.",
+  "prerequisiteUseCases": [],
   "telcoUseCase": "Unified messaging availability",
   "wave": "walk"
 }

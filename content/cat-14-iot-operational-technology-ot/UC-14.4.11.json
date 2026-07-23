@@ -9,11 +9,17 @@
     "Safety"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Aranet API (sensor readings JSON)",
-  "app": "Custom (Aranet Cloud API or local gateway)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Aranet Environmental Sensor Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.4.11).",
+  "evidence": "Saved search uc_14_4_11_aranet_environmental_sensor_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Aranet Environmental Sensor Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.4.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Aranet API (sensor readings JSON) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Aranet Cloud API or local gateway) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\"\n| where co2_ppm > 1000 OR temp_c < 18 OR temp_c > 26 OR humidity_pct < 30 OR humidity_pct > 60 OR pressure_hpa < 980 OR pressure_hpa > 1050\n| eval exceedance=case(co2_ppm>1000, \"CO2\", temp_c<18 OR temp_c>26, \"Temperature\", humidity_pct<30 OR humidity_pct>60, \"Humidity\", pressure_hpa<980 OR pressure_hpa>1050, \"Pressure\", 1=1, \"OK\")\n| table _time, sensor_id, location, co2_ppm, temp_c, humidity_pct, pressure_hpa, exceedance",
   "description": "CO2, temperature, humidity, and atmospheric pressure from Aranet4/Aranet PRO sensors support workplace air quality and occupant comfort. Exceedances indicate ventilation issues and may violate ASHRAE 62.1 or local workplace standards.",
-  "value": "CO2, temperature, humidity, and atmospheric pressure from Aranet4/Aranet PRO sensors support workplace air quality and occupant comfort. Exceedances indicate ventilation issues and may violate ASHRAE 62.1 or local workplace standards.",
+  "value": "Operations and leadership rely on 'Aranet Environmental Sensor Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Integrate Aranet Cloud API or local Aranet gateway (e.g. Aranet Cloud Bridge) to fetch sensor readings. Schedule scripted input or HEC to ingest JSON (CO2 ppm, temperature °C, humidity %, pressure hPa) every 5–15 minutes. Alert when CO2 exceeds 1000 ppm (ASHRAE 62.1 recommends <1000 ppm for occupied spaces), temperature outside 18–26°C, or humidity outside 30–60%. Track trends for ventilation and HVAC tuning.",
   "visualization": "Gauge (CO2 ppm per zone), Line chart (CO2, temp, humidity trend), Heatmap (zone × CO2 level), Table (sensors with exceedances), Single value (zones in compliance %).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Compliance breaches during planned excursions for cleaning, filter changes, or controlled commissioning.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "aranet"
   ],
+  "equipmentModels": [
+    "aranet_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Aranet Cloud API or local gateway).\n• Ensure the following data sources are available: Aranet API (sensor readings JSON).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate Aranet Cloud API or local Aranet gateway (e.g. Aranet Cloud Bridge) to fetch sensor readings. Schedule scripted input or HEC to ingest JSON (CO2 ppm, temperature °C, humidity %, pressure hPa) every 5–15 minutes. Alert when CO2 exceeds 1000 ppm (ASHRAE 62.1 recommends <1000 ppm for occupied spaces), temperature outside 18–26°C, or humidity outside 30–60%. Track trends for ventilation and HVAC tuning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=environment sourcetype=\"aranet:sensor\"\n| where co2_ppm > 1000 OR temp_c < 18 OR temp_c > 26 OR humidity_pct < 30 OR humidity_pct > 60 OR pressure_hpa < 980 OR pressure_hpa > 1050\n| eval exceedance=case(co2_ppm>1000, \"CO2\", temp_c<18 OR temp_c>26, \"Temperature\", humidity_pct<30 OR humidity_pct>60, \"Humidity\", pressure_hpa<980 OR pressure_hpa>1050, \"Pressure\", 1=1, \"OK\")\n| table _time, sensor_id, location, co2_ppm, temp_c, humidity_pct, pressure_hpa, exceedance\n```\n\nUnderstanding this SPL\n\n**Aranet Environmental Sensor Monitoring** — CO2, temperature, humidity, and atmospheric pressure from Aranet4/Aranet PRO sensors support workplace air quality and occupant comfort. Exceedances indicate ventilation issues and may violate ASHRAE 62.1 or local workplace standards.\n\nDocumented **Data sources**: Aranet API (sensor readings JSON). **App/TA** (typical add-on context): Custom (Aranet Cloud API or local gateway). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: environment; **sourcetype**: aranet:sensor. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=environment, sourcetype=\"aranet:sensor\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where co2_ppm > 1000 OR temp_c < 18 OR temp_c > 26 OR humidity_pct < 30 OR humidity_pct > 60 OR pressure_hpa < 980 OR press…` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **exceedance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Aranet Environmental Sensor Monitoring**): table _time, sensor_id, location, co2_ppm, temp_c, humidity_pct, pressure_hpa, exceedance\n\n\nStep 3 — Validate\nCompare device counts, last-seen times, and health fields to the IoT platform console (for example AWS IoT, Azure IoT Hub, or Google Cloud IoT) for the same period. Verify API polling intervals and that offline rules match your operational definition.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (CO2 ppm per zone), Line chart (CO2, temp, humidity trend), Heatmap (zone × CO2 level), Table (sensors with exceedances), Single value (zones in compliance %).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch your connected devices and the messages they send. We help you know if something is off with this area: aranet environmental sensor before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch your connected devices and the messages they send. We help you know if something is off with this area: aranet environmental sensor before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

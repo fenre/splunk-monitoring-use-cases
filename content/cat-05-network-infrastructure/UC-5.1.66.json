@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=network sourcetype=sc4snmp:metric` or `sourcetype=cisco:ios` — SNMP ipv6NetToMediaTable (OID 1.3.6.1.2.1.55.1.12) entry count for NDP neighbor cache size, supplemented by syslog events for NDP table full conditions (`%IPV6_ND-3-TABLE_FULL` or `neighbor table overflow`). This UC is the IPv6 counterpart to UC-5.1.29 (ARP Table Size Trending). IPv6 generates more neighbor entries than ARP because each host has at least two addresses (link-local + global unicast) plus potentially temporary privacy addresses.",
-  "app": "SC4SNMP or SNMP Modular Input, Cisco Networks Add-on (`TA-cisco_ios`)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NDP Neighbor Table Size Trending and Capacity Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.66).",
+  "evidence": "Saved search uc_5_1_66_ndp_neighbor_table_size_trending_and_cap, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NDP Neighbor Table Size Trending and Capacity Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.66.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=sc4snmp:metric` or `sourcetype=cisco:ios` — SNMP ipv6NetToMediaTable (OID 1.3.6.1.2.1.55.1.12) entry count for NDP neighbor cache size, supplemented by syslog events for NDP table full conditions (`%IPV6_ND-3-TABLE_FULL` or `neighbor table overflow`). This UC is the IPv6 counterpart to UC-5.1.29 (ARP Table Size Trending). IPv6 generates more neighbor entries than ARP because each host has at least two addresses (link-local + global unicast) plus potentially temporary privacy addresses. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "SC4SNMP or SNMP Modular Input, Cisco Networks Add-on (`TA-cisco_ios`) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"sc4snmp:metric\" OR sourcetype=\"snmp:metric\") earliest=-7d\n  metric_name=\"ipv6NetToMediaTable.count\" OR metric_name=\"ipv6IfStatsInReceives\"\n| eval ndp_entries=if(metric_name=\"ipv6NetToMediaTable.count\", metric_value, null())\n| stats latest(ndp_entries) as current_entries by host, _time\n| bin _time span=1h\n| stats avg(current_entries) as avg_entries max(current_entries) as max_entries by host\n| lookup ndp_cache_limits.csv host OUTPUT max_entries as cache_limit\n| eval utilization_pct=if(isnotnull(cache_limit), round(max_entries/cache_limit*100, 1), null())\n| eval status=case(\n    utilization_pct > 90, \"CRITICAL — NDP cache at \" . utilization_pct . \"% capacity\",\n    utilization_pct > 80, \"WARNING — NDP cache at \" . utilization_pct . \"% capacity\",\n    utilization_pct > 60, \"ELEVATED — NDP cache at \" . utilization_pct . \"% capacity\",\n    isnotnull(utilization_pct), \"OK — NDP cache at \" . utilization_pct . \"%\",\n    1=1, \"UNKNOWN — cache limit not configured in lookup\")\n| sort -utilization_pct",
   "description": "Tracks the IPv6 NDP neighbor cache size over time and alerts when approaching the platform's maximum capacity. This is the IPv6 counterpart to ARP table size monitoring. IPv6 generates significantly more neighbor entries than IPv4 ARP because each host registers multiple addresses (link-local, global unicast, temporary/privacy addresses).",
   "value": "When the NDP neighbor cache fills up, the router cannot resolve new IPv6 addresses, causing traffic blackholing for any host not already in the cache. Unlike ARP tables, IPv6 NDP caches fill faster due to multiple addresses per host and are more susceptible to exhaustion attacks (RFC 6583). Proactive trending prevents silent outages and identifies subnets that need NDP cache tuning or smaller prefix assignments.",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 6583 — Operational Neighbor Discovery Problems",
-      "url": "https://www.rfc-editor.org/rfc/rfc6583"
+      "url": "https://www.rfc-editor.org/rfc/rfc6583",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4861 — Neighbor Discovery for IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6164 — Using 127-Bit IPv6 Prefixes on Inter-Router Links",
-      "url": "https://www.rfc-editor.org/rfc/rfc6164"
+      "url": "https://www.rfc-editor.org/rfc/rfc6164",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Privacy extensions generating many addresses.** Hosts using RFC 8981 temporary addresses may have 3-5 IPv6 addresses simultaneously. This is normal and increases NDP cache size. Account for this when sizing cache limits (multiply expected host count by 3-5).\n\n**Network scanning tools.** Authorized vulnerability scanners probing IPv6 addresses can temporarily spike NDP cache entries. Schedule scans and correlate timestamps.\n\n**VM density.** Hypervisors with many VMs per VLAN generate proportionally more NDP entries. This is a capacity planning concern, not an anomaly.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "juniper",

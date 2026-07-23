@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "OAuth scope grants per `client_id`, approved scope lookup CSV",
-  "app": "Graph API inventory, Okta `app.oauth2.*` events",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'OAuth Scope Creep Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.3.15).",
+  "evidence": "Saved search uc_9_3_15_oauth_scope_creep_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'OAuth Scope Creep Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.3.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "OAuth scope grants per `client_id`, approved scope lookup CSV Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Graph API inventory, Okta `app.oauth2.*` events — Universal Forwarder (Splunkbase 617)",
   "spl": "index=oauth sourcetype=\"oauth:scope_inventory\"\n| lookup oauth_scope_approved client_id OUTPUT approved_scopes\n| eval extra_scopes=mvfilter(NOT match(approved_scopes, scope))\n| where mvcount(extra_scopes)>0\n| table client_id, scope, approved_scopes, extra_scopes",
   "description": "Applications accumulating scopes over time violate least privilege; comparing current vs approved scopes finds drift.",
-  "value": "Applications accumulating scopes over time violate least privilege; comparing current vs approved scopes finds drift.",
+  "value": "Operations and leadership rely on 'OAuth Scope Creep Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Export delegated/app role assignments from Graph weekly. Join with approved baseline. Alert on new sensitive scopes (`Mail.ReadWrite`, `Directory.ReadWrite.All`).",
   "visualization": "Table (scope drift), Bar chart (apps with extra scopes), Timeline.",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "App integrations refreshing tokens, mobile clients on flaky networks, and automated tests hitting the same client IDs.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1098.001",
     "T1528"
@@ -34,6 +56,15 @@
   "equipment": [
     "okta"
   ],
+  "equipmentModels": [
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Graph API inventory, Okta `app.oauth2.*` events.\n• Ensure the following data sources are available: OAuth scope grants per `client_id`, approved scope lookup CSV.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport delegated/app role assignments from Graph weekly. Join with approved baseline. Alert on new sensitive scopes (`Mail.ReadWrite`, `Directory.ReadWrite.All`).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=oauth sourcetype=\"oauth:scope_inventory\"\n| lookup oauth_scope_approved client_id OUTPUT approved_scopes\n| eval extra_scopes=mvfilter(NOT match(approved_scopes, scope))\n| where mvcount(extra_scopes)>0\n| table client_id, scope, approved_scopes, extra_scopes\n```\n\nUnderstanding this SPL\n\n**OAuth Scope Creep Detection** — Applications accumulating scopes over time violate least privilege; comparing current vs approved scopes finds drift.\n\nDocumented **Data sources**: OAuth scope grants per `client_id`, approved scope lookup CSV. **App/TA** (typical add-on context): Graph API inventory, Okta `app.oauth2.*` events. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: oauth; **sourcetype**: oauth:scope_inventory. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=oauth, sourcetype=\"oauth:scope_inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **extra_scopes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where mvcount(extra_scopes)>0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OAuth Scope Creep Detection**): table client_id, scope, approved_scopes, extra_scopes\n\n\nStep 3 — Validate\nCompare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (scope drift), Bar chart (apps with extra scopes), Timeline.",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — OAuth Scope Creep Detection"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — OAuth Scope Creep Detection",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

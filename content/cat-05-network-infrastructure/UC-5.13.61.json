@@ -11,6 +11,8 @@
   "splunkPillar": "Security",
   "owner": "Head of IT Operations",
   "controlFamily": "regulation-specific",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Rogue AP and aWIPS Alert Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.61).",
+  "evidence": "Saved search uc_5_13_61_rogue_ap_and_awips_alert_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -33,6 +35,10 @@
       "evidenceArtifact": "Rogue AP detection dashboard with alert history; quarterly scan equivalence documentation for QSA review."
     }
   ],
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Rogue AP and aWIPS Alert Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.61.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue` from the `issue` modular input in `TA_cisco_catalyst` (Splunkbase 7538), filtered to Security category issues with rogue/aWIPS keywords. Additionally: `index=catalyst sourcetype=cisco:dnac:event:notification` via HEC webhook for real-time rogue AP event notifications (UC-5.13.64–66 for webhook setup).",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Optional: HEC for real-time event notifications.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" category=\"Security\" (name=\"*rogue*\" OR name=\"*aWIPS*\" OR name=\"*unauthorized*\")\n| stats dc(issueId) as alert_count values(name) as alert_types values(deviceName) as detecting_aps by siteId\n| lookup catalyst_site_lookup siteId OUTPUT siteName\n| eval site=coalesce(siteName, siteId)\n| sort -alert_count",
@@ -43,22 +49,26 @@
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Rogue AP Detection — Cisco Docs",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PCI DSS v4.0 — Requirement 11.2.1 Wireless Detection",
-      "url": "https://www.pcisecuritystandards.org/document_library/"
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Neighbouring business's legitimate APs detected as rogue.** In multi-tenant buildings, neighbouring organisations' APs appear in rogue scans. Distinguish by checking the MAC address OUI — known vendor prefixes (Cisco, Aruba, Meraki) from adjacent tenants are 'contained' but not malicious. Suppress by adding known-neighbour MAC prefixes to a `rogue_exceptions` lookup.\n\n**Personal hotspots (mobile phones) triggering rogue detection.** Employees' personal hotspots on their phones can trigger rogue AP alerts. Distinguish by checking whether the SSID matches common hotspot names (iPhone, AndroidAP). Suppress by classifying mobile hotspots as low-risk in the rogue policy and filtering them from the security alert.\n\n**Misconfigured corporate AP appearing as rogue.** A legitimate AP that was physically moved or reconfigured outside Catalyst Center may be classified as rogue because Catalyst Center doesn't recognise its new parameters. Distinguish by checking the MAC address against the Catalyst Center inventory. Fix by rediscovering the AP in Catalyst Center.\n\n**aWIPS false positive from legitimate wireless tools.** Network engineers running wireless survey tools (Ekahau, AirMagnet) may trigger aWIPS alerts due to active probing. Distinguish by correlating with planned site survey schedules. Suppress by scheduling survey windows and excluding them from alerting.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

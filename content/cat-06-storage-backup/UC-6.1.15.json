@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "NFS mount probe results, rpcinfo output",
-  "app": "Custom scripted input (showmount, mount probes)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NFS Export Availability'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-6.1.15).",
+  "evidence": "Saved search uc_6_1_15_nfs_export_availability, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NFS Export Availability'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-6.1.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "NFS mount probe results, rpcinfo output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (showmount, mount probes) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"nfs:probe\"\n| search status!=\"ok\" OR latency_ms>500\n| table _time, export_path, server, status, latency_ms, error_message\n| sort -_time",
   "description": "NFS mount point reachability and latency directly affect application availability. Monitoring from client perspective ensures end-to-end access validation.",
-  "value": "NFS mount point reachability and latency directly affect application availability. Monitoring from client perspective ensures end-to-end access validation.",
+  "value": "Operations and leadership rely on 'NFS Export Availability' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Deploy scripted input on one or more probe hosts. Script performs `showmount -e <server>` and attempts `mount -t nfs <server>:<export> <mountpoint>` or uses `rpcinfo -p` and a simple read/write test. Measure latency and record success/failure. Run every 5–10 minutes. Index results with export_path, server, status, latency_ms. Alert on status != ok or latency > 500 ms.",
   "visualization": "Table (exports with status and latency), Single value (unreachable exports count), Line chart (latency trend per export), Status grid (export × server).",
   "cimModels": [
@@ -21,10 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (showmount, mount probes).\n• Ensure the following data sources are available: NFS mount probe results, rpcinfo output.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy scripted input on one or more probe hosts. Script performs `showmount -e <server>` and attempts `mount -t nfs <server>:<export> <mountpoint>` or uses `rpcinfo -p` and a simple read/write test. Measure latency and record success/failure. Run every 5–10 minutes. Index results with export_path, server, status, latency_ms. Alert on status != ok or latency > 500 ms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=storage sourcetype=\"nfs:probe\"\n| search status!=\"ok\" OR latency_ms>500\n| table _time, export_path, server, status, latency_ms, error_message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**NFS Export Availability** — NFS mount point reachability and latency directly affect application availability. Monitoring from client perspective ensures end-to-end access validation.\n\nDocumented **Data sources**: NFS mount probe results, rpcinfo output. **App/TA** (typical add-on context): Custom scripted input (showmount, mount probes). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: storage; **sourcetype**: nfs:probe. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=storage, sourcetype=\"nfs:probe\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **NFS Export Availability**): table _time, export_path, server, status, latency_ms, error_message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Table (exports with status and latency), Single value (unreachable exports count), Line chart (latency trend per export), Status grid (export × server).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

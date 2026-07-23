@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=zscaler:zpa`, connector telemetry",
-  "app": "Zscaler TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ZPA Application Segment Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.13).",
+  "evidence": "Saved search uc_17_3_13_zpa_application_segment_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ZPA Application Segment Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.13.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=zscaler:zpa`, connector telemetry Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zscaler TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"zscaler:zpa\" earliest=-24h\n| where match(lower(status),\"(?i)fail|error|down\") OR latency_ms>2000\n| stats count by app_segment, connector_group, error_code\n| sort 30 -count",
   "description": "Tracks connector health, app segment reachability, and error rates for ZPA-published apps.",
   "value": "ZPA administrators monitor application segment health by tracking connector availability, user access latency, and SLA compliance, ensuring each ZTNA-published application has sufficient connector capacity to serve users without degradation.",
@@ -22,16 +28,41 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "zscaler"
   ],
+  "equipmentModels": [
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Zscaler Private Access (ZPA) logs via LSS to Splunk. Data in `index=zscaler` with `sourcetype=zscaler:zpa:user_activity` and `sourcetype=zscaler:zpa:connector`. Key fields (user activity): `Application`, `ApplicationSegment`, `Action`, `User`, `ConnectorGroup`, `ServerIP`, `DoubleEncryption`, `latency_ms`. Key fields (connector): `ConnectorName`, `ConnectorStatus`, `ConnectorGroupName`.\n• ZPA replaces VPN with per-application access tunnels. Each application segment has App Connectors that broker connections. If connectors go offline, the application becomes unreachable even though the user passes all policy checks.\n• Create a `zpa_app_segments.csv` lookup: `segment_name,app_owner,sla_target_ms,min_connectors_required`.\n\nStep 1 — Configure data collection\nConfigure ZPA LSS: ZPA Admin > App Connectors > Log Streaming Service > add Splunk receiver.\n\nVerify:\n```spl\nindex=zscaler sourcetype=\"zscaler:zpa:connector\" earliest=-1h\n| stats count by ConnectorName, ConnectorStatus\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Application segment health:\n```spl\nindex=zscaler sourcetype=\"zscaler:zpa:connector\" earliest=-24h\n| dedup ConnectorName sortby -_time\n| stats count(eval(ConnectorStatus=\"Active\")) as active count(eval(ConnectorStatus!=\"Active\")) as inactive by ConnectorGroupName\n| lookup zpa_app_segments.csv segment_name as ConnectorGroupName OUTPUT min_connectors_required app_owner\n| eval health=if(active >= tonumber(coalesce(min_connectors_required, 1)), \"Healthy\", \"DEGRADED\")\n| sort health\n```\n\nUnderstanding this SPL: Shows whether each application segment has enough active connectors. A segment with fewer than the minimum required connectors is degraded — users may experience slow access or complete failure if remaining connectors are overloaded. Connectors go offline due to: host resource exhaustion, network issues, or ZPA agent updates.\n\nApplication access latency:\n```spl\nindex=zscaler sourcetype=\"zscaler:zpa:user_activity\" earliest=-24h\n| stats avg(latency_ms) as avg_latency perc95(latency_ms) as p95_latency count as accesses by ApplicationSegment\n| lookup zpa_app_segments.csv segment_name as ApplicationSegment OUTPUT sla_target_ms\n| eval sla_met=if(p95_latency <= tonumber(coalesce(sla_target_ms, 500)), \"MET\", \"MISSED\")\n| sort - p95_latency\n```\n\nStep 3 — Validate\n(a) In ZPA Admin: Dashboard > Connector Status. Compare with Splunk.\n(b) Access an application and verify the latency metric in Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Connector health by segment. Row 2 — Access latency by app. Row 3 — SLA compliance.\nAlert: Immediate when any segment drops below minimum connectors.\n\nRunbook:\n1. **Degraded segment** — Check connector host. Restart ZPA connector service.\n2. **High latency** — Connector may be overloaded. Add connectors or increase host resources.\n3. **All connectors offline** — Network outage at the connector site. Failover to secondary site.\n\nStep 5 — Troubleshooting\n• **No connector data** — LSS connector log type may not be enabled. Check ZPA LSS configuration.\n• **Latency data missing** — User activity logs may not include latency fields. Check LSS log format.",
-  "grandmaExplanation": "Our private applications are accessed through special connectors instead of a VPN. We monitor whether enough connectors are running for each application and how fast they respond, because if a connector goes down, people cannot reach the application even though they have permission."
+  "grandmaExplanation": "Our private applications are accessed through special connectors instead of a VPN. We monitor whether enough connectors are running for each application and how fast they respond, because if a connector goes down, people cannot reach the application even though they have permission.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

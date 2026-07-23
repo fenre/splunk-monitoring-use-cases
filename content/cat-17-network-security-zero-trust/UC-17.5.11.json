@@ -9,10 +9,16 @@
     "Governance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Forcepoint Incident Response Workflow State Transitions (`forcepoint:one`)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.5.11).",
+  "evidence": "Saved search uc_17_5_11_forcepoint_incident_response_workflow_st, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Forcepoint Incident Response Workflow State Transitions (`forcepoint:o'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.5.11.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Forcepoint cloud SSE (`forcepoint:one`), on-prem Web Security (`websense:cg:kv`), Email (`forcepoint:email:kv`), DLP (`forcepoint:dlp`)",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053); Forcepoint Web Security TA (`websense:cg:kv`); Email Security KV (`forcepoint:email:kv`)",
   "spl": "index=sase sourcetype=\"forcepoint:one\" earliest=-7d\n| where match(lower(event_type),\"(?i)incident\")\n| stats values(state) as states latest(state) as current by incident_id\n| where mvcount(states)>2",
-  "description": "Stalled incidents miss SLA; transition tracking exposes workflow bottlenecks.",
+  "description": "Stalled incidents miss SLA; transition tracking exposes workflow bottlenecks. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Security operations managers track incident lifecycle progression, identify stale incidents that have not been updated, and measure resolution time SLAs to ensure the team is effectively handling security events.",
   "implementation": "Install the Insights SIEM app, configure HEC inputs per product line, and align indexes (`proxy`, `email`, `dlp`, `sase`). Normalize usernames to enterprise SAMAccountName.",
   "visualization": "Sankey (state transitions), SLA timer.",
@@ -22,17 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Forcepoint Web Security",
-      "url": "https://splunkbase.splunk.com/app/3245"
+      "url": "https://splunkbase.splunk.com/app/3245",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "forcepoint"
+  ],
+  "equipmentModels": [
+    "forcepoint_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Forcepoint Insights SIEM App (Splunkbase 8053) or direct integration from Forcepoint ONE SSE.\n• Data in `index=sase` with `sourcetype=forcepoint:one`. Key fields: `event_type` (incident), `incident_id`, `status` (new/investigating/contained/resolved/closed), `severity`, `assigned_to`, `updated_by`, `transition_time`, `notes`.\n• Forcepoint ONE SSE incident management workflow enabled with defined states and escalation paths.\n\nStep 1 — Configure data collection\nVerify incident workflow events:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-7d\n| where match(lower(event_type), \"incident\")\n| stats count by status, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Incident lifecycle metrics:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-30d\n| where match(lower(event_type), \"incident\")\n| stats earliest(_time) as created latest(_time) as last_update latest(status) as current_status values(assigned_to) as assignees dc(updated_by) as handoffs by incident_id, severity\n| eval age_hours=round((now() - created)/3600, 1)\n| eval time_in_current=round((now() - last_update)/3600, 1)\n| eval stale=if(time_in_current > 24 AND current_status!=\"closed\" AND current_status!=\"resolved\", \"YES\", \"NO\")\n| sort - severity, - age_hours\n```\n\nUnderstanding this SPL: Tracks each incident through its lifecycle states. `handoffs` (distinct updaters) measures how many analysts touched the incident — high handoff counts may indicate confusion or lack of ownership. `stale=YES` flags incidents that have not been updated in 24 hours while still open. The `time_in_current` field identifies bottlenecks — if incidents spend days in 'investigating' state, the team may need additional tooling or training.\n\nAverage time per state:\n```spl\nindex=sase sourcetype=\"forcepoint:one\" earliest=-30d\n| where match(lower(event_type), \"incident\") AND status=\"resolved\"\n| stats earliest(_time) as created latest(_time) as resolved by incident_id, severity\n| eval resolution_hours=round((resolved - created)/3600, 1)\n| stats avg(resolution_hours) as avg_resolve median(resolution_hours) as median_resolve by severity\n```\n\nStep 3 — Validate\n(a) In Forcepoint ONE portal: Incidents > view the incident list. Compare with Splunk.\n(b) Create and resolve a test incident. Verify all state transitions appear in Splunk.\n\nStep 4 — Operationalize\nDashboard (\"Forcepoint — Incident Workflow\"):\n• Row 1 — Single-value: \"Open incidents\", \"Stale incidents (>24h no update)\", \"Avg resolution time\".\n• Row 2 — Bar chart: incidents by status and severity.\n• Row 3 — Table: open incidents with severity, age, assignee, stale flag.\n\nAlert: Daily alert for stale incidents. Weekly SLA report.\n\nRunbook:\n1. **Stale incidents** — Reassign to an active analyst. Set a follow-up deadline.\n2. **High handoff count** — Clarify ownership rules. Each incident should have one primary owner.\n3. **Resolution time increasing** — Review analyst workload and tooling. Consider automation for common incident types.\n\nStep 5 — Troubleshooting\n• **No incident events** — Incident management may not be configured. Check Forcepoint ONE > Incidents > Settings.\n• **Status transitions missing** — Only the latest status may be logged. Check if intermediate states are captured.\n• **`assigned_to` always empty** — Auto-assignment rules may not be configured.",
-  "grandmaExplanation": "We track how our security team handles each problem from start to finish, making sure no issue gets forgotten or takes too long to resolve."
+  "grandmaExplanation": "We track how our security team handles each problem from start to finish, making sure no issue gets forgotten or takes too long to resolve.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

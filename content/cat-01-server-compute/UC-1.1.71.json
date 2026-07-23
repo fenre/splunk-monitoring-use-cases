@@ -8,8 +8,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_audit` (path watch on `/etc/shadow`)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for '/etc/shadow Modifications'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.1.71).",
+  "evidence": "Saved search uc_1_1_71_etc_shadow_modifications, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for '/etc/shadow Modifications'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.1.71.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=linux_audit` (path watch on `/etc/shadow`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit path=\"/etc/shadow\" (action=modified OR nametype=normal)\n| stats count by host, auid, exe\n| where count>0",
   "description": "Detects any audit trail row that points at a write to **/etc/shadow**, the local password-hash store, with actor fields for accountability.",
   "value": "Legitimate **shadow** changes are rare and usually tied to `passwd`, `chpasswd`, or **IAM** automation; anything else deserves an immediate, high-severity look.",
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Monthly forced password-rotation playbooks that are still manual; `auid=4294967295` on some kernels when login uid cannot be resolved—tune **props**; backup tools that re-copy **shadow** during DR tests—**suppress** by host group.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Same FIM+audit story as the **passwd** use case; do **not** put raw hash contents in Splunk—only the audit metadata.\n\n**CIM** — `object` in **All_Changes** should be the file path, not a hash field.\n\n\nStep 3 — Validate\n`ausearch -f /etc/shadow` and compare to Search; for binary proof, add **KEY** to include syscall class when needed.\n\nStep 4 — Operationalize\nPage the **CISO** queue per your playbooks when **exe** is a shell in `/tmp`.\n\n",
-  "grandmaExplanation": "We help you know when the secret password list on the machine is written to, which should almost never happen without a very clear, approved reason."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Same FIM+audit story as the **passwd** use case; do **not** put raw hash contents in Splunk—only the audit metadata.\n\n**CIM** — `object` in **All_Changes** should be the file path, not a hash field.\n\n\nStep 3 — Validate\n`ausearch -f /etc/shadow` and compare to Search; for binary proof, add **KEY** to include syscall class when needed.\n\nStep 4 — Operationalize\nPage the **CISO** queue per your playbooks when **exe** is a shell in `/tmp`.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_audit into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`auid, exe, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the secret password list on the machine is written to, which should almost never happen without a very clear, approved reason.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

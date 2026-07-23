@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:perf\"` fields `cpu_use_pct`, `mgmt_cpu_use_pct`, `mem_use_pct`, `disk_use_pct`, `active_connections`, `rx_mbps`, `tx_mbps`, `ssl_tps`",
-  "app": "Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), NITRO API scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix ADC System Resource Utilization (NetScaler)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.20).",
+  "evidence": "Saved search uc_5_3_20_citrix_adc_system_resource_utilization_n, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix ADC System Resource Utilization (NetScaler)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.20.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:perf\"` fields `cpu_use_pct`, `mgmt_cpu_use_pct`, `mem_use_pct`, `disk_use_pct`, `active_connections`, `rx_mbps`, `tx_mbps`, `ssl_tps` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`), NITRO API scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"citrix:netscaler:perf\"\n| bin _time span=5m\n| stats avg(cpu_use_pct) as avg_cpu, max(cpu_use_pct) as max_cpu,\n  avg(mem_use_pct) as avg_mem, avg(active_connections) as avg_conns,\n  avg(ssl_tps) as avg_ssl_tps, avg(rx_mbps) as avg_rx, avg(tx_mbps) as avg_tx by host, _time\n| where avg_cpu > 70 OR avg_mem > 80 OR max_cpu > 90\n| table _time, host, avg_cpu, max_cpu, avg_mem, avg_conns, avg_ssl_tps, avg_rx, avg_tx",
   "description": "Citrix ADC appliances (physical or VPX) have finite CPU, memory, and throughput capacity. Unlike general-purpose servers, ADC resource exhaustion directly impacts all applications it fronts — causing connection drops, increased latency, and SSL handshake failures. Monitoring ADC system resources enables capacity planning and prevents appliance-level bottlenecks that affect the entire application delivery infrastructure.",
   "value": "Infrastructure teams monitor Citrix ADC system resources distinguishing packet engine CPU from management CPU, detecting traffic processing saturation and memory pressure before throughput degradation.",
@@ -20,16 +26,38 @@
   "references": [
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Snmp polling gaps, data drops, and short bursts can wobble averages; compare in the same minute on the node.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix"
   ],
   "equipmentModels": [
     "citrix_netscaler"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). NITRO API performance counters or SNMP polling for system resources. Key metrics: `cpu_usage_pct`, `memory_usage_pct`, `disk_usage_pct`, `mgmt_cpu_usage_pct`, `packet_engine_cpu_pct`, `rx_mbps`, `tx_mbps`, `http_requests_rate`.\n* Citrix ADC has two CPU types: (1) Management CPU -- handles config, logging, SNMP, (2) Packet Engine (PE) CPUs -- handle traffic processing. PE CPU saturation directly impacts throughput.\n\nStep 1 -- Configure data collection\nPoll NITRO API: `GET /nitro/v1/stat/system` and `GET /nitro/v1/stat/protocolhttp` every 5 minutes. Verify:\n```spl\nindex=netscaler sourcetype=\"citrix:netscaler:perf\" earliest=-4h\n| where isnotnull(cpu_usage_pct) OR isnotnull(packet_engine_cpu_pct) OR isnotnull(memory_usage_pct)\n| stats latest(cpu_usage_pct) as cpu latest(memory_usage_pct) as mem by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- System resource utilization:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:perf\" OR sourcetype=\"citrix:netscaler:syslog\") earliest=-4h\n| eval cpu=coalesce(cpu_usage_pct, cpuusagepcnt)\n| eval mem=coalesce(memory_usage_pct, memusagepcnt)\n| eval pe_cpu=coalesce(packet_engine_cpu_pct, pktcpuusagepcnt)\n| eval mgmt_cpu=coalesce(mgmt_cpu_usage_pct, mgmtcpuusagepcnt)\n| eval disk=coalesce(disk_usage_pct, diskperusage)\n| bin _time span=5m\n| stats avg(cpu) as avg_cpu max(cpu) as max_cpu avg(mem) as avg_mem max(mem) as max_mem avg(pe_cpu) as avg_pe_cpu max(pe_cpu) as max_pe_cpu avg(disk) as avg_disk by _time, host\n| eval severity=case(max_pe_cpu > 95, \"CRITICAL -- packet engine saturated\", max_cpu > 90, \"HIGH -- CPU saturation\", max_mem > 90, \"HIGH -- memory pressure\", avg_disk > 85, \"WARNING -- disk space\", max_pe_cpu > 80, \"WARNING -- PE CPU elevated\", 1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -max_pe_cpu\n```\n\nStep 3 -- Validate\n(a) On ADC CLI: `stat system` -- compare CPU/memory with Splunk.\n(b) On ADC CLI: `stat system -detail` -- get per-PE CPU breakdown.\n(c) Generate load and verify CPU increases in Splunk.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- System Resources\"):\n* Row 1 -- Single-value: \"CPU %\", \"PE CPU %\", \"Memory %\", \"Disk %\", \"HTTP req/s\".\n* Row 2 -- Per-ADC resource table with severity.\n* Row 3 -- Resource trending timechart (24h).\n\nAlerting:\n* Critical (PE CPU > 95% for > 5 min): traffic processing impacted.\n* Warning (memory > 90%): may cause connection drops.\n* Warning (disk > 85%): log storage filling up.\n\nStep 5 -- Troubleshooting\n\n* **High PE CPU** -- Packet engine is processing too much traffic. Options: (1) add SSL hardware acceleration (MPX/SDX), (2) optimize SSL profiles (session reuse, ECDHE over RSA key exchange), (3) reduce iRule/responder policy complexity.\n\n* **High management CPU** -- Too many SNMP polls, syslog messages, or NITRO API calls. Reduce polling frequency or move monitoring to SNMP traps.\n\n* **High memory** -- Check: `show ns memory` for per-feature breakdown. Common consumers: SSL session cache, TCP connection table, content caching.",
-  "grandmaExplanation": "We average cpu and memory on the same nodes so a hot vserver or a full box is a visible warning before a hard stop."
+  "grandmaExplanation": "We average cpu and memory on the same nodes so a hot vserver or a full box is a visible warning before a hard stop.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

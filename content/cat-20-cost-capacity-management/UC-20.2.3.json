@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Interface utilization metrics (SNMP, streaming telemetry)",
-  "app": "Network monitoring TAs, SNMP",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Network Bandwidth Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-20.2.3).",
+  "evidence": "Saved search uc_20_2_3_network_bandwidth_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Network Bandwidth Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-20.2.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Interface utilization metrics (SNMP, streaming telemetry) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Network monitoring TAs, SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:interface\"\n| eval util_pct=round((ifHCInOctets_rate*8/ifHighSpeed/1000000)*100, 2)\n| timechart span=1h avg(util_pct) as avg_util, max(util_pct) as peak_util by interface_name\n| predict avg_util as predicted_util algorithm=LLP5 future_timespan=30",
   "description": "Network bandwidth constraints cause application latency and packet loss. Trending WAN/LAN utilization enables planned upgrades during maintenance windows rather than emergency bandwidth additions during business-impacting congestion.",
-  "value": "Network bandwidth constraints cause application latency and packet loss. Trending WAN/LAN utilization enables planned upgrades during maintenance windows rather than emergency bandwidth additions during business-impacting congestion.",
+  "value": "Operations and leadership rely on 'Network Bandwidth Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Collect interface utilization via SNMP every 5 minutes. Aggregate to hourly peaks and daily averages. Trend key WAN links and data center interconnects. Alert when trending projects >80% utilization within 30 days. Plan circuit upgrades based on business growth forecasts.",
   "visualization": "Timechart (bandwidth trending with forecast), Table (high-utilization links), Gauge (current peak utilization), Bar chart (top links by utilization).",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Forecasts vary with seasonal load, new project ramps, or M&A integration spending.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "snmp"
   ],
   "equipmentModels": [
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Network monitoring TAs, SNMP.\n• Ensure the following data sources are available: Interface utilization metrics (SNMP, streaming telemetry).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect interface utilization via SNMP every 5 minutes. Aggregate to hourly peaks and daily averages. Trend key WAN links and data center interconnects. Alert when trending projects >80% utilization within 30 days. Plan circuit upgrades based on business growth forecasts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"snmp:interface\"\n| eval util_pct=round((ifHCInOctets_rate*8/ifHighSpeed/1000000)*100, 2)\n| timechart span=1h avg(util_pct) as avg_util, max(util_pct) as peak_util by interface_name\n| predict avg_util as predicted_util algorithm=LLP5 future_timespan=30\n```\n\nUnderstanding this SPL\n\n**Network Bandwidth Trending** — Network bandwidth constraints cause application latency and packet loss. Trending WAN/LAN utilization enables planned upgrades during maintenance windows rather than emergency bandwidth additions during business-impacting congestion.\n\nDocumented **Data sources**: Interface utilization metrics (SNMP, streaming telemetry). **App/TA** (typical add-on context): Network monitoring TAs, SNMP. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: snmp:interface. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"snmp:interface\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **util_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by interface_name** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Network Bandwidth Trending**): predict avg_util as predicted_util algorithm=LLP5 future_timespan=30\n\n\nStep 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (bandwidth trending with forecast), Table (high-utilization links), Gauge (current peak utilization), Bar chart (top links by utilization).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

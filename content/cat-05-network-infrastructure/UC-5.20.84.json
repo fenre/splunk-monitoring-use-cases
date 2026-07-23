@@ -8,8 +8,14 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Control Plane Policing (CoPP/CPPr) drop and conform counters for IPv6-specific protocols. CoPP protects the router's CPU from being overwhelmed by protocol traffic directed at the control plane. IPv6 introduces protocol traffic that does not exist in IPv4 and must be explicitly handled in CoPP policies:\n\n1. **NDP (ICMPv6 types 133-137)** — Router Solicitation, Router Advertisement, Neighbor Solicitation, Neighbor Advertisement, Redirect. These are CPU-intensive because routers must process them to maintain neighbor tables. An attacker flooding NDP messages can exhaust the router CPU.\n2. **MLD (ICMPv6 types 130-132)** — Multicast Listener Discovery queries and reports. Routers running MLD snooping or PIM process these on the CPU.\n3. **OSPFv3** — Uses FF02::5 and FF02::6 multicast. Separate from OSPFv2 processing.\n4. **BGP via IPv6** — TCP sessions using IPv6 transport require CoPP classification distinct from IPv4 BGP.\n5. **DHCPv6** — UDP 546/547 relay and server traffic.\n6. **ICMPv6 errors (types 1-4)** — Must be rate-limited but not blocked (RFC 4890).\n\nIf CoPP does not classify IPv6 protocols, they may fall into the default class and be either dropped (causing IPv6 failures) or unlimited (creating a DoS vulnerability).",
-  "app": "Cisco Add-on for Splunk",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Control Plane Policing (CoPP) Effectiveness Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.84).",
+  "evidence": "Saved search uc_5_20_84_ipv6_control_plane_policing_copp_effecti, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Control Plane Policing (CoPP) Effectiveness Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.84.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Control Plane Policing (CoPP/CPPr) drop and conform counters for IPv6-specific protocols. CoPP protects the router's CPU from being overwhelmed by protocol traffic directed at the control plane. IPv6 introduces protocol traffic that does not exist in IPv4 and must be explicitly handled in CoPP policies:\n\n1. **NDP (ICMPv6 types 133-137)** — Router Solicitation, Router Advertisement, Neighbor Solicitation, Neighbor Advertisement, Redirect. These are CPU-intensive because routers must process them to maintain neighbor tables. An attacker flooding NDP messages can exhaust the router CPU.\n2. **MLD (ICMPv6 types 130-132)** — Multicast Listener Discovery queries and reports. Routers running MLD snooping or PIM process these on the CPU.\n3. **OSPFv3** — Uses FF02::5 and FF02::6 multicast. Separate from OSPFv2 processing.\n4. **BGP via IPv6** — TCP sessions using IPv6 transport require CoPP classification distinct from IPv4 BGP.\n5. **DHCPv6** — UDP 546/547 relay and server traffic.\n6. **ICMPv6 errors (types 1-4)** — Must be rate-limited but not blocked (RFC 4890).\n\nIf CoPP does not classify IPv6 protocols, they may fall into the default class and be either dropped (causing IPv6 failures) or unlimited (creating a DoS vulnerability). Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Add-on for Splunk — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"%CPP\" OR \"%COPP\" OR \"%CPUHOG\" OR \"control-plane\" AND (\"drop\" OR \"conform\" OR \"exceed\" OR \"violate\"))\n| rex field=_raw \"class.?map\\s+(?<copp_class>\\S+)\"\n| rex field=_raw \"(?:conform|dropped|exceeded)\\s+(?<counter>\\d+)\"\n| eval counter=tonumber(counter)\n| eval ipv6_related=if(match(copp_class, \"(?i)ipv6|ndp|icmpv6|ospfv3|mld|dhcpv6|bgp.?v6\"), \"IPv6-specific\", \"general\")\n| stats sum(counter) as total_events by host, copp_class, ipv6_related\n| eval status=case(\n    ipv6_related=\"IPv6-specific\" AND total_events > 10000, \"HIGH DROPS — IPv6 protocol traffic being rate-limited aggressively\",\n    ipv6_related=\"general\" AND total_events > 50000, \"IPv6 traffic may be hitting default class\",\n    1=1, \"OK\")\n| sort -total_events",
   "description": "Monitors Control Plane Policing (CoPP/CPPr) effectiveness for IPv6-specific protocols including NDP, MLD, OSPFv3, DHCPv6, and ICMPv6 error messages. CoPP protects the router CPU from protocol-level DoS attacks, but IPv6 introduces protocol traffic (especially NDP) that does not exist in IPv4. If CoPP policies do not include explicit IPv6 protocol classifications, IPv6 traffic may fall into the default class and either be dropped (breaking IPv6) or pass unlimited (creating a DoS vulnerability).",
   "value": "CoPP is the primary defense against control plane exhaustion attacks. IPv6 networks generate significantly more control plane traffic than IPv4 due to NDP (which replaces ARP, DHCP, and ICMP Redirect functions combined). Without proper IPv6 CoPP classification, a single attacker can overwhelm a router's CPU with NDP floods, MLD storms, or OSPFv3 Hello manipulation. This monitoring ensures IPv6 protocols are properly classified, rate-limited, and not silently dropped.",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Cisco Control Plane Policing (CoPP) Implementation Best Practices",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4 — control plane protection)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6192 — Protecting the Router Control Plane (BCP 164)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6192"
+      "url": "https://www.rfc-editor.org/rfc/rfc6192",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**High NDP rates on access switches.** Access layer switches in large VLANs legitimately process high NDP traffic. Tune CoPP thresholds per platform role (core vs access).\n\n**CoPP class naming variations.** Different IOS versions use different default class-map names. The IPv6 class may be named `system-cpp-police-ndp`, `copp-system-p-class-ndp`, or custom names. Build a class name mapping table per platform.\n\n**OSPFv3 adjacency formation bursts.** During router reloads or adjacency re-formation, OSPFv3 traffic spikes are legitimate. Correlate CoPP drops with OSPFv3 adjacency events (UC-5.20.43).",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "juniper",

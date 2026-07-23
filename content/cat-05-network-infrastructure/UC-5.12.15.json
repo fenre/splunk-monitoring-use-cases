@@ -11,8 +11,14 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Telecommunications",
-  "dataSources": "`index=voip sourcetype=\"cdr:voip\"` filtered on emergency dial patterns (`called_number` matching regional emergency strings such as 911, 933 test routes, or mandated service codes per policy); ELIN/ANI fields (`calling_party`, `pstn_callback`, `location_id`); LIS/LLDP export CSV lookups; SBC syslog showing emergency-profile invocation; exclude voice payloads—metadata only.",
-  "app": "SBC CDR ingestion TA, Cisco Emergency Responder / UCM location feeds (structured exports), optional Splunk DB Connect for LIS snapshots",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'E911 / Emergency Calling Path Validation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.12.15).",
+  "evidence": "Saved search uc_5_12_15_e911_emergency_calling_path_validation, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'E911 / Emergency Calling Path Validation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.12.15.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=voip sourcetype=\"cdr:voip\"` filtered on emergency dial patterns (`called_number` matching regional emergency strings such as 911, 933 test routes, or mandated service codes per policy); ELIN/ANI fields (`calling_party`, `pstn_callback`, `location_id`); LIS/LLDP export CSV lookups; SBC syslog showing emergency-profile invocation; exclude voice payloads—metadata only. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "SBC CDR ingestion TA, Cisco Emergency Responder / UCM location feeds (structured exports), optional Splunk DB Connect for LIS snapshots — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=voip sourcetype=\"cdr:voip\" earliest=-24h\n| eval emrg=if(match(called_number,\"^(911|933|112)$\") OR like(lower(call_type),\"%emergency%\"),1,0)\n| where emrg=1\n| lookup corp_elin_inventory.csv location_id OUTPUT expected_elin psap_route_ok\n| eval elin_mismatch=if(isnotnull(expected_elin) AND calling_party!=expected_elin,1,0)\n| stats count values(call_status) as statuses sum(elin_mismatch) as mismatches by location_id, dest\n| where mismatches>0 OR mvfind(statuses,\"answered\")==null\n| sort -mismatches",
   "description": "Audits emergency call metadata—completion status, ELIN/ANI alignment against inventory, and egress trunk selection—to validate regulatory routing without retaining sensitive audio or precise citizen locations beyond policy.",
   "value": "Safety and compliance stakeholders prove ongoing correctness of emergency breakout after dial-plan edits, subnet moves, or SBC migrations—reducing liability when PSAP callbacks must reach on-site security desks.",
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "NENA NG911 / i3 foundation references (context)",
-      "url": "https://www.nena.org/page/NG911_Standards"
+      "url": "https://www.nena.org/page/NG911_Standards",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Drills using alternate codes may parse inconsistently; transient SIP failures retried successfully can duplicate rows; carrier-normalized ANI may differ formatting (+1 vs ten-digit) causing cosmetic mismatches; maintenance windows that reroute to alternate PSAP appear as deviations until inventory CSV updates.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "db_connect",
@@ -45,8 +63,9 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Written policy defining test-number allowances (e.g., 933 where carriers permit) and prohibition on storing unnecessary location payloads.\n• `corp_elin_inventory.csv` with `subnet_or_switchport`, `location_id`, `expected_elin`, `psap_route_ok`, reviewer signature date.\n• CDR fields proving emergency classification post-normalization across vendors.\n\nStep 1 — Scope ingestion\nTag emergency rows at index-time via transforms evaluating dialed digits and carrier emergency flags.\n\nStep 2 — Correlate inventory\nLookup ELIN vs switch-port-derived location_id; flag mismatches and missing inventory rows.\n\nStep 3 — Scheduled validation\nRun synthetic routing checks weekly per site cluster; log PASS/FAIL without dialing live PSAP except approved drills.\n\nStep 4 — Reporting\nExecutive dashboard: mismatch count trend, sites lacking inventory coverage, mean time to remediate.\n\nStep 5 — Incident handling\nOpen SEV-1 if production emergency CDR shows failed completion rates above drill thresholds; engage carrier NOC with anonymized metadata.\n\nExtended troubleshooting\nHybrid work VPN egress may strip correct ELIN—ensure SBC topology hides corporate NAT inconsistencies. Multi-line hunt groups can emit misleading calling_party—prefer tagged ELIN field when present.",
+  "detailedImplementation": "Prerequisites\n• Written policy defining test-number allowances (e.g., 933 where carriers permit) and prohibition on storing unnecessary location payloads.\n• `corp_elin_inventory.csv` with `subnet_or_switchport`, `location_id`, `expected_elin`, `psap_route_ok`, reviewer signature date.\n• CDR fields proving emergency classification post-normalization across vendors.\n\nStep 1 — Scope ingestion\nTag emergency rows at index-time via transforms evaluating dialed digits and carrier emergency flags.\n\nStep 2 — Correlate inventory\nLookup ELIN vs switch-port-derived location_id; flag mismatches and missing inventory rows.\n\nStep 3 — Scheduled validation\nRun synthetic routing checks weekly per site cluster; log PASS/FAIL without dialing live PSAP except approved drills.\n\nStep 4 — Reporting\nExecutive dashboard: mismatch count trend, sites lacking inventory coverage, mean time to remediate.\n\nStep 5 — Incident handling\nOpen SEV-1 if production emergency CDR shows failed completion rates above drill thresholds; engage carrier NOC with anonymized metadata.\n\nExtended troubleshooting\nHybrid work VPN egress may strip correct ELIN—ensure SBC topology hides corporate NAT inconsistencies. Multi-line hunt groups can emit misleading calling_party—prefer tagged ELIN field when present.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SBC CDR ingestion TA, Cisco Emergency Responder / UCM location feeds (structured exports), optional Splunk DB Connect for LIS snapshots — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=cdr:voip into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dest, elin_mismatch, emrg, expected_elin psap_route_ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We double-check that if someone dials the emergency number from your building phone system, the call goes out tagged the way regulators expect, without us storing anything more personal than we need.",
+  "prerequisiteUseCases": [],
   "telcoUseCase": "Emergency services routing assurance",
   "wave": "run"
 }

@@ -10,6 +10,12 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.15.9).",
+  "evidence": "Saved search uc_5_15_9_infoblox_ipam_duplicate_address_and_conf, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Infoblox IPAM Duplicate Address and Conflict Events (Infoblox)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.15.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=netops` `sourcetype=infoblox:audit` administrative and system audit trails capturing IPAM lease conflicts, DUPLICATE_IP markers, DHCP conflict warnings; optionally DHCP logs `sourcetype=infoblox:dhcp` with DHCPDECLINE/DHCPNAK patterns correlated later.",
   "app": "Splunk Add-on for Infoblox (Splunkbase 2934)",
   "spl": "index=netops sourcetype=\"infoblox:audit\" earliest=-24h\n| search (\"duplicate\" OR \"DUPLICATE\" OR \"conflict\" OR \"IP conflict\" OR \"already in use\" OR \"ADDRESS_CONFLICT\")\n| rex field=_raw \"(?i)(?:ip|address)[\\\\s:=]+(?<conflict_ip>\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3})\"\n| rex field=_raw \"(?i)(?:mac|hardware)[\\\\s:=]+(?<conflict_mac>[0-9a-fA-F:.-]{12,})\"\n| rex field=_raw \"(?i)(?:member|appliance)[\\\\s:=]+(?<member>[^\\\\s,;]+)\"\n| stats count values(conflict_mac) as macs latest(_time) as last by conflict_ip member host\n| sort - count",
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Infoblox",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Zone duplicate wording:** Audit entries about duplicate DNS zones may keyword-match without IP conflict—tune searches with IP-specific regex.**Transient roaming:** Mobile clients bouncing APs may churn warnings briefly.**Stale logs:** Delayed syslog delivery clusters historical incidents.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "network",
   "equipment": [
     "infoblox"
@@ -45,7 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Audit syslog severity includes warnings—not errors-only filtering.\n• CMDB linkage from IP to owner asset accelerates ticketing.\n• Change window calendar to suppress alerts during mass migrations.\n\nStep 1 — Configure data collection\nCapture Grid Master plus DHCP Grid members emitting conflicts. Validate samples with `table _raw`.\n\nStep 2 — Create the search and alert\nPrimary SPL keyword basket—extend with localized phrases discovered during pilot. Alert when `count` per `conflict_ip` exceeds 3/hour.\n\nStep 3 — Validate\nForce controlled duplicate in lab (static vs DHCP overlap) and verify Splunk row matches Infoblox GUI conflict banner timeline.\n\nStep 4 — Operationalize\nDashboard summarizing conflict_ip heatmap by VLAN lookup; auto-task IPAM team with suggested remediation scripts.\n\nStep 5 — Troubleshooting\n**Sparse wording:** Some builds log terse codes—expand regex dictionary.**Forwarded syslog truncation:** TCP avoids clipped MAC.**False duplicate wording:** unrelated audit entries mentioning duplicate zones—add negative lookahead filters for DNS zone duplicates vs IP duplicates.",
+  "detailedImplementation": "Prerequisites\n• Audit syslog severity includes warnings—not errors-only filtering.\n• CMDB linkage from IP to owner asset accelerates ticketing.\n• Change window calendar to suppress alerts during mass migrations.\n\nStep 1 — Configure data collection\nCapture Grid Master plus DHCP Grid members emitting conflicts. Validate samples with `table _raw`.\n\nStep 2 — Create the search and alert\nPrimary SPL keyword basket—extend with localized phrases discovered during pilot. Alert when `count` per `conflict_ip` exceeds 3/hour.\n\nStep 3 — Validate\nForce controlled duplicate in lab (static vs DHCP overlap) and verify Splunk row matches Infoblox GUI conflict banner timeline.\n\nStep 4 — Operationalize\nDashboard summarizing conflict_ip heatmap by VLAN lookup; auto-task IPAM team with suggested remediation scripts.\n\nStep 5 — Troubleshooting\n**Sparse wording:** Some builds log terse codes—expand regex dictionary.**Forwarded syslog truncation:** TCP avoids clipped MAC.**False duplicate wording:** unrelated audit entries mentioning duplicate zones—add negative lookahead filters for DNS zone duplicates vs IP duplicates.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:audit into netops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`conflict_ip, host, member`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We flag when the network’s address book accidentally gives the same number to two devices, because that mix-up causes flaky connections that are hard to explain otherwise.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

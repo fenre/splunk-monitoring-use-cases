@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=dns sourcetype=named:querylog` or `sourcetype=infoblox:dns` or `sourcetype=zeek:dns` — Monitors DNS resolution health for IPv6: AAAA record query success rates, AAAA vs A query latency comparison, NXDOMAIN rates for AAAA queries, DNS server IPv6 transport health, and DNSSEC validation for AAAA records.\n\n**Why DNS is the most critical IPv6 service:**\n\n1. **No AAAA = no IPv6.** If DNS doesn't return AAAA records, dual-stack clients cannot use IPv6, regardless of how well the network is configured. DNS is the gatekeepers of IPv6 adoption.\n2. **AAAA latency.** If AAAA lookups take significantly longer than A lookups, Happy Eyeballs will prefer IPv4 for every connection. The DNS resolver's IPv6 performance directly controls IPv6 preference.\n3. **DNSSEC for AAAA.** AAAA records must be DNSSEC-signed to prevent DNS spoofing that could redirect IPv6 traffic to attacker-controlled addresses.\n4. **DNS over IPv6 transport.** The DNS resolver itself should support IPv6 transport to authoritative servers. If the resolver can only reach authoritative servers over IPv4, AAAA query resolution depends on the IPv4 path.\n5. **Negative caching.** Some resolvers aggressively cache NXDOMAIN responses for AAAA queries. If a domain temporarily lacks AAAA records and then adds them, the negative cache may prevent IPv6 resolution for the TTL duration.",
-  "app": "Splunk Enterprise / Splunk Add-on for Infoblox",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 DNS Resolution Health — AAAA Record Availability and Latency'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.110).",
+  "evidence": "Saved search uc_5_20_110_ipv6_dns_resolution_health_aaaa_record_a, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 DNS Resolution Health — AAAA Record Availability and Latency'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.110.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=dns sourcetype=named:querylog` or `sourcetype=infoblox:dns` or `sourcetype=zeek:dns` — Monitors DNS resolution health for IPv6: AAAA record query success rates, AAAA vs A query latency comparison, NXDOMAIN rates for AAAA queries, DNS server IPv6 transport health, and DNSSEC validation for AAAA records.\n\n**Why DNS is the most critical IPv6 service:**\n\n1. **No AAAA = no IPv6.** If DNS doesn't return AAAA records, dual-stack clients cannot use IPv6, regardless of how well the network is configured. DNS is the gatekeepers of IPv6 adoption.\n2. **AAAA latency.** If AAAA lookups take significantly longer than A lookups, Happy Eyeballs will prefer IPv4 for every connection. The DNS resolver's IPv6 performance directly controls IPv6 preference.\n3. **DNSSEC for AAAA.** AAAA records must be DNSSEC-signed to prevent DNS spoofing that could redirect IPv6 traffic to attacker-controlled addresses.\n4. **DNS over IPv6 transport.** The DNS resolver itself should support IPv6 transport to authoritative servers. If the resolver can only reach authoritative servers over IPv4, AAAA query resolution depends on the IPv4 path.\n5. **Negative caching.** Some resolvers aggressively cache NXDOMAIN responses for AAAA queries. If a domain temporarily lacks AAAA records and then adds them, the negative cache may prevent IPv6 resolution for the TTL duration. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise / Splunk Add-on for Infoblox — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns (sourcetype=\"zeek:dns\" OR sourcetype=\"named:querylog\" OR sourcetype=\"infoblox:dns\") earliest=-4h\n| eval query_type=case(\n    match(qtype_name, \"(?i)AAAA\") OR qtype=28, \"AAAA\",\n    match(qtype_name, \"(?i)^A$\") OR qtype=1, \"A\",\n    1=1, qtype_name)\n| where query_type IN (\"A\", \"AAAA\")\n| eval success=if(rcode=\"NOERROR\" OR rcode=0, 1, 0)\n| eval nxdomain=if(rcode=\"NXDOMAIN\" OR rcode=3, 1, 0)\n| stats count as queries sum(success) as successes sum(nxdomain) as nxdomains avg(response_time) as avg_latency_ms by query_type\n| eval success_pct=round(successes / queries * 100, 1)\n| eval nxdomain_pct=round(nxdomains / queries * 100, 1)\n| eval status=case(\n    query_type=\"AAAA\" AND success_pct < 50, \"CRITICAL — AAAA success rate only \" . success_pct . \"% — most IPv6 DNS resolution failing\",\n    query_type=\"AAAA\" AND success_pct < 80, \"WARNING — AAAA success rate \" . success_pct . \"% — some IPv6 resolution issues\",\n    1=1, \"OK — \" . success_pct . \"% success rate\")\n| table query_type, queries, successes, success_pct, nxdomains, nxdomain_pct, avg_latency_ms, status",
   "description": "Monitors DNS resolution health for IPv6 by tracking AAAA query success rates, response latency compared to A records, NXDOMAIN rates, and DNSSEC validation. DNS is the critical enabler of IPv6 — without working AAAA resolution, no dual-stack application can use IPv6. This UC detects DNS-layer IPv6 failures that silently degrade IPv6 preference and adoption.",
   "value": "DNS is the single most important service for IPv6 adoption. If AAAA records aren't returned, IPv6 doesn't work — period. If AAAA lookups are slow, Happy Eyeballs will prefer IPv4 for every connection. If AAAA records lack DNSSEC, attackers can redirect IPv6 traffic. This UC provides the essential DNS health metrics that determine whether IPv6 is actually usable in the environment.",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 3596 — DNS Extensions to Support IPv6 (AAAA record definition)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3596"
+      "url": "https://www.rfc-editor.org/rfc/rfc3596",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8305 — Happy Eyeballs Version 2 (DNS requirements for dual-stack)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8305"
+      "url": "https://www.rfc-editor.org/rfc/rfc8305",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6 — DNS monitoring)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Domains without AAAA records.** Many domains are still IPv4-only. NXDOMAIN or NODATA responses for AAAA queries to IPv4-only domains are expected, not an error.\n\n**Internal domains.** Internal DNS zones may not have AAAA records if the internal network is IPv4-only. This is expected if IPv6 is only deployed on specific segments.\n\n**CDN steering.** Some CDN providers selectively return or omit AAAA records based on the resolver's location or capabilities. This can cause variable AAAA success rates.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "bind",
     "cisco",

@@ -9,6 +9,12 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Time-to-Hire and Recruiting Pipeline Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-23.4.2).",
+  "evidence": "Saved search uc_23_4_2_time_to_hire_and_recruiting_pipeline_hea, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Time-to-Hire and Recruiting Pipeline Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.4.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary: `index=recruiting` carrying ATS-sourced sourcetypes defined locally because no Splunkbase TA canonicalizes applicant-tracking pipelines end-to-end. Typical combinations: `dbx:ats_requisitions`, `dbx:ats_applications`, `dbx:ats_stages` from Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) JDBC extracts against Snowflake, BigQuery, or SQL Server warehouses fed by Greenhouse, Lever, iCIMS, or ELT tools; `greenhouse:job` / `greenhouse:application` from Harvest REST modular inputs; `lever:opportunity` / `lever:posting` from Lever REST pollers; `workday:rec_requisition` when Workday Recruiting exposes Report-as-a-Service JSON or SOAP job-posting extracts. Minimum viable attributes per req row: logical `req_key`, opening timestamps (`opened_*`, `posted_*`), closure timestamps (`filled_*`, `closed_*`), recruiter ownership, department or hiring-team slice, lifecycle `status`, structured `close_reason`, optional `crit_priority` via lookup from department or req template to escalation tiers. Candidate-provided emails or legal names belong off dashboards — strip via defensive `fields -` removal plus index-time `SEDCMD` transforms.",
   "app": "Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) plus bespoke modular-input apps wrapping ATS REST, Workday RaaS, or Workday Web Services SOAP endpoints — parallel to UC-23.4.1’s observation that Workday lacks a turnkey Splunk TA, except recruiting dimensions replace Worker-centric facts.",
   "spl": "index=recruiting (sourcetype=\"dbx:ats_requisitions\" OR sourcetype=\"greenhouse:job\" OR sourcetype=\"lever:posting\" OR sourcetype=\"workday:rec_requisition\") earliest=-180d@d latest=now\n| fields - candidate_email candidate_phone candidate_name\n| eval req_key=coalesce(req_id,requisition_id,Job_Requisition_ID,opening_id,posting_id,\"\")\n| eval opened_raw=coalesce(opened_date,opened_at,posted_date,Posted_Date,openedAt,\"\")\n| eval filled_raw=coalesce(filled_date,closed_date,Filled_Date,hire_date,hiredAt,\"\")\n| eval dept=coalesce(department,Department,dept,hiring_team,\"\")\n| eval recruiter_field=coalesce(recruiter,Recruiter,recruiter_name,owner_name,\"\")\n| eval opened_epoch=case(match(opened_raw,\"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^Z]+[+-][0-9]{4}$\"),strptime(opened_raw,\"%Y-%m-%dT%H:%M:%S%z\"),like(opened_raw,\"%Z\"),strptime(replace(opened_raw,\"Z\",\"\"),\"%Y-%m-%dT%H:%M:%S\"),like(opened_raw,\"% %:%:%\"),strptime(opened_raw,\"%Y-%m-%d %H:%M:%S\"),1=1,strptime(opened_raw,\"%Y-%m-%d\"))\n| eval filled_epoch=case(match(filled_raw,\"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^Z]+[+-][0-9]{4}$\"),strptime(filled_raw,\"%Y-%m-%dT%H:%M:%S%z\"),like(filled_raw,\"%Z\"),strptime(replace(filled_raw,\"Z\",\"\"),\"%Y-%m-%dT%H:%M:%S\"),like(filled_raw,\"% %:%:%\"),strptime(filled_raw,\"%Y-%m-%d %H:%M:%S\"),1=1,strptime(filled_raw,\"%Y-%m-%d\"))\n| eval hire_marker=case(lower(status) IN (\"closed - filled\",\"filled\",\"filled - hired\"),1,lower(close_reason) IN (\"hire\",\"filled\",\"hired\"),1,match(lower(tostring(close_reason)),\"(filled|hire)\"),1,1=1,0)\n| eval withdrawn=case(lower(status) IN (\"closed - cancelled\",\"cancelled\",\"closed - not hired\",\"on hold closed\"),1,match(lower(tostring(close_reason)),\"(cancel|withdraw|freeze)\"),1,1=1,0)\n| eval pipeline_status=case(hire_marker=1 AND isnotnull(filled_epoch),\"Filled\",withdrawn=1,\"Withdrawn\",1=1,\"Open\")\n| eval age_days=if(isnotnull(opened_epoch),round((now()-opened_epoch)/86400,0),null())\n| eval staleness_bucket=case(age_days>180,\"Critical (>180d)\",age_days>120,\"Severe (>120d)\",age_days>90,\"Stale (>90d)\",age_days>60,\"Aging (60-90d)\",age_days>30,\"Maturing (30-60d)\",isnotnull(age_days),\"Active (<30d)\",1=1,\"Unknown\")\n| lookup recruiting_critical_roles dept OUTPUT crit_priority\n| eval crit_priority=coalesce(crit_priority,\"Standard\")\n| stats avg(eval(if(pipeline_status=\"Filled\",(filled_epoch-opened_epoch)/86400,null()))) as avg_dtf median(eval(if(pipeline_status=\"Filled\",(filled_epoch-opened_epoch)/86400,null()))) as med_dtf dc(eval(if(pipeline_status=\"Filled\",req_key,null()))) as filled dc(eval(if(pipeline_status=\"Open\" AND match(staleness_bucket,\"Stale|Severe|Critical\"),req_key,null()))) as stale_hot dc(req_key) as total_reqs by dept, recruiter_field\n| eval fill_rate=round(100*filled/nullif(total_reqs,0),1)\n| sort - stale_hot\n| table dept, recruiter_field, total_reqs, filled, fill_rate, stale_hot, avg_dtf, med_dtf",
@@ -20,26 +26,31 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Greenhouse Harvest API documentation",
-      "url": "https://developers.greenhouse.io/harvest.html"
+      "url": "https://developers.greenhouse.io/harvest.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Lever API developer documentation",
-      "url": "https://hire.lever.co/developer/documentation"
+      "url": "https://hire.lever.co/developer/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Workday — Talent Management Recruiting product overview",
-      "url": "https://www.workday.com/en-us/"
+      "url": "https://www.workday.com/en-us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — HTTP Event Collector overview",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Corporate hiring freezes inflate naive days-open because ATS clocks tick while sourcing idles — overlay finance freeze calendars before blaming TA throughput. Reopened reqs that recycle identifiers after Cancelled–Not-Filled closures distort longitudinal fill-rate unless reopen timestamps split lifetimes across closures. Executive searches spanning twelve-plus months skew department averages — isolate VP-plus cohorts so median KPI panels exclude deliberate slow slate-building. Multi-headcount openings modeled as one parent req versus multiple child openings scramble denominators — reconcile ATS quota semantics before comparing recruiters. Large Workday RaaS prompts sometimes truncate silently — chart uniqueness hourly alongside ingestion alarms whenever Splunk totals diverge materially from warehouse totals. Harvest repeat applicants inflate application-centric widgets versus candidate-centric funnel breadth — caption dashboards with which cardinality each tile counts. Warehouse UTC timestamps versus recruiter-local UI assumptions inject boundary ghosts — publish timezone SPL macros shared across TA analytics apps. Ghost ownership after recruiter exits keeps reqs Open despite dormant pipelines — HR hygiene precedes escalation. Acquisition migrations stamping legacy backlog as opened today create spikes — suppress governance-tagged synthetic migrations.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "dell_emc",

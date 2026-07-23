@@ -47,15 +47,23 @@
   "references": [
     {
       "title": "CISA Secure-by-Design / Software Supply Chain",
-      "url": "https://www.cisa.gov/secure-software"
+      "url": "https://www.cisa.gov/secure-software",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NTIA SBOM minimum elements",
-      "url": "https://www.ntia.gov/files/ntia/publications/sbom_minimum_elements_report.pdf"
+      "url": "https://www.ntia.gov/files/ntia/publications/sbom_minimum_elements_report.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TSA Surface NPRM (89 FR 88488)",
-      "url": "https://www.federalregister.gov/documents/2024/11/07/2024-25712/enhancing-surface-cyber-risk-management"
+      "url": "https://www.federalregister.gov/documents/2024/11/07/2024-25712/enhancing-surface-cyber-risk-management",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **CPE collision**: same CPE may refer to different deployment contexts; tag with `cpe_context` in vendor register.\n2. **Vendor SBOM hygiene**: some vendors ship low-quality SBOMs; tag with `sbom_quality_score`.\n\n**Suppression mechanism**: KV Store `tsa_sbom_exception_lookup`.",
@@ -85,7 +93,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- HEC tokens for SBOM ingest.\n- CISA KEV TA refreshed daily.\n\n## Step 1 — Define vendor register\n\n```ini\n[tsa_vendor_lookup]\nfield.vendor = string\nfield.product = string\nfield.tsa_in_scope = string\nfield.deployment_modality = string\nfield.sbom_quality_score = number\nfield.contract_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.22: TSA Supply-Chain SBOM]\ncron_schedule = 13 11 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.22,reg=TSA-Surface,clause=TSA-SD-multi-supply-chain-SBOM\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**KEV-listed SBOM hit on TSA-deployed asset** (owner: Supply-Chain Risk Lead, severity P2):\n1. Within 7 days: engage vendor for patched version.\n2. Within 30 days: deploy patch or compensating control.\n3. Within 60 days: certify resolution to CC.\n\n## Step 4 — Troubleshooting\n\n- **SBOM format drift**: vendors may submit non-conformant SBOMs; tighten ingestion validation.\n- **Vendor-supplied vs build-time SBOM**: distinguish in metadata.\n\n**TSA-specific failure modes**:\n- **Open-source dependency on aviation/rail control-software**: tighter scrutiny; engage vendor + vendor's upstream.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=sbom:cyclonedx, sbom:spdx into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`kev_cpe, kev_listed kev_cve, product, tsa_in_scope deployment_modality`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every important piece of software we use comes with an 'ingredient list'. We compare that list against the world's known cyber-weakness list — if anything matches, we fix it before an attacker uses it.",
   "prerequisiteUseCases": [
     "UC-22.56.6"

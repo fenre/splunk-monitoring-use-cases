@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:pending_tasks`",
-  "app": "Custom REST scripted input (`_cluster/pending_tasks`)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Elasticsearch Pending Cluster Tasks'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-7.5.17).",
+  "evidence": "Saved search uc_7_5_17_elasticsearch_pending_cluster_tasks, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Elasticsearch Pending Cluster Tasks'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-7.5.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=elasticsearch:pending_tasks` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom REST scripted input (`_cluster/pending_tasks`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:pending_tasks\"\n| stats max(insert_order) as queue_depth, max(time_in_queue_millis) as max_wait_ms\n| where queue_depth > 5 OR max_wait_ms > 30000",
   "description": "A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.",
-  "value": "A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.",
+  "value": "Operations and leadership rely on 'Elasticsearch Pending Cluster Tasks' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Poll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.",
   "visualization": "Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned index rollovers, rebalancing, and cluster restarts can move shard counts and health states briefly; correlate with Elasticsearch or OpenSearch change records.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom REST scripted input (`_cluster/pending_tasks`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:pending_tasks`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _cluster/pending_tasks` every minute. Track the number of tasks and the `time_in_queue_millis` for the oldest task. Alert when queue depth stays above 5 for multiple consecutive samples or any task waits longer than 30 seconds. Common causes include frequent mapping changes, too many small indices, or an overloaded master node.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:pending_tasks\"\n| stats max(insert_order) as queue_depth, max(time_in_queue_millis) as max_wait_ms\n| where queue_depth > 5 OR max_wait_ms > 30000\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Pending Cluster Tasks** — A growing backlog of pending cluster tasks indicates the master node cannot process cluster state updates fast enough. This delays shard allocation, mapping updates, and index creation.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:pending_tasks`. **App/TA** (typical add-on context): Custom REST scripted input (`_cluster/pending_tasks`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:pending_tasks. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:pending_tasks\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where queue_depth > 5 OR max_wait_ms > 30000` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (pending task count), Single value (current queue depth), Table (pending tasks with wait time).",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

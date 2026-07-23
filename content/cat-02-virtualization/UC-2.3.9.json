@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Syslog, libvirt logs, process monitoring",
-  "app": "`Splunk_TA_nix`, custom scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'QEMU Process Crash and Zombie Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.3.9).",
+  "evidence": "Saved search uc_2_3_9_qemu_process_crash_and_zombie_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'QEMU Process Crash and Zombie Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.3.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Syslog, libvirt logs, process monitoring Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, custom scripted input — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (\"qemu-kvm\" AND (\"killed\" OR \"segfault\" OR \"core dumped\" OR \"terminated\"))\n| rex \"qemu-kvm\\[(?<pid>\\d+)\\]\"\n| table _time, host, pid, _raw\n| sort -_time",
   "description": "Each KVM VM runs as a qemu-kvm process on the host. If the process crashes, the VM dies instantly without graceful shutdown. Zombie qemu processes consume resources without running a VM. Detecting crashes enables rapid restart, while zombie detection prevents resource leaks.",
-  "value": "Each KVM VM runs as a qemu-kvm process on the host. If the process crashes, the VM dies instantly without graceful shutdown. Zombie qemu processes consume resources without running a VM. Detecting crashes enables rapid restart, while zombie detection prevents resource leaks.",
+  "value": "Operations and leadership rely on 'QEMU Process Crash and Zombie Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Monitor syslog and `/var/log/libvirt/qemu/*.log` for qemu-kvm crash messages. Create a scripted input to detect zombie processes: `ps aux | grep qemu-kvm | grep -v grep | awk '{if($8==\"Z\") print}'`. Alert immediately on crash events. Cross-reference with libvirt domain list to detect processes without corresponding VMs.",
   "visualization": "Timeline (crash events), Table (crashed VMs), Single value (active zombies).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "KVM and scripted metrics may gap when collectors restart, SSH keys roll, or virsh is blocked by lockfiles; a single null interval is not always a full outage.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, custom scripted input.\n• Ensure the following data sources are available: Syslog, libvirt logs, process monitoring.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor syslog and `/var/log/libvirt/qemu/*.log` for qemu-kvm crash messages. Create a scripted input to detect zombie processes: `ps aux | grep qemu-kvm | grep -v grep | awk '{if($8==\"Z\") print}'`. Alert immediately on crash events. Cross-reference with libvirt domain list to detect processes without corresponding VMs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog (\"qemu-kvm\" AND (\"killed\" OR \"segfault\" OR \"core dumped\" OR \"terminated\"))\n| rex \"qemu-kvm\\[(?<pid>\\d+)\\]\"\n| table _time, host, pid, _raw\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**QEMU Process Crash and Zombie Detection** — Each KVM VM runs as a qemu-kvm process on the host. If the process crashes, the VM dies instantly without graceful shutdown. Zombie qemu processes consume resources without running a VM. Detecting crashes enables rapid restart, while zombie detection prevents resource leaks.\n\nDocumented **Data sources**: Syslog, libvirt logs, process monitoring. **App/TA** (typical add-on context): `Splunk_TA_nix`, custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Pipeline stage (see **QEMU Process Crash and Zombie Detection**): table _time, host, pid, _raw\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (crash events), Table (crashed VMs), Single value (active zombies).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on qEMU Process Crash and Zombie Detection and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on qEMU Process Crash and Zombie Detection and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

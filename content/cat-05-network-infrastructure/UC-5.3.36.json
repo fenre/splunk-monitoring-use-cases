@@ -9,8 +9,14 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` and `sourcetype=\"citrix:netscaler:appflow\"` — API definition load errors, policy `throttle`, `rate` limit, JSON/XML validation failures, `HTTP_4xx/5xx` on API vservers",
-  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix ADC API Gateway Policy Evaluation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.36).",
+  "evidence": "Saved search uc_5_3_36_citrix_adc_api_gateway_policy_evaluation, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix ADC API Gateway Policy Evaluation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.36.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=netscaler` `sourcetype=\"citrix:netscaler:syslog\"` and `sourcetype=\"citrix:netscaler:appflow\"` — API definition load errors, policy `throttle`, `rate` limit, JSON/XML validation failures, `HTTP_4xx/5xx` on API vservers Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Citrix NetScaler (Splunk_TA_citrix-netscaler) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appflow\") (\"API\" OR \"openapi\" OR swagger OR \"json\" OR \"xml\" OR throttle OR \"rate\" OR \"429\" OR validation OR xss OR \"schema\")\n| eval is_block=if(status=429 OR match(_raw,\"(?i)429|throttl|deny\"),1,0)\n| eval val_err=if(match(_raw,\"(?i)(invalid|schema|validation|malform)\"),1,0)\n| bin _time span=5m\n| stats count as hits, sum(is_block) as throttled, sum(val_err) as val_fail, p95(resp_time_ms) as p95_lat by _time, host, vserver\n| where throttled>10 OR val_fail>0 OR p95_lat>1000\n| table _time, host, vserver, hits, throttled, val_fail, p95_lat",
   "description": "API gateway policies on Citrix ADC enforce OpenAPI shapes, XML/JSON validation, authentication, and rate limits. Mis-specified definitions cause load failures; validation errors may reflect attack traffic; 429 storms show mis-tuned quotas or abuse. Monitoring policy evaluation alongside latency keeps both security and user experience within SLO.",
   "value": "API operations teams monitor Citrix ADC API Gateway policy evaluation including rate limiting, OAuth validation failures, and schema violations per API endpoint for API reliability.",
@@ -22,18 +28,26 @@
   "references": [
     {
       "title": "Splunk Documentation: Splunk Add-on for Citrix NetScaler",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/CitrixNetScaler/CitrixNetScaler",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Citrix ADC — API gateway",
-      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/"
+      "url": "https://docs.citrix.com/en-us/citrix-adc/current-release/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rate limits, bad clients, and new API routes can all raise policy hit counts during healthy rollouts.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1190",
     "T1110"
@@ -46,6 +60,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC API Gateway logs. Key fields: `api_name`, `method`, `path`, `status_code`, `response_time_ms`, `policy_name`, `rate_limit_action`, `oauth_status`, `client_id`.\n* Citrix ADC as API Gateway: (1) API rate limiting, (2) OAuth/JWT validation, (3) request/response transformation, (4) API schema validation, (5) traffic management per API endpoint.\n\nStep 1 -- Configure data collection\nEnable API Gateway logging via AppFlow or syslog. Verify:\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appflow\") (\"API\" OR \"api_\" OR \"oauth\" OR \"jwt\" OR \"rate.limit\") earliest=-4h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- API Gateway policy evaluation:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:appflow\") (\"API\" OR \"api_\" OR \"oauth\" OR \"jwt\" OR \"rate.limit\") earliest=-4h\n| eval api=coalesce(api_name, api_endpoint, path)\n| eval policy_result=coalesce(policy_action, rate_limit_action, oauth_status)\n| eval status=coalesce(status_code, http_status)\n| eval rt=coalesce(response_time_ms, latency)\n| eval issue=case(match(policy_result, \"(?i)rate.limit|throttle\"), \"RATE_LIMITED\", match(policy_result, \"(?i)oauth.*fail|jwt.*invalid|401\"), \"AUTH_FAILURE\", match(policy_result, \"(?i)schema.*fail|validation.*error\"), \"SCHEMA_VIOLATION\", tonumber(status) >= 500, \"BACKEND_ERROR\", 1==1, null())\n| where isnotnull(issue)\n| stats count as events dc(client_id) as affected_clients by api, issue\n| eval severity=case(issue=\"AUTH_FAILURE\" AND events > 50, \"HIGH -- mass auth failures\", issue=\"RATE_LIMITED\" AND events > 100, \"WARNING -- heavy throttling\", issue=\"BACKEND_ERROR\", \"WARNING -- backend issues\", 1==1, \"INFO\")\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) Send an API request with invalid OAuth token and verify AUTH_FAILURE appears.\n(b) Exceed rate limit and verify RATE_LIMITED events.\n(c) Compare with ADC API stats.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- API Gateway\"):\n* Row 1 -- Single-value: \"API requests (4h)\", \"Rate limited\", \"Auth failures\", \"Backend errors\".\n* Row 2 -- API policy evaluation issue table.\n\nAlerting:\n* High (mass auth failures > 50 in 15 min): potential API key compromise or misconfiguration.\n* Warning (rate limiting > 100 events): clients exceeding limits.\n\nStep 5 -- Troubleshooting\n\n* **High rate limiting** -- Clients may need higher limits. Review: API rate limit policy on the ADC. Consider per-client or per-API tier limits.\n\n* **OAuth failures** -- Check: (1) OAuth token endpoint, (2) JWT signing key rotation, (3) clock skew between ADC and OAuth provider.\n\n* **Schema validation errors** -- API request payload doesn't match expected schema. Check the API definition and client implementation.",
-  "grandmaExplanation": "We see how often gateway policies are used so a new route, a rate cap, and a test client are all visible in the same counter story."
+  "grandmaExplanation": "We see how often gateway policies are used so a new route, a rate cap, and a test client are all visible in the same counter story.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

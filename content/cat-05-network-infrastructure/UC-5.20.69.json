@@ -8,6 +8,12 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Geographic Flow Analysis and Unexpected Country Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.69).",
+  "evidence": "Saved search uc_5_20_69_ipv6_geographic_flow_analysis_and_unexpe, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Geographic Flow Analysis and Unexpected Country Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.69.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=netflow` or `sourcetype=pan:traffic` containing IPv6 flow records with source and destination addresses resolvable to geographic locations. IPv6 geographic analysis presents unique challenges compared to IPv4:\n\n1. **IPv6 geo-IP databases are less mature.** IPv6 address geolocation accuracy is lower than IPv4 because the IPv6 address space is newer and regional registries allocate large blocks that may span multiple countries.\n2. **Separate geo-blocking policies.** Many organisations implement geographic IP blocking for IPv4 but forget to apply equivalent policies to IPv6. This creates a geo-bypass — attackers from blocked countries can use IPv6 to bypass the IPv4 geo-block.\n3. **IPv6 allocation patterns differ.** IPv6 address blocks are allocated hierarchically by IANA → RIR → LIR, and the allocation sizes are much larger than IPv4. A single /32 allocation may cover an entire country's ISP.\n4. **Tunnel endpoints.** IPv6 tunnel providers (HE.net, SixxS legacy) may assign IPv6 addresses that geolocate to the tunnel broker's location rather than the user's location.\n5. **Privacy extensions.** Temporary IPv6 addresses change frequently, making persistent geo-tracking of individual hosts less reliable.",
   "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658). Splunk Add-on for Palo Alto.",
   "spl": "index=network (sourcetype=\"netflow\" OR sourcetype=\"pan:traffic\") earliest=-24h\n| eval src_ip=coalesce(sourceIPv6Address, src)\n| eval dest_ip=coalesce(destinationIPv6Address, dest)\n| where match(src_ip, \":\")\n| iplocation src_ip\n| rename Country as src_country, lat as src_lat, lon as src_lon\n| stats count as flows sum(bytes) as total_bytes dc(src_ip) as unique_sources by src_country\n| lookup geo_policy.csv country as src_country OUTPUT allowed\n| where allowed=\"no\" OR isnull(allowed)\n| eval alert=src_country . \": \" . unique_sources . \" unique IPv6 sources, \" . flows . \" flows, \" . round(total_bytes/1048576, 1) . \" MB — BLOCKED COUNTRY via IPv6\"\n| sort -flows",
@@ -18,10 +24,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4 — filtering considerations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Geo-IP inaccuracy for IPv6.** IPv6 geolocation databases are less accurate than IPv4, especially for mobile networks and tunnel providers. Some IPv6 addresses may geolocate incorrectly.\n\n**CDN and cloud provider addresses.** Major cloud providers (AWS, Azure, GCP) and CDNs (Cloudflare, Akamai) have IPv6 allocations that may geolocate to their infrastructure rather than the end user.\n\n**IPv6 tunnel providers.** Addresses from tunnel brokers like Hurricane Electric may geolocate to the PoP location rather than the user's physical location.\n\n**Legitimate VPN exit nodes.** VPN users may appear to originate from unexpected countries.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "fortinet",

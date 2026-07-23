@@ -8,8 +8,14 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "iControl REST API (`/mgmt/tm/sys/crypto/cert`)",
-  "app": "`Splunk_TA_f5-bigip`, custom scripted input",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'SSL Certificate Expiry (F5 BIG-IP)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.4).",
+  "evidence": "Saved search uc_5_3_4_ssl_certificate_expiry_f5_big_ip, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'SSL Certificate Expiry (F5 BIG-IP)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.4.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "iControl REST API (`/mgmt/tm/sys/crypto/cert`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip`, custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:certificate_inventory\"\n| eval days_left=round((expiry_epoch-now())/86400,0) | where days_left<90\n| sort days_left | table host cert_name days_left expiry_date",
   "description": "Expired certificates on load balancers cause browser warnings or connection failures. Most preventable outage.",
   "value": "Infrastructure teams track F5 BIG-IP SSL certificate expiration dates with tiered urgency (expired, <7d, <30d, <90d), ensuring timely renewal before certificate-related outages impact HTTPS services.",
@@ -19,16 +25,38 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Automation renewals, name changes, and short-lived test certs can look urgent until you read who owns the name.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "f5"
   ],
   "equipmentModels": [
     "f5_bigip"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 iControl REST API polled for certificate data or syslog messages about certificate expiry. Data in `index=network` with `sourcetype=f5:bigip:syslog` or `sourcetype=f5:bigip:api`. Key fields: `cert_name`, `expiration_date`, `days_to_expiry`, `issuer`, `subject`, `serial`.\n* Alternatively, use a scripted input to poll `/mgmt/tm/sys/file/ssl-cert` and extract certificate metadata. F5 also generates syslog messages (`01420006:4:`) when certificates approach expiry.\n\nStep 1 -- Configure data collection\nOption A -- Poll iControl REST (recommended):\nCreate a scripted input that calls `/mgmt/tm/sys/file/ssl-cert` and extracts `name`, `expirationString`, `issuer`, `subject`. Push to HEC as `sourcetype=f5:bigip:certs`.\n\nOption B -- Syslog-based:\nF5 generates \"Certificate ... will expire in X days\" messages. Verify:\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"certificate\" AND (\"expir\" OR \"expire\" OR \"expired\")) earliest=-7d\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Certificate expiry timeline:**\n```spl\nindex=network (sourcetype=\"f5:bigip:certs\" OR sourcetype=\"f5:bigip:syslog\") earliest=-7d\n| rex \"(?i)certificate\\s+(?<cert_name>\\S+).*expir.*?(?<days_remaining>\\d+)\\s*day\"\n| eval days_remaining=coalesce(days_to_expiry, days_remaining)\n| eval expiry_date=coalesce(expiration_date, strftime(relative_time(now(), \"+\".days_remaining.\"d\"), \"%Y-%m-%d\"))\n| where isnotnull(days_remaining)\n| lookup f5_vip_inventory.csv cert_name OUTPUT application, owner, virtual_server\n| eval urgency=case(days_remaining < 0, \"EXPIRED\", days_remaining < 7, \"CRITICAL\", days_remaining < 30, \"WARNING\", days_remaining < 90, \"PLAN\", 1==1, \"OK\")\n| where urgency != \"OK\"\n| table host, cert_name, application, virtual_server, owner, expiry_date, days_remaining, urgency\n| sort days_remaining\n```\n\n**Certificate inventory:**\n```spl\nindex=network sourcetype=\"f5:bigip:certs\" earliest=-1d\n| stats latest(expiration_date) as expiry latest(issuer) as issuer latest(subject) as subject by host, cert_name\n| eval days_left=round((strptime(expiry, \"%Y-%m-%d\") - now()) / 86400, 0)\n| sort days_left\n```\n\nStep 3 -- Validate\n(a) In tmsh: `show sys file ssl-cert` -- compare expiration dates with Splunk.\n(b) Identify a certificate expiring within 30 days and verify it appears with \"WARNING\" urgency.\n(c) For expired certificates, verify they show \"EXPIRED\" status.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- SSL Certificate Lifecycle\"):\n* Row 1 -- Single-value: \"Expired certs\", \"Expiring < 7d\", \"Expiring < 30d\", \"Total certs\".\n* Row 2 -- Certificate expiry timeline table with owner and application context.\n* Row 3 -- Certificate inventory sorted by days remaining.\n\nAlerting:\n* Critical (certificate expired or expiring < 7 days): immediate renewal required.\n* Warning (certificate expiring < 30 days): schedule renewal.\n* Info (weekly): certificate status report for all F5 devices.\n\nStep 5 -- Troubleshooting\n\n* **Certificate shows expired but application works** -- Check if the F5 SSL profile references a different certificate, or if SSL termination happens upstream (CDN, WAF).\n\n* **Can't parse expiration from syslog** -- F5 syslog format varies by version. Check raw events and adjust the rex pattern. For reliability, use the iControl REST API approach.\n\n* **Certificate renewed but Splunk still shows old expiry** -- The F5 may need a configuration sync (if HA pair) or the SSL profile needs to be updated to reference the new certificate.",
-  "grandmaExplanation": "We look at how many days are left on listener certificates on the big-ip so you can renew or swap in time, not the night a site breaks."
+  "grandmaExplanation": "We look at how many days are left on listener certificates on the big-ip so you can renew or swap in time, not the night a site breaks.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

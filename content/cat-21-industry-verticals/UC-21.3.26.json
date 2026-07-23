@@ -9,8 +9,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Healthcare",
-  "dataSources": "`index=healthcare` `sourcetype=\"dips:arena:jobs\"` fields `job_name`, `status`, `duration_sec`, `records_processed`, `error_message`",
-  "app": "DIPS Arena job scheduler logs via Universal Forwarder or HEC",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DIPS Arena Scheduled Job Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.3.26).",
+  "evidence": "Saved search uc_21_3_26_dips_arena_scheduled_job_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DIPS Arena Scheduled Job Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.3.26.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=healthcare` `sourcetype=\"dips:arena:jobs\"` fields `job_name`, `status`, `duration_sec`, `records_processed`, `error_message` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "DIPS Arena job scheduler logs via Universal Forwarder or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"dips:arena:jobs\"\n| stats latest(status) as last_status, latest(duration_sec) as last_duration, latest(_time) as last_run, latest(error_message) as error by job_name\n| eval hours_since_run=round((now()-last_run)/3600, 1)\n| where last_status=\"failed\" OR last_status=\"timeout\" OR hours_since_run > 25\n| sort -hours_since_run\n| table job_name, last_status, last_duration, hours_since_run, error",
   "description": "DIPS Arena relies on scheduled background jobs for critical operations: data synchronization between clinical modules, report generation, HL7 message queue processing, archetype validation, and database maintenance. Failed or stalled jobs can cause data inconsistencies, missing reports, and growing message backlogs that eventually affect frontline clinical operations. Monitoring job execution status ensures background processes remain healthy.",
   "value": "Service and risk leaders use signals from DIPS Arena Scheduled Job Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Job failures on DST windows, ETL dependency slips, or full rebuilds after a bad feed day that the operations scheduler re-ran from checkpoint.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: DIPS Arena job scheduler logs via Universal Forwarder or HEC.\n• Ensure the following data sources are available: `index=healthcare` `sourcetype=\"dips:arena:jobs\"` fields `job_name`, `status`, `duration_sec`, `records_processed`, `error_message`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect job execution logs from the DIPS Arena job scheduler. Each event records job name, start/end time, status (success, failed, timeout, running), records processed, and error details. Alert on: any job failure, jobs that have not run within their expected schedule (e.g., daily jobs not run in 25 hours), and jobs with duration exceeding 2x their historical average (performance regression). Maintain a lookup table mapping job names to expected schedules and maximum allowed durations. Run the …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=healthcare sourcetype=\"dips:arena:jobs\"\n| stats latest(status) as last_status, latest(duration_sec) as last_duration, latest(_time) as last_run, latest(error_message) as error by job_name\n| eval hours_since_run=round((now()-last_run)/3600, 1)\n| where last_status=\"failed\" OR last_status=\"timeout\" OR hours_since_run > 25\n| sort -hours_since_run\n| table job_name, last_status, last_duration, hours_since_run, error\n```\n\nUnderstanding this SPL\n\n**DIPS Arena Scheduled Job Monitoring** — DIPS Arena relies on scheduled background jobs for critical operations: data synchronization between clinical modules, report generation, HL7 message queue processing, archetype validation, and database maintenance. Failed or stalled jobs can cause data inconsistencies, missing reports, and growing message backlogs that eventually affect frontline clinical operations. Monitoring job execution status ensures background processes remain healthy.\n\nDocumented **Data sources**: `index=healthcare` `sourcetype=\"dips:arena:jobs\"` fields `job_name`, `status`, `duration_sec`, `records_processed`, `error_message`. **App/TA** (typical add-on context): DIPS Arena job scheduler logs via Universal Forwarder or HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: healthcare; **sourcetype**: dips:arena:jobs. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=healthcare, sourcetype=\"dips:arena:jobs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by job_name** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **hours_since_run** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where last_status=\"failed\" OR last_status=\"timeout\" OR hours_since_run > 25` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **DIPS Arena Scheduled Job Monitoring**): table job_name, last_status, last_duration, hours_since_run, error\n\n\nStep 3 — Validate\nCompare volumes, status codes, and latency with the API gateway or reverse proxy logs and the vendor status page. Reconcile a sample window with the interface team’s own metrics for the same endpoints.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (job status overview), Single value (failed jobs count), Timeline (job execution history).",
-  "grandmaExplanation": "We watch overnight and batch jobs in DIPS. We help you catch failures before morning clinics start on stale data."
+  "grandmaExplanation": "We watch overnight and batch jobs in DIPS. We help you catch failures before morning clinics start on stale data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

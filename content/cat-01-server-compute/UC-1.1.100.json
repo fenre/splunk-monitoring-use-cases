@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmstat`",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Vmstat swap-in (si) rate'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.1.100).",
+  "evidence": "Saved search uc_1_1_100_vmstat_swap_in_si_rate, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Vmstat swap-in (si) rate'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.1.100.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=vmstat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| stats avg(si) as avg_swap_in by host\n| where avg_swap_in > 1000",
   "description": "In standard vmstat(8) output, `si` is kilobytes swapped in from disk per interval (memory pressure), not softirq. A sustained high `si` rate usually means the system is actively paging or thrashing swap.",
   "value": "Spotting heavy swap-in activity early helps us add memory, tune workloads, or fix leaks before latency and timeouts spread to users and services.",
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Right after boot, large container image pulls, or backup restores can cause short `si` bursts that are expected. If the TA’s sampling interval differs from classic vmstat’s 1s default, rescale thresholds to match your `si` units. Very large `si` thresholds (e.g. 1000) should be validated against your host class.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=vmstat`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `vmstat` scripted input on Linux. Confirm field names in Search: `si` is swap-in pages/kB per sample (per `vmstat` man page for your distro). If you need softirq rates, ingest `/proc/softirqs` or `mpstat` with a separate scripted input—do not map `si` to softirq.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=vmstat host=*\n| stats avg(si) as avg_swap_in by host\n| where avg_swap_in > 1000\n```\n\nUnderstanding this SPL\n\n**Vmstat swap-in (si) rate** — In standard vmstat(8) output, `si` is kilobytes swapped in from disk per interval (memory pressure), not softirq.\n\nDocumented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: vmstat. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_swap_in > 1000` — tune the threshold to your environment and vmstat interval.\n\nOptional CIM / accelerated variant (related memory-pressure view via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.mem_used_percent) as mem_pct avg(Performance.swap_used_percent) as swap_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where mem_pct > 90 OR swap_pct > 15\n```\n\nUnderstanding this CIM / accelerated SPL\n\nThis **CIM** block approximates memory pressure using **Performance.Memory** (`mem_used_percent`, `swap_used_percent`). It does not reproduce `vmstat` `si` exactly—use it when the data model is accelerated and normalized to the same hosts.\n\nEnable **acceleration** on **Performance.Memory** (and correct CIM knowledge objects) or the search may return nothing from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Alert",
-  "grandmaExplanation": "We watch Linux memory swap-in from vmstat so we can tell when the server is shuffling data to disk because it is out of RAM—before everything feels slow."
+  "grandmaExplanation": "We watch Linux memory swap-in from vmstat so we can tell when the server is shuffling data to disk because it is out of RAM—before everything feels slow.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

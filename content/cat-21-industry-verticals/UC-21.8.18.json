@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=roaming` hosting `sourcetype=tap:record` (TAP3 **RAP** file records after internal parser) and/or `sourcetype=nrtrde:record` for **NRTRDE** near-real-time fraud/steering feeds, cross-compared with `index=cdr` `sourcetype=cdr:roaming` (home PLMN rated roaming events). **Index patterns**: segregate **clearinghouse** files (BICS, Syniverse, Comfone) from **internal GTP/SGSN** exports to control retention and access. **Input mechanisms**: batch **TAP3**/**RAP** files via `monitor://` into a HF with **custom `props.conf`** (fixed-width or BER TLV parsing often needs `Splunk TA` bespoke add-on or `SEDCMD` pre-processing); **NRTRDE** often hourly batches via SFTP; internal rated roaming via **DB Connect** from mediation. **Key fields** for this UC: `roaming_partner`, `imsi`, `visited_network`, `charge_amount`, `record_type` (MOC/MTC/GPRS), `billing_period`, plus file **sequence** / **release** number when available. **Volume**: TAP files are bursty (millions of records per drop per partner); plan **multi-GB per file** peak after roaming season; NRTRDE lower volume but higher velocity for fraud teams. **Parsing notes**: align **MCC/MNC** vs commercial partner codes via lookup; normalise **currency** and **tax** rounding (six decimals in clearinghouse workflows); TAP **duplicate detection** uses release numbers — ingest metadata `tap_file_sequence` as indexed field for Splunk correlation.",
-  "app": "Deploy **heavy forwarder** with `monitor:///opt/roaming/TAP/incoming/*.rap` (or `.out` per hub convention) and companion `props.conf` transforming binary-friendly intermediate CSV if an external converter is used. Use **Splunk DB Connect** for curated `cdr:roaming` extracts from mediation when TAP is not yet available. For NRTRDE, schedule frequent small-batch polls. **Do not** mix TAP binary directly without a supported parser — use clearinghouse-provided ASCII **CDR layouts** or vendor middleware. Optional: **Kafka** ingestion for real-time TAP streaming feeds from modernization programs.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Roaming Partner Settlement and Inter-Carrier Billing Verification'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.8.18).",
+  "evidence": "Saved search uc_21_8_18_roaming_partner_settlement_and_inter_car, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Roaming Partner Settlement and Inter-Carrier Billing Verification'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.8.18.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=roaming` hosting `sourcetype=tap:record` (TAP3 **RAP** file records after internal parser) and/or `sourcetype=nrtrde:record` for **NRTRDE** near-real-time fraud/steering feeds, cross-compared with `index=cdr` `sourcetype=cdr:roaming` (home PLMN rated roaming events). **Index patterns**: segregate **clearinghouse** files (BICS, Syniverse, Comfone) from **internal GTP/SGSN** exports to control retention and access. **Input mechanisms**: batch **TAP3**/**RAP** files via `monitor://` into a HF with **custom `props.conf`** (fixed-width or BER TLV parsing often needs `Splunk TA` bespoke add-on or `SEDCMD` pre-processing); **NRTRDE** often hourly batches via SFTP; internal rated roaming via **DB Connect** from mediation. **Key fields** for this UC: `roaming_partner`, `imsi`, `visited_network`, `charge_amount`, `record_type` (MOC/MTC/GPRS), `billing_period`, plus file **sequence** / **release** number when available. **Volume**: TAP files are bursty (millions of records per drop per partner); plan **multi-GB per file** peak after roaming season; NRTRDE lower volume but higher velocity for fraud teams. **Parsing notes**: align **MCC/MNC** vs commercial partner codes via lookup; normalise **currency** and **tax** rounding (six decimals in clearinghouse workflows); TAP **duplicate detection** uses release numbers — ingest metadata `tap_file_sequence` as indexed field for Splunk correlation. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Deploy **heavy forwarder** with `monitor:///opt/roaming/TAP/incoming/*.rap` (or `.out` per hub convention) and companion `props.conf` transforming binary-friendly intermediate CSV if an external converter is used. Use **Splunk DB Connect** for curated `cdr:roaming` extracts from mediation when TAP is not yet available. For NRTRDE, schedule frequent small-batch polls. **Do not** mix TAP binary directly without a supported parser — use clearinghouse-provided ASCII **CDR layouts** or vendor middleware. Optional: **Kafka** ingestion for real-time TAP streaming feeds from modernization programs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=roaming sourcetype=tap:record\n| stats count as tap_events, sum(charge_amount) as tap_charges by roaming_partner, billing_period\n| join type=left roaming_partner, billing_period [\n    search index=cdr sourcetype=cdr:roaming\n    | stats count as cdr_events, sum(rated_amount) as cdr_charges by roaming_partner, billing_period\n  ]\n| eval record_gap=tap_events-cdr_events, charge_diff=round(tap_charges-cdr_charges, 2)\n| where abs(record_gap) > 100 OR abs(charge_diff) > 1000\n| sort -abs(charge_diff)",
   "description": "Compares transferred-account-procedure style partner charge files against home-network roaming rated events by partner and billing period, surfacing record-count drift and charge mismatches ahead of clearinghouse submission deadlines.",
   "value": "Settlement teams avoid surprise debit notes and arbitration by fixing file gaps and rating disagreements while partners still accept revisions; that protects roaming margin and keeps regulatory and inter-operator commitments on schedule.",
@@ -24,31 +30,41 @@
   "references": [
     {
       "title": "Splunk Lantern — Use Case Explorer: Communications",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TMForum — Revenue Assurance Maturity Model (RA-MM)",
-      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/"
+      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "3GPP TS 32.297 — CDR File Format and Transfer",
-      "url": "https://www.3gpp.org/DynaReport/32297.htm"
+      "url": "https://www.3gpp.org/DynaReport/32297.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GSMA TAP3 Standard — Transferred Account Procedure",
-      "url": "https://www.gsma.com/aboutus/"
+      "url": "https://www.gsma.com/aboutus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ITU-T E.425 — IP Network Performance Objectives",
-      "url": "https://www.itu.int/rec/T-REC-E.425"
+      "url": "https://www.itu.int/rec/T-REC-E.425",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**(1) File sequencing latency** — home rated roaming CDRs often land hours before clearinghouse TAP/RAP batches finish validation; Splunk compares partially loaded partner files and shows artificial record gaps until the release completes. Mitigation: require `tap_file_sequence` completeness flags, widen the billing_period join tolerance by one ingestion bucket, or delay alerts until manifests show **closed**. **(2) Currency rounding and FX pivot timing** — TAP amounts may carry six decimal places whereas internal GSM/5G roaming rating rounds at two decimals, or treasury posts FX pivots days after TAP generation. Mitigation: unify on a pivot currency with published FX tables keyed to clearing date, tolerating micro-epsilon deltas. **(3) Hubbed partners and batched settlement** — roaming hubs aggregate tens of bilateral streams; benign volume crosses naïve static thresholds. Mitigation: per-partner adaptive baselines (median + k×sigma) and standalone hub dashboards. **(4) Retail promotions / zero-rated roaming** — rated events exist while TAP temporarily shows charges awaiting reversal workflows. Mitigation: join `promotional_roam` lookups on IMSI/msisdn + billing_period. **(5) Test IMSI/IR.21 ranges** — inter-operator labs leak into production TAP drops. Mitigation: interconnect-managed exclusion lookups and golden MSISDN allowlists separate from mediation tests. **(6) Clearinghouse reject/resubmit cycles** — release attempts oscillate counts without underlying fraud. Mitigation: ingest `tap_release_attempt`, alert only once finance marks the period cleared, and dedupe natural keys across retries. **(7) MCC/MNC or commercial alias drift** — post-merger partner codes remap while historic keys linger in Splunk lookups. Mitigation: fortnightly alias refresh sourced from interconnect CMDB feeds. **(8) IMS/voice-vs-data granularity mismatch** — data-only PDP/PDU roaming records may lag voice MO/MT TAP lines causing apparent gaps unrelated to leakage. Mitigation: split alerts by `record_type` buckets with tolerances reflecting product mix. **(9) Steered roaming / IREG trials** — temporary steering changes traffic via alternate partners while home CDRs still attribute old partner identifiers mid-test. Mitigation: `steering_calendar` lookups maintained by interconnect product teams. **(10) Statutory mandated roaming charge adjustments** posted weeks later can reopen settled periods legitimately — treat as informational unless breach of signed-off tolerance after regulatory true-up ingestion.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "asterisk",
     "db_connect",
     "kafka",
     "syslog"
+  ],
+  "equipmentModels": [
+    "asterisk_generic",
+    "db_connect_generic",
+    "kafka_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

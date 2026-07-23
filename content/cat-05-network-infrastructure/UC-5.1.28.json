@@ -8,10 +8,16 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "BRIDGE-MIB (dot1dStpTopChanges), syslog STP events",
-  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'STP Topology Change Rate'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.28).",
+  "evidence": "Saved search uc_5_1_28_stp_topology_change_rate, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'STP Topology Change Rate'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.28.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "BRIDGE-MIB (dot1dStpTopChanges), syslog STP events Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=snmp:stp OR sourcetype=\"cisco:ios\") (\"dot1dStpTopChanges\" OR \"%SPANTREE-5-TOPOTCHANGE\" OR \"%SPANTREE-2-ROOTCHANGE\")\n| eval stp_event=if(match(_raw,\"TOPOTCHANGE|ROOTCHANGE|dot1dStpTopChanges\"),1,0)\n| bin _time span=10m\n| stats sum(stp_event) as topo_changes by host, _time\n| where topo_changes > 3\n| sort -topo_changes",
-  "description": "Frequent topology changes indicating Layer 2 instability.",
+  "description": "Frequent topology changes indicating Layer 2 instability. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Network engineers analyze STP topology change rates to distinguish normal port transitions from TC storms indicating network loops or severe link flapping.",
   "implementation": "Poll BRIDGE-MIB dot1dStpTopChanges every 300s; ingest syslog for SPANTREE events. Alert when topology changes exceed 3 in 10 minutes. Correlate with root bridge changes for critical alerts.",
   "visualization": "Line chart (topology changes per host), Table (host, count), Timeline.",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "STP TCNs happen during access switch adds, link moves, and voice VLAN changes. Storm-control tuning can also shift TC rates.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "snmp",
@@ -31,6 +53,10 @@
   "equipmentModels": [
     "cisco_ios",
     "snmp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -41,5 +67,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* STP topology change rate data from SNMP or syslog. Extends UC-5.1.6 with rate-based analysis. SNMP OID: dot1dStpTopChanges (.1.3.6.1.2.1.17.2.4) -- cumulative TC count per bridge.\n* STP topology change rate: tracking the TC rate over time helps distinguish between normal occasional changes (device plugged in) and abnormal storms (flapping link, loop). High TC rates cause network-wide MAC table flushes.\n\nStep 1 -- Configure data collection\n```\n# SNMP polling for STP counters\n[snmp_stp]\ninterval = 300\nsourcetype = snmp:stp\nindex = network\n# OID: dot1dStpTopChanges (.1.3.6.1.2.1.17.2.4)\n# dot1dStpTimeSinceTopologyChange (.1.3.6.1.2.1.17.2.3)\n```\nVerify:\n```spl\nindex=network (sourcetype=\"snmp:stp\" OR sourcetype=\"cisco:ios\") earliest=-4h\n| eval tc_count=tonumber(coalesce(dot1dStpTopChanges, stp_tc_count))\n| where isnotnull(tc_count)\n| stats latest(tc_count) by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- STP topology change rate analysis:**\n```spl\nindex=network earliest=-4h\n| eval tc_count=tonumber(coalesce(dot1dStpTopChanges, stp_tc_count))\n| eval device=coalesce(host, device_name)\n| where isnotnull(tc_count)\n| bin _time span=5m\n| stats latest(tc_count) as tc by _time, device\n| sort device, _time\n| streamstats current=f last(tc) as prev_tc last(_time) as prev_time by device\n| eval delta_tc=tc - prev_tc\n| eval interval_min=(_time - prev_time)/60\n| eval tc_rate=if(interval_min > 0, round(delta_tc/interval_min, 2), 0)\n| where delta_tc > 0\n| eval severity=case(\n    tc_rate > 10, \"CRITICAL -- STP TC storm (\".tc_rate.\" TCs/min)\",\n    delta_tc > 5, \"WARNING -- elevated TC rate\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| table _time, device, delta_tc, tc_rate, severity\n| sort severity, -tc_rate\n```\n\nStep 3 -- Validate\n(a) CLI: `show spanning-tree detail | include topology` -- check TC count and last TC time.\n(b) CLI: `show spanning-tree summary` -- overview of TC stats per VLAN.\n(c) Identify port generating TCs: `show spanning-tree detail` and look for \"forwarding\" transitions.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- STP TC Rate\"):\n* Row 1 -- Single-value: \"TC storms detected\", \"Total TCs (4h)\".\n* Row 2 -- STP TC rate timechart.\n\nAlert: Critical (>10 TCs/min sustained): network loop or severe flapping.\n\nStep 5 -- Troubleshooting\n\n* **TC storm** -- A port is rapidly transitioning. Identify: `show spanning-tree detail`. Enable portfast on access ports. Check for loop: trace the flapping port to the connected device.\n\n* **Constant low-rate TCs** -- May be normal if many devices are connecting/disconnecting (conference rooms, hot-desking). Portfast on access ports prevents these.\n\n* **TC after topology change** -- Expected after adding new switch or recabling. Should stabilize within minutes. If persistent, investigate root cause.",
   "grandmaExplanation": "We help you know early when something looks wrong with stp topology change rate so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

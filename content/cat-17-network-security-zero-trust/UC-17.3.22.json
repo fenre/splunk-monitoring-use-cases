@@ -9,10 +9,16 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`zscaler:zpa` access logs with `latency_ms`",
-  "app": "`Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ZTNA Application Access Latency'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.22).",
+  "evidence": "Saved search uc_17_3_22_ztna_application_access_latency, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ZTNA Application Access Latency'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.22.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`zscaler:zpa` access logs with `latency_ms` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"zscaler:zpa\" earliest=-24h\n| stats perc95(latency_ms) as p95_ms, count by application\n| where p95_ms > 800\n| sort -p95_ms",
-  "description": "p95 latency per published application for user experience SLAs on ZTNA paths.",
+  "description": "p95 latency per published application for user experience SLAs on ZTNA paths. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Network performance teams track ZTNA application access latency by application and user geography, measuring P95 against SLA targets to identify connector capacity issues, PoP routing problems, and applications where Zero Trust overhead is impacting user productivity.",
   "implementation": "Segment by connector group and region. Compare before/after app migrations.",
   "visualization": "Bar chart (p95 by app), Line chart (p95 trend), Table (worst apps).",
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
@@ -33,6 +55,16 @@
     "cloudflare",
     "zscaler"
   ],
-  "detailedImplementation": "Prerequisites\n• ZTNA platform performance metrics. Zscaler ZPA: `sourcetype=zscaler:zpa:user_activity` with latency fields. Cloudflare Access: `sourcetype=cloudflare:access` with `cf-edge-latency` fields. Prisma Access: `sourcetype=pan:globalprotect` with gateway response times. Key fields: `Application`, `User`, `latency_ms`, `server_processing_ms`, `network_latency_ms`.\n• ZTNA adds latency compared to direct network access because traffic routes through cloud enforcement points. Acceptable latency depends on the application type: <50ms for real-time apps (VoIP, trading), <200ms for interactive apps (ERP, CRM), <500ms for batch/background.\n\nStep 1 — Configure data collection\nVerify latency data:\n```spl\nindex=ztna earliest=-24h\n| where isnotnull(latency_ms)\n| stats count avg(latency_ms) as avg_lat perc95(latency_ms) as p95_lat by Application\n| sort - p95_lat\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Latency trending by application:\n```spl\nindex=ztna earliest=-7d\n| where isnotnull(latency_ms)\n| bin _time span=1h\n| stats avg(latency_ms) as avg_lat perc95(latency_ms) as p95_lat count by _time, Application\n| lookup ztna_app_sla.csv app_name as Application OUTPUT sla_target_ms app_type\n| eval sla_breach=if(p95_lat > tonumber(coalesce(sla_target_ms, 500)), 1, 0)\n```\n\nUnderstanding this SPL: Tracks P95 application latency hourly and flags SLA breaches. P95 is used instead of average because it captures the worst 5% of user experiences. Latency spikes can be caused by: ZTNA PoP overload, connector capacity issues, network path degradation, or application server slowness. Separating network_latency from server_processing (when available) pinpoints the bottleneck.\n\nLatency by user location:\n```spl\nindex=ztna earliest=-24h\n| stats avg(latency_ms) as avg_lat count by Application, ClientCountry\n| sort Application, - avg_lat\n```\n\nStep 3 — Validate\n(a) Access an application from different locations. Compare latency in Splunk vs actual experience.\n(b) Verify P95 is reasonable (should not be 10x the average).\n\nStep 4 — Operationalize\nDashboard: Row 1 — P95 latency by application (trend). Row 2 — SLA breach count. Row 3 — Latency by geography.\nAlert: When P95 exceeds SLA for any Tier-1 application for 2+ consecutive hours.\n\nRunbook:\n1. **SLA breach, one app** — Check app server health and connector status.\n2. **SLA breach, many apps** — ZTNA PoP or ISP issue. Check cloud provider status.\n3. **High latency from one geo** — May need a closer PoP or optimized routing.\n\nStep 5 — Troubleshooting\n• **Latency always 0** — Platform may not export latency metrics in logs. Check vendor documentation.\n• **Very high latency** — May include server processing time. Separate network from application latency if possible.",
-  "grandmaExplanation": "Zero Trust adds an extra security checkpoint between users and applications, which can slow things down. We measure exactly how much slower each application becomes and alert when the delay gets too long, because security that makes people unable to work is not sustainable."
+  "equipmentModels": [
+    "cloudflare_generic",
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• ZTNA platform performance metrics. Zscaler ZPA: `sourcetype=zscaler:zpa:user_activity` with latency fields. Cloudflare Access: `sourcetype=cloudflare:access` with `cf-edge-latency` fields. Prisma Access: `sourcetype=pan:globalprotect` with gateway response times. Key fields: `Application`, `User`, `latency_ms`, `server_processing_ms`, `network_latency_ms`.\n• ZTNA adds latency compared to direct network access because traffic routes through cloud enforcement points. Acceptable latency depends on the application type: <50ms for real-time apps (VoIP, trading), <200ms for interactive apps (ERP, CRM), <500ms for batch/background.\n\nStep 1 — Configure data collection\nVerify latency data:\n```spl\nindex=ztna earliest=-24h\n| where isnotnull(latency_ms)\n| stats count avg(latency_ms) as avg_lat perc95(latency_ms) as p95_lat by Application\n| sort - p95_lat\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Latency trending by application:\n```spl\nindex=ztna earliest=-7d\n| where isnotnull(latency_ms)\n| bin _time span=1h\n| stats avg(latency_ms) as avg_lat perc95(latency_ms) as p95_lat count by _time, Application\n| lookup ztna_app_sla.csv app_name as Application OUTPUT sla_target_ms app_type\n| eval sla_breach=if(p95_lat > tonumber(coalesce(sla_target_ms, 500)), 1, 0)\n```\n\nUnderstanding this SPL: Tracks P95 application latency hourly and flags SLA breaches. P95 is used instead of average because it captures the worst 5% of user experiences. Latency spikes can be caused by: ZTNA PoP overload, connector capacity issues, network path degradation, or application server slowness. Separating network_latency from server_processing (when available) pinpoints the bottleneck.\n\nLatency by user location:\n```spl\nindex=ztna earliest=-24h\n| stats avg(latency_ms) as avg_lat count by Application, ClientCountry\n| sort Application, - avg_lat\n```\n\nStep 3 — Validate\n(a) Access an application from different locations. Compare latency in Splunk vs actual experience.\n(b) Verify P95 is reasonable (should not be 10x the average).\n\nStep 4 — Operationalize\nDashboard: Row 1 — P95 latency by application (trend). Row 2 — SLA breach count. Row 3 — Latency by geography.\nAlert: When P95 exceeds SLA for any Tier-1 application for 2+ consecutive hours.\n\nRunbook:\n1. **SLA breach, one app** — Check app server health and connector status.\n2. **SLA breach, many apps** — ZTNA PoP or ISP issue. Check cloud provider status.\n3. **High latency from one geo** — May need a closer PoP or optimized routing.\n\nStep 5 — Troubleshooting\n• **Latency always 0** — Platform may not export latency metrics in logs. Check vendor documentation.\n• **Very high latency** — May include server processing time. Separate network from application latency if possible.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_zscaler` (ZPA), Cloudflare Logpush integration — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=zscaler:zpa into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`application, p95_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Zero Trust adds an extra security checkpoint between users and applications, which can slow things down. We measure exactly how much slower each application becomes and alert when the delay gets too long, because security that makes people unable to work is not sustainable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

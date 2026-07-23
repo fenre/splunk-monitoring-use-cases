@@ -9,6 +9,12 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Bogon and Martian Prefix Filtering Verification'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.63).",
+  "evidence": "Saved search uc_5_20_63_ipv6_bogon_and_martian_prefix_filtering, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Bogon and Martian Prefix Filtering Verification'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.63.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=pan:traffic` or `sourcetype=netflow` containing traffic with IPv6 bogon/martian source or destination addresses. IPv6 bogon addresses are addresses that should never appear on the public internet. Their presence in traffic indicates misconfiguration, spoofing, or attack activity:\n\n**IPv6 bogon/martian prefixes (must be filtered at network perimeter):**\n- `::/128` — Unspecified address (source only, during DAD)\n- `::1/128` — Loopback\n- `::ffff:0:0/96` — IPv4-mapped IPv6 addresses (should never appear on the wire)\n- `64:ff9b::/96` — Well-known NAT64 prefix (should not cross site boundary)\n- `100::/64` — Discard-only prefix (RFC 6666)\n- `200::/7` — Deprecated OSI NSAP-mapped prefix\n- `2001:db8::/32` — Documentation prefix (RFC 3849)\n- `2001::/32` — Teredo (deprecated)\n- `2002::/16` — 6to4 (deprecated by RFC 7526)\n- `3ffe::/16` — Former 6bone (decommissioned)\n- `5f00::/8` — Former 6bone\n- `fc00::/7` — Unique Local Addresses (ULA, RFC 4193) — should not cross site boundary\n- `fe80::/10` — Link-local (should never be routed)\n- `fec0::/10` — Deprecated site-local (RFC 3879)\n- `ff00::/8` — Multicast (should be filtered at appropriate boundaries)\n\n**Dynamic bogons** — IANA unallocated space changes as new /12 and /16 blocks are allocated. The Team Cymru Bogon Reference maintains the current list.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 1352). Splunk Add-on for Palo Alto (`Splunk_TA_paloalto`, Splunkbase 2757).",
   "spl": "index=network (sourcetype=\"pan:traffic\" OR sourcetype=\"cisco:ios\" OR sourcetype=\"netflow\") earliest=-24h\n| rex field=_raw \"(?:src|source)\\s*=?\\s*(?<src_ipv6>[0-9a-fA-F:.]+)\"\n| rex field=_raw \"(?:dst|dest)\\s*=?\\s*(?<dst_ipv6>[0-9a-fA-F:.]+)\"\n| eval src_bogon=case(\n    match(src_ipv6, \"^::$|^::1$\"), \"loopback/unspecified\",\n    match(src_ipv6, \"^::ffff:\"), \"IPv4-mapped\",\n    match(src_ipv6, \"^64:ff9b:\"), \"NAT64 well-known prefix\",\n    match(src_ipv6, \"^100::\"), \"discard prefix (RFC 6666)\",\n    match(src_ipv6, \"^2001:db8:\"), \"documentation (RFC 3849)\",\n    match(src_ipv6, \"^2001:0?0?0?0?:\"), \"Teredo\",\n    match(src_ipv6, \"^2002:\"), \"6to4 (deprecated)\",\n    match(src_ipv6, \"^3ffe:\"), \"6bone (decommissioned)\",\n    match(src_ipv6, \"^[Ff][CcDd]\"), \"ULA (should not cross perimeter)\",\n    match(src_ipv6, \"^[Ff][Ee][89AaBb]\"), \"link-local (should never be routed)\",\n    match(src_ipv6, \"^[Ff][Ee][CcDdEeFf]\"), \"site-local (deprecated RFC 3879)\",\n    1=1, null())\n| where isnotnull(src_bogon)\n| stats count as events by host, src_bogon, src_ipv6\n| sort -events",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.2 — bogon filtering)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6890 — Special-Purpose IP Address Registries (comprehensive list of special addresses)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6890"
+      "url": "https://www.rfc-editor.org/rfc/rfc6890",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Team Cymru Bogon Reference — IPv6 bogon list",
-      "url": "https://www.team-cymru.com/"
+      "url": "https://www.team-cymru.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§4.3.1 — bogon filtering)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**ULA in multi-site VPN.** Organisations using ULA (fc00::/7) for inter-site communication over VPN may see ULA traffic at WAN interfaces. This is legitimate if the VPN is encrypted and the ULA is intentional. ULA should not appear on public internet-facing interfaces.\n\n**NAT64 well-known prefix at provider boundary.** In deployments using NAT64, the 64:ff9b::/96 prefix appears in traffic between the DNS64 resolver and the NAT64 gateway. This is legitimate within the NAT64 infrastructure but should not cross the site perimeter to the internet.\n\n**IANA new allocations.** When IANA allocates a new IPv6 /12 block, previously-bogon addresses become legitimate. The bogon list must be updated after IANA allocations to prevent false positives.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "fortinet",

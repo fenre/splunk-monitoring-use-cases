@@ -9,6 +9,12 @@
     "Security"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Address Type Distribution'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.3).",
+  "evidence": "Saved search uc_5_20_3_ipv6_address_type_distribution, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Address Type Distribution'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=netflow sourcetype=netflow OR sourcetype=ipfix` for flow data, or `index=network sourcetype=cisco:ios` for syslog with IPv6 addresses, or `index=firewall sourcetype=pan:traffic` for firewall logs. Any data source containing IPv6 addresses in source or destination fields works. Key fields: `src_ip`, `dest_ip`, or any field containing an IPv6 address. Volume: depends on the data source used; this UC post-processes existing data, it does not require a new input.",
   "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658), or Palo Alto Networks Add-on (`Splunk_TA_paloalto`, Splunkbase 7523), or Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352). Any TA that extracts IPv6 addresses into searchable fields.",
   "spl": "index=netflow sourcetype=netflow OR sourcetype=ipfix\n| where match(src_ip, \":\")\n| eval addr_type=case(\n    match(src_ip, \"^fe80:\"), \"Link-Local\",\n    match(src_ip, \"^f[cd]\"), \"ULA (fc00::/7)\",\n    match(src_ip, \"^ff\"), \"Multicast\",\n    match(src_ip, \"^::ffff:\"), \"IPv4-Mapped\",\n    match(src_ip, \"^2002:\"), \"6to4 (deprecated)\",\n    match(src_ip, \"^2001:0*:\"), \"Teredo\",\n    match(src_ip, \"^2001:0*db8:\"), \"Documentation (2001:db8::/32)\",\n    match(src_ip, \"^3ffe:\"), \"6bone (deprecated)\",\n    match(src_ip, \"^100::\"), \"Discard (100::/64)\",\n    match(src_ip, \"^64:ff9b:\"), \"NAT64 Well-Known (64:ff9b::/96)\",\n    match(src_ip, \"^2\"), \"Global Unicast\",\n    match(src_ip, \"^::$\"), \"Unspecified (::)\",\n    match(src_ip, \"^::1$\"), \"Loopback (::1)\",\n    1==1, \"Other\")\n| stats count by addr_type\n| sort -count",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "IANA IPv6 Special-Purpose Address Registry",
-      "url": "https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml"
+      "url": "https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.1 — Address formats)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4193 — Unique Local IPv6 Unicast Addresses (ULA definition and filtering requirements)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4193"
+      "url": "https://www.rfc-editor.org/rfc/rfc4193",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Link-Local percentage appears high.** Link-local addresses (fe80::/10) are used for every NDP transaction, OSPFv3 neighborship, and on-link communication. On access switches with many clients, link-local traffic may represent 15-30% of all IPv6 flows. This is architecturally normal — link-local is how IPv6 works at the first hop.\n\n**NAT64 well-known prefix (64:ff9b::/96) is legitimate.** If you operate NAT64 gateways, traffic to/from 64:ff9b::/96 is expected and correct. It should appear only at the NAT64 translator, not on other segments.\n\n**Documentation prefix (2001:db8::/32) in production.** This prefix is reserved for documentation and examples per RFC 3849. If it appears in production traffic, it indicates a misconfiguration (someone deployed example configs verbatim) but is not malicious.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

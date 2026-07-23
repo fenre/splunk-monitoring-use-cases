@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix Endpoint Management Device Enrollment Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.64).",
+  "evidence": "Saved search uc_2_6_64_citrix_endpoint_management_device_enroll, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix Endpoint Management Device Enrollment Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.64.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=mdm` or `index=xd` `sourcetype=\"citrix:endpoint:enrollment\"` with `enrollment_method` (`AAD`, `idp`, `gateway`, `scep`), `mdms_scope` (full MDM vs MAM), `outcome` (`success`/`failed`), `error_code`, `device_platform`, `user_id`; server logs from Citrix Endpoint Management (on-premises or cloud connector) forwarded with stable timestamps Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.",
   "spl": "index=xd sourcetype=\"citrix:endpoint:enrollment\" outcome!=\"success\"\n| eval method=upper(coalesce(enrollment_method, channel, \"UNKNOWN\"))\n| eval mode=coalesce(mdms_scope, mdm_mam, enrollment_mode, \"unknown\")\n| eval platform=coalesce(device_platform, os_type, \"unknown\")\n| bin _time span=1h\n| stats count as failures, dc(error_code) as unique_errors by _time, method, mode, platform\n| where failures>=5\n| sort - _time, failures",
   "description": "Citrix Endpoint Management (CEM) enrollments that fail by Azure AD, identity-provider, or gateway-based flows strand devices without the policies and secure channels you expect. A rising failure rate in one method (for example AAD) often foreshadows certificate or conditional-access changes rather than a bad device. Tracking failures by method and MDM versus MAM split, with hourly trends, helps operations separate widespread identity drift from a flaky Wi-Fi at one site, and it pairs naturally with the certificate and compliance use cases in the same runbooks.",
-  "value": "Citrix Endpoint Management (CEM) enrollments that fail by Azure AD, identity-provider, or gateway-based flows strand devices without the policies and secure channels you expect. A rising failure rate in one method (for example AAD) often foreshadows certificate or conditional-access changes rather than a bad device. Tracking failures by method and MDM versus MAM split, with hourly trends, helps operations separate widespread identity drift from a flaky Wi-Fi at one site, and it pairs naturally with the certificate and compliance use cases in the same runbooks.",
+  "value": "Operations and leadership rely on 'Citrix Endpoint Management Device Enrollment Failures' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Stream enrollment transactions from the CEM service or appliance into a dedicated index and sourcetype. Normalize `outcome` to lower case. Add a small lookup of acceptable error rates per platform. Alert when hourly non-success events exceed a rolling four-hour baseline by 300 percent, or any single error code appears more than 50 times in an hour. Provide a dashboard by enrollment method and region. Separate corporate-owned and BYOD cohorts if your data model supports it. Coordinate with the identity team when AAD- or IdP-tagged failures lead the chart.",
   "visualization": "Time chart: enrollment failures by method; bar chart: MDM versus MAM failure share; drill table with top error_code and last device sample IDs (masked).",
   "cimModels": [
@@ -21,16 +27,43 @@
   "references": [
     {
       "title": "Citrix Endpoint Management product documentation",
-      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management.html"
+      "url": "https://docs.citrix.com/en-us/citrix-endpoint-management.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "azure",
     "citrix",
     "syslog"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "citrix_generic",
+    "syslog_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• CEM or XenMobile at a supported build; read-only API or file export for enrollments; correct time zone and NTP to correlate with directory logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm field list with one failed lab enrollment. Retain a hashed device identifier, not full IMEI, where privacy policy requires it.\n\nStep 2 — Create the search and alert\nPhase one: a daily report. Phase two: dynamic thresholds. Suppress during announced OS upgrades where enrollment spikes are expected.\n\nStep 3 — Validate\nReplay a known AAD test failure, confirm a row. Fix the trust and assert recovery in the same chart.\n\nStep 4 — Operationalize\nAdd a single owner from EUC and one from identity for AAD-tagged error spikes; document escalation paths in the runbook.",
-  "grandmaExplanation": "We count when phones and tablets fail to check in to the company’s control system and we split the reasons, so a broken sign-in path or a bad update shows up in one clear picture before devices stay unmanaged for long."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• CEM or XenMobile at a supported build; read-only API or file export for enrollments; correct time zone and NTP to correlate with directory logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm field list with one failed lab enrollment. Retain a hashed device identifier, not full IMEI, where privacy policy requires it.\n\nStep 2 — Create the search and alert\nPhase one: a daily report. Phase two: dynamic thresholds. Suppress during announced OS upgrades where enrollment spikes are expected.\n\nStep 3 — Validate\nReplay a known AAD test failure, confirm a row. Fix the trust and assert recovery in the same chart.\n\nStep 4 — Operationalize\nAdd a single owner from EUC and one from identity for AAD-tagged error spikes; document escalation paths in the runbook.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for Citrix Endpoint Management. Ingest via syslog from XenMobile Server, or use the Citrix Analytics Add-on for Splunk (Splunkbase 6280) which imports CEM risk indicators from Citrix Analytics for Security. For on-premises XenMobile, forward syslog and JMX metrics via Universal Forwarder. Suggested custom sourcetypes follow the `citrix:endpoint:*` convention.). Enable the modular input or HEC token that writes sourcetype=citrix:endpoint:enrollment into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, failures, method, mode`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count when phones and tablets fail to check in to the company’s control system and we split the reasons, so a broken sign-in path or a bad update shows up in one clear picture before devices stay unmanaged for long.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

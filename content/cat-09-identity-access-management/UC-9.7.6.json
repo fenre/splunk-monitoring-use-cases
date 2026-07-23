@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents",
-  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Password Reset Volume Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.7.6).",
+  "evidence": "Saved search uc_9_7_6_password_reset_volume_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Password Reset Volume Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.7.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "(index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4724 earliest=-90d@d)\n OR (index=okta sourcetype=Okta:system EVENT_TYPE=user.account.reset_password earliest=-90d@d)\n| bin _time span=1d\n| stats count as reset_volume by _time\n| sort _time\n| trendline sma7(reset_volume) as reset_sma7\n| predict reset_volume as reset_forecast algorithm=LLP future_timespan=7",
   "description": "Sudden increases in password resets—self-service or helpdesk—often align with phishing waves, credential stuffing after a breach, or attacker-driven resets. A ninety-day trend with a moving average makes campaign-scale activity visible before individual tickets pile up.",
-  "value": "Sudden increases in password resets—self-service or helpdesk—often align with phishing waves, credential stuffing after a breach, or attacker-driven resets. A ninety-day trend with a moving average makes campaign-scale activity visible before individual tickets pile up.",
+  "value": "Operations and leadership rely on 'Password Reset Volume Trending' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Normalize multiple sources into one panel or use `eval source_system` before `stats`. Exclude routine bulk resets from known automation via a lookup of service accounts or change windows. When the SMA breaches a static or adaptive threshold, open a phishing hunt and check MFA and impossible-travel dashboards. Add helpdesk ticket volume from ITSM if self-service is low but calls spike.",
   "visualization": "Column or line chart of daily reset_volume with SMA; optional forecast ribbon.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bulk password expirations, helpdesk reset campaigns, and seasonal workforce churn can spike volume without incident — baseline seasonally.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1110.004"
   ],
@@ -38,6 +56,17 @@
     "servicenow",
     "windows"
   ],
+  "equipmentModels": [
+    "okta_generic",
+    "servicenow_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional).\n• Ensure the following data sources are available: AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize multiple sources into one panel or use `eval source_system` before `stats`. Exclude routine bulk resets from known automation via a lookup of service accounts or change windows. When the SMA breaches a static or adaptive threshold, open a phishing hunt and check MFA and impossible-travel dashboards. Add helpdesk ticket volume from ITSM if self-service is low but calls spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4724 earliest=-90d@d)\n OR (index=okta sourcetype=Okta:system EVENT_TYPE=user.account.reset_password earliest=-90d@d)\n| bin _time span=1d\n| stats count as reset_volume by _time\n| sort _time\n| trendline sma7(reset_volume) as reset_sma7\n| predict reset_volume as reset_forecast algorithm=LLP future_timespan=7\n```\n\nUnderstanding this SPL\n\n**Password Reset Volume Trending** — Sudden increases in password resets—self-service or helpdesk—often align with phishing waves, credential stuffing after a breach, or attacker-driven resets. A ninety-day trend with a moving average makes campaign-scale activity visible before individual tickets pile up.\n\nDocumented **Data sources**: AD Security log `EventCode` 4724 (password reset attempt); `index=okta` `sourcetype=Okta:system` password reset events; ITSM `category=password` incidents. **App/TA** (typical add-on context): Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`), Okta Add-on for Splunk, Splunk Add-on for ServiceNow or your ITSM (optional). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog, okta; **sourcetype**: WinEventLog:Security, Okta:system. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, index=okta, sourcetype=\"WinEventLog:Security\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Password Reset Volume Trending**): trendline sma7(reset_volume) as reset_sma7\n• Pipeline stage (see **Password Reset Volume Trending**): predict reset_volume as reset_forecast algorithm=LLP future_timespan=7\n\n\nStep 3 — Validate\nCompare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column or line chart of daily reset_volume with SMA; optional forecast ribbon.",
-  "grandmaExplanation": "We track how sign-in and identity activity change over time so we can spot surges, drift, and seasonal norms without guessing."
+  "grandmaExplanation": "We track how sign-in and identity activity change over time so we can spot surges, drift, and seasonal norms without guessing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

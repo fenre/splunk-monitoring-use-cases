@@ -9,7 +9,13 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Cloudflare Logpush (Tunnel logs), `sourcetype=cloudflare:tunnel`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cloudflare Tunnel Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.58).",
+  "evidence": "Saved search uc_17_3_58_cloudflare_tunnel_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Cloudflare Tunnel Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.58.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Cloudflare Logpush (Tunnel logs), `sourcetype=cloudflare:tunnel` Indexes: zt. Sourcetypes: cloudflare:tunnel. Key fields: connector_id, healthy, tunnel_id, tunnel_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Cloudflare App for Splunk (Splunkbase 4501)",
   "spl": "index=zt sourcetype=\"cloudflare:tunnel\" earliest=-24h\n| eval healthy=if(match(lower(event_type),\"(?i)connected|healthy|active\"),1,0)\n| stats latest(healthy) as status latest(_time) as last_seen by tunnel_id, tunnel_name, connector_id\n| where status=0 OR last_seen < relative_time(now(), \"-1h\")\n| sort last_seen",
   "description": "Cloudflare Tunnels (formerly Argo Tunnels) connect private infrastructure to Cloudflare without opening inbound ports. Tunnel health determines whether users can reach private applications through Cloudflare Access.",
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "cloudflare"
   ],
-  "detailedImplementation": "Prerequisites\n• Cloudflare Tunnel (formerly Argo Tunnel) events in `index=cloudflare` with `sourcetype=cloudflare:tunnel`. Key fields: `tunnel_id`, `tunnel_name`, `connector_id`, `event_type` (connected/disconnected/reconnecting), `origin_ip`, `edge_ip`, `protocol` (h2mux/quic), `latency_ms`.\n• Cloudflare Tunnels create outbound-only connections from your infrastructure to Cloudflare's edge, eliminating the need to open inbound firewall ports. Each tunnel runs a `cloudflared` connector on your origin server.\n\nStep 1 — Configure data collection\nVerify tunnel events:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" earliest=-24h\n| stats count by tunnel_name, event_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Tunnel health:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" earliest=-24h\n| dedup tunnel_name sortby -_time\n| table tunnel_name, connector_id, event_type, protocol, latency_ms, _time\n| eval status=if(event_type=\"connected\", \"Healthy\", \"ISSUE\")\n| sort status\n```\n\nUnderstanding this SPL: Shows the last known state of each tunnel. 'disconnected' or 'reconnecting' state means the tunnel is down — applications served through that tunnel are unreachable. Frequent reconnections indicate network instability at the origin.\n\nTunnel stability (reconnection frequency):\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" event_type=disconnected earliest=-7d\n| stats count as disconnections by tunnel_name\n| sort - disconnections\n```\n\nStep 3 — Validate\n(a) In Cloudflare: Zero Trust > Network > Tunnels. Compare status.\n(b) Restart cloudflared on a test tunnel. Verify disconnect/reconnect sequence.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Tunnel status overview. Row 2 — Disconnection frequency. Row 3 — Tunnel latency.\nAlert: Immediate when any tunnel disconnects.\n\nRunbook:\n1. **Tunnel disconnected** — Check cloudflared service on origin. Restart if needed.\n2. **Frequent reconnections** — Network instability. Check origin ISP.\n3. **All tunnels down** — Infrastructure outage. Escalate immediately.\n\nStep 5 — Troubleshooting\n• **No tunnel events** — cloudflared may not be exporting metrics/events. Enable metrics endpoint.\n• **Tunnel always 'reconnecting'** — cloudflared version may be outdated. Update.",
+  "equipmentModels": [
+    "cloudflare_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cloudflare Tunnel (formerly Argo Tunnel) events in `index=cloudflare` with `sourcetype=cloudflare:tunnel`. Key fields: `tunnel_id`, `tunnel_name`, `connector_id`, `event_type` (connected/disconnected/reconnecting), `origin_ip`, `edge_ip`, `protocol` (h2mux/quic), `latency_ms`.\n• Cloudflare Tunnels create outbound-only connections from your infrastructure to Cloudflare's edge, eliminating the need to open inbound firewall ports. Each tunnel runs a `cloudflared` connector on your origin server.\n\nStep 1 — Configure data collection\nVerify tunnel events:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" earliest=-24h\n| stats count by tunnel_name, event_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Tunnel health:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" earliest=-24h\n| dedup tunnel_name sortby -_time\n| table tunnel_name, connector_id, event_type, protocol, latency_ms, _time\n| eval status=if(event_type=\"connected\", \"Healthy\", \"ISSUE\")\n| sort status\n```\n\nUnderstanding this SPL: Shows the last known state of each tunnel. 'disconnected' or 'reconnecting' state means the tunnel is down — applications served through that tunnel are unreachable. Frequent reconnections indicate network instability at the origin.\n\nTunnel stability (reconnection frequency):\n```spl\nindex=cloudflare sourcetype=\"cloudflare:tunnel\" event_type=disconnected earliest=-7d\n| stats count as disconnections by tunnel_name\n| sort - disconnections\n```\n\nStep 3 — Validate\n(a) In Cloudflare: Zero Trust > Network > Tunnels. Compare status.\n(b) Restart cloudflared on a test tunnel. Verify disconnect/reconnect sequence.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Tunnel status overview. Row 2 — Disconnection frequency. Row 3 — Tunnel latency.\nAlert: Immediate when any tunnel disconnects.\n\nRunbook:\n1. **Tunnel disconnected** — Check cloudflared service on origin. Restart if needed.\n2. **Frequent reconnections** — Network instability. Check origin ISP.\n3. **All tunnels down** — Infrastructure outage. Escalate immediately.\n\nStep 5 — Troubleshooting\n• **No tunnel events** — cloudflared may not be exporting metrics/events. Enable metrics endpoint.\n• **Tunnel always 'reconnecting'** — cloudflared version may be outdated. Update.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cloudflare App for Splunk (Splunkbase 4501)). Enable the modular input or HEC token that writes sourcetype=cloudflare:tunnel into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector_id, healthy, tunnel_id, tunnel_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our applications connect to Cloudflare through special tunnels that only go outward, so we never need to open doors inward. We monitor each tunnel to make sure it stays connected, because if a tunnel drops, the application behind it becomes unreachable to everyone.",
-  "hardware": "Cloudflare Zero Trust (cloud), cloudflared daemon (connector)"
+  "hardware": "Cloudflare Zero Trust (cloud), cloudflared daemon (connector)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

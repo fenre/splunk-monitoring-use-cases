@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=ot` `sourcetype=\"mqtt:message\"` fields `topic`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'MQTT Topic Tree Depth and Fan-Out Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.5.21).",
+  "evidence": "Saved search uc_14_5_21_mqtt_topic_tree_depth_and_fan_out_analys, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'MQTT Topic Tree Depth and Fan-Out Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.5.21.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=ot` `sourcetype=\"mqtt:message\"` fields `topic` Indexes: ot. Sourcetypes: mqtt:message. Key fields: host, root. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension",
   "spl": "index=ot sourcetype=\"mqtt:message\"\n| eval depth=mvcount(split(topic,\"/\"))\n| eval parts=split(topic,\"/\")\n| eval root=mvindex(parts,0)\n| stats count as msgs, dc(topic) as unique_topics, max(depth) as max_depth, avg(depth) as avg_depth by root, host\n| sort - unique_topics",
   "description": "Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.",
-  "value": "Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.",
+  "value": "Operations and leadership rely on 'MQTT Topic Tree Depth and Fan-Out Analysis' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "For very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.",
   "visualization": "Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "MQTT Modular Input",
-      "url": "https://splunkbase.splunk.com/app/1890"
+      "url": "https://splunkbase.splunk.com/app/1890",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Topic tree depth and fan-out shifts during namespace redesigns, new lines, or discovery agents.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "mqtt"
   ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"mqtt:message\"` fields `topic`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFor very high message rates, sample or pre-aggregate in HiveMQ metrics. Exclude test topics. Pair with ACL audit if unauthorized deep topics appear.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"mqtt:message\"\n| eval depth=mvcount(split(topic,\"/\"))\n| eval parts=split(topic,\"/\")\n| eval root=mvindex(parts,0)\n| stats count as msgs, dc(topic) as unique_topics, max(depth) as max_depth, avg(depth) as avg_depth by root, host\n| sort - unique_topics\n```\n\nUnderstanding this SPL\n\n**MQTT Topic Tree Depth and Fan-Out Analysis** — Deep topic hierarchies and high fan-out increase broker memory and ACL evaluation costs; trending complexity helps right-size clusters and topic design reviews.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"mqtt:message\"` fields `topic`. **App/TA** (typical add-on context): MQTT Modular Input (Splunkbase 1890), HiveMQ Splunk Extension. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: mqtt:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"mqtt:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **parts** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **root** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by root, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search over a period with known traffic, then compare with the MQTT broker UI or `mosquitto_sub` for the same topics and clients. Spot-check counts against broker access and metrics logs.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (unique topics by root prefix), Histogram (depth distribution), Table (top fan-out roots).",
-  "grandmaExplanation": "We size topic tree depth and fan-out so a messy namespace or runaway auto-topics do not get impossible to run."
+  "grandmaExplanation": "We size topic tree depth and fan-out so a messy namespace or runaway auto-topics do not get impossible to run.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

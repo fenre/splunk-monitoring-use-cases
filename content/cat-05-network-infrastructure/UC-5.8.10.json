@@ -8,10 +8,16 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Firmware Update Compliance and Version Tracking (Meraki)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.8.10).",
+  "evidence": "Saved search uc_5_8_10_firmware_update_compliance_and_version_t, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Firmware Update Compliance and Version Tracking (Meraki)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.8.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Devices input (sourcetype=meraki:devices) for current firmware version per device, and Firmware Upgrades input (sourcetype=meraki:firmwareupgrades, daily) for upgrade history. The recommended_meraki_firmware.csv is a customer-maintained lookup; populate it with the firmware version Meraki currently recommends per model.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:devices\" earliest=-1h\n| stats latest(firmware) as current_fw,\n        dc(serial) as device_count,\n        values(network.name) as networks\n         by productType, model\n| join type=left model [\n    | inputlookup recommended_meraki_firmware.csv\n    | rename target_firmware as recommended_fw\n  ]\n| eval compliant = if(current_fw==recommended_fw, \"Yes\", \"No\")\n| where compliant=\"No\" OR isnull(recommended_fw)\n| sort productType model",
-  "description": "Ensures all network devices run supported firmware versions and patches.",
+  "description": "Ensures all network devices run supported firmware versions and patches. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Network operations teams track Meraki device firmware versions against compliance targets, identifying devices running below minimum required firmware and monitoring upgrade rollout progress across the organization.",
   "implementation": "1. Enable the Devices and Firmware Upgrades inputs in Splunk_TA_cisco_meraki. The Devices input emits one event per device with the firmware field already populated (e.g. 'wireless-29-7'). 2. Create a lookup file recommended_meraki_firmware.csv with columns (model, target_firmware) reflecting the Meraki Dashboard recommendations under Organization -> Firmware upgrades. 3. The TA reads the Firmware Upgrades input from GET /organizations/{orgId}/firmware/upgrades and carries upgrade.toVersion.shortName for each scheduled upgrade — pair with the Devices output to detect drift after a wave.",
   "visualization": "Firmware version table by device type; compliance percentage gauge; outdated device list.",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Staged rollouts, deferred upgrades for stability, and lab networks often stay on older versions on purpose; policy by site tag, not a single version everywhere.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices input (sourcetype=meraki:devices) for current firmware version per device, and Firmware Upgrades input (sourcetype=meraki:firmwareupgrades, daily) for upgrade history. The recommended_meraki_firmware.csv is a customer-maintained lookup; populate it with the firmware version Meraki currently recommends per model..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Devices and Firmware Upgrades inputs in Splunk_TA_cisco_meraki. The Devices input emits one event per device with the firmware field already populated (e.g. 'wireless-29-7'). 2. Create a lookup file recommended_meraki_firmware.csv with columns (model, target_firmware) reflecting the Meraki Dashboard recommendations under Organization -> Firmware upgrades. 3. The TA reads the Firmware Upgrades input from GET /organizations/{orgId}/firmware/upgrades and carries upgrade.toVersion.shor…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:devices\" earliest=-1h\n| stats latest(firmware) as current_fw,\n        dc(serial) as device_count,\n        values(network.name) as networks\n         by productType, model\n| join type=left model [\n    | inputlookup recommended_meraki_firmware.csv\n    | rename target_firmware as recommended_fw\n  ]\n| eval compliant = if(current_fw==recommended_fw, \"Yes\", \"No\")\n| where compliant=\"No\" OR isnull(recommended_fw)\n| sort productType model\n```\n\nUnderstanding this SPL\n\n**Firmware Update Compliance and Version Tracking (Meraki)** — Network operations teams track Meraki device firmware versions against compliance targets, identifying devices running below minimum required firmware and monitoring upgrade rollout progress across the organization.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Devices input (sourcetype=meraki:devices) for current firmware version per device, and Firmware Upgrades input (sourcetype=meraki:firmwareupgrades, daily) for upgrade history. The recommended_meraki_firmware.csv is a customer-maintained lookup; populate it with the firmware version Meraki currently recommends per model. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:devices. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:devices\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by productType, model** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **compliant** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where compliant=\"No\" OR isnull(recommended_fw)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Firmware version table by device type; compliance percentage gauge; outdated device list.",
-  "grandmaExplanation": "We track whether Meraki devices run current safe firmware, so you are not running known bugs or missing fixes across offices."
+  "grandmaExplanation": "We track whether Meraki devices run current safe firmware, so you are not running known bugs or missing fixes across offices.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

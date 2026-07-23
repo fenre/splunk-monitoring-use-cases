@@ -8,7 +8,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Cloudflare Logpush (Access logs), `sourcetype=cloudflare:access`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cloudflare Access (ZTNA) Policy Enforcement'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.56).",
+  "evidence": "Saved search uc_17_3_56_cloudflare_access_ztna_policy_enforcemen, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Cloudflare Access (ZTNA) Policy Enforcement'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.56.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Cloudflare Logpush (Access logs), `sourcetype=cloudflare:access` Indexes: zt. Sourcetypes: cloudflare:access. Key fields: action, app_name, country, user_email. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Cloudflare App for Splunk (Splunkbase 4501)",
   "spl": "index=zt sourcetype=\"cloudflare:access\" earliest=-7d\n| stats count by action, app_name, user_email, country\n| sort -count",
   "description": "Cloudflare Access replaces VPN with per-application zero-trust access policies based on identity, device posture, and network context. Tracking allow/block decisions validates that access policies are correctly enforced.",
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021",
     "T1071.001"
@@ -38,7 +56,16 @@
   "equipment": [
     "cloudflare"
   ],
+  "equipmentModels": [
+    "cloudflare_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Cloudflare Access logs via Logpush in `index=cloudflare` with `sourcetype=cloudflare:logpush:access_requests` or `sourcetype=cloudflare:access`. Key fields: `action` (allow/block/bypass), `email`, `app_name`, `app_domain`, `ip_address`, `country`, `device_posture`, `identity_provider`, `purpose_justification`.\n• Cloudflare Access is a ZTNA service that protects internal applications by evaluating identity, device posture, and location before granting access. Each application has its own access policy.\n\nStep 1 — Configure data collection\nConfigure Cloudflare Logpush for Access: Cloudflare Dashboard > Zero Trust > Logs > Logpush.\n\nVerify:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:access\" earliest=-24h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Access policy enforcement:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:access\" earliest=-7d\n| stats count(eval(action=\"allow\")) as allowed count(eval(action=\"block\")) as blocked dc(email) as users by app_name\n| eval block_rate=round(blocked/(allowed+blocked)*100, 1)\n| sort - block_rate\n```\n\nUnderstanding this SPL: Shows access success/block rates per Cloudflare Access application. A high block rate on a specific app means many users are failing the access policy — wrong group, wrong location, or device posture failure.\n\nAccess from unusual locations:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:access\" action=allow earliest=-24h\n| stats dc(country) as countries values(country) as country_list by email\n| where countries > 1\n| sort - countries\n```\n\nStep 3 — Validate\n(a) Access a Cloudflare Access-protected app. Verify the allow event.\n(b) Attempt access from a restricted location (VPN to another country). Verify block.\n\nStep 4 — Operationalize\nDashboard: Row 1 — App access rates. Row 2 — Multi-country access. Row 3 — Block analysis.\nAlert: Multi-country access for same user within 24h.\n\nRunbook:\n1. **High block rate** — Check policy conditions. May be too restrictive.\n2. **Multi-country** — Possible credential compromise. Force re-auth.\n3. **Bypass events** — Some paths may bypass Access. Audit bypass rules.\n\nStep 5 — Troubleshooting\n• **No Access events** — Logpush for Access may not be configured (separate from HTTP requests).\n• **All 'allow'** — Access policy may be too permissive or in bypass mode.",
   "grandmaExplanation": "Cloudflare Access protects our internal applications by checking who you are and where you are connecting from. We track which applications block the most people and watch for users logging in from multiple countries, which usually means their password was stolen.",
-  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client (endpoint), Cloudflare Tunnel (connector)"
+  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client (endpoint), Cloudflare Tunnel (connector)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

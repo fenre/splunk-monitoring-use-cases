@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Power Monitoring and Electrical Load Analysis (Meraki MT)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.1.19).",
+  "evidence": "Saved search uc_14_1_19_power_monitoring_and_electrical_load_ana, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Power Monitoring and Electrical Load Analysis (Meraki MT)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.1.19.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=meraki sourcetype=meraki:sensorreadingshistory metric=\"realPower\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `realPower.draw` (watts), `voltage.level`, `current.draw`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"realPower\"\n| rename \"realPower.draw\" as power_w\n| stats avg(power_w) as avg_power_w, max(power_w) as peak_power_w by serial, \"network.name\"\n| eval power_capacity_pct=round(peak_power_w*100/15000, 2)\n| sort - peak_power_w",
   "description": "Tracks electrical power consumption and load to identify anomalies and plan upgrades.",
-  "value": "Tracks electrical power consumption and load to identify anomalies and plan upgrades.",
+  "value": "Operations and leadership rely on 'Power Monitoring and Electrical Load Analysis (Meraki MT)' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Configure `cisco_meraki_sensor_readings_history` for MT40 power monitor sensors. `realPower.draw` is in watts; the 15000 W denominator above is a standard 15A/120V circuit headroom — adjust to match the rated capacity of the monitored circuit.",
   "visualization": "Power consumption gauge; peak load timeline; capacity planning chart.",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Benign events during building tests, after-hours schedules, and vendor work—confirm against the BMS console before urgent response.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"realPower\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `realPower.draw` (watts), `voltage.level`, `current.draw`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure `cisco_meraki_sensor_readings_history` for MT40 power monitor sensors. `realPower.draw` is in watts; the 15000 W denominator above is a standard 15A/120V circuit headroom — adjust to match the rated capacity of the monitored circuit.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"realPower\"\n| rename \"realPower.draw\" as power_w\n| stats avg(power_w) as avg_power_w, max(power_w) as peak_power_w by serial, \"network.name\"\n| eval power_capacity_pct=round(peak_power_w*100/15000, 2)\n| sort - peak_power_w\n```\n\nUnderstanding this SPL\n\n**Power Monitoring and Electrical Load Analysis (Meraki MT)** — Tracks electrical power consumption and load to identify anomalies and plan upgrades.\n\nDocumented **Data sources**: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"realPower\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `realPower.draw` (watts), `voltage.level`, `current.draw`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:sensorreadingshistory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:sensorreadingshistory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• `stats` rolls up events into metrics; results are split **by serial, \"network.name\"** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **power_capacity_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Power consumption gauge; peak load timeline; capacity planning chart.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: power monitoring and electrical load analysis before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: power monitoring and electrical load analysis before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

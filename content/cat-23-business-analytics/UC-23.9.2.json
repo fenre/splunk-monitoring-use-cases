@@ -11,6 +11,11 @@
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
   "exclusions": "Does not compute GHG Protocol Scope 1–3 tonnes CO2e, dual Scope 2 location-versus-market grids, or jurisdiction-specific carbon factor stewardship (see UC-23.9.1). Does not replace certified energy audits, investment-grade metering submittals, or utility bill reconciliation for tariff settlement — it is an operational energy-intensity and attribution layer on BMS-grade sub-meter telemetry.",
+  "evidence": "Saved search uc_23_9_2_energy_consumption_and_efficiency_by_fac, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Energy Consumption and Efficiency by Facility'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.9.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary: sub-meter kilowatt-hour telemetry ingested through Splunk HTTP Event Collector into `index=facilities` with `sourcetype=\"power_meter\"`, carrying at minimum `site` (or `facility`), `meter_id`, `system` (branch or load name such as CH-01, LIGHT-L2, IT-PDU-A), `_time`, and one of `kwh_delta`, `kwh_total`, `kwh`, or `kwh_consumed` per poll (BACnet/IP AI objects with engineering-units property 19 kilowatt-hours from Johnson Controls Metasys, Siemens Desigo CC, Schneider EcoStruxure Building, Honeywell Niagara, Trane Tracer SC+, Distech EC-Net; Modbus TCP holding-register pairs from Schneider PowerLogic ION8650 / Veris H8035 class meters). Supplementary dimensional context via CSV lookup `lookups/facility_details.csv` (deploy as `facility_details.csv`) keyed on `site` returning `square_metres`, `occupancy`, `climate_zone` (ASHRAE climate zone string such as 6A Minneapolis versus 2B Phoenix) so Splunk can compute kilowatt-hours per square metre Energy Use Intensity and compare sites on equal footing before weather-adjustment overlays land in later iterations.",
   "app": "Splunk HTTP Event Collector (ships with Splunk Enterprise and Splunk Cloud; Settings → Data inputs → HTTP Event Collector — no separate Splunkbase ID) for JSON payloads from BMS gateways or IoT collectors; Splunk DB Connect (`splunk_app_db_connect`, Splunkbase 2686) to hydrate `facility_details.csv` from a facilities master table (space inventory, occupancy headcount, climate zone). Optional Splunk Edge Hub when field protocol conversion (Modbus TCP/RTU, BACnet MS/TP behind a serial concentrator) happens at the edge before HEC; optional Splunk Connect for SNMP when power meters expose kWh counters over SNMP instead of BACnet/Modbus.",
   "spl": "index=facilities sourcetype=\"power_meter\" earliest=-90d@d latest=@d\n| eval site=coalesce(site,facility,location,\"Unknown\")\n| eval system=trim(coalesce(system,meter_loop,\"UNATTRIBUTED\"))\n| eval kwh_val=tonumber(coalesce(kwh_delta,kwh_total,kwh,kwh_consumed,\"0\"))\n| bin _time span=1d\n| stats sum(kwh_val) as daily_kwh by site, system, _time\n| eval date_wday=strftime(_time,\"%A\")\n| eval day_kind=case(lower(date_wday) IN (\"saturday\",\"sunday\"), \"weekend\", 1=1, \"weekday\")\n| eval sys_att=case(\n    match(upper(system),\"HVAC|CHILL|BOILER|AHU|RTU|VAV|FCU|PUMP|COOL|CHW\"), \"HVAC\",\n    match(upper(system),\"LIGHT|LGT|FIXTURE|LED\"), \"lighting\",\n    match(upper(system),\"IT|UPS|PDU|SERVER|DATA|NETWORK|MDF|IDF\"), \"IT_load\",\n    match(upper(system),\"PLUG|RECEPT|EV|SHED\"), \"plug_load\",\n    1=1, \"other\")\n| stats sum(daily_kwh) as period_kwh by site, sys_att, day_kind\n| lookup facility_details.csv site OUTPUT square_metres, occupancy, climate_zone\n| eval eui=if(square_metres>0, round(period_kwh/square_metres, 4), null())\n| eventstats avg(eui) as portfolio_eui by sys_att, day_kind\n| eval pct_vs_portfolio=if(portfolio_eui>0, round(100*(eui-portfolio_eui)/portfolio_eui, 2), null())\n| join type=left site [\n    search index=facilities sourcetype=\"power_meter\" earliest=-365d@d latest=-335d@d\n    | eval site=coalesce(site,facility,location,\"Unknown\")\n    | eval kwh_val=tonumber(coalesce(kwh_delta,kwh_total,kwh,kwh_consumed,\"0\"))\n    | bin _time span=1d\n    | stats sum(kwh_val) as base_kwh by site\n    | lookup facility_details.csv site OUTPUT square_metres as sq_m\n    | eval baseline_eui=if(sq_m>0, round(base_kwh/sq_m, 4), null())\n    | fields site, baseline_eui\n  ]\n| eval yoy_eui_delta=if(isnotnull(baseline_eui), round(eui-baseline_eui, 4), null())\n| sort site, sys_att, day_kind\n| table site, sys_att, day_kind, climate_zone, square_metres, occupancy, period_kwh, eui, baseline_eui, yoy_eui_delta, portfolio_eui, pct_vs_portfolio",
@@ -22,26 +27,31 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — Use the HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ENERGY STAR Portfolio Manager technical reference — illustrative median office site EUI 64 kBtu/ft² (≈6.7 kWh/m² basis varies by gross vs conditioned floor-area conventions)",
-      "url": "https://www.energystar.gov/buildings/tools-and-resources/"
+      "url": "https://www.energystar.gov/buildings/tools-and-resources/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ANSI/ASHRAE/IES Standard 90.1 (Energy Standard for Buildings) — overview and EUI benchmarking context",
-      "url": "https://www.ashrae.org/technical-resources/standards-and-guidelines/"
+      "url": "https://www.ashrae.org/technical-resources/standards-and-guidelines/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ANSI/ASHRAE Standard 135-2020 — BACnet: A Data Communication Protocol for Building Automation and Control Networks",
-      "url": "https://www.ashrae.org/technical-resources/bookstore/"
+      "url": "https://www.ashrae.org/technical-resources/bookstore/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A cold January in Toronto can push the same metered kilowatt-hours as a July heat wave in Phoenix through entirely different HVAC drivers — heating-degree-day versus cooling-degree-day dominance means EUI rises in both cities without a sudden efficiency collapse, so treat raw kilowatt-hours per square metre spikes next to seasonal degree-day overlays before blaming controls. Hybrid return-to-office shifts headcount without floor-area changes: energy per occupant swings while kilowatt-hours per square metre stays flat, so workforce analytics can scream waste when the building simply hosts fewer desks. Large unattributed buckets appear when only the main switchboard is metered but lighting circuits remain estimated from breaker labels — Splunk faithfully shows other above forty percent while the gap is instrumentation, not mystery load. Demand-response programmes (ERCOT emergency response service, CAISO capacity bids, PJM economic load response) legitimately shed one hundred to five hundred kilowatts for hours — EUI drops are compliance with grid stress, not proof of deeper savings. Electric-vehicle chargers behind plug-load meters add fifty to two hundred kilowatt-hours per day as a deliberate sustainability investment; weekend curves change without inefficiency. Multi-tenant sites see step-changes when a restaurant kitchen or colocation cage energises — intensity jumps with no chiller fault. Current-transformer clamps drift three to eight percent high after five tropical years without recalibration, inflating EUI until maintenance replaces CTs or applies correction factors.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "bacnet",
     "cisco",

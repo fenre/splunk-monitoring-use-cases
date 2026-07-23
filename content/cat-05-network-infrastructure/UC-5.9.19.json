@@ -8,6 +8,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISP Performance Degradation Alerts'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.19).",
+  "evidence": "Saved search uc_5_9_19_isp_performance_degradation_alerts, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ISP Performance Degradation Alerts'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.19.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=thousandeyes_alerts sourcetype=cisco:thousandeyes:alerts` from the Alerts Stream input in `ta_cisco_thousandeyes` (Splunkbase 7719). Unlike the Event API (polled, pre-processed events), the Alerts Stream delivers real-time ThousandEyes alert notifications via webhook → HEC. These are user-defined alert rules configured in ThousandEyes that fire when test metrics cross configured thresholds. Alert fields: `alert.rule.name`, `alert.test.name`, `alert.type`, `severity` (`critical`, `warning`, `info`), `state` (`active`, `cleared`), `thousandeyes.permalink`. Alerts arrive in near-real-time (within seconds of the threshold being crossed).",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` sourcetype=\"cisco:thousandeyes:alerts\" severity=\"critical\" OR severity=\"warning\"\n| stats count earliest(_time) as first_fired latest(_time) as last_fired values(state) as states by alert.rule.name, alert.test.name, severity\n| sort -count",
@@ -18,18 +24,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Alert Rules Configuration",
-      "url": "https://docs.thousandeyes.com/product-documentation/alerts"
+      "url": "https://docs.thousandeyes.com/product-documentation/alerts",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Splunk App — Alerts Stream input",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Flapping alert rules with aggressive thresholds.** If a ThousandEyes alert rule has a tight threshold (e.g., latency > 50 ms) without sufficient rounds-of-violation or suppression, the alert fires and clears repeatedly as the metric oscillates around the threshold. This floods Splunk with alert noise. Fix by tuning the ThousandEyes alert rule: increase the \"number of rounds\" requirement (e.g., 3 consecutive violations) or add ThousandEyes-side suppression.\n\n**Alerts for test maintenance windows.** When agents are taken offline for maintenance or tests are temporarily disabled, threshold violations may fire during the transition. Distinguish by checking whether the alert corresponds to a known maintenance window.\n\n**Duplicate alerts from multiple agents.** A single network issue may trigger alerts from multiple agents testing the same path. This is by design (confirms the issue is real, not agent-specific) but can look noisy. Group alerts by `alert.test.name` and time window to de-duplicate.\n\n**Alerts for paths your users don't traverse.** If you have tests monitoring ISP paths \"just in case,\" alerts from those tests may not represent actual user impact. Tag tests as \"critical\" or \"informational\" in ThousandEyes and filter Splunk alerts accordingly.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "m365"

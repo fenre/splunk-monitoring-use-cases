@@ -8,10 +8,16 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=f5:bigip:syslog`, iControl REST",
-  "app": "`Splunk_TA_f5-bigip`, SNMP",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Virtual Server Availability (F5 BIG-IP)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.2).",
+  "evidence": "Saved search uc_5_3_2_virtual_server_availability_f5_big_ip, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Virtual Server Availability (F5 BIG-IP)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=f5:bigip:syslog`, iControl REST Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip`, SNMP — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"f5:bigip:syslog\" \"virtual\" (\"disabled\" OR \"offline\" OR \"unavailable\")\n| table _time host virtual_server status | sort -_time",
-  "description": "VIP down = application unreachable. Direct service impact.",
+  "description": "VIP down = application unreachable. Direct service impact. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Application delivery teams track F5 BIG-IP virtual server availability across the fleet, detecting unavailable VIPs and unstable state changes that indicate service disruptions or pool-level failures.",
   "implementation": "Forward syslog. Monitor VIP status via SNMP or iControl REST. Alert on any state change away from \"available\".",
   "visualization": "Status indicator per VIP, Events timeline (critical).",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned changes, test VIPs, and short maintenance windows can disable a listener without user-visible failure.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "f5",
     "snmp",
@@ -32,6 +54,12 @@
     "f5_bigip",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680) installed. F5 BIG-IP LTM syslog in `index=network` with `sourcetype=f5:bigip:syslog`. Key messages: virtual server state changes (\"Virtual ... has become available/unavailable\"), SNMP traps for VS status.\n* Optionally, poll F5 iControl REST API (`/mgmt/tm/ltm/virtual/stats`) for real-time VS status. Ingest via HEC as `sourcetype=f5:bigip:api`.\n* Create `f5_vip_inventory.csv` lookup: `virtual_server`, `vip_address`, `application`, `owner`, `tier`, `expected_state` (enabled/disabled).\n\nStep 1 -- Configure data collection\nVerify virtual server status data:\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"virtual\" AND (\"available\" OR \"unavailable\" OR \"offline\" OR \"enabled\" OR \"disabled\")) earliest=-24h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Virtual server availability monitoring:**\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"virtual\" AND (\"available\" OR \"unavailable\" OR \"offline\" OR \"unknown\")) earliest=-4h\n| rex \"Virtual (?<virtual_server>\\S+) has become (?<vs_status>\\w+)\"\n| where isnotnull(virtual_server)\n| stats latest(vs_status) as current_status latest(_time) as last_change count as state_changes by host, virtual_server\n| lookup f5_vip_inventory.csv virtual_server OUTPUT application, owner, tier, vip_address\n| eval is_down=if(match(lower(current_status), \"unavailable|offline|unknown\"), 1, 0)\n| eval severity=case(is_down=1 AND tier=\"prod\", \"CRITICAL\", is_down=1, \"HIGH\", state_changes > 3, \"WARNING -- unstable\", 1==1, \"OK\")\n| where is_down=1 OR state_changes > 3\n| table host, virtual_server, vip_address, application, tier, current_status, last_change, state_changes, severity\n| sort severity, -last_change\n```\n\n**VIP fleet health summary:**\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"virtual\" AND (\"available\" OR \"unavailable\")) earliest=-4h\n| rex \"Virtual (?<virtual_server>\\S+) has become (?<vs_status>\\w+)\"\n| stats latest(vs_status) as status by host, virtual_server\n| eval is_up=if(match(lower(status), \"available\"), 1, 0)\n| stats sum(is_up) as up count as total by host\n| eval availability_pct=round(100*up/total, 1)\n| sort availability_pct\n```\n\nStep 3 -- Validate\n(a) In tmsh: `show ltm virtual` -- compare VS status with Splunk.\n(b) Disable a test VS: `tmsh modify ltm virtual <vs> disabled` -- verify the \"unavailable\" event appears.\n(c) Re-enable and verify recovery.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Virtual Server Availability\"):\n* Row 1 -- Single-value: \"Total VIPs\", \"Unavailable\", \"Fleet availability %\", \"Unstable VIPs\".\n* Row 2 -- Down/unstable VIP detail table.\n* Row 3 -- Per-F5 fleet health summary.\n\nAlerting:\n* Critical (prod VIP unavailable): immediate escalation.\n* Warning (VIP with > 3 state changes in 4h): unstable -- investigate underlying pool.\n\nStep 5 -- Troubleshooting\n\n* **VIP unavailable but pool members are up** -- Check the VS configuration: (1) Is the VIP address reachable? (2) Is the VS admin-enabled? (3) Is there a traffic policy blocking?\n\n* **VIP flapping** -- Usually caused by the underlying pool: if all pool members go down, the VIP becomes unavailable; when one recovers, the VIP comes back. Focus on pool member stability (UC-5.3.1).\n\n* **No VS status events in syslog** -- Ensure the log level for \"ltm\" is set to Informational: `tmsh modify sys syslog include \"local0.* @<splunk_ip>\"`.",
-  "grandmaExplanation": "We watch whether virtual services are up or disabled on the same box so a quiet listener or a bad profile does not go unnoticed in change week."
+  "grandmaExplanation": "We watch whether virtual services are up or disabled on the same box so a quiet listener or a bad profile does not go unnoticed in change week.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

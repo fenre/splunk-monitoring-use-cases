@@ -36,8 +36,8 @@
   "dataSources": "KV Store `tsa_soc_coverage_lookup` (tier, start, end, analyst_id). PagerDuty schedule API (`pagerduty:schedule`). Splunk SOAR analyst engagement (`soar:analyst_engagement`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 4180).",
   "spl": "| inputlookup tsa_soc_coverage_lookup\n| eval coverage_hour_start = strftime(start, \"%Y-%m-%dT%H\")\n| eval coverage_hour_end = strftime(end, \"%Y-%m-%dT%H\")\n| stats values(analyst_id) as analysts by tier coverage_hour_start coverage_hour_end\n| eval expected = 1\n| stats sum(expected) as covered_hours dc(coverage_hour_start) as unique_hours by tier\n| eval coverage_gap = if(unique_hours < 24, \"true\", \"false\")\n| where coverage_gap=\"true\"\n| table tier covered_hours unique_hours coverage_gap",
-  "description": "Surveys SOC tier coverage to confirm 24×7 across T1, T2, T3.",
-  "value": "TSA inspectors expect 24×7 monitoring; gaps in roster are findings.",
+  "description": "Surveys SOC tier coverage to confirm 24×7 across T1, T2, T3. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "TSA inspectors expect 24×7 monitoring; gaps in roster are findings. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "(1) Wire PagerDuty schedule sync to `tsa_soc_coverage_lookup`. (2) Schedule UC-22.56.27 daily. (3) Build `TSA SOC Coverage` dashboard.",
   "visualization": "(Panel 1) Tier coverage by hour. (Panel 2) Gap-trend. (Panel 3) Analyst utilisation. (Panel 4) Escalation chain.",
   "cimModels": [
@@ -46,11 +46,23 @@
   "references": [
     {
       "title": "TSA SD 24x7 monitoring expectation",
-      "url": "https://www.tsa.gov/cybersecurity"
+      "url": "https://www.tsa.gov/cybersecurity",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST 800-86 — Computer Forensics",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-86/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-86/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Cross-tier hand-off**: T1 may yield T2 directly; ensure roster covers union of tiers.\n2. **MSSP coverage**: outsourced T1 must be reflected.\n\n**Suppression mechanism**: KV Store `tsa_22_56_27_exceptions`.",
@@ -80,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + PagerDuty TA.\n- KV Store `tsa_soc_coverage_lookup`.\n\n## Step 1 — Coverage register\n\n```ini\n[tsa_soc_coverage_lookup]\nfield.tier = string\nfield.start = number\nfield.end = number\nfield.analyst_id = string\nfield.mssp = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.27: TSA SOC Coverage]\ncron_schedule = 25 10 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.27,reg=TSA-Surface,clause=TSA-SD-multi-CSOC-coverage\nalert.severity = 3\n```\n\n## Step 3 — Runbook\n\n**`coverage_gap=true`**: fill gap within 24 hours; report to CC.\n\n## Step 4 — Troubleshooting\n\n- **PagerDuty sync lag**: ensure sync runs at least every 6 hours.\n- **MSSP feed**: MSSPs may not feed schedule; build manual lookup.\n\n**TSA-specific failure modes**:\n- **Sector ISAC analyst integration**: sector-ISAC analyst time may count as virtual coverage; document.\n- **Holiday/staffing surges**: pre-plan coverage during industry events.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + PagerDuty TA.\n- KV Store `tsa_soc_coverage_lookup`.\n\n## Step 1 — Coverage register\n\n```ini\n[tsa_soc_coverage_lookup]\nfield.tier = string\nfield.start = number\nfield.end = number\nfield.analyst_id = string\nfield.mssp = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.27: TSA SOC Coverage]\ncron_schedule = 25 10 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.27,reg=TSA-Surface,clause=TSA-SD-multi-CSOC-coverage\nalert.severity = 3\n```\n\n## Step 3 — Runbook\n\n**`coverage_gap=true`**: fill gap within 24 hours; report to CC.\n\n## Step 4 — Troubleshooting\n\n- **PagerDuty sync lag**: ensure sync runs at least every 6 hours.\n- **MSSP feed**: MSSPs may not feed schedule; build manual lookup.\n\n**TSA-specific failure modes**:\n- **Sector ISAC analyst integration**: sector-ISAC analyst time may count as virtual coverage; document.\n- **Holiday/staffing surges**: pre-plan coverage during industry events.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for PagerDuty (Splunkbase 4180).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`coverage_gap, coverage_hour_end, coverage_hour_start, tier`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our cyber-security operations centre must have eyes on the screen 24 hours a day, 7 days a week. We confirm every day that no time slot was left uncovered.",
   "prerequisiteUseCases": [
     "UC-22.56.5"

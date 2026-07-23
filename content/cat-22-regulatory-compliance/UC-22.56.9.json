@@ -47,15 +47,23 @@
   "references": [
     {
       "title": "TSA SD-1580/82-2022-01 (freight rail cybersecurity)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-1580-82-2022-01.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-1580-82-2022-01.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TSA reissues freight rail cyber requirements (Oct 2024)",
-      "url": "https://www.tsa.gov/news/press/releases/2024/10/24/tsa-reissues-cybersecurity-requirements-rail-industry"
+      "url": "https://www.tsa.gov/news/press/releases/2024/10/24/tsa-reissues-cybersecurity-requirements-rail-industry",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FRA Office of Railroad Safety",
-      "url": "https://railroads.dot.gov/divisions/safety"
+      "url": "https://railroads.dot.gov/divisions/safety",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Dual-mode operator (passenger + freight)**: ensure incidents that affect both are tagged for both clocks and both UCs fire.\n2. **PTC-related events with no safety impact**: PTC degradations may not reach reportable threshold; the CC's documented determination governs.\n\n**Suppression mechanism**: KV Store `tsa_22_56_9_exceptions` with documented CC approval.",
@@ -90,7 +98,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.1 but freight-rail scoped.\n\n## Step 1 — Define railroad register\n\n```ini\n[tsa_rail_railroad_lookup]\nfield.railroad_id = string\nfield.railroad_name = string\nfield.class_designation = string\nfield.tsa_in_scope = string\nfield.ptc_vendor = string\n```\n\n## Step 2 — SOAR playbook `tsa_rail_cisa_submission`\n\nMirrors `tsa_cisa_submission` (UC-22.56.1 step 3) with these differences: (a) routes to CC + FRA Liaison; (b) on `safety_impacting=true`, parallel-dispatch FRA Form 6180; (c) consolidates CISA receipt + FRA acknowledgement into `evidence_doc_url`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.56.9: TSA-SD Freight Rail 24h Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.9,reg=TSA-Surface,clause=TSA-SD-1580-2022-01-s2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\nSame as UC-22.56.1 with FRA parallel branch on `safety_impacting=true`.\n\n## Step 5 — Troubleshooting\n\n**Cross-modal pipeline-rail incident**: tag both `tsa_pipeline_in_scope` and `tsa_rail_in_scope`; both UCs (22.56.1 and 22.56.9) must fire.\n\n**TSA-specific failure modes**:\n- **PTC event reporting**: PTC may generate cyber-looking events that are actually mechanical; require CC review before reporting.\n- **Surface modal divisions**: TSA reorg may shift modal jurisdiction; review every 6 months.",
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.1 but freight-rail scoped.\n\n## Step 1 — Define railroad register\n\n```ini\n[tsa_rail_railroad_lookup]\nfield.railroad_id = string\nfield.railroad_name = string\nfield.class_designation = string\nfield.tsa_in_scope = string\nfield.ptc_vendor = string\n```\n\n## Step 2 — SOAR playbook `tsa_rail_cisa_submission`\n\nMirrors `tsa_cisa_submission` (UC-22.56.1 step 3) with these differences: (a) routes to CC + FRA Liaison; (b) on `safety_impacting=true`, parallel-dispatch FRA Form 6180; (c) consolidates CISA receipt + FRA acknowledgement into `evidence_doc_url`.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.56.9: TSA-SD Freight Rail 24h Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.9,reg=TSA-Surface,clause=TSA-SD-1580-2022-01-s2\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\nSame as UC-22.56.1 with FRA parallel branch on `safety_impacting=true`.\n\n## Step 5 — Troubleshooting\n\n**Cross-modal pipeline-rail incident**: tag both `tsa_pipeline_in_scope` and `tsa_rail_in_scope`; both UCs (22.56.1 and 22.56.9) must fire.\n\n**TSA-specific failure modes**:\n- **PTC event reporting**: PTC may generate cyber-looking events that are actually mechanical; require CC review before reporting.\n- **Surface modal divisions**: TSA reorg may shift modal jurisdiction; review every 6 months.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).). Enable the modular input or HEC token that writes sourcetype=snow:sn_si_incident into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cisa_submission_time, fra_parallel, hours_since_awareness, hours_to_submission`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Same as pipelines but for freight trains: if there's a cyber incident, we must tell CISA within 24 hours and the train-safety regulator immediately if trains might be unsafe.",
   "prerequisiteUseCases": [
     "UC-22.56.1"

@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=azure:signin`, `okta:system`",
-  "app": "`Splunk_TA_microsoft-cloudservices` (Entra ID Protection), `Splunk_TA_okta`, Zscaler ZPA TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Continuous Authentication Compliance'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.19).",
+  "evidence": "Saved search uc_17_3_19_continuous_authentication_compliance, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Continuous Authentication Compliance'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.19.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=azure:signin`, `okta:system` Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Entra ID Protection), `Splunk_TA_okta`, Zscaler ZPA TA — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=identity sourcetype=\"azure:signin\" earliest=-7d\n| where risk_level!=\"none\" OR authentication_requirement=\"multiFactorAuthentication\"\n| stats count by user, risk_detail, result\n| sort 40 -count",
   "description": "Tracks step-up auth, re-auth, and session risk evaluation outcomes for policies requiring continuous verification.",
   "value": "Zero Trust architects measure continuous authentication compliance by tracking mid-session re-authentication triggers, token lifetimes, and CAE enforcement, ensuring access is continuously re-evaluated rather than granted once and trusted forever.",
@@ -24,18 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_okta",
-      "url": "https://splunkbase.splunk.com/app/6553"
+      "url": "https://splunkbase.splunk.com/app/6553",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021"
   ],
@@ -45,6 +59,17 @@
     "okta",
     "zscaler"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic",
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Continuous authentication signals from IdP (Entra ID, Okta) and ZTNA platforms. Entra ID: `sourcetype=azure:aad:signin` with `properties.authenticationRequirement` and Continuous Access Evaluation (CAE) events. Okta: `sourcetype=okta:im2:log` with session and re-auth events. Key fields: `properties.tokenIssuedAt`, `properties.authenticationProcessingDetails`, `properties.resourceDisplayName`.\n• Zero Trust requires continuous verification, not one-time login. Continuous Authentication means: session tokens are re-evaluated when risk signals change (IP change, device compliance change, user risk change). Entra ID CAE revokes tokens in near-real-time when conditions change.\n\nStep 1 — Configure data collection\nVerify CAE events:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-7d\n| where match(properties.authenticationProcessingDetails{}.key, \"(?i)continuous|cae\")\n| stats count by properties.authenticationRequirement\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Re-authentication triggers:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-7d\n| where properties.authenticationRequirement!=\"singleFactorAuthentication\"\n| eval reauth_reason=coalesce(properties.authenticationRequirement, \"unknown\")\n| timechart span=1d count by reauth_reason\n```\n\nUnderstanding this SPL: Trends re-authentication events by reason. 'multiFactorAuthentication' triggered mid-session means a risk signal changed (location shift, device non-compliance). CAE-triggered re-auth means Entra ID revoked the token and forced a new sign-in. Frequent re-auth for the same user may indicate their device is oscillating between compliant and non-compliant states.\n\nSession lifetime analysis:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-7d\n| eval token_age_hours=round((now() - strptime(properties.tokenIssuedAt, \"%Y-%m-%dT%H:%M:%S\")) / 3600, 1)\n| stats avg(token_age_hours) as avg_token_age max(token_age_hours) as max_token_age by properties.resourceDisplayName\n| sort - max_token_age\n```\n\nStep 3 — Validate\n(a) Change a device's compliance state. Verify re-authentication is triggered.\n(b) Check Entra ID Sign-in Logs for CAE enforcement events.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Re-auth trigger trend. Row 2 — Session/token age distribution. Row 3 — Users with excessive re-auth.\nAlert: When max token age exceeds 24 hours for any Tier-1 application.\n\nRunbook:\n1. **Long-lived tokens** — Application may not support CAE. Check app registration settings.\n2. **Excessive re-auth for one user** — Device compliance flapping. Fix device posture.\n3. **No CAE events** — CAE may not be enabled. Check Entra ID Security > Conditional Access > Session.\n\nStep 5 — Troubleshooting\n• **No re-auth events** — Continuous access evaluation may not be configured. Enable CAE in Entra ID.\n• **Token age always 0** — `tokenIssuedAt` may not be in the expected format. Check field extraction.",
-  "grandmaExplanation": "In Zero Trust, checking your identity once at login is not enough — we keep checking throughout the day. If your device becomes insecure or your location changes suspiciously, the system forces you to prove who you are again. We track how often this happens and make sure no session tokens live too long."
+  "grandmaExplanation": "In Zero Trust, checking your identity once at login is not enough — we keep checking throughout the day. If your device becomes insecure or your location changes suspiciously, the system forces you to prove who you are again. We track how often this happens and make sure no session tokens live too long.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

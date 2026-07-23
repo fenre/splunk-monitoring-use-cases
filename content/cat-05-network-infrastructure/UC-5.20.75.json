@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'DAD Denial-of-Service Detection — Address Assignment Prevention'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.75).",
+  "evidence": "Saved search uc_5_20_75_dad_denial_of_service_detection_address, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'DAD Denial-of-Service Detection — Address Assignment Prevention'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.75.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing IPv6 Duplicate Address Detection (DAD) failure events. DAD denial-of-service is a targeted IPv6 attack where an attacker responds to all DAD probes on a VLAN, preventing any host from successfully obtaining an IPv6 address:\n\n1. **DAD mechanism.** Before using a new IPv6 address, hosts send a Neighbor Solicitation with the target set to the new address and the source set to the unspecified address (::). If no Neighbor Advertisement is received, the address is considered unique and can be used.\n2. **Attack.** An attacker monitors the network for DAD NS messages and immediately responds with a NA claiming the address is already in use. The victim marks the address as DUPLICATE and cannot use it.\n3. **Impact.** Affected hosts cannot obtain any IPv6 address — neither SLAAC nor DHCPv6 addresses. Since DAD is mandatory (RFC 4862 §5.4), there is no way to bypass it without disabling DAD entirely.\n4. **Scope.** The attack affects all hosts on the same VLAN as the attacker. It can target specific hosts or all hosts simultaneously.\n5. **Detection signal.** `%IPV6-4-DUPLICATE` syslog messages with an unusually high rate. A single DAD failure is common (legitimate duplicate). Multiple different addresses failing DAD on the same VLAN in a short period is an attack indicator.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%IPV6-4-DUPLICATE\" earliest=-1h\n| rex field=_raw \"(?:address|Address)\\s+(?<dup_address>[0-9a-fA-F:.]+)\"\n| rex field=_raw \"(?:interface|IF)\\s+(?<interface>\\S+)\"\n| stats dc(dup_address) as unique_dups count as total_events by host, interface\n| where unique_dups > 3\n| eval severity=case(\n    unique_dups > 10, \"CRITICAL — DAD DoS attack: \" . unique_dups . \" different addresses failed DAD on \" . interface . \" — attacker is preventing all IPv6 address assignment\",\n    unique_dups > 5, \"HIGH — multiple DAD failures: \" . unique_dups . \" addresses on \" . interface,\n    unique_dups > 3, \"WARNING — elevated DAD failures on \" . interface,\n    1=1, \"LOW\")\n| sort -unique_dups",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "RFC 4862 — IPv6 Stateless Address Autoconfiguration (§5.4 — DAD mechanism)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4862"
+      "url": "https://www.rfc-editor.org/rfc/rfc4862",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.3 — DAD DoS)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legitimate duplicate addresses.** Static address conflicts (two devices configured with the same address) produce a single DAD failure for one specific address. This is a configuration error, not an attack.\n\n**VM cloning without address randomisation.** Cloned VMs that inherit the same SLAAC-generated address will fail DAD until one of them generates a new address. This produces a single duplicate per cloning event.\n\n**SISF DAD proxy.** On switches with SISF DAD proxy enabled, DAD probes may be proxied, causing temporary DAD failures during proxy resolution. These are resolved within seconds and do not persist.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "juniper",

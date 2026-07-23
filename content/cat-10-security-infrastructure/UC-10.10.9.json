@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "YARA scanner JSON/CEF forwarded to Splunk",
-  "app": "Custom TA / HEC",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'YARA scan result ingestion and match alerting'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.10.9).",
+  "evidence": "Saved search uc_10_10_9_yara_scan_result_ingestion_and_match_ale, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'YARA scan result ingestion and match alerting'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.10.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "YARA scanner JSON/CEF forwarded to Splunk Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA / HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time",
-  "description": "Ingests YARA scanner output and alerts on any match or severity threshold.",
-  "value": "Ingests YARA scanner output and alerts on any match or severity threshold.",
+  "description": "Ingests YARA scanner output and alerts on any match or severity threshold. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "Operations and leadership rely on 'YARA scan result ingestion and match alerting' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Time chart, Single value",
   "cimModels": [
@@ -22,12 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "YARA hits from authorized security research samples (EICAR, malware lab files), incident response forensics, or detection rule testing.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom TA / HEC.\n• Ensure the following data sources are available: YARA scanner JSON/CEF forwarded to Splunk.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=yara sourcetype=yara:scan\n| search match=\"true\" OR match_count>0\n| table _time, host, rule_name, path, match_count, scanner_version\n| sort - _time\n```\n\nUnderstanding this SPL\n\n**YARA scan result ingestion and match alerting** — Ingests YARA scanner output and alerts on any match or severity threshold.\n\nDocumented **Data sources**: YARA scanner JSON/CEF forwarded to Splunk. **App/TA** (typical add-on context): Custom TA / HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: yara; **sourcetype**: yara:scan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=yara, sourcetype=yara:scan. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **YARA scan result ingestion and match alerting**): table _time, host, rule_name, path, match_count, scanner_version\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare sample matches in Splunk to the **YARA scan log** (or the scanner’s own report) for the same path, hash, and rule name.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Time chart, Single value\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md\n",
-  "grandmaExplanation": "We wire YARA match lines into the SIEM and alert on real hits so file-level malware sweeps are not an offline spreadsheet."
+  "grandmaExplanation": "We wire YARA match lines into the SIEM and alert on real hits so file-level malware sweeps are not an offline spreadsheet.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

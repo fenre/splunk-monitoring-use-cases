@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`db.serverStatus().wiredTiger.cache` bytes dirty vs bytes currently in cache, ingested as `mongodb:server_status`",
-  "app": "Splunk Add-on for MongoDB (Splunkbase) with modular/scripted `serverStatus` input, or Splunk DB Connect polling `serverStatus` JSON",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'MongoDB WiredTiger Dirty Cache Percentage Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-7.1.50).",
+  "evidence": "Saved search uc_7_1_50_mongodb_wiredtiger_dirty_cache_percentag, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'MongoDB WiredTiger Dirty Cache Percentage Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-7.1.50.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`db.serverStatus().wiredTiger.cache` bytes dirty vs bytes currently in cache, ingested as `mongodb:server_status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for MongoDB (Splunkbase) with modular/scripted `serverStatus` input, or Splunk DB Connect polling `serverStatus` JSON — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:server_status\"\n| eval dirty_pct=if(bytes_currently_in_the_cache>0, round(100*bytes_dirty/bytes_currently_in_the_cache,2), null())\n| bin _time span=15m\n| stats latest(dirty_pct) as dirty_pct by host, _time\n| streamstats window=6 global=f first(dirty_pct) as baseline by host\n| where dirty_pct > 25 AND dirty_pct > baseline+10",
   "description": "A rising share of the WiredTiger cache held as dirty pages means checkpoints and eviction are falling behind, which precedes IO storms and tail latency on transactional workloads. Tracking dirty percentage relative to its own baseline catches gradual regressions before absolute thresholds trip.",
   "value": "Lets capacity owners add cache, smooth write bursts, or reschedule index builds before application teams see p95 latency cliffs during peak traffic.",
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "MongoDB WiredTiger cache tuning",
-      "url": "https://www.mongodb.com/docs/manual/administration/analyzing-mongodb-performance/#wiredtiger-cache"
+      "url": "https://www.mongodb.com/docs/manual/administration/analyzing-mongodb-performance/#wiredtiger-cache",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for MongoDB",
-      "url": "https://splunkbase.splunk.com/"
+      "url": "https://splunkbase.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned step-down elections, compactions, and balanced migrations can look like incidents in logs until we compare with the MongoDB ops window or Atlas activity feed.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint",
     "db_connect",
@@ -45,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We follow MongoDB operations, replication, and resource usage so we can keep queries and writes reliable as sharding and data volume grow."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for MongoDB (Splunkbase) with modular/scripted `serverStatus` input, or Splunk DB Connect polling `serverStatus` JSON — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mongodb:server_status into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, bytes_currently_in_the_cache, dirty_pct, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We follow MongoDB operations, replication, and resource usage so we can keep queries and writes reliable as sharding and data volume grow.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

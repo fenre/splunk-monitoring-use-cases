@@ -8,7 +8,13 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cp_log` (system/management logs), log server statistics",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Check Point Log Rate and Capacity (Check Point)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.51).",
+  "evidence": "Saved search uc_5_2_51_check_point_log_rate_and_capacity_check, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Check Point Log Rate and Capacity (Check Point)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.51.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=cp_log` (system/management logs), log server statistics Indexes: checkpoint. Sourcetypes: cp_log. Key fields: _time, anomaly, orig. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk_TA_checkpoint` (Splunkbase 5402), Check Point App for Splunk (Splunkbase 4293), CCX Add-on for Checkpoint Smart-1 Cloud (Splunkbase 7259)",
   "spl": "index=checkpoint sourcetype=\"cp_log\" earliest=-24h\n| bin _time span=5m\n| stats count as events_5m by _time, orig\n| eventstats avg(events_5m) as baseline by orig\n| where events_5m > baseline*3 OR events_5m < baseline*0.2\n| eval anomaly=if(events_5m > baseline*3, \"spike\", \"drop\")\n| table _time, orig, events_5m, baseline, anomaly",
   "description": "Check Point gateways forward logs to the management server or Log Server. When log rate exceeds the management capacity or network bandwidth, logs are queued, delayed, or dropped — creating blind spots in security monitoring. Tracking log rate per gateway and comparing to Log Server capacity prevents log loss before it impacts compliance and incident detection.",
@@ -19,22 +25,39 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CCX Add-on for Checkpoint Smart-1 Cloud",
-      "url": "https://splunkbase.splunk.com/app/7259"
+      "url": "https://splunkbase.splunk.com/app/7259",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 5402",
-      "url": "https://splunkbase.splunk.com/app/5402"
+      "url": "https://splunkbase.splunk.com/app/5402",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backup windows, debug sessions, and compliance exports can all raise log rate without a logging-system failure.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "checkpoint"
   ],
+  "equipmentModels": [
+    "checkpoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Check Point log rate and capacity data. Data in `index=checkpoint` with `sourcetype=cp_log` or custom scripted input. Key fields: `log_rate`, `log_queue`, `disk_usage`, `log_server`.\n* Check Point gateways forward logs to the management server or dedicated Log Server via SIC-encrypted channel (TCP 257). When log rate exceeds management capacity, the gateway buffers logs locally. If local buffer fills, logs are dropped. Log rate capacity depends on management server/Log Server hardware. Monitoring: `fw log show`, `cpview`, and SmartConsole Logs & Monitor.\n\nStep 1 -- Configure data collection\n```\n# Custom scripted input for log rate monitoring\n# inputs.conf\n[script:///opt/splunk/etc/apps/checkpoint_inputs/bin/log_rate.sh]\ninterval = 300\nsourcetype = checkpoint:lograte\nindex = checkpoint\ndisabled = false\n\n# log_rate.sh (run on management/log server)\n#!/bin/bash\necho \"timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\necho \"hostname=$(hostname)\"\n# Get log rate from cpview or cpstat\ncpstat -f logging os 2>/dev/null | while read line; do echo \"cpstat_log=\"$line\"\"; done\ndf -h /var/log 2>/dev/null | tail -1 | while read line; do echo \"disk_usage=\"$line\"\"; done\n```\nVerify:\n```spl\nindex=checkpoint sourcetype=\"checkpoint:lograte\" earliest=-1h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Log rate and capacity monitoring:**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-4h\n| bin _time span=1m\n| stats count as log_rate by _time, host\n| eventstats avg(log_rate) as avg_rate stdev(log_rate) as stdev_rate max(log_rate) as peak_rate by host\n| eval z_score=if(stdev_rate > 0, round((log_rate - avg_rate)/stdev_rate, 2), 0)\n| eval severity=case(\n    log_rate > 50000, \"CRITICAL -- extreme log rate may exceed capacity\",\n    z_score > 3 AND log_rate > 10000, \"WARNING -- abnormal log rate spike\",\n    log_rate > 20000, \"WARNING -- sustained high log rate\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, host, log_rate, avg_rate, peak_rate, z_score, severity\n| sort severity, -log_rate\n```\n\n**Secondary search -- Log gap detection (missing logs):**\n```spl\nindex=checkpoint sourcetype=\"cp_log\" earliest=-24h\n| bin _time span=5m\n| stats count as log_count by _time, host\n| makecontinuous _time span=5m\n| fillnull value=0 log_count\n| where log_count = 0\n| eval severity=\"CRITICAL -- log gap detected (no logs for 5-minute window)\"\n| table _time, host, severity\n```\n\nStep 3 -- Validate\n(a) SmartConsole: Logs & Monitor > Statistics -- check log rate graph.\n(b) CLI: `cpview` > Overview > Log Rate -- verify current log rate.\n(c) CLI: `cpstat -f logging os` -- check log forwarding statistics and queue.\n\nStep 4 -- Operationalize\nDashboard (\"Check Point -- Log Rate & Capacity\"):\n* Row 1 -- Single-value: \"Current log rate (/min)\", \"Peak rate\", \"Log gaps detected\".\n* Row 2 -- Log rate timechart.\n* Row 3 -- Log gap detection table.\n\nAlert: Critical (log gap > 5 minutes): log forwarding failure, investigate immediately.\n\nStep 5 -- Troubleshooting\n\n* **Log gaps** -- Check SIC connectivity between gateway and log server. Verify: `cpca_client lscert`. Check disk space on log server: `df -h /var/log`. Check fw buffer: `fw logswitch` may be needed.\n\n* **Sustained high log rate** -- Review noisy rules. Enable \"Log Implied Rules\" selectively. Consider: dedicated Log Server, log indexing optimization, or Enable Log Compression.\n\n* **Log server disk full** -- Implement log rotation: `fw logswitch`. Configure auto-purge in SmartConsole. Consider exporting old logs to external storage before purge.",
   "grandmaExplanation": "We watch log rate and volume from the gateway so a flood of events or a near-full buffer is a warning before you lose the trail entirely.",
-  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)"
+  "hardware": "Check Point Quantum 6200/6400/6600/6800/7000/16200/16600/26000/28000, Check Point Quantum Maestro, Check Point CloudGuard Network, Smart-1 Cloud (management)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

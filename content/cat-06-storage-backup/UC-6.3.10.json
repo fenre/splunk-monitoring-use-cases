@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Backup repository size over time",
-  "app": "Custom (backup software API/CLI)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Backup Data Growth Rate'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-6.3.10).",
+  "evidence": "Saved search uc_6_3_10_backup_data_growth_rate, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Backup Data Growth Rate'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-6.3.10.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Backup repository size over time Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (backup software API/CLI) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"veeam:repository\" OR sourcetype=\"backup:repository\"\n| eval used_pct=round(used_bytes/capacity_bytes*100, 1)\n| timechart span=1d latest(used_bytes) as used, latest(capacity_bytes) as capacity by repository_name\n| eval used_pct=round(used/capacity*100, 1)\n| predict used as predicted future_timespan=30",
   "description": "Backup repository consumption trending enables capacity planning and prevents surprise exhaustion. Proactive forecasting supports budget and procurement decisions.",
-  "value": "Backup repository consumption trending enables capacity planning and prevents surprise exhaustion. Proactive forecasting supports budget and procurement decisions.",
+  "value": "Operations and leadership rely on 'Backup Data Growth Rate' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Poll backup repository capacity via vendor API (Veeam, Commvault, etc.) or scripted input (filesystem df, REST endpoint). Collect used_bytes and capacity_bytes per repository daily. Index to Splunk. Use `predict` or `trendline` for 30/60/90-day forecasts. Alert when projected full date is within 90 days. Correlate growth rate with backup job data volume trends.",
   "visualization": "Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "commvault",
     "hashicorp",
@@ -39,6 +57,12 @@
   "equipmentModels": [
     "hashicorp_vault"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (backup software API/CLI).\n• Ensure the following data sources are available: Backup repository size over time.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll backup repository capacity via vendor API (Veeam, Commvault, etc.) or scripted input (filesystem df, REST endpoint). Collect used_bytes and capacity_bytes per repository daily. Index to Splunk. Use `predict` or `trendline` for 30/60/90-day forecasts. Alert when projected full date is within 90 days. Correlate growth rate with backup job data volume trends.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype=\"veeam:repository\" OR sourcetype=\"backup:repository\"\n| eval used_pct=round(used_bytes/capacity_bytes*100, 1)\n| timechart span=1d latest(used_bytes) as used, latest(capacity_bytes) as capacity by repository_name\n| eval used_pct=round(used/capacity*100, 1)\n| predict used as predicted future_timespan=30\n```\n\nUnderstanding this SPL\n\n**Backup Data Growth Rate** — Backup repository consumption trending enables capacity planning and prevents surprise exhaustion. Proactive forecasting supports budget and procurement decisions.\n\nDocumented **Data sources**: Backup repository size over time. **App/TA** (typical add-on context): Custom (backup software API/CLI). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup; **sourcetype**: veeam:repository, backup:repository. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, sourcetype=\"veeam:repository\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by repository_name** — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Backup Data Growth Rate**): predict used as predicted future_timespan=30\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working."
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

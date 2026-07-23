@@ -9,6 +9,12 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Internet Outage Correlation with Internal Alerts'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.23).",
+  "evidence": "Saved search uc_5_9_23_internet_outage_correlation_with_interna, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Internet Outage Correlation with Internal Alerts'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.23.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "**Multiple data sources combined:**\n\n(1) `index=thousandeyes_events sourcetype=cisco:thousandeyes:event` — Internet Insights events (Network Outage, DNS Issue, Proxy Issue) from `ta_cisco_thousandeyes`.\n\n(2) Internal Splunk alerts — events from `index=_audit` (triggered alerts), `index=_internal` (scheduler), or a custom notable events index depending on your deployment. In Splunk Enterprise Security environments, use `index=notable` for correlated events.\n\n(3) Optional: `index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` — OTel v2 network metrics for time-correlation with the outage window.\n\nThis UC performs cross-index correlation, joining ThousandEyes Internet Insights events with your internal monitoring alerts to determine causality.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. Also requires whatever app/TA produces your internal alerts (e.g., Splunk Enterprise Security, ITSI, or custom savedsearches).",
   "spl": "`event_index` (type=\"Network Outage\" OR type=\"DNS Issue\" OR type=\"Proxy Issue\") state=\"active\"\n| eval outage_start=_time\n| eval outage_type=type\n| stats earliest(outage_start) as outage_window_start latest(outage_start) as outage_window_end by outage_type, severity\n| eval outage_window_end=outage_window_end+900\n| map search=\"search index=_audit action=\\\"fired\\\" earliest=$outage_window_start$ latest=$outage_window_end$ | stats count as internal_alerts by search_name | eval outage_type=\\\"$outage_type$\\\"\" maxsearches=5\n| sort -internal_alerts",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Internet Insights — Outage detection",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk search command reference — map",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Map"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Map",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Coincidental timing.** An internal alert fires during an Internet Insights outage window but is completely unrelated (e.g., a disk full alert during a network outage). Use domain knowledge to filter correlations — only match internal alerts related to network, application performance, or external connectivity.\n\n**Internal issues triggering downstream internet symptoms.** Your own misconfiguration (e.g., a firewall rule change) might cause ThousandEyes tests to fail, which could be interpreted as an internet issue. Check whether the Internet Insights event affects multiple ThousandEyes customers (true internet outage) or only your tests (your issue).\n\n**Time zone misalignment.** Ensure both ThousandEyes events and internal alerts use the same time reference. ThousandEyes uses UTC; internal alerts use whatever timezone the Splunk search head is configured for. The `| eval` time window calculation should work in epoch seconds to avoid TZ issues.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "itsi"

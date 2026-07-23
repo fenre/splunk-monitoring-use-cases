@@ -9,8 +9,14 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=symantec:dlp:incident` Symantec DLP incident exports or syslog-forwarded incidents",
-  "app": "Splunk Add-on for Symantec Data Loss Prevention (vendor / partner TA) or custom HEC parser to `symantec:dlp:incident`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Broadcom Symantec DLP Incidents by Policy and Severity'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.18.7).",
+  "evidence": "Saved search uc_10_18_7_broadcom_symantec_dlp_incidents_by_polic, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Broadcom Symantec DLP Incidents by Policy and Severity'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.18.7.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=symantec:dlp:incident` Symantec DLP incident exports or syslog-forwarded incidents Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Symantec Data Loss Prevention (vendor / partner TA) or custom HEC parser to `symantec:dlp:incident` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=dlp sourcetype=\"symantec:dlp:incident\" earliest=-7d\n| eval policy=coalesce(Policy_Name, policy_name, Policy, \"unknown\")\n| eval sev=coalesce(Severity, severity, Incident_Severity, \"medium\")\n| eval user=coalesce(User, user, Owner, owner, \"\")\n| stats count by policy sev\n| sort -count",
   "description": "DLP incidents show where sensitive data is leaving the organization. Rolling up counts by policy and severity highlights chronic problem areas, mis-tuned rules, and priority queues for analyst review.",
   "value": "Quantifies data-exfiltration risk for privacy and IP programs and helps balance false positives against real policy breaches.",
@@ -22,17 +28,34 @@
   "references": [
     {
       "title": "Broadcom Symantec Data Loss Prevention documentation hub",
-      "url": "https://knowledge.broadcom.com/"
+      "url": "https://knowledge.broadcom.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — DLP monitoring patterns",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "securityDomain": "audit",
   "equipment": [
     "broadcom_symantec",
     "syslog"
+  ],
+  "equipmentModels": [
+    "broadcom_symantec_generic",
+    "syslog_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -41,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We summarize Broadcom Symantec data-loss alerts by rule and seriousness so privacy teams know where leaks keep happening."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Symantec Data Loss Prevention (vendor / partner TA) or custom HEC parser to `symantec:dlp:incident` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=symantec:dlp:incident into dlp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`policy, sev`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We summarize Broadcom Symantec data-loss alerts by rule and seriousness so privacy teams know where leaks keep happening.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

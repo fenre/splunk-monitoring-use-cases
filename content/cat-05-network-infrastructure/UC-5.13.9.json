@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Client Health Score Overview (Wired vs Wireless)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.9).",
+  "evidence": "Saved search uc_5_13_9_client_health_score_overview_wired_vs_wi, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Client Health Score Overview (Wired vs Wireless)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:clienthealth` from the `clienthealth` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/client-health` using token auth. Default poll interval: 900s (15m). Volume: ~3 summary events per poll (one each for ALL, WIRED, WIRELESS score categories) × ~1.2 KB each ≈ 3.6 KB/poll ≈ 350 KB/day. This is an *aggregate* feed — one event per category, not one per client MAC. Auto-extracted top-level fields: `scoreCategory`, `value` (health score 0–100), `clientCount`. Nested JSON: `scoreDetail{}` array containing per-band breakdowns with `healthyClientsPercentage`, `clientCount`, and sub-score categories. Requires `spath | mvexpand | spath` to flatten. No native CIM mapping.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Install on Search Heads (knowledge objects) AND the Heavy Forwarder or single-instance running the modular inputs.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:clienthealth\"\n| spath output=categories path=scoreDetail{}\n| mvexpand categories\n| spath input=categories\n| eval category=mvindex(split(spath(categories, \"scoreCategory.scoreCategory\"), \",\"), 0)\n| stats latest(clientCount) as clients latest(healthyClientsPercentage) as healthy_pct by category\n| eval client_type=case(category==\"ALL\",\"All Clients\", category==\"WIRED\",\"Wired\", category==\"WIRELESS\",\"Wireless\", 1==1, category)\n| table client_type, clients, healthy_pct\n| sort client_type",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Client Health endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-client-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-client-health",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Client Health nested JSON — sample event",
-      "url": "docs/guides/catalyst-center.md#sample-events"
+      "url": "docs/guides/catalyst-center.md#sample-events",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Mass DHCP renewal event causing temporary client disconnections.** A scheduled DHCP scope renewal can cause many clients to temporarily disconnect and reconnect, dropping the wired or wireless client count and health score for one poll cycle. Distinguish by correlating with DHCP server logs (`index=dhcp` or `index=ise sourcetype=cisco:ise:syslog DHCP`) for renewal events in the same 15-minute window. Suppress by requiring the health drop to persist across 2+ polls before alerting.\n\n**Radio Resource Management (RRM) channel or power adjustment affecting wireless client health.** When Catalyst Center's RRM engine changes AP channels or power levels, wireless clients may temporarily reassociate, causing a dip in WIRELESS health while WIRED remains stable. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:wireless:rf\"` for channel or power changes in the same time window. Suppress by requiring the WIRELESS health dip to persist for 2+ consecutive polls.\n\n**Guest SSID onboarding surge during large meetings or campus events.** A conference, orientation, or large gathering can spike guest wireless client count while depressing the average wireless health score (guest devices typically have lower health). Distinguish by checking whether `clientCount` increased significantly in the same window and whether the dip is concentrated on guest SSIDs. Suppress by filtering guest SSIDs from health alerting using a `guest_ssid_list` lookup, or by monitoring guest and corporate SSIDs separately.\n\n**Catalyst Center client health data delayed during high-client-count environments.** In environments with thousands of connected clients, the client health API response may be delayed or paginated, causing apparent gaps in the health score trend. Distinguish by checking `index=_internal sourcetype=splunkd component=ExecProcessor \"TA_cisco_catalyst\"` for timeout or pagination errors. Do not suppress — this indicates the poll interval may need to be increased for the clienthealth input.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

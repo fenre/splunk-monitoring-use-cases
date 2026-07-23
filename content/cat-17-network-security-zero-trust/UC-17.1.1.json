@@ -8,8 +8,14 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "dataSources": "RADIUS/ISE authentication logs",
-  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NAC Authentication Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.1).",
+  "evidence": "Saved search uc_17_1_1_nac_authentication_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NAC Authentication Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.1.1.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "RADIUS/ISE authentication logs Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:auth\"\n| eval status=if(match(message,\"PASS\"),\"success\",\"failure\")\n| timechart span=1h count by status",
   "description": "Authentication success/failure trends reveal infrastructure issues (certificate problems, RADIUS outages) and security events.",
   "value": "Network security teams track NAC authentication success rates over time, quickly identifying policy misconfigurations, certificate issues, or RADIUS infrastructure problems that prevent devices from joining the network.",
@@ -23,20 +29,36 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authentication pattern spikes during ISE or RADIUS maintenance, certificate renewal windows, or RADIUS time-outs that affect many clients at once.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ise"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -47,5 +69,7 @@
   ],
   "detailedImplementation": "Prerequisites\n• Cisco ISE: Splunk Add-on for Cisco ISE (Splunkbase) with `sourcetype=cisco:ise:syslog`. Aruba ClearPass: Splunk Add-on for Aruba ClearPass with `sourcetype=aruba:clearpass`. Forescout: syslog integration with `sourcetype=forescout:syslog`.\n• Data in `index=nac`. Key ISE fields: `UserName`, `IdentityGroup`, `EndPointPolicy`, `AuthenticationStatus` (Passed/Failed), `NetworkDeviceName` (switch/WLC), `NAS-Port-Type` (Ethernet/Wireless), `CallingStationID` (MAC), `FailureReason`, `AuthorizationPolicyMatchedRule`.\n• RADIUS authentication logs from the NAC server. ISE sends syslog messages with IDs 5200 (auth passed), 5400 (auth failed), 5405 (RADIUS request dropped).\n• Create a `nac_network_devices.csv` lookup: `nas_ip,device_name,location,building,floor` for mapping Network Access Servers to physical locations.\n\nStep 1 — Configure data collection\nFor Cisco ISE: Administration > System > Logging > Remote Logging Targets > add the HF IP, TCP 514, syslog format. Enable PASSED_AUTHENTICATIONS and FAILED_ATTEMPTS log categories.\n\nVerify:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-1h\n| stats count by AuthenticationStatus\n```\nYou should see both Passed and Failed. If only Passed: failed authentication logging may be disabled. If nothing: check syslog connectivity and the ISE logging configuration.\n\nStep 2 — Create the search and alert\n\nPrimary search — Authentication trending:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| eval status=case(match(AuthenticationStatus, \"(?i)pass\"), \"Passed\", match(AuthenticationStatus, \"(?i)fail\"), \"Failed\", 1==1, \"Other\")\n| timechart span=1h count by status\n| eval success_rate=round(Passed/(Passed+Failed)*100, 1)\n```\n\nUnderstanding this SPL: Tracks hourly authentication volume and success rate. The success rate is the primary health indicator. A drop below 95% warrants investigation — it could mean a misconfigured policy affecting a group of users, a certificate issue, or an infrastructure problem (RADIUS server degraded). Daily patterns are normal (low at night, high at business start). Anomalies against this pattern are significant.\n\nFailure analysis:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| where match(AuthenticationStatus, \"(?i)fail\")\n| stats count as failures dc(CallingStationID) as devices dc(UserName) as users by FailureReason\n| sort - failures\n```\n\nStep 3 — Validate\n(a) In ISE: Operations > RADIUS > Live Logs. Compare the pass/fail ratio with Splunk for the last hour.\n(b) In ClearPass: Monitoring > Live Monitoring > Access Tracker.\n(c) Intentionally fail an authentication (wrong password) and verify it appears in Splunk.\n\nStep 4 — Operationalize\nDashboard (\"NAC — Authentication Health\"):\n• Row 1 — Single-value: \"Auth success rate (%)\", \"Failures (24h)\", \"Unique devices\".\n• Row 2 — Timechart: pass/fail over 7 days.\n• Row 3 — Table: failure reasons with count, affected devices, affected users.\n\nAlert: Trigger when auth success rate drops below 90% in any 1h window. This is a broad indicator of NAC infrastructure or policy issues.\n\nRunbook:\n1. **Success rate drop + single failure reason** — A specific policy or certificate issue. Check the FailureReason for the root cause.\n2. **Success rate drop + many failure reasons** — RADIUS server overload or infrastructure issue. Check ISE node health.\n3. **Gradual failure increase** — Certificate approaching expiry (clients failing EAP-TLS). Check the RADIUS server certificate.\n\nStep 5 — Troubleshooting\n• **No auth events** — ISE logging categories may be disabled. Check Administration > Logging > Logging Categories > ensure PASSED_AUTHENTICATIONS and FAILED_ATTEMPTS are enabled.\n• **`FailureReason` empty** — The syslog format may not include failure details. Switch to 'detailed' syslog format in ISE.\n• **Events delayed** — ISE batches syslog messages. Increase the ISE syslog buffer flush interval or switch to pxGrid for real-time data.",
   "grandmaExplanation": "We watch the success rate of devices trying to get on our network, and when more start failing than usual, we investigate whether there is a problem with our access rules or security system.",
-  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend"
+  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

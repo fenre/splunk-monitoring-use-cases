@@ -48,15 +48,23 @@
   "references": [
     {
       "title": "TSA SD-1542-21-02 §3.2 (third-party access)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TSA SD Pipeline-2021-02D §3.2 (third-party access)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CISA Insights — Risk Considerations for MSPs",
-      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-131a"
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-131a",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Emergency vendor access** — break-glass vendor sessions logged in PAM with retroactive approval. Suppression: PAM PSM records auto-populate `tsa_vendor_session_lookup` with `retroactive=true`.\n2. **Service-account vendor**: long-running vendor service accounts; classify in lookup with `account_type=vendor_service`.\n\n**Suppression mechanism**: KV Store `tsa_vendor_session_lookup` and `tsa_22_56_16_exceptions`.",
@@ -99,7 +107,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + add-ons.\n- PAM/PSM session recording enabled for all vendor sessions.\n- KV Store `tsa_vendor_session_lookup`.\n\n## Step 1 — Define vendor session register\n\n```ini\n[tsa_vendor_session_lookup]\nfield.user = string\nfield.vendor_id = string\nfield.tsa_vendor_session_id = string\nfield.approved_from = number\nfield.approved_until = number\nfield.destination_zone = string\nfield.approver = string\nfield.change_id = string\nfield.retroactive = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.16: TSA Vendor Remote Access Surveillance]\ncron_schedule = 27 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.16,reg=TSA-Surface,clause=TSA-SD-multi-vendor-remote\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Unapproved vendor session into AIRSIDE_OT / PIPELINE_OT / RAIL_OT** (owner: CC, severity P1):\n1. Within 30 min: terminate session via PAM.\n2. Within 4 hours: investigate vendor-side compromise.\n3. Within 24 hours: post-mortem; reassess vendor risk.\n\n## Step 4 — Troubleshooting\n\n- **VDI / bastion bypass**: ensure VDI session telemetry feeds the UC; otherwise the bastion appears as the user.\n- **Service-account vendor**: distinguish from interactive vendor in lookup.\n\n**TSA-specific failure modes**:\n- **MSP / outsourced ops**: outsourced CC operations create concentrated risk; ensure outsourced personnel are registered.\n- **Hardware vendor on-site access**: on-site vendor visits may bypass remote-access controls; pair with physical-access UCs.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + add-ons.\n- PAM/PSM session recording enabled for all vendor sessions.\n- KV Store `tsa_vendor_session_lookup`.\n\n## Step 1 — Define vendor session register\n\n```ini\n[tsa_vendor_session_lookup]\nfield.user = string\nfield.vendor_id = string\nfield.tsa_vendor_session_id = string\nfield.approved_from = number\nfield.approved_until = number\nfield.destination_zone = string\nfield.approver = string\nfield.change_id = string\nfield.retroactive = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.16: TSA Vendor Remote Access Surveillance]\ncron_schedule = 27 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.16,reg=TSA-Surface,clause=TSA-SD-multi-vendor-remote\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Unapproved vendor session into AIRSIDE_OT / PIPELINE_OT / RAIL_OT** (owner: CC, severity P1):\n1. Within 30 min: terminate session via PAM.\n2. Within 4 hours: investigate vendor-side compromise.\n3. Within 24 hours: post-mortem; reassess vendor risk.\n\n## Step 4 — Troubleshooting\n\n- **VDI / bastion bypass**: ensure VDI session telemetry feeds the UC; otherwise the bastion appears as the user.\n- **Service-account vendor**: distinguish from interactive vendor in lookup.\n\n**TSA-specific failure modes**:\n- **MSP / outsourced ops**: outsourced CC operations create concentrated risk; ensure outsourced personnel are registered.\n- **Hardware vendor on-site access**: on-site vendor visits may bypass remote-access controls; pair with physical-access UCs.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco AnyConnect (Splunkbase 2008), Splunk Add-on for CyberArk (Splunkbase 4242).). Enable the modular input or HEC token that writes sourcetype=pan:globalprotect, cisco:anyconnect, beyondtrust:bra:event into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`session_status, src_ip, user, vendor_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Outside companies (vendors) sometimes need to connect to our pipeline, train, or airport computers. We make sure every connection is approved in advance and we record what they do.",
   "prerequisiteUseCases": [
     "UC-22.56.4"

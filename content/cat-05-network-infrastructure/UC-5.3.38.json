@@ -8,8 +8,14 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=sdwan` `sourcetype=\"citrix:sdwan:virtual_path\"` or SD-WAN appliance syslog/JSON with fields `path_name`, `site_id`, `loss_pct`, `jitter_ms`, `latency_ms`, `mos` (where available), `path_state` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
-  "app": "No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Citrix SD-WAN Virtual Path Loss, Jitter, and Latency'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.3.38).",
+  "evidence": "Saved search uc_5_3_38_citrix_sd_wan_virtual_path_loss_jitter_a, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Citrix SD-WAN Virtual Path Loss, Jitter, and Latency'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.3.38.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=sdwan` `sourcetype=\"citrix:sdwan:virtual_path\"` or SD-WAN appliance syslog/JSON with fields `path_name`, `site_id`, `loss_pct`, `jitter_ms`, `latency_ms`, `mos` (where available), `path_state` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "No official Splunk TA for Citrix SD-WAN. Ingest via syslog from SD-WAN appliances and SD-WAN Center, or poll NITRO/REST API from SD-WAN Orchestrator. SNMP polling available for basic metrics. Suggested custom sourcetypes follow the `citrix:sdwan:*` convention. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=sdwan sourcetype=\"citrix:sdwan:virtual_path\" earliest=-4h\n| eval loss=tonumber(loss_pct), jit=tonumber(jitter_ms), lat=tonumber(latency_ms), mos=tonumber(mos)\n| bin _time span=5m\n| stats avg(loss) as avg_loss, avg(jit) as avg_jit, avg(lat) as avg_lat, avg(mos) as avg_mos, latest(path_state) as path_state by _time, site_id, path_name\n| where avg_loss>2 OR avg_jit>30 OR avg_lat>150 OR (isnotnull(avg_mos) AND avg_mos<3.5) OR match(lower(path_state),\"(?i)down|bad|degraded\")\n| table _time, site_id, path_name, avg_loss, avg_jit, avg_lat, avg_mos, path_state",
   "description": "Citrix SD-WAN virtual paths carry business traffic between sites and cloud services. Packet loss, jitter, latency, and voice-style mean opinion score (MOS) metrics reveal path quality before users open tickets. Tracking path state changes pinpoints when the fabric moved traffic or when a path stopped meeting policy for quality of experience.",
   "value": "Network operations teams monitor Citrix SD-WAN virtual path loss, jitter, and latency per WAN link, detecting dead paths and quality degradation that impacts real-time applications.",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Citrix — SD-WAN paths and quality metrics",
-      "url": "https://docs.citrix.com/en-us/citrix-sd-wan/"
+      "url": "https://docs.citrix.com/en-us/citrix-sd-wan/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Brownouts, carrier work, and flapping remotes can move loss and jitter on one path one day and a different path the next.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix",
     "snmp",
@@ -32,6 +54,12 @@
     "snmp_generic"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Citrix SD-WAN appliance syslog or Citrix SD-WAN Orchestrator API data in `index=netscaler` with `sourcetype=citrix:sdwan:syslog` or `sourcetype=citrix:sdwan:perf`. Key fields: `virtual_path`, `site_name`, `wan_link`, `loss_pct`, `jitter_ms`, `latency_ms`, `path_state` (GOOD/BAD/DEAD).\n* Citrix SD-WAN virtual paths are overlay tunnels between sites. Each virtual path uses one or more WAN links (MPLS, Internet, LTE). The SD-WAN appliance continuously measures loss, jitter, and latency per path and uses these metrics for application steering decisions.\n\nStep 1 -- Configure data collection\nConfigure syslog on Citrix SD-WAN appliance or poll Orchestrator API for virtual path stats. Verify:\n```spl\nindex=netscaler (sourcetype=\"citrix:sdwan:syslog\" OR sourcetype=\"citrix:sdwan:perf\") earliest=-4h\n| where isnotnull(virtual_path) OR isnotnull(loss_pct) OR isnotnull(latency_ms)\n| stats count by site_name, virtual_path\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Virtual path health monitoring:**\n```spl\nindex=netscaler (sourcetype=\"citrix:sdwan:syslog\" OR sourcetype=\"citrix:sdwan:perf\") earliest=-4h\n| eval vpath=coalesce(virtual_path, path_name)\n| eval site=coalesce(site_name, site)\n| eval loss=coalesce(loss_pct, packet_loss)\n| eval jitter=coalesce(jitter_ms, jitter)\n| eval latency=coalesce(latency_ms, latency)\n| eval wan=coalesce(wan_link, link_name)\n| eval state=coalesce(path_state, path_status)\n| bin _time span=5m\n| stats avg(loss) as avg_loss max(loss) as max_loss avg(jitter) as avg_jitter max(jitter) as max_jitter avg(latency) as avg_latency latest(state) as path_state by _time, site, vpath, wan\n| eval quality=case(match(lower(path_state), \"dead\"), \"DEAD\", max_loss > 5, \"POOR\", max_jitter > 30, \"POOR\", avg_latency > 150, \"POOR\", avg_loss > 1 OR avg_jitter > 15 OR avg_latency > 80, \"FAIR\", 1==1, \"GOOD\")\n| where quality IN (\"DEAD\", \"POOR\")\n| eval impact=case(quality=\"DEAD\", \"Path completely down -- traffic on alternate path\", quality=\"POOR\" AND max_loss > 5, \"High packet loss -- voice/video degraded\", quality=\"POOR\" AND max_jitter > 30, \"High jitter -- real-time apps affected\", 1==1, \"Performance degradation\")\n| sort quality, -avg_loss\n```\n\nStep 3 -- Validate\n(a) Compare path metrics with Citrix SD-WAN Orchestrator: Monitor > Virtual Paths.\n(b) Introduce artificial impairment on a test WAN link and verify degradation in Splunk.\n(c) Verify DEAD paths correspond to actual WAN link failures.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix SD-WAN -- Path Health\"):\n* Row 1 -- Single-value: \"Active paths\", \"Dead paths\", \"Poor quality paths\", \"Avg latency (ms)\".\n* Row 2 -- Per-path health table with impact assessment.\n* Row 3 -- Loss/jitter/latency trending timechart by site.\n\nAlerting:\n* Critical (virtual path DEAD): site connectivity impaired.\n* Warning (loss > 5% or jitter > 30ms sustained > 10 min): real-time traffic affected.\n\nStep 5 -- Troubleshooting\n\n* **Path DEAD** -- WAN link is completely down. Check: ISP circuit status, router interface, firewall rules for SD-WAN overlay ports (UDP 4980).\n\n* **High loss on Internet path but MPLS is fine** -- Internet link quality degradation. Consider: ISP change, adding a second Internet link, adjusting path quality thresholds to steer traffic to MPLS.\n\n* **Jitter spikes at specific times** -- Correlate with ISP peak hours or backup schedules consuming WAN bandwidth.",
-  "grandmaExplanation": "We read loss, jitter, and delay on the overlay path so a brown site or a noisy link is a fact on a chart, not a feeling on a call."
+  "grandmaExplanation": "We read loss, jitter, and delay on the overlay path so a brown site or a noisy link is a fact on a chart, not a feeling on a call.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

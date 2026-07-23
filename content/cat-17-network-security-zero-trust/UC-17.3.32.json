@@ -8,7 +8,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:events` or `netskope:application`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Netskope Cloud App Risk Assessment'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.32).",
+  "evidence": "Saved search uc_17_3_32_netskope_cloud_app_risk_assessment, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Netskope Cloud App Risk Assessment'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.32.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=netskope:events` or `netskope:application` Indexes: casb. Sourcetypes: netskope:events. Key fields: app_name, category, cci_score. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:events\" earliest=-7d\n| where cci_score < 50\n| stats dc(user) as users, sum(numbytes) as bytes by app_name, cci_score, category\n| eval gb=round(bytes/1073741824,2)\n| sort -users",
   "description": "Netskope assigns Cloud Confidence Index (CCI) scores to SaaS applications. Tracking high-risk (low CCI) app usage reveals shadow IT and data exposure. Trending CCI across the organization supports SaaS governance and vendor risk management.",
@@ -21,21 +27,42 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1102"
   ],
   "equipment": [
     "netskope"
   ],
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Netskope logs in `index=netskope` with `sourcetype=netskope:events` or `sourcetype=netskope:alerts`. Netskope Add-on for Splunk (Splunkbase) configured with Netskope REST API v2 token. Key fields: `app`, `cci` (Cloud Confidence Index, 0-100), `ccl` (Cloud Confidence Level: poor/low/medium/high/excellent), `category`, `user`, `activity`, `traffic_type`, `from_user_category`, `bytes_uploaded`, `bytes_downloaded`.\n• Netskope's Cloud Confidence Index (CCI) scores cloud applications on security criteria: encryption, certifications, data residency, MFA support, audit logging, etc. CCI < 50 = high risk, 50-74 = medium, 75+ = trusted.\n\nStep 1 — Configure data collection\nConfigure Netskope TA: Netskope Admin > Settings > Tools > REST API v2 > generate token. Add to Splunk TA input configuration.\n\nVerify:\n```spl\nindex=netskope sourcetype=\"netskope:events\" earliest=-1h\n| stats count by ccl\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Cloud app risk landscape:\n```spl\nindex=netskope sourcetype=\"netskope:events\" earliest=-7d\n| stats dc(user) as users sum(bytes_uploaded) as bytes_up sum(bytes_downloaded) as bytes_down by app, cci, ccl, category\n| eval mb_up=round(bytes_up/1048576,1), mb_down=round(bytes_down/1048576,1)\n| where ccl IN (\"poor\",\"low\")\n| sort - users\n```\n\nUnderstanding this SPL: Lists all cloud applications with poor or low confidence scores, ranked by number of users. A high-risk app with many users is a priority for remediation (block or replace). Upload volume to high-risk apps is especially concerning — data may be leaving the organization to an insecure service.\n\nShadow IT discovery:\n```spl\nindex=netskope sourcetype=\"netskope:events\" earliest=-30d\n| stats dc(user) as users dc(activity) as activities sum(bytes_uploaded) as bytes_up by app, cci, ccl\n| where users >= 5\n| sort ccl, - users\n```\n\nStep 3 — Validate\n(a) In Netskope Admin: SkopeIT > Application Events. Check CCI scores.\n(b) Access a known low-CCI app and verify the event.\n\nStep 4 — Operationalize\nDashboard: Row 1 — CCI distribution (pie). Row 2 — High-risk apps with most users. Row 3 — Data upload to risky apps.\nAlert: When a new app with CCI < 50 is used by 10+ users.\n\nRunbook:\n1. **High-risk app, many users** — Present approved alternative. Schedule block after notice.\n2. **Data upload to risky app** — DLP investigation. Determine what data was uploaded.\n3. **New shadow IT** — Evaluate if sanctioned alternative exists. Add to monitoring.\n\nStep 5 — Troubleshooting\n• **CCI always 0** — Netskope may not have classified the app. Custom apps show CCI=0.\n• **No event data** — Netskope TA REST API token may have expired. Regenerate.",
   "grandmaExplanation": "Netskope scores every cloud application our employees use for security — like a safety rating for websites. We focus on the dangerous ones that many people use, especially when they upload company data there, because an insecure cloud service is an open door for data theft.",
-  "hardware": "Netskope Security Cloud (cloud-delivered), Netskope Client (endpoint agent)"
+  "hardware": "Netskope Security Cloud (cloud-delivered), Netskope Client (endpoint agent)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

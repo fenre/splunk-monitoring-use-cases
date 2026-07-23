@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "AWS Config (TGW attachment compliance), TGW flow logs, CloudWatch TGW metrics (BytesIn, BytesOut, PacketsIn, PacketsOut)",
-  "app": "`Splunk_TA_aws`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'AWS Transit Gateway Attachment Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-4.1.58).",
+  "evidence": "Saved search uc_4_1_58_aws_transit_gateway_attachment_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'AWS Transit Gateway Attachment Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-4.1.58.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "AWS Config (TGW attachment compliance), TGW flow logs, CloudWatch TGW metrics (BytesIn, BytesOut, PacketsIn, PacketsOut) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws (sourcetype=\"aws:config:notification\" resourceType=\"AWS::EC2::TransitGatewayAttachment\" OR (sourcetype=\"aws:cloudwatch\" namespace=\"AWS/TransitGateway\" metric_name=\"BytesIn\"))\n| eval attachment_state=case(\n  configurationItemStatus=\"ResourceDeleted\", \"deleted\",\n  configurationItemStatus=\"ResourceNotRecorded\", \"unknown\",\n  configurationItemStatus=\"OK\", \"ok\",\n  isnotnull(configurationItemStatus), configurationItemStatus,\n  1=1, null())\n| eval resourceId=coalesce(resourceId, resource_id)\n| bin _time span=1h\n| stats latest(attachment_state) as state, latest(Sum) as bytes_in by resourceId, _time\n| where (isnotnull(state) AND state!=\"ok\") OR (isnotnull(bytes_in) AND bytes_in=0)\n| table _time resourceId state bytes_in\n| sort -_time",
   "description": "TGW route propagation and attachment state affect cross-VPC and hybrid connectivity. Failed attachments or stale routes cause network outages.",
-  "value": "TGW route propagation and attachment state affect cross-VPC and hybrid connectivity. Failed attachments or stale routes cause network outages.",
+  "value": "Operations and leadership rely on 'AWS Transit Gateway Attachment Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Enable AWS Config for TGW attachments to track state changes. Ingest TGW flow logs to S3 and forward to Splunk for traffic analysis. Collect CloudWatch TGW metrics (BytesIn, BytesOut) per attachment. Alert when attachment state is not available or traffic drops to zero unexpectedly. Correlate with route table propagation events. Use for hybrid connectivity and SD-WAN monitoring.",
   "visualization": "Table (attachment, state, traffic), Status grid (attachment health), Line chart (bytes in/out by attachment).",
   "cimModels": [
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: AWS Config (TGW attachment compliance), TGW flow logs, CloudWatch TGW metrics (BytesIn, BytesOut, PacketsIn, PacketsOut).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable AWS Config for TGW attachments to track state changes. Ingest TGW flow logs to S3 and forward to Splunk for traffic analysis. Collect CloudWatch TGW metrics (BytesIn, BytesOut) per attachment. Alert when attachment state is not available or traffic drops to zero unexpectedly. Correlate with route table propagation events. Use for hybrid connectivity and SD-WAN monitoring.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws (sourcetype=\"aws:config:notification\" resourceType=\"AWS::EC2::TransitGatewayAttachment\" OR (sourcetype=\"aws:cloudwatch\" namespace=\"AWS/TransitGateway\" metric_name=\"BytesIn\"))\n| eval attachment_state=case(\n  configurationItemStatus=\"ResourceDeleted\", \"deleted\",\n  configurationItemStatus=\"ResourceNotRecorded\", \"unknown\",\n  configurationItemStatus=\"OK\", \"ok\",\n  isnotnull(configurationItemStatus), configurationItemStatus,\n  1=1, null())\n| eval resourceId=coalesce(resourceId, resource_id)\n| stats latest(attachment_state) as state, latest(Sum) as bytes_in by resourceId, bin(_time, 1h)\n| where (isnotnull(state) AND state!=\"ok\") OR (isnotnull(bytes_in) AND bytes_in=0)\n| table _time resourceId state bytes_in\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**AWS Transit Gateway Attachment Health** — TGW route propagation and attachment state affect cross-VPC and hybrid connectivity. Failed attachments or stale routes cause network outages.\n\nDocumented **Data sources**: AWS Config (TGW attachment compliance), TGW flow logs, CloudWatch TGW metrics (BytesIn, BytesOut, PacketsIn, PacketsOut). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:config:notification, AWS::EC2::TransitGatewayAttachment, aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:config:notification\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **attachment_state** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **resourceId** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by resourceId, bin(_time, 1h)** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where (isnotnull(state) AND state!=\"ok\") OR (isnotnull(bytes_in) AND bytes_in=0)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **AWS Transit Gateway Attachment Health**): table _time resourceId state bytes_in\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (attachment, state, traffic), Status grid (attachment health), Line chart (bytes in/out by attachment).",
-  "grandmaExplanation": "We keep an eye on aws transit gateway attachment health. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "grandmaExplanation": "We keep an eye on aws transit gateway attachment health. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

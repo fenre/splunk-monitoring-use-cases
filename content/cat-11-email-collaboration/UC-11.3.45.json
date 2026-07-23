@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=uccx:csq_stats` (custom via REST API), `sourcetype=uccx:agent_stats`, UCCX wallboard XML feed",
-  "app": "Custom scripted input (UCCX REST API / Finesse API), `Splunk Connect for Syslog`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'UCCX Real-Time Queue and Agent Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-11.3.45).",
+  "evidence": "Saved search uc_11_3_45_uccx_real_time_queue_and_agent_monitorin, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'UCCX Real-Time Queue and Agent Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-11.3.45.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=uccx:csq_stats` (custom via REST API), `sourcetype=uccx:agent_stats`, UCCX wallboard XML feed Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (UCCX REST API / Finesse API), `Splunk Connect for Syslog` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=contact_center sourcetype=\"uccx:csq_stats\"\n| stats latest(calls_waiting) as waiting, latest(calls_handled) as handled, latest(calls_abandoned) as abandoned, latest(longest_wait_sec) as longest_wait, latest(agents_available) as avail_agents by csq_name\n| eval calls_per_agent=if(avail_agents>0, round(waiting/avail_agents, 1), \"N/A - No Agents\")\n| eval alert_level=case(\n    waiting>10 AND avail_agents==0, \"CRITICAL\",\n    waiting>5 OR longest_wait>120, \"WARNING\",\n    1==1, \"OK\")\n| table csq_name, waiting, handled, abandoned, longest_wait, avail_agents, calls_per_agent, alert_level\n| sort -waiting",
   "description": "Cisco Unified Contact Center Express (UCCX) remains widely deployed for small-to-medium contact centers. Native UCCX reporting is limited to historical views, and Finesse supervisor gadgets show only a single queue at a time. Splunk aggregation of UCCX queue statistics provides a unified real-time and historical view across all Contact Service Queues (CSQs), enabling supervisors to spot developing queue emergencies and workforce planners to validate staffing models with actual data.",
-  "value": "Cisco Unified Contact Center Express (UCCX) remains widely deployed for small-to-medium contact centers. Native UCCX reporting is limited to historical views, and Finesse supervisor gadgets show only a single queue at a time. Splunk aggregation of UCCX queue statistics provides a unified real-time and historical view across all Contact Service Queues (CSQs), enabling supervisors to spot developing queue emergencies and workforce planners to validate staffing models with actual data.",
+  "value": "Operations and leadership rely on 'UCCX Real-Time Queue and Agent Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Deploy a scripted input that polls the UCCX REST API (available on port 9443) for CSQ statistics every 60 seconds. The API returns calls waiting, calls handled, calls abandoned, average/max wait times, and available agents per CSQ. Parse into structured events and index. For agent-level data, poll the Finesse REST API for agent state and call details. Alert when any CSQ has calls waiting with zero available agents (immediate customer impact). Provide a wallboard-style dashboard with auto-refresh for supervisors. Track historical queue performance trends to validate workforce management forecasts. Combine with UCCX Historical Reporting data for end-of-day analytics.",
   "visualization": "Single value tiles (calls waiting, longest wait, available agents — per CSQ), Table (all CSQs with status), Line chart (calls waiting trend over shift), Bar chart (handled vs abandoned by CSQ).",
   "cimModels": [
@@ -23,15 +29,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Agent login delays, after-hours skilling, and maintenance on UCCX that pauses ready state.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (UCCX REST API / Finesse API), `Splunk Connect for Syslog`.\n• Ensure the following data sources are available: `sourcetype=uccx:csq_stats` (custom via REST API), `sourcetype=uccx:agent_stats`, UCCX wallboard XML feed.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy a scripted input that polls the UCCX REST API (available on port 9443) for CSQ statistics every 60 seconds. The API returns calls waiting, calls handled, calls abandoned, average/max wait times, and available agents per CSQ. Parse into structured events and index. For agent-level data, poll the Finesse REST API for agent state and call details. Alert when any CSQ has calls waiting with zero available agents (immediate customer impact). Provide a wallboard-style dashboard with auto-refresh…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=contact_center sourcetype=\"uccx:csq_stats\"\n| stats latest(calls_waiting) as waiting, latest(calls_handled) as handled, latest(calls_abandoned) as abandoned, latest(longest_wait_sec) as longest_wait, latest(agents_available) as avail_agents by csq_name\n| eval calls_per_agent=if(avail_agents>0, round(waiting/avail_agents, 1), \"N/A - No Agents\")\n| eval alert_level=case(\n    waiting>10 AND avail_agents==0, \"CRITICAL\",\n    waiting>5 OR longest_wait>120, \"WARNING\",\n    1==1, \"OK\")\n| table csq_name, waiting, handled, abandoned, longest_wait, avail_agents, calls_per_agent, alert_level\n| sort -waiting\n```\n\nUnderstanding this SPL\n\n**UCCX Real-Time Queue and Agent Monitoring** — Cisco Unified Contact Center Express (UCCX) remains widely deployed for small-to-medium contact centers. Native UCCX reporting is limited to historical views, and Finesse supervisor gadgets show only a single queue at a time. Splunk aggregation of UCCX queue statistics provides a unified real-time and historical view across all Contact Service Queues (CSQs), enabling supervisors to spot developing queue emergencies and workforce planners to validate staffing models with…\n\nDocumented **Data sources**: `sourcetype=uccx:csq_stats` (custom via REST API), `sourcetype=uccx:agent_stats`, UCCX wallboard XML feed. **App/TA** (typical add-on context): Custom scripted input (UCCX REST API / Finesse API), `Splunk Connect for Syslog`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: contact_center; **sourcetype**: uccx:csq_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=contact_center, sourcetype=\"uccx:csq_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by csq_name** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **calls_per_agent** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **alert_level** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **UCCX Real-Time Queue and Agent Monitoring**): table csq_name, waiting, handled, abandoned, longest_wait, avail_agents, calls_per_agent, alert_level\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with call center wallboards, ACD/IVR config, and Webex contact center or UCCX real-time data for the same queue and time.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value tiles (calls waiting, longest wait, available agents — per CSQ), Table (all CSQs with status), Line chart (calls waiting trend over shift), Bar chart (handled vs abandoned by CSQ).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Unified Contact Center Express (UCCX), Cisco Finesse"
+  "hardware": "Cisco Unified Contact Center Express (UCCX), Cisco Finesse",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

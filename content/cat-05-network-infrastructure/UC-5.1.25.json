@@ -9,10 +9,16 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Config diff output, Git commit logs from network config repo",
-  "app": "Custom scripted input (diff output from RANCID/Oxidized vs golden), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Network Configuration Drift Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.1.25).",
+  "evidence": "Saved search uc_5_1_25_network_configuration_drift_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Network Configuration Drift Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.1.25.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Config diff output, Git commit logs from network config repo Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (diff output from RANCID/Oxidized vs golden), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=config_drift OR sourcetype=git:commit\n| search \"diff\" OR \"drift\" OR \"changed\" OR \"modified\"\n| rex \"device[=:]\\s*(?<device>\\S+)\" | rex \"lines?\\s*(?<lines_changed>\\d+)\"\n| stats count as drift_events, values(diff_summary) as changes by device, host\n| where drift_events > 0\n| table device host drift_events changes",
-  "description": "Running config differs from baseline/golden config.",
+  "description": "Running config differs from baseline/golden config. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Compliance teams detect network configuration drift by comparing running configurations against golden baselines, identifying unauthorized or undocumented changes that create security and operational risk.",
   "implementation": "Run diff (e.g., `diff running golden`) via Oxidized hooks or custom script. Ingest diff output or Git commit metadata. Store golden configs in Git; compare after each backup. Alert on any non-whitelisted drift. Use `git diff` or `rancid -d` output as sourcetype.",
   "visualization": "Table (device, drift count, summary), Timeline (drift events), Single value (devices with drift).",
@@ -22,16 +28,36 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Intentional hotfixes, emergency ACL inserts, and lab merges create drift you want—use allowlists and ticket IDs in comments.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -42,5 +68,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* Configuration drift detection data. Requires comparison of current running-config against a known-good baseline (golden config). Data from backup tools (RANCID, Oxidized) diffs, or Cisco DNA Center compliance engine. Data in `index=network` with `sourcetype=network:config:diff` or similar.\n* Configuration drift: unauthorized or undocumented changes from the approved baseline. Causes security vulnerabilities, compliance failures, and unexpected behavior. Automated comparison of running vs golden config detects drift.\n\nStep 1 -- Configure data collection\n```\n# Scripted input to compare configs\n[script:///opt/splunk/etc/apps/network_mon/bin/config_drift.sh]\ninterval = 86400\nsourcetype = network:config:drift\nindex = network\n\n# config_drift.sh\n#!/bin/bash\nGOLDEN_DIR=\"/var/configs/golden\"\nCURRENT_DIR=\"/var/backups/network\"\nfor f in \"$CURRENT_DIR\"/*.cfg; do\n    device=$(basename \"$f\" .cfg)\n    golden=\"$GOLDEN_DIR/$device.cfg\"\n    if [ -f \"$golden\" ]; then\n        diff_count=$(diff \"$golden\" \"$f\" | grep -c \"^[<>]\" 2>/dev/null)\n        echo \"device=$device drift_lines=$diff_count golden=$golden current=$f\"\n    fi\ndone\n```\nVerify:\n```spl\nindex=network sourcetype=\"network:config:drift\" earliest=-2d\n| stats latest(drift_lines) by device\n| sort -latest(drift_lines)\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Configuration drift detection:**\n```spl\nindex=network sourcetype=\"network:config:drift\" earliest=-2d\n| eval device=coalesce(device, hostname, host)\n| eval drift=tonumber(drift_lines)\n| lookup network_devices.csv hostname AS device OUTPUT device_type, site, criticality\n| eval severity=case(\n    drift > 50, \"CRITICAL -- major configuration drift (\".drift.\" lines differ)\",\n    drift > 20, \"WARNING -- significant drift detected\",\n    drift > 0, \"INFO -- minor drift\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table device, device_type, site, criticality, drift, severity\n| sort severity, -drift\n```\n\nStep 3 -- Validate\n(a) Review diff output for specific changes: access the backup tool's diff viewer.\n(b) Cross-reference with change management system for approved changes.\n(c) Identify if drift is security-relevant (ACL changes, authentication changes).\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Configuration Drift\"):\n* Row 1 -- Single-value: \"Devices with drift\", \"Major drift (>50 lines)\", \"Compliant devices\".\n* Row 2 -- Drift severity table.\n\nAlert: Critical (major drift on critical device): investigate unauthorized changes.\n\nStep 5 -- Troubleshooting\n\n* **Expected drift after approved change** -- Update the golden config baseline after verified changes. Document the change ticket reference.\n\n* **Security-relevant drift** -- ACL, authentication, or encryption configuration changes require immediate security review. Compare with change management tickets.\n\n* **Drift on many devices simultaneously** -- May indicate bulk configuration push (approved or not). Check change management and automation tool logs.",
   "grandmaExplanation": "We help you know early when something looks wrong with network configuration drift detection so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

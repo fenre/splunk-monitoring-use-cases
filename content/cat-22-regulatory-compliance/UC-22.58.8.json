@@ -33,10 +33,10 @@
     "positiveScenario": "Force any UC-22.58.x to stop firing for 48 hours. UC-22.58.8 MUST flag staleness within 24h.",
     "negativeScenario": "All UC-22.58.x evidence current. UC-22.58.8 MUST roll up green."
   },
-  "dataSources": "Cross-search of `audit_evidence` for `reg=FR-LPM`.",
+  "dataSources": "Cross-search of `audit_evidence` for `reg=FR-LPM`. Indexes: audit_evidence. Key fields: health, hours_since_evidence, uc. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
   "spl": "search index=audit_evidence reg=FR-LPM earliest=-30d@d\n| eval uc = case(\n    match(_raw, \"uc=22\\.58\\.\"), \"22.58.\" + replace(_raw, \".*uc=22\\.58\\.(\\d+).*\", \"\\1\"),\n    1=1, \"unknown\")\n| stats count as evidence_rows latest(_time) as last_evidence by uc\n| eval hours_since_evidence = round((now() - last_evidence) / 3600, 1)\n| eval health = case(\n    hours_since_evidence > 48, \"stale\",\n    evidence_rows = 0, \"missing\",\n    1=1, \"current\")\n| sort uc\n| table uc evidence_rows last_evidence hours_since_evidence health",
-  "description": "Daily roll-up showing UC-22.58.x evidence health.",
+  "description": "Daily roll-up showing UC-22.58.x evidence health. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Direction Générale + Délégué OIV-facing scorecard; defensible in ANSSI/PASSI inspections.",
   "implementation": "(1) Schedule UC-22.58.8 daily. (2) Build the `LPM Master Scorecard` dashboard. (3) Sign-off monthly by Délégué OIV.",
   "visualization": "(Panel 1) Per-UC health. (Panel 2) Trend (12-month). (Panel 3) Top outstanding. (Panel 4) Délégué OIV monthly attestation history.",
@@ -46,10 +46,26 @@
   "references": [
     {
       "title": "Code de la défense (Partie réglementaire) — OIV",
-      "url": "https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006071307/LEGISCTA000032295434/"
+      "url": "https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006071307/LEGISCTA000032295434/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **UC cadence drift**: tune per UC cadence (some run every 4h, some daily).\n\n**Suppression mechanism**: KV Store `lpm_22_58_8_exceptions` with documented Délégué OIV approval.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "N/A (governance roll-up)"
   ],
@@ -74,7 +90,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\nAll UC-22.58.1 through UC-22.58.7 running.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.58.8: LPM Master Roll-Up]\ncron_schedule = 31 16 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.8,reg=FR-LPM,clause=LPM-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly Délégué OIV review and Direction Générale sign-off.\n\n**FR-specific failure modes**:\n- **Délégué OIV personal liability**: emphasize defensibility; every UC must stand alone for ANSSI/PASSI inspection.\n- **Inter-secteur correlation**: a multi-secteur OIV may have several sub-rollups; aggregate carefully.",
+  "detailedImplementation": "## Prerequisites\n\nAll UC-22.58.1 through UC-22.58.7 running.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.58.8: LPM Master Roll-Up]\ncron_schedule = 31 16 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.8,reg=FR-LPM,clause=LPM-master-rollup\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\nMonthly Délégué OIV review and Direction Générale sign-off.\n\n**FR-specific failure modes**:\n- **Délégué OIV personal liability**: emphasize defensibility; every UC must stand alone for ANSSI/PASSI inspection.\n- **Inter-secteur correlation**: a multi-secteur OIV may have several sub-rollups; aggregate carefully.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263).). Enable the modular input or HEC token that writes sourcetype=see SPL into audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`health, hours_since_evidence, uc`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Tous les contrôles LPM se concentrent dans un tableau de bord unique pour le Délégué OIV et la Direction Générale, avec attestation mensuelle.",
   "prerequisiteUseCases": [
     "UC-22.58.1",

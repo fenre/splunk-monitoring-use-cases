@@ -11,6 +11,11 @@
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
   "exclusions": "Does not replace certified third-party waste audits (TRUE auditor sign-off), full RCRA hazardous-waste permit management, EU List of Waste coding in ERP as a system of record, or transportation regulatory hazmat routing; does not infer Scope 3 Category 5 tonnes when material or disposal-method fields are absent; does not certify GRI 306 / ESRS E5 disclosures without external assurance. Pair with UC-23.9.1 when you must tie waste-derived biogenic versus fossil CO2e into the enterprise inventory rather than diversion-only KPIs.",
+  "evidence": "Saved search uc_23_9_3_waste_diversion_and_recycling_rate_track, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Waste Diversion and Recycling Rate Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.9.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Hauler SaaS REST extracts into `index=business`: `sourcetype=\"rubicon:pickup\"` from Rubicon `/api/v3/sites/{site_id}/services/{service_id}/pickups` (OAuth2 plus org API key; fields include `pickup_id`, `site_id`, `material_type`, `weight_lbs` or `weight_kg`, `tipping_fee_usd`, `disposal_facility_id`, `disposal_method`); `sourcetype=\"wastemgmt:manifest\"` from Waste Management `https://api.wm.com/v1/services/{customer_id}/manifests` (subscription plus API key); `sourcetype=\"republic:manifest\"` from Republic Services `/api/v2/customer/{cust_id}/services/manifest`; `sourcetype=\"stericycle:manifest\"` from Stericycle `/api/v1/customers/{id}/manifests` for RCRA-aligned manifests; optional parallel feeds from Veolia North America, Waste Connections, Casella, or Suez-branded portals where contracts exist. Facility-scale bin telemetry via Splunk HTTP Event Collector into the same index with `sourcetype=\"iot:bin_weight\"` (`bin_id`, `site_id`, `timestamp_utc`, `weight_kg`, `fill_pct`, `material_type`, `last_pickup_timestamp`) covering Pelican cellular bins, Bigbelly compactors, Compology contamination imaging, Sensoneo ultrasonic pairs. Procurement-backed tipping lines optionally arrive through Splunk DB Connect (Splunkbase 2686) from Coupa or Ariba tables into companion sourcetypes for finance reconciliation only. Lookup `lookups/warm_factors.csv` keyed on normalized `material_type` and `disposal_method` supplying `mtco2e_per_tonne` from EPA WARM v15-class factors with `factor_year`. Facility targets lookup `lookups/site_targets.csv` keyed on `site_id` returning `diversion_target_pct`, `true_certification_target`, `business_unit`, `region`. Synonym map `lookups/material_synonyms.csv` (vendor tokens such as OCC to cardboard) optional but recommended.",
   "app": "Splunk HTTP Event Collector (ships with Splunk Enterprise and Splunk Cloud; Settings → Data inputs → HTTP Event Collector) for smart-bin CSV uploads and gateway-forwarded JSON; Splunk DB Connect (`splunk_app_db_connect`, Splunkbase 2686) for JDBC pulls of invoice lines or IWMS staging tables that complement manifests; Splunk Add-on Builder (Splunkbase 2962) to package Python modular inputs that poll Rubicon, WM, Republic, Stericycle REST endpoints with OAuth2 refresh tokens and exponential backoff; Splunk Enterprise Security-style RBAC not required—standard Splunk roles suffice.",
   "spl": "index=business sourcetype=\"rubicon:pickup\" earliest=-90d\n| append [ search index=business sourcetype=\"wastemgmt:manifest\" earliest=-90d ]\n| append [ search index=business sourcetype=\"republic:manifest\" earliest=-90d ]\n| append [ search index=business sourcetype=\"iot:bin_weight\" earliest=-90d\n    | bin _time span=1d\n    | stats sum(weight_kg) as weight_kg by site_id, material_type, _time\n    | eval disposal_method=case(material_type IN (\"cardboard\",\"paper\",\"plastic\",\"metal\",\"glass\"),\"recycling\",\n                                 material_type IN (\"organics\",\"food\"),\"composting\",\n                                 1=1,\"landfill\") ]\n| eval weight_kg=coalesce(weight_kg, weight_lbs*0.453592, weight_short_tons*907.185)\n| eval material_type=lower(coalesce(material_type, waste_stream))\n| eval disposal_method=lower(coalesce(disposal_method, \"landfill\"))\n| eval is_diverted=case(\n    disposal_method IN (\"recycling\",\"recycled\",\"composting\",\"composted\",\"reuse\",\"reused\",\"donation\",\"donated\",\"anaerobic_digestion\",\"ad\"), 1,\n    1=1, 0)\n| eval is_hazardous=if(material_type IN (\"hazardous\",\"medical\",\"biohazard\",\"chemical\",\"oil\",\"battery\",\"mercury\"), 1, 0)\n| lookup warm_factors.csv material_type disposal_method OUTPUT mtco2e_per_tonne\n| eval scope3_cat5_co2e_kg=if(isnotnull(mtco2e_per_tonne), round(weight_kg/1000*tonumber(mtco2e_per_tonne)*1000, 2), null())\n| stats sum(weight_kg) as total_kg,\n        sum(eval(if(is_diverted=1, weight_kg, 0))) as diverted_kg,\n        sum(eval(if(is_hazardous=1, weight_kg, 0))) as hazardous_kg,\n        sum(scope3_cat5_co2e_kg) as cat5_co2e_kg,\n        dc(material_type) as material_type_count,\n        values(material_type) as materials,\n        sum(eval(if(disposal_method=\"landfill\", weight_kg, 0))) as landfill_kg,\n        sum(eval(if(disposal_method=\"recycling\", weight_kg, 0))) as recycling_kg,\n        sum(eval(if(disposal_method=\"composting\", weight_kg, 0))) as composting_kg\n   by site_id\n| eval total_tonnes=round(total_kg/1000, 2)\n| eval diversion_rate=if(total_kg>0, round(100*diverted_kg/total_kg, 1), null())\n| eval landfill_pct=if(total_kg>0, round(100*landfill_kg/total_kg, 1), null())\n| eval hazardous_pct=if(total_kg>0, round(100*hazardous_kg/total_kg, 1), null())\n| lookup site_targets.csv site_id OUTPUT diversion_target_pct, true_certification_target, business_unit, region\n| eval gap_to_target=if(isnotnull(diversion_target_pct), round(diversion_rate - tonumber(diversion_target_pct), 1), null())\n| eval true_certification_status=case(\n    diversion_rate>=100, \"Platinum\",\n    diversion_rate>=99, \"Gold\",\n    diversion_rate>=95, \"Silver\",\n    diversion_rate>=90, \"Bronze\",\n    1=1, \"Not certified\")\n| sort - landfill_kg\n| table site_id, business_unit, region, total_tonnes, diversion_rate, diversion_target_pct, gap_to_target, true_certification_status, hazardous_pct, cat5_co2e_kg",
@@ -22,42 +27,51 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on Builder (Splunkbase 2962)",
-      "url": "https://splunkbase.splunk.com/app/2962"
+      "url": "https://splunkbase.splunk.com/app/2962",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — Use the HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "United States EPA — Waste Reduction Model (WARM)",
-      "url": "https://www.epa.gov/warm"
+      "url": "https://www.epa.gov/warm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GRI Standards — document centre (includes GRI 306: Waste 2020)",
-      "url": "https://www.globalreporting.org/standards/gri-standards-download-center/"
+      "url": "https://www.globalreporting.org/standards/gri-standards-download-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "European Commission — Corporate sustainability reporting (CSRD / ESRS context)",
-      "url": "https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en"
+      "url": "https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GHG Protocol — Corporate Value Chain (Scope 3) Standard",
-      "url": "https://ghgprotocol.org/corporate-value-chain-scope-3-standard"
+      "url": "https://ghgprotocol.org/corporate-value-chain-scope-3-standard",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "United States EPA — Hazardous Waste Electronic Manifest System (e-Manifest)",
-      "url": "https://www.epa.gov/e-manifest"
+      "url": "https://www.epa.gov/e-manifest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GBCI — TRUE Zero Waste certification",
-      "url": "https://true.gbci.org/"
+      "url": "https://true.gbci.org/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Volume-based estimated weights from Rubicon or WM routes can diverge ±15–30% from scale tickets during container-only pickups, inflating diversion_rate until quarterly weighbridge reconciliations land. Transfer-station double posts make two sites claim the same tonnes when `transfer_station_flag` is absent. High contamination in single-stream recycling can force MRF reroute to landfill while the manifest still reads recycling until `disposal_method_actual` backfills. Material taxonomy drift (OCC versus cardboard) splits rows until synonym lookups merge streams. EPA WARM June refreshes swing Scope 3 Category 5 kilograms 3–8% without operational change if `factor_year` is not stamped. Renovation spikes from construction and demolition waste dominate one quarter and look like chronic landfill regression unless baselines segment C&D. Medical-waste manifests may show zero hazardous in Splunk when sites still ship paper manifests not ingested into RCRAInfo. Donated furniture coded as recycling understates reuse, while anaerobic digestion may be classified as recycling or composting depending on hauler schema, shifting diversion_rate between UK, California, and federal reporting lenses. Seasonal cafeteria organics swing back-to-school peaks that resemble programme backsliding absent school-calendar normalization. Bin sensors report false empty when Compology lenses are occluded or Sensoneo ultrasonics miss odd bag shapes. Tipping-fee spikes follow commodity markets, not mass, so cost panels can scream while diversion_rate is flat. Basel international loads without `Annex_VII_form_id` look compliance-clean in Splunk yet fail customs rules—this UC flags data holes, not legal clearance.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "hashicorp"

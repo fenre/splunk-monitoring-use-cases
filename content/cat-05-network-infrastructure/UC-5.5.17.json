@@ -8,7 +8,13 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "vManage UTD events, `sourcetype=cisco:sdwan:utd`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Security Policy Violations (UTD)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.5.17).",
+  "evidence": "Saved search uc_5_5_17_security_policy_violations_utd, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Security Policy Violations (UTD)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.5.17.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "vManage UTD events, `sourcetype=cisco:sdwan:utd` Indexes: sdwan. Sourcetypes: cisco:sdwan:utd. Key fields: dst_ip, event_type, severity, signature, site_id, src_ip. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), vManage API",
   "spl": "index=sdwan sourcetype=\"cisco:sdwan:utd\"\n| stats count by event_type, signature, severity, src_ip, dst_ip, site_id\n| where severity IN (\"critical\",\"high\")\n| sort -count\n| table event_type signature severity src_ip dst_ip site_id count",
   "description": "SD-WAN edges running Unified Threat Defense (UTD) perform IPS, URL filtering, and AMP inline. Monitoring these events at the WAN edge catches threats that bypass centralized firewalls, especially for direct internet access (DIA) traffic that never traverses the data center.",
@@ -19,14 +25,26 @@
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Tunnels may renegotiate during ISP maintenance, BFD timer changes, planned controller upgrades, or policy pushes; short blips may look like failures when the business path is still acceptable.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "m365"
@@ -35,7 +53,13 @@
     "cisco_catalyst_center",
     "cisco_sdwan"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Cisco Catalyst Add-on for Splunk polling vManage API for UTD (Unified Threat Defense) security events. Data in `index=sdwan` with `sourcetype=cisco:sdwan:utd` or `sourcetype=cisco:sdwan:security`. Key fields: `site_id`, `system_ip`, `action` (permit/deny/drop/alert), `threat_type` (intrusion/malware/url-filtering), `src_ip`, `dest_ip`, `dest_port`, `signature_id`, `signature_name`, `severity`, `url_category`, `file_name`, `file_hash`.\n• UTD is the security stack embedded in SD-WAN edge devices: IPS/IDS (Snort-based), URL filtering (Talos categories), DNS security, and Advanced Malware Protection (AMP). Security policy violations indicate: attempted attacks, policy-violating user behavior, or misconfigured security rules.\n• Build `sdwan_security_policies.csv` lookup: `url_category,action,business_justification` (e.g., `malware,block,Mandatory`, `social-networking,alert,Acceptable use`, `gambling,block,Policy violation`).\n\nStep 1 — Configure data collection\nVerify UTD security events:\n```spl\nindex=sdwan (sourcetype=\"cisco:sdwan:utd\" OR sourcetype=\"cisco:sdwan:security\") earliest=-1h\n| stats count by threat_type, action, severity\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Security policy violations by severity:**\n```spl\nindex=sdwan (sourcetype=\"cisco:sdwan:utd\" OR sourcetype=\"cisco:sdwan:security\") earliest=-1h\n| where action IN (\"deny\", \"drop\", \"alert\")\n| stats count as violations dc(src_ip) as unique_sources dc(dest_ip) as unique_destinations values(signature_name) as signatures by site_id, threat_type, severity, action\n| lookup sdwan_sites.csv site_id OUTPUT site_name tier\n| eval priority=case(severity=\"critical\" AND action=\"alert\", \"CRITICAL_NOT_BLOCKED\", severity=\"critical\", \"CRITICAL\", severity=\"high\", \"HIGH\", severity=\"medium\", \"MEDIUM\", 1==1, \"LOW\")\n| where priority IN (\"CRITICAL_NOT_BLOCKED\", \"CRITICAL\", \"HIGH\")\n| sort priority, -violations\n```\n\nUnderstanding this SPL: The most dangerous finding is \"CRITICAL_NOT_BLOCKED\" — a critical severity event that was only alerted on, not blocked. This means the security policy is in detection mode for a critical threat, or the signature matched but the policy action was \"alert\" instead of \"drop.\" These require immediate security policy review.\n\n**Top attack sources and targets:**\n```spl\nindex=sdwan (sourcetype=\"cisco:sdwan:utd\" OR sourcetype=\"cisco:sdwan:security\") action IN (\"deny\", \"drop\") earliest=-4h\n| stats count as attacks dc(signature_id) as unique_sigs values(threat_type) as threat_types by src_ip, dest_ip\n| eval direction=case(cidrmatch(\"10.0.0.0/8\", src_ip) OR cidrmatch(\"172.16.0.0/12\", src_ip) OR cidrmatch(\"192.168.0.0/16\", src_ip), \"OUTBOUND\", 1==1, \"INBOUND\")\n| sort -attacks\n| head 20\n```\n\n**URL filtering violations by category:**\n```spl\nindex=sdwan (sourcetype=\"cisco:sdwan:utd\" OR sourcetype=\"cisco:sdwan:security\") threat_type=\"url-filtering\" earliest=-24h\n| stats count as hits dc(src_ip) as users by url_category, action\n| lookup sdwan_security_policies.csv url_category OUTPUT business_justification\n| sort -hits\n```\n\n**Malware detection events:**\n```spl\nindex=sdwan (sourcetype=\"cisco:sdwan:utd\" OR sourcetype=\"cisco:sdwan:security\") threat_type=\"malware\" earliest=-24h\n| stats count as detections by site_id, src_ip, file_name, file_hash, action\n| lookup sdwan_sites.csv site_id OUTPUT site_name\n| sort -detections\n```\n\nStep 3 — Validate\n(a) In vManage: Monitor > Security. Compare UTD event counts and categories with Splunk results.\n(b) Trigger a test IPS signature (e.g., EICAR test file) and verify it appears in Splunk.\n(c) Verify URL filtering: attempt to access a known-blocked category and confirm the event logs.\n\nStep 4 — Operationalize\nDashboard (\"SD-WAN — Security Policy\"):\n• Row 1 — Single-value tiles: \"Critical events (1h)\", \"Blocked attacks\", \"URL violations\", \"Malware detections\".\n• Row 2 — Security events by severity and type: table with drill-down.\n• Row 3 — Top attack sources and targets: table with direction (inbound/outbound).\n• Row 4 — URL filtering category breakdown: bar chart.\n• Row 5 — Malware detection details: file name, hash, action, affected site.\n\nAlerting:\n• Critical (critical severity event in alert-only mode): security gap — the threat was detected but not blocked.\n• Critical (malware detection): endpoint may be compromised — investigate immediately.\n• High (> 100 IPS events from single source in 1 hour): possible attack — investigate source.\n• Warning (URL policy violation trending upward): policy awareness training needed.\n\nStep 5 — Troubleshooting\n\n• **UTD events not appearing** — UTD may not be enabled on the device template. Check vManage: Configuration > Templates > Security Policy. Also verify that the UTD container is running on the device: `show utd engine standard status`.\n\n• **All events showing action=alert, none blocked** — The security policy may be in detection-only mode (IPS in \"detect\" mode vs. \"prevent\" mode). Check the security policy configuration in vManage.\n\n• **High false positive rate on IPS** — Tune IPS signatures: disable signatures that trigger on legitimate traffic, or adjust the policy to alert (not block) on medium-severity signatures while blocking high/critical.",
   "grandmaExplanation": "We keep an eye on how our wide-area links and SD-WAN paths are behaving so we spot a bad circuit or policy issue before branch users lose voice, video, or critical apps.",
-  "hardware": "Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN)"
+  "hardware": "Cisco Catalyst 8200, Catalyst 8300, Catalyst 8500, ISR 1100 (SD-WAN), ISR 4000 (SD-WAN)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

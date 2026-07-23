@@ -9,6 +9,8 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.55).",
+  "evidence": "Saved search uc_17_1_55_cisco_ise_profiler_probe_quality_and_end, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -64,10 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Endpoint Profiling",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **NMAP probe firewall block** — Some networks block active scanning; tag and exclude. (b) **DHCP probe coverage gap** — DHCP probe requires SPAN or DHCP relay; coverage may be partial. (c) **NetFlow probe rate-limit during traffic peak** — During a traffic spike, NetFlow probe may be rate-limited; expected.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "N/A (data-quality monitoring — measures ISE profiler probe reliability, no adversary technique)"
   ],
@@ -89,7 +107,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE Profiler enabled with multiple probe types active.\n• `device_inventory.csv` for cross-reference.\n\nStep 1 — Configure data collection\nEnable *Profiler* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Profiler Probe Health\":\n• Per-probe health tile.\n• Confidence distribution.\n• Top-N low-confidence device types.\n\nStep 5 — Troubleshooting\n• **All probes show degraded** — PSN resource saturation; cross-ref UC-17.1.29.\n• **DHCP probe absent** — DHCP relay not configured to forward DHCP to PSN.\n• **NMAP probe disabled** — Either by policy (firewall) or PSN config.",
+  "detailedImplementation": "Prerequisites\n• ISE Profiler enabled with multiple probe types active.\n• `device_inventory.csv` for cross-reference.\n\nStep 1 — Configure data collection\nEnable *Profiler* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Profiler Probe Health\":\n• Per-probe health tile.\n• Confidence distribution.\n• Top-N low-confidence device types.\n\nStep 5 — Troubleshooting\n• **All probes show degraded** — PSN resource saturation; cross-ref UC-17.1.29.\n• **DHCP probe absent** — DHCP relay not configured to forward DHCP to PSN.\n• **NMAP probe disabled** — Either by policy (firewall) or PSN config.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:profiler_feed into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_confidence, health, probe_failures, probe_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE figures out what each device is — phone, printer, laptop — using several different methods. We check each method is working; if one is broken, ISE may be guessing wrong about what kind of device just connected.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

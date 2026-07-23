@@ -10,6 +10,12 @@
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
   "owner": "HR",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Unplanned Absence Spike Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-23.4.5).",
+  "evidence": "Saved search uc_23_4_5_unplanned_absence_spike_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Unplanned Absence Spike Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.4.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary lanes land inside index hris_secure using hashed identifiers exclusively: sourcetype workday:absence:event carries REST payloads referencing Absence_Plans_Reference plus Time_Off_Entries_Reference nodes mirrored inside Report-as-a-Service Workday_Worker_Absence_Report drops shipped SFTP toward Universal Forwarder monitors or HTTPS modular polls authenticating OAuth Integration System Users; sourcetype adp:wfn:timecard originates Splunk Add-on for ADP Workforce Now modular REST pulls polling Workforce Now Time and Attendance endpoints /time/v2/workers/{aoid}/time-cards emitting premium_pay_codes arrays documenting ABS slices alongside Lifion-compatible Lifion telemetry where tenants bifurcate; sourcetype adp:wfn:absence handles absence-only extracts when payroll separates attendance payloads; sourcetype ukg:wfm_absence bundles Dimensions REST punches enriched via Pay Code mappings aligning ABS versus SCK versus UN_LEAVE semantics sourced People Insights nightly merges; supplemental JDBC projections labeled oracle:hcm_absence optional via Splunk DB Connect warehouse replicas exposing ABS_ABSENCE_ENTRIES facts when SaaS quotas constrain hourly pulls.",
   "app": "Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) JDBC replicas mirroring ABS_ABSENCE_ENTRIES warehouse projections plus Splunk HTTP Event Collector receivers landing OAuth modular collectors; Splunk Add-on for ADP Workforce Now ([Splunkbase 4538](https://splunkbase.splunk.com/app/4538)) modular REST polling Workforce Now Time and Attendance endpoints; bespoke modular-input apps wrapping UKG Dimensions REST (/api/v1/timekeeping/punches), Ceridian Dayforce EmployeeAttendances, BambooHR gateway.php collectors, Cornerstone OData leaveAccrual bridges; Splunk KV Store collections backing absence_pay_normalize and dow_factors lookups.",
   "spl": "index=hris_secure (sourcetype=\"workday:absence:event\" OR sourcetype=\"adp:wfn:absence\" OR sourcetype=\"adp:wfn:timecard\" OR sourcetype=\"ukg:wfm_absence\") earliest=-84d@d latest=@d\n| fields - employee_id associate_oid Worker_ID PersonIdExternal raw_ssn bank_account\n| eval hid=coalesce(employee_id_hash,sha256(tostring(coalesce(worker_ref,associate_oid,user_id,person_number,\"MISSING\"))))\n| eval Absence_Plans_Reference=coalesce(Absence_Plans_Reference,Absence_Plan_Reference_ID,\"\")\n| eval Time_Off_Entries_Reference=coalesce(Time_Off_Entries_Reference,time_off_entry_ref,\"\")\n| eval building_id=coalesce(building_id,site_code,Facility_Reference_ID,\"UNKNOWN\")\n| eval shift_code=coalesce(shift_code,crew_schedule_code,\"UNKNOWN\")\n| eval mgr_cluster=sha256(tostring(coalesce(Manager_Worker_ID,supervisor_oid,supervisor_worker_ref,\"\")))\n| eval pcode=upper(trim(coalesce(absence_pay_code,pay_code,payCode,name,premium_pay_codes,\"UNK\")))\n| lookup absence_pay_normalize pcode OUTPUT canonical_leave_family protected_leave_flag\n| where match(canonical_leave_family,\"^(SICK|NO_SHOW|NS|SCK|UNPLANNED_PTO|CASUAL_LEAVE|EMERGENCY_LEAVE|TARDY)$\") AND protected_leave_flag=0\n| eval absence_hours=tonumber(coalesce(absence_hours,hours_absent,paid_hours,paid_quantity,\"0\"))\n| eval absence_days=if(absence_hours<=0,0,absence_hours/8)\n| eval dow=strftime(_time,\"%w\")\n| lookup dow_factors dow OUTPUT dow_adj\n| eval dow_adj=coalesce(dow_adj,case(in(dow,\"1\",\"5\"),1.15,dow==\"3\",0.85,1=1,1))\n| bin _time span=1d as day_bucket\n| eval week_bucket=strftime(_time,\"%Y-%W\")\n| stats sum(eval(absence_days*dow_adj)) as dow_weighted_abs dc(Time_Off_Entries_Reference) as toe_refs max(_time) as day_ts by hid week_bucket day_bucket building_id shift_code mgr_cluster\n| where dow_weighted_abs>0\n| sort hid week_bucket day_bucket\n| streamstats window=1 global=f last(day_bucket) as prev_day by hid week_bucket\n| eval gap_days=if(isnull(prev_day),999,(day_bucket-prev_day)/86400)\n| eval spell_inc=if(isnull(prev_day) OR gap_days>1,1,0)\n| stats sum(dow_weighted_abs) as D sum(spell_inc) as S max(building_id) as building_id max(shift_code) as shift_code max(mgr_cluster) as mgr_cluster by hid week_bucket\n| eval Bradford_Factor=pow(S,2)*D\n| eval geo_cluster=building_id.\"|\".shift_code.\"|\".mgr_cluster\n| stats avg(Bradford_Factor) as avg_bf dc(hid) as workers_touch sum(D) as summed_days sum(S) as summed_spells by geo_cluster week_bucket\n| sort geo_cluster week_bucket\n| streamstats current=t window=12 global=f avg(workers_touch) as baseline_avg stdev(workers_touch) as baseline_std by geo_cluster\n| eval z_score=if(isnotnull(baseline_std) AND baseline_std>0,(workers_touch-baseline_avg)/baseline_std,null())\n| where workers_touch>=5 AND ((isnotnull(z_score) AND z_score>=3) OR avg_bf>=200)\n| sort - z_score\n| table geo_cluster week_bucket workers_touch avg_bf z_score summed_days summed_spells baseline_avg baseline_std",
@@ -21,46 +27,56 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for ADP Workforce Now (Splunkbase 4538)",
-      "url": "https://splunkbase.splunk.com/app/4538"
+      "url": "https://splunkbase.splunk.com/app/4538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — HTTP Event Collector overview",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Workday Community — integrations hub",
-      "url": "https://community.workday.com/"
+      "url": "https://community.workday.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIPD — Health and wellbeing at work surveys",
-      "url": "https://www.cipd.org/uk/knowledge/reports/"
+      "url": "https://www.cipd.org/uk/knowledge/reports/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "U.S. Bureau of Labor Statistics — absenteeism releases",
-      "url": "https://www.bls.gov/news.release/abs.nr0.htm"
+      "url": "https://www.bls.gov/news.release/abs.nr0.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CDC — Weekly U.S. Influenza Surveillance Report (FluView)",
-      "url": "https://www.cdc.gov/flu/"
+      "url": "https://www.cdc.gov/flu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "U.S. Department of Labor — Family and Medical Leave Act overview",
-      "url": "https://www.dol.gov/agencies/whd/fmla"
+      "url": "https://www.dol.gov/agencies/whd/fmla",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SHRM — Paid leave benefits resources",
-      "url": "https://www.shrm.org/topics-tools/news/benefits-compensation"
+      "url": "https://www.shrm.org/topics-tools/news/benefits-compensation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Gallup — State of the Global Workplace hub",
-      "url": "https://www.gallup.com/workplace/349484/state-of-the-global-workplace.aspx"
+      "url": "https://www.gallup.com/workplace/349484/state-of-the-global-workplace.aspx",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legitimate influenza or norovirus waves elevate weekly absent curves exactly when CDC FluView ILI percentages crest yet morale stays intact—annotate dashboards with epidemiological overlays rather than punitive workflows. Regional school-board closures dumping childcare burdens onto rotating crews mimic contagion hotspots absent microbiological corroboration—blend district SMS feeds before interpreting spikes as misconduct clusters. Heavy snowfall paired with NOAA winter advisories aligns simultaneous sick-coded stacks across warehouses handling dock staffing interchangeably—suppress escalation macros whenever NOAA CSV stamps confirm hazardous-road commuting envelopes. Post-long-weekend Tuesdays rebound after phantom Friday spikes recorded Saturday overtime swaps distort baseline averages until payroll accountants reconcile swing-shift calendars referencing collective bargaining rider clauses. County courthouse jury summons batches concentrating jurors inside overlapping supervisory hierarchies inflate Bradford denominators temporarily despite lawful civic-duty protections unrelated to absentee abuse narratives. March Madness weekday tournaments historically elevate casual sick Fridays coupled with recovery Mondays inside collegiate-heavy metros—tie athletics calendars sourced via ESPN feeds commentary panels outside punitive SPL predicates. Election-cycle civic-duty clusters cite overlapping precinct staffing swaps misconstrued as chronic tardiness absent municipal clerk confirmations acknowledging lawful civic-leave carve-outs mirrored locally inside Sedgwick narratives. Intermittent FMLA certifications coded mistakenly inside casual buckets inflate frequent-short Bradford footprints nevertheless immunized legally until HR remediations toggle leave_program_flag joins HR analytics lookups referencing intermittent eligibility attestations. Managers approving vacation verbally yet deferring BambooHR approvals convert benign planned stretches into payroll-visible emergency stacks resembling reactive absenteeism absent contemporaneous payroll reconciliation timestamps. Regional payroll desks inconsistently transcribing Sick versus Personal taxonomy shift Bradford tiers materially despite benign intent until absence_pay_normalize KV dictionaries synchronize quarterly Benefits symposium clarifications. Spring-forward daylight-saving Sundays bifurcate spell-gap arithmetic doubling discrete spells absent TZ normalization macros aligning UTC offsets spanning multinational footprints consolidated beneath singular geo_cluster identifiers. Localized religious observance calendars clustering abstentions geographically resemble morale crises absent chaplaincy confirmations validating lawful dietary-fast exemptions enumerated separately inside ethics attestations unrelated to Bradford ladders.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "db_connect",
     "kvstore",

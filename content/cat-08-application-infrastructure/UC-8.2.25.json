@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=php` `sourcetype=phpfpm:status` (`max children reached` counter)",
-  "app": "Custom scripted input polling `pm.status_path`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'PHP-FPM Max Children Reached Events'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.2.25).",
+  "evidence": "Saved search uc_8_2_25_php_fpm_max_children_reached_events, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'PHP-FPM Max Children Reached Events'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.2.25.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=php` `sourcetype=phpfpm:status` (`max children reached` counter) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input polling `pm.status_path` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=php sourcetype=\"phpfpm:status\"\n| eval mc=coalesce('max_children_reached', max_children_reached)\n| where mc > 0\n| sort - mc\n| dedup host, pool\n| table _time, host, pool, mc, active_processes, idle_processes",
   "description": "When `max children reached` increments, new requests queue at the socket and clients see 502/504 from nginx or Apache.",
-  "value": "Direct signal to raise `pm.max_children` or fix slow PHP before outages.",
+  "value": "Direct signal to raise `pm.max_children` or fix slow PHP before outages. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "Poll frequently enough to catch spikes; combine with listen queue metrics from UC-8.2.11 patterns.",
   "visualization": "Single value (pools in violation), table (pool detail), trend of `mc` delta.",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "PHP-FPM Status Page",
-      "url": "https://www.php.net/manual/en/install.fpm.configuration.php"
+      "url": "https://www.php.net/manual/en/install.fpm.configuration.php",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "apache",
     "nginx",
@@ -44,5 +66,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input polling `pm.status_path`.\n• Ensure the following data sources are available: `index=php` `sourcetype=phpfpm:status` (`max children reached` counter).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize the counter name at HEC if spaces break extraction.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=php sourcetype=\"phpfpm:status\"\n| eval mc=coalesce('max_children_reached', max_children_reached)\n| where mc > 0\n| sort - mc\n| dedup host, pool\n| table _time, host, pool, mc, active_processes, idle_processes\n```\n\nUnderstanding this SPL\n\n**PHP-FPM Max Children Reached Events** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=php` `sourcetype=phpfpm:status` (`max children reached` counter). **App/TA**: Custom scripted input polling `pm.status_path`. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Single value (pools in violation), table (pool detail), trend of `mc` delta..",
-  "grandmaExplanation": "We watch for signs that direct signal to raise or fix slow PHP before outages."
+  "grandmaExplanation": "We watch for signs that direct signal to raise or fix slow PHP before outages.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

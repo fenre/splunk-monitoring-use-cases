@@ -9,6 +9,8 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Micro-Segmentation Audit'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.3).",
+  "evidence": "Saved search uc_17_3_3_micro_segmentation_audit, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "nerc-cip",
@@ -77,7 +79,11 @@
       "evidenceArtifact": "Saved search 'UC-17.3.3' running on Micro-segmentation policy logs (allow/deny events), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Micro-segmentation policy logs (allow/deny events)",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Micro-Segmentation Audit'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.3.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Micro-segmentation policy logs (allow/deny events) Indexes: zt. Sourcetypes: microseg:policy. Key fields: dest_port, dest_workload, policy_name, src_workload. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA, Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=zt sourcetype=\"microseg:policy\"\n| where action=\"deny\"\n| stats count by src_workload, dest_workload, dest_port, policy_name\n| sort -count",
   "description": "Micro-segmentation limits lateral movement. Audit logs validate policy enforcement and detect bypasses.",
@@ -90,14 +96,26 @@
   "references": [
     {
       "title": "Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1021",
     "T1570"
@@ -109,6 +127,17 @@
     "syslog",
     "vmware"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "guardicore_generic",
+    "nsx_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Microsegmentation platform (Akamai Guardicore, Illumio, VMware NSX) logs in `index=microseg` or `index=nac`. Key fields vary by vendor: Guardicore: `sourcetype=guardicore:syslog` with `src_label`, `dst_label`, `policy_name`, `action` (allow/block). Illumio: `sourcetype=illumio:traffic` with `src_ip`, `dst_ip`, `service`, `decision`. NSX: `sourcetype=vmware:nsx:firewall` with `action`, `rule_id`, `src`, `dst`.\n• Microsegmentation creates software-defined boundaries between workloads. The audit verifies: all traffic is subject to a policy (no 'default allow' leaks), policies match the intended design (application communication matrix), and no unauthorized lateral movement occurs.\n• Create a `segment_policy_design.csv` lookup: `src_segment,dst_segment,allowed_ports,business_justification` — the approved communication matrix.\n\nStep 1 — Configure data collection\nVerify segment policy events:\n```spl\nindex=microseg earliest=-24h\n| stats count by sourcetype, action\n```\nExpected: allow and block events. If only allow: the default policy may be 'allow all' (not yet enforcing).\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy audit against design:\n```spl\nindex=microseg earliest=-24h\n| stats count by src_label, dst_label, dstPort, action\n| lookup segment_policy_design.csv src_segment as src_label dst_segment as dst_label OUTPUT allowed_ports\n| eval expected=if(match(allowed_ports, dstPort) OR isnull(allowed_ports), \"Expected\", \"Unexpected\")\n| where action=\"allow\" AND expected=\"Unexpected\"\n| sort - count\n```\n\nUnderstanding this SPL: Identifies allowed traffic that is NOT in the approved communication matrix. This is the most important microsegmentation audit — it finds policy gaps where workloads can communicate in ways not intended by the design. Common causes: overly broad policies, default rules, or forgotten legacy rules.\n\nDefault rule hits:\n```spl\nindex=microseg earliest=-24h\n| where match(policy_name, \"(?i)default\") AND action=\"allow\"\n| stats count dc(src_label) as src_segments dc(dst_label) as dst_segments by policy_name\n```\n\nStep 3 — Validate\n(a) Pick a workload pair from the communication matrix. Verify the policy is enforced.\n(b) Attempt traffic outside the matrix. Verify it is blocked.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Policy compliance rate. Row 2 — Unexpected allowed flows. Row 3 — Default rule hits.\nReport: Monthly microsegmentation audit for compliance.\n\nRunbook:\n1. **Unexpected allow** — Review the policy rule. Tighten or create a specific rule.\n2. **High default rule traffic** — Segments not yet covered by specific policies. Prioritize.\n3. **New src/dst pair** — New application or service. Add to communication matrix if approved.\n\nStep 5 — Troubleshooting\n• **No block events** — Microsegmentation may be in 'monitor' mode. Switch to 'enforce' after validation.\n• **`src_label` empty** — Agent may not be labeling workloads. Check agent configuration.",
-  "grandmaExplanation": "We divide our internal network into tiny compartments so even if an attacker gets in, they cannot move around freely. We regularly check that these walls are actually working by comparing what traffic we see against what traffic we expect to see."
+  "grandmaExplanation": "We divide our internal network into tiny compartments so even if an attacker gets in, they cannot move around freely. We regularly check that these walls are actually working by comparing what traffic we see against what traffic we expect to see.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

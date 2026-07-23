@@ -11,6 +11,12 @@
   ],
   "splunkPillar": "Platform",
   "industry": "Cross-industry",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Expense Report Anomaly Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-23.6.2).",
+  "evidence": "Saved search uc_23_6_2_expense_report_anomaly_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Expense Report Anomaly Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-23.6.2.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Primary line-item feed: `index=business` with sourcetype `concur:expense:entries`, produced by a custom modular input or Splunk Add-on Builder Python worker on a Heavy Forwarder that obtains OAuth2 bearer tokens from SAP Concur (`POST https://us.api.concursolutions.com/oauth2/v0/token` or regional equivalent with `grant_type=client_credentials`, `client_id`, `client_secret`, `scope` including `EXP_RPT` / `RECEIPTS`), polls `GET https://www.concursolutions.com/api/v3.0/expense/entries` after resolving report IDs via `GET .../expense/reports`, and writes JSON lines at hourly grain with fields such as `TransactionDate`, `TransactionAmount`, `ExpenseTypeCode`, `VendorDescription`, `ReceiptImageStatus`, `OwnerLoginID`, plus HR-enriched `department` from Workday/SuccessFactors lookup or Concur user profile sync. Companion audit trail: `concur:audit` via `GET .../reportingauditlog/v1/auditLog`. Parallel SaaS paths (same index): Expensify Integration Server POST jobs landing `expensify:report` / `expensify:transaction`, with real-time `expensify.report.state.change` pushes through HTTP Event Collector token `hec_expensify_webhook` on the Splunk Cloud ACS input or Heavy Forwarder raw TCP→HEC relay; Coupa REST approved-report pulls (`GET /api/expense_reports`) into `coupa:expense_report`; Workday calculated-field RaaS `Workday_Expense_Reports_For_Audit` JSON into `workday:expense:reports`. ERP substantiation for duplicate-detection joins and AP reconciliation: Splunk DB Connect (splunk_app_db_connect, Splunkbase 2686) JDBC batched reads projecting SAP FI vendor-clearing contexts (`BSAK`, `BSEG` expense postings where deployed), Oracle EBS `AP_EXPENSE_REPORT_HEADERS_ALL`, or similar mart tables into sourcetypes such as `dbx:ap_expense_lines` so Splunk correlates reimbursed invoice keys against SaaS export IDs.",
   "app": "Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)), package `splunk_app_db_connect`, on a Heavy Forwarder or supported DB Connect worker for JDBC extraction from ERP AP tables / warehouse marts (`dbx:ap_expense_lines` deployment-defined sourcetype). Splunk HTTP Event Collector ([Splunk Docs — Use the HTTP Event Collector](https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector)) enabled on Splunk Cloud or Enterprise with dedicated tokens for Expensify webhook callbacks and optional AI-partner payload sinks (ABBYY Timeline for Finance / AppZen Mastermind vendor APIs brokered through the same collector pattern when Finance Ops exposes CSV or JSON batches). Custom modular inputs built with Splunk Add-on Builder or plain Python polling SAP Concur REST (`api/v3.0/expense/entries`) — no Splunk-supported Concur TA ships canonical sourcetypes as of 2026; package naming stays tenant-specific (`TA_concur_expense_poll`). No Splunk Common Information Model dependency for this UC.",
   "spl": "index=business sourcetype=\"concur:expense:entries\" earliest=-90d\n| eval TransactionDate_clean=replace(coalesce(TransactionDate,transaction_date,\"\"),\"Z\",\"\")\n| eval td_epoch=coalesce(strptime(TransactionDate_clean,\"%Y-%m-%dT%H:%M:%S.%3Q\"),strptime(TransactionDate_clean,\"%Y-%m-%dT%H:%M:%S\"),strptime(TransactionDate_clean,\"%Y-%m-%d\"))\n| eval transaction_dow=if(isnotnull(td_epoch),tonumber(strftime(td_epoch,\"%u\")),null())\n| eval amount=tonumber(TransactionAmount)\n| eval department=tostring(coalesce(department,DepartmentName,OrgUnit,\"UNKNOWN\"))\n| eval anomaly_flags=mvappend(\n    if(amount=round(amount,0) AND amount>=100 AND (amount=100 OR amount=200 OR amount=250 OR amount=500 OR amount=1000 OR amount=2500 OR amount=5000), \"ROUND_NUMBER_SPLIT_RULE\", null()),\n    if((amount>=24 AND amount<25) OR (amount>=74 AND amount<75) OR (amount>=499 AND amount<500) OR (amount>=2499 AND amount<2500), \"JUST_BELOW_APPROVAL_THRESHOLD\", null()),\n    if(transaction_dow>=6 AND ExpenseTypeCode IN (\"ENT\",\"MEAL\",\"TRVL\"), \"WEEKEND_DISCRETIONARY_CATEGORY\", null()),\n    if(ReceiptImageStatus IN (\"Missing\",\"NotReceived\") AND amount>25, \"MISSING_RECEIPT_OVER_THRESHOLD\", null()),\n    if(match(VendorDescription,\"(?i)(liquor|casino|adult|sportsbook|cannabis)\"), \"OUT_OF_POLICY_VENDOR\", null()))\n| eventstats avg(amount) as dept_avg, stdev(amount) as dept_stdev, count as dept_n by department, ExpenseTypeCode\n| eval statistical_outlier=if(dept_n>=20 AND amount > dept_avg + 2*dept_stdev, \"STATISTICAL_OUTLIER_2SIGMA\", null())\n| eval anomaly_flags=mvappend(anomaly_flags, statistical_outlier)\n| where mvcount(anomaly_flags) > 0\n| stats count as flagged_entries, sum(amount) as total_flagged_amount, values(anomaly_flags) as reasons, values(VendorDescription) as merchants by OwnerLoginID, department\n| eventstats sum(total_flagged_amount) as portfolio_flagged\n| eval pct_of_portfolio=round(100*total_flagged_amount/portfolio_flagged, 1)\n| sort - total_flagged_amount\n| table OwnerLoginID, department, flagged_entries, total_flagged_amount, pct_of_portfolio, reasons, merchants",
@@ -22,30 +28,36 @@
   "references": [
     {
       "title": "Splunk DB Connect (Splunkbase 2686)",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — Deploy and use DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/DeployDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/DeployDBX",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COSO — Internal Control and Fraud Deterrence (framework home)",
-      "url": "https://www.coso.org/"
+      "url": "https://www.coso.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ACFE — Fraud resources (includes Report to the Nations research)",
-      "url": "https://www.acfe.com/fraud-resources"
+      "url": "https://www.acfe.com/fraud-resources",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IRS Publication 463 (Travel, Gift, and Car Expenses)",
-      "url": "https://www.irs.gov/publications/p463"
+      "url": "https://www.irs.gov/publications/p463",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SAP Concur Developer Center — API Reference",
-      "url": "https://developer.concur.com/api-reference/"
+      "url": "https://developer.concur.com/api-reference/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sales kickoffs and distributor conferences routinely produce legitimate Saturday-night entertainment rows flagged by WEEKEND_DISCRETIONARY_CATEGORY despite approved agendas filed outside Splunk. International travelers submitting EUR-equivalent rows against USD approval thresholds appear as JUST_BELOW_APPROVAL_THRESHOLD noise until treasury publishes FX rounding rules beside Splunk thresholds. Tokyo or Manhattan meal totals clustering seventy-three to seventy-four dollars reflect policy-compliant high-cost-locality per-diem bands rather than receipt-evasion — geography lookups missing from Concur profiles amplify this. Duplicate-detection logic colliding with shared corporate-card merchant descriptors across unrelated teammates during conference hotel clusters raises collisions until AP passes canonical ERP invoice keys through DB Connect joins. Round-dollar taxi vouchers at exactly two hundred fifty dollars after vendor rounding frequently resemble ROUND_NUMBER_SPLIT_RULE without intent. Insight Premium or AppZen may already reroute severe offenders inside Concur workflows while Splunk still mirrors residual narrative rows — reviewers interpret Splunk hits as backlog hygiene signals, not standalone accusations.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "asterisk",
     "db_connect",

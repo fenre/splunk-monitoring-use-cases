@@ -8,7 +8,7 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Test/lab PKI excluded.",
+  "exclusions": "Excludes test/sandbox environments, pre-production systems, development instances without regulated data, and any systems formally documented as out-of-scope in the pci-dss programme scope statement approved by the control owner.",
   "evidence": "Saved search archived to `audit_evidence`.",
   "compliance": [
     {
@@ -49,13 +49,13 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "OCSP outage. Evidence captured.",
-    "negativeScenario": "OCSP/CRL healthy. Empty result."
+    "positiveScenario": "Inject a synthetic test event that satisfies the detection criteria for 'Cross-cutting — OCSP / CRL Revocation Infrastructure Attesta' — for example, create a log entry with all required fields populated to match the SPL filter conditions. Verify the search fires within the expected schedule interval, the alert populates the compliance dashboard, and the event routes correctly to the evidence index with proper pci-dss control tagging.",
+    "negativeScenario": "Ingest a batch of test events that are structurally similar but explicitly do NOT meet the detection threshold — e.g., events with compliant values, timestamps outside the monitoring window, or source systems excluded by the scope filter. Verify the search produces zero results, no false-positive alerts fire, and the compliance posture score remains unaffected for the pci-dss control objective."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Certificate*. Cross-reference UC-17.1.70.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Certificate*. Cross-reference UC-17.1.70. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (35102, 35201, 35103) earliest=-1d\n| stats count by ocsp_responder_url, crl_repository_url, MessageCode\n| eval evidence_status=\"revocation_infra_attestation\"\n| collect index=audit_evidence",
-  "description": "We continuously attest cross-cutting OCSP/CRL revocation infrastructure health.",
+  "description": "We continuously attest cross-cutting OCSP/CRL revocation infrastructure health. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
   "value": "Cross-framework attestation that ISE's PKI revocation infrastructure is operational, satisfying multiple obligations.",
   "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for the cross-cutting access-control evidence pack.",
   "visualization": "Cross-framework revocation attestation dashboard.",
@@ -63,10 +63,26 @@
   "references": [
     {
       "title": "UC-17.1.70 — OCSP/CRL Reachability and Latency",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.70.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.70.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Brief OCSP maintenance windows.",
+  "knownFalsePositives": "1. **Authorised compliance operations** — The compliance and governance team performs routine control testing, evidence gathering, and policy reviews that generate legitimate activity matching this use case's detection patterns. These operations are documented in the compliance programme calendar and should be excluded by the compliance-ops service account tag.\n\n2. **Scheduled system maintenance windows** — Approved maintenance activities including patching, upgrades, and configuration changes produce expected control deviations during documented change windows that are pre-approved through the change advisory board (CAB).\n\n3. **External audit and assessment activities** — During periodic audits (internal or external), assessors perform sampling, testing, and evidence collection activities that generate unusual access patterns covered by the engagement letter and audit notification.\n\n4. **Third-party service provider operations** — Contracted service providers performing legitimate operations under signed agreements generate expected activity that may trigger monitoring rules during normal service delivery windows.\n\n**Suppression mechanism:** Maintain a `compliance_exception_register` KV Store lookup containing approved maintenance windows, audit engagement periods, service provider identifiers, and compliance team service accounts. The correlation search joins this lookup and suppresses matches where `exception_status=approved` and the exception remains within its validity period.",
   "requiredFields": [
     "_time",
     "ocsp_responder_url",
@@ -88,6 +104,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.70 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.41.7: OCSP/CRL Revocation Attestation]\ncron_schedule = 0 7 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.41.7,family=encryption_key_mgmt\n```",
-  "grandmaExplanation": "We continuously attest cross-cutting OCSP/CRL revocation infrastructure health. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.70 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.41.7: OCSP/CRL Revocation Attestation]\ncron_schedule = 0 7 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.41.7,family=encryption_key_mgmt\n```\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, crl_repository_url, ocsp_responder_url`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously attest cross-cutting OCSP/CRL revocation infrastructure health. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

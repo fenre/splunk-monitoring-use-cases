@@ -10,6 +10,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco TrustSec / SGT Assignment Mismatch and SXP Listener Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.36).",
+  "evidence": "Saved search uc_17_1_36_cisco_trustsec_sgt_assignment_mismatch_a, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -103,18 +105,26 @@
   "references": [
     {
       "title": "Cisco TrustSec — Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/trustsec/configuration/guide/trustsec.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/trustsec/configuration/guide/trustsec.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE 3.4 Admin Guide — TrustSec",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco SXP (Security Group Exchange Protocol) RFC-style spec",
-      "url": "https://datatracker.ietf.org/doc/draft-smith-kandula-sxp/"
+      "url": "https://datatracker.ietf.org/doc/draft-smith-kandula-sxp/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **NAD reload during scheduled change** — A switch reload generates one SXP peer-down then peer-up. Cross-reference change tickets and suppress within the change window. (b) **SXP keepalive misconfiguration** — Different keepalive timers between ISE and NAD cause repeated benign peer-flaps every 60–120s. Symptoms: peer_downs > 5 in an hour but no actual binding loss. Fix the keepalive config (`cts sxp connection peer ... password default mode local listener hold-time min 90 max 180`) and the alert noise resolves. (c) **Brief WAN brown-out for remote-site NAD** — A brief WAN drop will flap the SXP peer but not necessarily lose binding state if the NAD has a short-term cache. Single isolated peer-down events should not page; threshold ≥2 in 15 min.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1599",
     "T1499.001"
@@ -137,5 +147,6 @@
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Cisco TrustSec deployed: ISE has SGTs defined, NADs configured with `cts sxp` and `cts role-based enforcement`.\n• `sxp_peers.csv` lookup with `peer_ip`, `peer_name`, `is_critical`, `site`.\n• Splunk role with `srchIndexesAllowed = nac, network, radius`.\n\nStep 1 — Configure data collection\n(a) ISE side — *TrustSec* category at INFO, forwarded.\n(b) NAD side — IOS-XE/NX-OS syslog forwarded to Splunk, parsed via the appropriate Cisco network TA.\n\nVerify both:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (83001, 83003, 83004, 83006) earliest=-7d | stats count by MessageCode\nindex=network sourcetype=\"cisco:ios\" \"CTS-\" earliest=-7d | stats count by host\n```\n\nStep 2 — Create the search\nSearch is in `spl` field. Schedule every 5 min, time range `-15m@m to @m`, throttle `peer` for 30 min.\n\nStep 3 — Validate\nProvoke as in `controlTest`. Confirm UC fires.\n\nStep 4 — Operationalize\nDashboard \"ISE — TrustSec / SXP Health\":\n• Single value: SXP peers up vs total.\n• Timeline: peer events last 24h.\n• Top-N: peers with most flaps last 7d.\n• SGT distribution panel — sessions per SGT.\n\nAlerting: PagerDuty medium on flap; high if multiple peers flap simultaneously (suggests ISE-side issue rather than peer-side).\n\nRunbook:\n1. Identify peer.\n2. SSH to NAD: `show cts sxp connections`. Confirm peer state.\n3. SSH to ISE PSN: `show cts sxp connection`. Confirm peer state from ISE side.\n4. Validate keepalive timers match.\n5. Validate IP reachability and TCP/64999 (default SXP port) on the path.\n\nStep 5 — Troubleshooting\n\n• **Peers flapping every 90s** — keepalive mismatch. Standardise on the recommended hold-time min/max.\n\n• **Binding updates failing on one peer** — peer's binding table is full; check `show cts sxp binding` on the peer.\n\n• **NAD reports CTS-3 errors but ISE shows the peer up** — Asymmetric SXP path; the NAD's local view differs from ISE's. Manual `clear cts sxp connection peer` on the NAD usually resolves.",
   "grandmaExplanation": "When ISE tells switches and routers which group each user belongs to, those switches use that group label to allow or deny traffic. We watch the live conversation between ISE and the network gear — if the conversation drops, the group labels stop being delivered and security rules silently stop working. We catch that.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

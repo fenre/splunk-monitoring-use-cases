@@ -10,6 +10,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco ISE pxGrid Cloud Connectivity and TLS Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.35).",
+  "evidence": "Saved search uc_17_1_35_cisco_ise_pxgrid_cloud_connectivity_and, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -64,18 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — pxGrid Cloud",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco XDR — Integration with ISE via pxGrid Cloud",
-      "url": "https://www.cisco.com/site/us/en/products/security/xdr/index.html"
+      "url": "https://www.cisco.com/site/us/en/products/security/xdr/index.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Cisco Identity Services (Splunkbase 1915)",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Internet maintenance windows** — single connection-drop events that self-clear within 5 min are not paging-worthy. (b) **Cisco-side cloud-relay maintenance** — Cisco occasionally maintenances the cloud relay, briefly dropping connections fleet-wide. Cisco posts these on the trust-center status page; cross-reference and downgrade to notification. (c) **TLS-version warnings on TLSv1.2** — TLSv1.2 is acceptable for most regulatory regimes; the alert flags only TLSv1.0/v1.1. Do not page on TLSv1.2 unless your policy requires TLSv1.3-only.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1499.001"
   ],
@@ -95,5 +105,6 @@
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• ISE 3.1+ with pxGrid Cloud configured (Administration > pxGrid Services > Cloud Connection).\n• Trusted root chain for the pxGrid Cloud relay imported into ISE Trusted Certificates.\n• `pxgrid_cloud_peers.csv` lookup with `peer_name`, `purpose`, `is_critical`.\n\nStep 1 — Configure data collection\nEnable *pxGrid Cloud* logging category at INFO. Confirm:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82200, 82201, 82202) earliest=-7d\n| stats count by MessageCode, CloudPeer\n```\nDeploy the OpenAPI poller every 5 min on `/api/v1/pxgrid/cloud/status`.\n\nStep 2 — Create the search\n```spl\n(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (82200, 82201, 82202, 82203))\n  OR (index=nac sourcetype=\"cisco:ise:pxgrid_cloud_status\")\n| stats latest(_time) as last_event, latest(connection_state) as state, latest(TLSVersion) as tls_version, latest(TLSCipher) as cipher, count(eval(MessageCode==\"82201\")) as conn_drops, count(eval(MessageCode==\"82202\")) as tls_failures, count(eval(MessageCode==\"82203\")) as rate_limits by CloudPeer\n| where conn_drops > 1 OR tls_failures > 0 OR rate_limits > 0 OR state==\"DISCONNECTED\" OR tls_version IN (\"TLSv1.0\", \"TLSv1.1\")\n| sort - tls_failures - conn_drops\n```\n\nSchedule: every 10 min, range `-30m@m to @m`, throttle `CloudPeer` for 30 min.\n\nStep 3 — Validate\n(a) Provoke a test as above.\n(b) Verify state transitions in syslog align with the OpenAPI snapshot.\n(c) Inspect TLS version distribution monthly.\n\nStep 4 — Operationalize\nDashboard \"ISE — pxGrid Cloud Health\":\n• Connection state tile.\n• 24h timechart of connection events.\n• TLS version distribution pie.\n• Top-N table of peers with failures.\n\nAlerting: PagerDuty medium-urgency on TLS failure or sustained DISCONNECTED. Auto-create SOAR ticket on weak TLS version detection.\n\nRunbook:\n1. Identify peer and event.\n2. Verify ISE node has internet reachability (proxy/firewall).\n3. Validate the trusted root chain for pxGrid Cloud is current.\n4. If TLS version is weak, identify whether the issue is on ISE side (cipher policy regression) or cloud-relay side (server config).\n5. Engage Cisco TAC for cloud-relay-side issues.\n\nStep 5 — Troubleshooting\n\n• **Persistent DISCONNECTED state** — Root chain or proxy auth. SSH to ISE: `show crypto ca certificates` and verify the pxGrid Cloud trust anchor is present and not expired. If using an outbound proxy, validate the proxy auth (Administration > System > Settings > Proxy).\n\n• **TLSv1.0 in use** — Cipher-policy regression. Check the `tls_version` configuration in pxGrid Cloud settings; force TLSv1.2+ minimum.\n\n• **Connection drops every hour exactly** — DHCP renewal on ISE outbound NAT IP, or stateful firewall idle timeout. Adjust firewall idle timeout or static-NAT the ISE outbound IP.\n\n• **TA misses 822xx codes** — TA version <5.0 didn't include pxGrid Cloud parsing. Upgrade Splunkbase 1915 to 5.0+.",
   "grandmaExplanation": "If a cloud security tool listens to ISE through a long-distance call, we make sure the call stays connected and uses a strong, modern phone line — and ring the bell if the call drops, fails to connect, or downgrades to an old protocol.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

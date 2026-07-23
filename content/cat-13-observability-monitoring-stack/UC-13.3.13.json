@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Grafana /api/datasources/proxy/:id, health check endpoint",
-  "app": "Custom (Grafana API)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Grafana Datasource Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-13.3.13).",
+  "evidence": "Saved search uc_13_3_13_grafana_datasource_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Grafana Datasource Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-13.3.13.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Grafana /api/datasources/proxy/:id, health check endpoint Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Grafana API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=grafana sourcetype=\"grafana:datasource\"\n| where status!=\"success\" OR response_time_ms > 3000\n| stats count, avg(response_time_ms) as avg_ms, values(error_message) as errors by datasource_name, datasource_type, host\n| sort -count",
-  "description": "Datasource connectivity and query errors; broken dashboards.",
-  "value": "Datasource connectivity and query errors; broken dashboards.",
+  "description": "Datasource connectivity and query errors; broken dashboards. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "Operations and leadership rely on 'Grafana Datasource Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Use scripted input or scheduled search to call Grafana `/api/datasources` and `/api/datasources/proxy/:id/health` (or datasource-specific health endpoints). Ingest response status, latency, and error messages. Alternatively, parse Grafana server logs for datasource query errors. Alert when any datasource fails health check or when error rate exceeds threshold. Track which dashboards use each datasource for impact assessment.",
   "visualization": "Table (unhealthy datasources with errors), Status grid (datasource × status), Single value (healthy datasource count), Line chart (datasource latency trend).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Noisy periods after retention, target, or scrape changes. We compare with the Grafana or Prometheus view for the same minutes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "grafana"
   ],
+  "equipmentModels": [
+    "grafana_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Grafana API).\n• Ensure the following data sources are available: Grafana /api/datasources/proxy/:id, health check endpoint.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse scripted input or scheduled search to call Grafana `/api/datasources` and `/api/datasources/proxy/:id/health` (or datasource-specific health endpoints). Ingest response status, latency, and error messages. Alternatively, parse Grafana server logs for datasource query errors. Alert when any datasource fails health check or when error rate exceeds threshold. Track which dashboards use each datasource for impact assessment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=grafana sourcetype=\"grafana:datasource\"\n| where status!=\"success\" OR response_time_ms > 3000\n| stats count, avg(response_time_ms) as avg_ms, values(error_message) as errors by datasource_name, datasource_type, host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Grafana Datasource Health** — Datasource connectivity and query errors; broken dashboards.\n\nDocumented **Data sources**: Grafana /api/datasources/proxy/:id, health check endpoint. **App/TA** (typical add-on context): Custom (Grafana API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: grafana; **sourcetype**: grafana:datasource. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=grafana, sourcetype=\"grafana:datasource\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status!=\"success\" OR response_time_ms > 3000` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by datasource_name, datasource_type, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare the series with the Grafana dashboards and, where relevant, Prometheus, Loki, or target health for the same interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unhealthy datasources with errors), Status grid (datasource × status), Single value (healthy datasource count), Line chart (datasource latency trend).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch HTTP data intake so broken or busy endpoints do not starve the rest of our monitoring."
+  "grandmaExplanation": "We watch HTTP data intake so broken or busy endpoints do not starve the rest of our monitoring.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Device Health by Site Hierarchy'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.13.5).",
+  "evidence": "Saved search uc_5_13_5_device_health_by_site_hierarchy, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Device Health by Site Hierarchy'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.13.5.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:devicehealth` from the `devicehealth` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.1. The split-by dimension is `siteId` — a UUID assigned by Catalyst Center's site hierarchy (Global > Area > Building > Floor). To resolve UUIDs to human-readable site names, join with `index=catalyst sourcetype=cisco:dnac:site:topology` (UC-5.13.51) or maintain a `catalyst_site_lookup` CSV.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Install on Search Heads AND the Heavy Forwarder running inputs.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:devicehealth\"\n| stats avg(overallHealth) as avg_health count as device_count count(eval(overallHealth<50)) as unhealthy_count by siteId\n| eval unhealthy_pct=round(unhealthy_count*100/device_count,1)\n| lookup catalyst_site_lookup siteId OUTPUT siteName\n| eval site_label=coalesce(siteName, siteId)\n| sort -unhealthy_pct\n| head 20",
@@ -19,22 +25,26 @@
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Device Health endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-device-health",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide — Site Hierarchy",
-      "url": "docs/guides/catalyst-center.md#field-dictionary"
+      "url": "docs/guides/catalyst-center.md#field-dictionary",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Site Topology API",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-site-topology"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-site-topology",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Site hierarchy reorganisation moving devices between siteIds.** When Catalyst Center's site hierarchy is restructured (buildings moved between areas, floors renumbered), the same device may appear under a different `siteId`, creating phantom improvements at the old site and phantom degradation at the new site. Distinguish by correlating with `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for site hierarchy changes. Suppress by tracking by `deviceName` (stable) when investigating anomalies and only using `siteId` for steady-state views.\n\n**Small site with 1–2 devices producing misleading percentages.** A remote branch with 2 switches where one is briefly unhealthy shows 50% `unhealthy_pct` — alarming on the chart but representing a single device. Distinguish by checking `device_count`. Suppress by filtering `| where device_count >= 5` for the ranked chart and showing small sites separately.\n\n**`siteId` null for devices not assigned to a site.** Devices in the \"Unassigned\" or \"Global\" default site show `siteId` as a root UUID or null, aggregating unrelated devices into one bucket. Distinguish by checking whether the \"site\" is the catch-all Global. Suppress by filtering `| where siteId != \"<global-root-uuid>\"` or by assigning all devices to proper sites in Catalyst Center.\n\n**Multi-building campus sharing one siteId.** If the site hierarchy was not granulated below the area level, multiple buildings may share one `siteId`, masking per-building differences. Distinguish by checking the hierarchy depth in Catalyst Center > Design > Network Hierarchy. No Splunk suppression — fix the hierarchy in Catalyst Center to get floor/building-level granularity.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "m365"

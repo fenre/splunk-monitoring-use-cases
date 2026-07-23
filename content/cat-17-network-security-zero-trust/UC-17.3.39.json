@@ -9,8 +9,14 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=fgt_utm` (FortiSASE web filter logs via syslog)",
-  "app": "`TA-fortinet_fortigate` (FortiSASE logs use FortiGate syslog format)",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'FortiSASE SWG Policy Violation Trends (Fortinet)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.39).",
+  "evidence": "Saved search uc_17_3_39_fortisase_swg_policy_violation_trends_fo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'FortiSASE SWG Policy Violation Trends (Fortinet)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.39.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`sourcetype=fgt_utm` (FortiSASE web filter logs via syslog) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-fortinet_fortigate` (FortiSASE logs use FortiGate syslog format) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=proxy sourcetype=\"fgt_utm\" subtype=\"webfilter\" earliest=-7d\n| where action=\"blocked\"\n| stats count by catdesc, user, policyname\n| sort -count",
   "description": "FortiSASE cloud-delivered SWG enforces web filtering for remote and branch users through FortiGate NGFW policies in the cloud. Trending blocked categories and rules identifies policy drift and shadow IT.",
   "value": "Security teams trend FortiSASE web policy violations by FortiGuard category, detecting active threat campaigns, proxy avoidance attempts from users trying to bypass the SWG, and repeat policy violators requiring escalation.",
@@ -25,10 +31,26 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001"
   ],
@@ -39,7 +61,13 @@
   "equipmentModels": [
     "fortinet_fortigate"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Fortinet FortiSASE web filtering logs in `index=fortisase` with `sourcetype=fortisase:webfilter`. FortiSASE sends logs via FortiAnalyzer or direct syslog. Key fields: `action` (passthrough/blocked/warning), `catdesc` (URL category description), `url`, `user`, `srcip`, `sentbyte`, `rcvdbyte`, `devname` (FortiSASE instance).\n• FortiSASE combines FortiGate NGFW capabilities with cloud-delivered SWG, ZTNA, and CASB. Web filtering uses FortiGuard URL categorization with 90+ categories.\n\nStep 1 — Configure data collection\nConfigure FortiSASE log forwarding: FortiSASE Admin > Log Settings > Remote Logging > Syslog > add Splunk HF.\n\nVerify:\n```spl\nindex=fortisase sourcetype=\"fortisase:webfilter\" earliest=-1h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy violation trends:\n```spl\nindex=fortisase sourcetype=\"fortisase:webfilter\" action=blocked earliest=-7d\n| timechart span=1d count by catdesc limit=10\n```\n\nUnderstanding this SPL: Trends blocked web categories over 7 days using FortiGuard categorization. FortiSASE categories include: Malicious Websites, Phishing, Spam URLs, Proxy Avoidance, and custom categories. A spike in 'Proxy Avoidance' means users are actively trying to bypass the SWG — a security concern.\n\nTop violators:\n```spl\nindex=fortisase sourcetype=\"fortisase:webfilter\" action=blocked earliest=-7d\n| stats count dc(url) as unique_urls by user, catdesc\n| sort - count\n| head 20\n```\n\nStep 3 — Validate\n(a) Visit a known-blocked URL category. Verify the block event.\n(b) In FortiSASE: Log & Report > Web Filter.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block trend by category. Row 2 — Top violating users. Row 3 — Proxy avoidance attempts.\nAlert: When Proxy Avoidance blocks exceed baseline by 2x.\n\nRunbook:\n1. **Proxy Avoidance spike** — Users trying to bypass SWG. Block the avoidance tools and educate.\n2. **Malicious URL spike** — Active threat campaign. Check FortiGuard threat intel.\n3. **Repeat violator** — HR notification for policy enforcement.\n\nStep 5 — Troubleshooting\n• **No web filter events** — FortiSASE log forwarding may not be enabled for web filter.\n• **All traffic 'passthrough'** — Web filtering profile may be in monitor-only mode.",
   "grandmaExplanation": "FortiSASE filters which websites our employees can visit. We track which blocked categories spike over time — when many people suddenly hit malicious sites, there is likely an attack campaign. We also watch for employees trying to use tools to get around the filter.",
-  "hardware": "FortiSASE (cloud), FortiClient (endpoint agent), FortiGate (on-prem with SASE integration)"
+  "hardware": "FortiSASE (cloud), FortiClient (endpoint agent), FortiGate (on-prem with SASE integration)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

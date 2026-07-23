@@ -10,8 +10,14 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: configuration-change syslog (`CONFIG_I`, `%SYS-*`, Junos `UI_COMMIT_*`, Nokia `tmnxConfigChange*`), AAA logs for CLI/API sessions, orchestrator audit trails (Ansible/Terraform), NETCONF RPC transcripts if mirrored to Splunk; correlate with BGP/RIB syslog anomalies (`rt-filter`, `import policy`, `vpn-export`).",
-  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia syslog; optional Splunk Enterprise Security for correlation rules.",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'VRF Route Leaking Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.18.6).",
+  "evidence": "Saved search uc_5_18_6_vrf_route_leaking_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'VRF Route Leaking Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.18.6.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Detailed: configuration-change syslog (`CONFIG_I`, `%SYS-*`, Junos `UI_COMMIT_*`, Nokia `tmnxConfigChange*`), AAA logs for CLI/API sessions, orchestrator audit trails (Ansible/Terraform), NETCONF RPC transcripts if mirrored to Splunk; correlate with BGP/RIB syslog anomalies (`rt-filter`, `import policy`, `vpn-export`). Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia syslog; optional Splunk Enterprise Security for correlation rules. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network OR index=audit earliest=-24h@h latest=now\n| eval msg=lower(_raw)\n| eval cfg_hit=match(msg,\"(?:commit|configuration|config.?chang)\") OR match(sourcetype,\"audit|config|netconf|yang\")\n| eval leak_hint=match(msg,\"(?:route.?target|rt.?import|rt.?export|vrf.?import|vrf.?export|route.?leak|vpn.?instance.*(?:import|export)|(?:unnecessary|unexpected).*vpn.*route|(?:policy).*(?:vpn|vrf).*(?:(?:accept|match).*route))\")\n| eval risky_cmd=match(msg,\"(?:import.?route.?target|export.?route.?target|vrf.?route.?import|route.?target.?import|next-hop.?unchanged|(?:router|routing.?instance).*(?:import|export)|(?:policy.?option|prefix.?limit).*(?:leak|aggregate))\")\n| where (cfg_hit=1 AND leak_hint=1) OR risky_cmd=1\n| rex field=_raw max_match=0 \"(?i)vrf[^A-Za-z0-9_/:-]*(?<vrf>[A-Za-z0-9_.:-]+)\"\n| rex field=_raw max_match=0 \"(?i)(?:user|acct)\\s*[:=]?\\s*(?<actor>[A-Za-z0-9_.@-]+)\"\n| stats earliest(_time) as first_seen latest(_time) as last_seen values(actor) as actors values(vrf) as vrfs count by host sourcetype\n| sort - count",
   "description": "Splunk correlates risky VRF import/export edits, RT mutations, and overlapping commit narratives so unintended VPN route leaking—whether mis-click or hostile insider action—triggers review workflows before prefixes traverse wrong RD boundaries.",
   "value": "Risk and engineering leadership preserve tenant isolation guarantees because Splunk proves who changed which leaking construct and surfaces subtle RT imports that traditional BGP flap alarms never articulate.",
@@ -20,18 +26,26 @@
   "references": [
     {
       "title": "Cisco MPLS VPN Route Target Attributes",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Juniper Routing Instances Overview — VPN Import Policies",
-      "url": "https://www.juniper.net/documentation/us/en/software/junos/routing-policy/"
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/routing-policy/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Nokia SR OS Routing Protocols Guide — BGP/MPLS IP VPNs",
-      "url": "https://documentation.nokia.com/"
+      "url": "https://documentation.nokia.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Approved shared services RT:** explicit imports flagged until allow-listed.**Automated audits:** nightly scripts rewriting harmless ordering churn.**Encrypted NETCONF:** payloads unavailable—need collector-side decryption.**Template rollout:** mass commits spike counts—tag pipeline IDs.**False actor:** shared jump-box account obscures real user—pair with session correlation.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1190"
   ],
@@ -58,7 +72,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Change-management taxonomy tagging golden configs vs emergency edits.\n• Role-based actor normalization (`tacacs_username`).\n\nStep 1 — Source onboarding\nEnable archived configs: Cisco IOS-XR commit logs to syslog; Junos `configuration archival`; Nokia SR OS admin audit stream to SIEM.\n\nStep 2 — Regex tuning workshop\nInventory legitimate hub-spoke leak patterns (central services VRF) and encode allow-list keys `(host,policy_name)`.\n\nStep 3 — Detection logic\nFire alert when commit includes `route-target import` referencing foreign ASN not on allow-list OR NETCONF `<import-route-target>` delta crosses VPN boundary.\n\nStep 4 — Validation tabletop\nReplay sanitized configs through Splunk `_new_eval` testing index ensuring positives match SOC expectations without noisy duplicate commits.\n\nStep 5 — Response hook\nAuto-create ticket with diff snippet and link to last-known-good RIB snapshot search ID for rollback verification.",
+  "detailedImplementation": "Prerequisites\n• Change-management taxonomy tagging golden configs vs emergency edits.\n• Role-based actor normalization (`tacacs_username`).\n\nStep 1 — Source onboarding\nEnable archived configs: Cisco IOS-XR commit logs to syslog; Junos `configuration archival`; Nokia SR OS admin audit stream to SIEM.\n\nStep 2 — Regex tuning workshop\nInventory legitimate hub-spoke leak patterns (central services VRF) and encode allow-list keys `(host,policy_name)`.\n\nStep 3 — Detection logic\nFire alert when commit includes `route-target import` referencing foreign ASN not on allow-list OR NETCONF `<import-route-target>` delta crosses VPN boundary.\n\nStep 4 — Validation tabletop\nReplay sanitized configs through Splunk `_new_eval` testing index ensuring positives match SOC expectations without noisy duplicate commits.\n\nStep 5 — Response hook\nAuto-create ticket with diff snippet and link to last-known-good RIB snapshot search ID for rollback verification.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`), Splunk Add-on for Juniper, Nokia syslog; optional Splunk Enterprise Security for correlation rules. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=see SPL into network, audit. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, sourcetype`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch for edits that accidentally stitch two private customer closets together through the plumbing. Catching that fast keeps each renter’s mail from wandering into the wrong mailbox.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

@@ -10,8 +10,14 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Manufacturing",
-  "dataSources": "`index=erp` `sourcetype=\"erp:event\"` (order_id, material_id, qty_planned), `index=mfg` `sourcetype=\"mes:production\"` (order_id, material_id, qty_consumed)",
-  "app": "ERP HEC, MES integration",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Bill of Materials (BOM) Discrepancy Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-21.2.9).",
+  "evidence": "Saved search uc_21_2_9_bill_of_materials_bom_discrepancy_detect, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Bill of Materials (BOM) Discrepancy Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-21.2.9.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=erp` `sourcetype=\"erp:event\"` (order_id, material_id, qty_planned), `index=mfg` `sourcetype=\"mes:production\"` (order_id, material_id, qty_consumed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "ERP HEC, MES integration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=erp sourcetype=\"erp:event\" event_type=\"bom\"\n| rename qty_planned as qty_plan\n| join type=outer max=1 order_id material_id [\n    search index=mfg sourcetype=\"mes:production\"\n    | stats sum(qty_consumed) as qty_cons by order_id, material_id\n]\n| fillnull value=0 qty_cons\n| eval delta=qty_plan-qty_cons\n| where abs(delta)>0.5*qty_plan OR abs(delta)>5\n| table order_id, material_id, qty_plan, qty_cons, delta",
   "description": "Wrong component consumption breaks costing and traceability; catching BOM mismatches early avoids recalls and ERP reconciliation fire drills.",
   "value": "Service and risk leaders use signals from Bill of Materials to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
@@ -24,10 +30,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "BOM mismatch flags during engineering change effectivity dates, kit substitutions, or scrap reconciliation windows that the MRP controller closed after audit.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ERP HEC, MES integration.\n• Ensure the following data sources are available: `index=erp` `sourcetype=\"erp:event\"` (order_id, material_id, qty_planned), `index=mfg` `sourcetype=\"mes:production\"` (order_id, material_id, qty_consumed).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPublish planned BOM lines from ERP and consumption from MES on shared keys. Schedule hourly reconciliation; handle unit of measure conversion via lookup. Route discrepancies to production control before period close. **Domain context:** BOM accuracy supports traceability (e.g. medical device UDI, automotive PPAP); backflush timing vs physical issue can create false deltas. **Splunk:** `join type=outer` can be expensive—consider `lookup` from a KV store populated by scheduled searches for large o…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=erp sourcetype=\"erp:event\" event_type=\"bom\"\n| rename qty_planned as qty_plan\n| join type=outer max=1 order_id material_id [\n    search index=mfg sourcetype=\"mes:production\"\n    | stats sum(qty_consumed) as qty_cons by order_id, material_id\n]\n| fillnull value=0 qty_cons\n| eval delta=qty_plan-qty_cons\n| where abs(delta)>0.5*qty_plan OR abs(delta)>5\n| table order_id, material_id, qty_plan, qty_cons, delta\n```\n\nUnderstanding this SPL\n\n**Bill of Materials (BOM) Discrepancy Detection** — Wrong component consumption breaks costing and traceability; catching BOM mismatches early avoids recalls and ERP reconciliation fire drills.\n\nDocumented **Data sources**: `index=erp` `sourcetype=\"erp:event\"` (order_id, material_id, qty_planned), `index=mfg` `sourcetype=\"mes:production\"` (order_id, material_id, qty_consumed). **App/TA** (typical add-on context): ERP HEC, MES integration. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: erp; **sourcetype**: erp:event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=erp, sourcetype=\"erp:event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Fills null values with `fillnull`.\n• `eval` defines or adjusts **delta** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where abs(delta)>0.5*qty_plan OR abs(delta)>5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Bill of Materials (BOM) Discrepancy Detection**): table order_id, material_id, qty_plan, qty_cons, delta\n\n\nStep 3 — Validate\nCompare calculated buckets with the MES shift report or historian (for example PI or Proficy) for the same line and period. Confirm planned versus run time matches the routing master used by production.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (BOM variances), Bar chart (variance by material), Line chart (discrepancy count over time), Heatmap (SKU × material).",
-  "grandmaExplanation": "We watch bills of material across systems. We help you catch mismatches before wrong parts hit the line."
+  "grandmaExplanation": "We watch bills of material across systems. We help you catch mismatches before wrong parts hit the line.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

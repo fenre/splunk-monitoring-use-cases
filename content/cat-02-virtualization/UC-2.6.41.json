@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'FSLogix and Profile Container Health'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-2.6.41).",
+  "evidence": "Saved search uc_2_6_41_fslogix_and_profile_container_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'FSLogix and Profile Container Health'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-2.6.41.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`sourcetype=\"WinEventLog:Application\"` source=FSLogix* or `Message=*FSLogix*`, `Perfmon:LogicalDisk` on profile share, `sourcetype=\"WinEventLog:System\"` for VHD/Filter Manager; `index=uberagent` `sourcetype=\"uberAgent:Logon:LogonDetail\"` for profile phase timing; optional SMB `\\Server\\path` path latency with synthetic scripts into `sourcetype=fslogix:synthetic`",
   "app": "Splunk Add-on for Microsoft Windows, uberAgent UXM (Splunkbase 1448), Microsoft FSLogix policy documentation",
   "spl": "index=windows (sourcetype=\"WinEventLog:Application\" (source=\"*FSLogix*\" OR source=\"*frx*\")) OR (sourcetype=\"WinEventLog:System\" EventCode=50)\n| search match(_raw, \"(?i)FSLogix|frx|profile|containe|VHDX|VHD |reparse|reconnect|load.*fail|attach.*fail|size|quota|latency\")\n| eval severity=if(match(_raw, \"(?i)fail|error|could not|denied|timeout|locked|reparse\"), \"error\", if(match(_raw, \"(?i)warn|slow|throttl|retry\"), \"warning\", \"info\"))\n| where severity!=\"info\"\n| join type=left user [search index=uberagent sourcetype=\"uberAgent:Logon:LogonDetail\" earliest=-4h | stats latest(ProfileLoad) as uem_profile_s by user]\n| table _time, host, user, Message, severity, uem_profile_s",
   "description": "FSLogix profile and Office container disks live on fast SMB file shares. Slow attach, VHD reconnection failures, runaway VHDX growth, and share latency surface as long logon times or read-only profiles. Correlating FSLogix Application events with the profile phase in uberAgent logon data isolates the share path versus client-side issues faster than GPO review alone.",
-  "value": "FSLogix profile and Office container disks live on fast SMB file shares. Slow attach, VHD reconnection failures, runaway VHDX growth, and share latency surface as long logon times or read-only profiles. Correlating FSLogix Application events with the profile phase in uberAgent logon data isolates the share path versus client-side issues faster than GPO review alone.",
+  "value": "Operations and leadership rely on 'FSLogix and Profile Container Health' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
   "implementation": "Ingest all FSLogix-related Application events and enable logical disk or SMB perf counters for share volumes. Set alerts on new error text patterns and on profile time >30s p95. Track VHD file size with a daily scripted inventory if not in events. For multi-site, tag share names with region and add synthetic SMB probes. Join carefully on `user` to avoid overmatching service accounts.",
   "visualization": "Timeline (FSLogix errors), Line chart (profile phase from uberAgent), Table (VHD size growth if inventoried).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "FSLogix documentation - Microsoft",
-      "url": "https://learn.microsoft.com/en-us/fslogix/"
+      "url": "https://learn.microsoft.com/en-us/fslogix/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "citrix"
   ],
@@ -32,6 +54,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, uberAgent UXM (Splunkbase 1448) on VDAs.\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` for FSLogix, `sourcetype=\"WinEventLog:System\"` for VHD, optional perfmon for the profile volume.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable `FSLogix` and `frx` logging in policy. Add inputs for the profile server share. Create a `ProfileLoad` or equivalent field alignment with uberAgent so joins work. If join noise appears, use `session_id` or `user_sid` as the join key instead of `user` when available.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; set subsearch window to your session length policy):\n\n```spl\nindex=windows (sourcetype=\"WinEventLog:Application\" (source=\"*FSLogix*\" OR source=\"*frx*\")) OR (sourcetype=\"WinEventLog:System\" EventCode=50)\n| search match(_raw, \"(?i)FSLogix|frx|profile|containe|VHDX|VHD |reparse|reconnect|load.*fail|attach.*fail|size|quota|latency\")\n| eval severity=if(match(_raw, \"(?i)fail|error|could not|denied|timeout|locked|reparse\"), \"error\", if(match(_raw, \"(?i)warn|slow|throttl|retry\"), \"warning\", \"info\"))\n| where severity!=\"info\"\n| join type=left user [search index=uberagent sourcetype=\"uberAgent:Logon:LogonDetail\" earliest=-4h | stats latest(ProfileLoad) as uem_profile_s by user]\n| table _time, host, user, Message, severity, uem_profile_s\n```\n\nStep 3 — Validate\nCompare against a known bad profile in test. If `ProfileLoad` field name varies, `rename` in the subsearch. Confirm join cardinality (<50k) per run.\n\nStep 4 — Operationalize\nSend critical FSLogix errors to the file services team. Pair with a capacity check on the profile share to prevent sudden space exhaustion.",
-  "grandmaExplanation": "We keep an eye on fSLogix and Profile Container Health and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on fSLogix and Profile Container Health and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

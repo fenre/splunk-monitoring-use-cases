@@ -10,6 +10,12 @@
     "Data Quality"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Flow Exporter Health and Missing Exporter Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.7.16).",
+  "evidence": "Saved search uc_5_7_16_flow_exporter_health_and_missing_exporte, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Flow Exporter Health and Missing Exporter Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.7.16.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "`index=netflow` with `sourcetype` from Splunk Add-on for NetFlow (Splunkbase 1838); key dimensions `host` (collector), `exporter_ip` or `agent` (device sending flows), `src`/`dest`, `bytes`; optionally syslog heartbeat index correlated by management address.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "| inputlookup flow_exporter_inventory.csv\n| eval expected_exporter=exporter_ip\n| join type=left expected_exporter [\n    search index=netflow earliest=-2h\n    | eval exporter_ip=coalesce(exporter_ip, agent, device_ip)\n    | stats latest(_time) as last_seen sum(bytes) as bytes sum(packets) as pkts by exporter_ip\n    | rename exporter_ip as expected_exporter\n]\n| eval minutes_since_seen=if(isnotnull(last_seen), round((now()-last_seen)/60, 1), null())\n| fillnull value=0 bytes pkts\n| where isnull(last_seen) OR minutes_since_seen>90\n| eval status=if(isnull(last_seen), \"NO_TELEMETRY\", \"STALE\")\n| sort last_seen\n| table site expected_exporter status minutes_since_seen bytes pkts last_seen",
@@ -20,14 +26,26 @@
   "references": [
     {
       "title": "Splunk Documentation — NetFlow Introduction",
-      "url": "https://docs.splunk.com/Documentation/NetFlow/"
+      "url": "https://docs.splunk.com/Documentation/NetFlow/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco — NetFlow Export FAQ",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned outages and daylight-saving skew can pause streams. Devices failing over to standby management interfaces may appear under a different exporter key until lookups catch up.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "netflow",
     "syslog"
@@ -44,7 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Completed discovery of every router and firewall authorized to export flows including standby contexts.\n• Consistent field naming for exporter identities—normalize via transforms if vendors differ.\n• Time synchronization within five hundred milliseconds across exporters.\n\nStep 1 — Configure data collection\nPopulate the lookup from your configuration management database export; include site, role, and maintenance calendar identifiers.\n\nStep 2 — Create the search\nAdd adaptive thresholds: backbone devices alert after thirty minutes, branch offices after two hours. Supplement with `metadata` searches verifying Universal Forwarder queues if syslog heartbeats exist.\n\nStep 3 — Validate\nDisable export on a lab router and confirm alert correlation within one scheduled run. Re-enable and verify automatic clearance.\n\nStep 4 — Operationalize\nExecutive dashboard tile counts missing exporters by region; automated tickets assign to on-call network pods using lookup routing columns.\n\nStep 5 — Troubleshooting\nFalse stale states occur when management addressing differs from export sourcing—store both in the lookup. Satellite links may batch flows; widen thresholds modestly after observing variance.",
+  "detailedImplementation": "Prerequisites\n• Completed discovery of every router and firewall authorized to export flows including standby contexts.\n• Consistent field naming for exporter identities—normalize via transforms if vendors differ.\n• Time synchronization within five hundred milliseconds across exporters.\n\nStep 1 — Configure data collection\nPopulate the lookup from your configuration management database export; include site, role, and maintenance calendar identifiers.\n\nStep 2 — Create the search\nAdd adaptive thresholds: backbone devices alert after thirty minutes, branch offices after two hours. Supplement with `metadata` searches verifying Universal Forwarder queues if syslog heartbeats exist.\n\nStep 3 — Validate\nDisable export on a lab router and confirm alert correlation within one scheduled run. Re-enable and verify automatic clearance.\n\nStep 4 — Operationalize\nExecutive dashboard tile counts missing exporters by region; automated tickets assign to on-call network pods using lookup routing columns.\n\nStep 5 — Troubleshooting\nFalse stale states occur when management addressing differs from export sourcing—store both in the lookup. Satellite links may batch flows; widen thresholds modestly after observing variance.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`exporter_ip, minutes_since_seen, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep a roll call of every box that should whisper traffic summaries to us. When one goes quiet longer than we agreed, we poke someone before blind spots spread.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

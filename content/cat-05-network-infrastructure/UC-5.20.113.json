@@ -9,8 +9,14 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Detects IPv6 Neighbour Cache Exhaustion attacks (RFC 6583) where an attacker floods a router's NDP cache by sending traffic to many non-existent addresses in a /64 subnet. The router creates an INCOMPLETE neighbour cache entry for each address, consuming memory until the cache overflows and legitimate entries are evicted.\n\n**Attack mechanics (RFC 6583):**\n\n1. The attacker sends packets to random addresses within the target's /64 prefix.\n2. The router performs NDP Neighbour Solicitation for each address.\n3. No reply is received (addresses don't exist), so entries stay in INCOMPLETE state for 30-60 seconds.\n4. At sufficient rate, INCOMPLETE entries exhaust the neighbour cache.\n5. When the cache is full, the router cannot resolve legitimate neighbours, causing a denial of service for all hosts on that subnet.\n\n**Mitigation strategies monitored by this UC:**\n- Neighbour cache size limits and entry timeouts\n- Rate limiting of NDP Neighbour Solicitations\n- Incomplete entry limits per interface\n- Host route injection (creating /128 host routes instead of NDP cache entries)",
-  "app": "Splunk Enterprise Security",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.113).",
+  "evidence": "Saved search uc_5_20_113_ipv6_neighbour_cache_exhaustion_ndp_tabl, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Neighbour Cache Exhaustion (NDP Table Overflow) Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.113.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Detects IPv6 Neighbour Cache Exhaustion attacks (RFC 6583) where an attacker floods a router's NDP cache by sending traffic to many non-existent addresses in a /64 subnet. The router creates an INCOMPLETE neighbour cache entry for each address, consuming memory until the cache overflows and legitimate entries are evicted.\n\n**Attack mechanics (RFC 6583):**\n\n1. The attacker sends packets to random addresses within the target's /64 prefix.\n2. The router performs NDP Neighbour Solicitation for each address.\n3. No reply is received (addresses don't exist), so entries stay in INCOMPLETE state for 30-60 seconds.\n4. At sufficient rate, INCOMPLETE entries exhaust the neighbour cache.\n5. When the cache is full, the router cannot resolve legitimate neighbours, causing a denial of service for all hosts on that subnet.\n\n**Mitigation strategies monitored by this UC:**\n- Neighbour cache size limits and entry timeouts\n- Rate limiting of NDP Neighbour Solicitations\n- Incomplete entry limits per interface\n- Host route injection (creating /128 host routes instead of NDP cache entries) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-4h\n  (\"%IPV6_ND\" OR \"%ADJ\" OR \"neighbor\" OR \"adjacency\" OR \"INCOMPLETE\" OR \"cache.*full\")\n| eval cache_event=case(\n    match(_raw, \"(?i)cache.*full|table.*full|adjacency.*overflow|no.*room\"), \"CACHE_FULL\",\n    match(_raw, \"(?i)INCOMPLETE.*threshold|incomplete.*limit\"), \"INCOMPLETE_THRESHOLD\",\n    match(_raw, \"(?i)rate.*limit|throttl\"), \"RATE_LIMITED\",\n    match(_raw, \"(?i)INCOMPLETE\"), \"INCOMPLETE_ENTRY\",\n    1=1, \"OTHER\")\n| stats count as events by host, cache_event\n| eval severity=case(\n    cache_event=\"CACHE_FULL\", \"CRITICAL — NDP cache exhausted on \" . host . \" — active DoS or misconfigured /64\",\n    cache_event=\"INCOMPLETE_THRESHOLD\" AND events > 100, \"HIGH — INCOMPLETE entry threshold exceeded — possible cache exhaustion attack\",\n    cache_event=\"RATE_LIMITED\" AND events > 50, \"MEDIUM — NDP rate limiting activated — elevated NDP solicitation rate\",\n    cache_event=\"INCOMPLETE_ENTRY\" AND events > 500, \"WARNING — high INCOMPLETE neighbour entry count (\" . events . \") — monitor for escalation\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
   "description": "Detects IPv6 Neighbour Cache Exhaustion attacks (RFC 6583) where attackers flood a router's NDP table by generating traffic to non-existent addresses in a /64 subnet. Each non-existent target creates an INCOMPLETE neighbour cache entry, consuming router memory until the cache overflows and legitimate neighbour resolution fails, causing denial of service.",
   "value": "Neighbour cache exhaustion is one of the most practical IPv6 denial-of-service attacks. It requires only a single host on the same subnet (or routable access to a /64) and can take down an entire subnet's connectivity by preventing the router from resolving legitimate neighbours. The attack exploits the mandatory /64 prefix length in IPv6, which means every subnet has 2^64 potential addresses the attacker can target. Early detection is critical because the attack affects all hosts on the subnet.",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "RFC 6583 — Operational Neighbor Discovery Problems",
-      "url": "https://www.rfc-editor.org/rfc/rfc6583"
+      "url": "https://www.rfc-editor.org/rfc/rfc6583",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 4861 — Neighbor Discovery for IP version 6 (IPv6)",
-      "url": "https://www.rfc-editor.org/rfc/rfc4861"
+      "url": "https://www.rfc-editor.org/rfc/rfc4861",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3 — NDP security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Large subnets with many hosts.** A /64 with hundreds of active hosts generates many NDP entries. This is normal — monitor for INCOMPLETE entries specifically, which indicate addresses that don't respond.\n\n**Host mobility.** In wireless environments, hosts join and leave frequently, creating short-lived NDP entries. This is normal churn, not an attack.\n\n**Network scanning.** Legitimate network scanning tools (Nessus, Qualys) may trigger cache entries for scanned addresses. Schedule scans during maintenance windows and exclude scanner sources.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "arista",
     "cisco",

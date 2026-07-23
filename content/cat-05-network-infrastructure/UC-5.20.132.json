@@ -8,8 +8,14 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=zeek:conn` or `sourcetype=cisco:ios` — Detects IPv6 PMTUD black holes where ICMPv6 Packet Too Big (PTB) messages are blocked by intermediate firewalls, preventing the source from learning the path MTU. The IPv6 minimum MTU is 1280 bytes (RFC 8200). When PMTUD fails, packets larger than the path MTU are silently dropped, causing connections to stall after the initial handshake.",
-  "app": "Splunk Enterprise / Zeek TA",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'IPv6 Path MTU Discovery (PMTUD) Black Hole Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.20.132).",
+  "evidence": "Saved search uc_5_20_132_ipv6_path_mtu_discovery_pmtud_black_hole, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'IPv6 Path MTU Discovery (PMTUD) Black Hole Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.20.132.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "`index=network sourcetype=zeek:conn` or `sourcetype=cisco:ios` — Detects IPv6 PMTUD black holes where ICMPv6 Packet Too Big (PTB) messages are blocked by intermediate firewalls, preventing the source from learning the path MTU. The IPv6 minimum MTU is 1280 bytes (RFC 8200). When PMTUD fails, packets larger than the path MTU are silently dropped, causing connections to stall after the initial handshake. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise / Zeek TA — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"zeek:conn\" OR sourcetype=\"cisco:ios\") earliest=-24h\n| eval is_ipv6=if(match(src, \":\") OR match(dest, \":\"), 1, 0)\n| where is_ipv6=1\n| eval pmtud_issue=case(\n    match(_raw, \"(?i)too.?big.*drop|PTB.*drop|icmpv6.*type.?2.*deny\"), \"PTB_BLOCKED\",\n    match(_raw, \"(?i)fragment.*needed|packet.?too.?big\"), \"PTB_RECEIVED\",\n    match(_raw, \"(?i)retransmit|stall|timeout\") AND match(conn_state, \"S[0-3]\"), \"CONNECTION_STALL\",\n    1=1, null())\n| where isnotnull(pmtud_issue)\n| stats count as events by host, pmtud_issue\n| eval severity=case(\n    pmtud_issue=\"PTB_BLOCKED\", \"CRITICAL — ICMPv6 PTB messages being blocked — PMTUD is broken\",\n    pmtud_issue=\"CONNECTION_STALL\" AND events > 50, \"HIGH — connection stalls may indicate PMTUD black hole\",\n    pmtud_issue=\"PTB_RECEIVED\", \"INFO — PMTUD working (PTB received and processed)\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
   "description": "Detects IPv6 PMTUD black holes where ICMPv6 Packet Too Big messages are blocked by firewalls, causing connections to stall when large packets are dropped silently. PMTUD black holes are one of the most difficult IPv6 problems to diagnose because the initial TCP handshake succeeds but the connection stalls when data transfer begins.",
   "value": "PMTUD black holes cause mysterious IPv6 connection failures: TCP connects fine (SYN/SYN-ACK are small), but the connection stalls as soon as data transfer starts with larger packets. Users see pages that partially load or connections that timeout. Because the initial handshake succeeds, the problem appears to be application-level rather than network-level, making diagnosis extremely difficult without specific monitoring.",
@@ -18,14 +24,26 @@
   "references": [
     {
       "title": "RFC 8201 — Path MTU Discovery for IP version 6",
-      "url": "https://www.rfc-editor.org/rfc/rfc8201"
+      "url": "https://www.rfc-editor.org/rfc/rfc8201",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8200 — IPv6 Specification (§5 — Packet Size Issues)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8200#section-5"
+      "url": "https://www.rfc-editor.org/rfc/rfc8200#section-5",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Application-level timeouts.** Some connection stalls are caused by application issues, not PMTUD failures. Correlate with PTB blocking to distinguish.\n\n**VPN tunnels reducing MTU.** VPN encapsulation reduces effective MTU. This may trigger legitimate PTB messages.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "paloalto",
@@ -44,7 +62,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Zeek or Suricata sensor.\n• Firewall logging for ICMPv6 deny actions.\n\nStep 1 — Verify ICMPv6 type 2 is permitted through all transit firewalls (see UC-5.20.131).\n\nStep 2 — Create monitoring searches for PMTUD failures.\n\n**Test PMTUD end-to-end:**\n```bash\nping6 -s 1400 -M do <target>\n```\nIf this fails with 'Message too long' and the connection works with -s 1200, there's a PMTUD black hole.\n\nStep 3 — Validate PMTUD path.\n\nStep 4 — Operationalize\n**Dashboard:** PMTUD health. **Alert:** PTB messages blocked — critical.\n\nStep 5 — Troubleshooting\n• PMTUD black hole: Find and fix the firewall blocking ICMPv6 type 2. As a workaround, reduce TCP MSS: `ipv6 tcp adjust-mss 1220`.",
+  "detailedImplementation": "Prerequisites\n• Zeek or Suricata sensor.\n• Firewall logging for ICMPv6 deny actions.\n\nStep 1 — Verify ICMPv6 type 2 is permitted through all transit firewalls (see UC-5.20.131).\n\nStep 2 — Create monitoring searches for PMTUD failures.\n\n**Test PMTUD end-to-end:**\n```bash\nping6 -s 1400 -M do <target>\n```\nIf this fails with 'Message too long' and the connection works with -s 1200, there's a PMTUD black hole.\n\nStep 3 — Validate PMTUD path.\n\nStep 4 — Operationalize\n**Dashboard:** PMTUD health. **Alert:** PTB messages blocked — critical.\n\nStep 5 — Troubleshooting\n• PMTUD black hole: Find and fix the firewall blocking ICMPv6 type 2. As a workaround, reduce TCP MSS: `ipv6 tcp adjust-mss 1220`.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise / Zeek TA — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=zeek:conn, cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`events, host, is_ipv6, pmtud_issue`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Imagine posting a large package that's too big for some mailboxes along the route. Normally, the postal service sends you a message saying 'make it smaller.' If someone blocks those messages, your package just disappears and you don't know why. We watch for these 'make it smaller' messages being blocked, so large deliveries don't silently fail.",
   "prerequisiteUseCases": [
     "UC-5.20.131",

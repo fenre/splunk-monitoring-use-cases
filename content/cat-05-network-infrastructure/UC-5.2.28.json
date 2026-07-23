@@ -8,6 +8,12 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'BGP Peering Status and Route Stability (Meraki MX)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.2.28).",
+  "evidence": "Saved search uc_5_2_28_bgp_peering_status_and_route_stability_m, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'BGP Peering Status and Route Stability (Meraki MX)'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.2.28.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily) — calls GET /organizations/{orgId}/appliance/vpn/statuses. NOTE 1: Meraki MX does NOT speak BGP at the appliance level (it uses Auto VPN / SD-WAN dynamic path selection instead). This UC has been pivoted to monitor Auto VPN peer reachability — the closest semantically-equivalent control. For real BGP monitoring on the Cisco WAN tier, use the cat-5.x BGP UCs that target IOS XE / SD-WAN / NSO sourcetypes. NOTE 2: per the Meraki API v1 spec, the per-network peer array is `merakiVpnPeers{}` (NOT `vpnPeers{}`); each peer struct exposes `networkId`, `networkName`, `reachability`, `priority`. Per-peer byte counters are NOT on this endpoint — they live on the separate Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics).",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:appliancesdwanstatuses\" earliest=-1h\n| rename networkId as hub_network_id, networkName as hub_network_name\n| spath path=merakiVpnPeers{} output=peer_arr\n| mvexpand peer_arr\n| spath input=peer_arr\n| stats latest(reachability) as reachability,\n        latest(priority)     as priority\n         by hub_network_id, hub_network_name, networkId, networkName\n| where reachability != \"reachable\"\n| sort hub_network_name",
@@ -19,10 +25,26 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Reconvergence, ISPs, and lab peers can jolt route tables; confirm whether the next hop is still intended.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco",
     "syslog"
@@ -31,6 +53,12 @@
     "cisco_meraki",
     "cisco_sdwan"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily) — calls GET /organizations/{orgId}/appliance/vpn/statuses. NOTE 1: Meraki MX does NOT speak BGP at the appliance level (it uses Auto VPN / SD-WAN dynamic path selection instead). This UC has been pivoted to monitor Auto VPN peer reachability — the closest semantically-equivalent control. For real BGP monitoring on the Cisco WAN tier, use the cat-5.x BGP UCs that target IOS XE / SD-WAN / NSO sourcetypes. NOTE 2: per the Meraki API v1 spec, the per-network peer array is `merakiVpnPeers{}` (NOT `vpnPeers{}`); each peer struct exposes `networkId`, `networkName`, `reachability`, `priority`. Per-peer byte counters are NOT on this endpoint — they live on the separate Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics)..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Appliance VPN Statuses input in Splunk_TA_cisco_meraki — it requires the OAuth scope `sdwan:telemetry:read`. 2. Each event represents one MX appliance and carries a `merakiVpnPeers[]` array (NOT `vpnPeers[]`); each peer struct contains `{networkId, networkName, reachability, priority}` per Meraki API v1. 3. Use `spath path=merakiVpnPeers{} output=peer_arr` then `mvexpand peer_arr` then `spath input=peer_arr` to flatten one row per peer. Rename the outer hub identifiers first (the i…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:appliancesdwanstatuses\" earliest=-1h\n| rename networkId as hub_network_id, networkName as hub_network_name\n| spath path=merakiVpnPeers{} output=peer_arr\n| mvexpand peer_arr\n| spath input=peer_arr\n| stats latest(reachability) as reachability,\n        latest(priority)     as priority\n         by hub_network_id, hub_network_name, networkId, networkName\n| where reachability != \"reachable\"\n| sort hub_network_name\n```\n\nUnderstanding this SPL\n\n**BGP Peering Status and Route Stability (Meraki MX)** — Operations teams monitor Meraki MX BGP peering state transitions and route stability, detecting peer failures and flapping that cause routing disruptions.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Appliance VPN Statuses input (sourcetype=meraki:appliancesdwanstatuses, daily) — calls GET /organizations/{orgId}/appliance/vpn/statuses. NOTE 1: Meraki MX does NOT speak BGP at the appliance level (it uses Auto VPN / SD-WAN dynamic path selection instead). This UC has been pivoted to monitor Auto VPN peer reachability — the closest semantically-equivalent control. For real BGP monitoring on the Cisco WAN tier, use the cat-5.x BGP UCs that target IOS XE / SD-WAN / NSO sourcetypes. NOTE 2: per the Meraki API v1 spec, the per-network peer array is `merakiVpnPeers{}` (NOT `vpnPeers{}`); each peer struct exposes `networkId`, `networkName`, `reachability`, `priority`. Per-peer byte counters are NOT on this endpoint — they live on the separate Appliance VPN Stats input (sourcetype=meraki:appliancesdwanstatistics). **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:appliancesdwanstatuses. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:appliancesdwanstatuses\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• `stats` rolls up events into metrics; results are split **by hub_network_id, hub_network_name, networkId, networkName** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where reachability != \"reachable\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: BGP peer status table; route change timeline; peering stability gauge.",
-  "grandmaExplanation": "We watch border gateway and route health messages on the same gear so a bad neighbor or wobbly path is easier to spot early."
+  "grandmaExplanation": "We watch border gateway and route health messages on the same gear so a bad neighbor or wobbly path is easier to spot early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

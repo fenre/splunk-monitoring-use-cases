@@ -9,7 +9,13 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Cloudflare Logpush (Gateway DNS/HTTP logs), `sourcetype=cloudflare:gateway`",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.57).",
+  "evidence": "Saved search uc_17_3_57_cloudflare_gateway_swg_dns_and_http_filt, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Cloudflare Gateway (SWG) DNS and HTTP Filtering'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.57.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
+  "dataSources": "Cloudflare Logpush (Gateway DNS/HTTP logs), `sourcetype=cloudflare:gateway` Indexes: proxy. Sourcetypes: cloudflare:gateway. Key fields: action, category, policy_name, user_email. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Cloudflare App for Splunk (Splunkbase 4501)",
   "spl": "index=proxy sourcetype=\"cloudflare:gateway\" earliest=-7d\n| where action IN (\"block\", \"isolate\")\n| stats count by policy_name, category, action, user_email\n| sort -count",
   "description": "Cloudflare Gateway provides DNS-layer and HTTP-layer filtering for all users. DNS blocks stop threats before connections are established; HTTP inspection enforces content and application policies.",
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "mitreAttack": [
     "T1071.001",
     "T1071.004"
@@ -37,7 +55,16 @@
   "equipment": [
     "cloudflare"
   ],
+  "equipmentModels": [
+    "cloudflare_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Cloudflare Gateway logs via Logpush in `index=cloudflare` with `sourcetype=cloudflare:logpush:gateway_dns` and `sourcetype=cloudflare:logpush:gateway_http`. Key fields (DNS): `QueryName`, `QueryType`, `PolicyName`, `Action` (allow/block/override), `DeviceName`, `Email`. Key fields (HTTP): `URL`, `Action`, `PolicyName`, `ContentCategory`, `SecurityCategory`.\n• Cloudflare Gateway combines DNS filtering (block domains before connection) and HTTP inspection (inspect content after TLS decryption). DNS filtering is lighter but less granular; HTTP inspection sees URLs and content.\n\nStep 1 — Configure data collection\nConfigure Gateway Logpush: Cloudflare Dashboard > Zero Trust > Logs > Logpush > create jobs for Gateway DNS and Gateway HTTP datasets.\n\nVerify:\n```spl\n(index=cloudflare sourcetype=\"cloudflare:logpush:gateway_dns\") OR (index=cloudflare sourcetype=\"cloudflare:logpush:gateway_http\")\n| stats count by sourcetype, Action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Gateway filtering overview:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:logpush:gateway_dns\" Action=block earliest=-7d\n| timechart span=1d count by SecurityCategory limit=10\n```\n\nUnderstanding this SPL: Trends DNS blocks by Cloudflare security category. 'Malware', 'Phishing', and 'Command & Control' are the critical categories. DNS blocks are the earliest interception — they prevent even the initial connection. A spike indicates active campaigns. Persistent blocks from the same device suggest a compromised endpoint.\n\nHTTP inspection blocks:\n```spl\nindex=cloudflare sourcetype=\"cloudflare:logpush:gateway_http\" Action=block earliest=-24h\n| stats count by ContentCategory, SecurityCategory, Email\n| sort - count\n```\n\nStep 3 — Validate\n(a) Resolve a known-blocked domain. Verify DNS block.\n(b) In Cloudflare: Zero Trust > Logs > Gateway.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DNS block trend. Row 2 — HTTP inspection blocks. Row 3 — C2/Malware blocks by device.\nAlert: Immediate on C2/Malware DNS blocks from internal devices.\n\nRunbook:\n1. **C2 DNS block** — Device compromised. Isolate and investigate.\n2. **Phishing DNS spike** — Active campaign. Alert users.\n3. **HTTP block on legit site** — Miscategorization. Submit for review.\n\nStep 5 — Troubleshooting\n• **No Gateway DNS data** — Logpush for Gateway DNS may not be enabled.\n• **No HTTP data** — HTTP inspection requires TLS decryption to be enabled.",
   "grandmaExplanation": "Cloudflare blocks dangerous websites at two levels — first it prevents your computer from even looking up the address (DNS), and then it inspects the actual content. We monitor both levels because the DNS blocks catch threats at the earliest possible moment, before any data is exchanged.",
-  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client"
+  "hardware": "Cloudflare Zero Trust (cloud), Cloudflare WARP client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

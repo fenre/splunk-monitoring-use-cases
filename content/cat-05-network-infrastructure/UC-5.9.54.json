@@ -9,6 +9,12 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'MTTR Reduction via Network Fault Isolation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.54).",
+  "evidence": "Saved search uc_5_9_54_mttr_reduction_via_network_fault_isolati, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "controlTest": {
+    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'MTTR Reduction via Network Fault Isolation'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.54.",
+    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+  },
   "dataSources": "**Multiple ThousandEyes data sources combined for fault isolation:**\n\n(1) `index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` — Network and HTTP metrics for quantifying the impact and identifying degraded paths.\n\n(2) `index=thousandeyes_pathvis sourcetype=cisco:thousandeyes:path-vis` — Hop-by-hop path data pinpointing the exact network node where degradation begins.\n\n(3) `index=thousandeyes_events sourcetype=cisco:thousandeyes:event` — Internet Insights events confirming whether the issue is an ISP/internet outage vs internal.\n\n(4) `index=thousandeyes_alerts sourcetype=cisco:thousandeyes:alerts` — ThousandEyes alerts with timestamps for measuring MTTR.\n\nThis UC aggregates data from all four ThousandEyes indexes to provide a complete fault isolation workflow, reducing Mean Time To Resolution (MTTR) by eliminating the investigation phase.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` sourcetype=\"cisco:thousandeyes:alerts\" state=\"active\" severity=\"critical\"\n| stats earliest(_time) as alert_start by alert.rule.name, alert.test.name\n| join type=left alert.test.name [search `stream_index` thousandeyes.test.type=\"agent-to-server\" | stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss by thousandeyes.test.name | rename thousandeyes.test.name as alert.test.name]\n| join type=left alert.test.name [search `event_index` (type=\"Network Outage\" OR type=\"DNS Issue\") state=\"active\" | stats count as external_events by thousandeyes.test.name | rename thousandeyes.test.name as alert.test.name]\n| eval fault_domain=if(external_events > 0, \"External (ISP/Internet)\", \"Internal (Network/App)\")\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| table alert.rule.name, alert.test.name, alert_start, avg_latency_ms, avg_loss, external_events, fault_domain\n| sort -avg_loss",
@@ -19,18 +25,26 @@
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Internet Insights",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes path visualization",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Fault domain misclassification.** An internal network issue (e.g., a misconfigured firewall) may not generate an Internet Insights event but may also not show clearly in path visualization if the affected hop doesn't respond to ICMP. The absence of an external event doesn't definitively prove an internal fault.\n\n**Partial outages.** An ISP issue affecting only some agents may not trigger an Internet Insights event (which requires a threshold of affected vantage points). The fault domain may classify as Internal when it's actually a localized external issue.\n\n**Stale path visualization data.** Path visualization data is polled via API, not pushed in real-time. During the first minutes of an incident, path data may not yet reflect the current state. Wait at least 10 minutes before relying on path data for fault isolation.",
+  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
   "equipment": [
     "cisco"
   ],

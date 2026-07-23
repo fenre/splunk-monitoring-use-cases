@@ -36,8 +36,8 @@
   "dataSources": "KV Store `rail_risk_refresh_lookup`. Material-change events from CMDB and engineering pipelines.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_risk_refresh_lookup\n| where change_status=\"material\"\n| eval now_ts = now()\n| eval days_since_material = if(isnotnull(change_classified_material_at), round((now_ts - change_classified_material_at) / 86400, 0), null())\n| eval refresh_status = case(\n    isnull(fresh_assessment_triggered_at) AND days_since_material > 14, \"refresh_not_triggered\",\n    isnull(fresh_assessment_signed_at) AND days_since_material > 30, \"refresh_overdue\",\n    isnotnull(fresh_assessment_signed_at), \"current\",\n    1=1, \"in_progress\")\n| where refresh_status != \"current\" AND refresh_status != \"in_progress\"\n| table change_id zone_id change_classified_material_at fresh_assessment_triggered_at fresh_assessment_signed_at days_since_material refresh_status",
-  "description": "Tracks material changes against fresh-risk-assessment SLAs.",
-  "value": "Without refresh, the risk register decays into irrelevance.",
+  "description": "Tracks material changes against fresh-risk-assessment SLAs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
+  "value": "Without refresh, the risk register decays into irrelevance. Early detection reduces outage duration, supports audit evidence, and gives operators actionable context before users report impact.",
   "implementation": "(1) Define material-change classification criteria in `rail_risk_refresh_lookup`. (2) SOAR `rail-material-change-detect` triggers on CMDB changes. (3) Schedule UC-22.55.22 weekly Monday 08:30.",
   "visualization": "(Panel 1) Refresh status. (Panel 2) Overdue queue. (Panel 3) Refresh-trigger sources.",
   "cimModels": [
@@ -47,7 +47,23 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 11.3",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Common Information Model",
+      "url": "https://docs.splunk.com/Documentation/CIM",
+      "retrieved": "2026-04-25"
     }
   ],
   "knownFalsePositives": "1. **Multi-zone material change** — one change may need refresh in multiple zones. Suppression: tracked separately per zone.\n\n**Suppression mechanism**: KV Store `clc_22_55_22_exceptions` with documented Risk Manager approval and 14-day maximum grant.",
@@ -76,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_risk_refresh_lookup`.\n\n## Step 1 — Refresh collection\n\n```ini\n[rail_risk_refresh_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.zone_id = string\nfield.change_classified_material_at = number\nfield.change_status = string\nfield.fresh_assessment_triggered_at = number\nfield.fresh_assessment_signed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.22: CLC/TS 50701 Continuous Risk Refresh]\ncron_schedule = 30 8 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.22,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-3\naction.notable.param.rule_title = Rail risk-refresh overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `refresh_overdue`** (owner: Risk Manager, severity P2): trigger refresh assessment within 14 days.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Material-change definition**: new vendor, new conduit, new threat class, new vulnerability class.\n- **Continuous threat feed**: integrate threat intel for refresh triggers.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_risk_refresh_lookup`.\n\n## Step 1 — Refresh collection\n\n```ini\n[rail_risk_refresh_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.zone_id = string\nfield.change_classified_material_at = number\nfield.change_status = string\nfield.fresh_assessment_triggered_at = number\nfield.fresh_assessment_signed_at = number\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.22: CLC/TS 50701 Continuous Risk Refresh]\ncron_schedule = 30 8 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.22,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-3\naction.notable.param.rule_title = Rail risk-refresh overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `refresh_overdue`** (owner: Risk Manager, severity P2): trigger refresh assessment within 14 days.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Material-change definition**: new vendor, new conduit, new threat class, new vulnerability class.\n- **Continuous threat feed**: integrate threat intel for refresh triggers.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_since_material, refresh_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When something big changes (new equipment, new vendor, new known weakness), we must re-check our cyber-risks. We track every big change to make sure the re-check happens; if not, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.4"
