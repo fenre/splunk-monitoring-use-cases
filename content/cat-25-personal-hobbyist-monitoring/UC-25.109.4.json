@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.109.4",
+  "title": "Vacuum Battery Depletion Anomaly",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Anomaly",
+    "Reliability"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Roborock sessions (`roborock:session`), Tidy schedules (`tidy:schedule`), cleaning checklists (`cleaning:checklist`), and vacuum runtime logs (`vacuum:runtime`).",
+  "app": "Roborock vacuum session exports, Tidy scheduling logs, cleaning checklists, and runtime telemetry from robot vacuums ingested into Splunk HEC.",
+  "spl": "index=personal sourcetype=vacuum:runtime device_name=* battery_pct_end=* runtime_minutes=*\n| eventstats avg(battery_pct_end) as avg_battery, stdev(battery_pct_end) as battery_stdev by device_name\n| eval z_score=round((battery_pct_end-avg_battery)/nullif(battery_stdev,0),2)\n| where z_score<=-2\n| table _time device_name runtime_minutes battery_pct_end avg_battery z_score",
+  "description": "Detects vacuum sessions where end-of-run battery fell two standard deviations below the device average.",
+  "value": "Sudden battery drops often precede failing cells or brushes binding, causing incomplete cleans.",
+  "implementation": "Capture `battery_pct_end` and `runtime_minutes` on every run and alert on low-battery outliers.",
+  "visualization": "Table of anomalous sessions with battery z-score.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Roborock Developer",
+      "url": "https://www.roborock.com/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It spots vacuum runs that ended with unusually low battery compared with normal."
+}

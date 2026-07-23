@@ -1763,6 +1763,66 @@ window.NON_TECHNICAL = {
       { name: "Podcasts & audiobooks", description: "We measure listening time, queue depth, and finish rates — so the backlog shrinks and good episodes do not get lost.", ucs: [
         { id: "25.100.1", why: "Track weekly listening hours against your goal, nudging you back when the queue only grows." },
         { id: "25.100.3", why: "Surface started-but-unfinished audiobooks, so half-heard stories get finished or dropped on purpose." }
+      ]},
+      { name: "Home insurance & claims", description: "We watch renewal quotes, open claims, and premium trends — so coverage shocks and slow adjusters do not catch you off guard.", ucs: [
+        { id: "25.101.1", why: "Flag renewal premiums that jumped ten percent or more, giving you time to shop before auto-pay hits." },
+        { id: "25.101.2", why: "List open claims older than thirty days, turning vague worry into a follow-up checklist." }
+      ]},
+      { name: "Tax prep & filing", description: "We track return progress, estimated payments, and document imports — so April feels like a project plan instead of a panic.", ucs: [
+        { id: "25.102.1", why: "Show which tax forms are still missing, before the filing deadline gets uncomfortably close." },
+        { id: "25.102.3", why: "Compare estimated tax payments against what you owe, highlighting underpayment risk early." }
+      ]},
+      { name: "Swimming & lap training", description: "We log pool sessions, pace trends, and meet results — so lap goals and recovery weeks stay visible.", ucs: [
+        { id: "25.103.1", why: "Track weekly swim volume against your plan, catching slippage before race day." },
+        { id: "25.103.4", why: "Chart pace per hundred metres over time, showing whether intervals are actually getting faster." }
+      ]},
+      { name: "Skincare & dermatology", description: "We connect prescription shipments, daily skin diaries, and UV exposure — so routines and flare-ups make sense together.", ucs: [
+        { id: "25.104.1", why: "Remind you when a Curology shipment is overdue, before you run out mid-routine." },
+        { id: "25.104.3", why: "Correlate skin diary scores with UV exposure, revealing triggers you might otherwise miss." }
+      ]},
+      { name: "Estate planning & legal", description: "We track trust documents, will status, and review dates — so important paperwork stays current instead of aging quietly.", ucs: [
+        { id: "25.105.1", why: "Flag estate documents not reviewed in over a year, prompting a refresh before life changes pile up." },
+        { id: "25.105.3", why: "List power-of-attorney records nearing expiry, so authorisations stay valid when needed." }
+      ]},
+      { name: "Short-term rental hosting", description: "We combine bookings, payouts, and guest reviews — so hosting income and turnover work stay in one calm dashboard.", ucs: [
+        { id: "25.106.1", why: "Summarise monthly Airbnb payout totals, making tax prep and pricing decisions easier." },
+        { id: "25.106.3", why: "Track guest review scores over time, showing whether hospitality tweaks are paying off." }
+      ]},
+      { name: "Watch collecting & horology", description: "We log wrist time, service history, and market listings — so the collection earns wear and service stays on schedule.", ucs: [
+        { id: "25.107.1", why: "Show which watches have not been worn in months, turning shelf guilt into rotation plans." },
+        { id: "25.107.3", why: "Alert when a service interval is due, before a stiff movement becomes an expensive repair." }
+      ]},
+      { name: "Wine & spirits cellar", description: "We inventory bottles, tasting notes, and drinking windows — so the cellar matures on purpose instead of by accident.", ucs: [
+        { id: "25.108.1", why: "List bottles approaching their recommended drinking window, so good wine is opened at its peak." },
+        { id: "25.108.4", why: "Track tasting notes by varietal, revealing what you actually enjoy versus what you thought you would." }
+      ]},
+      { name: "Home cleaning & housekeeping", description: "We track robot vacuum runs, cleaning schedules, and chore checklists — so the house stays maintained without mental load.", ucs: [
+        { id: "25.109.1", why: "Show rooms that have not been vacuumed in two weeks, prompting a pass before dust becomes obvious." },
+        { id: "25.109.3", why: "Compare scheduled versus completed cleaning tasks, revealing where the routine breaks down." }
+      ]},
+      { name: "Pharmacy & prescriptions", description: "We watch refill dates, pickup confirmations, and adherence logs — so medications stay on track without sticky notes.", ucs: [
+        { id: "25.110.1", why: "Flag prescriptions due for refill within seven days, before you run out on a busy week." },
+        { id: "25.110.3", why: "Track adherence gaps longer than forty-eight hours, turning vague worry into a conversation with your clinician." }
+      ]},
+      { name: "Personal GitHub & side projects", description: "We summarise repo activity, open issues, and release cadence — so side projects get attention without becoming guilt trips.", ucs: [
+        { id: "25.111.1", why: "Show repos with no commits in thirty days, highlighting ideas that stalled versus ones still alive." },
+        { id: "25.111.3", why: "Count open issues by project, making it clear where triage would help most." }
+      ]},
+      { name: "Neighborhood & hyperlocal", description: "We aggregate Nextdoor posts, Ring alerts, and local notices — so hyperlocal noise becomes signal you can skim.", ucs: [
+        { id: "25.112.1", why: "Summarise Ring Neighbors alerts by category, showing whether crime, lost pets, or sales dominate the feed." },
+        { id: "25.112.3", why: "Track local emergency alerts received, so you know when official warnings actually reached you." }
+      ]},
+      { name: "Hot tub & spa", description: "We monitor chemistry tests, filter changes, and energy use — so the spa stays safe and efficient through the seasons.", ucs: [
+        { id: "25.113.1", why: "Alert when sanitizer readings drift out of range, before cloudy water or skin irritation appears." },
+        { id: "25.113.3", why: "Track filter maintenance intervals, so replacements happen on schedule instead of after a clog." }
+      ]},
+      { name: "Eyewear & vision care", description: "We track lens orders, prescription expiry, and exam dates — so glasses and contacts stay current without calendar hunting.", ucs: [
+        { id: "25.114.1", why: "Remind you when a glasses prescription expires, before an outdated Rx causes headaches." },
+        { id: "25.114.3", why: "Flag contact lens orders overdue for reorder, so you never scramble for dailies on a trip." }
+      ]},
+      { name: "Pet insurance & vet care", description: "We combine Trupanion claims, vet invoices, and premium bills — so pet healthcare costs stay predictable.", ucs: [
+        { id: "25.115.1", why: "Summarise open pet insurance claims and days outstanding, making follow-up with the insurer straightforward." },
+        { id: "25.115.3", why: "Track annual vet spend against premium paid, showing whether coverage is earning its keep." }
       ]}
     ]
   }
