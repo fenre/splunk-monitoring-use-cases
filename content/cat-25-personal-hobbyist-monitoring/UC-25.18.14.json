@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.18.14",
+  "title": "Gate and Fence Breach Sequence Correlation",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Physical Security"
+  ],
+  "splunkPillar": "Security",
+  "dataSources": "Object detections (`frigate:event`), camera health (`camera:health`), alarm state changes (`alarm:event`), smart-lock access (`lock:access`), plate and gate events (`gate:event`), and doorbell delivery telemetry (`doorbell:event`).",
+  "app": "Home-security telemetry from Frigate and Blue Iris detections, camera health feeds, smart locks, alarm panels, doorbells, and gate sensors streamed to Splunk HEC via MQTT and Home Assistant integrations.",
+  "spl": "index=personal sourcetype=gate:event\n| sort 0 _time\n| streamstats window=1 current=f last(sensor) as prev_sensor last(_time) as prev_time by zone\n| eval correlated=if(prev_sensor=\"fence\" AND sensor=\"gate\" AND _time-prev_time<=120,1,0)\n| stats sum(correlated) as breach_sequences by zone",
+  "description": "Correlates fence-trigger and gate-trigger events that happen close together to identify likely perimeter entries rather than isolated noise.",
+  "value": "Multi-sensor sequences reduce false alarms and give you a clearer view of when something actually crossed the perimeter.",
+  "implementation": "Normalize gate magnetic contacts and fence sensors to a shared zone name, then look for short event chains.",
+  "visualization": "Table of likely breach sequences by perimeter zone.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Frigate NVR - documentation",
+      "url": "https://docs.frigate.video/"
+    },
+    {
+      "title": "Home Assistant - lock integration",
+      "url": "https://www.home-assistant.io/integrations/lock/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "mqtt"
+  ],
+  "grandmaExplanation": "It watches when two nearby security sensors trip in a pattern that looks more like a real entry than random movement."
+}

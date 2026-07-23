@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.6.13",
+  "title": "Solar Clipping Detection at Noon",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Performance",
+    "Quality"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "spl": "index=personal sourcetype=solaredge:power\n| eval hour=strftime(_time,\"%H\")\n| where hour>=11 AND hour<=14\n| bin _time span=5m\n| stats avg(power_w) as avg_power by inverter_serial _time\n| streamstats current=f last(avg_power) as prev_power by inverter_serial\n| eval clipped=if(avg_power=prev_power AND avg_power>0,1,0)\n| stats sum(clipped) as clipped_points by inverter_serial\n| where clipped_points>12\n| sort - clipped_points",
+  "description": "Looks for long flat-topped midday output plateaus that suggest inverter clipping instead of weather or load variation.",
+  "value": "Clipping means your array is producing more than the inverter will pass through; knowing when it happens informs upgrade and expansion decisions.",
+  "implementation": "Ingest inverter power at a fine cadence; review midday plateaus and compare them against panel and inverter sizing assumptions.",
+  "visualization": "Table of inverters by count of likely clipped intervals.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "SolarEdge Monitoring API",
+      "url": "https://developers.solaredge.com/docs/monitoring-api/"
+    },
+    {
+      "title": "Enphase API",
+      "url": "https://developer-v4.enphase.com/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "mqtt"
+  ],
+  "grandmaExplanation": "It logs when your solar system is hitting a ceiling at lunchtime instead of making all the power the panels could provide."
+}

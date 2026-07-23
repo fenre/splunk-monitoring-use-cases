@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.12.17",
+  "title": "Salary-to-Savings Sweep Compliance",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Cost"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds.",
+  "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs.",
+  "spl": "index=personal sourcetype=firefly:txn\n| where match(category,\"(?i)salary|payroll|income|savings transfer|brokerage|investment\")\n| bin _time span=1mon\n| stats sum(eval(if(amount>0,amount,0))) as income, sum(eval(if(amount<0 AND match(category,\"(?i)savings transfer|brokerage|investment\"),abs(amount),0))) as saved by _time\n| eval savings_rate=round(100*saved/income,1)\n| where income>0 AND savings_rate<20\n| sort savings_rate",
+  "description": "Checks whether the percent of income swept into savings or investments stayed above your chosen floor each month.",
+  "value": "This turns 'I should save more' into an enforceable personal SLO with a measurable miss condition.",
+  "implementation": "Tag income and savings-transfer categories clearly in your ledger export; review the monthly savings rate against your target.",
+  "visualization": "Monthly table of income, saved amount, and savings rate.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Firefly III - Documentation",
+      "url": "https://docs.firefly-iii.org/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "exchange"
+  ],
+  "grandmaExplanation": "It checks whether you moved enough of each month's income into savings instead of letting it all get spent."
+}

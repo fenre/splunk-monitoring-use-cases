@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.5.11",
+  "title": "Thermostat Short-Cycling Detection",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Fault",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors.",
+  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC.",
+  "spl": "index=personal sourcetype=ecobee:thermostat\n| sort 0 thermostat _time\n| streamstats current=f last(hvac_state) as prev_state by thermostat\n| eval cycle=if(hvac_state!=prev_state,1,0)\n| bin _time span=1h\n| stats sum(cycle) as cycles, avg(runtime_min) as avg_runtime by thermostat _time\n| where cycles>6 AND avg_runtime<5\n| sort - cycles",
+  "description": "Looks for lots of very short HVAC cycles, the pattern that usually hints at bad tuning, sensor placement, or equipment issues.",
+  "value": "Short cycling wastes energy and stresses equipment; catching it early is cheaper than waiting for a comfort complaint or a repair bill.",
+  "implementation": "Forward thermostat state transitions and runtime metrics; review hourly periods with many short cycles.",
+  "visualization": "Hourly trend of HVAC cycles and average runtime.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "ecobee Developer API",
+      "url": "https://www.ecobee.com/home/developer/api/introduction/index.shtml"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "f5",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "f5_asm"
+  ],
+  "grandmaExplanation": "It tracks when your heating or cooling keeps turning on and off too quickly instead of running in a healthy steady way."
+}

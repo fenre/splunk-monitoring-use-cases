@@ -12,6 +12,30 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.15.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Wave 6 (Depth) — 481 new use cases deepening every existing
+  subcategory from 7–12 up to 18 each, taking the fun category to 1,080 UCs
+  across 60 subcategories.** Waves 1–5 shipped breadth in round batches of
+  ten per subcategory; Wave 6 removes that artificial cap and fills in the
+  long tail of real consumer telemetry each topic deserves — sourdough-rise
+  ESP32 probes, Klipper print telemetry, Raspberry Shake seismographs, SDR
+  decodes, beehive weight sensors, reef-tank controllers, ranked-match stats,
+  swear-jar ledgers, wardrobe cost-per-wear, elder-care fall alerts, wedding
+  budget burn-down, genealogy brick-walls, and dozens more per life domain.
+  Every one of the 60 subcategories now carries 18 genuinely runnable SPL
+  queries against real APIs, webhooks, MQTT feeds, and exports on
+  `index=personal`.
+
+### Changed
+
+- Registered 79 additional personal sourcetypes uncovered by the depth pass.
+- Committed append-mode cat-25 generators under `scripts/gen_cat25_*.py` so
+  future expansions continue from the next free UC ID instead of round wave
+  caps.
+
 ## [8.14.0] - 2026-07-22
 
 ### New Use Cases

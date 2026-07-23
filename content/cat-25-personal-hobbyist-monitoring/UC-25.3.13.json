@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.3.13",
+  "title": "Tire Pressure Slow Leak Trend",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Safety",
+    "Anomaly"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`).",
+  "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT.",
+  "spl": "index=personal sourcetype=obd:pid metric=tire_pressure\n| bin _time span=1d\n| stats avg(front_left_psi) as fl, avg(front_right_psi) as fr, avg(rear_left_psi) as rl, avg(rear_right_psi) as rr by vin _time\n| eval avg_psi=round((fl+fr+rl+rr)/4,1)\n| sort 0 vin _time\n| streamstats current=f last(avg_psi) as prev_avg by vin\n| eval delta=round(avg_psi-coalesce(prev_avg,avg_psi),1)\n| where delta<-2\n| sort delta",
+  "description": "Looks for day-over-day drops in average tire pressure so you catch a slow leak before it graduates into a roadside inconvenience.",
+  "value": "TPMS warnings fire late by design; a trend-based leak detector gives you time to top up or inspect a tire before safety or efficiency suffers.",
+  "implementation": "Load OBD-II tire-pressure snapshots daily; schedule a check for any sustained downward pressure move.",
+  "visualization": "Trend chart of average tire pressure with day-over-day change markers.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "OBD-II PIDs reference",
+      "url": "https://en.wikipedia.org/wiki/OBD-II_PIDs"
+    },
+    {
+      "title": "Tesla Fleet API",
+      "url": "https://developer.tesla.com/docs/fleet-api"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "mqtt"
+  ],
+  "grandmaExplanation": "It warns when one of your tires is slowly losing air over a few days instead of all at once."
+}

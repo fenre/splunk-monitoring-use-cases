@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.3.18",
+  "title": "Charging Window Missed Before Departure",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Risk"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`).",
+  "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT.",
+  "spl": "index=personal sourcetype=tesla:charge\n| eval hours_to_departure=round((scheduled_departure_ts-_time)/3600,1)\n| where hours_to_departure>=0 AND hours_to_departure<=2\n| stats latest(battery_pct) as battery_pct, latest(charge_limit_pct) as limit_pct by vin scheduled_departure_ts\n| where battery_pct<limit_pct-10\n| sort battery_pct",
+  "description": "Checks the final couple of hours before scheduled departure and finds the mornings where charging is clearly not on track to hit the planned limit.",
+  "value": "A smart departure schedule is only useful if the pack is actually ready when you leave; this catches the miss while there is still time to react.",
+  "implementation": "Ingest charge telemetry with scheduled departure and charge-limit values; alert if the battery is too far below target near departure time.",
+  "visualization": "Table of departures at risk of leaving under target state of charge.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tesla Fleet API",
+      "url": "https://developer.tesla.com/docs/fleet-api"
+    },
+    {
+      "title": "Open Charge Point Protocol",
+      "url": "https://www.openchargealliance.org/protocols/open-charge-point-protocol/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "mqtt"
+  ],
+  "grandmaExplanation": "It surfaces when your car is getting close to departure time and still looks too undercharged to hit the goal you set."
+}

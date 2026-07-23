@@ -6,43 +6,34 @@
 
 ## Current release
 
-**v8.14.0 — Personal & Hobbyist Monitoring (cat-25) Wave 5 (Stretch B): life's bigger projects — chronic-condition & elder care, weddings, renovation, genealogy, faith, volunteering, memories, the personal Life-OS, and self-forecasting (599 use cases across 60 subcategories)** *(shipped 2026-07-22)*
+**v8.15.0 — Personal & Hobbyist Monitoring (cat-25) Wave 6 (Depth): 481 new use cases deepening every subcategory to 18 each (1,080 use cases across 60 subcategories)** *(shipped 2026-07-23)*
 
-Theme: **the whole of a life, instrumented.** v8.14.0 grows cat-25 from
-499 to **599 use cases** by adding ten new subcategories — Chronic-Condition
-Management, Elder Care & Accessibility, Wedding & Event Planning, Home
-Renovation & Project Management, Genealogy & Family History, Spiritual
-Practice & Mindfulness, Volunteering & Community, Life-Logging & Memories,
-Personal Life-OS & Gamification, and Self-Forecasting & Prediction Markets on
-Yourself — the fifth wave toward a 1,000+ UC personal-monitoring category.
+Theme: **no more round-number caps.** Waves 1–5 shipped breadth in tidy batches
+of ten per subcategory; Wave 6 fills the long tail of real consumer telemetry
+each life domain deserves. Every one of the 60 subcategories now carries 18
+genuinely runnable SPL queries — fitness wearables, sourdough ESP32 probes,
+Klipper print farms, Raspberry Shake seismographs, beehive weight sensors,
+reef-tank controllers, ranked-match stats, elder-care fall alerts, wedding
+budget burn-down, genealogy brick-walls, and the personal Life-OS meta layer.
 
 ### Shipped outcomes
 
-- **100 new UCs across 10 new subcategories (25.51–25.60).** Chronic-Condition
-  Management (10), Elder Care & Accessibility (10), Wedding & Event Planning
-  (10), Home Renovation & Project Management (10), Genealogy & Family History
-  (10), Spiritual Practice & Mindfulness (10), Volunteering & Community (10),
-  Life-Logging & Memories (10), Personal Life-OS & Gamification (10), and
-  Self-Forecasting & Prediction Markets on Yourself (10).
-- **The parody-the-enterprise meta layer completes.** Personal SLOs with error
-  budgets on your own habits, a life-score composite dashboard, XP and level-ups,
-  household chore leaderboards, quest boards, streak boss-battles, and a
-  life-domain status wall — the enterprise NOC/SRE playbook, turned on yourself.
-- **Care and meaning, instrumented.** Medication adherence and fall-alert
-  coverage for loved ones, wedding and renovation project management, family-tree
-  and DNA research, spiritual-practice consistency, volunteering impact, memory
-  resurfacing, and a self-calibration forecasting scorecard — all over `index=personal`.
-- **Registration + vocabulary updates.** 49 new consumer sourcetypes
-  added to the curated SPL reference vocabulary; the non-technical view
-  gained ten new plain-language areas covering the new subcategories.
+- **481 new UCs across all 60 existing subcategories (25.1–25.60).** Each
+  subcategory deepened from 7–12 up to **18** use cases — the launch set's
+  planned depth target, finally delivered.
+- **1,080 total cat-25 use cases** — crossing the original 1,000+ milestone
+  without adding artificial subcategory boundaries.
+- **79 new consumer sourcetypes** registered in the curated SPL vocabulary.
+- **Append-mode generators** committed under `scripts/gen_cat25_*.py` so
+  future expansions continue from the next free UC ID.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.14.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.15.0 release entry.
 
 ---
 
 ## Previous releases
 
-**v8.13.0 — Personal & Hobbyist Monitoring (cat-25) Wave 4 (Stretch A): hobbies & passions — micro-mobility, aviation, boating, fishing, music, tabletop RPGs, reading, languages, wardrobe, and sustainability (499 use cases across 50 subcategories)** *(shipped 2026-07-22)*
+**v8.14.0 — Personal & Hobbyist Monitoring (cat-25) Wave 5 (Stretch B): life's bigger projects — chronic-condition & elder care, weddings, renovation, genealogy, faith, volunteering, memories, the personal Life-OS, and self-forecasting (599 use cases across 60 subcategories)** *(shipped 2026-07-22)*
 
 Theme: **every passion becomes a data stream.** v8.13.0 grows cat-25 from
 399 to **499 use cases** by adding ten new subcategories toward a 1,000+ UC
@@ -110,7 +101,7 @@ deadband, SKU tier, …) and routes through a registry of pure
 `(driverValues, profile) → {eps, bytesPerEvent}` functions in
 `tools/data-sizing/compute-functions.js`. The 206-source catalogue
 ships with 24 fully-calibrated drivers (every driver carries ≥ 1
-vendor / Splunkbase / Lantern citation drawn from a curated
+vendor / Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Lantern citation drawn from a curated
 whitelist); the remaining sources route through a generic
 fall-through with explicit "pending calibration" provenance so the UI
 can mark them and the regression test snapshot can track them.
@@ -196,7 +187,7 @@ ED-202A).** v8.6.3 lands three tier-1 frameworks in a single release:
    SPDI Rules 2011. Carries the **6-hour incident-reporting clock —
    the shortest such clock in any major jurisdiction**. 8 hand-
    written gold-tier UCs.
-3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443<sup class="ref">[<a href="#ref-4">4</a>]</sup>-3-2 / 62443-3-3**
+3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>-3-2 / 62443-3-3**
    — the universally-recognised Good Engineering Practice (RAGAGEP)
    for Safety Instrumented Systems in the process industries,
    incorporated by reference into OSHA PSM (29 CFR 1910.119), EPA
@@ -439,8 +430,8 @@ evidence pack and **DO-326A becomes the first tier-1 framework with
   22.60.17); full primer section `docs/regulatory-primer.md`
   §4.22 covering DO-326A + DO-355A + DO-356A + DO-391 + FAA
   AC 20-186 + EASA AMC 20-42 + EASA Part-IS, the four-layer
-  enforcement model, and convergence with NIS2<sup class="ref">[<a href="#ref-2">2</a>]</sup> (transport
-  sector) + DORA<sup class="ref">[<a href="#ref-3">3</a>]</sup> (financial-services aviation vendors) + TSA
+  enforcement model, and convergence with NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup> (transport
+  sector) + DORA<sup class="ref">[<a href="#ref-2">2</a>]</sup> (financial-services aviation vendors) + TSA
   SD-1582-21 (US aviation) + ICAO Annex 17 (security of civil
   aviation).
 - **100% clause closure** — DO-326A reaches the catalogue's
@@ -612,7 +603,7 @@ rises to 14 frameworks.
   quality with curated `equipmentModels[]` for the US surface-
   transportation stack (ServiceNow CMDB, Microsoft AD, Cisco ISE for
   OT segmentation, Claroty / Dragos / Nozomi for pipeline and rail
-  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-7">7</a>]</sup> for
+  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-6">6</a>]</sup> for
   CISA submission, ServiceNow Records Management for the TSA 5-year
   retention regime, CyberArk PSM / BeyondTrust for vendor remote
   access, Tenable / Qualys for vulnerability scoring), the Singapore
@@ -837,7 +828,7 @@ correct and every quality signal transparently measured.
 
 - 100 % references coverage across 6,304 UCs
 - 100 % KFP coverage on security categories
-- MITRE ATT&CK<sup class="ref">[<a href="#ref-5">5</a>]</sup> coverage ≥80 % on security categories
+- MITRE ATT&CK<sup class="ref">[<a href="#ref-4">4</a>]</sup> coverage ≥80 % on security categories
 - Weekly link-check workflow
 - Per-UC quality metadata chips (Status, Last reviewed, Splunk versions)
 
@@ -1013,19 +1004,19 @@ See [`GOVERNANCE.md`](GOVERNANCE.md) for the full decision-making process.
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** Beyer, B., Jones, C., Petoff, J., & Murphy, N. R. (Eds.). (2016). *Site Reliability Engineering: How Google Runs Production Systems*. O'Reilly Media. ISBN 978-1491929124. https://sre.google/sre-book/table-of-contents/
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 
-<a id="ref-3"></a>**[3]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
+<a id="ref-3"></a>**[3]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
 
-<a id="ref-4"></a>**[4]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
+<a id="ref-4"></a>**[4]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-5"></a>**[5]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
-<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
 
-<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 
