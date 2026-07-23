@@ -327,11 +327,14 @@ test('item 12 — CSV Drivers cell carries override + falls back to default', ()
 
 // ---------------------------------------------------------------------------
 // Item 13 — Release-notes overlay in index.html shows the current release
-// (v8.14.0) at the top and still documents the Data Sizing tool v2 feature
+// (VERSION file) at the top and still documents the Data Sizing tool v2 feature
 // somewhere in the history (v8.7.0, further down the entry list).
 // ---------------------------------------------------------------------------
-test('item 13 — index.html release-notes overlay shows v8.14.0 at the top', () => {
-  const indexPath = path.join(__dirname, '..', '..', '..', 'index.html');
+test('item 13 — index.html release-notes overlay shows VERSION at the top', () => {
+  const repoRoot = path.join(__dirname, '..', '..', '..');
+  const indexPath = path.join(repoRoot, 'index.html');
+  const versionPath = path.join(repoRoot, 'VERSION');
+  const expectedVersion = fs.readFileSync(versionPath, 'utf8').trim();
   const html = fs.readFileSync(indexPath, 'utf8');
   const open = html.indexOf('<!-- BEGIN RELEASE_NOTES -->');
   const close = html.indexOf('<!-- END RELEASE_NOTES -->');
@@ -339,7 +342,7 @@ test('item 13 — index.html release-notes overlay shows v8.14.0 at the top', ()
     'index.html must contain a release-notes block bracketed by the BEGIN/END comments');
   const block = html.slice(open, close);
   const firstVersion = (block.match(/rn-version-tag (?:major|minor|patch)">([0-9.]+)</) || [])[1];
-  assert.equal(firstVersion, '8.14.0', 'top release-notes entry should be v8.14.0');
+  assert.equal(firstVersion, expectedVersion, `top release-notes entry should be v${expectedVersion}`);
   // The Data Sizing tool v2 feature (v8.7.0) must remain documented in the
   // release-notes history even though it is no longer the top entry.
   assert.match(block, /Data Sizing tool v2/,

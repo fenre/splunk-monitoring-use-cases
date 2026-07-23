@@ -1603,6 +1603,166 @@ window.NON_TECHNICAL = {
       { name: "Predicting your own life", description: "We help you become a better judge of your own future — checking how often your confident guesses come true.", ucs: [
         { id: "25.60.1", why: "See whether things you were sure about actually happened, revealing how well you judge the future." },
         { id: "25.60.6", why: "Keep score of the friendly bets you make, showing whether you come out ahead in the end." }
+      ]},
+      { name: "Your personal life dashboard", description: "We treat your own life like a small operations centre — service health, breach alerts, location visits, and outage runbooks in one calm place.", ucs: [
+        { id: "25.61.1", why: "See which personal apps and services went quiet, so a broken automation does not stay broken for days." },
+        { id: "25.61.4", why: "Get a heads-up when your email shows up in a new data breach, before you forget to change the password." }
+      ]},
+      { name: "Coffee, tea & caffeine", description: "We watch your brews and steep times — espresso shots, pour-overs, and tea timers — so great cups stay repeatable and over-steeped mugs become rare.", ucs: [
+        { id: "25.62.1", why: "Count how often tea gets left too long and turns bitter, so timing drift is easy to fix." },
+        { id: "25.62.5", why: "Track espresso extraction yield over time, showing when the grind or dose needs a tweak." }
+      ]},
+      { name: "Photography & camera gear", description: "We keep your photo workflow honest — which lenses you actually use, shutter counts, and SD cards that are starting to fail.", ucs: [
+        { id: "25.63.1", why: "Show which lenses sit unused while others do all the work, helping you buy smarter and pack lighter." },
+        { id: "25.63.4", why: "Flag SD cards with rising error blocks before they lose a wedding or holiday shoot." }
+      ]},
+      { name: "Motorcycles & powersports", description: "We track rides, track days, and maintenance — odometer trends, lap times, and parts orders — so the bike stays ready when the road calls.", ucs: [
+        { id: "25.64.1", why: "Watch odometer and ride frequency so long gaps between rides do not turn into stale tyres and flat batteries." },
+        { id: "25.64.3", why: "Compare lap times session to session, showing whether track-day practice is really paying off." }
+      ]},
+      { name: "Camping, overlanding & RV", description: "We monitor solar input, propane levels, and off-grid check-ins — so a quiet battery or empty tank never ruins a remote night.", ucs: [
+        { id: "25.65.1", why: "Compare solar charging with battery use, so you know whether the rig can stay off-grid another day." },
+        { id: "25.65.3", why: "Estimate propane burn rate and warn before the tank runs dry mid-trip." }
+      ]},
+      { name: "Board & card games", description: "We log game nights, poker sessions, and tournament prep — so shelves of unplayed games and tilt-heavy streaks are easier to spot.", ucs: [
+        { id: "25.66.1", why: "Highlight board games you own but rarely play, turning shelf guilt into a planned game night." },
+        { id: "25.66.4", why: "Track tournament opening prep hits, showing which openings you actually practice before events." }
+      ]},
+      { name: "Home office & ergonomics", description: "We watch desk time, focus sessions, and meeting load — so standing breaks, stretch reminders, and screen-light habits stay on track.", ucs: [
+        { id: "25.67.1", why: "Compare standing versus sitting minutes at your desk, nudging you toward the mix your back prefers." },
+        { id: "25.67.4", why: "Spot days when back-to-back meetings left no deep-work time at all." }
+      ]},
+      { name: "SaaS subscriptions & renewals", description: "We track renewals, invoices, and seat counts — so forgotten subscriptions and creeping license costs surface before auto-renew hits.", ucs: [
+        { id: "25.68.1", why: "List upcoming renewals with enough lead time to cancel or renegotiate before the charge lands." },
+        { id: "25.68.3", why: "Compare paid seats with active users, catching shelfware before it renews again." }
+      ]},
+      { name: "Houseplants & indoor jungle", description: "We watch watering schedules, soil moisture, and grow-light hours — so thirsty plants and leggy seedlings get help before they droop.", ucs: [
+        { id: "25.69.1", why: "Flag plants overdue for watering, so a busy week does not become a dead fiddle-leaf fig." },
+        { id: "25.69.3", why: "Track grow-light photoperiod by zone, keeping seedlings on a healthy day-length rhythm." }
+      ]},
+      { name: "Laundry & major appliances", description: "We monitor washer, dryer, and dishwasher cycles — plus HVAC runtime — so lint buildup, salt refills, and odd runtime spikes get caught early.", ucs: [
+        { id: "25.70.1", why: "Spot washers finishing overnight when you wanted clothes dry by morning." },
+        { id: "25.70.4", why: "Track HVAC runtime against the weather, showing when the system is working harder than it should." }
+      ]},
+      { name: "Teens, school & homework", description: "We keep schoolwork, screen time, and chores visible — missing assignments, SAT practice trends, and overdue tasks in one family-friendly view.", ucs: [
+        { id: "25.71.1", why: "List missing Canvas assignments before the term average takes a hit." },
+        { id: "25.71.4", why: "Show overdue household chores, turning nagging into a simple shared checklist." }
+      ]},
+      { name: "Musical instruments", description: "We track practice sessions, tuning stability, and lesson progress — so instruments that need attention do not sit silent for weeks.", ucs: [
+        { id: "25.72.1", why: "Highlight pieces in your sheet-music app that have not been opened in weeks." },
+        { id: "25.72.3", why: "Log tuning drift over time, showing when strings or reeds need replacing." }
+      ]},
+      { name: "Fiber arts & crafting", description: "We follow knitting, sewing, and stash projects — row counts, machine hours, and queued patterns — so UFOs and duplicate yarn buys stay visible.", ucs: [
+        { id: "25.73.1", why: "Track sewing-machine runtime from a smart plug, showing which projects actually got time this month." },
+        { id: "25.73.4", why: "List queued Ravelry projects, nudging you to finish one before starting another." }
+      ]},
+      { name: "Running races & endurance", description: "We combine race results, training load, and split data — so marathon prep, TSS ramp, and bib logistics stay on plan.", ucs: [
+        { id: "25.74.1", why: "Compare race-day splits against training peaks, showing whether pacing matched preparation." },
+        { id: "25.74.4", why: "Track weekly training load against your recent baseline, flagging overshoot weeks before injury." }
+      ]},
+      { name: "Climbing & bouldering", description: "We log gym sessions, board problems, and hangboard protocols — so send streaks, project grades, and recovery gaps are easy to see.", ucs: [
+        { id: "25.75.1", why: "Count sends logged on 8a.nu by grade band, showing where your hardest consistent level really sits." },
+        { id: "25.75.3", why: "Track hangboard protocol compliance, so finger-strength work does not quietly disappear." }
+      ]},
+      { name: "Tennis, pickleball & racket sports", description: "We watch match analytics, UTR trends, and stringing schedules — so improvement shows up in the numbers and worn strings get replaced on time.", ucs: [
+        { id: "25.76.1", why: "Summarise SwingVision session stats, turning match video into trends you can actually act on." },
+        { id: "25.76.4", why: "Remind you when a racket is due for restringing based on hours played." }
+      ]},
+      { name: "Golf & disc golf", description: "We track rounds, launch-monitor sessions, and handicap movement — so on-course trends and practice quality are visible beyond a single good day.", ucs: [
+        { id: "25.77.1", why: "Trend scoring average by course, showing where you really gain or lose strokes." },
+        { id: "25.77.4", why: "Compare UDisc round distances with prior visits, highlighting courses where your game improved." }
+      ]},
+      { name: "Life admin & paperwork", description: "We keep passports, warranties, scans, and voter registration on a timeline — so expiry dates and missing documents never surprise you at the airport.", ucs: [
+        { id: "25.78.1", why: "Count down passport validity, with enough warning to renew before a booked trip." },
+        { id: "25.78.3", why: "List warranties approaching expiry, so you claim repairs while coverage still applies." }
+      ]},
+      { name: "Side hustle & freelance", description: "We track invoices, billed hours, tax estimates, and client pipeline — so cash flow and quarterly obligations stay visible without a separate accounting app.", ucs: [
+        { id: "25.79.1", why: "Total unpaid invoices by client, so follow-ups happen before cash-flow gets tight." },
+        { id: "25.79.4", why: "Compare billed hours against your weekly target, showing when the side hustle is slipping." }
+      ]},
+      { name: "Personal weather impact", description: "We correlate local weather with your sleep, steps, and mood — so heat waves, pollen spikes, and stormy weeks show up in your own data.", ucs: [
+        { id: "25.80.1", why: "Compare sleep quality on hot nights versus mild ones, revealing how much temperature really costs you rest." },
+        { id: "25.80.3", why: "Track daily step counts against rainfall, showing which weather patterns keep you indoors." }
+      ]},
+      { name: "Social clubs & community", description: "We log book clubs, running groups, maker-space visits, and community events — so participation trends and missed meetups are easy to see.", ucs: [
+        { id: "25.81.1", why: "Track book-club attendance over the year, showing whether you are keeping up with the reading group." },
+        { id: "25.81.3", why: "Summarise maker-space visits by month, turning membership fees into visible usage." }
+      ]},
+      { name: "Utility bills & household accounts", description: "We track electric, gas, and water bills plus meter readings — so rate changes, seasonal spikes, and payment due dates stay in one place.", ucs: [
+        { id: "25.82.1", why: "Trend monthly utility spend by fuel type, catching bill spikes before they become the new normal." },
+        { id: "25.82.4", why: "Flag upcoming payment due dates, so autopay failures do not turn into late fees." }
+      ]},
+      { name: "Mobility & accessibility aids", description: "We monitor wheelchair batteries, stairlift service, hearing-aid cells, and pendant tests — so caregivers get early warning when assistive gear needs attention.", ucs: [
+        { id: "25.83.1", why: "Track wheelchair battery percentage trends, alerting before charge drops too low for a full day out." },
+        { id: "25.83.4", why: "Log pendant-alert test results, confirming the lifeline still works when you check it." }
+      ]},
+      { name: "Home buying & property", description: "We watch mortgage rates, listing estimates, HOA fees, and tax installments — so big financial milestones stay visible during a long search.", ucs: [
+        { id: "25.84.1", why: "Chart mortgage-rate snapshots against your target, showing when locking in might make sense." },
+        { id: "25.84.3", why: "Track HOA fee changes on saved listings, so monthly carrying costs stay honest." }
+      ]},
+      { name: "Personal knowledge & notes", description: "We measure your note-taking habits — graph growth, daily notes, open tasks, and zettel counts — so your PKM system stays active instead of becoming a graveyard.", ucs: [
+        { id: "25.85.1", why: "Track Obsidian graph growth month to month, showing whether your knowledge base is actually expanding." },
+        { id: "25.85.3", why: "Count open Logseq tasks by area, surfacing stale to-dos that need a decision." }
+      ]},
+      { name: "Dental, vision & checkups", description: "We track cleanings, eye exams, and hygiene habits — so six-month reminders and prescription renewals never slip past you.", ucs: [
+        { id: "25.86.1", why: "Count down to your next dental cleaning, with enough warning to book before the overdue guilt sets in." },
+        { id: "25.86.4", why: "Track vision prescription expiry, so new glasses or contacts get ordered before everything looks fuzzy." }
+      ]},
+      { name: "Therapy & mental health", description: "We log therapy sessions, homework, and mood check-ins — so progress between appointments is visible and homework does not get forgotten.", ucs: [
+        { id: "25.87.1", why: "Summarise weekly session attendance and gaps, showing whether you are keeping the cadence your therapist recommended." },
+        { id: "25.87.3", why: "Track CBT homework completion, so the exercises actually happen instead of living only in the session." }
+      ]},
+      { name: "Physical therapy & rehab", description: "We watch home exercise programs, ROM measurements, and pain diaries — so rehab compliance and recovery trends stay honest.", ucs: [
+        { id: "25.88.1", why: "Count completed home exercises against the prescribed plan, catching skipped days before they become skipped weeks." },
+        { id: "25.88.4", why: "Trend range-of-motion scores over time, showing whether the joint is genuinely improving." }
+      ]},
+      { name: "Childcare & early years", description: "We follow daycare check-ins, nap logs, and nanny hours — so pickup times, incident reports, and sleep patterns stay in one calm view.", ucs: [
+        { id: "25.89.1", why: "Track daycare attendance and late pickups, so patterns that need a conversation with the provider show up early." },
+        { id: "25.89.3", why: "Summarise nap lengths from a sleep tracker, helping you spot overtired evenings before the meltdown." }
+      ]},
+      { name: "Meal planning & groceries", description: "We connect meal plans, shopping lists, and delivery orders — so food waste, repeat buys, and pantry gaps are easier to spot.", ucs: [
+        { id: "25.90.1", why: "Compare planned meals with what you actually ordered, showing where the week drifted off plan." },
+        { id: "25.90.4", why: "Flag pantry staples that have not been restocked in weeks, before you run out mid-recipe." }
+      ]},
+      { name: "Snow sports & winter fun", description: "We log ski days, lift tickets, and snow reports — so season pass value, favourite runs, and safety habits stay visible.", ucs: [
+        { id: "25.91.1", why: "Add up ski days against your pass break-even point, showing whether the season ticket paid off." },
+        { id: "25.91.3", why: "Track vertical and run counts by resort, revealing where you actually spent the winter." }
+      ]},
+      { name: "Yoga, Pilates & mind-body", description: "We track mat time, class streaks, and session length — so mind-body practice stays consistent instead of fading after January.", ucs: [
+        { id: "25.92.1", why: "Protect your weekly yoga streak with a nudge before it breaks, keeping the habit alive." },
+        { id: "25.92.4", why: "Compare class types by total minutes, showing whether you gravitate toward flow or strength." }
+      ]},
+      { name: "Triathlon & multisport", description: "We combine swim, bike, and run load — brick workouts, transition practice, and training-plan adherence in one endurance dashboard.", ucs: [
+        { id: "25.93.1", why: "Track weekly TSS across disciplines, flagging overshoot weeks before injury risk rises." },
+        { id: "25.93.4", why: "Log brick workout completion, showing whether bike-to-run sessions are happening as planned." }
+      ]},
+      { name: "Personal CRM & networking", description: "We remind you who to follow up with — contacts, intros, and relationship touchpoints so good connections do not go cold.", ucs: [
+        { id: "25.94.1", why: "List contacts overdue for a check-in, turning vague guilt into a simple call list." },
+        { id: "25.94.3", why: "Track intro requests sent versus completed, showing whether you close the loop on introductions." }
+      ]},
+      { name: "Gifts, holidays & celebrations", description: "We track registries, holiday cards, and gift budgets — so generosity stays thoughtful without blowing the plan.", ucs: [
+        { id: "25.95.1", why: "Total holiday gift spend against budget, before January credit-card shock arrives." },
+        { id: "25.95.4", why: "Track thank-you notes still unsent, so gratitude does not stay stuck on the to-do list." }
+      ]},
+      { name: "Moving & relocation", description: "We run your move like a project — change-of-address, mover quotes, utility transfers, and box inventories in one checklist.", ucs: [
+        { id: "25.96.1", why: "Check off utility transfer deadlines, so power and internet are live on arrival day." },
+        { id: "25.96.3", why: "Compare mover quotes side by side, making the hire decision less stressful." }
+      ]},
+      { name: "Emergency preparedness", description: "We watch go-bag inventories, battery expiry, and drill logs — so emergency supplies stay current instead of quietly aging out.", ucs: [
+        { id: "25.97.1", why: "Flag go-bag items past expiration, before you discover stale water or dead batteries in a real emergency." },
+        { id: "25.97.4", why: "Log family drill completion dates, showing when you last practiced the plan together." }
+      ]},
+      { name: "Sneakers & resale", description: "We track rotation wear, StockX prices, and deadstock age — so the collection earns its shelf space and resale timing stays sharp.", ucs: [
+        { id: "25.98.1", why: "Chart price trends for pairs you might sell, highlighting when the market peaks." },
+        { id: "25.98.3", why: "Show which sneakers never leave the box, turning shelf guilt into wear-or-sell decisions." }
+      ]},
+      { name: "Formula 1 & motorsport", description: "We follow race weekends, fantasy teams, and lap data — so fandom stats and watch-party plans stay as serious as you want them.", ucs: [
+        { id: "25.99.1", why: "Summarise race results and points scored, tracking how your favourite team’s season is really going." },
+        { id: "25.99.4", why: "Compare fantasy team picks against race outcomes, showing where your predictions were sharp or hopeful." }
+      ]},
+      { name: "Podcasts & audiobooks", description: "We measure listening time, queue depth, and finish rates — so the backlog shrinks and good episodes do not get lost.", ucs: [
+        { id: "25.100.1", why: "Track weekly listening hours against your goal, nudging you back when the queue only grows." },
+        { id: "25.100.3", why: "Surface started-but-unfinished audiobooks, so half-heard stories get finished or dropped on purpose." }
       ]}
     ]
   }

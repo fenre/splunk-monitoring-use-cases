@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.77.32",
+  "title": "Golf & Disc Golf Longest Quiet Streak",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Golf rounds (`golf:round`), Garmin golf telemetry (`garmin:golf`), UDisc rounds (`udisc:round`), launch-monitor shots (`launchmonitor:shot`), handicap-index updates (`handicap:index`).",
+  "app": "Arccos and Garmin S62 round telemetry, UDisc round exports, launch-monitor CSVs, and handicap-index updates streamed to Splunk HEC via APIs and scripted imports.",
+  "spl": "index=personal sourcetype=golf:round\n| bin _time span=1d\n| stats count as events by _time\n| sort _time\n| streamstats current=f last(_time) as prev_day last(events) as prev_events\n| eval gap_days=round((_time-prev_day)/86400,0)\n| where isnotnull(prev_day) AND prev_events>0 AND events=0 AND gap_days>=2\n| stats max(gap_days) as longest_quiet_streak_days",
+  "description": "Finds the longest multi-day gap with zero golf events after activity was previously present.",
+  "value": "Quiet streaks often mean a broken export, a forgotten subscription, or a habit that silently died — all worth catching early.",
+  "implementation": "Run daily on `golf:round` after ingestion; investigate streaks that exceed your normal pause window for this domain.",
+  "visualization": "Single-value tile for longest quiet streak with supporting timeline.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It adds up the longest stretch with no golf activity at all so you can tell when a feed or habit went quiet for too long."
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.9.26",
+  "title": "Pi-hole Block Ratio Drop After Config Change",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`).",
+  "app": "OpenWrt, UniFi, Pi-hole, AdGuard Home, Tailscale, Cloudflare Tunnel, DNS over HTTPS resolvers, and scheduled probes via syslog, APIs, and Splunk HEC.",
+  "spl": "index=personal sourcetype=pihole:query\n| bin _time span=1d\n| stats count as queries, count(eval(blocked=\"true\")) as blocked_queries by _time\n| eval block_pct=round(100*blocked_queries/queries,1)\n| streamstats window=7 current=f avg(block_pct) as baseline_block_pct\n| where baseline_block_pct>0 AND block_pct<baseline_block_pct*0.7\n| sort block_pct",
+  "description": "Uses Pi-hole query logs telemetry to monitor daily block ratio after list or policy changes in index=personal.",
+  "value": "Splunk turns the feed into an operational check for unexpected drops in protection coverage, so the signal does not stay buried inside separate consumer apps or exports.",
+  "implementation": "Ingest Pi-hole query logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
+  "visualization": "Daily trend of Pi-hole block percentage.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "OpenWrt docs",
+      "url": "https://openwrt.org/docs/start"
+    },
+    {
+      "title": "Tailscale docs",
+      "url": "https://tailscale.com/kb"
+    },
+    {
+      "title": "Cloudflare Tunnel docs",
+      "url": "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
+    },
+    {
+      "title": "Pi-hole docs",
+      "url": "https://docs.pi-hole.net/"
+    },
+    {
+      "title": "AdGuard Home overview",
+      "url": "https://adguard.com/kb/adguard-home/overview/"
+    },
+    {
+      "title": "Ookla Speedtest CLI",
+      "url": "https://www.speedtest.net/apps/cli"
+    },
+    {
+      "title": "UniFi Network docs",
+      "url": "https://help.ui.com/hc/en-us/categories/6583256751383"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "cloudflare",
+    "mqtt",
+    "syslog"
+  ],
+  "grandmaExplanation": "It reveals daily block ratio after list or policy changes so you can spot unexpected drops in protection coverage before it becomes annoying."
+}

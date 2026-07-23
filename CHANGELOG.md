@@ -12,6 +12,90 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.17.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Wave 9 — 545 new use cases taking the fun category to 3,225 UCs
+  across 100 subcategories.** Wave 9A deepens subcategories 25.61–25.85 from
+  28 to **33** each (+125 UCs) with quarter-over-quarter volume, hour-of-day
+  heatmaps, weekend/weekday splits, quiet-streak detection, and cross-feed
+  correlation against each domain's real sourcetypes. Wave 9B adds **15 new
+  subcategories** at **28 UCs** each (+420 UCs): dental/vision/preventive
+  care, therapy & mental health, physical therapy & rehab, childcare & early
+  years, meal planning & groceries, snow sports, yoga/Pilates, triathlon &
+  multisport, personal CRM, gifts & holidays, moving & relocation, emergency
+  preparedness, sneakers & resale, Formula 1 fandom, and podcasts &
+  audiobooks.
+
+### Changed
+
+- Registered 73 additional Wave 9 consumer sourcetypes in the SPL reference
+  vocabulary.
+- Updated `_category.json` to **100 subcategories** and **3,225** total cat-25
+  UCs.
+- Extended the non-technical view with 15 plain-language areas for
+  subcategories 25.86–25.100.
+- Committed `scripts/gen_cat25_wave9a.py` and `scripts/gen_cat25_wave9b.py`.
+- Raised search-vocab, catalog-index, and search-shard byte budgets after the
+  11,600+ UC catalogue pushed lazy-search assets past v8.16.0 limits.
+- Raised the content-quality `--max-findings` CI cap to 9000 after cat-25
+  Waves 6–9 surfaced ~8630 fail-level description/value findings.
+
+## [8.16.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Waves 7–8 — 1,600 new use cases taking the fun category to 2,680
+  UCs across 85 subcategories.** Wave 7 deepens every existing subcategory
+  from 18 to 33 with real consumer telemetry each topic still lacked — COROS
+  and Wahoo training load, Plaid and Monarch finance feeds, Fi and Tractive
+  pet trackers, Bambu Lab print jobs, Nest Protect and Reolink security
+  events, and dozens more per life domain. Wave 8 adds 25 new subcategories
+  (700 UCs) for domains that deserved their own home: personal NOC/SOC,
+  coffee and tea, photography, motorcycles, overlanding, board games, home
+  office ergonomics, SaaS renewals, houseplants, laundry appliances,
+  school/homework, instruments, fiber arts, endurance races, climbing,
+  racket sports, golf/disc golf, life admin, freelance, personal weather
+  correlation, social clubs, utility bills, mobility aids, property tracking,
+  and PKM vault stats. Counts follow real sourcetype coverage, not round
+  batch caps.
+
+### Changed
+
+- Registered 346 additional personal sourcetypes from Waves 7–8 in the SPL
+  reference vocabulary.
+- Updated `_category.json` to 85 subcategories and reconciled per-sub
+  `useCaseCount` from disk.
+- Extended the non-technical view with 25 plain-language areas for
+  subcategories 25.61–25.85.
+- Committed `scripts/update_cat25_category.py` helper and expanded grandma
+  opener rotation in `scripts/gen_cat25_common.py`.
+
+## [8.15.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Wave 6 (Depth) — 481 new use cases deepening every existing
+  subcategory from 7–12 up to 18 each, taking the fun category to 1,080 UCs
+  across 60 subcategories.** Waves 1–5 shipped breadth in round batches of
+  ten per subcategory; Wave 6 removes that artificial cap and fills in the
+  long tail of real consumer telemetry each topic deserves — sourdough-rise
+  ESP32 probes, Klipper print telemetry, Raspberry Shake seismographs, SDR
+  decodes, beehive weight sensors, reef-tank controllers, ranked-match stats,
+  swear-jar ledgers, wardrobe cost-per-wear, elder-care fall alerts, wedding
+  budget burn-down, genealogy brick-walls, and dozens more per life domain.
+  Every one of the 60 subcategories now carries 18 genuinely runnable SPL
+  queries against real APIs, webhooks, MQTT feeds, and exports on
+  `index=personal`.
+
+### Changed
+
+- Registered 79 additional personal sourcetypes uncovered by the depth pass.
+- Committed append-mode cat-25 generators under `scripts/gen_cat25_*.py` so
+  future expansions continue from the next free UC ID instead of round wave
+  caps.
+
 ## [8.14.0] - 2026-07-22
 
 ### New Use Cases

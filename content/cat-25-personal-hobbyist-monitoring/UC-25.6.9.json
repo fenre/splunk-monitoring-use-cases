@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.6.9",
+  "title": "Solar Self-Consumption Ratio Dip",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Analytics",
+    "Cost"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "spl": "index=personal sourcetype=powerwall:aggregate\n| bin _time span=1d\n| stats sum(solar_kw) as solar_kw, sum(eval(if(grid_kw<0,abs(grid_kw),0))) as export_kw by _time\n| eval self_consumed_pct=round(100*(solar_kw-export_kw)/solar_kw,1)\n| where solar_kw>0 AND self_consumed_pct<60\n| sort self_consumed_pct",
+  "description": "Estimates how much of your solar production stayed useful at home versus being exported, surfacing days where self-consumption fell off a cliff.",
+  "value": "Self-consumption is where the bill savings live; a dip can point to scheduling opportunities, battery settings, or simply habits worth shifting.",
+  "implementation": "Forward site power-flow telemetry from Powerwall or a similar gateway; review daily self-consumption percentage and tune loads accordingly.",
+  "visualization": "Daily chart of solar generation versus estimated export and self-consumption percentage.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tesla Powerwall owner resources",
+      "url": "https://www.tesla.com/support/energy/powerwall"
+    },
+    {
+      "title": "SolarEdge Monitoring API",
+      "url": "https://developers.solaredge.com/docs/monitoring-api/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "equipment": [
+    "mqtt"
+  ],
+  "grandmaExplanation": "It watches how much of your solar power you actually used yourself instead of sending back out to the grid."
+}
