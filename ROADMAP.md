@@ -6,6 +6,29 @@
 
 ## Current release
 
+**v8.19.0 — Personal & Hobbyist Monitoring (cat-25) variable-depth expansion: +2,711 use cases with research-driven per-subcategory targets (6,431 use cases across 115 subcategories; 14,876 catalogue-wide)** *(shipped 2026-07-23)*
+
+Theme: **depth that matches the domain, not a batch number.** Replaced the
+artificial uniform 28/33-per-subcategory pattern with research-driven targets
+(40–98 UCs per sub, cap 100). Rich API domains (fitness, smart home, finance)
+land at 80–98 UCs; niche domains stay at 40–55.
+
+### Shipped outcomes
+
+- **+2,711 new UCs** — cat-25 grows from 3,720 → **6,431**; catalogue from
+  12,165 → **14,876**.
+- **Variable depth across all 115 subcategories** — range 40–98 UCs per sub;
+  zero subs remain at exactly 28 or 33.
+- **521 new consumer sourcetypes** registered in the curated SPL vocabulary.
+- **Research manifest + expand generator** (`scripts/cat25_research_manifest.json`,
+  `scripts/gen_cat25_research_expand.py`) record per-sub targets and rationale.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.19.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.18.0 — Personal & Hobbyist Monitoring (cat-25) Wave 10: 495 new use cases — deepen Wave 9 subs to 33 and add 15 new domains (3,720 use cases across 115 subcategories)** *(shipped 2026-07-23)*
 
 Theme: **everyday adulting, instrumented.** Wave 10A adds five analytics-layer
@@ -28,7 +51,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.18.0 release entry.
 
 ---
 
-## Previous releases
+## Previous releases (continued)
 
 **v8.17.0 — Personal & Hobbyist Monitoring (cat-25) Wave 9: 545 new use cases — deepen Wave 8 subs to 33 and add 15 new domains (3,225 use cases across 100 subcategories)** *(shipped 2026-07-23)*
 
