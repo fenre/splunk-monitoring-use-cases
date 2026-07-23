@@ -12,6 +12,23 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.21.0] - 2026-07-23
+
+### Changed
+
+- **cat-25 Silver-tier uplift — all 4,966 use cases now ship working SPL and a
+  5-step `detailedImplementation` guide.** Batch enricher adds Prerequisites,
+  HEC/API collection steps, SPL walkthrough, validation queries, dashboard
+  layout, and product-specific troubleshooting. Silver fields (`wave`,
+  `prerequisiteUseCases`, `equipment`) backfilled where missing.
+- **238 SPL syntax repairs** — missing pipe prefixes and stray sourcetype
+  parentheses fixed across cat-25 correlation and multi-line searches.
+
+### Added
+
+- **`scripts/enrich_cat25_di.py`** — SPL-aware detailedImplementation generator
+  for Personal & Hobbyist Monitoring (reuses SPL parser from cat-22 enricher).
+
 ## [8.20.0] - 2026-07-23
 
 ### Changed

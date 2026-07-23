@@ -6,26 +6,25 @@
 
 ## Current release
 
-**v8.20.0 — cat-25 quality cleanup and Fun Stuff sidebar: removed 1,465 synthetic gap-fill UCs (4,966 cat-25; 13,411 catalogue-wide)** *(shipped 2026-07-23)*
+**v8.21.0 — cat-25 Silver uplift: working SPL + 5-step implementation guides for all 4,966 use cases (13,411 catalogue-wide)** *(shipped 2026-07-23)*
 
-Theme: **keep the depth, drop the filler.** Purged auto-generated analytics
-templates on synthetic ``*:metricN`` sourcetypes and exact SPL duplicates.
-All 115 subcategories renumbered gap-free. The Fun Stuff sidebar group now
-lists every subcategory when expanded.
+Theme: **implementable from the page.** Every Personal & Hobbyist Monitoring UC
+now carries repaired SPL, a product-specific `detailedImplementation`, and
+Silver-tier metadata (`wave`, prerequisites, equipment).
 
 ### Shipped outcomes
 
-- **−1,465 UCs removed** — cat-25 6,431 → **4,966**; catalogue 14,876 → **13,411**.
-- **Zero duplicate titles or SPL queries** remain in cat-25 after cleanup.
-- **115 subcategories** visible in the left menu when Fun Stuff is expanded.
+- **4,966 cat-25 UCs enriched** — zero missing `detailedImplementation`; 238 SPL syntax defects repaired.
+- **Silver lift-score** — typical depth **65/100** after batch enricher (Gold fields like `equipmentModels` remain optional).
+- **`scripts/enrich_cat25_di.py`** — reusable batch generator for personal/hobbyist sourcetypes.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.20.0 release entry.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.21.0 release entry.
 
 ---
 
 ## Previous releases
 
-**v8.19.0 — Personal & Hobbyist Monitoring (cat-25) variable-depth expansion: +2,711 use cases with research-driven per-subcategory targets (6,431 use cases across 115 subcategories; 14,876 catalogue-wide)** *(shipped 2026-07-23)*
+**v8.20.0 — cat-25 quality cleanup and Fun Stuff sidebar: removed 1,465 synthetic gap-fill UCs (4,966 cat-25; 13,411 catalogue-wide)** *(shipped 2026-07-23)*
 
 Theme: **depth that matches the domain, not a batch number.** Replaced the
 artificial uniform 28/33-per-subcategory pattern with research-driven targets
