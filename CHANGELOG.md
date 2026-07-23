@@ -12,6 +12,22 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.20.0] - 2026-07-23
+
+### Changed
+
+- **cat-25 quality cleanup — removed 1,465 synthetic gap-fill use cases (6,431 → 4,966 in
+  cat-25; 14,876 → 13,411 catalogue-wide).** Purged auto-generated analytics templates
+  on synthetic ``*:metricN`` sourcetypes (Monthly Rollup, Hour-of-Day Pattern, etc.)
+  and exact SPL duplicates. All 115 subcategories renumbered gap-free.
+- **Sidebar:** Expanding **Fun Stuff** now lists all 115 cat-25 subcategories in the
+  left menu without requiring an extra category click.
+
+### Added
+
+- **`scripts/cleanup_cat25_synthetic.py`** — idempotent remover + renumberer for
+  synthetic metricN gap-fill UCs and SPL duplicate clusters.
+
 ## [8.19.0] - 2026-07-23
 
 ### New Use Cases

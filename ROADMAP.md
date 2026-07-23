@@ -6,6 +6,25 @@
 
 ## Current release
 
+**v8.20.0 — cat-25 quality cleanup and Fun Stuff sidebar: removed 1,465 synthetic gap-fill UCs (4,966 cat-25; 13,411 catalogue-wide)** *(shipped 2026-07-23)*
+
+Theme: **keep the depth, drop the filler.** Purged auto-generated analytics
+templates on synthetic ``*:metricN`` sourcetypes and exact SPL duplicates.
+All 115 subcategories renumbered gap-free. The Fun Stuff sidebar group now
+lists every subcategory when expanded.
+
+### Shipped outcomes
+
+- **−1,465 UCs removed** — cat-25 6,431 → **4,966**; catalogue 14,876 → **13,411**.
+- **Zero duplicate titles or SPL queries** remain in cat-25 after cleanup.
+- **115 subcategories** visible in the left menu when Fun Stuff is expanded.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.20.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.19.0 — Personal & Hobbyist Monitoring (cat-25) variable-depth expansion: +2,711 use cases with research-driven per-subcategory targets (6,431 use cases across 115 subcategories; 14,876 catalogue-wide)** *(shipped 2026-07-23)*
 
 Theme: **depth that matches the domain, not a batch number.** Replaced the
@@ -27,7 +46,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.19.0 release entry.
 
 ---
 
-## Previous releases
+## Previous releases (continued)
 
 **v8.18.0 — Personal & Hobbyist Monitoring (cat-25) Wave 10: 495 new use cases — deepen Wave 9 subs to 33 and add 15 new domains (3,720 use cases across 115 subcategories)** *(shipped 2026-07-23)*
 
