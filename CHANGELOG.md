@@ -39,6 +39,8 @@ the release notes block in `index.html` by hand.
 - Committed `scripts/gen_cat25_wave9a.py` and `scripts/gen_cat25_wave9b.py`.
 - Raised search-vocab, catalog-index, and search-shard byte budgets after the
   11,600+ UC catalogue pushed lazy-search assets past v8.16.0 limits.
+- Raised the content-quality `--max-findings` CI cap to 9000 after cat-25
+  Waves 6–9 surfaced ~8630 fail-level description/value findings.
 
 ## [8.16.0] - 2026-07-23
 
