@@ -166,11 +166,11 @@ class TestModuleConstants:
         assert s["critical"] > s["high"] > s["medium"]
         assert s["medium"] == s["low"]
 
-    def test_cat_index_macro_covers_24_categories(self, bt: ModuleType) -> None:
-        # The catalog has 24 top-level categories. Missing one would
+    def test_cat_index_macro_covers_25_categories(self, bt: ModuleType) -> None:
+        # The catalog has 25 top-level categories. Missing one would
         # cause ``render_savedsearches`` to emit a macro that is never
         # defined in ``macros.conf`` (search-time NameError).
-        assert sorted(bt.CAT_INDEX_MACRO.keys()) == list(range(1, 25))
+        assert sorted(bt.CAT_INDEX_MACRO.keys()) == list(range(1, 26))
         for cat_num, macro in bt.CAT_INDEX_MACRO.items():
             assert macro.startswith("uc_index_"), (cat_num, macro)
 

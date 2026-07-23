@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.14.7",
+  "title": "Commute Time vs Baseline Anomaly",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Anomaly"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
+  "app": "Home ADS-B receiver (dump1090 / readsb / tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
+  "spl": "index=personal sourcetype=commute:trip\n| eval dow=strftime(_time,\"%A\")\n| eventstats avg(duration_min) as usual, stdev(duration_min) as sd by dow route\n| eval worse_than_usual=if(duration_min>usual+2*sd,1,0)\n| where worse_than_usual=1\n| table _time route duration_min usual",
+  "description": "Learns your normal commute time for each route and day of week, then flags the trips that were unusually slow.",
+  "value": "A same-day-of-week baseline separates a genuinely bad traffic day from the ordinary Monday crawl, so alerts mean something.",
+  "implementation": "Log each commute's duration and route to `index=personal`; schedule after your typical commute window and notify on anomalies.",
+  "visualization": "Table of anomalous commutes with actual versus usual duration.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "GTFS Realtime — reference",
+      "url": "https://gtfs.org/realtime/reference/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It learns how long your commute normally takes and tells you when a trip was much slower than usual."
+}

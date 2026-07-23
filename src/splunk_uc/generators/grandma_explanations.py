@@ -392,6 +392,10 @@ _CATEGORY_FALLBACK: dict[int, tuple[str, str]] = {
         "We watch your reporting and analytics tools",
         "so broken dashboards, late data, and failed refreshes are caught before people rely on the wrong numbers.",
     ),
+    25: (
+        "We turn the same monitoring on the fun stuff in your life",
+        "so your fitness, health, car, smart home, energy, and hobbies get dashboards and alerts too.",
+    ),
 }
 
 # ---------------------------------------------------------------------------

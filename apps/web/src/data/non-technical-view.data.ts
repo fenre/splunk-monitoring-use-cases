@@ -1397,5 +1397,246 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
         { id: "24.1.9", why: "Audit failed logins and permission changes on your reporting platform, so access stays under control." }
       ]}
     ]
+  },
+  "25": {
+    outcomes: [
+      "Turn the same monitoring you use at work on the fun parts of your life — fitness, health, your car, your home, and your hobbies.",
+      "Get a friendly nudge when something needs attention: a low sensor battery, a leaking pipe, an underperforming solar panel, or a pet that wandered off.",
+      "Build your own dashboards for the numbers you actually care about, without handing your personal data to yet another app."
+    ],
+    areas: [
+      { name: "Fitness & health", description: "We turn your fitness trackers and health wearables into simple, motivating dashboards — progress toward goals, honest trends, and early warnings when your body needs rest.", ucs: [
+        { id: "25.1.1", why: "Add up your weekly running distance against a goal, so you know whether to squeeze in one more run." },
+        { id: "25.1.3", why: "Get a gentle reminder when you haven't exercised in a few days, before a skipped session becomes a skipped week." },
+        { id: "25.2.1", why: "Learn your normal resting heartbeat and get a heads-up on days it's unusually high — often a sign you're getting run down." },
+        { id: "25.2.2", why: "See how much you actually slept each night against your target, so sleep debt stops sneaking up on you." }
+      ]},
+      { name: "Cars & getting around", description: "We keep an eye on your car and EV — battery health, charging costs, tyres, and faults — so surprises on the road and the bill are rare.", ucs: [
+        { id: "25.3.1", why: "Work out how much your electric car's battery has worn down, so you know the real range you can count on." },
+        { id: "25.3.2", why: "Add up what it costs to charge in different places, so you charge where it's cheapest." },
+        { id: "25.3.4", why: "Get told when a tyre is going soft, before it becomes a flat." }
+      ]},
+      { name: "Smart home & devices", description: "We watch your smart-home hub, automations, and sensors — so the lights, locks, and routines keep working, and dead batteries or leaks are caught fast.", ucs: [
+        { id: "25.4.1", why: "Notice when your home's automatic routines stop working, like lights that should have come on but didn't." },
+        { id: "25.4.2", why: "See which smart-home gadgets have gone quiet, so you can fix dead batteries or lost connections." },
+        { id: "25.5.6", why: "Shout the moment a leak sensor gets wet, so a small leak doesn't wreck the floor." },
+        { id: "25.5.7", why: "Remind you when a door or window has been left open too long, like the garage before bed." }
+      ]},
+      { name: "Energy, solar & the home", description: "We track your solar panels, home battery, and energy use — so you can see your self-sufficiency, catch an underperforming panel, and keep the bill under control.", ucs: [
+        { id: "25.6.1", why: "Compare how much power your solar panels made with how much your home used, so you see how self-sufficient you are." },
+        { id: "25.6.2", why: "Compare each solar panel to the others and flag any that are lazy — usually dirt, shade, or a fault." }
+      ]},
+      { name: "Media, gaming & home lab", description: "We monitor your media server, games, home lab, and internet — so streaming stays smooth, your self-hosted apps stay up, and your connection delivers what you pay for.", ucs: [
+        { id: "25.7.1", why: "See who watched the most on your home movie server each month — a fun family leaderboard." },
+        { id: "25.7.2", why: "Warn when too many people are streaming in a way that overloads your server and causes buffering." },
+        { id: "25.8.1", why: "Warn when the storage in your home server is filling up, before it gets full and things break." },
+        { id: "25.8.2", why: "Spot when one of your self-hosted apps keeps crashing and restarting, so you can fix it." },
+        { id: "25.9.1", why: "Regularly check your internet speed against what you pay for, giving you proof when it's too slow." },
+        { id: "25.9.3", why: "Show what share of ads and trackers your network blocker stopped — very satisfying to watch." }
+      ]},
+      { name: "Weather, garden & pets", description: "We watch the weather at your own location, the air in your home, your garden, and your pets — so you can act on frost, smoke, dry soil, or a pet that wandered off.", ucs: [
+        { id: "25.10.1", why: "Watch the air inside your home and tell you when a room is stuffy or unhealthy and needs a window opened." },
+        { id: "25.10.3", why: "Warn you when it's about to freeze so you can cover plants and protect pipes." },
+        { id: "25.11.2", why: "Alert you the instant a pet wanders out of the safe area, with a map so you can go straight to them." },
+        { id: "25.11.3", why: "Make sure the automatic feeder really fed your pet, and warn you if it jammed or missed a meal." }
+      ]},
+      { name: "Money & digital life", description: "We help you keep an eye on your own finances and habits — spending, subscriptions, crypto, screen time, and focus — without sharing it all with another app.", ucs: [
+        { id: "25.12.1", why: "Add up what your crypto is worth right now, in one place, without sharing your details with an app." },
+        { id: "25.12.5", why: "Find all your monthly subscriptions and show what they cost per year, so you can cancel the ones you forgot about." },
+        { id: "25.13.1", why: "Show how much of your day was real focused work versus distractions — often eye-opening." },
+        { id: "25.13.2", why: "Track how long you spend on your phone each day compared to your goal, so the habit doesn't creep up on you." }
+      ]},
+      { name: "Travel & flight-spotting", description: "We turn your travels, commutes, and even the planes overhead into simple dashboards — so you catch a slow commute, a fare drop, or an expiring passport in good time.", ucs: [
+        { id: "25.14.1", why: "Keep a list of every plane your little radio receiver hears and highlight the unusual ones you almost never see." },
+        { id: "25.14.7", why: "Learn how long your commute normally takes and tell you when a trip was much slower than usual." },
+        { id: "25.14.10", why: "Count down to when your passport or visa runs out, so a trip is never ruined by an expired document." }
+      ]},
+      { name: "Kitchen, food & fermentation", description: "We watch the fun and finicky parts of the kitchen — sourdough starters, the smoker, the fridge, and homebrew — so food comes out right and nothing spoils.", ucs: [
+        { id: "25.15.1", why: "Watch your sourdough grow after feeding and tell you the exact best moment to start baking." },
+        { id: "25.15.5", why: "Warn you if the fridge or freezer gets too warm, which usually means a door left open or a fault." },
+        { id: "25.16.4", why: "Count beer pours and estimate the pints left in the keg, so it never runs dry mid-party." }
+      ]},
+      { name: "Workshop & 3D printing", description: "We keep an eye on your printers, tools, and workshop air — so prints succeed, filament doesn't run out mid-job, and the air stays safe to breathe.", ucs: [
+        { id: "25.17.1", why: "Work out how often each 3D printer finishes a print successfully, so you know which one to trust." },
+        { id: "25.17.6", why: "Estimate how much printing plastic is left on each reel and warn you before it runs out during a print." }
+      ]},
+      { name: "Home security & surveillance", description: "We turn your cameras, alarms, and locks into calm summaries — so a package left too long, a camera gone offline, or a life-safety alarm never slips past you.", ucs: [
+        { id: "25.18.4", why: "Warn you if a security camera goes offline, so you aren't relying on one that has quietly stopped working." },
+        { id: "25.18.6", why: "Record every smoke and carbon-monoxide alarm and warn of low batteries, keeping the most important home alarms working." }
+      ]},
+      { name: "Water & plumbing", description: "We watch the water in and around your home — leaks, the sump pump, the pool, and the sprinklers — so a small drip never becomes an expensive flood.", ucs: [
+        { id: "25.19.1", why: "Spot water running non-stop for a long time — usually a running toilet or a leak — so you can act fast." },
+        { id: "25.19.4", why: "Keep an eye on the pump that keeps your basement dry and warn you if the water rises or the pump stops." }
+      ]},
+      { name: "Citizen science & backyard sensing", description: "We turn homemade science sensors into real data — catching earthquakes, tracking storms and radon, and even counting shooting stars over your house.", ucs: [
+        { id: "25.20.1", why: "Watch your home earthquake sensor and pick out real quakes from ordinary rumbles like passing lorries." },
+        { id: "25.20.4", why: "Count nearby lightning and show how close the storm is getting, so you know when to head indoors." },
+        { id: "25.20.9", why: "Remind you just before the Space Station flies over, so you can go outside and watch it cross the sky." }
+      ]},
+      { name: "Radio & space", description: "We turn your radio and satellite gear into a scoreboard — how far your signals travelled, which stations you heard, and the pictures you pulled from the sky.", ucs: [
+        { id: "25.21.1", why: "Show how far your tiny radio beacon was heard on each band — a fun way to study how radio waves travel." },
+        { id: "25.21.4", why: "Record each time you catch a picture from a weather satellite and how many turned out clear." }
+      ]},
+      { name: "Backyard astronomy", description: "We help your stargazing and astrophotography — telling you when the sky is truly clear and dark, and how many of your night-sky photos were worth keeping.", ucs: [
+        { id: "25.22.2", why: "Measure how dark your night sky is, so you know the best hours for stargazing away from light pollution." },
+        { id: "25.22.3", why: "Tell you when the sky is genuinely clear enough to set up the telescope, using a clever temperature trick." }
+      ]},
+      { name: "Family & baby", description: "We turn the happy chaos of family life into calm little dashboards — baby feeds and sleep, chores, pocket money, and a busy family calendar.", ucs: [
+        { id: "25.23.1", why: "Count how often and how much the baby fed each day, so tired parents have real numbers for the doctor." },
+        { id: "25.23.2", why: "Track how much the baby slept and the longest they went without waking, which every tired parent watches closely." },
+        { id: "25.23.5", why: "Show who in the family actually did their chores each week — a fun and motivating scoreboard." }
+      ]},
+      { name: "Homestead & animals", description: "We keep watch over the homestead — the beehives, the hens, and the animals in the field — so you spot a swarm, a low egg count, or a wandering animal early.", ucs: [
+        { id: "25.24.1", why: "Watch how heavy the beehive is to see honey building up and warn if the bees suddenly swarm away." },
+        { id: "25.24.4", why: "Check the automatic chicken-coop door really closed at dusk, keeping the hens safe from foxes." },
+        { id: "25.24.6", why: "Warn you if an animal wanders out of the field or its tracker goes quiet, so you find a broken fence fast." }
+      ]},
+      { name: "Health & biohacking", description: "We bring your own health data together — heart, sleep, blood pressure, and more — to spot the early signs of getting run down before you feel it.", ucs: [
+        { id: "25.25.1", why: "Measure a heart signal each morning that shows how recovered you are, flagging days you should take it easy." },
+        { id: "25.25.4", why: "Track your blood pressure over time and flag if it stays higher than it should, so you can see a doctor early." },
+        { id: "25.25.9", why: "Combine several body signals that change before you feel ill, giving you a heads-up to rest before a cold takes hold." }
+      ]},
+      { name: "Wildlife & nature", description: "We turn your cameras and microphones into a wildlife diary — counting the birds, animals, and insects that share your garden through the day and night.", ucs: [
+        { id: "25.26.1", why: "Count how many different kinds of birds your microphone hears each day, tracking the wildlife in your garden." },
+        { id: "25.26.4", why: "Count which wild animals your outdoor cameras record, showing who visits your garden at night." },
+        { id: "25.26.9", why: "Count how often squirrels raid the bird feeder versus real bird visits — that classic garden battle." }
+      ]},
+      { name: "Aquariums & reptiles", description: "We watch the tanks and terrariums so your fish, corals, and reptiles stay safe — catching a failed heater or a leak before it becomes a disaster.", ucs: [
+        { id: "25.27.2", why: "Quickly warn you if the fish-tank water gets too hot or cold, which usually means a broken heater." },
+        { id: "25.27.6", why: "Check a reptile's tank has the right warm and cool areas, humidity, and special light it needs to stay healthy." }
+      ]},
+      { name: "Sports & training", description: "We turn your training gadgets into progress you can see — strength, running form, cycling power, and personal bests — so your effort actually pays off.", ucs: [
+        { id: "25.28.2", why: "Estimate your top strength for each lift from normal sets, so you see progress without risky maximum attempts." },
+        { id: "25.28.9", why: "Track how many days in a row you have trained across all your sports, which keeps you motivated." }
+      ]},
+      { name: "Games & tabletop", description: "We keep your gaming honest and fun — weekly hours, unfinished backlogs, and even who is really the lucky one at the dice table.", ucs: [
+        { id: "25.29.1", why: "Add up your gaming hours each week against a limit you set, so a hobby does not quietly eat every evening." },
+        { id: "25.29.8", why: "Track everyone's dice rolls in a tabletop game to settle who is really the lucky one at the table." }
+      ]},
+      { name: "Collections & hobbies", description: "We turn your shelves into a tracked collection — its value over time, what is missing, and which pieces are the crown jewels.", ucs: [
+        { id: "25.30.1", why: "Track how much your collections are worth over time, so you can watch them grow in value." },
+        { id: "25.30.4", why: "Track how complete each LEGO set is and which pieces are missing, so you know what to order to finish it." }
+      ]},
+      { name: "Mind, mood & journaling", description: "We gently track how you feel — spotting a run of low days, showing what lifts your mood, and keeping calming habits going.", ucs: [
+        { id: "25.31.1", why: "Track your daily mood and gently flag a run of low days, which can be a sign to reach out for support." },
+        { id: "25.31.2", why: "Show which activities tend to lift your mood most, based on your own diary entries." }
+      ]},
+      { name: "Relationships & togetherness", description: "We help you keep the people you love close — nudging date nights, catch-ups, and important dates before they slip by.", ucs: [
+        { id: "25.32.2", why: "Remind you which friends and family you have not been in touch with for a while, so no one slips away." },
+        { id: "25.32.7", why: "Count down to anniversaries and birthdays so you never forget an important date again." }
+      ]},
+      { name: "Everyday habits & vices", description: "We make good habits stick and bad ones visible — dry-day streaks, cutting down on smoking, and even a smart swear jar.", ucs: [
+        { id: "25.33.1", why: "Add up how much alcohol you drink each week against the recommended limit, keeping it honest." },
+        { id: "25.33.3", why: "Track how much you smoke or vape each day and how far you have cut down, cheering on your progress." }
+      ]},
+      { name: "Money pettiness", description: "We catch the small spending that quietly adds up — daily coffees, impulse buys, and where your money really goes.", ucs: [
+        { id: "25.34.1", why: "Add up all your little coffee and snack buys, which quietly cost a surprising amount each month." },
+        { id: "25.34.3", why: "Spot unusually big, unplanned purchases, helping you notice impulse buys and think twice next time." }
+      ]},
+      { name: "Body signals & oddities", description: "We track the everyday signals your body gives off — posture, headaches, allergies — turning vague aches into patterns you can act on.", ucs: [
+        { id: "25.35.1", why: "Measure how much of your day you spent slouching, gently reminding you to sit up straight." },
+        { id: "25.35.3", why: "Count your headaches and note what set them off, building a helpful record for you and your doctor." }
+      ]},
+      { name: "Household supplies & logistics", description: "We keep the home running — predicting when supplies run out, tracking parcels, and reminding you which bins go out.", ucs: [
+        { id: "25.36.1", why: "Work out how many days of everyday supplies like detergent are left, so you reorder before running out." },
+        { id: "25.36.3", why: "Remind you which bins to put out the night before, so you never miss a collection again." }
+      ]},
+      { name: "Building health & structural", description: "We watch the house itself — damp and mould risk, widening cracks, and filters — so small problems get caught before they cost a fortune.", ucs: [
+        { id: "25.37.1", why: "Watch for the damp, cold conditions that grow mould, warning you to ventilate before it takes hold." },
+        { id: "25.37.2", why: "Measure monitored wall cracks over time and warn if any is slowly getting wider." }
+      ]},
+      { name: "Personal cyber safety", description: "We guard your digital life — warning of data breaches, missing two-factor logins, and backups that have gone stale.", ucs: [
+        { id: "25.38.1", why: "Warn you the moment your email turns up in a data breach, so you can change your password quickly." },
+        { id: "25.38.2", why: "List your important accounts that still lack a second login step, the easiest way to stay safe online." }
+      ]},
+      { name: "Seasonal & silly", description: "We add some fun — settling the Christmas-lights cost debate, counting trick-or-treaters, and counting down to the holidays.", ucs: [
+        { id: "25.39.1", why: "Add up what your Christmas lights cost to run each day, settling the yearly family debate." },
+        { id: "25.39.2", why: "Count the trick-or-treaters and sweets you hand out, capturing the busy Halloween rush." }
+      ]},
+      { name: "Your personal digital twin", description: "We tie every feed together into one picture of your life — a single daily score, gentle warnings when things slip, and what really makes your best days.", ucs: [
+        { id: "25.40.1", why: "Blend your sleep, activity, mood, and focus into one daily score, a simple read on how life is going." },
+        { id: "25.40.4", why: "Work out what most often leads to your best days, revealing the habits that truly help you." }
+      ]},
+      { name: "E-bikes & action sports", description: "We track your rides and sessions — e-bike battery and distance, and how many waves, runs or skate tricks you actually landed.", ucs: [
+        { id: "25.41.1", why: "See how far your e-bike really goes on a charge, so you never get caught out miles from home with a flat battery." },
+        { id: "25.41.4", why: "Count the waves you caught or the runs you skied each session, turning a fun day out into a record you can look back on." }
+      ]},
+      { name: "Flying & flight sims", description: "We keep your pilot logbook and flight-sim hours tidy — currency reminders, hours flown, and how smooth your landings really were.", ucs: [
+        { id: "25.42.1", why: "Add up your flying hours and warn you before your licence currency lapses, so you stay legal to fly." },
+        { id: "25.42.5", why: "Score how gentle your flight-sim landings were, giving you an honest, fun measure to improve on." }
+      ]},
+      { name: "Boating & the water", description: "We watch over your boat — battery and bilge, whether the anchor is dragging overnight, and the marine forecast before you set off.", ucs: [
+        { id: "25.43.1", why: "Warn you if the bilge pump runs too often, an early sign of a leak while your boat sits unattended." },
+        { id: "25.43.2", why: "Sound the alarm if your anchor starts dragging at night, so you wake before you drift into trouble." }
+      ]},
+      { name: "Fishing & the outdoors", description: "We log your catches, foraging finds and trail-camera sightings, revealing the best spots, times and conditions.", ucs: [
+        { id: "25.44.1", why: "Learn which spots and times land you the most fish, turning lucky days into a pattern you can repeat." },
+        { id: "25.44.6", why: "See what your trail camera caught and when, so you know what wildlife is really visiting." }
+      ]},
+      { name: "Making music & creating", description: "We track your practice and creative output — hours on your instrument, studio sessions, and how your releases are doing.", ucs: [
+        { id: "25.45.1", why: "Add up your practice time each week, so steady progress on your instrument is something you can actually see." },
+        { id: "25.45.3", why: "Follow how your songs or videos are doing after release, without living inside the analytics dashboards." }
+      ]},
+      { name: "Tabletop adventures", description: "We keep your role-playing campaign organised — session attendance, treasure shared out fairly, and how your heroes are levelling up.", ucs: [
+        { id: "25.46.1", why: "Track who shows up to each game night, so nobody quietly drifts away from the campaign." },
+        { id: "25.46.3", why: "Keep a fair tally of the treasure everyone has earned, settling loot arguments before they start." }
+      ]},
+      { name: "Reading & your notes", description: "We help you finish more books and get value from your notes — reading pace, yearly goals, and highlights you actually revisit.", ucs: [
+        { id: "25.47.1", why: "See whether you are on pace for your reading goal this year, a gentle nudge to pick the book back up." },
+        { id: "25.47.2", why: "Resurface old highlights you saved, so the best bits of what you read do not just gather dust." }
+      ]},
+      { name: "Learning a language", description: "We keep your language study on track — daily streaks, words due for review, and how much you are really immersing.", ucs: [
+        { id: "25.48.1", why: "Protect your daily study streak with a nudge before it breaks, keeping the habit alive." },
+        { id: "25.48.2", why: "Remind you when words are due for review, so what you learn actually sticks." }
+      ]},
+      { name: "Wardrobe & getting ready", description: "We make your closet earn its keep — what you actually wear, cost per wear, and keeping your skincare routine consistent.", ucs: [
+        { id: "25.49.3", why: "Show which clothes never leave the hanger, so you declutter and shop more wisely." },
+        { id: "25.49.1", why: "Work out the real cost per wear of an item, turning an expensive splurge into an honest number." }
+      ]},
+      { name: "Living greener", description: "We measure your everyday footprint — recycling and food waste, water and carbon, and the things you repair instead of replace.", ucs: [
+        { id: "25.50.1", why: "See your household carbon footprint trend month to month, so your green efforts show real progress." },
+        { id: "25.50.2", why: "Track how much you recycle versus throw away, making a greener habit something you can watch improve." }
+      ]},
+      { name: "Managing a health condition", description: "We help you stay on top of a long-term condition — taking medicines on time, tracking symptoms, and spotting what sets off a bad day.", ucs: [
+        { id: "25.51.1", why: "Check how many of your pills you actually took each week, so nothing important slips through." },
+        { id: "25.51.3", why: "Work out what tends to trigger your bad days, so you can avoid the things that make you feel worse." }
+      ]},
+      { name: "Caring for a loved one", description: "We keep a gentle eye on an elderly relative — normal daily movement, fall alarms, medicines, and who last checked in.", ucs: [
+        { id: "25.52.1", why: "Learn how much your relative normally moves about and get a warning on unusually quiet days." },
+        { id: "25.52.2", why: "Make sure every fall alarm is answered quickly, so no emergency is ever missed." }
+      ]},
+      { name: "Planning a wedding or big event", description: "We keep your celebration on track — budget, guest replies, tasks, and supplier payments, all in one calm place.", ucs: [
+        { id: "25.53.1", why: "Always know how much of your wedding budget is left, so costs never quietly run away." },
+        { id: "25.53.2", why: "See who has replied to invitations and who still needs a nudge, for an accurate head count." }
+      ]},
+      { name: "Renovating your home", description: "We run your building project like a pro — budget versus actual, what is blocked, permits, and how each room is coming along.", ucs: [
+        { id: "25.54.1", why: "Compare what each part of the job was meant to cost with what it really cost, so overspending shows early." },
+        { id: "25.54.5", why: "Keep a clear list of which permits and inspections are done, so the work stays legal and safe." }
+      ]},
+      { name: "Tracing your family tree", description: "We help your family-history research — how your tree grows, where your DNA matches point, and which facts still need proof.", ucs: [
+        { id: "25.55.1", why: "Watch your family tree grow month by month, a satisfying record of a long project." },
+        { id: "25.55.2", why: "Group your DNA relatives by family name, showing which branches to research next." }
+      ]},
+      { name: "Faith & mindfulness", description: "We gently support your spiritual life — a daily quiet-time streak, reading-plan progress, and the things you are grateful for.", ucs: [
+        { id: "25.56.1", why: "Keep your daily prayer or meditation habit alive with a gentle streak to protect." },
+        { id: "25.56.3", why: "Gather up what you have been thankful for each month, showing what really brings you joy." }
+      ]},
+      { name: "Giving back", description: "We keep track of your generosity — volunteer hours by cause, giving against your plan, and the real good you have done.", ucs: [
+        { id: "25.57.1", why: "Add up the hours you give to each cause, showing where your time and heart really go." },
+        { id: "25.57.4", why: "Total the real good you have done — meals served, trees planted — into one inspiring tally." }
+      ]},
+      { name: "Keeping your memories", description: "We help you hold onto life's moments — photos over time, places visited, on-this-day flashbacks, and safe backups.", ucs: [
+        { id: "25.58.3", why: "Bring back things that happened on this very day in past years, a lovely surprise of old memories." },
+        { id: "25.58.7", why: "Check that your photos are safely backed up, so a lost phone never takes your memories with it." }
+      ]},
+      { name: "Your life dashboard", description: "We turn your whole life into a friendly game and dashboard — one daily score, points for good habits, and a household chore leaderboard.", ucs: [
+        { id: "25.59.2", why: "Blend your health, money, and relationships into one daily score for your whole life." },
+        { id: "25.59.4", why: "Rank who has done the most chores, turning housework into a friendly family competition." }
+      ]},
+      { name: "Predicting your own life", description: "We help you become a better judge of your own future — checking how often your confident guesses come true.", ucs: [
+        { id: "25.60.1", why: "See whether things you were sure about actually happened, revealing how well you judge the future." },
+        { id: "25.60.6", why: "Keep score of the friendly bets you make, showing whether you come out ahead in the end." }
+      ]}
+    ]
   }
 };

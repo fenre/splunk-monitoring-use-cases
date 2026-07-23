@@ -12,6 +12,341 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.14.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 5 (Stretch B) expansion — 100 new use cases across 10 new
+  subcategories, taking the fun category to 599 UCs across 60 subcategories.**
+  Wave 5 completes the Stretch frontier — life's bigger projects, caring,
+  meaning, and the parody-the-enterprise meta layer:
+  - **Chronic-Condition Management (10)** — medication adherence, symptom
+    severity trends, flare-up trigger correlation, blood-pressure control
+    zones, lab-result trends, missed-dose alerts, symptom-free streaks, refill
+    countdowns, pain time-of-day patterns, and a care-plan vitals dashboard.
+  - **Elder Care & Accessibility (10)** — daily-activity baselines, fall-alert
+    response logs, dispenser compliance, check-in cadence, night-wandering
+    watch, home-temperature safety, meal/kettle routines, accessibility
+    routines, carer visit coverage, and a family well-being summary.
+  - **Wedding & Event Planning (10)** — budget burn-down, RSVP tracking, task
+    countdowns, vendor payment schedules, dietary/access needs, seating-plan
+    completeness, milestone walls, category overspend alerts, vendor coverage,
+    and thank-you tracking.
+  - **Home Renovation & Project Management (10)** — budget vs actual, blocker
+    watch, progress vs schedule, material lead-times, permit/inspection status,
+    change-order cost impact, contractor reliability, receipt/warranty vault,
+    room-by-room completion, and a project-health summary.
+  - **Genealogy & Family History (10)** — tree growth, DNA-match clustering,
+    ancestor lifespan/era analysis, source coverage, brick-wall tracking,
+    document archive index, geographic origins, living-relative interviews,
+    duplicate detection, and research productivity.
+  - **Spiritual Practice & Mindfulness (10)** — prayer/meditation consistency,
+    reading-plan progress, gratitude themes, fasting adherence, practice
+    rhythm, worship attendance, gratitude-mood link, retreat balance,
+    reflection-word frequency, and a practice balance wheel.
+  - **Volunteering & Community (10)** — hours by cause, giving vs plan, shift
+    reliability, community-impact scorecard, mutual-aid response, tax-receipt
+    readiness, event participation, skills-based matching, burnout watch, and a
+    lifetime contribution summary.
+  - **Life-Logging & Memories (10)** — photos over time, places-visited maps,
+    on-this-day resurfacing, new-place discovery, voice-memo habits, life-event
+    timelines, photo backup coverage, people-in-photos frequency, journaling
+    streaks, and year-in-review.
+  - **Personal Life-OS & Gamification (10)** — personal SLOs and error budgets,
+    a life-score composite, XP/level-up, household chore leaderboards, quest
+    boards, streak boss-battles, a life-domain status wall, achievement logs,
+    habit-chain break alerts, and a weekly life retrospective.
+  - **Self-Forecasting & Prediction Markets on Yourself (10)** — calibration
+    curves, Brier-score trends, overconfidence detection, resolution queues,
+    topic accuracy, a personal-bet ledger, resolution forecasts, forecast
+    volume, a surprise index, and a self-forecasting scorecard.
+
+### Changed
+
+- Registered 49 new personal sourcetypes for Wave 5 subcategories and extended
+  the non-technical (grandma) view with 10 new life areas.
+
+## [8.13.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 4 (Stretch A) expansion — 100 new use cases across 10 new
+  subcategories, taking the fun category to 499 UCs across 50 subcategories.**
+  Wave 4 pushes into hobbies and passions with real telemetry to match:
+  - **Micro-Mobility & Action Sports (10)** — e-bike range versus battery
+    anxiety, commute cost versus car, scooter geofence and speed watch, surf
+    session wave counts, ski/snow vertical-metres, skate trick-landing rates,
+    IMU airtime and impact logs, seasonal mileage, and battery-health decline.
+  - **Aviation & Flight Simulation (10)** — pilot currency and recency, flight
+    hours by aircraft type, own-aircraft ADS-B track, pre-flight checklist
+    audits, flight-sim landing smoothness, cross-country distance logs, sim
+    versus real approach consistency, medical/rating expiry countdowns, fuel
+    burn versus book figures, and sim hours toward a goal.
+  - **Boating & Marine (10)** — bilge-pump leak watch, anchor-drag alarm,
+    house-battery state-of-charge, engine-hours and service intervals, sailing
+    performance versus polars, shore-power and galvanic watch, weather-window
+    passage planning, tank levels, trip logs, and depth-alarm grounding guard.
+  - **Fishing, Hunting & Foraging (10)** — catch logs, bite-time versus
+    conditions, personal-best leaderboards, fishfinder bait-ball detection,
+    foraging maps and seasonality, game-camera wildlife clocks, licence/tag
+    compliance, tackle inventory, catch-and-release care, and best-spot ranking.
+  - **Music-Making & Creator Analytics (10)** — instrument practice streaks,
+    DAW project momentum, streaming growth and milestones, gig setlist history,
+    practice-goal focus areas, tempo/accuracy progress, release-day watch,
+    audience-retention, catalogue value, and creative-output cadence.
+  - **Tabletop RPG Campaigns (10)** — session cadence and attendance, XP and
+    levelling pace, loot ledgers, NPC relationship webs, dice-luck by player,
+    session-length trends, campaign world-building progress, encounter balance,
+    downtime tracking, and player-spotlight fairness.
+  - **Reading & Second Brain (10)** — books finished versus yearly goal, reading
+    pace and time-to-finish, highlight resurfacing, note-graph growth, genre
+    diversity, to-be-read backlog burn-down, re-read candidates, reading-time by
+    time-of-day, source-to-note conversion, and orphaned-note cleanup.
+  - **Language Learning (10)** — daily lesson streaks, vocabulary retention and
+    mature cards, immersion-hours logging, speaking-practice cadence, review
+    backlog, skill-versus-time progress, forgetting-curve alerts, streak-freeze
+    economy, cross-app consistency, and milestone celebration.
+  - **Wardrobe, Fashion & Beauty (10)** — cost-per-wear, closet value,
+    never-worn declutter candidates, outfit rotation, skincare adherence,
+    product finish-date and repurchase, laundry-load efficiency, seasonal
+    readiness, colour-palette analysis, and spend-per-season budgeting.
+  - **Sustainability & Zero-Waste (10)** — personal carbon-footprint trends,
+    recycling-versus-landfill diversion, food-waste tracking, repair-versus-
+    replace ratio, water footprint by activity, second-hand purchase ratio,
+    compost yield, energy-carbon by hour, plastic-item counts, and a
+    sustainability goal scorecard.
+
+### Changed
+
+- Registered 41 new personal sourcetypes for Wave 4 subcategories and extended
+  the non-technical (grandma) view with 10 new life areas.
+
+## [8.12.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 3 expansion — 120 new use cases across 12 new subcategories,
+  taking the fun category to 399 UCs across 40 subcategories.** Wave 3 covers the
+  long tail of personal life — play, mind, money, and the meta layer that ties it
+  all together:
+  - **Games & Tabletop (10)** — weekly gaming time versus a self-set limit,
+    unfinished-backlog burn-down, achievement completion rates, board-game
+    play-frequency and cost-per-play, chess rating trends and opening win-rates,
+    a tabletop dice-luck tracker, late-night gaming versus next-day tiredness, and
+    never-played game spend.
+  - **Collections & Hobbies (10)** — collection value trending, an insurance
+    high-value list, vinyl play-counts and stylus wear, LEGO set completeness,
+    trading-card portfolio movers, want-list progress, duplicate detection,
+    acquisition pace, rarest-items spotlight, and storage-condition watch.
+  - **Mind, Mood & Journaling (10)** — mood trends and low-streak alerts,
+    activity-to-mood correlation, meditation streaks, journaling frequency,
+    gratitude themes, sleep-versus-mood and screen-versus-mood trade-offs,
+    day-of-week mood patterns, meditation impact on HRV, and sentiment drift.
+  - **Relationships & Togetherness (10)** — date-night cadence, stay-in-touch
+    reminders, relationship check-in trends, gift-idea backlog, chore balance
+    between partners, quality-time versus screen-time, anniversary countdowns,
+    an acts-of-kindness ledger, long-distance call frequency, and bucket-list
+    progress.
+  - **Everyday Habits & Vices (10)** — weekly alcohol units versus guideline,
+    dry-day streaks, smoking/vaping cessation progress and money saved, daily
+    hydration, a smart swear jar, trigger time-of-day, weekday/weekend drinking
+    split, afternoon-caffeine sleep guard, and urge-resisting success rate.
+  - **Money Pettiness & Microspending (10)** — coffee/snack spend creep,
+    no-spend-day streaks, impulse-buy detection, price-per-use of big purchases,
+    cash-back harvest, eating-out versus cooking split, round-up micro-savings,
+    merchant-frequency leaks, budget-category overruns, and fun-money ratio.
+  - **Body Signals & Personal Oddities (10)** — posture slouch-time, allergy
+    symptom-versus-pollen correlation, headache trigger logs, hydration/bathroom
+    balance, sneeze counts, standing-versus-sitting balance, symptom-onset early
+    warning, desk-break adherence, cold recovery curves, and eye-strain reminders.
+  - **Household Supplies & Logistics (10)** — consumable reorder forecasting,
+    parcel tracking and delays, bin-collection reminders, gift-card expiry watch,
+    grocery restock prediction, delivery spend, food-waste reduction, battery
+    stock, subscription-box value checks, and shopping-day optimisation.
+  - **Building Health & Structural (10)** — mould-risk humidity watch, crack and
+    tilt movement trends, HVAC filter life, room damp comparison, window/door
+    heat-loss, temperature stability, rain-response leak checks, heating
+    efficiency, and appliance-vibration fault warning.
+  - **Personal Cyber & Digital Exhaust (10)** — credential-breach alerts,
+    two-factor coverage gaps, certificate-expiry watch, inbox/newsletter bloat,
+    cloud-storage runway, suspicious-login-location watch, password age/reuse
+    audit, data-broker opt-out tracking, account sprawl, and backup 3-2-1 checks.
+  - **Seasonal & Silly (10)** — Christmas-lights cost, a Halloween candy counter,
+    advent countdowns, festive-energy baselines, a pumpkin-rot timer, resolution
+    progress, daylight-versus-mood, gift-budget burn-down, a garden-mascot
+    presence cam, and festive-playlist mood boost.
+  - **Cross-Stream ML & the Personal Digital Twin (10)** — a daily life-score
+    composite, a personal-SLO error-budget dashboard, cross-signal anomaly of the
+    day, best-day predictors, a weekly personal ops review, a habit domino map, a
+    personal-NOC house-health wall, an anomaly-free streak, digital-twin data
+    freshness, and a life-score forecast alert.
+
+### Changed
+
+- Registered 47 new `sourcetype`s (games, collections, mood, relationships,
+  habits, microspend, body signals, household logistics, building health,
+  personal cyber, seasonal, and digital-twin feeds) in the SPL reference
+  vocabulary.
+- Added 12 non-technical-view areas covering every new Wave 3 subcategory.
+
+## [8.11.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 2 expansion — 93 new use cases across 9 new subcategories,
+  taking the fun category to 279 UCs across 28 subcategories.** Wave 2 pushes
+  personal monitoring into citizen science, the sky, the homestead, and the body:
+  - **Citizen Science & Backyard Sensing (11)** — backyard seismograph quake
+    detection and daily noise floor, radiation-level anomaly watch, lightning
+    proximity/storm approach, home radon trend, all-sky meteor/fireball logging
+    and peak-night ranking, river-level flood watch, geomagnetic/aurora chance,
+    ISS pass reminders, and sensor-fleet uptime.
+  - **Radio, SDR & Space (11)** — WSPR propagation reach/DX records, band-opening
+    time-of-day maps and signal-to-noise distribution, APRS stations-heard/range
+    and grid coverage, NOAA weather-satellite capture logging, same-day satellite
+    pass schedules, meteor-scatter ping activity, SSTV reception logging, SDR
+    feed-health heartbeats, and best-DX-of-the-month highlights.
+  - **Backyard Astronomy & Observatory (10)** — astrophotography sub-frame yield,
+    sky-quality/light-pollution trending, cloud-sensor imaging windows, mount
+    guiding-error and best-seeing ranking, roof/power safe-state audit, integration-
+    time tracking, dew/frost risk on optics, clear-night utilisation, and session-
+    failure logging.
+  - **Family, Baby & Household Chaos (11)** — baby feeding/sleep/diaper logs,
+    child growth percentiles, chore leaderboards, allowance ledgers, family-
+    calendar load/clash detection, screen-time fairness, bedtime-routine
+    adherence, household task burn-down, and new-parent sleep-debt estimates.
+  - **Homestead, Bees & Livestock (10)** — beehive weight/swarm and temperature/
+    acoustic health, chicken-coop auto-door audit, egg-count laying-rate trend,
+    livestock GPS fence/straying alerts, feed/water supply runway, pasture soil
+    moisture, honey-harvest yield, and predator activity detection.
+  - **Advanced Health & Biohacking (10)** — HRV recovery baselines, overnight
+    blood-oxygen dip detection, continuous-glucose meal response, resting blood-
+    pressure trend, body-composition change, lab-panel biomarker trends,
+    supplement/medication adherence, sleep-apnea frequency, an illness early-
+    warning composite, and caffeine-timing vs sleep correlation.
+  - **Wildlife & Biodiversity (10)** — BirdNET species diversity and rare/first-
+    of-season alerts, dawn-chorus peaks, trail-camera visitor logs and nocturnal
+    activity clocks, moth-trap and bat-detector diversity, pollinator visit counts,
+    feeder squirrel-raid detection, and a seasonal biodiversity index.
+  - **Aquariums, Reptiles & Vivariums (10)** — reef-tank parameter stability and
+    heater-failure alerts, auto-doser reagent runway, auto-top-off leak watch,
+    fish-feeder confirmation, reptile terrarium climate/UVB, misting/humidity
+    cycles, pond oxygen/temperature, equipment/pump health, and maintenance cadence.
+  - **Sports, Skills & Training Telemetry (10)** — velocity-based-training bar-
+    speed autoregulation and estimated one-rep-max trends, running gait symmetry,
+    cycling power interval compliance and fitness/fatigue balance, hangboard load
+    progression, golf-swing consistency, basketball shooting by spot, training
+    streaks, and personal-best logging.
+
+### Changed
+
+- Registered 45 new personal-monitoring sourcetypes in the SPL reference corpus.
+- Extended the non-technical view with 9 new plain-language areas covering the
+  Wave 2 subcategories.
+- Nudged the `index.html` perf budget from ~700 KiB to ~720 KiB to absorb the
+  accumulating release-notes popup (each release appends a versioned block).
+
+## [8.10.0] - 2026-07-22
+
+### New Use Cases
+
+- **cat-25 Wave 1 expansion — 69 new use cases across 6 new subcategories,
+  taking the fun category to 186 UCs across 19 subcategories.** The expansion
+  pushes personal monitoring off the screen and into the physical world:
+  - **Travel, Commute & Flight-Spotting (12)** — home ADS-B receiver overhead-
+    aircraft logging and rare-type spotting, military/emergency squawk alerts,
+    closest-approach-of-the-day, receiver coverage/range trending, a personal
+    flight logbook (miles/countries), airline on-time record, commute-time
+    anomaly detection, transit-delay tracking, geofence arrival/departure logs,
+    passport/visa expiry countdown, airfare price-drop watch, and monthly travel
+    spend/distance rollups.
+  - **Kitchen, Cooking & Fermentation (12)** — sourdough peak-rise "bake now"
+    alerts and fermentation-environment trending, BBQ smoker stall detection,
+    sous-vide doneness timing, fridge/freezer food-safety excursion alerts, oven
+    preheat readiness, espresso-shot consistency, daily caffeine vs limit, pantry
+    low-stock/reorder forecasting and expiry/food-waste reduction, kombucha batch
+    progress, and coffee-bean freshness.
+  - **Homebrewing, Beer & Wine (10)** — fermentation gravity/attenuation curves,
+    temperature-stability and fermentation-complete detection, kegerator pour-
+    count/keg-level forecasting and temperature/CO2 health, cost-per-pint vs
+    store-bought, wine-cellar climate stability, cellar inventory/drink-by
+    windows, brew-day cadence, and peak-fermentation ranking.
+  - **Making, 3D Printing & Workshop (12)** — print success rates and failure-
+    reason breakdowns, long-print progress/ETA, hotend/bed temperature stability,
+    enclosure air quality, filament remaining/runout and cost-per-print, print-
+    farm utilization, CNC/laser runtime/queue, workshop dust/noise exposure,
+    cordless-tool battery status, and machine-maintenance intervals.
+  - **Home Security & Surveillance (12)** — camera object-detection counts,
+    package/porch-pirate watch, per-camera false-positive rates, camera offline
+    health, alarm arm/disarm audit, smoke/CO life-safety logging, keypad-lock
+    access history, repeat-vehicle/stranger-car plate alerts, night-time motion
+    anomaly baselines, doorbell visitor classification, false-alarm rates, and
+    NVR storage retention/capacity.
+  - **Water, Plumbing & Utilities (11)** — continuous-flow leak detection, daily
+    usage/fixture breakdown, monthly bill estimates, sump-pump activation/failure
+    and cycle-frequency flood warnings, well-pump short-cycle health, pool/spa
+    chemistry balance and pump energy cost, water-softener salt reminders, and
+    irrigation runtime/rain-skip plus water-budget-vs-rainfall.
+
+  Every UC ships runnable SPL against realistic consumer data sources (ADS-B
+  feeds, ESP32/ESPHome sensors, OctoPrint/Klipper, Frigate/Blue Iris NVRs, smart
+  water meters) ingested via Splunk HEC into `index=personal`, a plain-language
+  `grandmaExplanation`, and real vendor/reference documentation.
+
+### Added
+
+- 36 new consumer/hobbyist sourcetypes added to the curated SPL reference
+  vocabulary (`_spl_well_known.py`) for the six new subcategories.
+- Non-technical view coverage extended with six new plain-language areas
+  (travel, kitchen, workshop, security, water) covering the new subcategories.
+- Master mega-expansion plan added at
+  `docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md` charting the road
+  to a 1,000+ UC personal-monitoring category.
+
+## [8.9.0] - 2026-07-22
+
+### New Category
+
+- **cat-25 "Personal & Hobbyist Monitoring" — the fun category.** A new flagship
+  category that turns the same monitoring discipline on your own life instead of
+  the corporate data centre. It sits entirely outside enterprise IT (its own
+  `personal` domain group on the landing page) and covers 13 subcategories:
+  Fitness & Activity Tracking (Strava/Garmin/Fitbit/Peloton/Zwift), Health, Sleep
+  & Wearables (Apple Watch/Oura/Whoop/Withings/Dexcom), Connected Cars & EVs
+  (Tesla/OBD-II/EV charging), Smart Home Platforms & Automation (Home
+  Assistant/Homey/SmartThings/Node-RED), Smart Home Devices & Sensors
+  (Zigbee2MQTT/Shelly/Hue/Ecobee), Home Energy & Solar
+  (SolarEdge/Enphase/Powerwall/smart meters), Media, Gaming & Entertainment
+  (Plex/Jellyfin/Spotify/Steam/*arr), Home Lab & Self-Hosting
+  (Proxmox/Docker/TrueNAS/UPS), Home Network & Connectivity
+  (UniFi/Pi-hole/speedtest), Weather, Environment & Garden
+  (Ecowitt/PurpleAir/soil/aquarium), Pets & Home Life
+  (Tractive/Whistle/smart feeders/litter boxes), Personal Finance & Crypto
+  (portfolio/budget/subscriptions), and Digital Life & Productivity
+  (RescueTime/screen time/GitHub/habits).
+
+### New Use Cases
+
+- **117 use cases across all 13 cat-25 subcategories.** Each ships genuinely
+  runnable SPL against realistic consumer data sources (REST APIs, webhooks, MQTT
+  bridges, and file exports ingested via Splunk HEC into `index=personal`), a
+  plain-language `grandmaExplanation`, and real vendor/reference documentation.
+  Highlights include Strava weekly-distance-vs-goal, resting-heart-rate anomaly
+  detection, Tesla battery-degradation trending, Home Assistant automation-failure
+  tracking, instant water-leak alerts, solar-vs-consumption self-sufficiency,
+  Plex transcode-overload warnings, home-lab disk-runway and backup-freshness
+  checks, internet-speed-vs-paid-plan, indoor/outdoor air-quality alerts,
+  pet-left-the-safe-zone geofencing, subscription-creep detection, and
+  focus-vs-distraction time.
+
+### Added
+
+- New `heartPulse` icon registered in the SVG icon set for the cat-25 tile.
+- New `personal` domain group on the landing page grouping the fun category
+  separately from enterprise IT domains.
+- 63 consumer/hobbyist sourcetypes added to the curated SPL reference vocabulary
+  (`_spl_well_known.py`) so `audit-spl-references` stays clean.
+
 ## [8.8.0] - 2026-07-22
 
 ### New Category

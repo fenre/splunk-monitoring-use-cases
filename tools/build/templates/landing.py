@@ -4,7 +4,7 @@ Slim home page that:
 
 * Establishes the project identity (name, tagline, total UC count)
 * Lists every category grouped by high-level domain (infra, security,
-  cloud, app, industry, compliance, business)
+  cloud, app, industry, compliance, business, personal)
 * Links into ``/browse/`` for the interactive SPA
 * Links to the per-category permanent URLs at ``/category/<slug>/``
 * Embeds a ``WebSite`` JSON-LD payload + ``BreadcrumbList``
@@ -27,6 +27,7 @@ _DOMAIN_ORDER = [
     ("industry",   "Industry",         "Industry-specific operational telemetry — manufacturing, energy, transport."),
     ("compliance", "Compliance",       "Regulatory mappings: PCI DSS, HIPAA, NIST, SOX, ISO 27001 and more."),
     ("business",   "Business",         "Business operations, customer experience, and revenue-impacting signals."),
+    ("personal",   "Personal & Hobbyist", "The fun stuff — fitness, health, cars, smart home, energy, media, home lab, and everyday life."),
 ]
 
 
