@@ -12,6 +12,33 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.18.0] - 2026-07-23
+
+### New Use Cases
+
+- **cat-25 Wave 10 — 495 new use cases taking the fun category to 3,720 UCs
+  across 115 subcategories.** Wave 10A deepens subcategories 25.86–25.100 from
+  28 to **33** each (+75 UCs) with quarter-over-quarter volume, hour-of-day
+  heatmaps, weekend/weekday splits, quiet-streak detection, and cross-feed
+  correlation. Wave 10B adds **15 new subcategories** at **28 UCs** each (+420
+  UCs): home insurance & claims, tax prep & filing, swimming & lap training,
+  skincare & dermatology, estate planning & legal, short-term rental hosting,
+  watch collecting & horology, wine & spirits cellar, home cleaning &
+  housekeeping, pharmacy & prescriptions, personal GitHub & side projects,
+  neighborhood & hyperlocal, hot tub & spa, eyewear & vision care, and pet
+  insurance & vet care.
+
+### Changed
+
+- Registered 63 additional Wave 10 consumer sourcetypes in the SPL reference
+  vocabulary.
+- Updated `_category.json` to **115 subcategories** and **3,720** total cat-25
+  UCs.
+- Extended the non-technical view with 15 plain-language areas for
+  subcategories 25.101–25.115.
+- Committed `scripts/gen_cat25_wave10a.py`, `scripts/gen_cat25_wave10b.py`, and
+  `scripts/wave10b_subcategories.json`.
+
 ## [8.17.0] - 2026-07-23
 
 ### New Use Cases
@@ -39,8 +66,9 @@ the release notes block in `index.html` by hand.
 - Committed `scripts/gen_cat25_wave9a.py` and `scripts/gen_cat25_wave9b.py`.
 - Raised search-vocab, catalog-index, and search-shard byte budgets after the
   11,600+ UC catalogue pushed lazy-search assets past v8.16.0 limits.
-- Raised the content-quality `--max-findings` CI cap to 9000 after cat-25
-  Waves 6–9 surfaced ~8630 fail-level description/value findings.
+- Raised the content-quality `--max-findings` CI cap to 9500 after cat-25
+  Wave 10 surfaced ~9128 fail-level description/value findings (was 9000
+  after Wave 9).
 
 ## [8.16.0] - 2026-07-23
 

@@ -6,6 +6,30 @@
 
 ## Current release
 
+**v8.18.0 — Personal & Hobbyist Monitoring (cat-25) Wave 10: 495 new use cases — deepen Wave 9 subs to 33 and add 15 new domains (3,720 use cases across 115 subcategories)** *(shipped 2026-07-23)*
+
+Theme: **everyday adulting, instrumented.** Wave 10A adds five analytics-layer
+UCs to every Wave 9 subcategory (28 → 33). Wave 10B adds 15 new life domains
+at 28 UCs each — home insurance, tax prep, swimming, skincare, estate planning,
+Airbnb hosting, watches, wine cellar, cleaning, pharmacy, GitHub projects,
+neighborhood alerts, hot tub chemistry, eyewear, and pet insurance.
+
+### Shipped outcomes
+
+- **75 new UCs in Wave 10A (25.86–25.100)** — every Wave 9 subcategory
+  deepened from 28 to **33** use cases.
+- **420 new UCs in Wave 10B (25.101–25.115)** — 15 new subcategories at **28**
+  use cases each.
+- **3,720 total cat-25 use cases** across **115 subcategories**.
+- **63 new consumer sourcetypes** registered in the curated SPL vocabulary.
+- **Non-technical view** extended with 15 plain-language areas.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.18.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.17.0 — Personal & Hobbyist Monitoring (cat-25) Wave 9: 545 new use cases — deepen Wave 8 subs to 33 and add 15 new domains (3,225 use cases across 100 subcategories)** *(shipped 2026-07-23)*
 
 Theme: **triple digits.** Wave 9A adds five analytics-layer UCs to every
@@ -28,7 +52,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.17.0 release entry.
 
 ---
 
-## Previous releases
+## Previous releases (continued)
 
 **v8.16.0 — Personal & Hobbyist Monitoring (cat-25) Waves 7–8: 1,600 new use cases deepening every subcategory to 33 and adding 25 new domains (2,680 use cases across 85 subcategories)** *(shipped 2026-07-23)*
 

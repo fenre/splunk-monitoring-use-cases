@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.102.1",
+  "title": "W-2 Import Mismatch vs Transcript",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Data Quality",
+    "Compliance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "TurboTax returns (`turbotax:return`), IRS transcripts (`irs:transcript`), tax estimates (`tax:estimate`), tax payments (`tax:payment`), and W-2 imports (`w2:import`).",
+  "app": "TurboTax return exports, IRS transcript pulls, tax estimate calculators, payment confirmations, and W-2 import logs ingested into Splunk HEC.",
+  "spl": "index=personal sourcetype=w2:import wages_usd=* employer_ein=* tax_year=*\n| join type=inner employer_ein tax_year [search index=personal sourcetype=irs:transcript transcript_type=\"wage\" reported_income_usd=* | rename reported_income_usd as transcript_wages]\n| eval wage_delta=round(wages_usd-transcript_wages,2)\n| where abs(wage_delta)>100\n| table employer_ein tax_year wages_usd transcript_wages wage_delta",
+  "description": "Compares imported W-2 wage totals against IRS wage transcript amounts for the same employer and tax year.",
+  "value": "W-2 versus transcript gaps catch typos before e-file acceptance or an IRS mismatch letter arrives.",
+  "implementation": "Share `employer_ein`, `tax_year`, and wage fields across W-2 imports and IRS transcript pulls.",
+  "visualization": "Table of employers with wage delta in dollars.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "TurboTax",
+      "url": "https://turbotax.intuit.com/"
+    },
+    {
+      "title": "IRS Tax Transcript API",
+      "url": "https://www.irs.gov/individuals/get-transcript"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It tracks when your W-2 wages do not match what the IRS transcript says your employer reported."
+}
