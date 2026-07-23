@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.16.25",
+  "title": "Keg Pressure Leak Overnight",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Quality",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Brewing telemetry (`brew:batch`, `brew:fermentation`, `brew:mash`, `tilt:hydrometer`, `ispindel:reading`, `kegerator:pressure`, `kegerator:pour`, `brewfridge:compressor`, `winecellar:reading`, `tapline:clean`).",
+  "app": "Brewfather batch exports, iSpindel and Tilt hydrometers, ESPHome mash probes, keg pressure sensors, brew-fridge telemetry, and cellar climate data via MQTT and Splunk HEC.",
+  "spl": "index=personal sourcetype=kegerator:pressure\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=0 AND hour<6\n| bin _time span=1d\n| stats first(psi) as start_psi, last(psi) as end_psi by keg _time\n| eval overnight_drop_psi=round(start_psi-end_psi,1)\n| where overnight_drop_psi>3\n| sort - overnight_drop_psi",
+  "description": "Uses Kegerator pressure telemetry telemetry to monitor overnight pressure loss from each keg in index=personal.",
+  "value": "Splunk turns the feed into an operational check for gas leaks before they flatten a batch, so the signal does not stay buried inside separate consumer apps or exports.",
+  "implementation": "Ingest Kegerator pressure telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
+  "visualization": "Daily keg table of overnight pressure drop.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Brewfather API",
+      "url": "https://api.brewfather.app/"
+    },
+    {
+      "title": "iSpindel docs",
+      "url": "https://www.ispindel.de/docs/README_en.html"
+    },
+    {
+      "title": "Tilt Hydrometer",
+      "url": "https://tilthydrometer.com/"
+    },
+    {
+      "title": "ESPHome",
+      "url": "https://esphome.io/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It reveals overnight pressure loss from each keg so you can spot gas leaks before they flatten a batch before it becomes annoying."
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.3.19",
+  "title": "Rivian Overnight Vampire Drain at Home",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Cost",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`).",
+  "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC.",
+  "spl": "index=personal sourcetype=rivian:vehicle state=parked location_type=home\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| where hour>=0 AND hour<6\n| bin _time span=1d\n| stats first(soc_pct) as start_soc, last(soc_pct) as end_soc by vin _time\n| eval overnight_loss=round(start_soc-end_soc,1)\n| where overnight_loss>3\n| sort - overnight_loss",
+  "description": "Uses Rivian vehicle telemetry telemetry to monitor overnight battery drop while the vehicle sat parked at home in index=personal.",
+  "value": "Splunk turns the feed into an operational check for phantom drain days before they become expensive habit, so the signal does not stay buried inside separate consumer apps or exports.",
+  "implementation": "Ingest Rivian vehicle telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
+  "visualization": "Daily chart of overnight state-of-charge loss.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Tesla Fleet API",
+      "url": "https://developer.tesla.com/docs/fleet-api"
+    },
+    {
+      "title": "TeslaMate documentation",
+      "url": "https://docs.teslamate.org/"
+    },
+    {
+      "title": "Rivian",
+      "url": "https://rivian.com/"
+    },
+    {
+      "title": "ChargePoint",
+      "url": "https://www.chargepoint.com/"
+    },
+    {
+      "title": "PlugShare",
+      "url": "https://www.plugshare.com/"
+    },
+    {
+      "title": "Smartcar API",
+      "url": "https://smartcar.com/docs/"
+    },
+    {
+      "title": "Open Charge Point Protocol",
+      "url": "https://www.openchargealliance.org/protocols/open-charge-point-protocol/"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+    }
+  ],
+  "grandmaExplanation": "It measures overnight battery drop while the vehicle sat parked at home so you can spot phantom drain days before they become expensive habit before it becomes annoying."
+}
