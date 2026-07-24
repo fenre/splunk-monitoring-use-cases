@@ -7,7 +7,7 @@
  *
  * 1. The legacy JS file exists at the expected repo-root path and
  *    populates `window.NON_TECHNICAL` when executed.
- * 2. The catalogue covers categories 1..23 with no gaps and no
+ * 2. The catalogue covers categories 1..25 with no gaps and no
  *    extras (matches drift-ledger #5 in the canonical progress doc).
  * 3. Every category has at least one outcome sentence and at least
  *    one area, and the per-area authoring contract from
@@ -81,7 +81,7 @@ describe("loadCatalogFromLegacyJs (loader)", () => {
 });
 
 describe("category coverage", () => {
-  it("covers exactly categories 1..23 with no gaps and no extras", () => {
+  it("covers exactly categories 1..25 with no gaps and no extras", () => {
     expect(listCategoryKeys(catalog)).toEqual(EXPECTED_CATEGORIES);
   });
 });
