@@ -9,6 +9,10 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.2 positive (DNS, AAAA, Record, Coverage, Audit): ingest synthetic events into `index=dns` sourcetype='target_sourcetype' where `record_types`, `total` grouped by `query`, `dual_stack_status` satisfies detection threshold for 'DNS AAAA Record Coverage Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.2 negative (Coverage Audit): ingest benign `dns` / `target_sourcetype` events where `query`, `dual_stack_status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'DNS AAAA Record Coverage Audit'."
+  },
   "dataSources": "`index=dns sourcetype=infoblox:dns OR sourcetype=named OR sourcetype=msdns` for DNS query logs. Alternatively, `index=dns sourcetype=stream:dns` from Splunk Stream wire data capture. Key fields: `query` (FQDN queried), `query_type` (A, AAAA, PTR, etc.), `reply_code` (NOERROR, NXDOMAIN, SERVFAIL), `answer` (resolved IP). For authoritative zone data, use `index=infoblox sourcetype=infoblox:dhcp` or IPAM API exports. Volume: DNS query logs generate 500–5,000 events/second on an enterprise resolver; filter to `query_type=AAAA OR query_type=A` to reduce scope.",
   "app": "Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934) for Infoblox DNS/DHCP logs, Splunk Add-on for Microsoft DNS (`Splunk_TA_microsoft_dns`) for Windows DNS, or Splunk App for Stream (`splunk_app_stream`, Splunkbase 1809) for wire-data DNS capture. Install on Search Heads and the data collection tier.",
   "spl": "index=dns (query_type=A OR query_type=AAAA) reply_code=NOERROR\n| stats dc(query_type) as record_types values(query_type) as types values(answer) as addresses by query\n| eval has_A=if(match(types, \"A\"), 1, 0)\n| eval has_AAAA=if(match(types, \"AAAA\"), 1, 0)\n| eval dual_stack_status=case(\n    has_A=1 AND has_AAAA=1, \"Dual-Stack\",\n    has_A=1 AND has_AAAA=0, \"IPv4-Only\",\n    has_A=0 AND has_AAAA=1, \"IPv6-Only\",\n    1==1, \"Unknown\")\n| stats count by dual_stack_status\n| eventstats sum(count) as total\n| eval pct=round(count/total*100, 1)",
@@ -57,9 +61,5 @@
   "prerequisiteUseCases": [
     "UC-5.20.1"
   ],
-  "wave": "crawl",
-  "controlTest": {
-    "positiveScenario": "UC-5.20.2 positive (DNS, AAAA, Record, Coverage, Audit): ingest synthetic events into `index=dns` sourcetype='target_sourcetype' where `record_types`, `total` grouped by `query`, `dual_stack_status` satisfies detection threshold for 'DNS AAAA Record Coverage Audit'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-5.20.2 negative (Coverage Audit): ingest benign `dns` / `target_sourcetype` events where `query`, `dual_stack_status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'DNS AAAA Record Coverage Audit'."
-  }
+  "wave": "crawl"
 }

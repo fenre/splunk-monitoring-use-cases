@@ -8,6 +8,10 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.8 positive (IPv6, Prefix, Plan, Compliance, Audit): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `total` grouped by `host`, `prefix`, `compliance` satisfies -24h for 'IPv6 Prefix Plan Compliance Audit'. Validate lookup `ipv6_prefix_plan`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.8 negative (Compliance Audit): ingest benign `network` / `cisco:ios` events where `host`, `prefix`, `compliance` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'IPv6 Prefix Plan Compliance Audit'."
+  },
   "dataSources": "Two data sources combined:\n1. **Observed prefixes** — `index=network sourcetype=cisco:ios \"show ipv6 route\"` from CLI-collected routing tables, OR `index=network sourcetype=snmp:inetCidrRouteTable` from SNMP polling of the IPv6 routing table (RFC 4292), OR `index=netflow sourcetype=ipfix` for passively observed IPv6 source prefixes aggregated to /48 or /64 boundaries.\n2. **Authoritative prefix plan** — a CSV lookup (`ipv6_prefix_plan.csv`) containing your organisation's approved IPv6 prefix allocations from IPAM (Infoblox, NetBox, or manual export). Fields: `prefix`, `prefix_length`, `site`, `vlan`, `description`, `status` (active/reserved/deprecated).\n\nKey fields from observed data: `prefix`, `next_hop`, `interface`, `metric`, `host` (router). Key lookup fields: `prefix`, `status`.",
   "app": "Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for routing table syslog, SNMP Modular Input for MIB polling, or Splunk Add-on for NetFlow for passive prefix discovery. No specific app required for the lookup — it's a CSV file maintained by the IPAM team.",
   "spl": "index=network sourcetype=\"cisco:ios\" \"show ipv6 route\" earliest=-24h\n| rex \"(?<route_type>[CSLBOD])\\s+(?<prefix>[0-9a-fA-F:]+/\\d+).*via\\s+(?<next_hop>[0-9a-fA-F:]+|[A-Za-z0-9/]+)\"\n| where isnotnull(prefix)\n| stats latest(route_type) as type latest(next_hop) as next_hop by host, prefix\n| lookup ipv6_prefix_plan prefix OUTPUT site, description, status as plan_status\n| eval compliance=case(\n    isnotnull(plan_status) AND plan_status=\"active\", \"COMPLIANT - in plan\",\n    isnotnull(plan_status) AND plan_status=\"deprecated\", \"VIOLATION - deprecated prefix still routed\",\n    isnull(plan_status), \"UNAUTHORIZED - not in prefix plan\")\n| stats count by compliance\n| eventstats sum(count) as total\n| eval pct=round(count/total*100, 1)",
@@ -62,9 +66,5 @@
     "UC-5.20.1",
     "UC-5.20.4"
   ],
-  "wave": "crawl",
-  "controlTest": {
-    "positiveScenario": "UC-5.20.8 positive (IPv6, Prefix, Plan, Compliance, Audit): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `total` grouped by `host`, `prefix`, `compliance` satisfies -24h for 'IPv6 Prefix Plan Compliance Audit'. Validate lookup `ipv6_prefix_plan`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-5.20.8 negative (Compliance Audit): ingest benign `network` / `cisco:ios` events where `host`, `prefix`, `compliance` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'IPv6 Prefix Plan Compliance Audit'."
-  }
+  "wave": "crawl"
 }

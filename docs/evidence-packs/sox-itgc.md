@@ -83,7 +83,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.32** — Cisco ISE<sup class="ref">[<a href="#ref-4">4</a>]</sup> License Consumption, Endpoint Capacity and MnT Log Retention
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.32.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.32.json)
 <a id='uc-17-1-43'></a>
 - **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
@@ -505,7 +505,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.22.0
+catalogue_version: 8.23.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

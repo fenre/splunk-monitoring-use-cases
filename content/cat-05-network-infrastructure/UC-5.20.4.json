@@ -9,6 +9,10 @@
     "Security"
   ],
   "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.4 positive (IPv6, Enabled, Device, Inventory): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `ipv6_address`, `host` satisfies detection threshold for 'IPv6-Enabled Device Inventory'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.4 negative (Device Inventory): ingest benign `network` / `cisco:ios` events where `ipv6_address`, `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'IPv6-Enabled Device Inventory'."
+  },
   "dataSources": "Multiple sources combined for comprehensive discovery:\n1. **NDP cache** — `index=network sourcetype=cisco:ios` containing `show ipv6 neighbors` output or SNMP `ipv6NetToMediaTable` (OID 1.3.6.1.2.1.55.1.12) polls. Fields: `ipv6_address`, `mac_address`, `interface`, `state` (REACH, STALE, INCOMPLETE, DELAY, PROBE).\n2. **IPFIX/NetFlow** — `index=netflow sourcetype=ipfix` with sourceIPv6Address (IE 27). Passive discovery from flow data.\n3. **DHCPv6 leases** — `index=dhcp sourcetype=infoblox:dhcp` for DHCP-managed addresses. Fields: `ipv6_address`, `duid`, `lease_start`, `lease_end`.\n4. **RADIUS accounting** — `index=radius sourcetype=cisco:ise:radius` for authenticated endpoints with IPv6. Fields: `Framed-IPv6-Address`, `User-Name`, `Calling-Station-Id` (MAC).\nEach source covers a different subset of devices; combining them gives the most complete picture.",
   "app": "Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for syslog/NDP, SNMP Modular Input for `ipv6NetToMediaTable`, Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658), Splunk Add-on for Infoblox (`Splunk_TA_infoblox`, Splunkbase 2934), Splunk Add-on for Cisco ISE (`Splunk_TA_cisco-ise`, Splunkbase 7437).",
   "spl": "index=network sourcetype=\"cisco:ios\" \"show ipv6 neighbors\" OR \"ipv6 nd\"\n| rex \"(?<ipv6_address>[0-9a-fA-F:]{6,39})\\s+\\d+\\s+(?<mac_address>[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4}\\.[0-9a-fA-F]{4})\\s+(?<state>\\w+)\\s+(?<interface>\\S+)\"\n| where NOT match(ipv6_address, \"^fe80:\")\n| stats latest(mac_address) as mac latest(state) as ndp_state latest(interface) as interface latest(_time) as last_seen by ipv6_address, host\n| eval last_seen_time=strftime(last_seen, \"%Y-%m-%d %H:%M:%S\")\n| sort host, ipv6_address",
@@ -68,9 +72,5 @@
   "prerequisiteUseCases": [
     "UC-5.20.1"
   ],
-  "wave": "crawl",
-  "controlTest": {
-    "positiveScenario": "UC-5.20.4 positive (IPv6, Enabled, Device, Inventory): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `ipv6_address`, `host` satisfies detection threshold for 'IPv6-Enabled Device Inventory'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-5.20.4 negative (Device Inventory): ingest benign `network` / `cisco:ios` events where `ipv6_address`, `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'IPv6-Enabled Device Inventory'."
-  }
+  "wave": "crawl"
 }

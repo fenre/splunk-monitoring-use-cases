@@ -111,25 +111,25 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.28** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> Deployment Replication Health and PSN Sync Lag
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.28.json)
 <a id='uc-17-1-29'></a>
 - **UC-17.1.29** — Cisco ISE Node Resource Saturation (CPU, Memory, Disk, Threads)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.29.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.29.json)
 <a id='uc-17-1-30'></a>
 - **UC-17.1.30** — Cisco ISE Process Crash and Service-Restart Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.30.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.30.json)
 <a id='uc-17-1-31'></a>
 - **UC-17.1.31** — Cisco ISE Certificate Expiry and Trust-Chain Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
 <a id='uc-17-1-33'></a>
 - **UC-17.1.33** — Cisco ISE pxGrid Subscriber Connectivity and Topic Health
@@ -748,7 +748,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.22.0
+catalogue_version: 8.23.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
 ```

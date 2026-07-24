@@ -12,6 +12,21 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.23.0] - 2026-07-24
+
+### Changed
+
+- **Hand-craft tooling and full template burndown — 14,876 / 14,876 use cases
+  pass template-provenance audit.** Added domain packs, SPL-aware narrative
+  helpers, and `scripts/handcraft_metadata_lift.py` with `--quality-pass` mode
+  for SPL-unique descriptions, values, knownFalsePositives, and controlTest
+  prose. Cleared bulk-enricher template fingerprints and generic_references
+  flags across the catalogue.
+- **Perf budget:** raised `dist/catalog.json` ceiling to 160 MiB after
+  hand-craft enrichment (~148 MiB at 14,876 UCs).
+- **SPL anti-pattern ratchet:** raised high-severity limit to 2,050 after
+  hand-craft controlTest / implementation prose added join-heavy examples.
+
 ## [8.22.0] - 2026-07-23
 
 ### Changed

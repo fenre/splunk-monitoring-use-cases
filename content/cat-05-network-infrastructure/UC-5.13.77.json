@@ -8,6 +8,10 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.77 positive (Network, Change, MTTR, Analysis): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `avg_mttr_hrs`, `median_mttr_hrs` grouped by `category`, `category]` satisfies detection threshold for 'Network Change MTTR Analysis'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.77 negative (MTTR Analysis): ingest benign `catalyst` / `cisco:dnac:issue` events where `category`, `category]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Network Change MTTR Analysis'."
+  },
   "dataSources": "Primary: `index=catalyst sourcetype=cisco:dnac:issue`. from the `issue` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/intent/api/v1/issues`. Default poll interval: 900s (15m). Volume: ~1 event per active issue per poll. RBAC: NETWORK-ADMIN-ROLE. Key fields: `priority` (string), `category` (string), `name` (string), `deviceName` (string), `status` (string), `issueId` (string), `siteId` (string), `lastOccurenceTime` (epoch milliseconds). (issue lifecycle for MTTR calculation). Secondary: `index=catalyst sourcetype=cisco:dnac:audit:logs`. from the `audit_logs` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/data/api/v1/event/event-series/audit-log`. Default poll interval: 300s (5m). Volume: Variable; ~10-100 events/day in typical environments. RBAC: SUPER-ADMIN-ROLE. Key fields: `auditUserName` (string), `auditRequestType` (string), `auditDescription` (string), `auditParentId` (string), `createdDateTime` (epoch milliseconds), `isSystemEvent` (boolean). CIM data model: Change. (configuration change context). Correlation: join on `deviceName` and time window to associate configuration changes with issue resolution.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" status=\"RESOLVED\" | eval detect_time=_time | eval resolve_duration_hrs=round((resolved_time-detect_time)/3600,1) | stats avg(resolve_duration_hrs) as avg_mttr_hrs median(resolve_duration_hrs) as median_mttr_hrs p90(resolve_duration_hrs) as p90_mttr_hrs count as resolved_issues by category | join type=left category [search index=catalyst sourcetype=\"cisco:dnac:audit:logs\" auditRequestType=\"CONFIG*\" | stats count as related_changes by category] | eval change_correlation=if(isnotnull(related_changes),\"Changes detected\",\"No changes\") | sort avg_mttr_hrs",
@@ -50,9 +54,5 @@
     "UC-5.13.21",
     "UC-5.13.46"
   ],
-  "wave": "run",
-  "controlTest": {
-    "positiveScenario": "UC-5.13.77 positive (Network, Change, MTTR, Analysis): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `avg_mttr_hrs`, `median_mttr_hrs` grouped by `category`, `category]` satisfies detection threshold for 'Network Change MTTR Analysis'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-5.13.77 negative (MTTR Analysis): ingest benign `catalyst` / `cisco:dnac:issue` events where `category`, `category]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Network Change MTTR Analysis'."
-  }
+  "wave": "run"
 }
