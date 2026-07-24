@@ -9,11 +9,11 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'HTTP Server Throughput Analysis'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-5.9.36).",
-  "evidence": "Saved search uc_5_9_36_http_server_throughput_analysis, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'HTTP Server Throughput Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_http_server_throughput_analysis` (UC-5.9.36), SOC dashboard panel \"Operations — HTTP Server Throughput Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'HTTP Server Throughput Analysis'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-5.9.36.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-5.9.36 SPL filters for 'HTTP Server Throughput Analysis'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-5.9.36."
   },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"http-server\"` from `ta_cisco_thousandeyes` (Splunkbase 7719). OTel v2 metric `http.server.throughput` reports download throughput in **bytes per second** — the rate at which the response body is received.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HTTP Server Throughput Analysis'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `target index` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "cisco"
   ],

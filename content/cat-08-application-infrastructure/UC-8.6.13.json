@@ -8,17 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'HashiCorp Nomad Job and Allocation Status'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-8.6.13).",
-  "evidence": "Saved search uc_8_6_13_hashicorp_nomad_job_and_allocation_statu, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'HashiCorp Nomad Job and Allocation Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_hashicorp_nomad_job_and_allocation_status` (UC-8.6.13), SOC dashboard panel \"Operations — HashiCorp Nomad Job and Allocation Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'HashiCorp Nomad Job and Allocation Status'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-8.6.13.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=nomad` sourcetype='nomad:allocations' that satisfy the UC-8.6.13 SPL filters for 'HashiCorp Nomad Job and Allocation Status'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nomad` / `nomad:allocations` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-8.6.13."
   },
   "dataSources": "Nomad `/v1/jobs`, `/v1/allocations` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (Nomad HTTP API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=nomad sourcetype=\"nomad:allocations\"\n| where ClientStatus==\"failed\" OR (DesiredStatus==\"run\" AND ClientStatus!=\"running\")\n| stats count by JobID, TaskGroup, ClientStatus\n| sort -count",
   "description": "Failed allocations and job deployment health indicate Nomad scheduler and workload availability. Failed allocations mean tasks are not running; deployment failures block rollouts.",
-  "value": "Operations and leadership rely on 'HashiCorp Nomad Job and Allocation Status' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'HashiCorp Nomad Job and Allocation Status' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll Nomad `/v1/jobs` and `/v1/allocations` via scripted input every 5 minutes. Parse JobID, TaskGroup, ClientStatus, DesiredStatus, CreateIndex. Forward to Splunk via HEC. Alert when ClientStatus==failed or allocations are pending/running when desired is stop. Track deployment status (job version, allocation placement). Correlate with node availability.",
   "visualization": "Table (failed allocations by job), Single value (failed allocation count), Status grid (job × allocation status), Timeline (allocation events).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'HashiCorp Nomad Job and Allocation Status'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `nomad` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "hashicorp"
   ],

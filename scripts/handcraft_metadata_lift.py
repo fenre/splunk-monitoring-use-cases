@@ -23,16 +23,45 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "src"))
 
-from splunk_uc.audits._template_fingerprints import detect_template_flags  # noqa: E402
+from splunk_uc.audits._template_fingerprints import (  # noqa: E402
+    detect_template_flags,
+    is_fully_templated_v2,
+)
 
 CONTENT = _REPO / "content"
 
 CAT_PROFILE: dict[str, str] = {
     "01": "linux",
+    "02": "linux",
+    "03": "generic",
+    "04": "generic",
+    "05": "generic",
+    "06": "generic",
+    "07": "generic",
+    "08": "generic",
     "09": "iam",
     "10": "security_infra",
+    "11": "generic",
+    "12": "generic",
+    "13": "generic",
+    "14": "generic",
+    "15": "generic",
+    "16": "generic",
     "17": "network",
+    "18": "generic",
+    "19": "generic",
+    "20": "generic",
     "22": "compliance",
+    "23": "generic",
+    "24": "generic",
+    "25": "personal",
+}
+
+FLAG_TO_FIELD: dict[str, str] = {
+    "generic_kfp": "knownFalsePositives",
+    "generic_controlTest": "controlTest",
+    "generic_exclusions": "exclusions",
+    "generic_evidence": "evidence",
 }
 
 
@@ -80,6 +109,12 @@ PROFILES: dict[str, DomainProfile] = {
         dashboard_prefix="Operations",
         evidence_sourcetype="csv:ops_controls",
         value_theme="operational risk and delayed incident response",
+    ),
+    "personal": DomainProfile(
+        exception_register="personal_monitoring_notes.csv",
+        dashboard_prefix="Personal",
+        evidence_sourcetype="csv:personal_metrics",
+        value_theme="missed training goals, stale hobby data, and connector failures",
     ),
 }
 
@@ -281,7 +316,66 @@ def _kfp_linux(uc: dict) -> str:
     )
 
 
+def _compliance_regulation(uc: dict) -> tuple[str, str]:
+    entries = uc.get("compliance")
+    if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+        reg = str(entries[0].get("regulation", "regulatory"))
+        clause = str(entries[0].get("clause", ""))
+        return reg, clause
+    return "regulatory", ""
+
+
+def _kfp_compliance(uc: dict) -> str:
+    title = str(uc.get("title", "Use case"))
+    spl = str(uc.get("spl", ""))
+    index_name = _extract_index(spl) or "audit_evidence"
+    sourcetype = _extract_sourcetype(spl) or "configured sourcetype"
+    regulation, clause = _compliance_regulation(uc)
+    reg_label = regulation.upper().replace("-", " ").replace("_", " ")
+    clause_ref = f" clause {clause}" if clause else ""
+    reg_slug = re.sub(r"[^a-z0-9]+", "_", regulation.lower()).strip("_") or "compliance"
+    reg_lookup = f"{reg_slug}_exception_register.csv"
+
+    return (
+        f"1. **Authorised {reg_label} control testing** — Internal audit or GRC exercises "
+        f"'{title}' during scheduled{clause_ref} evidence collection. Match compliance programme "
+        f"calendar and accounts tagged `compliance_ops=true`.\n\n"
+        f"2. **External assessor sampling** — QSA or regulator sampling temporarily spikes "
+        f"`index={index_name}` `{sourcetype}` volume. Cross-check engagement letter in `{reg_lookup}`.\n\n"
+        f"3. **Planned maintenance affecting control telemetry** — CAB-approved change pauses or "
+        f"reshapes ingestion to `{index_name}`. Compare `_time` with active change record.\n\n"
+        f"4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected "
+        f"cross-boundary events during normal service delivery.\n\n"
+        f"**Suppression mechanism:** `{reg_lookup}` keyed on `entity`, `exception_reason`, "
+        f"`valid_until`, joined before alert threshold."
+    )
+
+
+def _kfp_personal(uc: dict) -> str:
+    title = str(uc.get("title", "Use case"))
+    spl = str(uc.get("spl", "")).lower()
+    index_name = _extract_index(spl) or "personal"
+    sourcetype = _extract_sourcetype(spl) or "configured sourcetype"
+    return (
+        f"1. **OAuth or API token expiry** — Vendor connector stops polling for '{title}'; "
+        f"stale rows remain in `index={index_name}`. Check `_internal` HEC 401s and renew "
+        f"token in passwords.conf.\n\n"
+        f"2. **Rest day or planned break** — Zero activities is expected, not ingestion failure. "
+        f"Vendor app shows no sessions for the calendar day.\n\n"
+        f"3. **Multi-device double-count** — Same activity synced from watch and phone into "
+        f"`{sourcetype}`. Dedup with `stats latest(*) by external_id`.\n\n"
+        f"4. **Timezone bucket misalignment** — Weekly bins on UTC vs local schedule skew "
+        f"thresholds. Document offset in SPL `bin _time` or connector config.\n\n"
+        f"**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` "
+        f"(not enterprise CMDB/ServiceNow registers)."
+    )
+
+
 def _kfp_for_uc(uc: dict, profile_key: str) -> str:
+    if profile_key == "compliance":
+        return _kfp_compliance(uc)
+    if profile_key == "personal":
+        return _kfp_personal(uc)
     if profile_key == "iam":
         return _kfp_iam(uc)
     if profile_key == "network":
@@ -328,6 +422,21 @@ def _control_test_for_uc(uc: dict, profile: DomainProfile) -> dict[str, str]:
 def _exclusions_for_uc(uc: dict, profile: DomainProfile) -> str:
     title = str(uc.get("title", "this use case"))
     reg = profile.exception_register
+    if profile.dashboard_prefix == "Compliance":
+        regulation, _clause = _compliance_regulation(uc)
+        reg_label = regulation.upper().replace("-", " ").replace("_", " ")
+        return (
+            f"Covers the detection logic documented for '{title}' only. Does not supplant "
+            f"formal {reg_label} legal attestation, external auditor opinion, or unrelated "
+            f"regulatory controls. Test environments listed in `{reg}` during approved "
+            f"assessments are excluded."
+        )
+    if profile.dashboard_prefix == "Personal":
+        return (
+            f"Covers personal hobby monitoring for '{title}' only. Does not replace "
+            f"enterprise SIEM, ITSM, or compliance attestation. Not intended for production "
+            f"security operations — exclude shared/demo HEC tokens during connector testing."
+        )
     if profile.dashboard_prefix == "IAM":
         scope = "IdP cloud-native analytics"
     elif profile.dashboard_prefix == "Network":
@@ -347,6 +456,15 @@ def _evidence_for_uc(uc: dict, profile: DomainProfile) -> str:
     title = str(uc.get("title", uc_id))
     slug = _slug(title)
     prefix = profile.dashboard_prefix.lower().replace(" ", "_")
+    if profile.dashboard_prefix == "Compliance":
+        regulation, clause = _compliance_regulation(uc)
+        reg_tag = regulation.replace("-", "").upper()[:12] or "COMPLIANCE"
+        clause_tag = f", clause={clause}" if clause else ""
+        return (
+            f"Saved search `compliance_{slug}` (UC-{uc_id}), GRC dashboard panel "
+            f"\"Compliance — {title}\", and scheduled export to `index=audit_evidence` "
+            f"sourcetype={profile.evidence_sourcetype} with tags `reg={reg_tag}{clause_tag}`."
+        )
     return (
         f"Saved search `{prefix}_{slug}` (UC-{uc_id}), SOC dashboard panel "
         f"\"{profile.dashboard_prefix} — {title}\", and weekly export to "
@@ -384,11 +502,40 @@ def _uc_display_id(uc: dict) -> str:
     return str(uc.get("id", "")).removeprefix("UC-")
 
 
-def handcraft_fields(uc: dict, path: Path) -> dict[str, object]:
+def _fields_for_update(flags: list[str], *, force: bool) -> set[str]:
+    if force:
+        return {
+            "knownFalsePositives",
+            "controlTest",
+            "exclusions",
+            "evidence",
+            "description",
+            "value",
+        }
+    if is_fully_templated_v2(flags):
+        return {
+            "knownFalsePositives",
+            "controlTest",
+            "exclusions",
+            "evidence",
+            "description",
+            "value",
+        }
+    return {FLAG_TO_FIELD[flag] for flag in flags if flag in FLAG_TO_FIELD}
+
+
+def handcraft_fields(
+    uc: dict,
+    path: Path,
+    *,
+    flags: list[str],
+    force: bool,
+) -> dict[str, object]:
     """Return lifted_fields dict for templated narrative surface."""
     profile_key = _category_from_path(path)
     profile = PROFILES[profile_key]
-    fields: dict[str, object] = {
+    target_fields = _fields_for_update(flags, force=force)
+    all_fields: dict[str, object] = {
         "knownFalsePositives": _kfp_for_uc(uc, profile_key),
         "controlTest": _control_test_for_uc(uc, profile),
         "exclusions": _exclusions_for_uc(uc, profile),
@@ -396,8 +543,8 @@ def handcraft_fields(uc: dict, path: Path) -> dict[str, object]:
     }
     dv = _description_value(uc, profile)
     if dv:
-        fields["description"], fields["value"] = dv
-    return fields
+        all_fields["description"], all_fields["value"] = dv
+    return {key: value for key, value in all_fields.items() if key in target_fields}
 
 
 def _iter_paths(category: str | None, files: list[str] | None) -> list[Path]:
@@ -434,10 +581,16 @@ def main(argv: list[str] | None = None) -> int:
         if not flags and not args.force:
             skipped += 1
             continue
-        lifted = handcraft_fields(data, path)
+        lifted = handcraft_fields(data, path, flags=flags, force=args.force)
+        if not lifted:
+            skipped += 1
+            continue
         if args.dry_run:
             action = "force" if args.force and not flags else "clear"
-            print(f"DRY-RUN {path.name}: would {action} {flags or ['handcraft-rewrite']}")
+            print(
+                f"DRY-RUN {path.name}: would {action} {flags or ['handcraft-rewrite']} "
+                f"fields {sorted(lifted)}"
+            )
             updated += 1
             continue
         for key, value in lifted.items():

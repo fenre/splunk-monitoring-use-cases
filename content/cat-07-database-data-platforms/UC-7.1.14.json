@@ -8,17 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Query Plan Regression'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-7.1.14).",
-  "evidence": "Saved search uc_7_1_14_query_plan_regression, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Query Plan Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_query_plan_regression` (UC-7.1.14), SOC dashboard panel \"Operations — Query Plan Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Query Plan Regression'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-7.1.14.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:query_store' that satisfy the UC-7.1.14 SPL filters for 'Query Plan Regression'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `database` / `dbconnect:query_store` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-7.1.14."
   },
   "dataSources": "SQL Server Query Store, `sys.dm_exec_query_plan`, PostgreSQL `pg_stat_statements`; lookup `query_baselines.csv` with columns `query_id, baseline_avg` (rolling 30-day median rebuilt nightly) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:query_store\"\n| stats avg(avg_duration) as current_avg by query_id, plan_id\n| lookup query_baselines.csv query_id OUTPUT baseline_avg\n| where isnotnull(baseline_avg) AND baseline_avg > 0\n| eval regression_pct=round((current_avg-baseline_avg)/baseline_avg*100,1)\n| where regression_pct > 50",
   "description": "Query plan changes can cause sudden performance degradation. Detection enables rapid intervention (plan forcing, hint application).",
-  "value": "Operations and leadership rely on 'Query Plan Regression' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Query Plan Regression' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable Query Store on SQL Server databases. Poll query performance metrics via DB Connect. Maintain baseline lookup of normal query durations. Alert when queries regress >50% from baseline. Enable automatic plan correction if available.",
   "visualization": "Table (regressed queries), Bar chart (regression % by query), Line chart (query duration trend).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Query Plan Regression'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `database` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "db_connect",
     "mssql",

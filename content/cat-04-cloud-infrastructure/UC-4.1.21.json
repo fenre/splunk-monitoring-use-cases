@@ -8,17 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ALB/NLB Access Logs and 5xx Errors'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-4.1.21).",
-  "evidence": "Saved search uc_4_1_21_alb_nlb_access_logs_and_5xx_errors, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'ALB/NLB Access Logs and 5xx Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_alb_nlb_access_logs_and_5xx_errors` (UC-4.1.21), SOC dashboard panel \"Operations — ALB/NLB Access Logs and 5xx Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'ALB/NLB Access Logs and 5xx Errors'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-4.1.21.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:elb:accesslogs' that satisfy the UC-4.1.21 SPL filters for 'ALB/NLB Access Logs and 5xx Errors'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `aws` / `aws:elb:accesslogs` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-4.1.21."
   },
   "dataSources": "S3 bucket with ALB/NLB access logs, CloudWatch LB metrics Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:elb:accesslogs\" elb_status_code>=500\n| stats count by target_port, elb_status_code, request_url\n| sort -count",
   "description": "Load balancer 5xx and target failures indicate backend or LB misconfiguration. Access logs enable traffic analysis and security forensics.",
-  "value": "Operations and leadership rely on 'ALB/NLB Access Logs and 5xx Errors' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'ALB/NLB Access Logs and 5xx Errors' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable access logging for ALB/NLB to S3. Ingest via Splunk_TA_aws S3 input. Collect CloudWatch metrics (RequestCount, TargetResponseTime, HTTPCode_Target_5XX_Count). Alert on 5xx rate >1%.",
   "visualization": "Table (status, target, count), Line chart (5xx over time), Bar chart by target.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'ALB/NLB Access Logs and 5xx Errors'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `aws` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "aws"
   ],

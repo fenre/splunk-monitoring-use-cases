@@ -9,8 +9,8 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Immutable Backup and Ransomware Recovery Readiness'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-6.3.23).",
-  "evidence": "Saved search uc_6_3_23_immutable_backup_and_ransomware_recovery, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Immutable Backup and Ransomware Recovery Readiness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_immutable_backup_and_ransomware_recovery_readine` (UC-6.3.23), SOC dashboard panel \"Operations — Immutable Backup and Ransomware Recovery Readiness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "asd-e8",
@@ -69,14 +69,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Immutable Backup and Ransomware Recovery Readiness'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-6.3.23.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='backup_immutable' that satisfy the UC-6.3.23 SPL filters for 'Immutable Backup and Ransomware Recovery Readiness'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `backup` / `backup_immutable` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-6.3.23."
   },
   "dataSources": "Backup copy retention lock status, object lock (S3), backup integrity checksum Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Backup vendor API, object lock compliance check — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=backup_immutable\n| stats latest(immutable_ok) as ok, latest(last_checksum_verify) as last_verify by copy_name\n| where ok != 1 OR (now()-last_verify) > 604800\n| table copy_name ok last_verify",
   "description": "Immutable or air-gapped copies are the last line of defense against ransomware. Verifying immutability and recovery procedure readiness ensures backups cannot be deleted or encrypted by an attacker.",
-  "value": "Operations and leadership rely on 'Immutable Backup and Ransomware Recovery Readiness' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Immutable Backup and Ransomware Recovery Readiness' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Poll backup copy configuration for retention lock or immutable flag. Optionally run periodic checksum or catalog validation. Alert when any critical copy is not immutable or when last verification is older than 7 days. Document and test recovery runbook.",
   "visualization": "Status grid (copy, immutable, last verify), Table (non-compliant copies), Single value (ready for recovery %).",
   "cimModels": [
@@ -104,7 +104,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Immutable Backup and Ransomware Recovery Readiness'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `backup` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "splunk"
   ],

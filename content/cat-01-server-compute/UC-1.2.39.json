@@ -8,11 +8,11 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Domain Trust Changes'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-1.2.39).",
-  "evidence": "Saved search uc_1_2_39_domain_trust_changes, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Domain Trust Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_domain_trust_changes` (UC-1.2.39), SOC dashboard panel \"Linux — Domain Trust Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Domain Trust Changes'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-1.2.39.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4706 that satisfy the UC-1.2.39 SPL filters for 'Domain Trust Changes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.2.39."
   },
   "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4706, 4707, 4716) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Patch Tuesday / unattended-upgrades** — CPU and disk I/O spike during package application for 'Domain Trust Changes'. Correlate with apt/yum logs in same window.\n\n2. **Nightly backup or log-rotate job** — Predictable I/O burst on fixed cron schedule.\n\n3. **Synthetic monitoring probe** — Nagios/Zabbix agent generates periodic load.\n\n4. **New host onboarding** — Baseline metrics unstable first 48h on `wineventlog` `WinEventLog:Security`.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],

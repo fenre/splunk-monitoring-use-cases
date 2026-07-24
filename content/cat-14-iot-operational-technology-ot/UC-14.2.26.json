@@ -10,17 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Manufacturing",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Batch Process Deviation Alerting'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-14.2.26).",
-  "evidence": "Saved search uc_14_2_26_batch_process_deviation_alerting, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Batch Process Deviation Alerting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_batch_process_deviation_alerting` (UC-14.2.26), SOC dashboard panel \"Operations — Batch Process Deviation Alerting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Batch Process Deviation Alerting'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-14.2.26.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='batch:phase' that satisfy the UC-14.2.26 SPL filters for 'Batch Process Deviation Alerting'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `batch:phase` events outside the detection threshold, or exclude the test entity via `operational_exceptions.csv` with a valid window. Confirm zero alert rows for UC-14.2.26."
   },
   "dataSources": "`sourcetype=\"batch:phase\"`, `sourcetype=\"historian:sample\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Batch executive (S88), historian — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"batch:phase\" batch_id=*\n| lookup recipe_limits recipe phase OUTPUT min_temp max_temp max_duration_sec\n| where temp_c < min_temp OR temp_c > max_temp OR phase_duration_sec > max_duration_sec\n| stats latest(batch_id) as batch, values(phase) as phases by reactor_id\n| sort -_time",
   "description": "Recipe phase duration, temperature, or agitator speed outside limits risks scrap or unsafe reactions.",
-  "value": "Operations and leadership rely on 'Batch Process Deviation Alerting' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Batch Process Deviation Alerting' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Integrate with quality hold workflow; electronic signatures for parameter overrides.",
   "visualization": "Table (deviations), Control chart (temp), Timeline (phases).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled maintenance** — Planned change generates expected deviations for 'Batch Process Deviation Alerting'. Cross-check change records.\n\n2. **Batch job cycle** — Fixed-schedule workload skews `ot` metrics.\n\n3. **Monitoring synthetic checks** — Health probes from known hosts.\n\n4. **Onboarding burst** — New entities produce atypical volume until baseline stabilizes.\n\n**Suppression mechanism:** `operational_exceptions.csv` with entity, reason, valid_until.",
   "equipment": [
     "splunk"
   ],
